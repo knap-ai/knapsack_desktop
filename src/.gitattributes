@@ -1,9 +1,0 @@
-src-tauri/resources/llm.gguf filter=lfs diff=lfs merge=lfs -text
-src-tauri/binaries/kn_summarize.tar.gz filter=lfs diff=lfs merge=lfs -text
-src-tauri/resources/embedder.gguf filter=lfs diff=lfs merge=lfs -text
-src-tauri/resources/speech_to_text.bin filter=lfs diff=lfs merge=lfs -text
-src-tauri/binaries/ffmpeg/ffmpeg-aarch64-apple-darwin filter=lfs diff=lfs merge=lfs -text
-src-tauri/binaries/qdrant/qdrant-x86_64-pc-windows-msvc.exe filter=lfs diff=lfs merge=lfs -text
-src-tauri/binaries/ffmpeg/ffmpeg-aarch64-pc-windows-msvc.exe filter=lfs diff=lfs merge=lfs -text
-src-tauri/binaries/ffmpeg/ffmpeg-x86_64-pc-windows-msvc.exe filter=lfs diff=lfs merge=lfs -text
-src-tauri/binaries/pdftotext/pdftotext-x86_64-pc-windows-msvc.exe filter=lfs diff=lfs merge=lfs -text
