@@ -1,0 +1,242 @@
+.button {
+  transition: background .3s ease;
+  border: 0;
+  font-size: var(--font-size-sm);
+  line-height: 114%;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+  color: var(--color-black);
+  font-family: var(--font-family);
+
+  &:disabled {
+    cursor: not-allowed;
+
+    &:hover {
+      background-color: initial;
+    }
+  }
+}
+
+.button .iconWrapper svg path {
+  fill: white;
+}
+
+.regular {
+  background-color: var(--button-lightgray);
+  border-radius: 20px;
+
+  &:disabled {
+    &:hover {
+      background-color: var(--button-lightgray);
+    }
+  }
+}
+
+.ghost {
+  border-radius: 20px;
+  background-color: transparent;
+  font-family: var(--font-family);
+
+  &:hover {
+    background-color: var(--button-gray);
+  }
+
+  &:disabled {
+    &:hover {
+      background-color: var(--button-gray);
+    }
+  }
+}
+
+.connected {
+  background-color: #2563eb;
+  color: #fff;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  line-height: 14px;
+  font-weight: 500;
+}
+
+.connect {
+  position: relative;
+  border-radius: 16px;
+  background-color: #93c5fd;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  position: relative;
+  line-height: 14px;
+  font-weight: 500;
+}
+
+.pending {
+  position: relative;
+  border-radius: 16px;
+  border: 1px solid #bfdbfe;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+.selected {
+  position: relative;
+  border-radius: 24px;
+  background-color: #eff6ff;
+  border: 1px solid #dbeafe;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  color: #1e40af;
+}
+
+.runNow {
+  position: relative;
+  border-radius: 40px;
+  background-color: var(--color-blue-600);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 16px;
+  color: #fff;
+}
+
+.grayBorder {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid var(--color-zinc-200);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 24px;
+  color: var(--color-zinc-700);
+}
+
+.pill {
+  padding: 8px 12px;
+  font-size: 14px;
+  .iconWrapper {
+    flex-shrink: 0;
+    overflow: hidden;
+    padding-left: 0px;
+    padding-right: 0px;
+    & > img,
+    & > svg {
+      width: 10px;
+      height: 10px;
+    }
+  }
+}
+
+.badge {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.small {
+  padding: 4px 16px;
+}
+
+.medium {
+  padding: 8px 16px;
+}
+
+.mediumLarge {
+  padding: 12px 14px;
+  text-align: center;
+  font-size: theme('fontSize.body');
+  line-height: 24px;
+}
+
+.large {
+  padding: 20px 40px;
+  font-size: var(--font-size-2xl);
+}
+
+.fullWidth {
+  border-radius: 16px;
+  height: 64px;
+  padding: 20px 40px;
+  font-size: 20px;
+  width: 100%;
+
+  font-size: 20px;
+  font-weight: 590;
+  line-height: 28px; /* 140% */
+  letter-spacing: -0.1px;
+}
+
+.left {
+  flex-direction: row;
+}
+
+.right {
+  flex-direction: row-reverse;
+
+  .loadingWrapper,
+  .iconWrapper {
+    padding-left: 18px;
+    padding-right: 2px;
+  }
+}
+
+.loadingWrapper,
+.iconWrapper {
+  display: flex;
+  padding-left: 0px;
+  padding-right: 0px;
+
+  & > img,
+  & > svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+.border {
+  background-color: #FFFFFF;
+  border-radius: 20px;
+  border-color: #E4E7EC;
+  border-style: solid;
+  border-width: 1px;
+  box-shadow: 0px 4px 6px 0px #00000017;
+
+}
+
+.borderBlue {
+  background-color: transparent;
+  border-radius: 16px;
+  border-color: black;
+  border-style: solid;
+  border: 1px solid var(--blue-600, #2563EB);
+  font-style: normal;
+  color: var(--blue-800, #1E40AF);;
+}
+
+
+.regularBlue {
+  border-radius: 16px;
+  background-color: var(--blue-600, #2563EB);
+  color: var(--white, var(--Grays-White, #FFF));
+}

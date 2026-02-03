@@ -1,0 +1,1869 @@
+.ClawdChatRoot {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  padding: 20px 24px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+// Flex row that holds the main chat area and any side panel
+.ClawdChatContent {
+  display: flex;
+  flex: 1;
+  min-height: 0; // allow flex children to scroll
+  gap: 0;
+  overflow: hidden;
+}
+
+// Main chat area (body + input) — shrinks when panel is open
+.ClawdChatMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+
+  &.drag-over {
+    outline: 2px dashed rgba(52, 152, 219, 0.5);
+    outline-offset: -4px;
+    border-radius: 8px;
+  }
+}
+
+.ClawdDropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(52, 152, 219, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ClawdDropOverlayContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #2980b9;
+  font-size: 15px;
+  font-weight: 600;
+
+  .ClawdDropIcon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(52, 152, 219, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 300;
+  }
+}
+
+.ClawdChatHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ClawdChatTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ClawdChatLogo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.ClawdChatTitleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ClawdChatTitle {
+  font-weight: 700;
+  font-size: 15px;
+  color: #1a1a1a;
+  line-height: 1.2;
+}
+
+.ClawdChatStatus {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+  line-height: 1.2;
+}
+
+.ClawdChatActions {
+  display: flex;
+  gap: 8px;
+}
+
+.ClawdChatActions button {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: #f5f5f5;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &.toggle-on {
+    background: rgba(46, 125, 50, 0.12);
+    border-color: rgba(46, 125, 50, 0.3);
+    color: #2e7d32;
+    font-weight: 500;
+
+    &:hover:not(:disabled) {
+      background: rgba(46, 125, 50, 0.2);
+      border-color: rgba(46, 125, 50, 0.4);
+    }
+  }
+
+  &.toggle-off {
+    background: rgba(158, 158, 158, 0.1);
+    border-color: rgba(0, 0, 0, 0.15);
+    color: #666;
+
+    &:hover:not(:disabled) {
+      background: rgba(158, 158, 158, 0.2);
+      border-color: rgba(0, 0, 0, 0.2);
+    }
+  }
+
+  &.toggle-autonomy-on {
+    background: rgba(197, 72, 65, 0.12);
+    border-color: rgba(197, 72, 65, 0.3);
+    color: #c54841;
+    font-weight: 500;
+
+    &:hover:not(:disabled) {
+      background: rgba(197, 72, 65, 0.2);
+      border-color: rgba(197, 72, 65, 0.4);
+    }
+  }
+
+  &.toggle-autonomy-off {
+    background: rgba(100, 149, 237, 0.1);
+    border-color: rgba(100, 149, 237, 0.25);
+    color: #3b5998;
+    font-weight: 500;
+
+    &:hover:not(:disabled) {
+      background: rgba(100, 149, 237, 0.18);
+      border-color: rgba(100, 149, 237, 0.4);
+    }
+  }
+}
+
+.ClawdChatBody {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 16px 0;
+}
+
+.ClawdMsg {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.ClawdMsg-user {
+  justify-content: flex-end;
+}
+
+.ClawdMsg-assistant {
+  justify-content: flex-start;
+}
+
+.ClawdMsg-clickable {
+  cursor: pointer;
+
+  .ClawdBubble {
+    border-color: rgba(197, 72, 65, 0.3);
+    background: rgba(197, 72, 65, 0.05);
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: rgba(197, 72, 65, 0.12);
+      border-color: rgba(197, 72, 65, 0.4);
+    }
+  }
+}
+
+.ClawdMsg-thinking {
+  .ClawdBubble {
+    background: rgba(100, 100, 200, 0.08);
+    border-color: rgba(100, 100, 200, 0.2);
+    font-style: italic;
+    color: #666;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.ClawdBubble {
+  max-width: 720px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.95);
+
+  // Markdown styling
+  p {
+    margin: 0 0 0.75em 0;
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    margin: 0.5em 0 0.4em 0;
+    font-weight: 600;
+    line-height: 1.3;
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+  h1 { font-size: 1.3em; }
+  h2 { font-size: 1.2em; }
+  h3 { font-size: 1.1em; }
+  h4, h5, h6 { font-size: 1em; }
+
+  ul, ol {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  li {
+    margin: 0.25em 0;
+  }
+
+  code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.9em;
+  }
+
+  pre {
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 6px;
+    padding: 0.75em 1em;
+    overflow-x: auto;
+    margin: 0.5em 0;
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    code {
+      background: none;
+      padding: 0;
+      font-size: 0.85em;
+    }
+  }
+
+  blockquote {
+    margin: 0.5em 0;
+    padding-left: 1em;
+    border-left: 3px solid rgba(0, 0, 0, 0.15);
+    color: #555;
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  a {
+    color: #c54841;
+    text-decoration: none;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  // Numbered clickable prompt action buttons
+  .ClawdPromptActions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .ClawdPromptAction {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(197, 72, 65, 0.06);
+    border: 1px solid rgba(197, 72, 65, 0.15);
+    color: #c54841;
+    font-weight: 500;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+
+    &:hover {
+      background: rgba(197, 72, 65, 0.14);
+      border-color: rgba(197, 72, 65, 0.35);
+    }
+
+    &:active {
+      background: rgba(197, 72, 65, 0.22);
+    }
+
+    .ClawdPromptActionNum {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(197, 72, 65, 0.15);
+      color: #c54841;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  em {
+    font-style: italic;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin: 0.75em 0;
+  }
+
+  table {
+    border-collapse: collapse;
+    margin: 0.5em 0;
+    font-size: 0.9em;
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  th, td {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    padding: 0.4em 0.6em;
+    text-align: left;
+  }
+
+  th {
+    background: rgba(0, 0, 0, 0.04);
+    font-weight: 600;
+  }
+
+  // Task list checkboxes
+  input[type="checkbox"] {
+    margin-right: 0.4em;
+  }
+}
+
+.ClawdMsg-user .ClawdBubble {
+  background: rgba(197, 72, 65, 0.12);
+  border-color: rgba(197, 72, 65, 0.25);
+}
+
+.ClawdChatInput {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+// Voice input button
+.ClawdVoiceBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover:not(:disabled) {
+    background: #f5f5f5;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &.recording {
+    background: rgba(220, 53, 69, 0.15);
+    border-color: rgba(220, 53, 69, 0.4);
+    animation: pulse-red 1s ease-in-out infinite;
+  }
+
+  &.transcribing {
+    background: rgba(100, 100, 200, 0.1);
+    border-color: rgba(100, 100, 200, 0.3);
+  }
+}
+
+@keyframes pulse-red {
+  0%, 100% {
+    background: rgba(220, 53, 69, 0.15);
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4);
+  }
+  50% {
+    background: rgba(220, 53, 69, 0.25);
+    box-shadow: 0 0 0 4px rgba(220, 53, 69, 0);
+  }
+}
+
+// Voice output toggle in header
+.ClawdChatActions button.voice-enabled {
+  background: rgba(197, 72, 65, 0.15);
+  border-color: rgba(197, 72, 65, 0.3);
+}
+
+// Input wrapper for voice toggle inside input
+.ClawdInputWrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  input {
+    width: 100%;
+    padding: 12px 44px 12px 14px; // Extra right padding for voice button
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    font-size: 14px;
+    transition: border-color 0.15s ease;
+
+    &:focus {
+      outline: none;
+      border-color: rgba(197, 72, 65, 0.5);
+    }
+
+    &:disabled {
+      background: #f5f5f5;
+      opacity: 0.7;
+    }
+  }
+
+  .ClawdVoiceToggle {
+    position: absolute;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    padding: 0;
+
+    &:hover:not(:disabled) {
+      background: rgba(197, 72, 65, 0.1);
+      color: #c54841;
+    }
+
+    &.active {
+      color: #c54841;
+      background: rgba(197, 72, 65, 0.1);
+    }
+
+    &.recording {
+      animation: pulse-red 1.5s ease-in-out infinite;
+      color: #dc3545;
+    }
+
+    &.transcribing {
+      opacity: 0.6;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.ClawdChatInput textarea {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+  resize: none;
+  overflow-y: auto;
+  max-height: 160px;
+  line-height: 1.4;
+  min-height: 42px;
+
+  &:focus {
+    outline: none;
+    border-color: rgba(197, 72, 65, 0.5);
+  }
+
+  &:disabled {
+    background: #f5f5f5;
+    opacity: 0.7;
+  }
+}
+
+.ClawdChatInput button {
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(197, 72, 65, 0.3);
+  background: rgba(197, 72, 65, 0.1);
+  color: #c54841;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(197, 72, 65, 0.2);
+    border-color: rgba(197, 72, 65, 0.4);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// Stop generation button
+.ClawdStopBtn {
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(220, 53, 69, 0.4);
+  background: rgba(220, 53, 69, 0.15);
+  color: #dc3545;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  animation: pulse-stop 2s ease-in-out infinite;
+
+  &:hover {
+    background: rgba(220, 53, 69, 0.25);
+    border-color: rgba(220, 53, 69, 0.5);
+  }
+}
+
+@keyframes pulse-stop {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(220, 53, 69, 0);
+  }
+}
+
+// API Key Prompt Overlay
+.ClawdKeyPrompt {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: inherit;
+}
+
+.ClawdKeyPromptContent {
+  background: white;
+  padding: 28px 32px;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  p {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #555;
+  }
+
+  input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    font-size: 14px;
+    font-family: monospace;
+    margin-bottom: 16px;
+
+    &:focus {
+      outline: none;
+      border-color: rgba(197, 72, 65, 0.5);
+    }
+  }
+}
+
+.ClawdKeyPromptActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+
+  button {
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:first-child {
+      background: white;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      color: #555;
+
+      &:hover:not(:disabled) {
+        background: #f5f5f5;
+      }
+    }
+
+    &:last-child {
+      background: #c54841;
+      border: 1px solid #c54841;
+      color: white;
+
+      &:hover:not(:disabled) {
+        background: #a33d37;
+        border-color: #a33d37;
+      }
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.ClawdKeyPromptLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+  margin-top: 16px;
+
+  &:first-of-type {
+    margin-top: 0;
+  }
+}
+
+.ClawdModelSelector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.ClawdModelOption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(197, 72, 65, 0.3);
+    background: rgba(197, 72, 65, 0.03);
+  }
+
+  &.selected {
+    border-color: #c54841;
+    background: rgba(197, 72, 65, 0.08);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.ClawdModelName {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+}
+
+.ClawdModelDesc {
+  font-size: 12px;
+  color: #666;
+}
+
+.ClawdKeyPromptHelp {
+  margin-top: 12px !important;
+  font-size: 12px !important;
+  color: #888 !important;
+
+  a {
+    color: #c54841;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.ClawdKeyPromptNote {
+  margin: 8px 0 16px 0 !important;
+  font-size: 13px !important;
+  color: #666 !important;
+  padding: 10px 14px;
+  background: rgba(197, 72, 65, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(197, 72, 65, 0.1);
+}
+
+.ClawdProviderTabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ClawdProviderTab {
+  flex: 1;
+  padding: 10px 8px;
+  border: none;
+  background: white;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+
+  &:last-child {
+    border-right: none;
+  }
+
+  &:hover:not(:disabled):not(.active) {
+    background: #f5f5f5;
+    color: #333;
+  }
+
+  &.active {
+    background: #c54841;
+    color: white;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// Tone Selector Overlay
+.ClawdToneSelector {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: inherit;
+}
+
+.ClawdToneSelectorContent {
+  background: white;
+  padding: 28px 32px;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  > p {
+    margin: 0 0 20px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #555;
+  }
+}
+
+.ClawdToneOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.ClawdToneOption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+
+  &:hover {
+    border-color: rgba(197, 72, 65, 0.3);
+    background: rgba(197, 72, 65, 0.03);
+  }
+
+  &.selected {
+    border-color: #c54841;
+    background: rgba(197, 72, 65, 0.08);
+  }
+}
+
+.ClawdToneName {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.ClawdToneDesc {
+  font-size: 13px;
+  color: #666;
+}
+
+.ClawdToneCancel {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: white;
+  color: #555;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #f5f5f5;
+  }
+}
+
+// Channel Selector Overlay
+.ClawdChannelSelector {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: inherit;
+}
+
+.ClawdChannelSelectorContent {
+  background: white;
+  padding: 28px 32px;
+  border-radius: 16px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  > p {
+    margin: 0 0 20px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #555;
+  }
+}
+
+.ClawdChannelOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.ClawdChannelOption {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border-radius: 12px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  background: white;
+  transition: all 0.15s ease;
+
+  &.enabled {
+    border-color: rgba(197, 72, 65, 0.3);
+    background: rgba(197, 72, 65, 0.03);
+  }
+}
+
+.ClawdChannelHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ClawdChannelIcon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+.ClawdChannelInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ClawdChannelName {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1a1a1a;
+}
+
+.ClawdChannelDesc {
+  font-size: 12px;
+  color: #666;
+}
+
+// Toggle switch
+.ClawdChannelToggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+
+  input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+}
+
+.ClawdChannelSlider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 24px;
+
+  &:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+  }
+}
+
+.ClawdChannelToggle input:checked + .ClawdChannelSlider {
+  background-color: #c54841;
+}
+
+.ClawdChannelToggle input:checked + .ClawdChannelSlider:before {
+  transform: translateX(20px);
+}
+
+.ClawdChannelToggle input:disabled + .ClawdChannelSlider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ClawdChannelSetup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ClawdChannelSetupHint {
+  flex: 1;
+  font-size: 12px;
+  color: #888;
+}
+
+.ClawdChannelSetupBtn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(197, 72, 65, 0.3);
+  background: rgba(197, 72, 65, 0.1);
+  color: #c54841;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(197, 72, 65, 0.2);
+    border-color: rgba(197, 72, 65, 0.4);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.ClawdChannelStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #2e7d32;
+}
+
+.ClawdChannelStatusIcon {
+  font-size: 14px;
+}
+
+.ClawdChannelCancel {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: white;
+  color: #555;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #f5f5f5;
+  }
+}
+
+// Gateway service warning
+.ClawdChannelServiceWarning {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: rgba(255, 193, 7, 0.12);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.ClawdChannelWarningIcon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.ClawdChannelWarningText {
+  flex: 1;
+
+  strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #856404;
+    margin-bottom: 6px;
+  }
+
+  p {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #665;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.ClawdChannelWarningNote {
+  font-size: 12px !important;
+  color: #888 !important;
+  font-style: italic;
+}
+
+// Disabled channel state
+.ClawdChannelOption.disabled {
+  opacity: 0.7;
+
+  .ClawdChannelIcon {
+    filter: grayscale(1);
+  }
+}
+
+.ClawdChannelUnavailable {
+  display: block;
+  font-size: 11px;
+  color: #b71c1c;
+  margin-top: 2px;
+}
+
+// In-app voice section
+.ClawdChannelInAppVoice {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(100, 200, 100, 0.08);
+  border: 1px solid rgba(100, 200, 100, 0.2);
+
+  h4 {
+    margin: 0 0 8px 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #2e7d32;
+  }
+
+  > p {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #555;
+  }
+}
+
+.ClawdVoiceToggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.ClawdVoiceHint {
+  margin-top: 10px !important;
+  margin-bottom: 0 !important;
+  font-size: 12px !important;
+  color: #888 !important;
+  font-style: italic;
+}
+
+// Start Gateway button
+.ClawdStartGatewayBtn {
+  display: block;
+  width: 100%;
+  margin: 12px 0;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(197, 72, 65, 0.3);
+  background: rgba(197, 72, 65, 0.1);
+  color: #c54841;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(197, 72, 65, 0.2);
+    border-color: rgba(197, 72, 65, 0.4);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+// File attachments
+.ClawdAttachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ClawdAttachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ClawdAttachmentPreview {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.ClawdAttachmentIcon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+}
+
+.ClawdAttachmentName {
+  font-size: 12px;
+  color: #333;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ClawdAttachmentRemove {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+  }
+}
+
+// File button
+.ClawdFileBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover:not(:disabled) {
+    background: #f5f5f5;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// Audio device selectors
+.ClawdAudioDevices {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(100, 200, 100, 0.2);
+}
+
+.ClawdAudioDeviceRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  label {
+    font-size: 13px;
+    color: #555;
+    min-width: 70px;
+    white-space: nowrap;
+  }
+
+  select {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    background: white;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+
+    &:hover {
+      border-color: rgba(0, 0, 0, 0.25);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #2e7d32;
+    }
+  }
+}
+
+// Advanced mode toggle
+.ClawdChatActions button.toggle-advanced-on {
+  background: rgba(230, 126, 34, 0.15);
+  border-color: rgba(230, 126, 34, 0.35);
+  color: #d35400;
+  font-weight: 500;
+
+  &:hover:not(:disabled) {
+    background: rgba(230, 126, 34, 0.25);
+    border-color: rgba(230, 126, 34, 0.5);
+  }
+}
+
+.ClawdChatActions button.toggle-advanced-off {
+  background: rgba(158, 158, 158, 0.08);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #888;
+
+  &:hover:not(:disabled) {
+    background: rgba(158, 158, 158, 0.15);
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+}
+
+// Advanced Mode Warning Dialog
+.ClawdAdvancedWarning {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: inherit;
+}
+
+.ClawdAdvancedWarningContent {
+  background: white;
+  padding: 28px 32px;
+  border-radius: 16px;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  p {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #555;
+  }
+
+  ul {
+    margin: 0 0 12px 0;
+    padding-left: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #555;
+  }
+}
+
+.ClawdAdvancedSafety {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: rgba(46, 125, 50, 0.06);
+  border: 1px solid rgba(46, 125, 50, 0.15);
+  font-size: 13px !important;
+  color: #2e7d32 !important;
+}
+
+.ClawdAdvancedWarningActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+
+  button {
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:first-child {
+      background: white;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      color: #555;
+
+      &:hover { background: #f5f5f5; }
+    }
+
+    &:last-child {
+      background: #e67e22;
+      border: 1px solid #d35400;
+      color: white;
+
+      &:hover { background: #d35400; }
+    }
+  }
+}
+
+// Skills Panel — flex sibling of main content, pushes chat left
+.ClawdSkillsPanel {
+  width: 340px;
+  flex-shrink: 0;
+  background: white;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ClawdSkillsPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 16px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+
+  h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  button {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: white;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover { background: #f5f5f5; }
+  }
+}
+
+.ClawdSkillsSummary {
+  padding: 12px 20px;
+  font-size: 13px;
+  color: #666;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ClawdSkillsList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 20px;
+}
+
+.ClawdSkillsGroup {
+  margin-bottom: 20px;
+
+  h4 {
+    margin: 0 0 10px 0;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #999;
+  }
+}
+
+.ClawdSkillCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 8px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.02);
+  }
+}
+
+.ClawdSkillEmoji {
+  font-size: 22px;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.ClawdSkillInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.ClawdSkillName {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+}
+
+.ClawdSkillDesc {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ClawdSkillSource {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #888;
+  margin-top: 4px;
+}
+
+.ClawdSkillActions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.ClawdSkillStatus {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 6px;
+
+  &.ready { background: #4caf50; }
+  &.needs-setup { background: #ff9800; }
+  &.disabled { background: #bbb; }
+}
+
+.ClawdSkillInstallBtn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(230, 126, 34, 0.3);
+  background: rgba(230, 126, 34, 0.1);
+  color: #d35400;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(230, 126, 34, 0.2);
+    border-color: rgba(230, 126, 34, 0.45);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.ClawdSkillToggleBtn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: white;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: #f5f5f5;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.ClawdSkillsFooter {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+
+  a {
+    color: #c54841;
+    text-decoration: none;
+
+    &:hover { text-decoration: underline; }
+  }
+}
+
+.ClawdSkillsLoading {
+  padding: 40px 20px;
+  text-align: center;
+  color: #888;
+  font-size: 14px;
+}
+
+.ClawdSkillsError {
+  padding: 20px;
+  color: #c54841;
+  font-size: 13px;
+  text-align: center;
+}
+
+// Skill suggestion chips in welcome area
+.ClawdSkillChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.ClawdSkillChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(197, 72, 65, 0.2);
+  background: rgba(197, 72, 65, 0.04);
+  color: #c54841;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba(197, 72, 65, 0.12);
+    border-color: rgba(197, 72, 65, 0.35);
+  }
+
+  &:active {
+    background: rgba(197, 72, 65, 0.2);
+  }
+}
+
+.ClawdSkillChipEmoji {
+  font-size: 15px;
+}
+
+// Activity Monitor Panel — flex sibling of main content, pushes chat left
+.ClawdActivityPanel {
+  width: 340px;
+  flex-shrink: 0;
+  background: white;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ClawdActivityHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+
+  h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  button {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: transparent;
+    color: #888;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover { background: rgba(0, 0, 0, 0.04); color: #333; }
+  }
+}
+
+.ClawdActivityLog {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 3px; }
+  &::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.2); }
+}
+
+.ClawdActivityLine {
+  padding: 3px 14px;
+  word-break: break-all;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  color: #333;
+
+  &.activity-command {
+    color: #c0600a;
+    background: rgba(230, 126, 34, 0.06);
+  }
+
+  &.activity-tool {
+    color: #2471a3;
+  }
+
+  &.activity-success {
+    color: #1e8449;
+  }
+
+  &.activity-error {
+    color: #c0392b;
+    background: rgba(231, 76, 60, 0.06);
+  }
+
+  &.activity-info {
+    color: #777;
+  }
+}
+
+.ClawdActivityEmpty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+  font-style: italic;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+// Old autonomy toggle styles removed - now inline in ClawdChatActions

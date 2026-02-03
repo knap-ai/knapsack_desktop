@@ -1,0 +1,26 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "arrowParens": "avoid",
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "plugins": [
+    "@ianvs/prettier-plugin-sort-imports"
+  ],
+  "importOrder": [
+    "^react$",
+    "",
+    "<THIRD_PARTY_MODULES>",
+    "",
+    "components/*",
+    "",
+    "app/*|config/*|interfaces/*|stories/*",
+    "",
+    "^(?!.*[.]css$)[./].*$",
+    ".css$",
+    "^[./]"
+  ],
+  "importOrderTypeScriptVersion": "5.4.5",
+  "tabWidth": 2,
+  "printWidth": 100
+}

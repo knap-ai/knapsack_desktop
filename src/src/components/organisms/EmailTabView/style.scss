@@ -1,0 +1,39 @@
+.EmailTabView {
+  display: flex;
+  flex-direction: column;
+  background: var(--ks-bg-main);
+
+  &__header {
+    padding: 24px 32px 16px;
+    border-bottom: 1px solid var(--ks-warm-grey-200);
+  }
+
+  &__title {
+    font-family: 'Lora', serif;
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--ks-warm-grey-950);
+    margin: 0 0 4px;
+  }
+
+  &__subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--ks-warm-grey-600);
+    margin: 0;
+  }
+
+  &__content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding-top: 16px;
+  }
+
+  &__emails {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 16px;
+  }
+}

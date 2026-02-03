@@ -1,0 +1,12 @@
+/* TipTap Editor Styles */
+.ProseMirror {
+  color: black !important;
+}
+
+.ProseMirror p {
+  color: black !important;
+}
+
+.ProseMirror * {
+  color: black !important;
+}

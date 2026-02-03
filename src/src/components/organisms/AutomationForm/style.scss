@@ -1,0 +1,29 @@
+.DataCard {
+  background-color: #fff;
+  border: 2px;
+  border-style: solid;
+  border-color: #e5e5e5;
+  &:hover {
+    background-color: #b5d5f540;
+    border-color: #95b5f5;
+  }
+}
+  
+.DataCardSelected {
+  background-color: #b5d5f540;
+  border-color: #95b5f5;
+  border: 2px;
+  border-style: solid;
+}
+  
+.step-1 {
+  border-width: 0px 2px 0px 0px;
+  border-style: solid;
+  border-color: #c5c5d5;
+}
+  
+.step-3 {
+  border-width: 2px 0px 0px 0px;
+  border-style: solid;
+  border-color: #c5c5d5;
+}

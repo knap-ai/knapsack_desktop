@@ -1,0 +1,8 @@
+.link {
+  color: var(--color-blue-600);
+  transition: color 0.5s ease;
+
+  &:hover {
+    color: color-mix(in srgb,var(--color-blue-600),black 30%);
+  }
+}

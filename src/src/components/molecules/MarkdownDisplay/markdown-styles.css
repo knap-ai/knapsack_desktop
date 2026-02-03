@@ -1,0 +1,75 @@
+/* Additional markdown styles */
+.markdown-content {
+  font-size: 1rem;
+  line-height: 1.45;
+  color: #333;
+}
+
+/* Checkbox styling */
+.markdown-content input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  background-color: white;
+}
+
+.markdown-content input[type="checkbox"]:checked {
+  background-color: #4a90e2;
+  border-color: #4a90e2;
+}
+
+.markdown-content input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Code block syntax highlighting base styles */
+.markdown-content pre {
+  background-color: #f6f8fa;
+  border-radius: 6px;
+}
+
+/* Table styles for better mobile responsiveness */
+.markdown-content table {
+  width: 100%;
+  table-layout: auto;
+}
+
+@media (max-width: 640px) {
+  .markdown-content table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* List item spacing */
+.markdown-content ul ul,
+.markdown-content ol ol,
+.markdown-content ul ol,
+.markdown-content ol ul {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.markdown-content li > p {
+  margin-top: 0;
+}
+
+/* Blockquote styling */
+.markdown-content blockquote {
+  font-style: italic;
+}
+

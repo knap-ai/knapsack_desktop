@@ -1,0 +1,12 @@
+@import 'src/main.css';
+.translate-x-full {
+  transform: translateX(100%);
+}
+
+.-translate-x-full {
+  transform: translateX(-100%);
+}
+
+.translate-x-0 {
+  transform: translateX(0);
+}

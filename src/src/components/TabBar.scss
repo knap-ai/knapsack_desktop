@@ -1,0 +1,43 @@
+@import "../main.css";
+
+.TabBarContainer {
+}
+
+.SelectedTabItem {
+  border: 2px; 
+  &.InnerTabItem {
+    background-color: #95b5f5;
+    border-color: transparent;
+  }
+
+  &.OuterTabItem {
+    background-color: #ffffff;
+    border-style: solid;
+    border-color: #85c5f5;
+  }
+
+  &.TabName {
+    border: 0px; 
+    background-color: #ffffff00;
+  }
+}
+
+.TabItem {
+  background-color: #ffffff00;
+  border: 2px; 
+  border-style: solid;
+  border-color: transparent;
+  &.InnerTabItem {
+    background-color: #e5e7eb;
+    &:hover {
+      background-color: #cacafa;
+      border-color: #85c5f5;
+    }
+  }
+
+  &.TabName {
+    border: 0px; 
+    background-color: #ffffff00;
+  }
+}
+

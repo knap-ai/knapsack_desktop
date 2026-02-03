@@ -1,0 +1,176 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "npm run dev",
+    "devPath": "http://localhost:1420"
+  },
+  "package": {
+    "productName": "Knapsack",
+    "version": "0.9.46"
+  },
+  "tauri": {
+    "allowlist": {
+      "globalShortcut": {
+        "all": true
+      },
+      "fs": {
+        "all": true,
+        "readFile": true,
+        "writeFile": true,
+        "readDir": true,
+        "copyFile": true,
+        "createDir": true,
+        "removeDir": true,
+        "removeFile": true,
+        "renameFile": true,
+        "exists": true,
+        "scope": [
+          "$APP/**",
+          "$APPCACHE/**",
+          "$APPCONFIG/**",
+          "$APPDATA/**",
+          "$APPLOCALDATA/**",
+          "$APPLOG/**",
+          "$CACHE/**",
+          "$CONFIG/**",
+          "$DATA/**",
+          "$DESKTOP/**",
+          "$DOCUMENT/**",
+          "$DOWNLOAD/**",
+          "$HOME/.knapsack/**",
+          "$HOME/.knapsack/*",
+          "$HOME/.yal/**",
+          "$HOME/.clawdbot/**",
+          "$LOG/**",
+          "$PICTURE/**",
+          "$PUBLIC/**",
+          "$RESOURCE/**",
+          "$RESOURCE/*",
+          "$RUNTIME/**",
+          "$TEMP/**",
+          "$TEMPLATE/**",
+          "$VIDEO/**"
+        ]
+      },
+      "http": {
+        "all": true,
+        "scope": [
+          "http://localhost/**",
+          "http://127.0.0.1/**",
+          "https://knap.ai/**",
+          "https://api.openai.com/**",
+          "https://gmail.googleapis.com/**",
+          "https://www.googleapis.com/**",
+          "https://accounts.google.com/**",
+          "https://login.microsoftonline.com/**",
+          "https://data.amplitude.com/**"
+        ]
+      },
+      "notification": {
+        "all": true
+      },
+      "os": {
+        "all": true
+      },
+      "path": { "all": true },
+      "protocol": {
+        "asset": true,
+        "all": true,
+        "assetScope": ["**"]
+      },
+      "shell": {
+        "all": false,
+        "execute": false,
+        "sidecar": true,
+        "open": true,
+        "scope": [
+          {
+            "name": "ulimit",
+            "cmd": "ulimit -n 65536"
+          }
+        ]
+      },
+      "window": {
+        "all": true,
+        "maximize": true,
+        "minimize": true,
+        "unmaximize": true,
+        "unminimize": true,
+        "startDragging": true,
+        "setFullscreen": true,
+        "setResizable": true,
+        "setSize": true,
+        "center": true,
+        "show": true,
+        "hide": true,
+        "close": true
+      },
+      "dialog": {
+        "all": true,
+        "ask": true,
+        "confirm": true,
+        "message": true,
+        "open": true,
+        "save": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "category": "Productivity",
+      "copyright": "",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [
+      ],
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "identifier": "ai.knap.knapsack",
+      "longDescription": "",
+      "macOS": {
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null,
+        "entitlements": "tauri.entitlements"
+      },
+      "publisher": "Knap",
+      "resources": [
+        "resources/signin_success.html",
+        "resources/signin_error.html",
+        "resources/node/*",
+        "resources/clawdbot/**/*"
+      ],
+      "shortDescription": "",
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": "89E7C3D69DD67DE96447AA615400B32F8CAE1381",
+        "digestAlgorithm": "sha256",
+        "timestampUrl": "http://timestamp.comodoca.com"
+      }
+    },
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.cdnfonts.com https://www.nerdfonts.com; font-src 'self' https://fonts.cdnfonts.com https://www.nerdfonts.com data:; img-src 'self' asset: https: data: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://knap.ai https://api.openai.com https://gmail.googleapis.com https://www.googleapis.com https://accounts.google.com https://login.microsoftonline.com https://data.amplitude.com https://*.loom.com; media-src 'self' blob: data:; frame-src 'self' https://*.loom.com; worker-src 'self' blob:"
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://knap.ai/knapsack_updates/updater.json"
+      ],
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMyMDY2QjhCQzRFOUJBNjgKUldSb3V1bkVpMnNHTXA1c1N1WHhCS0VqMXhtWmpTYWFWNGdRMTFVYXQ2N3NGZWVtN0RNTUJrSW8K"
+    },
+    "systemTray": {
+      "iconPath": "icons/icon.ico",
+      "iconAsTemplate": true
+    },
+    "macOSPrivateApi": true,
+    "windows": []
+  }
+}
