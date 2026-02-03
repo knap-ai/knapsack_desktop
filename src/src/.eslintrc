@@ -1,0 +1,113 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "jest": true
+  },
+  "plugins": [
+    "@typescript-eslint",
+    "prettier",
+    "react-hooks"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react-hooks/recommended",
+    "plugin:prettier/recommended"
+  ],
+  "ignorePatterns": [
+    "tailwind.config.js",
+    "postcss.config.js",
+    "vite.config.ts",
+  ],
+  "rules": {
+    "no-console": "warn",
+    "no-return-await": "error",
+    "no-empty-function": "warn",
+    "@typescript-eslint/no-unused-vars": "error",
+    "@typescript-eslint/array-type": "error",
+    "@typescript-eslint/no-explicit-any": [
+      "error",
+      {
+        "ignoreRestArgs": true
+      }
+    ],
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/typedef": [
+      "error",
+      {
+        "memberVariableDeclaration": true,
+        "propertyDeclaration": true
+      }
+    ],
+    "@typescript-eslint/consistent-indexed-object-style": [
+      "error",
+      "record"
+    ],
+    "@typescript-eslint/naming-convention": [
+      "error",
+      {
+        "selector": "variable",
+        "format": [
+          "camelCase",
+          "PascalCase"
+        ],
+        "types": [
+          "function"
+        ]
+      },
+      {
+        "selector": "variable",
+        "format": [
+          "camelCase",
+          "UPPER_CASE"
+        ],
+        "types": [
+          "string",
+          "number",
+          "boolean",
+          "array"
+        ]
+      },
+      {
+        "selector": "function",
+        "format": [
+          "camelCase",
+          "PascalCase"
+        ]
+      },
+      {
+        "selector": [
+          "typeLike"
+        ],
+        "format": [
+          "PascalCase"
+        ]
+      },
+      {
+        "selector": "interface",
+        "format": [
+          "PascalCase"
+        ]
+      }
+    ],
+    "testing-library/prefer-screen-queries": "off",
+    "@typescript-eslint/no-non-null-assertion": "warn"
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/*.stories.*"
+      ],
+      "rules": {
+        "import/no-anonymous-default-export": "off"
+      }
+    }
+  ]
+}

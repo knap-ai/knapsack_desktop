@@ -1,0 +1,42 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+!src-tauri/resources/clawdbot/node_modules/
+dist
+!src-tauri/resources/clawdbot/dist/
+dist-ssr
+*.local
+config
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.cursor/
+
+# env files
+.env
+.env.*
+.env_*
+
+# qdrant
+storage/
+src-tauri/.qdrant-initialized
+src-tauri/storage/*
+src-tauri/snapshots/*
+
+# Sentry Config File
+.env.sentry-build-plugin

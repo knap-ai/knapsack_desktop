@@ -1,0 +1,45 @@
+@import "../main.css";
+
+.LeftBumper {
+  margin: auto;
+  height: 100%;
+}
+
+.RightBumper {
+  margin: auto;
+  height: 100%;
+}
+
+.FeedMessageList {
+  width: 45rem;
+}
+
+.LongText {
+  word-wrap: break-word;
+}
+
+.AutomationOutputBox {
+  background-color: #f8f8f5;
+  border-radius: 5px;
+  border: 1px solid;
+  border-color: #d5d0d0;
+  cursor: pointer;
+  box-shadow: 0 0 20px 10px rgba(180, 170, 160, 0.08);
+}
+
+.AutomationOutputBoxHover {
+  background-color: #f2efec;
+  border-radius: 5px;
+  border: 1px solid;
+  border-color: #d5d0d0;
+  cursor: pointer;
+  box-shadow: 0 0 20px 10px rgba(180, 170, 160, 0.08);
+}
+
+.SubTextColor {
+  color: #7f7f7f;
+}
+
+.FeedButton {
+  color: #3a6aea
+}

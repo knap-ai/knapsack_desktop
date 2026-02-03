@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Knapsack</title>
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Inter:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* Reset CSS */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        background-color: #fff;
+        color: #1c1917;
+        line-height: 1.5;
+      }
+
+      h1 {
+        font-family: 'Lora', serif;
+        font-size: 48px;
+        font-weight: 860;
+        letter-spacing: -0.576px;
+        line-height: 48px;
+        text-align: center;
+        margin-bottom: 24px;
+      }
+
+      h2 {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+
+      p {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+
+      main.container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100vw;
+        height: 100vh;
+        padding: 24px;
+        text-align: center;
+      }
+
+      .error-container {
+        width: 90%;
+        max-width: 600px;
+        margin-top: 16px;
+      }
+
+      .error-content {
+        align-items: center;
+        margin-bottom: 16px;
+        padding: 2px;
+        border-radius: 8px;
+        border-color: #7a2e2a;
+        border-style: solid;
+        border-width: 1px;
+        width: 100%;
+        background-color: #f1f1f1;
+      }
+
+      .error-content .error-message {
+        font-family: 'Lora', serif;
+        font-weight: 600;
+        font-size: 14px;
+        padding-top: 4px;
+      }
+
+      .dropdown {
+        display: none;
+      }
+
+      button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        width: 320px;
+        height: 64px;
+        padding: 12px 24px;
+        margin-top: 48px;
+        border: none;
+        border-radius: 40px;
+        background-color: #913631;
+        color: white;
+        font-family: 'Inter', sans-serif;
+        font-size: 20px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+      }
+
+      .dropdown-toggle {
+        font-family: 'Lora', serif;
+        width: 100%;
+        padding: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        background-color: #f1f1f1;
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .arrow-icon {
+        font-size: 12px;
+        margin-left: 8px;
+        cursor: pointer;
+      }
+
+      .dropdown.open {
+        display: block;
+      }
+    </style>
+
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        const button = document.getElementById('return-btn');
+        if (button) {
+          button.addEventListener('click', async () => {
+            try {
+              await fetch('http://localhost:8897/api/knapsack/focus', {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              });
+            } catch (error) {
+              console.error('Failed to fetch:', error);
+            }
+          });
+        }
+      });
+
+
+      window.addEventListener('DOMContentLoaded', () => {
+        const button = document.getElementById('return-btn');
+        if (button) {
+          button.addEventListener('click', async () => {
+            try {
+              await fetch('http://localhost:8897/api/knapsack/focus', {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              });
+            } catch (error) {
+              console.error('Failed to fetch:', error);
+            }
+          });
+        }
+
+        const dropdownToggle = document.querySelector('.dropdown-toggle');
+        const dropdown = document.querySelector('.dropdown');
+
+        if (dropdownToggle && dropdown) {
+          dropdownToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('open');
+          });
+
+          document.addEventListener('click', () => {
+            dropdown.classList.remove('open');
+          });
+        }
+      });
+    </script>
+  </head>
+
+  <body>
+    <main class="container">
+      <h1>Authentication Error</h1>
+
+      <section class="error-container">
+        <h2>
+          {{ERROR_MESSAGE}}
+          </br>
+          {{ERROR_ACTION_MESSAGE}}
+        </h2>
+
+        <div class="error-content">
+          <div class="dropdown-toggle">
+            Error description
+            <span class="arrow-icon">&#9660;</span>
+          </div>
+          <div class="dropdown"> 
+            <hr>
+            <p class="error-message">{{ERROR_DESCRIPTION}}</p>
+          </div>
+        </div>
+
+        <div class="description-content">
+          <p>Please try again or contact support if the problem persists.</p>
+        </div>
+      </section>
+
+      <button id="return-btn">Return to Knapsack</button>
+    </main>
+  </body>
+</html>

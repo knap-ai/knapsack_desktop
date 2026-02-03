@@ -1,0 +1,27 @@
+.input {
+  flex: 1;
+  position: relative;
+  line-height: 24px;
+  font-weight: 500;
+  opacity: 0.5;
+  width: 80%;
+}
+
+.small {
+  width: 420px;
+}
+
+.left {
+  flex-direction: row;
+}
+
+.iconWrapper {
+  padding-left: 2px;
+  padding-right: 8px;
+
+  & > img,
+  & > svg {
+    width: 16px;
+    height: 16px;
+  }
+}

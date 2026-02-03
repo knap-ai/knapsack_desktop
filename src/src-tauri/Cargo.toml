@@ -1,0 +1,132 @@
+[package]
+name = "knapsack"
+version = "0.1.0"
+description = "Knapsack"
+authors = ["you"]
+license = "AGPL-3.0"
+repository = ""
+default-run = "knapsack"
+edition = "2021"
+rust-version = "1.72"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+tauri-build = { version = ">=1.0.0, <2.0.0", features = [] }
+
+[dependencies]
+diesel = { version = "2.0", features = ["sqlite"] }
+diesel_migrations = "2.0"
+tauri-plugin-localhost = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
+serde_json = "=1.0"
+serde = { version = "=1.0", features = ["derive"] }
+tauri = { version = "=1.8.1", features = [ "shell-sidecar", "shell-open", "os-all", "dialog-all", "window-all", "path-all", "os-all", "global-shortcut-all", "protocol-all", "notification-all", "fs-all", "http-all", "updater", "macos-private-api", "process-command-api", "devtools", "system-tray" ] }
+tauri-plugin-store = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
+tauri-plugin-autostart = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
+bitflags = "=2.6.0"
+dirs = "=5.0.1"
+reqwest = { version = "=0.11.26", features = ["multipart", "blocking", "json"] }
+actix-web = "=4.5.1"
+actix-multipart = "=0.6.1"
+chrono = "=0.4.38"
+futures = "=0.3.30"
+tempfile = "=3.10.1"
+lazy_static = "=1.4.0"
+lopdf = "=0.32.0"
+dotext = "=0.1.1"
+dotenv = "0.15.0"
+rayon = "=1.10.0"
+actix-cors = "=0.7.0"
+tokio = {version = "=1.37.0", features = ["full", "tracing"] }
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+glob = "0.3"
+tokio-retry = "0.3"
+flume = "=0.11.0"
+qdrant-client = "=1.8.0"
+llama_cpp = { git = "https://github.com/knap-ai/llama-cpp-rust.git", features = ["metal", "compat"], branch = "windows" }
+# llama_cpp = { git = "https://github.com/knap-ai/llama-cpp-rust.git", features = [ "compat", "metal"], branch = "main" }
+blake3 = "=1.5.1"
+dashmap = "=5.5.3"
+tracing = "=0.1.40"
+uuid = {version = "1.8.0", features = ["v4", "v5"] }
+llm = { git = "https://github.com/rustformers/llm", branch = "main", package = "llm", features = [
+  "default",
+  # "cublas",
+] }
+rand = "=0.8.5"
+thiserror = "=2.0.3"
+env_logger = "=0.11.3"
+log4rs = { version = "=1.3.0", features= ["yaml_format"] }
+log = "=0.4.21"
+fern = "=0.6.2"
+humantime = "=2.1.0"
+tracing-subscriber = "=0.3.18"
+tracing-log = "=0.2.0"
+mime = "=0.3.17"
+async-stream = "=0.3.5"
+zstd-sys = "=2.0.9" # Locked to this version because of the Error: error[E0432]: unresolved import zstd_sys::ZSTD_cParameter::ZSTD_c_experimentalParam6,
+walkdir = "=2.5.0"
+open = "=5"
+regex = "=1.11.1"
+imap = "2.4.1"
+native-tls = "0.2"
+mailparse = "0.15.0"
+rusqlite = { version = "0.32.0", features = ["bundled"] }
+difference = "2.0.0"
+sha256 = "1.5.0"
+priority-queue = "2.0.3"
+google-calendar3 = "5.0.5"
+groq-api-rs = "0.2.0"
+anyhow = "1.0.86"
+html2text = "0.12.5"
+google-drive3 = "5.0.5"
+once_cell = "1.19.0"
+derive_more = { version = "1.0.0", features = ["full"] }
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.25.0"
+google-gmail1 = "5.0.5"
+sysinfo = "0.31.4"
+sentry = "0.34.0"
+text-splitter = "0.18.1"
+cpal = "=0.15.3"       # For audio capture
+# whisper-rs = { version = "0.13.1", features = ["metal"] }
+hound = "=3.4"       # For writing WAV files
+clap = { version = "=4.5.20", features = ["derive"] }     # CLI Arg Parser
+embed_plist = "1.2.0"
+window-shadows = "0.2.2"
+sha2 = "0.10"
+base64 = "0.21"
+url = "2.3"
+urlencoding = "2.1.3"
+flacenc = "0.4"
+
+
+[dependencies.console-subscriber]
+version = "0.1"
+optional = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5.2"
+objc2-foundation = "0.2.2"
+core-foundation = "0.10.0"
+core-media = "0.5.1"
+core-video = "0.4.3"
+libc = "0.2.162"
+dispatch2 = "0.1.0"
+screen-capture-kit = "0.3.1"
+coreaudio-rs = "0.12.1"
+coreaudio-sys = "0.2.16"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wasapi = "0.15.0"
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
+# If you use cargo directly instead of tauri's cli you can use this feature flag to switch between tauri's `dev` and `build` modes.
+# DO NOT REMOVE!!
+default = ["custom-protocol"]
+custom-protocol = [ "tauri/custom-protocol" ]
+full = []
+limited = []
+profiling = ["console-subscriber"]

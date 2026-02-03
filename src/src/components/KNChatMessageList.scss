@@ -1,0 +1,18 @@
+.SourceCard {
+  background-color: #fff;
+  border: 2px;
+  border-style: solid;
+  border-color: #e5e5e5;
+  &:hover {
+    background-color: #b5d5f540;
+    border-color: #95b5f5;
+  }
+}
+
+.KNChatMessageContent {
+  min-height: 80px;
+  border-radius: 10px;
+  & a {
+    cursor: pointer;
+  }
+}

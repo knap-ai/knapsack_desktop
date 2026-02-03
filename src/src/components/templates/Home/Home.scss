@@ -1,0 +1,24 @@
+@import "../../../main.css";
+
+.KNMainContainer {
+  flex-direction: column;
+  font-family: Inter, sans-serif;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  perspective: 1px;
+  background-color: #fafafa;
+  border-radius: 10px;
+}
+
+.KNWorkspace {
+}
+
+.KNResults {
+  display: flex;
+}
+
+.KNChat {
+  margin: 0px;
+  padding: 0px;
+}

@@ -1,0 +1,4 @@
+# qdrant
+.qdrant-initialized
+storage/*
+snapshots/*

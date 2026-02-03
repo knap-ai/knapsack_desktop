@@ -1,0 +1,24 @@
+.timeInput{
+    height: 40px;
+    display: flex;
+    flex-direction: row;
+}
+
+.time{
+  height: 100%;
+  width: 48px;
+  text-align: center;
+  margin-left: 4px;
+  border-radius: 6px;
+  background-color: #fff;
+  border: 1px solid #e4e4e7;
+  box-sizing: border-box;
+}
+
+.separator{
+  height: 100%;
+  text-align: center;
+  margin-left: 4px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}

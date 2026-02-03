@@ -1,0 +1,36 @@
+.customBullet {
+  position: relative;
+  padding-left: 20px;
+  
+  &:before {
+    content:" ";
+    position: absolute;
+    left: 3px;
+    top: 8px;
+    width: 6px;
+    height: 6px;
+    background-color: #000;
+    border-radius: 50%;
+  }
+}
+
+.customTable {
+  & th,
+  & td {
+    padding: 6px 13px;
+    border: 1px solid #3d444d;
+  }
+
+  & td>:last-child {
+    margin-bottom: 0;
+  }
+
+  & tr {
+    background-color: white;
+    border-top: 1px solid #3d444d;
+  }
+
+  & tr:nth-child(2n) {
+    background-color: #f6f8fa;
+  }
+}
