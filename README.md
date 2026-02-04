@@ -41,30 +41,40 @@ On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 
 ## Getting Started
 
+**1. Install prerequisites (macOS):**
+
 ```bash
-# Install prerequisites (macOS)
 xcode-select --install
-curl https://sh.rustup.rs -sSf | sh        # Rust
+curl https://sh.rustup.rs -sSf | sh
+source "$HOME/.cargo/env"                    # add cargo to your PATH
 brew install node                            # Node.js >= 16
 npm install --global @tauri-apps/cli@^1      # Tauri CLI
-
-# Clone and set up
-git clone https://github.com/knap-ai/knapsack_desktop.git
-cd knapsack_desktop/src
-npm install
-cp .env.example .env   # defaults work out of the box
-
-# Run
-npm run tauri -- dev
 ```
 
-For Linux, install these packages first:
+<details>
+<summary>Linux prerequisites</summary>
 
 ```bash
 sudo apt install build-essential libssl-dev libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev
+curl https://sh.rustup.rs -sSf | sh && source "$HOME/.cargo/env"
+```
+</details>
+
+> **Note:** If you see a `MaxListenersExceededWarning` during `npm install`, it's harmless — just npm opening many download connections at once.
+
+**2. Clone, install, and run:**
+
+```bash
+git clone https://github.com/knap-ai/knapsack_desktop.git
+cd knapsack_desktop/src
+npm install
+cp .env.example .env
+npm run tauri -- dev
 ```
 
-This starts the Vite dev server on `http://localhost:1420` and the Rust backend on port `8897`, then opens the desktop window with hot reload.
+> **Important:** All commands after `cd` must run from the **`src/`** directory. If you see `Missing script: "tauri"`, you're in the wrong directory.
+
+This builds the Rust backend and opens the Knapsack desktop window. The first build takes a few minutes while Cargo downloads and compiles dependencies.
 
 ## Scripts
 
