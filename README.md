@@ -23,7 +23,6 @@ On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 - **AI Chat** -- Ask questions across all your connected data sources with semantic search
 - **Automations** -- Build workflows with triggers, data sources, and AI prompts (email summaries, meeting prep, lead scoring, and more)
 - **Browser Automation** -- Control a browser through OpenClaw's agent with token-authenticated access
-- **Multi-Channel Messaging** -- Connect WhatsApp, iMessage, Slack, Discord, Telegram, and more through OpenClaw's gateway
 - **Local-First** -- Data is stored in a local SQLite database with Qdrant for vector search
 
 ## Tech Stack
