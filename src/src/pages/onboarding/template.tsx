@@ -149,6 +149,7 @@ type DataSourcePermissionsScreenProps = {
   googlePermissions: Record<string, boolean>
   onChangeGooglePermissions: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void
   onMicrosoftGrantClick: (index: number) => void
+  onSkipClick?: () => void
   isLoading: boolean
   error: string
 } & OnboardingScreenProps
@@ -161,6 +162,7 @@ const DataSourcePermissionsScreen = ({
   isLoading,
   error,
   onMicrosoftGrantClick,
+  onSkipClick,
 }: DataSourcePermissionsScreenProps) => {
   return (
     <OnboardingScreenContainer
@@ -169,11 +171,8 @@ const DataSourcePermissionsScreen = ({
       index={index}
       className="flex flex-col justify-center items-center flex-1"
     >
-      {/* <div className="text-center text-zinc-700 text-[10px] font-bold font-InterTight uppercase leading-[10px] tracking-wide">
-        Step 1 of 2
-      </div> */}
       <div className=" mt-2 text-center text-black text-4xl font-semibold font-Lora leading-10">
-        Let’s connect <br /> your work calendar
+        Let's connect <br /> your work calendar
       </div>
       <OnboardingPrimaryButton
         label="Connect with Google"
@@ -187,6 +186,17 @@ const DataSourcePermissionsScreen = ({
         className="mt-4"
         onClick={() => onMicrosoftGrantClick(index)}
       />
+      {onSkipClick && (
+        <Typography
+          variant={TypographyVariant.p}
+          size={TypographySize.md}
+          weight={TypographyWeight.semibold}
+          className="mt-6 text-zinc-500 cursor-pointer hover:text-zinc-700"
+          onClick={onSkipClick}
+        >
+          Skip for now
+        </Typography>
+      )}
     </OnboardingScreenContainer>
   )
 }
@@ -328,7 +338,7 @@ type OnboardingTemplateProps = {
   onLocalFilesGrantClick: (index: number) => void
   onLocalSkipClick: (index: number) => void
   onGoogleGrantClick: (index: number) => void
-  onGoogleSkipClick?: (index: number) => void
+  onGoogleSkipClick?: () => void
   // onNotificationSkipClick: (index: number) => void
   onMessageScreenContinueClick: (index: number) => void
   onMessageScreenHowClick: () => void
@@ -347,6 +357,7 @@ export const OnboardingTemplate = ({
   currentSlideOutScreen,
   onWelcomeScreenContinueClick,
   onGoogleGrantClick,
+  onGoogleSkipClick,
   googlePermissions,
   onChangeGooglePermissions,
   acceptedTerms,
@@ -390,6 +401,7 @@ export const OnboardingTemplate = ({
           onChangeGooglePermissions={onChangeGooglePermissions}
           onGrantClick={onGoogleGrantClick}
           onMicrosoftGrantClick={onMicrosoftGrantClick}
+          onSkipClick={onGoogleSkipClick}
           isLoading={isLoading}
           error={error}
         />
