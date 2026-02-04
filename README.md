@@ -1,6 +1,6 @@
 # Knapsack
 
-Knapsack is the safe, simple way to run [OpenClaw](https://github.com/moltbot/moltbot) née Moltbot née Clawdbot on your desktop.
+Knapsack is the safe, simple way to run [OpenClaw](https://github.com/moltbot/moltbot) (née Moltbot née Clawdbot) on your desktop.
 
 OpenClaw is a powerful AI agent platform with browser automation, multi-channel messaging, file access, and code execution -- but running it raw means configuring tokens, locking down network bindings, managing process lifecycles, and getting file permissions right. Miss any of those and you have an agent with broad system access listening on all interfaces.
 
