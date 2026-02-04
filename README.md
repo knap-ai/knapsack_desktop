@@ -36,7 +36,7 @@ On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 | Rich Text | TipTap 2 |
 | Backend | Rust (Actix-web, Diesel ORM, Tokio) |
 | Database | SQLite (Diesel), Qdrant (vector search) |
-| AI/LLM | Groq API, llama.cpp |
+| AI/LLM | OpenAI, Anthropic, Gemini, Groq, llama.cpp |
 | Agent Runtime | OpenClaw (bundled) |
 | Auth | Google OAuth2, Microsoft OAuth2 |
 
