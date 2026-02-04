@@ -98,7 +98,7 @@ See `.env.example` for details and links to where you create each credential. Th
 |----------|---------|-------------|
 | `VITE_KN_API_SERVER` | `http://localhost:8897` | Backend API URL. The default just works. |
 | `MICROSOFT_CLIENT_ID` | `unused` | Azure AD app ID — only needed for Outlook/OneDrive. |
-| `VITE_GOOGLE_CLIENT_ID` | *(empty)* | Google OAuth client ID — only needed for Drive/Calendar. |
+| `VITE_GOOGLE_CLIENT_ID` | *(Knapsack project ID)* | Google OAuth client ID — works out of the box. |
 | `VITE_GOOGLE_DEVELOPER_KEY` | *(empty)* | Google API key — only needed for Drive file listing. |
 | `VITE_SENTRY_DSN` | *(empty)* | Sentry DSN for frontend error tracking. |
 | `SENTRY_DSN` | *(empty)* | Sentry DSN for Rust backend error tracking. |
