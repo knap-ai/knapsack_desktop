@@ -10,6 +10,9 @@ function shouldIgnoreWarning(warning) {
         warning.message?.includes("SQLite is an experimental feature")) {
         return true;
     }
+    if (warning.name === "MaxListenersExceededWarning") {
+        return true;
+    }
     return false;
 }
 export function installProcessWarningFilter() {
