@@ -39,35 +39,42 @@ On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 | Agent Runtime | OpenClaw (bundled) |
 | Auth | Google OAuth2, Microsoft OAuth2 |
 
-## Prerequisites
-
-- **Node.js** >= 16
-- **Rust** >= 1.72
-- **Tauri CLI** -- `npm install --global @tauri-apps/cli@^1`
-- Platform-specific dependencies:
-  - **macOS**: Xcode Command Line Tools
-  - **Linux**: `build-essential`, `libssl-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.0-dev`, `libayatana-appindicator3-dev`
-  - **Windows**: Visual Studio Build Tools with C++ workload
-
 ## Getting Started
 
+**1. Install prerequisites (macOS):**
+
 ```bash
-# Clone the repository
+xcode-select --install
+curl https://sh.rustup.rs -sSf | sh
+source "$HOME/.cargo/env"                    # add cargo to your PATH
+brew install node                            # Node.js >= 16
+npm install --global @tauri-apps/cli@^1      # Tauri CLI
+```
+
+<details>
+<summary>Linux prerequisites</summary>
+
+```bash
+sudo apt install build-essential libssl-dev libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev
+curl https://sh.rustup.rs -sSf | sh && source "$HOME/.cargo/env"
+```
+</details>
+
+> **Note:** If you see a `MaxListenersExceededWarning` during `npm install`, it's harmless — just npm opening many download connections at once.
+
+**2. Clone, install, and run:**
+
+```bash
 git clone https://github.com/knap-ai/knapsack_desktop.git
 cd knapsack_desktop/src
-
-# Install frontend dependencies
 npm install
-
-# Set up environment variables
 cp .env.example .env
-# Edit .env with your configuration (see Environment Variables below)
-
-# Run in development mode
 npm run tauri -- dev
 ```
 
-This starts the Vite dev server on `http://localhost:1420` and the Rust backend on port `8897`, then opens the desktop window with hot reload.
+> **Important:** All commands after `cd` must run from the **`src/`** directory. If you see `Missing script: "tauri"`, you're in the wrong directory.
+
+This builds the Rust backend and opens the Knapsack desktop window. The first build takes a few minutes while Cargo downloads and compiles dependencies.
 
 ## Scripts
 
@@ -83,17 +90,19 @@ All commands should be run from the `src/` directory.
 
 ## Environment Variables
 
-See `.env.example` for a ready-to-copy template. Variables marked **required** must be set for the build to succeed.
+See `.env.example` for details and links to where you create each credential. The defaults work for local development — you only need to add keys for the specific integrations you want to work on.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_KN_API_SERVER` | Yes | Backend API server URL (default `http://localhost:8897`) |
-| `MICROSOFT_CLIENT_ID` | Yes | Microsoft OAuth client ID (compile-time) |
-| `VITE_GOOGLE_CLIENT_ID` | No | Google OAuth client ID for Drive picker and sign-in |
-| `VITE_GOOGLE_DEVELOPER_KEY` | No | Google API key for Drive file listing |
-| `VITE_SENTRY_DSN` | No | Sentry DSN for frontend error tracking |
-| `SENTRY_DSN` | No | Sentry DSN for Rust backend error tracking |
-| `SENTRY_AUTH_TOKEN` | No | Sentry auth token for source map uploads |
+> **What's `VITE_`?** Vite (the frontend bundler) exposes any env var starting with `VITE_` to the React frontend. Variables without the prefix are only available to the Rust backend at compile time.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_KN_API_SERVER` | `http://localhost:8897` | Backend API URL. The default just works. |
+| `MICROSOFT_CLIENT_ID` | `unused` | Azure AD app ID — only needed for Outlook/OneDrive. |
+| `VITE_GOOGLE_CLIENT_ID` | *(empty)* | Google OAuth client ID — only needed for Drive/Calendar. |
+| `VITE_GOOGLE_DEVELOPER_KEY` | *(empty)* | Google API key — only needed for Drive file listing. |
+| `VITE_SENTRY_DSN` | *(empty)* | Sentry DSN for frontend error tracking. |
+| `SENTRY_DSN` | *(empty)* | Sentry DSN for Rust backend error tracking. |
+| `SENTRY_AUTH_TOKEN` | *(empty)* | Sentry auth token for source map uploads. |
 
 ## Project Structure
 
