@@ -1,4 +1,4 @@
-# Knapsack
+# Knapsack 🎒
 
 Knapsack is the safe, simple way to run [OpenClaw](https://github.com/moltbot/moltbot) (née Moltbot née Clawdbot) on your Mac.
 
