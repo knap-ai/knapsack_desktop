@@ -1,8 +1,18 @@
 # Knapsack
 
-Knapsack is an AI-powered desktop productivity app that centralizes your email, calendar, documents, and files into a single workspace. It provides meeting transcription, smart email management, semantic search, and customizable automations -- all running locally on your machine.
+Knapsack is the safe, simple way to run [OpenClaw](https://github.com/nichochar/open-claw) on your desktop.
 
-Built with [Tauri](https://tauri.app/) (Rust backend) and React (TypeScript frontend).
+OpenClaw is a powerful AI agent platform with browser automation, multi-channel messaging, file access, and code execution -- but running it raw means configuring tokens, locking down network bindings, managing process lifecycles, and getting file permissions right. Miss any of those and you have an agent with broad system access listening on all interfaces.
+
+Knapsack wraps OpenClaw in a Tauri desktop app that handles all of that for you:
+
+- **Localhost-only by default** -- The OpenClaw gateway and browser control server bind to `127.0.0.1`. Nothing is exposed to your network.
+- **Hardened secret storage** -- API keys and auth tokens are stored in a single `tokens.json` file with `0600` permissions, managed by the Rust backend. No secrets in config files you have to chmod yourself.
+- **Managed process lifecycle** -- OpenClaw runs as a system service (LaunchAgent on macOS) with automatic health checks, restart-on-failure, and cleanup of orphaned browser processes.
+- **Sensible defaults** -- Knapsack auto-generates secure configuration on first launch so there is no manual `clawdbot.json` setup.
+- **Centralized API key management** -- Add your OpenAI, Anthropic, Gemini, or Groq keys in one place. They are propagated via environment variables, never through URLs.
+
+On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 
 ## Features
 
@@ -12,6 +22,8 @@ Built with [Tauri](https://tauri.app/) (Rust backend) and React (TypeScript fron
 - **Document Search** -- Index and semantically search across Google Drive, OneDrive, and local files
 - **AI Chat** -- Ask questions across all your connected data sources with semantic search
 - **Automations** -- Build workflows with triggers, data sources, and AI prompts (email summaries, meeting prep, lead scoring, and more)
+- **Browser Automation** -- Control a browser through OpenClaw's agent with token-authenticated access
+- **Multi-Channel Messaging** -- Connect WhatsApp, iMessage, Slack, Discord, Telegram, and more through OpenClaw's gateway
 - **Local-First** -- Data is stored in a local SQLite database with Qdrant for vector search
 
 ## Tech Stack
@@ -25,6 +37,7 @@ Built with [Tauri](https://tauri.app/) (Rust backend) and React (TypeScript fron
 | Backend | Rust (Actix-web, Diesel ORM, Tokio) |
 | Database | SQLite (Diesel), Qdrant (vector search) |
 | AI/LLM | Groq API, llama.cpp |
+| Agent Runtime | OpenClaw (bundled) |
 | Auth | Google OAuth2, Microsoft OAuth2 |
 
 ## Prerequisites
