@@ -83,11 +83,17 @@ All commands should be run from the `src/` directory.
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `VITE_KN_API_SERVER` | Backend API server URL |
-| `VITE_SENTRY_DSN` | Sentry DSN for error tracking |
-| `SENTRY_AUTH_TOKEN` | Sentry authentication token |
+See `.env.example` for a ready-to-copy template. Variables marked **required** must be set for the build to succeed.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_KN_API_SERVER` | Yes | Backend API server URL (default `http://localhost:8897`) |
+| `MICROSOFT_CLIENT_ID` | Yes | Microsoft OAuth client ID (compile-time) |
+| `VITE_GOOGLE_CLIENT_ID` | No | Google OAuth client ID for Drive picker and sign-in |
+| `VITE_GOOGLE_DEVELOPER_KEY` | No | Google API key for Drive file listing |
+| `VITE_SENTRY_DSN` | No | Sentry DSN for frontend error tracking |
+| `SENTRY_DSN` | No | Sentry DSN for Rust backend error tracking |
+| `SENTRY_AUTH_TOKEN` | No | Sentry auth token for source map uploads |
 
 ## Project Structure
 

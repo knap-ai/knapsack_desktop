@@ -30,6 +30,7 @@ config
 # env files
 .env
 .env.*
+!.env.example
 .env_*
 
 # qdrant
