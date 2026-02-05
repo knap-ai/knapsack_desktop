@@ -166,7 +166,7 @@ async fn refresh_token_via_backend(email: String, refresh_token: String) -> Resu
 
   let response = client
     .post(format!(
-      "{api_server}/api/authentication/google/refresh-token/?refresh_token={refresh_token}"
+      "{api_server}/api/google/auth/refresh-token/?refresh_token={refresh_token}"
     ))
     .headers(headers)
     .send()
@@ -303,7 +303,7 @@ async fn exchange_code_via_backend(code: String) -> Result<GoogleSigninResponse,
     async move {
       let response = client
         .get(format!(
-          "{api_server}/api/authentication/google/signin/app?code={code}"
+          "{api_server}/api/google/auth/signin/app?code={code}"
         ))
         .send()
         .await
