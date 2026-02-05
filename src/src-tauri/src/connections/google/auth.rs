@@ -73,6 +73,16 @@ pub struct GoogleRefreshTokenResponse {
   access_token: String,
 }
 
+/// Response from Google's OAuth2 token endpoint
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GoogleTokenExchangeResponse {
+  access_token: String,
+  refresh_token: Option<String>,
+  expires_in: u64,
+  token_type: String,
+  scope: Option<String>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FetchAccessTokenParams {
   email: String,
@@ -111,7 +121,36 @@ pub fn get_action_message(error_code: &str) -> &str {
   }
 }
 
-pub async fn google_refresh_token(email: String, refresh_token: String) -> Result<String, Error> {
+/// Refresh access token locally using Google's token endpoint.
+async fn refresh_token_locally(refresh_token: String, client_secret: &str) -> Result<String, Error> {
+  let client_id: &'static str = env!("VITE_GOOGLE_CLIENT_ID", "Missing VITE_GOOGLE_CLIENT_ID env var");
+  let client = reqwest::Client::new();
+
+  let params = [
+    ("refresh_token", refresh_token.as_str()),
+    ("client_id", client_id),
+    ("client_secret", client_secret),
+    ("grant_type", "refresh_token"),
+  ];
+
+  let response = client
+    .post("https://oauth2.googleapis.com/token")
+    .form(&params)
+    .send()
+    .await?;
+
+  if response.status().is_success() {
+    let token_response = response.json::<GoogleRefreshTokenResponse>().await?;
+    Ok(token_response.access_token)
+  } else {
+    let error_text = response.text().await.unwrap_or_default();
+    log::error!("Google token refresh failed: {}", error_text);
+    Err(Error::KSError(format!("Token refresh failed: {}", error_text)))
+  }
+}
+
+/// Refresh access token via knap.ai backend.
+async fn refresh_token_via_backend(email: String, refresh_token: String) -> Result<String, Error> {
   let api_server: &'static str = env!("VITE_KN_API_SERVER", "Missing VITE_KN_API_SERVER env var");
   let client = reqwest::Client::new();
 
@@ -135,6 +174,18 @@ pub async fn google_refresh_token(email: String, refresh_token: String) -> Resul
     .json::<GoogleRefreshTokenResponse>()
     .await?;
   Ok(response.access_token)
+}
+
+pub async fn google_refresh_token(email: String, refresh_token: String) -> Result<String, Error> {
+  // Check for GOOGLE_CLIENT_SECRET at runtime for self-hosted builds
+  if let Ok(client_secret) = std::env::var("GOOGLE_CLIENT_SECRET") {
+    if !client_secret.is_empty() {
+      return refresh_token_locally(refresh_token, &client_secret).await;
+    }
+  }
+
+  // Fall back to knap.ai backend
+  refresh_token_via_backend(email, refresh_token).await
 }
 
 fn create_connections_from_scopes(
@@ -192,7 +243,53 @@ fn create_connections_from_scopes(
   Ok(connected_scopes)
 }
 
-async fn post_signin(code: String) -> Result<GoogleSigninResponse, FetchError> {
+/// Exchange OAuth code for tokens locally using Google's token endpoint.
+/// This is used when GOOGLE_CLIENT_SECRET is configured for self-hosted builds.
+async fn exchange_code_locally(code: String, client_secret: &str) -> Result<GoogleSigninResponse, FetchError> {
+  let client_id: &'static str = env!("VITE_GOOGLE_CLIENT_ID", "Missing VITE_GOOGLE_CLIENT_ID env var");
+  let redirect_uri = "http://localhost:8897/api/knapsack/google/signin";
+  let client = reqwest::Client::new();
+
+  let params = [
+    ("code", code.as_str()),
+    ("client_id", client_id),
+    ("client_secret", client_secret),
+    ("redirect_uri", redirect_uri),
+    ("grant_type", "authorization_code"),
+  ];
+
+  let response = client
+    .post("https://oauth2.googleapis.com/token")
+    .form(&params)
+    .send()
+    .await
+    .map_err(FetchError::NetworkError)?;
+
+  match response.status() {
+    StatusCode::OK => {
+      let token_response = response.json::<GoogleTokenExchangeResponse>().await?;
+      Ok(GoogleSigninResponse {
+        access_token: token_response.access_token,
+        refresh_token: token_response.refresh_token.unwrap_or_default(),
+        // For local auth, we don't have internal tokens (those are for knap.ai API)
+        refresh_internal: None,
+        access_internal: None,
+      })
+    }
+    StatusCode::BAD_REQUEST => {
+      let error_text = response.text().await.unwrap_or_default();
+      log::error!("Google token exchange failed: {}", error_text);
+      Err(FetchError::UnknownError(format!("Token exchange failed: {}", error_text)))
+    }
+    status => Err(FetchError::UnknownError(format!(
+      "Unexpected status code from Google: {:?}",
+      status
+    ))),
+  }
+}
+
+/// Exchange OAuth code via knap.ai backend (default for DMG builds).
+async fn exchange_code_via_backend(code: String) -> Result<GoogleSigninResponse, FetchError> {
   let api_server: &'static str = env!("VITE_KN_API_SERVER", "Missing VITE_KN_API_SERVER env var");
   let client = reqwest::Client::new();
   let retry_strategy = ExponentialBackoff::from_millis(2000)
@@ -227,6 +324,20 @@ async fn post_signin(code: String) -> Result<GoogleSigninResponse, FetchError> {
   .await?;
 
   Ok(response.json::<GoogleSigninResponse>().await?)
+}
+
+async fn post_signin(code: String) -> Result<GoogleSigninResponse, FetchError> {
+  // Check for GOOGLE_CLIENT_SECRET at runtime for self-hosted builds
+  if let Ok(client_secret) = std::env::var("GOOGLE_CLIENT_SECRET") {
+    if !client_secret.is_empty() {
+      log::info!("Using local Google OAuth token exchange (self-hosted mode)");
+      return exchange_code_locally(code, &client_secret).await;
+    }
+  }
+
+  // Fall back to knap.ai backend for DMG/default builds
+  log::info!("Using knap.ai backend for Google OAuth token exchange");
+  exchange_code_via_backend(code).await
 }
 
 fn focus_window(window: Window) {
@@ -266,18 +377,29 @@ async fn complete_google_signin(
   };
 
   let email = profile.email.clone().unwrap();
-  let uuid = profile.uuid.clone().unwrap();
+  // In self-hosted mode (local token exchange), uuid may not be available from knap.ai
+  // Use a placeholder or generate one locally
+  let uuid = profile.uuid.clone().unwrap_or_else(|| {
+    // Generate a deterministic UUID from email for self-hosted mode
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    email.hash(&mut hasher);
+    format!("local-{:x}", hasher.finish())
+  });
   let _ = User {
     id: None,
     email: email.clone(),
     uuid: Some(uuid),
   }.create();
 
-  // Create Knapsack API connection
-  create_knapsack_api_connection(
-    email.clone(),
-    response.refresh_internal.clone().unwrap().as_ref(),
-  );
+  // Create Knapsack API connection only if we have internal tokens (non-self-hosted mode)
+  if let Some(ref refresh_internal) = response.refresh_internal {
+    create_knapsack_api_connection(
+      email.clone(),
+      refresh_internal.as_ref(),
+    );
+  }
 
   let connection_keys = match create_connections_from_scopes(
     email.clone(),
