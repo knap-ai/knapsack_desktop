@@ -247,7 +247,7 @@ type AnthropicModelOption = {
   description: string
 }
 
-const ANTHROPIC_MODELS: AnthropicModelOption[] = [
+const _ANTHROPIC_MODELS: AnthropicModelOption[] = [
   { id: 'claude-opus-4-5-20250514', name: 'Claude Opus 4.5', description: 'Most intelligent, best for complex tasks' },
   { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Fast and capable, good balance' },
   { id: 'claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', description: 'Fastest and most affordable' },
@@ -259,7 +259,7 @@ type GeminiModelOption = {
   description: string
 }
 
-const GEMINI_MODELS: GeminiModelOption[] = [
+const _GEMINI_MODELS: GeminiModelOption[] = [
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, best for complex tasks' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fastest, most affordable' },
@@ -294,7 +294,7 @@ async function getOpenAIKey(): Promise<string | null> {
   return null
 }
 
-function clearCachedApiKey() {
+function _clearCachedApiKey() {
   _cachedApiKey = null
 }
 
