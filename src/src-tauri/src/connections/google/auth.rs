@@ -303,7 +303,7 @@ async fn exchange_code_via_backend(code: String) -> Result<GoogleSigninResponse,
     async move {
       let response = client
         .get(format!(
-          "{api_server}/api/google/auth/signin/app?code={code}"
+          "{api_server}/api/google/auth/callback?code={code}"
         ))
         .send()
         .await
