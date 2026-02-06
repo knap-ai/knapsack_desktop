@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "build": {
     "beforeBuildCommand": "",
-    "beforeDevCommand": "node_modules/.bin/vite",
+    "beforeDevCommand": "cd .. && npx vite --port 1420 --strictPort",
     "devPath": "http://localhost:1420"
   },
   "package": {
