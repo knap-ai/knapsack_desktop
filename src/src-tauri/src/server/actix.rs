@@ -17,6 +17,7 @@ use qdrant_client::client::QdrantClient;
 use qdrant_client::prelude::*;
 
 use crate::llm::api::{llm_complete, stop_llm_execution};
+use crate::llm::usage_api;
 
 use crate::clawd;
 use crate::llm::llama_binding::llm::LlamaBinding;
@@ -206,6 +207,11 @@ pub async fn start_server<'a>(
       .service(clawd::channels::voice_status)
       .service(clawd::channels::voice_enable)
       .service(clawd::channels::open_full_disk_access)
+      // Token usage & cost management endpoints
+      .service(usage_api::get_usage_summary)
+      .service(usage_api::get_daily_usage)
+      .service(usage_api::get_recent_usage)
+      .service(usage_api::get_budget_status)
   })
   .bind(("127.0.0.1", port))
   .unwrap()

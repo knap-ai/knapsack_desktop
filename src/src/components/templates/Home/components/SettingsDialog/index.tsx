@@ -26,6 +26,7 @@ import { Dialog } from 'src/components/molecules/Dialog'
 import styles from './styles.module.scss'
 import { Profile } from 'src/hooks/auth/useAuth'
 import InputSelect from 'src/components/atoms/input-select'
+import { TokenCostDashboard } from 'src/components/organisms/TokenCostDashboard'
 
 type SettingsDialogProps = {
   handlePrivacyLinkClick: () => void
@@ -328,6 +329,12 @@ export const SettingsDialog = ({
           >
             <Typography className="text-black">Save Transcripts</Typography>
           </InputCheckbox>
+        </div>
+
+        <hr className="border-zinc-200" />
+        <div className="p-6 flex flex-col gap-4">
+          <Typography weight={TypographyWeight.medium}>Token Costs</Typography>
+          <TokenCostDashboard />
         </div>
 
         <hr className="border-zinc-200" />
