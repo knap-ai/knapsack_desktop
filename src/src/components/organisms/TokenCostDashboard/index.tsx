@@ -244,7 +244,7 @@ export const TokenCostDashboard = ({ onBudgetWarning }: TokenCostDashboardProps)
             Daily Spend (30 days)
           </Typography>
           <div className="flex items-end gap-[2px] h-[60px]">
-            {daily.map((d, i) => (
+            {daily.map((d) => (
               <div
                 key={d.date}
                 className="flex-1 bg-blue-400 rounded-t-sm hover:bg-blue-500 transition-colors cursor-default"

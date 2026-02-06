@@ -1,5 +1,5 @@
 use actix_web::{get, post, web, HttpResponse};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
 
