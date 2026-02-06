@@ -7,13 +7,12 @@ import {
   KN_API_TOKEN_USAGE_SUMMARY,
   KN_API_TOKEN_USAGE_DAILY,
   KN_API_TOKEN_USAGE_BUDGET,
+  KN_API_MODEL_ROUTING,
 } from 'src/utils/constants'
 import {
   getBudgetSettings,
   setBudgetSettings,
   BudgetSettings,
-  getModelRoutingEnabled,
-  setModelRoutingEnabled,
 } from 'src/utils/settings'
 
 type UsageSummary = {
@@ -86,10 +85,11 @@ export const TokenCostDashboard = ({ onBudgetWarning }: TokenCostDashboardProps)
 
   const fetchData = useCallback(async () => {
     try {
-      const [summaryRes, dailyRes, budgetRes] = await Promise.all([
+      const [summaryRes, dailyRes, budgetRes, routingRes] = await Promise.all([
         fetch(`${KN_API_TOKEN_USAGE_SUMMARY}?days=30`),
         fetch(`${KN_API_TOKEN_USAGE_DAILY}?days=30`),
         fetch(KN_API_TOKEN_USAGE_BUDGET),
+        fetch(KN_API_MODEL_ROUTING),
       ])
 
       if (summaryRes.ok) {
@@ -104,6 +104,10 @@ export const TokenCostDashboard = ({ onBudgetWarning }: TokenCostDashboardProps)
         const data: BudgetStatusResponse = await budgetRes.json()
         if (data.success) setBudgetStatus(data)
       }
+      if (routingRes.ok) {
+        const data = await routingRes.json()
+        if (data.success) setModelRoutingEnabledState(data.enabled)
+      }
     } catch (e) {
       console.error('Failed to fetch token usage data:', e)
     }
@@ -116,7 +120,6 @@ export const TokenCostDashboard = ({ onBudgetWarning }: TokenCostDashboardProps)
       setEditDailyBudget(settings.dailyBudget.toString())
       setEditMonthlyBudget(settings.monthlyBudget.toString())
     })
-    getModelRoutingEnabled().then(setModelRoutingEnabledState)
   }, [fetchData])
 
   // Check budget warnings
@@ -371,7 +374,16 @@ export const TokenCostDashboard = ({ onBudgetWarning }: TokenCostDashboardProps)
               onChange={async () => {
                 const newValue = !modelRoutingEnabled
                 setModelRoutingEnabledState(newValue)
-                await setModelRoutingEnabled(newValue)
+                try {
+                  await fetch(KN_API_MODEL_ROUTING, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: newValue }),
+                  })
+                } catch (e) {
+                  console.error('Failed to update model routing:', e)
+                  setModelRoutingEnabledState(!newValue) // revert on failure
+                }
               }}
             />
             <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>

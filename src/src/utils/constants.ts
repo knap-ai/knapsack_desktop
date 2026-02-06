@@ -108,6 +108,7 @@ export const KN_API_TOKEN_USAGE_SUMMARY = KN_SERVER_HOST + '/api/knapsack/token_
 export const KN_API_TOKEN_USAGE_DAILY = KN_SERVER_HOST + '/api/knapsack/token_usage/daily'
 export const KN_API_TOKEN_USAGE_RECENT = KN_SERVER_HOST + '/api/knapsack/token_usage/recent'
 export const KN_API_TOKEN_USAGE_BUDGET = KN_SERVER_HOST + '/api/knapsack/token_usage/budget_status'
+export const KN_API_MODEL_ROUTING = KN_SERVER_HOST + '/api/knapsack/token_usage/model_routing'
 
 export const KN_CHAT_MESSAGE_MAX_STREAM_READS = 10000 // Maximum number of stream reads
 export const GOOGLE_OAUTH2_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
