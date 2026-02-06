@@ -241,8 +241,9 @@ ENTITLEMENTS="build/entitlements/node.entitlements.plist"
 # 1. Sign all native addon .node files
 find "$APP_PATH" -name "*.node" -exec codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
 
-# 2. Sign all .dylib files
+# 2. Sign all .dylib and .so files
 find "$APP_PATH" -name "*.dylib" -exec codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
+find "$APP_PATH" -name "*.so" -exec codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
 
 # 3. Sign standalone executables in node_modules
 find "$APP_PATH" -type f \( -name "esbuild" -o -name "spawn-helper" -o -name "tsgolint" -o -name "ggml-metal" -o -name "llama-*" \) -exec codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
