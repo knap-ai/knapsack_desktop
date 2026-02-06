@@ -442,6 +442,8 @@ function Home({
                   copyToClipboard={copyToClipboard}
                   handleErrorContact={handleErrorContact}
                   recordingHandlers={recordingHandlers}
+                  connections={connections}
+                  onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
                 />
               )}
             </div>

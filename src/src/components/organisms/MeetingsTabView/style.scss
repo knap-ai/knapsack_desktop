@@ -143,6 +143,46 @@
     // Button styling handled by Button component
   }
 
+  &__calendar-prompt {
+    margin-top: 48px;
+    padding: 20px 24px;
+    background: var(--ks-warm-grey-100);
+    border-radius: 12px;
+    max-width: 500px;
+  }
+
+  &__calendar-prompt-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  &__calendar-prompt-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
+  &__calendar-prompt-text {
+    flex: 1;
+    text-align: left;
+  }
+
+  &__calendar-prompt-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ks-warm-grey-950);
+    margin: 0 0 4px;
+  }
+
+  &__calendar-prompt-subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--ks-warm-grey-600);
+    margin: 0;
+  }
+
   &__meeting-content {
     height: 100%;
     overflow-y: auto;

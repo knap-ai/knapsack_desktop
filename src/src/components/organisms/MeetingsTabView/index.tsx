@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 
 import { FeedItem } from 'src/api/feed_items'
 import { IThread, ThreadType } from 'src/api/threads'
+import { ConnectionKeys, IConnections } from 'src/api/connections'
 import { LLMParams } from 'src/App'
 import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
 import KNDateUtils from 'src/utils/KNDateUtils'
@@ -20,6 +21,7 @@ import { TaskItem } from 'src/components/organisms/CenterWorkspace'
 
 import FeedSidebarArrowDown from '/assets/images/icons/FeedSidebarArrowDown.svg'
 import Mic from '/assets/images/icons/mic-grey.svg'
+import CalendarIcon from '/assets/images/dataSources/gcal.svg'
 
 import './style.scss'
 
@@ -45,6 +47,8 @@ interface MeetingsTabViewProps {
   copyToClipboard: (text: string) => void
   handleErrorContact: (message: string) => void
   recordingHandlers: RecordingContextProps
+  connections?: IConnections
+  onConnectCalendar?: () => void
 }
 
 const MeetingsTabView = ({
@@ -53,6 +57,8 @@ const MeetingsTabView = ({
   copyToClipboard,
   handleErrorContact,
   recordingHandlers,
+  connections,
+  onConnectCalendar,
 }: MeetingsTabViewProps) => {
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true')
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true')
@@ -432,6 +438,25 @@ const MeetingsTabView = ({
                     onClick={() => feed.createNewMeeting()}
                   />
                 </div>
+                {/* Calendar connection prompt */}
+                {connections && !connections[ConnectionKeys.GOOGLE_CALENDAR] && !connections[ConnectionKeys.MICROSOFT_CALENDAR] && onConnectCalendar && (
+                  <div className="MeetingsTabView__calendar-prompt">
+                    <div className="MeetingsTabView__calendar-prompt-content">
+                      <img src={CalendarIcon} alt="Calendar" className="MeetingsTabView__calendar-prompt-icon" />
+                      <div className="MeetingsTabView__calendar-prompt-text">
+                        <p className="MeetingsTabView__calendar-prompt-title">Connect your calendar</p>
+                        <p className="MeetingsTabView__calendar-prompt-subtitle">
+                          Get notified when meetings start and automatically join with one click
+                        </p>
+                      </div>
+                      <Button
+                        label="Connect Calendar"
+                        variant={ButtonVariant.secondary}
+                        onClick={onConnectCalendar}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className={`MeetingsTabView__meeting-content ${showPermissionsOverlay ? 'pointer-events-none' : ''}`}>

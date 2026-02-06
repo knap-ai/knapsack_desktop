@@ -104,6 +104,31 @@ See `.env.example` for details and links to where you create each credential. Th
 | `SENTRY_DSN` | *(empty)* | Sentry DSN for Rust backend error tracking. |
 | `SENTRY_AUTH_TOKEN` | *(empty)* | Sentry auth token for source map uploads. |
 
+## Authentication Modes
+
+Knapsack supports two authentication modes:
+
+### Default Mode (knap.ai)
+
+By default, Knapsack uses knap.ai to handle OAuth token exchange. This is the simplest setup and is used by the official DMG releases. No additional configuration is required beyond setting `VITE_KN_API_SERVER=https://knap.ai`.
+
+### Self-Hosted Mode
+
+For fully self-hosted deployments that don't depend on knap.ai, you can configure Knapsack to exchange OAuth tokens directly with Google:
+
+1. Create a Google Cloud project at https://console.cloud.google.com
+2. Enable the Gmail, Google Drive, and Google Calendar APIs
+3. Configure the OAuth consent screen
+4. Create OAuth 2.0 credentials (Desktop application type)
+5. Add `http://localhost:8897/api/knapsack/google/signin` as an authorized redirect URI
+6. Set the following environment variables:
+   ```bash
+   export VITE_GOOGLE_CLIENT_ID=your-client-id
+   export GOOGLE_CLIENT_SECRET=your-client-secret
+   ```
+
+When `GOOGLE_CLIENT_SECRET` is set at runtime, Knapsack will exchange OAuth codes directly with Google's token endpoint instead of routing through knap.ai.
+
 ## Project Structure
 
 ```

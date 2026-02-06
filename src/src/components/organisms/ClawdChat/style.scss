@@ -83,8 +83,8 @@
 }
 
 .ClawdChatLogo {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -96,10 +96,19 @@
 }
 
 .ClawdChatTitle {
-  font-weight: 700;
-  font-size: 15px;
-  color: #1a1a1a;
+  font-family: 'Lora', serif;
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--ks-warm-grey-950, #1a1a1a);
+  margin: 0 0 4px;
   line-height: 1.2;
+}
+
+.ClawdChatSubtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--ks-warm-grey-600, rgba(0, 0, 0, 0.45));
+  margin: 0;
 }
 
 .ClawdChatStatus {

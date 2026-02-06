@@ -1,13 +1,14 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "build": {
-    "beforeBuildCommand": "",
-    "beforeDevCommand": "npm run dev",
-    "devPath": "http://localhost:1420"
+    "beforeBuildCommand": "cd .. && npm run build",
+    "beforeDevCommand": "cd .. && npx vite",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
   },
   "package": {
     "productName": "Knapsack",
-    "version": "0.9.46"
+    "version": "0.9.47"
   },
   "tauri": {
     "allowlist": {
@@ -138,7 +139,12 @@
         "frameworks": [],
         "providerShortName": null,
         "signingIdentity": null,
-        "entitlements": "tauri.entitlements"
+        "entitlements": "tauri.entitlements",
+        "dmg": {
+          "appPosition": { "x": 180, "y": 170 },
+          "applicationFolderPosition": { "x": 480, "y": 170 },
+          "windowSize": { "width": 660, "height": 400 }
+        }
       },
       "publisher": "Knap",
       "resources": [
