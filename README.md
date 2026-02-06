@@ -86,7 +86,7 @@ All commands should be run from the `src/` directory.
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_KN_API_SERVER` | Backend API server URL (default: `https://knap.ai`) |
+| `VITE_KN_API_SERVER` | Backend API server URL (default: `https://api.knapsack.ai`) |
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `MICROSOFT_CLIENT_ID` | Microsoft OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | (Optional) Google OAuth client secret for self-hosted auth |
@@ -165,6 +165,142 @@ npm run tauri -- build
 ```
 
 Bundled application output is written to `src/src-tauri/target/release/bundle/`.
+
+## macOS Code Signing & Notarization
+
+To distribute a macOS DMG that passes Gatekeeper, you must code sign and notarize the app. This process is required for users to run the app without security warnings.
+
+### Prerequisites
+
+1. **Apple Developer Account** -- Enroll at https://developer.apple.com ($99/year)
+2. **Developer ID Application Certificate** -- Create in Apple Developer portal under Certificates, Identifiers & Profiles
+3. **App-Specific Password** -- Generate at https://appleid.apple.com for notarization
+
+### Import Your Certificate
+
+```bash
+# Import .p12 certificate to keychain (use single quotes if password has special characters)
+security import /path/to/certificate.p12 -k ~/Library/Keychains/login.keychain-db -P 'your-password' -T /usr/bin/codesign
+
+# Verify the certificate is installed
+security find-identity -v -p codesigning
+```
+
+If the certificate shows as "not trusted", download the Apple Developer ID intermediate certificate:
+1. Go to https://www.apple.com/certificateauthority/
+2. Download "Developer ID - G2" certificate
+3. Double-click to install in Keychain
+
+### Create Node.js Entitlements File
+
+The bundled Node.js binary requires JIT entitlements to run JavaScript with hardened runtime. Without these, Node will crash with SIGTRAP when executing any JavaScript.
+
+Create `build/entitlements/node.entitlements.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>
+```
+
+Entitlement explanations:
+- `allow-jit` -- Required for V8's just-in-time compilation
+- `allow-unsigned-executable-memory` -- Required for V8's memory management
+- `disable-library-validation` -- Required to load native addons (.node files)
+
+### Code Signing (Order Matters!)
+
+Sign binaries from innermost to outermost. Replace `YOUR_TEAM_ID` with your Apple Team ID.
+
+```bash
+APP_PATH="src/src-tauri/target/release/bundle/macos/Knapsack.app"
+IDENTITY="Developer ID Application: Your Name (YOUR_TEAM_ID)"
+ENTITLEMENTS="build/entitlements/node.entitlements.plist"
+
+# 1. Sign all native addon .node files
+find "$APP_PATH" -name "*.node" -exec codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
+
+# 2. Sign all .dylib files
+find "$APP_PATH" -name "*.dylib" -exec codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
+
+# 3. Sign standalone executables in node_modules
+find "$APP_PATH" -type f \( -name "esbuild" -o -name "spawn-helper" -o -name "tsgolint" -o -name "ggml-metal" -o -name "llama-*" \) -exec codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
+
+# 4. Sign the Node.js binary WITH JIT entitlements
+codesign --force --options runtime --timestamp \
+  --entitlements "$ENTITLEMENTS" \
+  --sign "$IDENTITY" \
+  "$APP_PATH/Contents/Resources/resources/node/node"
+
+# 5. Sign the main app bundle
+codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP_PATH"
+
+# 6. Verify the signature
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+```
+
+### Notarization
+
+```bash
+# Create a zip for notarization
+cd src/src-tauri/target/release/bundle/macos
+ditto -c -k --keepParent Knapsack.app Knapsack.zip
+
+# Submit for notarization (--wait blocks until complete)
+xcrun notarytool submit Knapsack.zip \
+  --apple-id "your@email.com" \
+  --team-id YOUR_TEAM_ID \
+  --password "your-app-specific-password" \
+  --wait
+
+# If notarization fails, check the log
+xcrun notarytool log <submission-id> \
+  --apple-id "your@email.com" \
+  --team-id YOUR_TEAM_ID \
+  --password "your-app-specific-password"
+```
+
+### Staple the Notarization Ticket
+
+After successful notarization, staple the ticket to the app so it works offline:
+
+```bash
+xcrun stapler staple src/src-tauri/target/release/bundle/macos/Knapsack.app
+xcrun stapler staple src/src-tauri/target/release/bundle/dmg/Knapsack_0.9.47_x64.dmg
+```
+
+### Verify Everything Works
+
+```bash
+# Check entitlements on Node binary
+codesign -d --entitlements - "$APP_PATH/Contents/Resources/resources/node/node"
+
+# Test Node.js can execute JavaScript
+"$APP_PATH/Contents/Resources/resources/node/node" -e "console.log('JIT works')"
+
+# Verify Gatekeeper approval
+spctl --assess --verbose=4 "$APP_PATH"
+```
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `errSecInternalComponent` when signing | Unlock keychain: `security unlock-keychain ~/Library/Keychains/login.keychain-db` |
+| Certificate "not trusted" | Install Apple Developer ID intermediate certificate |
+| Notarization fails with unsigned binaries | Sign all .node, .dylib, and executable files before the main app |
+| Node crashes with SIGTRAP | Missing JIT entitlements on node binary |
+| "Developer cannot be verified" | App not notarized, or ticket not stapled |
 
 ## License
 
