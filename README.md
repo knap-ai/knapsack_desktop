@@ -1,6 +1,6 @@
-# Knapsack
+# Knapsack 🎒
 
-Knapsack is the safe, simple way to run [OpenClaw](https://github.com/moltbot/moltbot) on your desktop.
+Knapsack is the safe, simple way to run [OpenClaw](https://github.com/moltbot/moltbot) (née Moltbot née Clawdbot) on your Mac.
 
 OpenClaw is a powerful AI agent platform with browser automation, multi-channel messaging, file access, and code execution -- but running it raw means configuring tokens, locking down network bindings, managing process lifecycles, and getting file permissions right. Miss any of those and you have an agent with broad system access listening on all interfaces.
 
@@ -23,7 +23,6 @@ On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 - **AI Chat** -- Ask questions across all your connected data sources with semantic search
 - **Automations** -- Build workflows with triggers, data sources, and AI prompts (email summaries, meeting prep, lead scoring, and more)
 - **Browser Automation** -- Control a browser through OpenClaw's agent with token-authenticated access
-- **Multi-Channel Messaging** -- Connect WhatsApp, iMessage, Slack, Discord, Telegram, and more through OpenClaw's gateway
 - **Local-First** -- Data is stored in a local SQLite database with Qdrant for vector search
 
 ## Tech Stack
@@ -40,35 +39,42 @@ On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 | Agent Runtime | OpenClaw (bundled) |
 | Auth | Google OAuth2, Microsoft OAuth2 |
 
-## Prerequisites
-
-- **Node.js** >= 16
-- **Rust** >= 1.72
-- **Tauri CLI** -- `npm install --global @tauri-apps/cli@^1`
-- Platform-specific dependencies:
-  - **macOS**: Xcode Command Line Tools
-  - **Linux**: `build-essential`, `libssl-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.0-dev`, `libayatana-appindicator3-dev`
-  - **Windows**: Visual Studio Build Tools with C++ workload
-
 ## Getting Started
 
+**1. Install prerequisites (macOS):**
+
 ```bash
-# Clone the repository
+xcode-select --install
+curl https://sh.rustup.rs -sSf | sh
+source "$HOME/.cargo/env"                    # add cargo to your PATH
+brew install node                            # Node.js >= 16
+npm install --global @tauri-apps/cli@^1      # Tauri CLI
+```
+
+<details>
+<summary>Linux prerequisites</summary>
+
+```bash
+sudo apt install build-essential libssl-dev libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev
+curl https://sh.rustup.rs -sSf | sh && source "$HOME/.cargo/env"
+```
+</details>
+
+> **Note:** If you see a `MaxListenersExceededWarning` during `npm install`, it's harmless — just npm opening many download connections at once.
+
+**2. Clone, install, and run:**
+
+```bash
 git clone https://github.com/knap-ai/knapsack_desktop.git
 cd knapsack_desktop/src
-
-# Install frontend dependencies
 npm install
-
-# Set up environment variables
 cp .env.example .env
-# Edit .env with your configuration (see Environment Variables below)
-
-# Run in development mode
 npm run tauri -- dev
 ```
 
-This starts the Vite dev server on `http://localhost:1420` and the Rust backend on port `8897`, then opens the desktop window with hot reload.
+> **Important:** All commands after `cd` must run from the **`src/`** directory. If you see `Missing script: "tauri"`, you're in the wrong directory.
+
+This builds the Rust backend and opens the Knapsack desktop window. The first build takes a few minutes while Cargo downloads and compiles dependencies.
 
 ## Scripts
 
@@ -84,14 +90,19 @@ All commands should be run from the `src/` directory.
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `VITE_KN_API_SERVER` | Backend API server URL (default: `https://knap.ai`) |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `MICROSOFT_CLIENT_ID` | Microsoft OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | (Optional) Google OAuth client secret for self-hosted auth |
-| `VITE_SENTRY_DSN` | Sentry DSN for error tracking |
-| `SENTRY_AUTH_TOKEN` | Sentry authentication token |
+See `.env.example` for details and links to where you create each credential. The defaults work for local development — you only need to add keys for the specific integrations you want to work on.
+
+> **What's `VITE_`?** Vite (the frontend bundler) exposes any env var starting with `VITE_` to the React frontend. Variables without the prefix are only available to the Rust backend at compile time.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_KN_API_SERVER` | `http://localhost:8897` | Backend API URL. The default just works. |
+| `MICROSOFT_CLIENT_ID` | `unused` | Azure AD app ID — only needed for Outlook/OneDrive. |
+| `VITE_GOOGLE_CLIENT_ID` | *(empty)* | Google OAuth client ID — only needed for Drive/Calendar. |
+| `VITE_GOOGLE_DEVELOPER_KEY` | *(empty)* | Google API key — only needed for Drive file listing. |
+| `VITE_SENTRY_DSN` | *(empty)* | Sentry DSN for frontend error tracking. |
+| `SENTRY_DSN` | *(empty)* | Sentry DSN for Rust backend error tracking. |
+| `SENTRY_AUTH_TOKEN` | *(empty)* | Sentry auth token for source map uploads. |
 
 ## Authentication Modes
 
