@@ -2013,8 +2013,8 @@ export default function ClawdChat() {
         <div className="ClawdChatTitleRow">
           <img src="/assets/images/knap-logo-medium.png" alt="Knapsack" className="ClawdChatLogo" />
           <div className="ClawdChatTitleGroup">
-            <div className="ClawdChatTitle">Knapsack Chat <span style={{fontWeight: 400, opacity: 0.6, fontSize: '0.75em'}}>powered by Moltbot</span></div>
-            <div className="ClawdChatStatus">{statusLine}</div>
+            <h1 className="ClawdChatTitle">Knapsack Chat</h1>
+            <p className="ClawdChatSubtitle">AI assistant powered by OpenClaw</p>
           </div>
         </div>
         <div className="ClawdChatActions">
