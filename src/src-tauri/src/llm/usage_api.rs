@@ -1,5 +1,5 @@
-use actix_web::{get, web, HttpResponse};
-use serde::{Deserialize, Serialize};
+use actix_web::{get, post, web, HttpResponse};
+use serde::Deserialize;
 use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -47,7 +47,7 @@ pub async fn get_usage_summary(query: web::Query<UsageQuery>) -> HttpResponse {
         }
         Err(e) => HttpResponse::InternalServerError().json(json!({
             "success": false,
-            "message": format!("Failed to fetch usage summary: {}", e),
+            "message": format!("Failed to fetch usage summary: {:?}", e),
         })),
     }
 }
@@ -66,7 +66,7 @@ pub async fn get_daily_usage(query: web::Query<UsageQuery>) -> HttpResponse {
         })),
         Err(e) => HttpResponse::InternalServerError().json(json!({
             "success": false,
-            "message": format!("Failed to fetch daily usage: {}", e),
+            "message": format!("Failed to fetch daily usage: {:?}", e),
         })),
     }
 }
@@ -84,7 +84,7 @@ pub async fn get_recent_usage(query: web::Query<RecentQuery>) -> HttpResponse {
         })),
         Err(e) => HttpResponse::InternalServerError().json(json!({
             "success": false,
-            "message": format!("Failed to fetch recent usage: {}", e),
+            "message": format!("Failed to fetch recent usage: {:?}", e),
         })),
     }
 }

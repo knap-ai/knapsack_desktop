@@ -151,7 +151,7 @@ fn record_usage(provider: &str, model: &str, usage: &CompletionUsage, request_ty
   );
 
   if let Err(e) = record.create() {
-    log::warn!("[cost] Failed to record token usage: {}", e);
+    log::warn!("[cost] Failed to record token usage: {:?}", e);
   } else {
     log::info!(
       "[cost] Recorded: provider={}, model={}, in={}, out={}, cost=${:.6}",
