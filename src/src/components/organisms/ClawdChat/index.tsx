@@ -467,24 +467,6 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
   return out
 }
 
-// Classify an activity log line for color coding
-function classifyActivityLine(line: string): string {
-  if (line.includes('run_command')) return 'activity-command'
-  if (line.includes('[browser')) return 'activity-tool'
-  if (line.includes('navigate') || line.includes('chrome')) return 'activity-tool'
-  if (line.includes('res ✓') || line.includes('started') || line.includes('listening')) return 'activity-success'
-  if (line.includes('error') || line.includes('Error') || line.includes('failed') || line.includes('invalid')) return 'activity-error'
-  if (line.includes('[ws]') || line.includes('[gateway]')) return 'activity-tool'
-  if (line.includes('[heartbeat]') || line.includes('[canvas]')) return 'activity-info'
-  return 'activity-info'
-}
-
-// Strip the ISO timestamp prefix for cleaner display
-function formatActivityLine(line: string): string {
-  // Remove leading ISO timestamp like "2026-01-31T20:03:01.871Z "
-  return line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*/, '')
-}
-
 // The smart prompts that auto-execute
 const SMART_PROMPT = 'Tell me how I should use this app based on my email and calendar'
 const NO_AUTH_PROMPT = 'Catch me up on anything important that happened in AI this week'
@@ -650,7 +632,12 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   )
 })
 
-export default function ClawdChat() {
+interface ClawdChatProps {
+  showActivityPanel?: boolean
+  onToggleActivity?: () => void
+}
+
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -702,10 +689,7 @@ export default function ClawdChat() {
   })
   const [showAdvancedWarning, setShowAdvancedWarning] = useState(false)
 
-  // Activity monitor panel state
-  const [showActivityPanel, setShowActivityPanel] = useState(false)
-  const [activityLines, setActivityLines] = useState<string[]>([])
-  const activityLogRef = useRef<HTMLDivElement | null>(null)
+  // Activity panel is now controlled by parent via props
 
   // Skills panel state
   const [showSkillsPanel, setShowSkillsPanel] = useState(false)
@@ -1484,34 +1468,6 @@ export default function ClawdChat() {
     }
   }, [msgs])
 
-  // Activity monitor polling — fetch logs every 2s while panel is open
-  useEffect(() => {
-    if (!showActivityPanel) return
-
-    const fetchActivity = async () => {
-      try {
-        const resp = await apiGet<{ success: boolean; text: string }>('/api/clawd/service/logs?stream=stdout&lines=150')
-        if (resp.success && resp.text) {
-          const lines = resp.text
-            .split('\n')
-            .filter((l: string) => l.trim().length > 0)
-          setActivityLines(lines)
-          // Auto-scroll to bottom
-          requestAnimationFrame(() => {
-            if (activityLogRef.current) {
-              activityLogRef.current.scrollTop = activityLogRef.current.scrollHeight
-            }
-          })
-        }
-      } catch {
-        // silently ignore poll failures
-      }
-    }
-
-    fetchActivity() // immediate first fetch
-    const interval = setInterval(fetchActivity, 2000)
-    return () => clearInterval(interval)
-  }, [showActivityPanel])
 
   const refreshStatus = async () => {
     try {
@@ -2101,8 +2057,10 @@ export default function ClawdChat() {
       )
     }
     if (health) {
-      parts.push(`Gateway: ${health.gateway_ok ? 'OK' : 'down'}`)
-      parts.push(`Browser: ${health.browser_ok ? 'OK' : 'down'}`)
+      // Only show gateway/browser status when they're actually up or service is running
+      // Avoids alarming "down" labels during startup
+      if (health.gateway_ok) parts.push('Gateway: OK')
+      if (health.browser_ok) parts.push('Browser: OK')
     }
     if (currentTargetId) parts.push(`Tab: ${currentTargetId.slice(0, 12)}...`)
     return parts.join(' | ')
@@ -2147,7 +2105,7 @@ export default function ClawdChat() {
           >
             {autonomyMode === 'autonomous' ? '🚀 Autonomous' : '🤝 Assist'}
           </button>
-          <button disabled={busy} onClick={() => setShowKeyPrompt(true)} title="Change AI provider, API key, or model">
+          <button disabled={busy} onClick={() => { setShowKeyPrompt(!showKeyPrompt); setShowSkillsPanel(false) }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
             {selectedProvider === 'anthropic' ? 'Anthropic'
               : selectedProvider === 'gemini' ? 'Gemini'
               : selectedProvider === 'groq' ? 'Groq'
@@ -2168,14 +2126,14 @@ export default function ClawdChat() {
           </button>
           <button
             disabled={busy}
-            onClick={() => { setShowSkillsPanel(true); setShowActivityPanel(false); fetchSkills() }}
+            onClick={() => { setShowSkillsPanel(true); setShowKeyPrompt(false); fetchSkills() }}
             title="Manage skills and extensions"
           >
             Skills
           </button>
           <button
-            onClick={() => { setShowActivityPanel(!showActivityPanel); setShowSkillsPanel(false) }}
-            className={showActivityPanel ? 'toggle-on' : ''}
+            onClick={() => { if (onToggleActivity) { onToggleActivity(); setShowSkillsPanel(false) } }}
+            className={externalActivityPanel ? 'toggle-on' : ''}
             title="View live activity — tool calls, commands, and browser actions"
           >
             Activity
@@ -2194,118 +2152,6 @@ export default function ClawdChat() {
           )}
         </div>
       </div>
-
-      {showKeyPrompt && (
-        <div className="ClawdKeyPrompt">
-          <div className="ClawdKeyPromptContent">
-            <h3>{hasCompletedOnboarding ? 'AI Provider Settings' : 'Welcome to Knapsack'}</h3>
-            <p>
-              {hasCompletedOnboarding
-                ? 'Review or change your AI provider and API key.'
-                : 'Choose your AI provider and enter your API key to get started.'}
-              {' '}Your key is stored locally and never shared.
-            </p>
-
-            <div className="ClawdProviderTabs">
-              {PROVIDERS.map(p => (
-                <button
-                  key={p.id}
-                  className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
-                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
-                  disabled={savingKey}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-
-            <label className="ClawdKeyPromptLabel">
-              {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder={PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
-              disabled={savingKey}
-              onKeyDown={e => {
-                if (e.key === 'Enter') saveApiKey()
-              }}
-            />
-
-            {selectedProvider === 'openai' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
-                  {OPENAI_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {selectedProvider === 'anthropic' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Claude Sonnet 4 for the best balance of speed and capability with tool use.
-              </p>
-            )}
-
-            {selectedProvider === 'gemini' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Gemini 2.5 Flash for fast, efficient responses with tool use.
-              </p>
-            )}
-
-            {selectedProvider === 'groq' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Groq's ultra-fast inference with Llama 4 Scout for tool use.
-              </p>
-            )}
-
-            <div className="ClawdKeyPromptActions">
-              {hasCompletedOnboarding ? (
-                <button onClick={() => {
-                  setShowKeyPrompt(false)
-                  localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
-                }} disabled={savingKey}>
-                  Keep Current Settings
-                </button>
-              ) : (
-                <button onClick={() => {
-                  setShowKeyPrompt(false)
-                  localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
-                }} disabled={savingKey}>
-                  Skip
-                </button>
-              )}
-              <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
-                {savingKey ? 'Saving...' : 'Save & Enable'}
-              </button>
-            </div>
-            <p className="ClawdKeyPromptHelp">
-              Get your API key at{' '}
-              <a
-                href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
-                {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
-                {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
-                {selectedProvider === 'groq' && 'console.groq.com/keys'}
-              </a>
-            </p>
-          </div>
-        </div>
-      )}
 
       {showToneSelector && (
         <div className="ClawdToneSelector">
@@ -2592,22 +2438,105 @@ export default function ClawdChat() {
         </div>
       )}
 
-      {showActivityPanel && (
-        <div className="ClawdActivityPanel">
-          <div className="ClawdActivityHeader">
-            <h3>Activity</h3>
-            <button onClick={() => setShowActivityPanel(false)}>×</button>
+      {showKeyPrompt && (
+        <div className="ClawdKeyPrompt">
+          <div className="ClawdKeyPromptHeader">
+            <h3>{hasCompletedOnboarding ? 'AI Provider Settings' : 'Welcome to Knapsack'}</h3>
+            <button onClick={() => {
+              setShowKeyPrompt(false)
+              localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
+            }}>×</button>
           </div>
-          <div className="ClawdActivityLog" ref={el => { activityLogRef.current = el }}>
-            {activityLines.length === 0 ? (
-              <div className="ClawdActivityEmpty">No activity yet. Send a message to see tool calls here.</div>
-            ) : (
-              activityLines.map((line, i) => (
-                <div key={i} className={`ClawdActivityLine ${classifyActivityLine(line)}`}>
-                  {formatActivityLine(line)}
+          <div className="ClawdKeyPromptContent">
+            <p>
+              {hasCompletedOnboarding
+                ? 'Review or change your AI provider and API key.'
+                : 'Choose your AI provider and enter your API key to get started.'}
+              {' '}Your key is stored locally and never shared.
+            </p>
+
+            <div className="ClawdProviderTabs">
+              {PROVIDERS.map(p => (
+                <button
+                  key={p.id}
+                  className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
+                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
+                  disabled={savingKey}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+
+            <label className="ClawdKeyPromptLabel">
+              {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder={PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
+              disabled={savingKey}
+              onKeyDown={e => {
+                if (e.key === 'Enter') saveApiKey()
+              }}
+            />
+
+            {selectedProvider === 'openai' && (
+              <>
+                <label className="ClawdKeyPromptLabel">Model</label>
+                <div className="ClawdModelSelector">
+                  {OPENAI_MODELS.map(model => (
+                    <button
+                      key={model.id}
+                      className={`ClawdModelOption ${selectedModel === model.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedModel(model.id)}
+                      disabled={savingKey}
+                    >
+                      <span className="ClawdModelName">{model.name}</span>
+                      <span className="ClawdModelDesc">{model.description}</span>
+                    </button>
+                  ))}
                 </div>
-              ))
+              </>
             )}
+
+            {selectedProvider === 'anthropic' && (
+              <p className="ClawdKeyPromptNote">
+                Uses Claude Sonnet 4 for the best balance of speed and capability with tool use.
+              </p>
+            )}
+
+            {selectedProvider === 'gemini' && (
+              <p className="ClawdKeyPromptNote">
+                Uses Gemini 2.5 Flash for fast, efficient responses with tool use.
+              </p>
+            )}
+
+            {selectedProvider === 'groq' && (
+              <p className="ClawdKeyPromptNote">
+                Uses Groq's ultra-fast inference with Llama 4 Scout for tool use.
+              </p>
+            )}
+
+            <div className="ClawdKeyPromptActions">
+              <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
+                {savingKey ? 'Saving...' : 'Save & Enable'}
+              </button>
+            </div>
+            <p className="ClawdKeyPromptHelp">
+              Get your API key at{' '}
+              <a
+                href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
+                {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
+                {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
+                {selectedProvider === 'groq' && 'console.groq.com/keys'}
+              </a>
+            </p>
           </div>
         </div>
       )}
