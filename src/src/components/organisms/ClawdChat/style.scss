@@ -1578,6 +1578,41 @@
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
+.ClawdSkillsDisclaimer {
+  padding: 8px 20px;
+  font-size: 11px;
+  color: #888;
+  line-height: 1.4;
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+
+  a {
+    color: #c54841;
+    text-decoration: none;
+
+    &:hover { text-decoration: underline; }
+  }
+}
+
+.ClawdSkillMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.ClawdSkillExternalBadge {
+  display: inline-block;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(230, 126, 34, 0.12);
+  color: #d35400;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .ClawdSkillsList {
   flex: 1;
   overflow-y: auto;
