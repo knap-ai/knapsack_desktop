@@ -154,6 +154,15 @@ const LogsView: React.FC = () => {
           Auto-refresh
         </label>
         <button
+          onClick={() => {
+            navigator.clipboard.writeText(filteredLogs.join('\n'))
+          }}
+          disabled={filteredLogs.length === 0}
+          className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+        >
+          Copy All
+        </button>
+        <button
           onClick={fetchLogs}
           disabled={isLoading}
           className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"

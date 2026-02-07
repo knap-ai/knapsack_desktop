@@ -7,12 +7,5 @@
   {"name":"File Writer","emoji":"✏️","description":"Create and edit local files","source":"built-in","eligible":true,"enabled":true},
   {"name":"Python Scripts","emoji":"🐍","description":"Run Python for data analysis and automation","source":"built-in","eligible":true,"enabled":true},
   {"name":"Shell Commands","emoji":"⚡","description":"Execute shell commands (Advanced Mode)","source":"built-in","eligible":true,"enabled":true},
-  {"name":"Screenshot","emoji":"📸","description":"Capture screenshots of web pages","source":"built-in","eligible":true,"enabled":true},
-  {"name":"Database","emoji":"🗄️","description":"SQL/NoSQL database queries","source":"openclawskills.org","eligible":false,"installOptions":[{"id":"npm","label":"npm install"}]},
-  {"name":"GitHub","emoji":"🐙","description":"Manage repos, issues, and PRs","source":"openclawskills.org","eligible":false,"installOptions":[{"id":"npm","label":"npm install"}]},
-  {"name":"Slack","emoji":"💬","description":"Send and read Slack messages","source":"moltdirectory.com","eligible":false,"installOptions":[{"id":"npm","label":"npm install"}]},
-  {"name":"Notion","emoji":"📝","description":"Read and edit Notion pages and databases","source":"moltdirectory.com","eligible":false,"installOptions":[{"id":"npm","label":"npm install"}]},
-  {"name":"Image Generation","emoji":"🎨","description":"Generate images with DALL-E or Stable Diffusion","source":"openclawskills.org","eligible":false,"installOptions":[{"id":"npm","label":"npm install"}]},
-  {"name":"Discord","emoji":"🎮","description":"Send messages and manage Discord servers","source":"openclawskills.org","eligible":false,"installOptions":[{"id":"npm","label":"npm install"}]},
-  {"name":"Jira","emoji":"📋","description":"Manage Jira issues and sprint boards","source":"moltdirectory.com","eligible":false,"installOptions":[{"id":"npm","label":"npm install"}]}
+  {"name":"Screenshot","emoji":"📸","description":"Capture screenshots of web pages","source":"built-in","eligible":true,"enabled":true}
 ]

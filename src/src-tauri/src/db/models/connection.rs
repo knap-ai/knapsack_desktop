@@ -35,7 +35,7 @@ impl Connection {
     }
     let connection = get_db_conn();
     connection.execute(
-      "INSERT INTO connections (scope, provider) VALUES (?1, ?2)",
+      "INSERT OR IGNORE INTO connections (scope, provider) VALUES (?1, ?2)",
       (&self.scope, &self.provider),
     )?;
     Ok(())
