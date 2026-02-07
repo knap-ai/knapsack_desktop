@@ -113,3 +113,35 @@ pub async fn get_budget_status() -> HttpResponse {
         "monthlyCostUsd": monthly_cost,
     }))
 }
+
+#[derive(Deserialize)]
+pub struct ModelRoutingBody {
+    enabled: bool,
+}
+
+/// GET /api/knapsack/token_usage/model_routing
+/// Returns whether smart model routing is enabled.
+#[get("/api/knapsack/token_usage/model_routing")]
+pub async fn get_model_routing() -> HttpResponse {
+    let enabled = std::env::var("KNAPSACK_MODEL_ROUTING_ENABLED")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    HttpResponse::Ok().json(json!({
+        "success": true,
+        "enabled": enabled,
+    }))
+}
+
+/// POST /api/knapsack/token_usage/model_routing
+/// Enable or disable smart model routing.
+#[post("/api/knapsack/token_usage/model_routing")]
+pub async fn set_model_routing(body: web::Json<ModelRoutingBody>) -> HttpResponse {
+    std::env::set_var("KNAPSACK_MODEL_ROUTING_ENABLED", if body.enabled { "true" } else { "false" });
+    log::info!("[cost] Smart model routing set to: {}", body.enabled);
+
+    HttpResponse::Ok().json(json!({
+        "success": true,
+        "enabled": body.enabled,
+    }))
+}

@@ -212,6 +212,8 @@ pub async fn start_server<'a>(
       .service(usage_api::get_daily_usage)
       .service(usage_api::get_recent_usage)
       .service(usage_api::get_budget_status)
+      .service(usage_api::get_model_routing)
+      .service(usage_api::set_model_routing)
   })
   .bind(("127.0.0.1", port))
   .unwrap()

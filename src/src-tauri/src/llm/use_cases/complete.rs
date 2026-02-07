@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 use crate::db::models::document::Document;
 use crate::db::models::message::Message;
 use crate::db::models::token_usage::TokenUsage;
-use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
+use crate::llm::cost::{calculate_cost, classify_task_complexity, estimate_tokens, get_pricing};
 use crate::llm::groq::llm::GroqLlm;
 use crate::llm::llama_binding::process::{start, InferenceThreadRequest};
 use crate::llm::llama_binding::stop_handler::StopHandler;
@@ -120,6 +120,41 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   Err(LLMError::ChatCompletionFailed(
     "No API key configured. Please add your API key in Settings.".into(),
   ))
+}
+
+/// When smart model routing is enabled, downgrade to a cheaper model for simple tasks.
+/// Keeps the user's chosen provider but picks the cheapest model tier within it.
+fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
+    let enabled = std::env::var("KNAPSACK_MODEL_ROUTING_ENABLED")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    if !enabled {
+        return;
+    }
+
+    let complexity = classify_task_complexity(prompt);
+    log::info!("[routing] Task classified as '{}' for provider '{}'", complexity, provider.name);
+
+    if complexity == "haiku" {
+        // Downgrade to cheapest model within each provider
+        let (new_model, label) = match provider.name.as_str() {
+            "openai" => ("gpt-4o-mini".to_string(), "GPT-4o-mini"),
+            "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
+            "gemini" => ("gemini-2.5-flash".to_string(), "Flash"), // already cheap
+            "groq" => (provider.model.clone(), "Groq"),           // already cheap
+            _ => (provider.model.clone(), "unchanged"),
+        };
+
+        if new_model != provider.model {
+            log::info!(
+                "[routing] Downgrading from {} to {} ({}) for simple task",
+                provider.model, new_model, label
+            );
+            provider.model = new_model;
+        }
+    }
+    // "sonnet" complexity: keep the user's chosen model as-is
 }
 
 /// Extract token usage from an OpenAI-compatible JSON response.
@@ -307,7 +342,16 @@ async fn anthropic_completion(
 async fn multi_provider_completion(
   messages: Vec<LlmMessage>,
 ) -> Result<String, LLMError> {
-  let provider = resolve_provider()?;
+  let mut provider = resolve_provider()?;
+
+  // Extract the last user message for task complexity classification
+  let user_prompt: String = messages.iter()
+    .filter(|m| matches!(m.sender, MessageSender::User))
+    .last()
+    .map(|m| m.content.clone())
+    .unwrap_or_default();
+  apply_model_routing(&mut provider, &user_prompt);
+
   log::info!("[notes] Using {} ({}) for meeting notes completion", provider.name, provider.model);
 
   let result = if provider.is_anthropic {
