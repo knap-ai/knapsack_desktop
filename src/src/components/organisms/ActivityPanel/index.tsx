@@ -596,16 +596,6 @@ const TerminalView: React.FC = () => {
         </button>
       </div>
 
-      {/* Terminal header */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="flex gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
-          <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-          <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
-        </div>
-        <span className="text-xs text-gray-500 ml-1 font-mono truncate">{cwdDisplay}</span>
-      </div>
-
       {/* Terminal body */}
       <div
         className="ActivityPanel__terminal flex-1 flex flex-col"
