@@ -420,8 +420,11 @@ function Home({
 
               {currentTab === TabChoices.Moltbot && (
                 <div className="overflow-hidden w-full h-full flex flex-row">
-                  <div className="overflow-hidden w-full h-full">
+                  <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat />
+                  </div>
+                  <div className="overflow-hidden h-full border-l border-gray-200 bg-white" style={{ width: 420 }}>
+                    <ActivityPanel />
                   </div>
                 </div>
               )}
@@ -448,11 +451,6 @@ function Home({
                 />
               )}
 
-              {currentTab === TabChoices.Activity && (
-                <div className="overflow-hidden w-full h-full">
-                  <ActivityPanel />
-                </div>
-              )}
             </div>
           </div>
         </div>

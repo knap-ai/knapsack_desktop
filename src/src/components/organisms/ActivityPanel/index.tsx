@@ -28,12 +28,12 @@ interface TokenUsageRecord {
 }
 
 const ActivityPanel: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<ActivitySubTab>('logs')
+  const [activeSubTab, setActiveSubTab] = useState<ActivitySubTab>('terminal')
 
   return (
     <div className="ActivityPanel w-full h-full flex flex-col overflow-hidden">
       {/* Sub-tab bar */}
-      <div className="ActivityPanel__tabs flex px-6 pt-4 bg-white">
+      <div className="ActivityPanel__tabs flex px-4 pt-3 bg-white">
         {(['logs', 'costs', 'terminal'] as ActivitySubTab[]).map(tab => (
           <button
             key={tab}
@@ -116,9 +116,9 @@ const LogsView: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full px-6 py-4">
+    <div className="flex flex-col h-full px-4 py-3">
       {/* Controls */}
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
         <div className="flex bg-gray-100 rounded-lg p-0.5">
           <button
             className={`px-3 py-1 text-xs rounded-md transition-colors ${
@@ -255,9 +255,9 @@ const TokenCostsView: React.FC = () => {
     : 0
 
   return (
-    <div className="flex flex-col h-full px-6 py-4 overflow-y-auto">
+    <div className="flex flex-col h-full px-4 py-3 overflow-y-auto">
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="ActivityPanel__costCard">
           <div className="text-xs text-gray-500 mb-1">Total Tokens ({days}d)</div>
           <div className="text-2xl font-semibold text-gray-900">
@@ -390,149 +390,207 @@ const TokenCostsView: React.FC = () => {
 }
 
 /* =========================================================
-   TERMINAL VIEW
+   TERMINAL VIEW – multi-session with default App & Clawdbot
    ========================================================= */
 
+interface TerminalSession {
+  id: string
+  label: string
+  lines: TerminalLine[]
+  cwd: string
+  initialCwd: string
+  commandHistory: string[]
+  historyIndex: number
+  inputValue: string
+  isExecuting: boolean
+}
+
+const DEFAULT_SESSIONS: { id: string; label: string; initialCwd: string }[] = [
+  { id: 'app', label: 'App', initialCwd: '~/knapsack_desktop' },
+  { id: 'clawdbot', label: 'Clawdbot', initialCwd: '~/knapsack_desktop/src/src-tauri/resources/clawdbot' },
+]
+
+function makeSession(id: string, label: string, initialCwd: string): TerminalSession {
+  return {
+    id,
+    label,
+    lines: [{ type: 'system', text: `${label} terminal ready. Type a command and press Enter.`, timestamp: new Date() }],
+    cwd: '',
+    initialCwd,
+    commandHistory: [],
+    historyIndex: -1,
+    inputValue: '',
+    isExecuting: false,
+  }
+}
+
 const TerminalView: React.FC = () => {
-  const [lines, setLines] = useState<TerminalLine[]>([
-    {
-      type: 'system',
-      text: 'Knapsack Terminal ready. Type a command and press Enter.',
-      timestamp: new Date(),
-    },
-  ])
-  const [inputValue, setInputValue] = useState('')
-  const [isExecuting, setIsExecuting] = useState(false)
-  const [cwd, setCwd] = useState<string>('')
-  const [commandHistory, setCommandHistory] = useState<string[]>([])
-  const [historyIndex, setHistoryIndex] = useState(-1)
+  const [sessions, setSessions] = useState<TerminalSession[]>(() =>
+    DEFAULT_SESSIONS.map(s => makeSession(s.id, s.label, s.initialCwd)),
+  )
+  const [activeSessionId, setActiveSessionId] = useState<string>('app')
   const outputRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Get initial working directory
-  useEffect(() => {
-    const getHome = async () => {
-      try {
-        const result: string = await invoke('kn_execute_command', { command: 'pwd' })
-        setCwd(result.trim())
-      } catch {
-        setCwd('~')
-      }
-    }
-    getHome()
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0]
+
+  const updateSession = useCallback((id: string, updater: (s: TerminalSession) => TerminalSession) => {
+    setSessions(prev => prev.map(s => (s.id === id ? updater(s) : s)))
   }, [])
 
+  // Resolve initial cwd for each session
+  useEffect(() => {
+    sessions.forEach(session => {
+      if (session.cwd) return // already resolved
+      const resolveDir = async () => {
+        try {
+          const expanded = session.initialCwd.replace(/^~/, '$HOME')
+          const result: string = await invoke('kn_execute_command', {
+            command: `eval cd ${expanded} 2>/dev/null && pwd || pwd`,
+          })
+          updateSession(session.id, s => ({ ...s, cwd: result.trim() }))
+        } catch {
+          updateSession(session.id, s => ({ ...s, cwd: '~' }))
+        }
+      }
+      resolveDir()
+    })
+  }, [sessions.length])
+
+  // Auto-scroll output
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
-  }, [lines])
+  }, [activeSession.lines])
 
+  // Focus input on session switch or execution complete
   useEffect(() => {
     inputRef.current?.focus()
-  }, [isExecuting])
+  }, [activeSessionId, activeSession.isExecuting])
 
-  const addLine = useCallback((type: TerminalLine['type'], text: string) => {
-    setLines(prev => [...prev, { type, text, timestamp: new Date() }])
-  }, [])
+  const addLine = useCallback(
+    (sessionId: string, type: TerminalLine['type'], text: string) => {
+      updateSession(sessionId, s => ({
+        ...s,
+        lines: [...s.lines, { type, text, timestamp: new Date() }],
+      }))
+    },
+    [updateSession],
+  )
 
   const executeCommand = useCallback(
-    async (command: string) => {
+    async (sessionId: string, command: string) => {
+      const session = sessions.find(s => s.id === sessionId)
+      if (!session) return
       const trimmed = command.trim()
       if (!trimmed) return
 
-      setCommandHistory(prev => [trimmed, ...prev])
-      setHistoryIndex(-1)
-      addLine('command', `$ ${trimmed}`)
+      updateSession(sessionId, s => ({
+        ...s,
+        commandHistory: [trimmed, ...s.commandHistory],
+        historyIndex: -1,
+      }))
+      addLine(sessionId, 'command', `$ ${trimmed}`)
 
-      // Handle built-in commands
       if (trimmed === 'clear') {
-        setLines([])
+        updateSession(sessionId, s => ({ ...s, lines: [] }))
         return
       }
 
       if (trimmed.startsWith('cd ')) {
         const dir = trimmed.slice(3).trim()
-        setIsExecuting(true)
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
-          // Resolve the new directory by running cd + pwd
-          const actualCommand = cwd
-            ? `cd "${cwd}" && cd ${dir} && pwd`
-            : `cd ${dir} && pwd`
+          const cwd = session.cwd
+          const actualCommand = cwd ? `cd "${cwd}" && cd ${dir} && pwd` : `cd ${dir} && pwd`
           const result: string = await invoke('kn_execute_command', { command: actualCommand })
           const newCwd = result.trim()
-          setCwd(newCwd)
-          addLine('system', `Changed directory to ${newCwd}`)
+          updateSession(sessionId, s => ({ ...s, cwd: newCwd }))
+          addLine(sessionId, 'system', `Changed directory to ${newCwd}`)
         } catch (err) {
-          addLine('stderr', `cd: ${err}`)
+          addLine(sessionId, 'stderr', `cd: ${err}`)
         } finally {
-          setIsExecuting(false)
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
         }
         return
       }
 
-      setIsExecuting(true)
+      updateSession(sessionId, s => ({ ...s, isExecuting: true }))
       try {
+        const cwd = session.cwd
         const actualCommand = cwd ? `cd "${cwd}" && ${trimmed}` : trimmed
         const result: string = await invoke('kn_execute_command', { command: actualCommand })
         if (result) {
-          addLine('stdout', result)
+          addLine(sessionId, 'stdout', result)
         }
       } catch (err) {
-        addLine('stderr', String(err))
+        addLine(sessionId, 'stderr', String(err))
       } finally {
-        setIsExecuting(false)
+        updateSession(sessionId, s => ({ ...s, isExecuting: false }))
       }
     },
-    [cwd, addLine],
+    [sessions, addLine, updateSession],
   )
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isExecuting) {
-      executeCommand(inputValue)
-      setInputValue('')
+    const sid = activeSession.id
+    if (e.key === 'Enter' && !activeSession.isExecuting) {
+      executeCommand(sid, activeSession.inputValue)
+      updateSession(sid, s => ({ ...s, inputValue: '' }))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      if (commandHistory.length > 0) {
-        const newIndex = Math.min(historyIndex + 1, commandHistory.length - 1)
-        setHistoryIndex(newIndex)
-        setInputValue(commandHistory[newIndex])
+      if (activeSession.commandHistory.length > 0) {
+        const newIndex = Math.min(activeSession.historyIndex + 1, activeSession.commandHistory.length - 1)
+        updateSession(sid, s => ({
+          ...s,
+          historyIndex: newIndex,
+          inputValue: s.commandHistory[newIndex],
+        }))
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      if (historyIndex > 0) {
-        const newIndex = historyIndex - 1
-        setHistoryIndex(newIndex)
-        setInputValue(commandHistory[newIndex])
+      if (activeSession.historyIndex > 0) {
+        const newIndex = activeSession.historyIndex - 1
+        updateSession(sid, s => ({
+          ...s,
+          historyIndex: newIndex,
+          inputValue: s.commandHistory[newIndex],
+        }))
       } else {
-        setHistoryIndex(-1)
-        setInputValue('')
+        updateSession(sid, s => ({ ...s, historyIndex: -1, inputValue: '' }))
       }
     } else if (e.key === 'l' && e.ctrlKey) {
       e.preventDefault()
-      setLines([])
+      updateSession(sid, s => ({ ...s, lines: [] }))
     }
   }
 
-  const cwdDisplay = cwd
-    ? cwd.replace(/^\/Users\/[^/]+/, '~').replace(/^\/home\/[^/]+/, '~')
+  const cwdDisplay = activeSession.cwd
+    ? activeSession.cwd.replace(/^\/Users\/[^/]+/, '~').replace(/^\/home\/[^/]+/, '~')
     : '~'
 
   return (
-    <div className="flex flex-col h-full px-6 py-4">
-      {/* Terminal header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-red-400" />
-            <div className="w-3 h-3 rounded-full bg-yellow-400" />
-            <div className="w-3 h-3 rounded-full bg-green-400" />
-          </div>
-          <span className="text-xs text-gray-500 ml-2 font-mono">{cwdDisplay}</span>
-        </div>
+    <div className="flex flex-col h-full px-4 py-3">
+      {/* Session tabs */}
+      <div className="flex items-center gap-1 mb-2">
+        {sessions.map(session => (
+          <button
+            key={session.id}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              activeSessionId === session.id
+                ? 'bg-gray-700 text-white font-medium'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+            onClick={() => setActiveSessionId(session.id)}
+          >
+            {session.label}
+          </button>
+        ))}
+        <div className="flex-1" />
         <button
           className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          onClick={() => setLines([])}
+          onClick={() => updateSession(activeSession.id, s => ({ ...s, lines: [] }))}
         >
           Clear
         </button>
@@ -544,12 +602,12 @@ const TerminalView: React.FC = () => {
         onClick={() => inputRef.current?.focus()}
       >
         <div ref={outputRef} className="terminal__output flex-1">
-          {lines.map((line, i) => (
+          {activeSession.lines.map((line, i) => (
             <div key={i} className={`terminal__line--${line.type}`}>
               {line.text}
             </div>
           ))}
-          {isExecuting && (
+          {activeSession.isExecuting && (
             <div className="terminal__line--system animate-pulse">Running...</div>
           )}
         </div>
@@ -560,11 +618,13 @@ const TerminalView: React.FC = () => {
             ref={inputRef}
             type="text"
             className="terminal__input"
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
+            value={activeSession.inputValue}
+            onChange={e =>
+              updateSession(activeSession.id, s => ({ ...s, inputValue: e.target.value }))
+            }
             onKeyDown={handleKeyDown}
-            placeholder={isExecuting ? 'Waiting for command to finish...' : 'Enter a command...'}
-            disabled={isExecuting}
+            placeholder={activeSession.isExecuting ? 'Waiting for command to finish...' : 'Enter a command...'}
+            disabled={activeSession.isExecuting}
             autoFocus
           />
         </div>

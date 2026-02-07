@@ -58,12 +58,6 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
       label: 'Chat',
       isActive: fullRelease === true,
     },
-    {
-      id: TabChoices.Activity,
-      svg: '/assets/images/tabBar/planTab.svg',
-      label: 'Activity',
-      isActive: true,
-    },
   ]
 
   const numActiveTabs = tabs.filter(tab => tab.isActive).length
