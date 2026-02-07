@@ -428,7 +428,7 @@ function Home({
                     />
                   </div>
                   {showActivityPanel && (
-                    <div className="overflow-hidden h-full border-l border-gray-200 bg-white" style={{ width: 420 }}>
+                    <div className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white" style={{ width: 420 }}>
                       <ActivityPanel onClose={() => setShowActivityPanel(false)} />
                     </div>
                   )}

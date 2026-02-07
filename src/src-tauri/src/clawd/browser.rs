@@ -12,6 +12,8 @@ use std::sync::Mutex;
 
 use crate::clawd::chat_agent;
 use crate::clawd::sidecar::SharedClawdbotConfig;
+use crate::db::models::token_usage::TokenUsage;
+use crate::llm::cost::{get_pricing, calculate_cost, estimate_tokens};
 
 // --- local token storage (shared with service.rs) ---
 
@@ -2342,6 +2344,8 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
     _ => super::service::get_openai_model(&app_handle),
   };
   eprintln!("[clawd/chat] Using provider={} model={}", provider, model);
+  let mut total_input_tokens: i64 = 0;
+  let mut total_output_tokens: i64 = 0;
   let mut tool_iter = 0u32;
   for _ in 0..75 {
     tool_iter += 1;
@@ -2386,6 +2390,12 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
       }
     };
 
+    // Accumulate token usage from each iteration
+    if let Some(ref u) = resp.usage {
+      total_input_tokens += u.input_tokens;
+      total_output_tokens += u.output_tokens;
+    }
+
     let choice = match resp.choices.first() {
       Some(c) => c,
       None => {
@@ -2396,6 +2406,36 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
 
     if choice.message.tool_calls.is_empty() {
       let reply = choice.message.content.clone().unwrap_or_default();
+
+      // If the provider didn't return usage data, estimate from content
+      if total_input_tokens == 0 {
+        let total_input: usize = messages.iter().map(|m| match m {
+          chat_agent::OaiMessage::System { content } => content.len(),
+          chat_agent::OaiMessage::User { content, .. } => content.len(),
+          chat_agent::OaiMessage::Assistant { content, .. } => content.as_ref().map_or(0, |c| c.len()),
+          chat_agent::OaiMessage::Tool { content, .. } => content.len(),
+        }).sum();
+        total_input_tokens = estimate_tokens(&" ".repeat(total_input));
+      }
+      if total_output_tokens == 0 {
+        total_output_tokens = estimate_tokens(&reply);
+      }
+
+      // Record token usage to the database (best-effort)
+      let pricing = get_pricing(&provider, &model);
+      let cost = calculate_cost(total_input_tokens, total_output_tokens, &pricing);
+      let mut record = TokenUsage::new(
+        provider.clone(), model.clone(),
+        total_input_tokens, total_output_tokens,
+        cost, "chat".to_string(),
+      );
+      if let Err(e) = record.create() {
+        eprintln!("[clawd/chat] Failed to record token usage: {:?}", e);
+      } else {
+        eprintln!("[clawd/chat] Recorded usage: provider={}, model={}, in={}, out={}, cost=${:.6}",
+          provider, model, total_input_tokens, total_output_tokens, cost);
+      }
+
       // persist history (keep last ~20 messages — omit images to avoid bloating)
       history.push(chat_agent::OaiMessage::User {
         content: full_text.clone(),
@@ -2409,7 +2449,16 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
         let drain = history.len() - 20;
         history.drain(0..drain);
       }
-      return HttpResponse::Ok().json(serde_json::json!({"ok": true, "reply": reply}));
+      return HttpResponse::Ok().json(serde_json::json!({
+        "ok": true,
+        "reply": reply,
+        "model": model,
+        "usage": {
+          "inputTokens": total_input_tokens,
+          "outputTokens": total_output_tokens,
+          "costUsd": cost,
+        },
+      }));
     }
 
     // Add assistant tool-call message

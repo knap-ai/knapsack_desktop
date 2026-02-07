@@ -116,6 +116,19 @@
   font-size: 11px;
   color: rgba(0, 0, 0, 0.45);
   line-height: 1.3;
+
+  .status-ok {
+    color: rgba(0, 128, 0, 0.7);
+  }
+
+  .status-warn {
+    color: rgba(180, 130, 0, 0.8);
+  }
+
+  .status-down {
+    color: rgba(200, 40, 40, 0.8);
+    font-weight: 600;
+  }
 }
 
 .ClawdChatActions {
@@ -421,6 +434,14 @@
 .ClawdMsg-user .ClawdBubble {
   background: rgba(197, 72, 65, 0.12);
   border-color: rgba(197, 72, 65, 0.25);
+}
+
+.ClawdMsgModel {
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.3);
+  margin-top: 6px;
+  text-align: right;
+  font-style: italic;
 }
 
 .ClawdChatInput {
