@@ -177,6 +177,7 @@ html, body {
   --font-inter: 'Inter', sans-serif;
   --font-roboto-mono: 'RobotoMono', monospace;
   --font-inter-tight: 'InterTight', sans-serif;
+  --font-lora: 'Lora', serif;
   --font-sf-pro: 'SF Pro Display', sans-serif;
 
   /* Legacy font variables - keeping for backward compatibility */
@@ -185,7 +186,7 @@ html, body {
   --font-mono: var(--font-roboto-mono);
   --font-font-style: normal;
   --font-tight: var(--font-inter-tight);
-  --font-serif: var(--font-ks-serif);
+  --font-serif: var(--font-lora);
 
   --font-weight-lighter: 100;
   --font-weight-extralight: 200;
