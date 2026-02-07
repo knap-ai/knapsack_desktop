@@ -2103,7 +2103,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           >
             {autonomyMode === 'autonomous' ? '🚀 Autonomous' : '🤝 Assist'}
           </button>
-          <button disabled={busy} onClick={() => setShowKeyPrompt(true)} title="Change AI provider, API key, or model">
+          <button disabled={busy} onClick={() => { setShowKeyPrompt(!showKeyPrompt); setShowSkillsPanel(false) }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
             {selectedProvider === 'anthropic' ? 'Anthropic'
               : selectedProvider === 'gemini' ? 'Gemini'
               : selectedProvider === 'groq' ? 'Groq'
@@ -2124,7 +2124,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </button>
           <button
             disabled={busy}
-            onClick={() => { setShowSkillsPanel(true); fetchSkills() }}
+            onClick={() => { setShowSkillsPanel(true); setShowKeyPrompt(false); fetchSkills() }}
             title="Manage skills and extensions"
           >
             Skills
@@ -2150,118 +2150,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           )}
         </div>
       </div>
-
-      {showKeyPrompt && (
-        <div className="ClawdKeyPrompt">
-          <div className="ClawdKeyPromptContent">
-            <h3>{hasCompletedOnboarding ? 'AI Provider Settings' : 'Welcome to Knapsack'}</h3>
-            <p>
-              {hasCompletedOnboarding
-                ? 'Review or change your AI provider and API key.'
-                : 'Choose your AI provider and enter your API key to get started.'}
-              {' '}Your key is stored locally and never shared.
-            </p>
-
-            <div className="ClawdProviderTabs">
-              {PROVIDERS.map(p => (
-                <button
-                  key={p.id}
-                  className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
-                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
-                  disabled={savingKey}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-
-            <label className="ClawdKeyPromptLabel">
-              {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder={PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
-              disabled={savingKey}
-              onKeyDown={e => {
-                if (e.key === 'Enter') saveApiKey()
-              }}
-            />
-
-            {selectedProvider === 'openai' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
-                  {OPENAI_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {selectedProvider === 'anthropic' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Claude Sonnet 4 for the best balance of speed and capability with tool use.
-              </p>
-            )}
-
-            {selectedProvider === 'gemini' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Gemini 2.5 Flash for fast, efficient responses with tool use.
-              </p>
-            )}
-
-            {selectedProvider === 'groq' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Groq's ultra-fast inference with Llama 4 Scout for tool use.
-              </p>
-            )}
-
-            <div className="ClawdKeyPromptActions">
-              {hasCompletedOnboarding ? (
-                <button onClick={() => {
-                  setShowKeyPrompt(false)
-                  localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
-                }} disabled={savingKey}>
-                  Keep Current Settings
-                </button>
-              ) : (
-                <button onClick={() => {
-                  setShowKeyPrompt(false)
-                  localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
-                }} disabled={savingKey}>
-                  Skip
-                </button>
-              )}
-              <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
-                {savingKey ? 'Saving...' : 'Save & Enable'}
-              </button>
-            </div>
-            <p className="ClawdKeyPromptHelp">
-              Get your API key at{' '}
-              <a
-                href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
-                {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
-                {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
-                {selectedProvider === 'groq' && 'console.groq.com/keys'}
-              </a>
-            </p>
-          </div>
-        </div>
-      )}
 
       {showToneSelector && (
         <div className="ClawdToneSelector">
@@ -2548,6 +2436,108 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         </div>
       )}
 
+      {showKeyPrompt && (
+        <div className="ClawdKeyPrompt">
+          <div className="ClawdKeyPromptHeader">
+            <h3>{hasCompletedOnboarding ? 'AI Provider Settings' : 'Welcome to Knapsack'}</h3>
+            <button onClick={() => {
+              setShowKeyPrompt(false)
+              localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
+            }}>×</button>
+          </div>
+          <div className="ClawdKeyPromptContent">
+            <p>
+              {hasCompletedOnboarding
+                ? 'Review or change your AI provider and API key.'
+                : 'Choose your AI provider and enter your API key to get started.'}
+              {' '}Your key is stored locally and never shared.
+            </p>
+
+            <div className="ClawdProviderTabs">
+              {PROVIDERS.map(p => (
+                <button
+                  key={p.id}
+                  className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
+                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
+                  disabled={savingKey}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+
+            <label className="ClawdKeyPromptLabel">
+              {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder={PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
+              disabled={savingKey}
+              onKeyDown={e => {
+                if (e.key === 'Enter') saveApiKey()
+              }}
+            />
+
+            {selectedProvider === 'openai' && (
+              <>
+                <label className="ClawdKeyPromptLabel">Model</label>
+                <div className="ClawdModelSelector">
+                  {OPENAI_MODELS.map(model => (
+                    <button
+                      key={model.id}
+                      className={`ClawdModelOption ${selectedModel === model.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedModel(model.id)}
+                      disabled={savingKey}
+                    >
+                      <span className="ClawdModelName">{model.name}</span>
+                      <span className="ClawdModelDesc">{model.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {selectedProvider === 'anthropic' && (
+              <p className="ClawdKeyPromptNote">
+                Uses Claude Sonnet 4 for the best balance of speed and capability with tool use.
+              </p>
+            )}
+
+            {selectedProvider === 'gemini' && (
+              <p className="ClawdKeyPromptNote">
+                Uses Gemini 2.5 Flash for fast, efficient responses with tool use.
+              </p>
+            )}
+
+            {selectedProvider === 'groq' && (
+              <p className="ClawdKeyPromptNote">
+                Uses Groq's ultra-fast inference with Llama 4 Scout for tool use.
+              </p>
+            )}
+
+            <div className="ClawdKeyPromptActions">
+              <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
+                {savingKey ? 'Saving...' : 'Save & Enable'}
+              </button>
+            </div>
+            <p className="ClawdKeyPromptHelp">
+              Get your API key at{' '}
+              <a
+                href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
+                {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
+                {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
+                {selectedProvider === 'groq' && 'console.groq.com/keys'}
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
 
       </div>
     </div>

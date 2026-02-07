@@ -23,7 +23,7 @@ interface TokenUsageRecord {
   input_tokens: number
   output_tokens: number
   cost_usd: number
-  action: string
+  requestType: string
   created_at: number
 }
 
@@ -385,7 +385,7 @@ const TokenCostsView: React.FC = () => {
                     <td className="px-4 py-2 text-gray-500">
                       {new Date(record.created_at * 1000).toLocaleString()}
                     </td>
-                    <td className="px-4 py-2 text-gray-700">{record.action || 'LLM Call'}</td>
+                    <td className="px-4 py-2 text-gray-700">{record.requestType || 'LLM Call'}</td>
                     <td className="px-4 py-2">
                       <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px]">
                         {record.model}
@@ -517,6 +517,119 @@ const TerminalView: React.FC = () => {
 
       if (trimmed === 'clear') {
         updateSession(sessionId, s => ({ ...s, lines: [] }))
+        return
+      }
+
+      // Skills CLI commands — intercept and call the backend API
+      if (trimmed === 'skills' || trimmed === 'skills help') {
+        addLine(sessionId, 'system', 'Usage: skills <command>\n\n  skills list       List all skills with status\n  skills install    Install a skill (e.g. skills install GitHub)\n  skills enable     Enable a skill (e.g. skills enable GitHub)\n  skills disable    Disable a skill (e.g. skills disable GitHub)\n  skills help       Show this help')
+        return
+      }
+
+      if (trimmed === 'skills list' || trimmed === 'skills status' || trimmed === 'skills check') {
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        try {
+          const resp = await fetch('http://localhost:8897/api/clawd/skills/status')
+          const data = await resp.json()
+          if (data.success && data.skills) {
+            const skills: { name: string; eligible?: boolean; enabled?: boolean; source?: string; description?: string; missing?: string[] }[] = data.skills
+            const lines: string[] = []
+            const ready = skills.filter(s => s.eligible && s.enabled !== false)
+            const needsSetup = skills.filter(s => !s.eligible && s.missing?.length)
+            const available = skills.filter(s => !s.eligible && !s.missing?.length && s.source === 'OpenClaw')
+            const disabled = skills.filter(s => s.eligible && s.enabled === false)
+
+            if (ready.length) {
+              lines.push(`\n  Ready (${ready.length}):`)
+              ready.forEach(s => lines.push(`    ✓ ${s.name.padEnd(24)} ${s.description || ''}`))
+            }
+            if (disabled.length) {
+              lines.push(`\n  Disabled (${disabled.length}):`)
+              disabled.forEach(s => lines.push(`    ⏸ ${s.name.padEnd(24)} ${s.description || ''}`))
+            }
+            if (needsSetup.length) {
+              lines.push(`\n  Needs Setup (${needsSetup.length}):`)
+              needsSetup.forEach(s => lines.push(`    ✗ ${s.name.padEnd(24)} Missing: ${s.missing?.join(', ')}`))
+            }
+            if (available.length) {
+              lines.push(`\n  Available from OpenClaw (${available.length}):`)
+              available.forEach(s => lines.push(`    ○ ${s.name.padEnd(24)} ${s.description || ''}`))
+            }
+            lines.push(`\n  ${skills.length} skills total`)
+            addLine(sessionId, 'stdout', lines.join('\n'))
+          } else {
+            addLine(sessionId, 'stderr', data.message || 'Failed to fetch skills status')
+          }
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed to connect to backend: ${err}`)
+        } finally {
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
+        return
+      }
+
+      const installMatch = trimmed.match(/^skills\s+install\s+(.+)$/i)
+      if (installMatch) {
+        const skillName = installMatch[1].trim()
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        try {
+          addLine(sessionId, 'system', `Installing ${skillName}...`)
+          const resp = await fetch('http://localhost:8897/api/clawd/skills/install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: skillName, installId: 'default' }),
+          })
+          const data = await resp.json()
+          if (data.success) {
+            addLine(sessionId, 'stdout', `✓ ${skillName} installed successfully`)
+          } else {
+            addLine(sessionId, 'stderr', `✗ ${data.message || 'Install failed'}`)
+          }
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed to install: ${err}`)
+        } finally {
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
+        return
+      }
+
+      const enableMatch = trimmed.match(/^skills\s+enable\s+(.+)$/i)
+      if (enableMatch) {
+        const skillName = enableMatch[1].trim()
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        try {
+          const resp = await fetch('http://localhost:8897/api/clawd/skills/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skillKey: skillName, enabled: true }),
+          })
+          const data = await resp.json()
+          addLine(sessionId, data.success ? 'stdout' : 'stderr', data.success ? `✓ ${skillName} enabled` : `✗ ${data.message || 'Failed'}`)
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed: ${err}`)
+        } finally {
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
+        return
+      }
+
+      const disableMatch = trimmed.match(/^skills\s+disable\s+(.+)$/i)
+      if (disableMatch) {
+        const skillName = disableMatch[1].trim()
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        try {
+          const resp = await fetch('http://localhost:8897/api/clawd/skills/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skillKey: skillName, enabled: false }),
+          })
+          const data = await resp.json()
+          addLine(sessionId, data.success ? 'stdout' : 'stderr', data.success ? `✓ ${skillName} disabled` : `✗ ${data.message || 'Failed'}`)
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed: ${err}`)
+        } finally {
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
         return
       }
 
