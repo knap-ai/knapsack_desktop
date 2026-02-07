@@ -81,16 +81,11 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
       console.log('Filtered connection state updated:', { scope, filteredKeys })
       KNLocalStorage.setItem(CONNECTIONS, filteredKeys)
     })
-    console.log("==> reconnect", reconnect)
-    console.log("==> scope", scope)
     setReconnect(prev => {
-      if (! prev.includes(scope)) {
-        return [
-          ...prev,
-          scope,
-        ]
+      if (!prev.includes(scope)) {
+        return [...prev, scope]
       }
-      return [...prev]
+      return prev
     })
   }, [setConnections])
 

@@ -200,6 +200,7 @@ function App() {
   const [votes, setVotes] = useState<Record<number, number>>({})
   const [, setConnectionsDropdownOpened] = useState(false)
   const [isSignInDialogOpened, setIsSignInDialogOpened] = useState(false)
+  const reconnectDismissedRef = useRef(false)
 
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -213,6 +214,15 @@ function App() {
     fetchConnections,
     addConnections,
   } = useConnections()
+
+  const handleSignInDialogOpenChange = useCallback((show: boolean) => {
+    if (!show) {
+      cleanReconnectKeys()
+      reconnectDismissedRef.current = true
+    }
+    setIsSignInDialogOpened(show)
+  }, [cleanReconnectKeys])
+
   const [_isChatLoading, setIsChatLoading] = useState<boolean>(false)
   const [_chatMessages, setChatMessages] = useState<KNChatMessage[]>([])
   // const [micUsage, setMicUsage] = useState<number>(0)
@@ -435,7 +445,7 @@ function App() {
   }, [auth.profile?.email])
 
   useEffect(() => {
-    if (reconnect && reconnect.length > 0 && auth.profile) {
+    if (reconnect && reconnect.length > 0 && auth.profile && !reconnectDismissedRef.current) {
       setIsSignInDialogOpened(true)
     }
   }, [reconnect])
@@ -469,6 +479,7 @@ function App() {
               syncConnections(response.profile.email, updatedConnections)
               setIsSignInDialogOpened(false)
               cleanReconnectKeys()
+              reconnectDismissedRef.current = false
             })
           })
           .catch(error => {
@@ -506,6 +517,7 @@ function App() {
         })
         setIsSignInDialogOpened(false)
         cleanReconnectKeys()
+        reconnectDismissedRef.current = false
       },
     )
     const unlistenFetchCalendarPromise = listen(
@@ -1064,7 +1076,7 @@ function App() {
               handleAutomationPreview={handleAutomationPreview}
               recordingHandlers={recordingHandlers}
               isSignInDialogOpened={isSignInDialogOpened}
-              setIsSignInDialogOpened={setIsSignInDialogOpened}
+              setIsSignInDialogOpened={handleSignInDialogOpenChange}
               reconnectKeys={reconnect}
               isAnyRecording={isAnyRecording}
             />
