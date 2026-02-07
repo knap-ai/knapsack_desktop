@@ -253,7 +253,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       setShowGoogleRequiredMessage(true)
       return
     }
-    transitionToNextScreen(index)
+    navigateToNextScreen()
   }
 
   const navigateToNextScreen = async () => {
