@@ -1153,9 +1153,27 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
 
 // --- Skills API endpoint (static catalog) ---
 
-/// Return built-in skills catalog (static JSON file, no gateway dependency)
+/// Return skills status from the gateway (real workspace skills).
+/// Falls back to the static catalog when the gateway is unavailable.
 #[get("/api/clawd/skills/status")]
-pub async fn skills_status(_h: web::Data<tauri::AppHandle>) -> impl Responder {
+pub async fn skills_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  // Try the gateway first so the frontend only sees real, installable skills.
+  if let Ok(tokens) = load_or_create_tokens(&app_handle) {
+    match super::gateway_ws::gateway_request(
+      "skills.status",
+      Some(serde_json::json!({})),
+      Some(&tokens.gateway_token),
+    ).await {
+      Ok(result) => {
+        return HttpResponse::Ok().json(serde_json::json!({"success": true, "skills": result}));
+      }
+      Err(e) => {
+        eprintln!("[clawd/service] skills.status gateway error, falling back to catalog: {}", e);
+      }
+    }
+  }
+
+  // Fallback: static catalog (gateway not ready yet)
   let catalog: serde_json::Value = serde_json::from_str(
     include_str!("skills_catalog.json")
   ).unwrap_or_default();
