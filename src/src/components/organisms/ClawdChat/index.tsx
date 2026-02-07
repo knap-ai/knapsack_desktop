@@ -855,7 +855,27 @@ export default function ClawdChat() {
       if (resp.success && resp.skills) {
         // Gateway returns skills as an array or object — normalize
         const raw = Array.isArray(resp.skills) ? resp.skills : (resp.skills?.skills || [])
-        setSkills(raw as SkillInfo[])
+        // Normalize gateway fields to match frontend SkillInfo shape:
+        // - gateway uses "install" → frontend expects "installOptions"
+        // - gateway "missing" is {bins,env,...} → frontend expects string[]
+        const normalized = (raw as any[]).map((s: any) => {
+          const skill = { ...s }
+          if (!skill.installOptions && skill.install) {
+            skill.installOptions = skill.install
+          }
+          if (skill.missing && !Array.isArray(skill.missing)) {
+            const m = skill.missing
+            skill.missing = [
+              ...(m.bins || []),
+              ...(m.anyBins || []),
+              ...(m.env || []),
+              ...(m.config || []),
+              ...(m.os || []),
+            ]
+          }
+          return skill
+        })
+        setSkills(normalized as SkillInfo[])
       } else {
         setSkillsError(resp.error || 'Failed to load skills')
       }
