@@ -2,6 +2,11 @@ import './style.scss'
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
+import {
+  KN_API_TOKEN_USAGE_SUMMARY,
+  KN_API_TOKEN_USAGE_RECENT,
+  KN_API_TOKEN_USAGE_BUDGET,
+} from 'src/utils/constants'
 
 type ActivitySubTab = 'logs' | 'costs' | 'terminal'
 
@@ -11,13 +16,15 @@ interface TerminalLine {
   timestamp: Date
 }
 
-interface TokenCostEntry {
+interface TokenUsageRecord {
   id: number
-  timestamp: Date
+  provider: string
   model: string
-  tokensUsed: number
-  estimatedCost: number
+  input_tokens: number
+  output_tokens: number
+  cost_usd: number
   action: string
+  created_at: number
 }
 
 const ActivityPanel: React.FC = () => {
@@ -189,90 +196,150 @@ const LogsView: React.FC = () => {
    TOKEN COSTS VIEW
    ========================================================= */
 
-// Model pricing estimates (per 1M tokens)
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  'groq-llama': { input: 0.05, output: 0.08 },
-  'groq-mixtral': { input: 0.24, output: 0.24 },
-  'gpt-4': { input: 30.0, output: 60.0 },
-  'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
-  default: { input: 0.15, output: 0.15 },
+interface UsageSummary {
+  totalCostUsd: number
+  totalRequests: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  byModel: { provider: string; model: string; request_count: number; total_input_tokens: number; total_output_tokens: number; total_cost_usd: number }[]
+}
+
+interface BudgetStatus {
+  dailyCostUsd: number
+  monthlyCostUsd: number
 }
 
 const TokenCostsView: React.FC = () => {
-  const [entries, setEntries] = useState<TokenCostEntry[]>([])
-  const [sessionStart] = useState<Date>(new Date())
+  const [summary, setSummary] = useState<UsageSummary | null>(null)
+  const [records, setRecords] = useState<TokenUsageRecord[]>([])
+  const [budget, setBudget] = useState<BudgetStatus | null>(null)
+  const [days, setDays] = useState(30)
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Listen for token usage events from the LLM calls
-  useEffect(() => {
-    // Poll the local server for recent LLM activity
-    const fetchCosts = async () => {
-      try {
-        const res = await fetch('http://localhost:8897/api/knapsack/automations/runs')
-        if (res.ok) {
-          const data = await res.json()
-          if (data && Array.isArray(data)) {
-            const costEntries: TokenCostEntry[] = data
-              .filter((run: any) => run.created_at && new Date(run.created_at) >= sessionStart)
-              .map((run: any, idx: number) => ({
-                id: run.id || idx,
-                timestamp: new Date(run.created_at),
-                model: run.model || 'groq-llama',
-                tokensUsed: run.tokens_used || 0,
-                estimatedCost: (run.tokens_used || 0) * 0.00000015,
-                action: run.automation_name || run.step_name || 'LLM Call',
-              }))
-            setEntries(costEntries)
-          }
-        }
-      } catch {
-        // Silently fail - costs are best-effort
+  const fetchData = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const [summaryRes, recentRes, budgetRes] = await Promise.all([
+        fetch(`${KN_API_TOKEN_USAGE_SUMMARY}?days=${days}`),
+        fetch(`${KN_API_TOKEN_USAGE_RECENT}?limit=100`),
+        fetch(KN_API_TOKEN_USAGE_BUDGET),
+      ])
+
+      if (summaryRes.ok) {
+        const data = await summaryRes.json()
+        if (data.success) setSummary(data)
       }
+      if (recentRes.ok) {
+        const data = await recentRes.json()
+        if (data.success) setRecords(data.records || [])
+      }
+      if (budgetRes.ok) {
+        const data = await budgetRes.json()
+        if (data.success) setBudget(data)
+      }
+    } catch {
+      // Server may not be running yet - silently fail
+    } finally {
+      setIsLoading(false)
     }
+  }, [days])
 
-    fetchCosts()
-    const interval = setInterval(fetchCosts, 10000)
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(fetchData, 10000)
     return () => clearInterval(interval)
-  }, [sessionStart])
+  }, [fetchData])
 
-  const totalTokens = useMemo(
-    () => entries.reduce((sum, e) => sum + e.tokensUsed, 0),
-    [entries],
-  )
-  const totalCost = useMemo(
-    () => entries.reduce((sum, e) => sum + e.estimatedCost, 0),
-    [entries],
-  )
+  const totalTokens = summary
+    ? summary.totalInputTokens + summary.totalOutputTokens
+    : 0
 
   return (
     <div className="flex flex-col h-full px-6 py-4 overflow-y-auto">
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="ActivityPanel__costCard">
-          <div className="text-xs text-gray-500 mb-1">Session Tokens</div>
+          <div className="text-xs text-gray-500 mb-1">Total Tokens ({days}d)</div>
           <div className="text-2xl font-semibold text-gray-900">
             {totalTokens.toLocaleString()}
           </div>
-        </div>
-        <div className="ActivityPanel__costCard">
-          <div className="text-xs text-gray-500 mb-1">Estimated Cost</div>
-          <div className="text-2xl font-semibold text-gray-900">
-            ${totalCost.toFixed(4)}
+          <div className="text-[10px] text-gray-400 mt-1">
+            {(summary?.totalInputTokens || 0).toLocaleString()} in / {(summary?.totalOutputTokens || 0).toLocaleString()} out
           </div>
         </div>
         <div className="ActivityPanel__costCard">
-          <div className="text-xs text-gray-500 mb-1">API Calls</div>
+          <div className="text-xs text-gray-500 mb-1">Total Cost ({days}d)</div>
           <div className="text-2xl font-semibold text-gray-900">
-            {entries.length}
+            ${(summary?.totalCostUsd || 0).toFixed(4)}
+          </div>
+        </div>
+        <div className="ActivityPanel__costCard">
+          <div className="text-xs text-gray-500 mb-1">API Calls ({days}d)</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {summary?.totalRequests || 0}
+          </div>
+        </div>
+        <div className="ActivityPanel__costCard">
+          <div className="text-xs text-gray-500 mb-1">Budget (today / 30d)</div>
+          <div className="text-lg font-semibold text-gray-900">
+            ${(budget?.dailyCostUsd || 0).toFixed(4)}
+          </div>
+          <div className="text-[10px] text-gray-400 mt-1">
+            ${(budget?.monthlyCostUsd || 0).toFixed(4)} this month
           </div>
         </div>
       </div>
 
-      {/* Cost history table */}
+      {/* Controls */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex bg-gray-100 rounded-lg p-0.5">
+          {[1, 7, 30].map(d => (
+            <button
+              key={d}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                days === d ? 'bg-white shadow-sm text-gray-900 font-medium' : 'text-gray-500'
+              }`}
+              onClick={() => setDays(d)}
+            >
+              {d === 1 ? 'Today' : `${d}d`}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1" />
+        <button
+          onClick={fetchData}
+          disabled={isLoading}
+          className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+        >
+          {isLoading ? 'Loading...' : 'Refresh'}
+        </button>
+      </div>
+
+      {/* Model breakdown */}
+      {summary?.byModel && summary.byModel.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs font-medium text-gray-500 mb-2">By Model</div>
+          <div className="flex flex-wrap gap-2">
+            {summary.byModel.map((m, i) => (
+              <div key={i} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs">
+                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px] mr-2">
+                  {m.model}
+                </span>
+                <span className="text-gray-500">{m.request_count} calls</span>
+                <span className="text-gray-400 mx-1">&middot;</span>
+                <span className="text-gray-700 font-mono">${m.total_cost_usd.toFixed(4)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent records table */}
       <div className="flex-1">
         <div className="text-sm font-medium text-gray-700 mb-3">Recent Activity</div>
-        {entries.length === 0 ? (
+        {records.length === 0 ? (
           <div className="text-center py-10">
-            <div className="text-gray-400 text-sm">No token usage recorded this session</div>
+            <div className="text-gray-400 text-sm">No token usage recorded yet</div>
             <div className="text-gray-300 text-xs mt-1">
               Token costs will appear here as you use LLM features
             </div>
@@ -285,27 +352,31 @@ const TokenCostsView: React.FC = () => {
                   <th className="text-left px-4 py-2 font-medium">Time</th>
                   <th className="text-left px-4 py-2 font-medium">Action</th>
                   <th className="text-left px-4 py-2 font-medium">Model</th>
-                  <th className="text-right px-4 py-2 font-medium">Tokens</th>
+                  <th className="text-right px-4 py-2 font-medium">In</th>
+                  <th className="text-right px-4 py-2 font-medium">Out</th>
                   <th className="text-right px-4 py-2 font-medium">Cost</th>
                 </tr>
               </thead>
               <tbody>
-                {entries.map(entry => (
-                  <tr key={entry.id} className="border-t border-gray-100 hover:bg-gray-50">
+                {records.map(record => (
+                  <tr key={record.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-2 text-gray-500">
-                      {entry.timestamp.toLocaleTimeString()}
+                      {new Date(record.created_at * 1000).toLocaleString()}
                     </td>
-                    <td className="px-4 py-2 text-gray-700">{entry.action}</td>
+                    <td className="px-4 py-2 text-gray-700">{record.action || 'LLM Call'}</td>
                     <td className="px-4 py-2">
                       <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px]">
-                        {entry.model}
+                        {record.model}
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700 font-mono">
-                      {entry.tokensUsed.toLocaleString()}
+                      {record.input_tokens.toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700 font-mono">
-                      ${entry.estimatedCost.toFixed(6)}
+                      {record.output_tokens.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-right text-gray-700 font-mono">
+                      ${record.cost_usd.toFixed(6)}
                     </td>
                   </tr>
                 ))}
