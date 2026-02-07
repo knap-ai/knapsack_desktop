@@ -1,0 +1,126 @@
+.ActivityPanel {
+  font-family: Inter, sans-serif;
+
+  .ActivityPanel__tabs {
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .ActivityPanel__tab {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+
+    &:hover {
+      color: #374151;
+    }
+
+    &--active {
+      color: #374151;
+      border-bottom-color: #6474AC;
+    }
+  }
+
+  .ActivityPanel__logEntry {
+    font-family: 'RobotoMono', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 2px 0;
+
+    &--error {
+      color: #ef4444;
+    }
+
+    &--warn {
+      color: #f59e0b;
+    }
+
+    &--info {
+      color: #6b7280;
+    }
+
+    &--debug {
+      color: #9ca3af;
+    }
+  }
+
+  .ActivityPanel__terminal {
+    font-family: 'RobotoMono', 'Courier New', monospace;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: 8px;
+    overflow: hidden;
+
+    .terminal__output {
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-y: auto;
+      max-height: calc(100vh - 280px);
+      padding: 12px 16px;
+
+      .terminal__line--command {
+        color: #89b4fa;
+      }
+
+      .terminal__line--stdout {
+        color: #cdd6f4;
+      }
+
+      .terminal__line--stderr {
+        color: #f38ba8;
+      }
+
+      .terminal__line--system {
+        color: #6c7086;
+        font-style: italic;
+      }
+    }
+
+    .terminal__input-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      border-top: 1px solid #313244;
+      background: #181825;
+
+      .terminal__prompt {
+        color: #a6e3a1;
+        margin-right: 8px;
+        font-size: 13px;
+        user-select: none;
+      }
+
+      .terminal__input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #cdd6f4;
+        font-family: 'RobotoMono', 'Courier New', monospace;
+        font-size: 13px;
+        caret-color: #cdd6f4;
+
+        &::placeholder {
+          color: #585b70;
+        }
+      }
+    }
+  }
+
+  .ActivityPanel__costCard {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px 20px;
+    transition: box-shadow 0.15s;
+
+    &:hover {
+      box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    }
+  }
+}

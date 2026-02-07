@@ -16,3 +16,4 @@ pub mod transcript;
 pub mod user;
 pub mod user_connection;
 pub mod feed_item;
+pub mod token_usage;

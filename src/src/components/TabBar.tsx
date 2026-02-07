@@ -17,6 +17,7 @@ export enum TabChoices {
   Automate = 'Automate',
   Chat = 'Chat',
   NewAutomation = 'NewAutomation',
+  Activity = 'Activity',
 }
 
 interface TabBarProps {
@@ -56,6 +57,12 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
       svg: '/assets/images/tabBar/chatTab.svg',
       label: 'Chat',
       isActive: fullRelease === true,
+    },
+    {
+      id: TabChoices.Activity,
+      svg: '/assets/images/tabBar/planTab.svg',
+      label: 'Activity',
+      isActive: true,
     },
   ]
 

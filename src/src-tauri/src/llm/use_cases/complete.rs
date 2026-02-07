@@ -3,7 +3,6 @@ use actix_web::Error;
 use flume::Receiver;
 use futures::stream::Stream;
 
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::RwLock as StdRwLock;
 use std::sync::{
@@ -15,6 +14,8 @@ use tokio::sync::Mutex;
 
 use crate::db::models::document::Document;
 use crate::db::models::message::Message;
+use crate::db::models::token_usage::TokenUsage;
+use crate::llm::cost::{calculate_cost, classify_task_complexity, estimate_tokens, get_pricing};
 use crate::llm::groq::llm::GroqLlm;
 use crate::llm::llama_binding::process::{start, InferenceThreadRequest};
 use crate::llm::llama_binding::stop_handler::StopHandler;
@@ -26,6 +27,12 @@ use crate::server::actix::InferenceThreads;
 use anyhow::Result;
 
 use serde::{Deserialize, Serialize};
+
+/// Token usage info extracted from an API response.
+struct CompletionUsage {
+  input_tokens: i64,
+  output_tokens: i64,
+}
 
 /// Resolved LLM provider info for meeting notes completion.
 struct ResolvedProvider {
@@ -115,6 +122,79 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   ))
 }
 
+/// When smart model routing is enabled, downgrade to a cheaper model for simple tasks.
+/// Keeps the user's chosen provider but picks the cheapest model tier within it.
+fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
+    let enabled = std::env::var("KNAPSACK_MODEL_ROUTING_ENABLED")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    if !enabled {
+        return;
+    }
+
+    let complexity = classify_task_complexity(prompt);
+    log::info!("[routing] Task classified as '{}' for provider '{}'", complexity, provider.name);
+
+    if complexity == "haiku" {
+        // Downgrade to cheapest model within each provider
+        let (new_model, label) = match provider.name.as_str() {
+            "openai" => ("gpt-4o-mini".to_string(), "GPT-4o-mini"),
+            "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
+            "gemini" => ("gemini-2.5-flash".to_string(), "Flash"), // already cheap
+            "groq" => (provider.model.clone(), "Groq"),           // already cheap
+            _ => (provider.model.clone(), "unchanged"),
+        };
+
+        if new_model != provider.model {
+            log::info!(
+                "[routing] Downgrading from {} to {} ({}) for simple task",
+                provider.model, new_model, label
+            );
+            provider.model = new_model;
+        }
+    }
+    // "sonnet" complexity: keep the user's chosen model as-is
+}
+
+/// Extract token usage from an OpenAI-compatible JSON response.
+fn extract_openai_usage(json: &serde_json::Value) -> CompletionUsage {
+  let input_tokens = json["usage"]["prompt_tokens"].as_i64().unwrap_or(0);
+  let output_tokens = json["usage"]["completion_tokens"].as_i64().unwrap_or(0);
+  CompletionUsage { input_tokens, output_tokens }
+}
+
+/// Extract token usage from an Anthropic JSON response.
+fn extract_anthropic_usage(json: &serde_json::Value) -> CompletionUsage {
+  let input_tokens = json["usage"]["input_tokens"].as_i64().unwrap_or(0);
+  let output_tokens = json["usage"]["output_tokens"].as_i64().unwrap_or(0);
+  CompletionUsage { input_tokens, output_tokens }
+}
+
+/// Record token usage to the database (best-effort, never fails the request).
+fn record_usage(provider: &str, model: &str, usage: &CompletionUsage, request_type: &str) {
+  let pricing = get_pricing(provider, model);
+  let cost = calculate_cost(usage.input_tokens, usage.output_tokens, &pricing);
+
+  let mut record = TokenUsage::new(
+    provider.to_string(),
+    model.to_string(),
+    usage.input_tokens,
+    usage.output_tokens,
+    cost,
+    request_type.to_string(),
+  );
+
+  if let Err(e) = record.create() {
+    log::warn!("[cost] Failed to record token usage: {:?}", e);
+  } else {
+    log::info!(
+      "[cost] Recorded: provider={}, model={}, in={}, out={}, cost=${:.6}",
+      provider, model, usage.input_tokens, usage.output_tokens, cost
+    );
+  }
+}
+
 /// Call an OpenAI-compatible chat completions endpoint (works for OpenAI, Groq, Gemini).
 async fn openai_compatible_completion(
   provider: &ResolvedProvider,
@@ -158,10 +238,27 @@ async fn openai_compatible_completion(
   let json: serde_json::Value = serde_json::from_str(&text)
     .map_err(|e| LLMError::ChatCompletionFailed(format!("{} JSON parse failed: {}", provider.name, e)))?;
 
-  json["choices"][0]["message"]["content"]
+  // Track token usage from response
+  let mut usage = extract_openai_usage(&json);
+
+  // If the API didn't return usage (some providers don't), estimate from content
+  if usage.input_tokens == 0 {
+    let total_input: usize = messages.iter().map(|m| m.content.len()).sum();
+    usage.input_tokens = estimate_tokens(&" ".repeat(total_input));
+  }
+
+  let content = json["choices"][0]["message"]["content"]
     .as_str()
     .map(|s| s.to_string())
-    .ok_or_else(|| LLMError::ChatCompletionFailed(format!("{}: no content in response", provider.name)))
+    .ok_or_else(|| LLMError::ChatCompletionFailed(format!("{}: no content in response", provider.name)))?;
+
+  if usage.output_tokens == 0 {
+    usage.output_tokens = estimate_tokens(&content);
+  }
+
+  record_usage(&provider.name, &provider.model, &usage, "chat");
+
+  Ok(content)
 }
 
 /// Call the Anthropic Messages API.
@@ -217,18 +314,44 @@ async fn anthropic_completion(
   let json: serde_json::Value = serde_json::from_str(&text)
     .map_err(|e| LLMError::ChatCompletionFailed(format!("Anthropic JSON parse failed: {}", e)))?;
 
+  // Track token usage from Anthropic's response
+  let mut usage = extract_anthropic_usage(&json);
+
+  // Estimate if API didn't return usage
+  if usage.input_tokens == 0 {
+    let total_input: usize = messages.iter().map(|m| m.content.len()).sum();
+    usage.input_tokens = estimate_tokens(&" ".repeat(total_input));
+  }
+
   // Anthropic returns content as an array of blocks
-  json["content"][0]["text"]
+  let content = json["content"][0]["text"]
     .as_str()
     .map(|s| s.to_string())
-    .ok_or_else(|| LLMError::ChatCompletionFailed("Anthropic: no text in response".into()))
+    .ok_or_else(|| LLMError::ChatCompletionFailed("Anthropic: no text in response".into()))?;
+
+  if usage.output_tokens == 0 {
+    usage.output_tokens = estimate_tokens(&content);
+  }
+
+  record_usage(&provider.name, &provider.model, &usage, "chat");
+
+  Ok(content)
 }
 
 /// Complete using the best available provider. Falls back through providers on failure.
 async fn multi_provider_completion(
   messages: Vec<LlmMessage>,
 ) -> Result<String, LLMError> {
-  let provider = resolve_provider()?;
+  let mut provider = resolve_provider()?;
+
+  // Extract the last user message for task complexity classification
+  let user_prompt: String = messages.iter()
+    .filter(|m| matches!(m.sender, MessageSender::User))
+    .last()
+    .map(|m| m.content.clone())
+    .unwrap_or_default();
+  apply_model_routing(&mut provider, &user_prompt);
+
   log::info!("[notes] Using {} ({}) for meeting notes completion", provider.name, provider.model);
 
   let result = if provider.is_anthropic {
@@ -246,11 +369,20 @@ async fn multi_provider_completion(
         if let Ok(groq) = GroqLlm::new() {
           let primary = "meta-llama/llama-4-maverick-17b-128e-instruct".to_string();
           match groq.chat_completion(ChatCompletionArgs {
-            model: primary,
+            model: primary.clone(),
             messages: messages.clone(),
             ..Default::default()
           }).await {
-            Ok(text) => return Ok(text),
+            Ok(text) => {
+              // Record Groq fallback usage (estimate since Groq SDK doesn't return usage easily)
+              let input_est: usize = messages.iter().map(|m| m.content.len()).sum();
+              let usage = CompletionUsage {
+                input_tokens: estimate_tokens(&" ".repeat(input_est)),
+                output_tokens: estimate_tokens(&text),
+              };
+              record_usage("groq", &primary, &usage, "chat");
+              return Ok(text);
+            },
             Err(groq_err) => log::warn!("[notes] Groq fallback also failed: {}", groq_err),
           }
         }
