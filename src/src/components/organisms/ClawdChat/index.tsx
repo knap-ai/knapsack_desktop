@@ -172,6 +172,7 @@ type Msg = {
   text: string
   ts: number
   isClickable?: boolean
+  model?: string // model used for this response (e.g. "gpt-4o-mini")
 }
 
 type ServiceStatus = {
@@ -2021,9 +2022,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           throw new Error(errorText || `HTTP ${res.status}`)
         }
 
-        const out = await res.json() as { ok?: boolean; reply?: string; error?: string; message?: string }
+        const out = await res.json() as { ok?: boolean; reply?: string; error?: string; message?: string; model?: string; usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number } }
         if (out.reply) {
-          pushAssistant(out.reply)
+          // Include model info so the user can see which model handled their request
+          setMsgs(prev => [
+            ...prev,
+            { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
+          ])
         } else {
           pushAssistant(friendlyError(out.message || out.error || 'No reply'))
         }
@@ -2049,21 +2054,33 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   doSendRef.current = doSend
 
   const statusLine = useMemo(() => {
-    if (!status && !health) return 'Checking Moltbot...'
-    const parts: string[] = []
+    if (!status && !health) return <span>Checking Moltbot...</span>
+    const parts: React.ReactNode[] = []
     if (status) {
       parts.push(
-        status.running ? 'Service: running' : status.installed ? 'Service: installed' : 'Service: off',
+        <span key="svc" className={status.running ? 'status-ok' : 'status-warn'}>
+          {status.running ? 'Service: running' : status.installed ? 'Service: installed' : 'Service: off'}
+        </span>,
       )
     }
     if (health) {
-      // Only show gateway/browser status when they're actually up or service is running
-      // Avoids alarming "down" labels during startup
-      if (health.gateway_ok) parts.push('Gateway: OK')
-      if (health.browser_ok) parts.push('Browser: OK')
+      parts.push(
+        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'}>
+          {health.gateway_ok ? 'Gateway: OK' : 'Gateway: down'}
+        </span>,
+      )
+      parts.push(
+        <span key="br" className={health.browser_ok ? 'status-ok' : 'status-down'}>
+          {health.browser_ok ? 'Browser: OK' : 'Browser: down'}
+        </span>,
+      )
     }
-    if (currentTargetId) parts.push(`Tab: ${currentTargetId.slice(0, 12)}...`)
-    return parts.join(' | ')
+    if (currentTargetId) parts.push(<span key="tab">Tab: {currentTargetId.slice(0, 12)}...</span>)
+    return parts.reduce<React.ReactNode[]>((acc, part, i) => {
+      if (i > 0) acc.push(<span key={`sep-${i}`}> | </span>)
+      acc.push(part)
+      return acc
+    }, [])
   }, [status, health, currentTargetId])
 
   // Memoize message parsing so extractPromptActions only re-runs when msgs change,
@@ -2245,6 +2262,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     ))}
                   </div>
                 )}
+                {m.model && m.role === 'assistant' && (
+                  <div className="ClawdMsgModel">via {m.model}</div>
+                )}
               </div>
             </div>
         ))}
@@ -2387,14 +2407,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           </div>
                         </div>
                         <div className="ClawdSkillActions">
-                          <a
-                            className="ClawdSkillInstallLink"
-                            href="https://clawhub.ai"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Get on ClawHub
-                          </a>
+                          {advancedMode ? (
+                            <button className="ClawdSkillInstallBtn" onClick={() => handleSkillInstall(skill.name, 'npm')}>
+                              Install
+                            </button>
+                          ) : (
+                            <a
+                              className="ClawdSkillInstallLink"
+                              href="https://clawhub.ai"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Get on ClawHub
+                            </a>
+                          )}
                         </div>
                       </div>
                     ))}
