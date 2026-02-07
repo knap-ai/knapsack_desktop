@@ -248,11 +248,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     setMicrosoftListenerTransitionIndex(index)
   }
 
-  const onGoogleSkipClick = (index: number) => {
-    if (!showGoogleRequiredMessage) {
-      setShowGoogleRequiredMessage(true)
-      return
-    }
+  const onGoogleSkipClick = (_index: number) => {
     navigateToNextScreen()
   }
 
