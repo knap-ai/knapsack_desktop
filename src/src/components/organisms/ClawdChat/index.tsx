@@ -2057,8 +2057,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       )
     }
     if (health) {
-      parts.push(`Gateway: ${health.gateway_ok ? 'OK' : 'down'}`)
-      parts.push(`Browser: ${health.browser_ok ? 'OK' : 'down'}`)
+      // Only show gateway/browser status when they're actually up or service is running
+      // Avoids alarming "down" labels during startup
+      if (health.gateway_ok) parts.push('Gateway: OK')
+      if (health.browser_ok) parts.push('Browser: OK')
     }
     if (currentTargetId) parts.push(`Tab: ${currentTargetId.slice(0, 12)}...`)
     return parts.join(' | ')
