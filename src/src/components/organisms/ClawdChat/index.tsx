@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useCallback, memo, useRef } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { open } from '@tauri-apps/api/shell'
+import { listen as tauriListen } from '@tauri-apps/api/event'
+import { convertFileSrc } from '@tauri-apps/api/tauri'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -494,6 +496,19 @@ const CLAWD_SKILLS = [
   { id: 'linkedin-network', name: 'LinkedIn Network', description: 'Stay on top of your professional network', prompt: 'Open LinkedIn and summarize my notifications' },
   { id: 'task-manager', name: 'Task Manager', description: 'Review and organize your tasks', prompt: 'Check my Google Tasks for what I need to do today' },
 ] */
+
+// Map file extension to MIME type (used by Tauri file-drop handler)
+function getMimeTypeFromExt(ext: string): string {
+  const types: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+    webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', ico: 'image/x-icon',
+    pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown',
+    json: 'application/json', csv: 'text/csv', html: 'text/html', xml: 'text/xml',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  }
+  return types[ext] || 'application/octet-stream'
+}
 
 // Isolated input component — owns its own `input` state so keystrokes
 // only re-render this small component instead of the entire chat body.
@@ -1223,6 +1238,81 @@ export default function ClawdChat() {
     }
 
     setAttachedFiles(prev => [...prev, ...newFiles])
+  }, [])
+
+  // Listen for Tauri native file-drop events — the webview in Tauri does not
+  // forward file data through the browser's drop event, so we handle drops
+  // via Tauri's event system to actually attach the files.
+  useEffect(() => {
+    let cancelled = false
+    const cleanups: Array<() => void> = []
+
+    ;(async () => {
+      const unlistenDrop = await tauriListen<string[]>('tauri://file-drop', async (event) => {
+        if (cancelled) return
+        setIsDragOver(false)
+        dragCounter.current = 0
+
+        const paths = event.payload
+        if (!paths || paths.length === 0) return
+
+        const newFiles: Array<{ name: string; type: string; content: string; preview?: string }> = []
+
+        for (const filePath of paths) {
+          try {
+            const fileName = filePath.split(/[/\\]/).pop() || 'file'
+            const ext = fileName.split('.').pop()?.toLowerCase() || ''
+            const mimeType = getMimeTypeFromExt(ext)
+
+            const assetUrl = convertFileSrc(filePath)
+            const response = await fetch(assetUrl)
+            const blob = await response.blob()
+
+            if (mimeType.startsWith('text/') || ['txt', 'md', 'json', 'csv'].includes(ext)) {
+              const text = await blob.text()
+              newFiles.push({ name: fileName, type: mimeType, content: text })
+            } else {
+              const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onload = () => resolve(reader.result as string)
+                reader.onerror = () => reject(reader.error)
+                reader.readAsDataURL(blob)
+              })
+              if (mimeType.startsWith('image/')) {
+                newFiles.push({ name: fileName, type: mimeType, content: dataUrl, preview: dataUrl })
+              } else {
+                newFiles.push({ name: fileName, type: mimeType, content: dataUrl })
+              }
+            }
+          } catch (err) {
+            console.error(`Error reading dropped file:`, err)
+          }
+        }
+
+        if (newFiles.length > 0) {
+          setAttachedFiles(prev => [...prev, ...newFiles])
+        }
+      })
+      cleanups.push(unlistenDrop)
+
+      const unlistenHover = await tauriListen<string[]>('tauri://file-drop-hover', () => {
+        if (cancelled) return
+        setIsDragOver(true)
+      })
+      cleanups.push(unlistenHover)
+
+      const unlistenCancel = await tauriListen('tauri://file-drop-cancelled', () => {
+        if (cancelled) return
+        setIsDragOver(false)
+        dragCounter.current = 0
+      })
+      cleanups.push(unlistenCancel)
+    })()
+
+    return () => {
+      cancelled = true
+      cleanups.forEach(fn => fn())
+    }
   }, [])
 
   // Gateway service handler removed - channels UI removed in this version
