@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "build": {
     "beforeBuildCommand": "",
-    "beforeDevCommand": "npm --prefix .. run dev",
+    "beforeDevCommand": "npm run dev",
     "devPath": "http://localhost:1420"
   },
   "package": {
