@@ -406,6 +406,67 @@ async fn emit_event(window: tauri::Window, event: String, payload: Value) -> Res
   Ok(())
 }
 
+#[tauri::command]
+async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>) -> Result<Vec<String>, String> {
+    let log_dir = app
+        .path_resolver()
+        .app_log_dir()
+        .ok_or("Could not resolve log directory")?;
+
+    let filename = match log_type.as_str() {
+        "error" => "ks_error.log",
+        _ => "ks.log",
+    };
+
+    let log_path = log_dir.join(filename);
+    let content = std::fs::read_to_string(&log_path)
+        .map_err(|e| format!("Failed to read log file: {}", e))?;
+
+    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+    let max = max_lines.unwrap_or(500);
+    let start = if lines.len() > max { lines.len() - max } else { 0 };
+    Ok(lines[start..].to_vec())
+}
+
+#[tauri::command]
+async fn kn_get_log_path(app: AppHandle) -> Result<String, String> {
+    let log_dir = app
+        .path_resolver()
+        .app_log_dir()
+        .ok_or("Could not resolve log directory")?;
+    Ok(log_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<String, String> {
+    use std::process::Command;
+
+    let shell = if cfg!(target_os = "windows") { "cmd" } else { "sh" };
+    let flag = if cfg!(target_os = "windows") { "/C" } else { "-c" };
+
+    let mut cmd = Command::new(shell);
+    cmd.arg(flag).arg(&command);
+
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+
+    let output = cmd.output().map_err(|e| format!("Failed to execute command: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if output.status.success() {
+        Ok(stdout)
+    } else {
+        if stderr.is_empty() {
+            Err(format!("Command failed with exit code: {}", output.status))
+        } else {
+            Err(stderr)
+        }
+    }
+}
+
 fn create_data_dir() {
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let data_dir = home_dir.join(KNAPSACK_DATA_DIR);
@@ -587,7 +648,11 @@ async fn main() {
       open_screen_recording_settings,
       open_microphone_settings,
       audio::audio::emit_stop_events,
-      resize_notification_window
+      resize_notification_window,
+      spotlight::kn_init_app,
+      kn_read_logs,
+      kn_get_log_path,
+      kn_execute_command
     ])
     .manage(UUIDState {
       uuid: StdMutex::new(None),

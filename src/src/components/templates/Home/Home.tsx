@@ -42,6 +42,7 @@ import { ConnectionsDropdown } from './../../ConnectionsDropdown'
 import { SigninButton } from './../../SigninButton'
 import TabBar, { TabChoices } from './../../TabBar'
 import ClawdChat from 'src/components/organisms/ClawdChat'
+import ActivityPanel from 'src/components/organisms/ActivityPanel'
 
 export interface ToastrState {
   message?: ReactElement
@@ -445,6 +446,12 @@ function Home({
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
                 />
+              )}
+
+              {currentTab === TabChoices.Activity && (
+                <div className="overflow-hidden w-full h-full">
+                  <ActivityPanel />
+                </div>
               )}
             </div>
           </div>
