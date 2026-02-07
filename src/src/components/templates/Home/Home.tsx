@@ -82,6 +82,7 @@ function Home({
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
+  const [showActivityPanel, setShowActivityPanel] = useState(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
@@ -421,11 +422,16 @@ function Home({
               {currentTab === TabChoices.Moltbot && (
                 <div className="overflow-hidden w-full h-full flex flex-row">
                   <div className="overflow-hidden flex-1 h-full min-w-0">
-                    <ClawdChat />
+                    <ClawdChat
+                      showActivityPanel={showActivityPanel}
+                      onToggleActivity={() => setShowActivityPanel(prev => !prev)}
+                    />
                   </div>
-                  <div className="overflow-hidden h-full border-l border-gray-200 bg-white" style={{ width: 420 }}>
-                    <ActivityPanel />
-                  </div>
+                  {showActivityPanel && (
+                    <div className="overflow-hidden h-full border-l border-gray-200 bg-white" style={{ width: 420 }}>
+                      <ActivityPanel onClose={() => setShowActivityPanel(false)} />
+                    </div>
+                  )}
                 </div>
               )}
 

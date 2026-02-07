@@ -27,13 +27,17 @@ interface TokenUsageRecord {
   created_at: number
 }
 
-const ActivityPanel: React.FC = () => {
+interface ActivityPanelProps {
+  onClose?: () => void
+}
+
+const ActivityPanel: React.FC<ActivityPanelProps> = ({ onClose }) => {
   const [activeSubTab, setActiveSubTab] = useState<ActivitySubTab>('terminal')
 
   return (
     <div className="ActivityPanel w-full h-full flex flex-col overflow-hidden">
       {/* Sub-tab bar */}
-      <div className="ActivityPanel__tabs flex px-4 pt-3 bg-white">
+      <div className="ActivityPanel__tabs flex px-4 pt-3 bg-white items-center">
         {(['logs', 'costs', 'terminal'] as ActivitySubTab[]).map(tab => (
           <button
             key={tab}
@@ -45,6 +49,15 @@ const ActivityPanel: React.FC = () => {
             {tab === 'terminal' && 'Terminal'}
           </button>
         ))}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="ml-auto text-gray-400 hover:text-gray-600 text-lg leading-none px-2 py-1"
+            title="Close activity panel"
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {/* Tab content */}

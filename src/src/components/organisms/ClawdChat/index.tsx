@@ -467,24 +467,6 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
   return out
 }
 
-// Classify an activity log line for color coding
-function classifyActivityLine(line: string): string {
-  if (line.includes('run_command')) return 'activity-command'
-  if (line.includes('[browser')) return 'activity-tool'
-  if (line.includes('navigate') || line.includes('chrome')) return 'activity-tool'
-  if (line.includes('res ✓') || line.includes('started') || line.includes('listening')) return 'activity-success'
-  if (line.includes('error') || line.includes('Error') || line.includes('failed') || line.includes('invalid')) return 'activity-error'
-  if (line.includes('[ws]') || line.includes('[gateway]')) return 'activity-tool'
-  if (line.includes('[heartbeat]') || line.includes('[canvas]')) return 'activity-info'
-  return 'activity-info'
-}
-
-// Strip the ISO timestamp prefix for cleaner display
-function formatActivityLine(line: string): string {
-  // Remove leading ISO timestamp like "2026-01-31T20:03:01.871Z "
-  return line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*/, '')
-}
-
 // The smart prompts that auto-execute
 const SMART_PROMPT = 'Tell me how I should use this app based on my email and calendar'
 const NO_AUTH_PROMPT = 'Catch me up on anything important that happened in AI this week'
@@ -650,7 +632,12 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   )
 })
 
-export default function ClawdChat() {
+interface ClawdChatProps {
+  showActivityPanel?: boolean
+  onToggleActivity?: () => void
+}
+
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -702,10 +689,7 @@ export default function ClawdChat() {
   })
   const [showAdvancedWarning, setShowAdvancedWarning] = useState(false)
 
-  // Activity monitor panel state
-  const [showActivityPanel, setShowActivityPanel] = useState(false)
-  const [activityLines, setActivityLines] = useState<string[]>([])
-  const activityLogRef = useRef<HTMLDivElement | null>(null)
+  // Activity panel is now controlled by parent via props
 
   // Skills panel state
   const [showSkillsPanel, setShowSkillsPanel] = useState(false)
@@ -1484,34 +1468,6 @@ export default function ClawdChat() {
     }
   }, [msgs])
 
-  // Activity monitor polling — fetch logs every 2s while panel is open
-  useEffect(() => {
-    if (!showActivityPanel) return
-
-    const fetchActivity = async () => {
-      try {
-        const resp = await apiGet<{ success: boolean; text: string }>('/api/clawd/service/logs?stream=stdout&lines=150')
-        if (resp.success && resp.text) {
-          const lines = resp.text
-            .split('\n')
-            .filter((l: string) => l.trim().length > 0)
-          setActivityLines(lines)
-          // Auto-scroll to bottom
-          requestAnimationFrame(() => {
-            if (activityLogRef.current) {
-              activityLogRef.current.scrollTop = activityLogRef.current.scrollHeight
-            }
-          })
-        }
-      } catch {
-        // silently ignore poll failures
-      }
-    }
-
-    fetchActivity() // immediate first fetch
-    const interval = setInterval(fetchActivity, 2000)
-    return () => clearInterval(interval)
-  }, [showActivityPanel])
 
   const refreshStatus = async () => {
     try {
@@ -2168,14 +2124,14 @@ export default function ClawdChat() {
           </button>
           <button
             disabled={busy}
-            onClick={() => { setShowSkillsPanel(true); setShowActivityPanel(false); fetchSkills() }}
+            onClick={() => { setShowSkillsPanel(true); fetchSkills() }}
             title="Manage skills and extensions"
           >
             Skills
           </button>
           <button
-            onClick={() => { setShowActivityPanel(!showActivityPanel); setShowSkillsPanel(false) }}
-            className={showActivityPanel ? 'toggle-on' : ''}
+            onClick={() => { if (onToggleActivity) { onToggleActivity(); setShowSkillsPanel(false) } }}
+            className={externalActivityPanel ? 'toggle-on' : ''}
             title="View live activity — tool calls, commands, and browser actions"
           >
             Activity
@@ -2592,25 +2548,6 @@ export default function ClawdChat() {
         </div>
       )}
 
-      {showActivityPanel && (
-        <div className="ClawdActivityPanel">
-          <div className="ClawdActivityHeader">
-            <h3>Activity</h3>
-            <button onClick={() => setShowActivityPanel(false)}>×</button>
-          </div>
-          <div className="ClawdActivityLog" ref={el => { activityLogRef.current = el }}>
-            {activityLines.length === 0 ? (
-              <div className="ClawdActivityEmpty">No activity yet. Send a message to see tool calls here.</div>
-            ) : (
-              activityLines.map((line, i) => (
-                <div key={i} className={`ClawdActivityLine ${classifyActivityLine(line)}`}>
-                  {formatActivityLine(line)}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
 
       </div>
     </div>
