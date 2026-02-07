@@ -29,6 +29,8 @@
     font-size: 12px;
     line-height: 1.5;
     padding: 2px 0;
+    user-select: text;
+    cursor: text;
 
     &--error {
       color: #ef4444;

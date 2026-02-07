@@ -219,11 +219,12 @@ type SkillInfo = {
   emoji?: string
   eligible?: boolean
   enabled?: boolean
-  source?: string // bundled, managed, workspace, extra
+  source?: string // built-in, OpenClaw, managed, workspace, extra
   missing?: string[] // missing requirements
   installOptions?: Array<{ id: string; label: string; command?: string }>
   primaryEnv?: string
   userInvocable?: boolean
+  externalApi?: boolean // true if this skill sends data to external APIs
 }
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq'
@@ -2460,6 +2461,8 @@ export default function ClawdChat() {
             <>
               <div className="ClawdSkillsSummary">
                 {skills.filter(s => s.eligible).length} skills ready
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length > 0 &&
+                  `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length} available from OpenClaw`}
                 {skills.filter(s => !s.eligible && s.installOptions?.length).length > 0 &&
                   `, ${skills.filter(s => !s.eligible && s.installOptions?.length).length} need setup`}
               </div>
@@ -2475,7 +2478,10 @@ export default function ClawdChat() {
                         <div className="ClawdSkillInfo">
                           <div className="ClawdSkillName">{skill.name}</div>
                           {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
-                          {skill.source && <span className="ClawdSkillSource">{skill.source}</span>}
+                          <div className="ClawdSkillMeta">
+                            {skill.source && <span className="ClawdSkillSource">{skill.source}</span>}
+                            {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
+                          </div>
                         </div>
                         <div className="ClawdSkillActions">
                           <button className="ClawdSkillToggleBtn" onClick={() => handleSkillToggle(skill.name, false)}>Disable</button>
@@ -2498,7 +2504,10 @@ export default function ClawdChat() {
                           {skill.missing && skill.missing.length > 0 && (
                             <div className="ClawdSkillDesc" style={{color: '#e67e22'}}>Missing: {skill.missing.join(', ')}</div>
                           )}
-                          {skill.source && <span className="ClawdSkillSource">{skill.source}</span>}
+                          <div className="ClawdSkillMeta">
+                            {skill.source && <span className="ClawdSkillSource">{skill.source}</span>}
+                            {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
+                          </div>
                         </div>
                         <div className="ClawdSkillActions">
                           {skill.installOptions?.map(opt => (
@@ -2506,6 +2515,39 @@ export default function ClawdChat() {
                               {opt.label || 'Install'}
                             </button>
                           ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Available from OpenClaw */}
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length > 0 && (
+                  <div className="ClawdSkillsGroup">
+                    <h4>Available from OpenClaw</h4>
+                    <div className="ClawdSkillsDisclaimer">
+                      Provided by <a href="https://openclawskills.org/" target="_blank" rel="noopener noreferrer">OpenClaw</a>, curated by Knapsack. Community-maintained — use at your own risk.
+                    </div>
+                    {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').map(skill => (
+                      <div className="ClawdSkillCard ClawdSkillCard--available" key={skill.name}>
+                        <div className="ClawdSkillStatus available" />
+                        <div className="ClawdSkillEmoji">{skill.emoji || '🔧'}</div>
+                        <div className="ClawdSkillInfo">
+                          <div className="ClawdSkillName">{skill.name}</div>
+                          {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
+                          <div className="ClawdSkillMeta">
+                            <span className="ClawdSkillSource">OpenClaw</span>
+                            {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
+                          </div>
+                        </div>
+                        <div className="ClawdSkillActions">
+                          <a
+                            className="ClawdSkillInstallLink"
+                            href="https://clawhub.ai"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Get on ClawHub
+                          </a>
                         </div>
                       </div>
                     ))}
@@ -2522,6 +2564,7 @@ export default function ClawdChat() {
                         <div className="ClawdSkillInfo">
                           <div className="ClawdSkillName">{skill.name}</div>
                           {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
+                          {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
                         </div>
                         <div className="ClawdSkillActions">
                           <button className="ClawdSkillToggleBtn" onClick={() => handleSkillToggle(skill.name, true)}>Enable</button>
