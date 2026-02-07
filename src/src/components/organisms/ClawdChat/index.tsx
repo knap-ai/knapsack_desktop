@@ -1,6 +1,6 @@
 import './style.scss'
 
-import { useEffect, useMemo, useState, useCallback, memo, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { open } from '@tauri-apps/api/shell'
@@ -2055,7 +2055,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const statusLine = useMemo(() => {
     if (!status && !health) return <span>Checking Moltbot...</span>
-    const parts: React.ReactNode[] = []
+    const parts: ReactNode[] = []
     if (status) {
       parts.push(
         <span key="svc" className={status.running ? 'status-ok' : 'status-warn'}>
@@ -2076,7 +2076,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       )
     }
     if (currentTargetId) parts.push(<span key="tab">Tab: {currentTargetId.slice(0, 12)}...</span>)
-    return parts.reduce<React.ReactNode[]>((acc, part, i) => {
+    return parts.reduce<ReactNode[]>((acc, part, i) => {
       if (i > 0) acc.push(<span key={`sep-${i}`}> | </span>)
       acc.push(part)
       return acc
@@ -2122,7 +2122,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           >
             {autonomyMode === 'autonomous' ? '🚀 Autonomous' : '🤝 Assist'}
           </button>
-          <button disabled={busy} onClick={() => { setShowKeyPrompt(!showKeyPrompt); setShowSkillsPanel(false) }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
+          <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); if (opening && externalActivityPanel && onToggleActivity) onToggleActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
             {selectedProvider === 'anthropic' ? 'Anthropic'
               : selectedProvider === 'gemini' ? 'Gemini'
               : selectedProvider === 'groq' ? 'Groq'
@@ -2143,13 +2143,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </button>
           <button
             disabled={busy}
-            onClick={() => { setShowSkillsPanel(true); setShowKeyPrompt(false); fetchSkills() }}
+            onClick={() => { setShowSkillsPanel(true); setShowKeyPrompt(false); if (externalActivityPanel && onToggleActivity) onToggleActivity(); fetchSkills() }}
             title="Manage skills and extensions"
           >
             Skills
           </button>
           <button
-            onClick={() => { if (onToggleActivity) { onToggleActivity(); setShowSkillsPanel(false) } }}
+            onClick={() => { if (onToggleActivity) { onToggleActivity(); setShowSkillsPanel(false); setShowKeyPrompt(false) } }}
             className={externalActivityPanel ? 'toggle-on' : ''}
             title="View live activity — tool calls, commands, and browser actions"
           >
