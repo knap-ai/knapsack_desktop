@@ -636,9 +636,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
 interface ClawdChatProps {
   showActivityPanel?: boolean
   onToggleActivity?: () => void
+  onCloseActivity?: () => void
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -2074,6 +2075,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           {health.browser_ok ? 'Browser: OK' : 'Browser: down'}
         </span>,
       )
+    } else if (status?.running) {
+      // Health not loaded yet but service is running — show checking state
+      parts.push(<span key="gw" className="status-warn">Gateway: checking...</span>)
+      parts.push(<span key="br" className="status-warn">Browser: checking...</span>)
     }
     if (currentTargetId) parts.push(<span key="tab">Tab: {currentTargetId.slice(0, 12)}...</span>)
     return parts.reduce<ReactNode[]>((acc, part, i) => {
@@ -2122,7 +2127,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           >
             {autonomyMode === 'autonomous' ? '🚀 Autonomous' : '🤝 Assist'}
           </button>
-          <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); if (opening && externalActivityPanel && onToggleActivity) onToggleActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
+          <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
             {selectedProvider === 'anthropic' ? 'Anthropic'
               : selectedProvider === 'gemini' ? 'Gemini'
               : selectedProvider === 'groq' ? 'Groq'
@@ -2143,13 +2148,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </button>
           <button
             disabled={busy}
-            onClick={() => { setShowSkillsPanel(true); setShowKeyPrompt(false); if (externalActivityPanel && onToggleActivity) onToggleActivity(); fetchSkills() }}
+            onClick={() => { setShowSkillsPanel(true); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity(); fetchSkills() }}
             title="Manage skills and extensions"
           >
             Skills
           </button>
           <button
             onClick={() => { if (onToggleActivity) { onToggleActivity(); setShowSkillsPanel(false); setShowKeyPrompt(false) } }}
+            disabled={busy}
             className={externalActivityPanel ? 'toggle-on' : ''}
             title="View live activity — tool calls, commands, and browser actions"
           >
