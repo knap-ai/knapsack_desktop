@@ -745,22 +745,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       {
         id: 'welcome-2',
         role: 'assistant' as Role,
-        text: "For your privacy and security: I always open a fresh browser instance. This means you'll need to sign in to any accounts you want me to access (Gmail, LinkedIn, etc). Your credentials are never stored or shared.",
+        text: `For your privacy and security: I always open a fresh browser instance. This means you'll need to sign in to any accounts you want me to access (Gmail, LinkedIn, etc). Your credentials are never stored or shared.\n\n[Get started with email & calendar](knapsack://prompt/${SMART_PROMPT})\n[Try without signing in](knapsack://prompt/${NO_AUTH_PROMPT})`,
         ts: Date.now() + 1,
-      },
-      {
-        id: 'smart-prompt',
-        role: 'assistant' as Role,
-        text: `👆 **Click to get started:** "${SMART_PROMPT}"`,
-        ts: Date.now() + 2,
-        isClickable: true,
-      },
-      {
-        id: 'no-auth-prompt',
-        role: 'assistant' as Role,
-        text: `👆 **Or try without signing in:** "${NO_AUTH_PROMPT}"`,
-        ts: Date.now() + 3,
-        isClickable: true,
       },
     ],
     [],
@@ -2276,7 +2262,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
         {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
-          msgs.every(m => m.id.startsWith('welcome-') || m.id.startsWith('smart-') || m.id.startsWith('no-auth-')) && (
+          msgs.every(m => m.id.startsWith('welcome-')) && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble">
               <p><strong>Available skills:</strong></p>

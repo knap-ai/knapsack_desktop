@@ -501,6 +501,69 @@ const TerminalView: React.FC = () => {
     [updateSession],
   )
 
+  // Live log streaming state
+  const [liveLogsSession, setLiveLogsSession] = useState<string | null>(null)
+  const lastLogLineCountRef = useRef<number>(0)
+  const clawdbotInitRef = useRef(false)
+
+  // Auto-fetch backend status when Clawdbot session first opens
+  useEffect(() => {
+    if (clawdbotInitRef.current) return
+    const clawdbot = sessions.find(s => s.id === 'clawdbot')
+    if (!clawdbot || !clawdbot.cwd) return
+    clawdbotInitRef.current = true
+
+    const fetchStatus = async () => {
+      addLine('clawdbot', 'system', 'Fetching backend service status...')
+      try {
+        const [statusRes, healthRes] = await Promise.all([
+          fetch('http://localhost:8897/api/clawd/service/status').catch(() => null),
+          fetch('http://localhost:8897/api/clawd/service/health').catch(() => null),
+        ])
+        if (statusRes?.ok) {
+          const data = await statusRes.json()
+          const parts = [`Service: ${data.running ? 'running' : 'stopped'}`]
+          if (data.label) parts.push(`Label: ${data.label}`)
+          if (data.message) parts.push(data.message)
+          addLine('clawdbot', 'stdout', parts.join('\n'))
+        } else {
+          addLine('clawdbot', 'stderr', 'Backend not reachable (is the app running?)')
+        }
+        if (healthRes?.ok) {
+          const data = await healthRes.json()
+          addLine('clawdbot', 'stdout', `Gateway: ${data.gateway_ok ? 'OK' : 'down'}  |  Browser: ${data.browser_ok ? 'OK' : 'down'}`)
+        }
+      } catch (err) {
+        addLine('clawdbot', 'stderr', `Failed to fetch status: ${err}`)
+      }
+      addLine('clawdbot', 'system', 'Type commands or click "Live Logs" to stream backend logs.')
+    }
+    fetchStatus()
+  }, [sessions, addLine])
+
+  // Live log polling
+  useEffect(() => {
+    if (!liveLogsSession) return
+    lastLogLineCountRef.current = 0
+
+    const poll = async () => {
+      try {
+        const lines: string[] = await invoke('kn_read_logs', { logType: 'all', maxLines: 500 })
+        const newLines = lines.slice(lastLogLineCountRef.current)
+        if (newLines.length > 0) {
+          lastLogLineCountRef.current = lines.length
+          newLines.forEach(line => addLine(liveLogsSession, 'stdout', line))
+        }
+      } catch {
+        // Log reading may fail if files don't exist yet
+      }
+    }
+
+    poll() // fetch immediately
+    const interval = setInterval(poll, 2000)
+    return () => clearInterval(interval)
+  }, [liveLogsSession, addLine])
+
   const executeCommand = useCallback(
     async (sessionId: string, command: string) => {
       const session = sessions.find(s => s.id === sessionId)
@@ -517,6 +580,35 @@ const TerminalView: React.FC = () => {
 
       if (trimmed === 'clear') {
         updateSession(sessionId, s => ({ ...s, lines: [] }))
+        return
+      }
+
+      // Service status command
+      if (trimmed === 'status' || trimmed === 'service status') {
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        try {
+          const [statusRes, healthRes] = await Promise.all([
+            fetch('http://localhost:8897/api/clawd/service/status').catch(() => null),
+            fetch('http://localhost:8897/api/clawd/service/health').catch(() => null),
+          ])
+          if (statusRes?.ok) {
+            const data = await statusRes.json()
+            const parts = [`Service: ${data.running ? 'running' : 'stopped'}`]
+            if (data.label) parts.push(`Label: ${data.label}`)
+            if (data.message) parts.push(data.message)
+            addLine(sessionId, 'stdout', parts.join('\n'))
+          } else {
+            addLine(sessionId, 'stderr', 'Backend not reachable')
+          }
+          if (healthRes?.ok) {
+            const data = await healthRes.json()
+            addLine(sessionId, 'stdout', `Gateway: ${data.gateway_ok ? 'OK' : 'down'}  |  Browser: ${data.browser_ok ? 'OK' : 'down'}`)
+          }
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed: ${err}`)
+        } finally {
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
         return
       }
 
@@ -723,9 +815,35 @@ const TerminalView: React.FC = () => {
           </button>
         ))}
         <div className="flex-1" />
+        {activeSessionId === 'clawdbot' && (
+          <button
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              liveLogsSession === 'clawdbot'
+                ? 'bg-green-600 text-white font-medium'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+            onClick={() => {
+              if (liveLogsSession === 'clawdbot') {
+                setLiveLogsSession(null)
+                addLine('clawdbot', 'system', 'Live log streaming stopped.')
+              } else {
+                setLiveLogsSession('clawdbot')
+                addLine('clawdbot', 'system', 'Live log streaming started (polling every 2s)...')
+              }
+            }}
+          >
+            {liveLogsSession === 'clawdbot' ? '● Live' : '○ Live Logs'}
+          </button>
+        )}
         <button
           className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          onClick={() => updateSession(activeSession.id, s => ({ ...s, lines: [] }))}
+          onClick={() => {
+            updateSession(activeSession.id, s => ({ ...s, lines: [] }))
+            if (liveLogsSession === activeSession.id) {
+              setLiveLogsSession(null)
+              lastLogLineCountRef.current = 0
+            }
+          }}
         >
           Clear
         </button>
