@@ -110,7 +110,7 @@ Knapsack supports two authentication modes:
 
 ### Default Mode (knap.ai)
 
-By default, Knapsack uses knap.ai to handle OAuth token exchange. This is the simplest setup and is used by the official DMG releases. No additional configuration is required beyond setting `VITE_KN_API_SERVER=https://knap.ai`.
+By default, Knapsack uses the Knapsack API to handle OAuth token exchange. This is the simplest setup and is used by the official DMG releases. No additional configuration is required beyond setting `VITE_KN_API_SERVER=https://api.knapsack.ai`.
 
 ### Self-Hosted Mode
 
