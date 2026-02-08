@@ -173,6 +173,7 @@ type Msg = {
   ts: number
   isClickable?: boolean
   model?: string // model used for this response (e.g. "gpt-4o-mini")
+  promptActions?: PromptAction[] // pre-defined actions (skip extractPromptActions parsing)
 }
 
 type ServiceStatus = {
@@ -469,8 +470,8 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 }
 
 // The smart prompts that auto-execute
-const SMART_PROMPT = 'Tell me how I should use this app based on my email and calendar'
-const NO_AUTH_PROMPT = 'Catch me up on anything important that happened in AI this week'
+const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
+const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 
 /* Clawd Skills - reserved for future skill recommendations
 const CLAWD_SKILLS = [
@@ -742,14 +743,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       {
         id: 'welcome-1',
         role: 'assistant' as Role,
-        text: "Hi! I'm your AI browser assistant, built on Moltbot. I can browse the web for you, read pages, click buttons, fill forms, and more - all through natural conversation.",
+        text: "Hi! I'm your AI browser assistant, powered by OpenClaw. I can browse the web for you, read pages, click buttons, fill forms, and more — all through natural conversation.",
         ts: Date.now(),
       },
       {
         id: 'welcome-2',
         role: 'assistant' as Role,
-        text: `For your privacy and security: I always open a fresh browser instance. This means you'll need to sign in to any accounts you want me to access (Gmail, LinkedIn, etc). Your credentials are never stored or shared.\n\n[Get started with email & calendar](knapsack://prompt/${SMART_PROMPT})\n[Try without signing in](knapsack://prompt/${NO_AUTH_PROMPT})`,
+        text: "For your privacy and security: I always open a fresh browser instance. This means you'll need to sign in to any accounts you want me to access (Gmail, LinkedIn, etc). Your credentials are never stored or shared.",
         ts: Date.now() + 1,
+        promptActions: [
+          { label: 'Check my email & calendar to get started', prompt: SMART_PROMPT },
+          { label: 'Check the latest AI news', prompt: NO_AUTH_PROMPT },
+        ],
       },
     ],
     [],
@@ -2081,6 +2086,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // not on every re-render from status/health polling.
   const parsedMsgs = useMemo(() =>
     msgs.map(m => {
+      if (m.promptActions) {
+        return { msg: m, cleaned: m.text, actions: m.promptActions }
+      }
       const { cleaned, actions } = m.isClickable ? { cleaned: m.text, actions: [] as PromptAction[] } : extractPromptActions(m.text)
       return { msg: m, cleaned, actions }
     }),
