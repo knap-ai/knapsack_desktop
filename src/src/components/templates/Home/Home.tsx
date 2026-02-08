@@ -2,7 +2,7 @@ import '../../../main.css'
 import 'prismjs/themes/prism-tomorrow.css'
 import './Home.scss'
 
-import { ReactElement, useCallback, useEffect, useMemo, useState } from 'react'
+import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { updateAutomationFeedbackAPI } from 'src/api/automations'
 import { HomeProps } from 'src/App'
@@ -83,6 +83,8 @@ function Home({
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
   const [showActivityPanel, setShowActivityPanel] = useState(false)
+  const [activityPanelWidth, setActivityPanelWidth] = useState(420)
+  const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
@@ -438,9 +440,36 @@ function Home({
                     />
                   </div>
                   {showActivityPanel && (
-                    <div className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white" style={{ width: 420 }}>
-                      <ActivityPanel onClose={() => setShowActivityPanel(false)} />
-                    </div>
+                    <>
+                      <div
+                        className="activity-resize-handle"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          isResizingRef.current = true
+                          const startX = e.clientX
+                          const startWidth = activityPanelWidth
+                          const onMove = (ev: MouseEvent) => {
+                            if (!isResizingRef.current) return
+                            const delta = startX - ev.clientX
+                            setActivityPanelWidth(Math.max(280, Math.min(800, startWidth + delta)))
+                          }
+                          const onUp = () => {
+                            isResizingRef.current = false
+                            document.removeEventListener('mousemove', onMove)
+                            document.removeEventListener('mouseup', onUp)
+                            document.body.style.cursor = ''
+                            document.body.style.userSelect = ''
+                          }
+                          document.body.style.cursor = 'col-resize'
+                          document.body.style.userSelect = 'none'
+                          document.addEventListener('mousemove', onMove)
+                          document.addEventListener('mouseup', onUp)
+                        }}
+                      />
+                      <div className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white" style={{ width: activityPanelWidth, flexShrink: 0 }}>
+                        <ActivityPanel onClose={() => setShowActivityPanel(false)} />
+                      </div>
+                    </>
                   )}
                 </div>
               )}

@@ -22,3 +22,18 @@
   margin: 0px;
   padding: 0px;
 }
+
+.activity-resize-handle {
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  transition: background 0.15s ease;
+
+  &:hover,
+  &:active {
+    background: rgba(100, 116, 172, 0.3);
+  }
+}
