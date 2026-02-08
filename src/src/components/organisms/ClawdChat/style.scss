@@ -72,13 +72,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .ClawdChatTitleRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 
@@ -87,6 +87,7 @@
   height: 36px;
   object-fit: contain;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .ClawdChatTitleGroup {
@@ -101,7 +102,7 @@
   font-weight: 500;
   color: var(--ks-warm-grey-950, #1a1a1a);
   margin: 0;
-  line-height: 1.3;
+  line-height: 1.1;
 }
 
 .ClawdChatSubtitle {
@@ -109,13 +110,14 @@
   font-size: 13px;
   color: var(--ks-warm-grey-600, rgba(0, 0, 0, 0.45));
   margin: 0;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .ClawdChatStatus {
   font-size: 11px;
   color: rgba(0, 0, 0, 0.45);
-  line-height: 1.3;
+  line-height: 1.2;
+  margin-top: 1px;
 
   .status-ok {
     color: rgba(0, 128, 0, 0.7);
