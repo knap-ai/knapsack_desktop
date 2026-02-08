@@ -536,7 +536,7 @@ const TerminalView: React.FC = () => {
       } catch (err) {
         addLine('clawdbot', 'stderr', `Failed to fetch status: ${err}`)
       }
-      addLine('clawdbot', 'system', 'Type commands or click "Live Logs" to stream backend logs.')
+      addLine('clawdbot', 'system', 'Commands: "status", "logs" (stream live), "skills list"')
     }
     fetchStatus()
   }, [sessions, addLine])
@@ -580,6 +580,18 @@ const TerminalView: React.FC = () => {
 
       if (trimmed === 'clear') {
         updateSession(sessionId, s => ({ ...s, lines: [] }))
+        return
+      }
+
+      // Live logs toggle command
+      if (trimmed === 'live logs' || trimmed === 'logs' || trimmed === 'live' || trimmed === 'tail') {
+        if (liveLogsSession === sessionId) {
+          setLiveLogsSession(null)
+          addLine(sessionId, 'system', 'Live log streaming stopped.')
+        } else {
+          setLiveLogsSession(sessionId)
+          addLine(sessionId, 'system', 'Live log streaming started (polling every 2s). Type "logs" again to stop.')
+        }
         return
       }
 
