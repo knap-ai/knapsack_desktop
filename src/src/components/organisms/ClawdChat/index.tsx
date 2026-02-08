@@ -646,8 +646,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as Msg[]
-        // Only restore if we have meaningful history (more than welcome messages)
-        if (parsed.length > 0) return parsed
+        // Strip old-format clickable welcome prompts so fresh ones render
+        const cleaned = parsed.filter(m => m.id !== 'smart-prompt' && m.id !== 'no-auth-prompt')
+        // If only welcome shells remain, start fresh
+        if (cleaned.every(m => m.id.startsWith('welcome-'))) return []
+        if (cleaned.length > 0) return cleaned
       } catch {
         // Invalid stored data, ignore
       }
@@ -1450,7 +1453,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Save chat history to localStorage whenever msgs change (excluding welcome messages)
   useEffect(() => {
     // Only save if we have messages beyond the initial welcome
-    const nonWelcomeMsgs = msgs.filter(m => !m.id.startsWith('welcome-') && !m.id.startsWith('example-') && !m.id.startsWith('smart-') && !m.id.startsWith('no-auth-'))
+    const nonWelcomeMsgs = msgs.filter(m => !m.id.startsWith('welcome-') && !m.id.startsWith('example-'))
     if (nonWelcomeMsgs.length > 0) {
       localStorage.setItem(CHAT_HISTORY_STORAGE, JSON.stringify(msgs))
     }
