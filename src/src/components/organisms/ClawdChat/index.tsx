@@ -227,6 +227,7 @@ type SkillInfo = {
   primaryEnv?: string
   userInvocable?: boolean
   externalApi?: boolean // true if this skill sends data to external APIs
+  namespace?: string // owner/namespace for ClawHub URL (e.g. "steipete")
 }
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq'
@@ -2349,7 +2350,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           <div className="ClawdSkillName">{skill.name}</div>
                           {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
                           <div className="ClawdSkillMeta">
-                            {skill.source && <span className="ClawdSkillSource">{skill.source}</span>}
+                            {skill.source === 'OpenClaw' ? (
+                              <a className="ClawdSkillSource ClawdSkillSource--link" href={`https://clawhub.ai/${skill.namespace ? skill.namespace + '/' : ''}${skill.name}`} target="_blank" rel="noopener noreferrer">OpenClaw</a>
+                            ) : skill.source ? (
+                              <span className="ClawdSkillSource">{skill.source}</span>
+                            ) : null}
                             {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
                           </div>
                         </div>
@@ -2375,7 +2380,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             <div className="ClawdSkillDesc" style={{color: '#e67e22'}}>Missing: {skill.missing.join(', ')}</div>
                           )}
                           <div className="ClawdSkillMeta">
-                            {skill.source && <span className="ClawdSkillSource">{skill.source}</span>}
+                            {skill.source === 'OpenClaw' ? (
+                              <a className="ClawdSkillSource ClawdSkillSource--link" href={`https://clawhub.ai/${skill.namespace ? skill.namespace + '/' : ''}${skill.name}`} target="_blank" rel="noopener noreferrer">OpenClaw</a>
+                            ) : skill.source ? (
+                              <span className="ClawdSkillSource">{skill.source}</span>
+                            ) : null}
                             {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
                           </div>
                         </div>
@@ -2405,7 +2414,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           <div className="ClawdSkillName">{skill.name}</div>
                           {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
                           <div className="ClawdSkillMeta">
-                            <span className="ClawdSkillSource">OpenClaw</span>
+                            <a className="ClawdSkillSource ClawdSkillSource--link" href={`https://clawhub.ai/${skill.namespace ? skill.namespace + '/' : ''}${skill.name}`} target="_blank" rel="noopener noreferrer">OpenClaw</a>
                             {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
                           </div>
                         </div>

@@ -1714,6 +1714,19 @@
   background: rgba(0, 0, 0, 0.05);
   color: #888;
   margin-top: 4px;
+
+  &--link {
+    text-decoration: none;
+    cursor: pointer;
+    color: #6474ac;
+    background: rgba(100, 116, 172, 0.1);
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: rgba(100, 116, 172, 0.2);
+      color: #4a5a8c;
+    }
+  }
 }
 
 .ClawdSkillActions {
