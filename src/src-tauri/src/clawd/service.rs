@@ -72,8 +72,14 @@ struct StoredTokens {
   #[serde(default)]
   anthropic_api_key: Option<String>,
   #[serde(default)]
+  anthropic_model: Option<String>,
+  #[serde(default)]
   gemini_api_key: Option<String>,
-  /// Which provider is currently selected: "openai", "anthropic", "gemini"
+  #[serde(default)]
+  gemini_model: Option<String>,
+  #[serde(default)]
+  groq_model: Option<String>,
+  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq"
   #[serde(default)]
   active_provider: Option<String>,
 }
@@ -132,7 +138,10 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     openai_api_key: None, // User must provide their own API key
     openai_model: None,   // Defaults to gpt-4o
     anthropic_api_key: None,
+    anthropic_model: None, // Defaults to claude-sonnet-4-20250514
     gemini_api_key: None,
+    gemini_model: None,    // Defaults to gemini-2.5-flash
+    groq_model: None,      // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
     active_provider: None, // Defaults to openai
   };
 
@@ -180,6 +189,18 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     let m = m.trim();
     if !m.is_empty() { std::env::set_var("KNAPSACK_OPENAI_MODEL", m); }
   }
+  if let Some(m) = &tokens.anthropic_model {
+    let m = m.trim();
+    if !m.is_empty() { std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", m); }
+  }
+  if let Some(m) = &tokens.gemini_model {
+    let m = m.trim();
+    if !m.is_empty() { std::env::set_var("KNAPSACK_GEMINI_MODEL", m); }
+  }
+  if let Some(m) = &tokens.groq_model {
+    let m = m.trim();
+    if !m.is_empty() { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
+  }
 }
 
 fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(), String> {
@@ -202,6 +223,30 @@ pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
     .ok()
     .and_then(|t| t.openai_model)
     .unwrap_or_else(|| "gpt-4o".to_string())
+}
+
+/// Get the configured Anthropic model (defaults to claude-sonnet-4-20250514 if not set)
+pub fn get_anthropic_model(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.anthropic_model)
+    .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string())
+}
+
+/// Get the configured Gemini model (defaults to gemini-2.5-flash if not set)
+pub fn get_gemini_model(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.gemini_model)
+    .unwrap_or_else(|| "gemini-2.5-flash".to_string())
+}
+
+/// Get the configured Groq model (defaults to meta-llama/llama-4-scout-17b-16e-instruct if not set)
+pub fn get_groq_model(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.groq_model)
+    .unwrap_or_else(|| "meta-llama/llama-4-scout-17b-16e-instruct".to_string())
 }
 
 fn resource_path(app_handle: &tauri::AppHandle, rel: &str) -> PathBuf {
@@ -601,16 +646,25 @@ pub async fn set_api_key(
     "anthropic" => {
       tokens.anthropic_api_key = Some(key);
       tokens.active_provider = Some("anthropic".to_string());
+      if let Some(model) = &payload.model {
+        tokens.anthropic_model = Some(model.trim().to_string());
+      }
       "Anthropic"
     }
     "gemini" => {
       tokens.gemini_api_key = Some(key);
       tokens.active_provider = Some("gemini".to_string());
+      if let Some(model) = &payload.model {
+        tokens.gemini_model = Some(model.trim().to_string());
+      }
       "Gemini"
     }
     "groq" => {
       tokens.groq_api_key = Some(key);
       tokens.active_provider = Some("groq".to_string());
+      if let Some(model) = &payload.model {
+        tokens.groq_model = Some(model.trim().to_string());
+      }
       "Groq"
     }
     _ => {
@@ -638,6 +692,9 @@ pub async fn set_api_key(
   if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
   if let Some(p) = &tokens.active_provider { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
   if let Some(m) = &tokens.openai_model { std::env::set_var("KNAPSACK_OPENAI_MODEL", m); }
+  if let Some(m) = &tokens.anthropic_model { std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", m); }
+  if let Some(m) = &tokens.gemini_model { std::env::set_var("KNAPSACK_GEMINI_MODEL", m); }
+  if let Some(m) = &tokens.groq_model { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
 
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
@@ -656,6 +713,9 @@ pub struct GetApiKeyResponse {
   pub openai_key: Option<String>,
   pub anthropic_key: Option<String>,
   pub gemini_key: Option<String>,
+  pub anthropic_model: Option<String>,
+  pub gemini_model: Option<String>,
+  pub groq_model: Option<String>,
 }
 
 #[get("/api/clawd/service/get-api-key")]
@@ -671,6 +731,9 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
         openai_key: None,
         anthropic_key: None,
         gemini_key: None,
+        anthropic_model: None,
+        gemini_model: None,
+        groq_model: None,
       })
     }
   };
@@ -695,6 +758,9 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
     openai_key,
     anthropic_key,
     gemini_key,
+    anthropic_model: tokens.anthropic_model,
+    gemini_model: tokens.gemini_model,
+    groq_model: tokens.groq_model,
   })
 }
 
