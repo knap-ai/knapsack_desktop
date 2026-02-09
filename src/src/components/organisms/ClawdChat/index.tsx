@@ -1,6 +1,6 @@
 import './style.scss'
 
-import { useEffect, useMemo, useState, useCallback, memo, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { open } from '@tauri-apps/api/shell'
@@ -172,6 +172,8 @@ type Msg = {
   text: string
   ts: number
   isClickable?: boolean
+  model?: string // model used for this response (e.g. "gpt-4o-mini")
+  promptActions?: PromptAction[] // pre-defined actions (skip extractPromptActions parsing)
 }
 
 type ServiceStatus = {
@@ -225,6 +227,7 @@ type SkillInfo = {
   primaryEnv?: string
   userInvocable?: boolean
   externalApi?: boolean // true if this skill sends data to external APIs
+  homepage?: string // URL for skill detail page (from gateway)
 }
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq'
@@ -244,6 +247,29 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'groq', name: 'Groq', description: 'Llama 4, DeepSeek R1 — ultra-fast inference', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
 ]
 
+type AnthropicModelOption = {
+  id: string
+  name: string
+  description: string
+}
+
+const ANTHROPIC_MODELS: AnthropicModelOption[] = [
+  { id: 'claude-opus-4-5-20250514', name: 'Claude Opus 4.5', description: 'Most intelligent, best for complex tasks' },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Fast and capable, good balance' },
+  { id: 'claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', description: 'Fastest and most affordable' },
+]
+
+type GeminiModelOption = {
+  id: string
+  name: string
+  description: string
+}
+
+const GEMINI_MODELS: GeminiModelOption[] = [
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, best for complex tasks' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fastest, most affordable' },
+]
 
 // In Tauri dev, the UI runs on Vite (1420) while the Rust server listens on 8897.
 // In production, the UI is loaded from file:// but the Rust server is still 8897.
@@ -272,6 +298,10 @@ async function getOpenAIKey(): Promise<string | null> {
     }
   } catch { /* backend not reachable */ }
   return null
+}
+
+function clearCachedApiKey() {
+  _cachedApiKey = null
 }
 
 const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
@@ -441,17 +471,37 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 }
 
 // The smart prompts that auto-execute
-const SMART_PROMPT = 'Tell me how I should use this app based on my email and calendar'
-const NO_AUTH_PROMPT = 'Catch me up on anything important that happened in AI this week'
+const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
+const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 
-/* Clawd Skills - reserved for future skill recommendations
-const CLAWD_SKILLS = [
-  { id: 'email-triage', name: 'Email Triage', description: 'Scan your inbox and surface action items', prompt: 'Check my Gmail for action items and follow-ups I need to handle' },
-  { id: 'draft-replies', name: 'Draft Replies', description: 'Draft responses to important emails', prompt: 'Go to my Gmail, find emails I need to respond to, and draft replies' },
-  { id: 'calendar-prep', name: 'Calendar Prep', description: 'Review upcoming meetings and prepare', prompt: 'Check my calendar for upcoming meetings and help me prepare for them' },
-  { id: 'linkedin-network', name: 'LinkedIn Network', description: 'Stay on top of your professional network', prompt: 'Open LinkedIn and summarize my notifications' },
-  { id: 'task-manager', name: 'Task Manager', description: 'Review and organize your tasks', prompt: 'Check my Google Tasks for what I need to do today' },
-] */
+// Static skills catalog — used as fallback when gateway/backend is unreachable
+const FALLBACK_SKILLS: SkillInfo[] = [
+  {name:"Web Search",emoji:"🔍",description:"Search the web",source:"built-in",eligible:true,enabled:true},
+  {name:"Browser Control",emoji:"🌐",description:"Navigate and interact with web pages",source:"built-in",eligible:true,enabled:true},
+  {name:"Email",emoji:"📧",description:"Read, draft, and manage emails via Gmail",source:"built-in",eligible:true,enabled:true},
+  {name:"Calendar",emoji:"📅",description:"View and manage Google Calendar events",source:"built-in",eligible:true,enabled:true},
+  {name:"File Reader",emoji:"📄",description:"Read and analyze local files and PDFs",source:"built-in",eligible:true,enabled:true},
+  {name:"File Writer",emoji:"✏️",description:"Create and edit local files",source:"built-in",eligible:true,enabled:true},
+  {name:"Python Scripts",emoji:"🐍",description:"Run Python for data analysis and automation",source:"built-in",eligible:true,enabled:true},
+  {name:"Shell Commands",emoji:"⚡",description:"Execute shell commands (Advanced Mode)",source:"built-in",eligible:true,enabled:true},
+  {name:"Screenshot",emoji:"📸",description:"Capture screenshots of web pages",source:"built-in",eligible:true,enabled:true},
+  {name:"gog",emoji:"📊",description:"Google Workspace — Gmail, Calendar, Drive, Sheets, Docs",source:"OpenClaw",eligible:false},
+  {name:"notion",emoji:"📝",description:"Read and edit Notion pages and databases",source:"OpenClaw",eligible:false},
+  {name:"slack",emoji:"💬",description:"Team communication via Slack",source:"OpenClaw",eligible:false},
+  {name:"apple-notes",emoji:"🍎",description:"Create and manage macOS Notes",source:"OpenClaw",eligible:false},
+  {name:"apple-reminders",emoji:"⏰",description:"Manage macOS Reminders",source:"OpenClaw",eligible:false},
+  {name:"things-mac",emoji:"✅",description:"Things 3 task management for macOS",source:"OpenClaw",eligible:false},
+  {name:"himalaya",emoji:"📬",description:"Email via IMAP/SMTP",source:"OpenClaw",eligible:false},
+  {name:"trello",emoji:"📋",description:"Trello project management boards and cards",source:"OpenClaw",eligible:false},
+  {name:"obsidian",emoji:"💎",description:"Obsidian knowledge management vaults",source:"OpenClaw",eligible:false},
+  {name:"bear-notes",emoji:"🐻",description:"Bear notes management",source:"OpenClaw",eligible:false},
+  {name:"summarize",emoji:"📑",description:"Summarize URLs, articles, PDFs, and YouTube videos",source:"OpenClaw",eligible:false},
+  {name:"github",emoji:"🐙",description:"GitHub CLI for PRs, code review, and branching",source:"OpenClaw",eligible:false},
+  {name:"spotify-player",emoji:"🎵",description:"Spotify playback and search",source:"OpenClaw",eligible:false},
+  {name:"weather",emoji:"🌤️",description:"Weather forecasts (no API key required)",source:"OpenClaw",eligible:false},
+  {name:"skill-creator",emoji:"🛠️",description:"Create custom skills",source:"OpenClaw",eligible:false},
+  {name:"clawhub",emoji:"🏪",description:"Discover and install skills from ClawHub",source:"OpenClaw",eligible:false},
+]
 
 // Map file extension to MIME type (used by Tauri file-drop handler)
 function getMimeTypeFromExt(ext: string): string {
@@ -608,17 +658,21 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
 interface ClawdChatProps {
   showActivityPanel?: boolean
   onToggleActivity?: () => void
+  onCloseActivity?: () => void
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as Msg[]
-        // Only restore if we have meaningful history (more than welcome messages)
-        if (parsed.length > 0) return parsed
+        // Strip old-format clickable welcome prompts so fresh ones render
+        const cleaned = parsed.filter(m => m.id !== 'smart-prompt' && m.id !== 'no-auth-prompt')
+        // If only welcome shells remain, start fresh
+        if (cleaned.every(m => m.id.startsWith('welcome-'))) return []
+        if (cleaned.length > 0) return cleaned
       } catch {
         // Invalid stored data, ignore
       }
@@ -710,7 +764,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       {
         id: 'welcome-1',
         role: 'assistant' as Role,
-        text: "Hi! I'm your AI browser assistant, built on Moltbot. I can browse the web for you, read pages, click buttons, fill forms, and more - all through natural conversation.",
+        text: "Hi! I'm your AI browser assistant, powered by OpenClaw. I can browse the web for you, read pages, click buttons, fill forms, and more — all through natural conversation.",
         ts: Date.now(),
       },
       {
@@ -718,20 +772,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         role: 'assistant' as Role,
         text: "For your privacy and security: I always open a fresh browser instance. This means you'll need to sign in to any accounts you want me to access (Gmail, LinkedIn, etc). Your credentials are never stored or shared.",
         ts: Date.now() + 1,
-      },
-      {
-        id: 'smart-prompt',
-        role: 'assistant' as Role,
-        text: `👆 **Click to get started:** "${SMART_PROMPT}"`,
-        ts: Date.now() + 2,
-        isClickable: true,
-      },
-      {
-        id: 'no-auth-prompt',
-        role: 'assistant' as Role,
-        text: `👆 **Or try without signing in:** "${NO_AUTH_PROMPT}"`,
-        ts: Date.now() + 3,
-        isClickable: true,
+        promptActions: [
+          { label: 'Check my email & calendar to get started', prompt: SMART_PROMPT },
+          { label: 'Check the latest AI news', prompt: NO_AUTH_PROMPT },
+        ],
       },
     ],
     [],
@@ -819,18 +863,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     pushAssistant('⚡ **Advanced mode enabled.** I can now run shell commands to install software, check versions, and execute scripts. Dangerous commands are blocked for safety.')
   }, [])
 
-  // Skills panel — fetch skills status from gateway
+  // Skills panel — fetch from backend, fall back to static catalog
   const fetchSkills = useCallback(async () => {
     setSkillsLoading(true)
     setSkillsError(null)
     try {
       const resp = await apiGet<{ success: boolean; skills?: any; error?: string }>('/api/clawd/skills/status')
       if (resp.success && resp.skills) {
-        // Gateway returns skills as an array or object — normalize
         const raw = Array.isArray(resp.skills) ? resp.skills : (resp.skills?.skills || [])
-        // Normalize gateway fields to match frontend SkillInfo shape:
-        // - gateway uses "install" → frontend expects "installOptions"
-        // - gateway "missing" is {bins,env,...} → frontend expects string[]
         const normalized = (raw as any[]).map((s: any) => {
           const skill = { ...s }
           if (!skill.installOptions && skill.install) {
@@ -850,10 +890,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         })
         setSkills(normalized as SkillInfo[])
       } else {
-        setSkillsError(resp.error || 'Failed to load skills')
+        // Backend returned error — use static catalog
+        setSkills(FALLBACK_SKILLS)
       }
-    } catch (e: any) {
-      setSkillsError(e?.message || 'Failed to connect to gateway')
+    } catch {
+      // Backend unreachable — use static catalog
+      setSkills(FALLBACK_SKILLS)
     } finally {
       setSkillsLoading(false)
     }
@@ -862,20 +904,28 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const handleSkillInstall = useCallback(async (skillName: string, installId: string) => {
     try {
       pushAssistant(`Installing ${skillName}...`)
-      await apiPost('/api/clawd/skills/install', { name: skillName, installId })
-      pushAssistant(`${skillName} installed successfully.`)
-      await fetchSkills() // Refresh
-    } catch (e: any) {
-      pushAssistant(`Failed to install ${skillName}: ${e?.message || String(e)}`)
+      const resp = await apiPost<{ success: boolean; error?: string }>('/api/clawd/skills/install', { name: skillName, installId })
+      if (resp.success) {
+        pushAssistant(`${skillName} installed successfully.`)
+        await fetchSkills()
+      } else {
+        pushAssistant(`Could not install ${skillName}: ${resp.error || 'Gateway unavailable. OpenClaw skills require the ClawdBot gateway — check Activity panel for status.'}`)
+      }
+    } catch {
+      pushAssistant(`Could not install ${skillName}. OpenClaw skills require the ClawdBot gateway to be running — check the Activity panel for status.`)
     }
   }, [fetchSkills])
 
   const handleSkillToggle = useCallback(async (skillKey: string, enabled: boolean) => {
     try {
-      await apiPost('/api/clawd/skills/update', { skillKey, enabled })
-      await fetchSkills() // Refresh
-    } catch (e: any) {
-      pushAssistant(`Failed to update skill: ${e?.message || String(e)}`)
+      const resp = await apiPost<{ success: boolean; error?: string }>('/api/clawd/skills/update', { skillKey, enabled })
+      if (resp.success) {
+        await fetchSkills()
+      } else {
+        pushAssistant(`Could not update skill: ${resp.error || 'Gateway unavailable.'}`)
+      }
+    } catch {
+      pushAssistant(`Could not update skill. The ClawdBot gateway needs to be running — check the Activity panel for status.`)
     }
   }, [fetchSkills])
 
@@ -1435,7 +1485,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Save chat history to localStorage whenever msgs change (excluding welcome messages)
   useEffect(() => {
     // Only save if we have messages beyond the initial welcome
-    const nonWelcomeMsgs = msgs.filter(m => !m.id.startsWith('welcome-') && !m.id.startsWith('example-') && !m.id.startsWith('smart-') && !m.id.startsWith('no-auth-'))
+    const nonWelcomeMsgs = msgs.filter(m => !m.id.startsWith('welcome-') && !m.id.startsWith('example-'))
     if (nonWelcomeMsgs.length > 0) {
       localStorage.setItem(CHAT_HISTORY_STORAGE, JSON.stringify(msgs))
     }
@@ -1994,9 +2044,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           throw new Error(errorText || `HTTP ${res.status}`)
         }
 
-        const out = await res.json() as { ok?: boolean; reply?: string; error?: string; message?: string }
+        const out = await res.json() as { ok?: boolean; reply?: string; error?: string; message?: string; model?: string; usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number } }
         if (out.reply) {
-          pushAssistant(out.reply)
+          // Include model info so the user can see which model handled their request
+          setMsgs(prev => [
+            ...prev,
+            { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
+          ])
         } else {
           pushAssistant(friendlyError(out.message || out.error || 'No reply'))
         }
@@ -2022,27 +2076,46 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   doSendRef.current = doSend
 
   const statusLine = useMemo(() => {
-    if (!status && !health) return 'Checking Moltbot...'
-    const parts: string[] = []
+    if (!status && !health) return <span>Checking Moltbot...</span>
+    const parts: ReactNode[] = []
     if (status) {
       parts.push(
-        status.running ? 'Service: running' : status.installed ? 'Service: installed' : 'Service: off',
+        <span key="svc" className={status.running ? 'status-ok' : 'status-warn'}>
+          {status.running ? 'Service: running' : status.installed ? 'Service: installed' : 'Service: off'}
+        </span>,
       )
     }
     if (health) {
-      // Only show gateway/browser status when they're actually up or service is running
-      // Avoids alarming "down" labels during startup
-      if (health.gateway_ok) parts.push('Gateway: OK')
-      if (health.browser_ok) parts.push('Browser: OK')
+      parts.push(
+        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'}>
+          {health.gateway_ok ? 'Gateway: OK' : 'Gateway: down'}
+        </span>,
+      )
+      parts.push(
+        <span key="br" className={health.browser_ok ? 'status-ok' : 'status-down'}>
+          {health.browser_ok ? 'Browser: OK' : 'Browser: down'}
+        </span>,
+      )
+    } else if (status?.running) {
+      // Health not loaded yet but service is running — show checking state
+      parts.push(<span key="gw" className="status-warn">Gateway: checking...</span>)
+      parts.push(<span key="br" className="status-warn">Browser: checking...</span>)
     }
-    if (currentTargetId) parts.push(`Tab: ${currentTargetId.slice(0, 12)}...`)
-    return parts.join(' | ')
+    if (currentTargetId) parts.push(<span key="tab">Tab: {currentTargetId.slice(0, 12)}...</span>)
+    return parts.reduce<ReactNode[]>((acc, part, i) => {
+      if (i > 0) acc.push(<span key={`sep-${i}`}> | </span>)
+      acc.push(part)
+      return acc
+    }, [])
   }, [status, health, currentTargetId])
 
   // Memoize message parsing so extractPromptActions only re-runs when msgs change,
   // not on every re-render from status/health polling.
   const parsedMsgs = useMemo(() =>
     msgs.map(m => {
+      if (m.promptActions) {
+        return { msg: m, cleaned: m.text, actions: m.promptActions }
+      }
       const { cleaned, actions } = m.isClickable ? { cleaned: m.text, actions: [] as PromptAction[] } : extractPromptActions(m.text)
       return { msg: m, cleaned, actions }
     }),
@@ -2078,7 +2151,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           >
             {autonomyMode === 'autonomous' ? '🚀 Autonomous' : '🤝 Assist'}
           </button>
-          <button disabled={busy} onClick={() => { setShowKeyPrompt(!showKeyPrompt); setShowSkillsPanel(false) }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
+          <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
             {selectedProvider === 'anthropic' ? 'Anthropic'
               : selectedProvider === 'gemini' ? 'Gemini'
               : selectedProvider === 'groq' ? 'Groq'
@@ -2099,13 +2172,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </button>
           <button
             disabled={busy}
-            onClick={() => { setShowSkillsPanel(true); setShowKeyPrompt(false); fetchSkills() }}
+            onClick={() => { setShowSkillsPanel(true); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity(); fetchSkills() }}
             title="Manage skills and extensions"
           >
             Skills
           </button>
           <button
-            onClick={() => { if (onToggleActivity) { onToggleActivity(); setShowSkillsPanel(false) } }}
+            onClick={() => { if (onToggleActivity) { onToggleActivity(); setShowSkillsPanel(false); setShowKeyPrompt(false) } }}
+            disabled={busy}
             className={externalActivityPanel ? 'toggle-on' : ''}
             title="View live activity — tool calls, commands, and browser actions"
           >
@@ -2218,12 +2292,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     ))}
                   </div>
                 )}
+                {m.model && m.role === 'assistant' && (
+                  <div className="ClawdMsgModel">via {m.model}</div>
+                )}
               </div>
             </div>
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
         {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
-          msgs.every(m => m.id.startsWith('welcome-') || m.id.startsWith('smart-') || m.id.startsWith('no-auth-')) && (
+          msgs.every(m => m.id.startsWith('welcome-')) && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble">
               <p><strong>Available skills:</strong></p>
@@ -2299,7 +2376,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           <div className="ClawdSkillName">{skill.name}</div>
                           {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
                           <div className="ClawdSkillMeta">
-                            {skill.source && <span className="ClawdSkillSource">{skill.source}</span>}
+                            {skill.source === 'OpenClaw' ? (
+                              <a className="ClawdSkillSource ClawdSkillSource--link" href={skill.homepage || `https://clawhub.ai/steipete/${skill.name}`} target="_blank" rel="noopener noreferrer">OpenClaw</a>
+                            ) : skill.source ? (
+                              <span className="ClawdSkillSource">{skill.source}</span>
+                            ) : null}
                             {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
                           </div>
                         </div>
@@ -2325,7 +2406,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             <div className="ClawdSkillDesc" style={{color: '#e67e22'}}>Missing: {skill.missing.join(', ')}</div>
                           )}
                           <div className="ClawdSkillMeta">
-                            {skill.source && <span className="ClawdSkillSource">{skill.source}</span>}
+                            {skill.source === 'OpenClaw' ? (
+                              <a className="ClawdSkillSource ClawdSkillSource--link" href={skill.homepage || `https://clawhub.ai/steipete/${skill.name}`} target="_blank" rel="noopener noreferrer">OpenClaw</a>
+                            ) : skill.source ? (
+                              <span className="ClawdSkillSource">{skill.source}</span>
+                            ) : null}
                             {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
                           </div>
                         </div>
@@ -2355,18 +2440,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           <div className="ClawdSkillName">{skill.name}</div>
                           {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
                           <div className="ClawdSkillMeta">
-                            <span className="ClawdSkillSource">OpenClaw</span>
+                            <a className="ClawdSkillSource ClawdSkillSource--link" href={skill.homepage || `https://clawhub.ai/steipete/${skill.name}`} target="_blank" rel="noopener noreferrer">OpenClaw</a>
                             {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
                           </div>
                         </div>
                         <div className="ClawdSkillActions">
                           <a
                             className="ClawdSkillInstallLink"
-                            href="https://clawhub.ai"
+                            href={skill.homepage || `https://clawhub.ai/steipete/${skill.name}`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            Get on ClawHub
+                            Set up on ClawHub
                           </a>
                         </div>
                       </div>

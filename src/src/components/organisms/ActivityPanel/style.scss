@@ -2,25 +2,25 @@
   font-family: Inter, sans-serif;
 
   .ActivityPanel__tabs {
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid #E3E2E2; // ks-warm-grey-200
   }
 
   .ActivityPanel__tab {
     padding: 6px 12px;
     font-size: 12px;
     font-weight: 500;
-    color: #6b7280;
+    color: #828180; // ks-warm-grey-700
     border-bottom: 2px solid transparent;
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s;
 
     &:hover {
-      color: #374151;
+      color: #585757; // ks-warm-grey-900
     }
 
     &--active {
-      color: #374151;
-      border-bottom-color: #6474AC;
+      color: #333333; // ks-warm-grey-950
+      border-bottom-color: #6474AC; // ks-gunpowder-600
     }
   }
 
@@ -41,11 +41,11 @@
     }
 
     &--info {
-      color: #6b7280;
+      color: #828180; // ks-warm-grey-700
     }
 
     &--debug {
-      color: #9ca3af;
+      color: #ABA9A9; // ks-warm-grey-500
     }
   }
 
@@ -116,7 +116,7 @@
 
   .ActivityPanel__costCard {
     background: white;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #E3E2E2; // ks-warm-grey-200
     border-radius: 12px;
     padding: 16px 20px;
     transition: box-shadow 0.15s;

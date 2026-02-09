@@ -976,7 +976,24 @@ pub async fn set_service_enabled(
       let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/extensions");
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
 
+      // Build a PATH that includes the directory where we found node (so npm
+      // is also discoverable), plus common macOS paths.  LaunchAgents get a
+      // minimal PATH by default which typically excludes /opt/homebrew/bin.
+      let node_dir = node_path.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+      let mut path_parts: Vec<String> = Vec::new();
+      if !node_dir.is_empty() {
+        path_parts.push(node_dir);
+      }
+      for p in &["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
+        let s = p.to_string();
+        if !path_parts.contains(&s) {
+          path_parts.push(s);
+        }
+      }
+      let clawdbot_path = path_parts.join(":");
+
       let mut env = vec![
+        ("PATH".to_string(), clawdbot_path),
         ("CLAWDBOT_HOME".to_string(), clawdbot_home_str.clone()),
         // Point state dir (config, sessions, logs) to the app data dir so
         // clawdbot finds our config file instead of looking in ~/.clawdbot/
@@ -1153,34 +1170,16 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
 
 // --- Skills API endpoint (static catalog) ---
 
-/// Return skills status from the gateway (real workspace skills).
-/// Falls back to the static catalog when the gateway is unavailable.
+/// Return built-in skills catalog (static JSON file, no gateway dependency)
 #[get("/api/clawd/skills/status")]
-pub async fn skills_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
-  // Try the gateway first so the frontend only sees real, installable skills.
-  if let Ok(tokens) = load_or_create_tokens(&app_handle) {
-    match super::gateway_ws::gateway_request(
-      "skills.status",
-      Some(serde_json::json!({})),
-      Some(&tokens.gateway_token),
-    ).await {
-      Ok(result) => {
-        return HttpResponse::Ok().json(serde_json::json!({"success": true, "skills": result}));
-      }
-      Err(e) => {
-        eprintln!("[clawd/service] skills.status gateway error, falling back to catalog: {}", e);
-      }
-    }
-  }
-
-  // Fallback: static catalog (gateway not ready yet)
+pub async fn skills_status(_h: web::Data<tauri::AppHandle>) -> impl Responder {
   let catalog: serde_json::Value = serde_json::from_str(
     include_str!("skills_catalog.json")
   ).unwrap_or_default();
   HttpResponse::Ok().json(serde_json::json!({"success": true, "skills": catalog}))
 }
 
-/// Install a skill's dependencies via the gateway
+/// Install a skill — requires the gateway (clawdbot) to be running
 #[derive(Debug, Deserialize)]
 pub struct SkillInstallRequest {
   pub name: String,
@@ -1215,7 +1214,7 @@ pub async fn skills_install(
     Err(e) => {
       eprintln!("[clawd/service] skills.install error: {}", e);
       HttpResponse::BadGateway()
-        .json(serde_json::json!({"success": false, "error": format!("Failed to install skill: {}", e)}))
+        .json(serde_json::json!({"success": false, "error": "Skill installation requires the ClawdBot gateway to be running. Check the Activity panel for gateway status."}))
     }
   }
 }

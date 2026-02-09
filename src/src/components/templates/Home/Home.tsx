@@ -2,7 +2,7 @@ import '../../../main.css'
 import 'prismjs/themes/prism-tomorrow.css'
 import './Home.scss'
 
-import { ReactElement, useCallback, useEffect, useMemo, useState } from 'react'
+import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { updateAutomationFeedbackAPI } from 'src/api/automations'
 import { HomeProps } from 'src/App'
@@ -83,6 +83,8 @@ function Home({
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
   const [showActivityPanel, setShowActivityPanel] = useState(false)
+  const [activityPanelWidth, setActivityPanelWidth] = useState(420)
+  const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
@@ -341,7 +343,16 @@ function Home({
               />
             </>
           ) : (
-            <SigninButton onClick={handleSigninButtonClick} connections={connections} />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSettingsDialogOpened(true)}
+                className="flex items-center justify-center w-8 h-8 rounded-md border border-ks-warm-grey-300 bg-white hover:bg-ks-warm-grey-50 text-ks-warm-grey-700"
+                title="Settings"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <SigninButton onClick={handleSigninButtonClick} connections={connections} />
+            </div>
           )
         }
       />
@@ -425,12 +436,40 @@ function Home({
                     <ClawdChat
                       showActivityPanel={showActivityPanel}
                       onToggleActivity={() => setShowActivityPanel(prev => !prev)}
+                      onCloseActivity={() => setShowActivityPanel(false)}
                     />
                   </div>
                   {showActivityPanel && (
-                    <div className="overflow-hidden h-full border-l border-gray-200 bg-white" style={{ width: 420 }}>
-                      <ActivityPanel onClose={() => setShowActivityPanel(false)} />
-                    </div>
+                    <>
+                      <div
+                        className="activity-resize-handle"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          isResizingRef.current = true
+                          const startX = e.clientX
+                          const startWidth = activityPanelWidth
+                          const onMove = (ev: MouseEvent) => {
+                            if (!isResizingRef.current) return
+                            const delta = startX - ev.clientX
+                            setActivityPanelWidth(Math.max(280, Math.min(800, startWidth + delta)))
+                          }
+                          const onUp = () => {
+                            isResizingRef.current = false
+                            document.removeEventListener('mousemove', onMove)
+                            document.removeEventListener('mouseup', onUp)
+                            document.body.style.cursor = ''
+                            document.body.style.userSelect = ''
+                          }
+                          document.body.style.cursor = 'col-resize'
+                          document.body.style.userSelect = 'none'
+                          document.addEventListener('mousemove', onMove)
+                          document.addEventListener('mouseup', onUp)
+                        }}
+                      />
+                      <div className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white" style={{ width: activityPanelWidth, flexShrink: 0 }}>
+                        <ActivityPanel onClose={() => setShowActivityPanel(false)} />
+                      </div>
+                    </>
                   )}
                 </div>
               )}

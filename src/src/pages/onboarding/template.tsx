@@ -357,6 +357,7 @@ export const OnboardingTemplate = ({
   currentSlideOutScreen,
   onWelcomeScreenContinueClick,
   onGoogleGrantClick,
+  onGoogleSkipClick,
   googlePermissions,
   onChangeGooglePermissions,
   acceptedTerms,
