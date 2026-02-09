@@ -2445,20 +2445,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           </div>
                         </div>
                         <div className="ClawdSkillActions">
-                          {advancedMode ? (
-                            <button className="ClawdSkillInstallBtn" onClick={() => handleSkillInstall(skill.name, 'npm')}>
-                              Install
-                            </button>
-                          ) : (
-                            <a
-                              className="ClawdSkillInstallLink"
-                              href={skill.homepage || `https://clawhub.ai/steipete/${skill.name}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Get on ClawHub
-                            </a>
-                          )}
+                          <a
+                            className="ClawdSkillInstallLink"
+                            href={skill.homepage || `https://clawhub.ai/steipete/${skill.name}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Set up on ClawHub
+                          </a>
                         </div>
                       </div>
                     ))}
