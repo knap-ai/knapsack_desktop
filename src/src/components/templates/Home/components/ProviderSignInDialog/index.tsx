@@ -33,14 +33,15 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'openai',
     name: 'OpenAI',
-    description: 'GPT-4o, GPT-5.2, o3',
+    description: 'GPT-5.2, GPT-4o, o3',
     keyPrefix: 'sk-',
     helpUrl: 'https://platform.openai.com/api-keys',
     helpLabel: 'platform.openai.com/api-keys',
     models: [
+      { id: 'gpt-5.2', name: 'GPT-5.2', description: 'Most intelligent, best for complex tasks' },
+      { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro', description: 'Extended thinking for harder problems' },
       { id: 'gpt-4o', name: 'GPT-4o', description: 'Fast and capable, good for most tasks' },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fastest and most affordable' },
-      { id: 'gpt-5.2', name: 'GPT-5.2', description: 'Most intelligent, best for complex tasks' },
       { id: 'o3', name: 'o3 (Reasoning)', description: 'Reasoning model for complex logic' },
       { id: 'o3-mini', name: 'o3 Mini', description: 'Fast reasoning model' },
     ],
@@ -49,16 +50,16 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'anthropic',
     name: 'Anthropic',
-    description: 'Claude Sonnet 4, Claude Opus 4.5',
+    description: 'Claude Opus 4.6, Sonnet 4.5, Haiku 4.5',
     keyPrefix: 'sk-ant-',
     helpUrl: 'https://console.anthropic.com/settings/keys',
     helpLabel: 'console.anthropic.com/settings/keys',
     models: [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Fast and capable, good balance' },
-      { id: 'claude-opus-4-5-20250514', name: 'Claude Opus 4.5', description: 'Most intelligent, best for complex tasks' },
-      { id: 'claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', description: 'Fastest and most affordable' },
+      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for complex tasks' },
+      { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Fast and capable, good balance' },
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable' },
     ],
-    defaultModel: 'claude-sonnet-4-20250514',
+    defaultModel: 'claude-sonnet-4-5-20250929',
   },
 ]
 

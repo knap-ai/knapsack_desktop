@@ -2337,7 +2337,7 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
   // Tool loop - allow up to 75 iterations for complex multi-step tasks
   // Determine model based on provider
   let model = match provider.as_str() {
-    "anthropic" => "claude-sonnet-4-20250514".to_string(),
+    "anthropic" => "claude-sonnet-4-5-20250929".to_string(),
     "gemini" => "gemini-2.5-flash".to_string(),
     _ => super::service::get_openai_model(&app_handle),
   };

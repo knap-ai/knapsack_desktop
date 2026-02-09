@@ -242,7 +242,7 @@ type ProviderOption = {
 
 const PROVIDERS: ProviderOption[] = [
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.2, GPT-4o, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'anthropic', name: 'Anthropic', description: 'Claude Sonnet 4, Claude Opus 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.5, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google Gemini', description: 'Gemini 2.5 Flash, Gemini 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'Llama 4, DeepSeek R1 — ultra-fast inference', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
 ]
@@ -254,9 +254,9 @@ type AnthropicModelOption = {
 }
 
 const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-opus-4-5-20250514', name: 'Claude Opus 4.5', description: 'Most intelligent, best for complex tasks' },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Fast and capable, good balance' },
-  { id: 'claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', description: 'Fastest and most affordable' },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for complex tasks' },
+  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Fast and capable, good balance' },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable' },
 ]
 
 type GeminiModelOption = {
