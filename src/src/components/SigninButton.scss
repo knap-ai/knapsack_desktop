@@ -5,20 +5,20 @@
   -webkit-appearance: none;
   background-color: WHITE;
   background-image: none;
-  border: 1px solid #747775;
-  -webkit-border-radius: 4px;
-  border-radius: 4px;
+  border: 1px solid #D1D0D0;
+  -webkit-border-radius: 6px;
+  border-radius: 6px;
   -webkit-box-sizing: border-box;
   box-sizing: border-box;
   color: #1f1f1f;
   cursor: pointer;
   font-family: 'Roboto', arial, sans-serif;
-  font-size: 14px;
-  height: 40px;
+  font-size: 12px;
+  height: 32px;
   letter-spacing: 0.25px;
   outline: none;
   overflow: hidden;
-  padding: 0 12px;
+  padding: 0 10px;
   position: relative;
   text-align: center;
   -webkit-transition: background-color .218s, border-color .218s, box-shadow .218s;
@@ -26,15 +26,15 @@
   vertical-align: middle;
   white-space: nowrap;
   width: auto;
-  max-width: 400px;
+  max-width: 300px;
   min-width: min-content;
 }
 
 .gsi-material-button .gsi-material-button-icon {
-  height: 20px;
-  margin-right: 12px;
-  min-width: 20px;
-  width: 20px;
+  height: 16px;
+  margin-right: 8px;
+  min-width: 16px;
+  width: 16px;
 }
 
 .gsi-material-button .gsi-material-button-content-wrapper {
