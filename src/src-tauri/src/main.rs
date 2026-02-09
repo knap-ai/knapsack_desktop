@@ -550,7 +550,7 @@ async fn main() {
         app,
         "main".to_string(),
         if cfg!(dev) {
-          Default::default()
+          WindowUrl::External("http://localhost:5173".parse().unwrap())
         } else {
           window_url.clone()
         },
