@@ -1,0 +1,264 @@
+.providerSignInContainer {
+  display: flex;
+  flex-direction: column;
+  width: 480px;
+  max-height: calc(100vh - 166px);
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid #e4e4e7;
+  background: white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.providerSignInHeader {
+  padding: 24px 24px 16px 24px;
+  border-bottom: 1px solid #e4e4e7;
+}
+
+.providerSignInSubtitle {
+  margin: 8px 0 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #71717a;
+}
+
+.providerTabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 16px 24px;
+}
+
+.providerTab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px solid #e4e4e7;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  margin-bottom: 8px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: #a1a1aa;
+    background: #fafafa;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.providerTabActive {
+  border-color: #c54841;
+  background: rgba(197, 72, 65, 0.04);
+
+  &:hover:not(:disabled) {
+    border-color: #c54841;
+    background: rgba(197, 72, 65, 0.06);
+  }
+
+  .providerTabIcon {
+    color: #c54841;
+  }
+}
+
+.providerTabIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f4f4f5;
+  flex-shrink: 0;
+  color: #52525b;
+  transition: color 0.15s ease;
+}
+
+.providerTabContent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.providerTabName {
+  font-weight: 600;
+  font-size: 15px;
+  color: #18181b;
+}
+
+.providerTabDesc {
+  font-size: 12px;
+  color: #71717a;
+  margin-top: 1px;
+}
+
+.providerTabBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #f4f4f5;
+  color: #71717a;
+  flex-shrink: 0;
+}
+
+.providerTabBadgeActive {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+}
+
+.providerSignInForm {
+  padding: 0 24px 24px 24px;
+}
+
+.formLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3f3f46;
+  margin-bottom: 6px;
+  margin-top: 0;
+}
+
+.formInput {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #d4d4d8;
+  font-size: 14px;
+  font-family: monospace;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    outline: none;
+    border-color: #c54841;
+    box-shadow: 0 0 0 2px rgba(197, 72, 65, 0.1);
+  }
+
+  &:disabled {
+    background: #f4f4f5;
+    opacity: 0.7;
+  }
+}
+
+.modelSelector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.modelOption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 2px solid #e4e4e7;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(197, 72, 65, 0.3);
+    background: rgba(197, 72, 65, 0.02);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.modelOptionSelected {
+  border-color: #c54841;
+  background: rgba(197, 72, 65, 0.06);
+}
+
+.modelName {
+  font-weight: 600;
+  font-size: 13px;
+  color: #18181b;
+}
+
+.modelDesc {
+  font-size: 12px;
+  color: #71717a;
+  margin-top: 1px;
+}
+
+.saveButton {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 8px;
+  border: 1px solid #c54841;
+  background: #c54841;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-bottom: 12px;
+
+  &:hover:not(:disabled) {
+    background: #a33d37;
+    border-color: #a33d37;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.errorMessage {
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.successMessage {
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(22, 163, 74, 0.08);
+  border: 1px solid rgba(22, 163, 74, 0.15);
+  color: #16a34a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.helpText {
+  margin: 0;
+  font-size: 12px;
+  color: #a1a1aa;
+  text-align: center;
+
+  a {
+    color: #c54841;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}

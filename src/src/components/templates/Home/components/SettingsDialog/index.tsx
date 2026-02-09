@@ -38,6 +38,7 @@ type SettingsDialogProps = {
   fetchConnections: (email: string) => void
   deleteConnection: (id: number) => void
   profile: Profile | undefined
+  onProviderSignInClick?: (provider?: 'openai' | 'anthropic') => void
 }
 
 const PERMISSION_LIST_GOOGLE_CONNECTIONS = new Set([
@@ -76,12 +77,18 @@ export const SettingsDialog = ({
   onConnectAccountClick,
   fetchConnections,
   deleteConnection,
-  profile
+  profile,
+  onProviderSignInClick,
 }: SettingsDialogProps) => {
   const [sendPushNotificationsIsChecked, setSendPushNotificationsIsChecked] = useState<boolean>(false)
   const [saveTranscripts, setSaveTranscripts] = useState<boolean>(true)
   const [connectionsKey, setConnectionsKey] = useState<ConnectionKeys[]>([])
   const [showNotificationLeadTime, setShowNotificationLeadTime] = useState<number>(1)
+  const [providerStatus, setProviderStatus] = useState<{
+    active_provider?: string
+    has_openai_key?: boolean
+    has_anthropic_key?: boolean
+  } | null>(null)
   const settingsContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -97,6 +104,20 @@ export const SettingsDialog = ({
   useEffect(() => {
     getNotificationLeadTimeMin().then(value => setShowNotificationLeadTime(value))
   }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    fetch('http://localhost:8897/api/clawd/service/api-key-status')
+      .then(r => r.json())
+      .then(data => {
+        setProviderStatus({
+          active_provider: data.active_provider,
+          has_openai_key: data.has_openai_key,
+          has_anthropic_key: data.has_anthropic_key,
+        })
+      })
+      .catch(() => {})
+  }, [isOpen])
 
   useEffect(() => {
     shouldSaveTranscript().then(value => {
@@ -219,6 +240,44 @@ export const SettingsDialog = ({
                 value={showNotificationLeadTime.toString()}
                 onChange={handleShowNotificationLeadTimeChange}
               />
+            </div>
+          </div>
+        </div>
+        <hr className="border-zinc-200" />
+        <div className="p-6 flex flex-col gap-4">
+          <Typography weight={TypographyWeight.medium}>AI Provider</Typography>
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-between h-[36px] items-center">
+              <div className="flex items-center gap-2">
+                <Typography>OpenAI</Typography>
+                {providerStatus?.has_openai_key && (
+                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${providerStatus.active_provider === 'openai' ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
+                    {providerStatus.active_provider === 'openai' ? 'Active' : 'Connected'}
+                  </span>
+                )}
+              </div>
+              <Typography
+                className={`cursor-pointer ${styles.link}`}
+                onClick={() => { handleClose(); onProviderSignInClick?.('openai') }}
+              >
+                {providerStatus?.has_openai_key ? 'Change' : 'Sign in'}
+              </Typography>
+            </div>
+            <div className="flex justify-between h-[36px] items-center">
+              <div className="flex items-center gap-2">
+                <Typography>Anthropic</Typography>
+                {providerStatus?.has_anthropic_key && (
+                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${providerStatus.active_provider === 'anthropic' ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
+                    {providerStatus.active_provider === 'anthropic' ? 'Active' : 'Connected'}
+                  </span>
+                )}
+              </div>
+              <Typography
+                className={`cursor-pointer ${styles.link}`}
+                onClick={() => { handleClose(); onProviderSignInClick?.('anthropic') }}
+              >
+                {providerStatus?.has_anthropic_key ? 'Change' : 'Sign in'}
+              </Typography>
             </div>
           </div>
         </div>
