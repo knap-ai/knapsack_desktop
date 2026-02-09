@@ -213,6 +213,9 @@ type ApiKeyStatus = {
   has_openai_key?: boolean
   has_anthropic_key?: boolean
   has_gemini_key?: boolean
+  openai_key_hint?: string
+  anthropic_key_hint?: string
+  gemini_key_hint?: string
 }
 
 type SkillInfo = {
@@ -719,7 +722,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-4o'
   })
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
-    return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-20250514'
+    return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-5-20250929'
   })
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(() => {
     return localStorage.getItem(GEMINI_MODEL_STORAGE) || 'gemini-2.5-flash'
@@ -730,6 +733,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedProvider, setSelectedProvider] = useState<Provider>('openai')
   const [savingKey, setSavingKey] = useState(false)
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
+  const [keyHints, setKeyHints] = useState<Record<string, string | undefined>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
 
   // Tone selection
@@ -831,6 +835,33 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (keyStatus.active_provider) {
           setSelectedProvider(keyStatus.active_provider as Provider)
         }
+        // Store masked key hints for placeholders
+        setKeyHints({
+          openai: keyStatus.openai_key_hint,
+          anthropic: keyStatus.anthropic_key_hint,
+          gemini: keyStatus.gemini_key_hint,
+        })
+        // Also sync provider-specific models from the backend
+        try {
+          const fullKeys = await apiGet<{
+            success: boolean
+            anthropic_model?: string
+            gemini_model?: string
+            groq_model?: string
+          }>('/api/clawd/service/get-api-key')
+          if (fullKeys.anthropic_model) {
+            setSelectedAnthropicModel(fullKeys.anthropic_model)
+            localStorage.setItem(ANTHROPIC_MODEL_STORAGE, fullKeys.anthropic_model)
+          }
+          if (fullKeys.gemini_model) {
+            setSelectedGeminiModel(fullKeys.gemini_model)
+            localStorage.setItem(GEMINI_MODEL_STORAGE, fullKeys.gemini_model)
+          }
+          if (fullKeys.groq_model) {
+            setSelectedGroqModel(fullKeys.groq_model)
+            localStorage.setItem(GROQ_MODEL_STORAGE, fullKeys.groq_model)
+          }
+        } catch { /* ignore */ }
         // If this version was already onboarded, skip the prompt
         if (onboardedVersion === APP_VERSION) {
           return true
@@ -2578,7 +2609,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               type="password"
               value={apiKey}
               onChange={e => setApiKey(e.target.value)}
-              placeholder={PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
+              placeholder={keyHints[selectedProvider] || PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
               disabled={savingKey}
               onKeyDown={e => {
                 if (e.key === 'Enter') saveApiKey()
