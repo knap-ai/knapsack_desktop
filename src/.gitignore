@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 !src-tauri/resources/clawdbot/node_modules/
+src-tauri/resources/clawdbot/node_modules/@node-llama-cpp/
 dist
 !src-tauri/resources/clawdbot/dist/
 dist-ssr
