@@ -608,7 +608,7 @@ function App() {
     let error_message = ''
 
     try {
-      res = await fetch('https://knap.ai/api/knapsack/stream_search', {
+      res = await fetch('https://api.knapsack.ai/api/knapsack/stream_search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1082,7 +1082,7 @@ function App() {
             />
           }
         />
-        <Route path="/" element={<Navigate to="/home" />} />
+        <Route path="/" element={<Navigate to="/onboard" />} />
       </Routes>
     </>
   )

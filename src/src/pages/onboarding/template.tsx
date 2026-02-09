@@ -149,6 +149,7 @@ type DataSourcePermissionsScreenProps = {
   googlePermissions: Record<string, boolean>
   onChangeGooglePermissions: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void
   onMicrosoftGrantClick: (index: number) => void
+  onSkipClick?: (index: number) => void
   isLoading: boolean
   error: string
 } & OnboardingScreenProps
@@ -161,6 +162,7 @@ const DataSourcePermissionsScreen = ({
   isLoading,
   error,
   onMicrosoftGrantClick,
+  onSkipClick,
 }: DataSourcePermissionsScreenProps) => {
   return (
     <OnboardingScreenContainer
@@ -173,7 +175,7 @@ const DataSourcePermissionsScreen = ({
         Step 1 of 2
       </div> */}
       <div className=" mt-2 text-center text-black text-4xl font-semibold font-Lora leading-10">
-        Let’s connect <br /> your work calendar
+        Let's connect <br /> your work calendar
       </div>
       <OnboardingPrimaryButton
         label="Connect with Google"
@@ -187,6 +189,14 @@ const DataSourcePermissionsScreen = ({
         className="mt-4"
         onClick={() => onMicrosoftGrantClick(index)}
       />
+      {onSkipClick && (
+        <button
+          className="mt-6 text-zinc-500 text-sm font-medium font-InterTight underline leading-tight cursor-pointer hover:text-zinc-700"
+          onClick={() => onSkipClick(index)}
+        >
+          Skip for now
+        </button>
+      )}
     </OnboardingScreenContainer>
   )
 }
@@ -389,6 +399,7 @@ export const OnboardingTemplate = ({
           googlePermissions={googlePermissions}
           onChangeGooglePermissions={onChangeGooglePermissions}
           onGrantClick={onGoogleGrantClick}
+          onSkipClick={onGoogleSkipClick}
           onMicrosoftGrantClick={onMicrosoftGrantClick}
           isLoading={isLoading}
           error={error}
