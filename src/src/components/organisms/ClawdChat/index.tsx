@@ -904,20 +904,28 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const handleSkillInstall = useCallback(async (skillName: string, installId: string) => {
     try {
       pushAssistant(`Installing ${skillName}...`)
-      await apiPost('/api/clawd/skills/install', { name: skillName, installId })
-      pushAssistant(`${skillName} installed successfully.`)
-      await fetchSkills() // Refresh
-    } catch (e: any) {
-      pushAssistant(`Failed to install ${skillName}: ${e?.message || String(e)}`)
+      const resp = await apiPost<{ success: boolean; error?: string }>('/api/clawd/skills/install', { name: skillName, installId })
+      if (resp.success) {
+        pushAssistant(`${skillName} installed successfully.`)
+        await fetchSkills()
+      } else {
+        pushAssistant(`Could not install ${skillName}: ${resp.error || 'Gateway unavailable. OpenClaw skills require the ClawdBot gateway — check Activity panel for status.'}`)
+      }
+    } catch {
+      pushAssistant(`Could not install ${skillName}. OpenClaw skills require the ClawdBot gateway to be running — check the Activity panel for status.`)
     }
   }, [fetchSkills])
 
   const handleSkillToggle = useCallback(async (skillKey: string, enabled: boolean) => {
     try {
-      await apiPost('/api/clawd/skills/update', { skillKey, enabled })
-      await fetchSkills() // Refresh
-    } catch (e: any) {
-      pushAssistant(`Failed to update skill: ${e?.message || String(e)}`)
+      const resp = await apiPost<{ success: boolean; error?: string }>('/api/clawd/skills/update', { skillKey, enabled })
+      if (resp.success) {
+        await fetchSkills()
+      } else {
+        pushAssistant(`Could not update skill: ${resp.error || 'Gateway unavailable.'}`)
+      }
+    } catch {
+      pushAssistant(`Could not update skill. The ClawdBot gateway needs to be running — check the Activity panel for status.`)
     }
   }, [fetchSkills])
 

@@ -1162,7 +1162,7 @@ pub async fn skills_status(_h: web::Data<tauri::AppHandle>) -> impl Responder {
   HttpResponse::Ok().json(serde_json::json!({"success": true, "skills": catalog}))
 }
 
-/// Install a skill's dependencies via the gateway
+/// Install a skill — requires the gateway (clawdbot) to be running
 #[derive(Debug, Deserialize)]
 pub struct SkillInstallRequest {
   pub name: String,
@@ -1197,7 +1197,7 @@ pub async fn skills_install(
     Err(e) => {
       eprintln!("[clawd/service] skills.install error: {}", e);
       HttpResponse::BadGateway()
-        .json(serde_json::json!({"success": false, "error": format!("Failed to install skill: {}", e)}))
+        .json(serde_json::json!({"success": false, "error": "Skill installation requires the ClawdBot gateway to be running. Check the Activity panel for gateway status."}))
     }
   }
 }
