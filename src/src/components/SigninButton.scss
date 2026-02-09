@@ -1,3 +1,8 @@
+.signin-button-container {
+  position: relative;
+  display: inline-block;
+}
+
 .gsi-material-button {
   -moz-user-select: none;
   -webkit-user-select: none;
@@ -37,6 +42,17 @@
   width: 16px;
 }
 
+.gsi-material-button .gsi-material-button-icon-svg {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.gsi-material-button .gsi-material-button-chevron {
+  margin-left: 4px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
 .gsi-material-button .gsi-material-button-content-wrapper {
   -webkit-align-items: center;
   align-items: center;
@@ -46,14 +62,12 @@
   -webkit-flex-wrap: nowrap;
   flex-wrap: nowrap;
   height: 100%;
-  justify-content: space-between;
+  justify-content: center;
   position: relative;
   width: 100%;
 }
 
 .gsi-material-button .gsi-material-button-contents {
-  -webkit-flex-grow: 1;
-  flex-grow: 1;
   font-family: 'Roboto', arial, sans-serif;
   font-weight: 500;
   overflow: hidden;
@@ -86,7 +100,7 @@
   opacity: 38%;
 }
 
-.gsi-material-button:not(:disabled):active .gsi-material-button-state, 
+.gsi-material-button:not(:disabled):active .gsi-material-button-state,
 .gsi-material-button:not(:disabled):focus .gsi-material-button-state {
   background-color: #303030;
   opacity: 12%;
@@ -100,4 +114,81 @@
 .gsi-material-button:not(:disabled):hover .gsi-material-button-state {
   background-color: #303030;
   opacity: 8%;
+}
+
+// Dropdown menu
+.signin-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  background: white;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  min-width: 220px;
+  padding: 6px;
+  animation: signin-dropdown-fade-in 0.12s ease-out;
+}
+
+@keyframes signin-dropdown-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.signin-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  text-align: left;
+
+  &:hover {
+    background: #f4f4f5;
+  }
+
+  &:active {
+    background: #e4e4e7;
+  }
+}
+
+.signin-dropdown-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f9fafb;
+  flex-shrink: 0;
+  border: 1px solid #e4e4e7;
+}
+
+.signin-dropdown-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.signin-dropdown-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+}
+
+.signin-dropdown-desc {
+  font-size: 11px;
+  color: #71717a;
 }
