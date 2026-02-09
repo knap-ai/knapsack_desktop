@@ -138,7 +138,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     openai_api_key: None, // User must provide their own API key
     openai_model: None,   // Defaults to gpt-4o
     anthropic_api_key: None,
-    anthropic_model: None, // Defaults to claude-sonnet-4-20250514
+    anthropic_model: None, // Defaults to claude-sonnet-4-5-20250929
     gemini_api_key: None,
     gemini_model: None,    // Defaults to gemini-2.5-flash
     groq_model: None,      // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
@@ -225,12 +225,12 @@ pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
     .unwrap_or_else(|| "gpt-4o".to_string())
 }
 
-/// Get the configured Anthropic model (defaults to claude-sonnet-4-20250514 if not set)
+/// Get the configured Anthropic model (defaults to claude-sonnet-4-5-20250929 if not set)
 pub fn get_anthropic_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.anthropic_model)
-    .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string())
+    .unwrap_or_else(|| "claude-sonnet-4-5-20250929".to_string())
 }
 
 /// Get the configured Gemini model (defaults to gemini-2.5-flash if not set)
