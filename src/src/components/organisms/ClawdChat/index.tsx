@@ -247,29 +247,6 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'groq', name: 'Groq', description: 'Llama 4, DeepSeek R1 — ultra-fast inference', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
 ]
 
-type AnthropicModelOption = {
-  id: string
-  name: string
-  description: string
-}
-
-const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-opus-4-5-20250514', name: 'Claude Opus 4.5', description: 'Most intelligent, best for complex tasks' },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Fast and capable, good balance' },
-  { id: 'claude-haiku-3-5-20241022', name: 'Claude Haiku 3.5', description: 'Fastest and most affordable' },
-]
-
-type GeminiModelOption = {
-  id: string
-  name: string
-  description: string
-}
-
-const GEMINI_MODELS: GeminiModelOption[] = [
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, best for complex tasks' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fastest, most affordable' },
-]
 
 // In Tauri dev, the UI runs on Vite (1420) while the Rust server listens on 8897.
 // In production, the UI is loaded from file:// but the Rust server is still 8897.
@@ -298,10 +275,6 @@ async function getOpenAIKey(): Promise<string | null> {
     }
   } catch { /* backend not reachable */ }
   return null
-}
-
-function clearCachedApiKey() {
-  _cachedApiKey = null
 }
 
 const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
