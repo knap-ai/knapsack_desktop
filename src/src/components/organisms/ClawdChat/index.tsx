@@ -474,14 +474,34 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 
-/* Clawd Skills - reserved for future skill recommendations
-const CLAWD_SKILLS = [
-  { id: 'email-triage', name: 'Email Triage', description: 'Scan your inbox and surface action items', prompt: 'Check my Gmail for action items and follow-ups I need to handle' },
-  { id: 'draft-replies', name: 'Draft Replies', description: 'Draft responses to important emails', prompt: 'Go to my Gmail, find emails I need to respond to, and draft replies' },
-  { id: 'calendar-prep', name: 'Calendar Prep', description: 'Review upcoming meetings and prepare', prompt: 'Check my calendar for upcoming meetings and help me prepare for them' },
-  { id: 'linkedin-network', name: 'LinkedIn Network', description: 'Stay on top of your professional network', prompt: 'Open LinkedIn and summarize my notifications' },
-  { id: 'task-manager', name: 'Task Manager', description: 'Review and organize your tasks', prompt: 'Check my Google Tasks for what I need to do today' },
-] */
+// Static skills catalog — used as fallback when gateway/backend is unreachable
+const FALLBACK_SKILLS: SkillInfo[] = [
+  {name:"Web Search",emoji:"🔍",description:"Search the web",source:"built-in",eligible:true,enabled:true},
+  {name:"Browser Control",emoji:"🌐",description:"Navigate and interact with web pages",source:"built-in",eligible:true,enabled:true},
+  {name:"Email",emoji:"📧",description:"Read, draft, and manage emails via Gmail",source:"built-in",eligible:true,enabled:true},
+  {name:"Calendar",emoji:"📅",description:"View and manage Google Calendar events",source:"built-in",eligible:true,enabled:true},
+  {name:"File Reader",emoji:"📄",description:"Read and analyze local files and PDFs",source:"built-in",eligible:true,enabled:true},
+  {name:"File Writer",emoji:"✏️",description:"Create and edit local files",source:"built-in",eligible:true,enabled:true},
+  {name:"Python Scripts",emoji:"🐍",description:"Run Python for data analysis and automation",source:"built-in",eligible:true,enabled:true},
+  {name:"Shell Commands",emoji:"⚡",description:"Execute shell commands (Advanced Mode)",source:"built-in",eligible:true,enabled:true},
+  {name:"Screenshot",emoji:"📸",description:"Capture screenshots of web pages",source:"built-in",eligible:true,enabled:true},
+  {name:"gog",emoji:"📊",description:"Google Workspace — Gmail, Calendar, Drive, Sheets, Docs",source:"OpenClaw",eligible:false},
+  {name:"notion",emoji:"📝",description:"Read and edit Notion pages and databases",source:"OpenClaw",eligible:false},
+  {name:"slack",emoji:"💬",description:"Team communication via Slack",source:"OpenClaw",eligible:false},
+  {name:"apple-notes",emoji:"🍎",description:"Create and manage macOS Notes",source:"OpenClaw",eligible:false},
+  {name:"apple-reminders",emoji:"⏰",description:"Manage macOS Reminders",source:"OpenClaw",eligible:false},
+  {name:"things-mac",emoji:"✅",description:"Things 3 task management for macOS",source:"OpenClaw",eligible:false},
+  {name:"himalaya",emoji:"📬",description:"Email via IMAP/SMTP",source:"OpenClaw",eligible:false},
+  {name:"trello",emoji:"📋",description:"Trello project management boards and cards",source:"OpenClaw",eligible:false},
+  {name:"obsidian",emoji:"💎",description:"Obsidian knowledge management vaults",source:"OpenClaw",eligible:false},
+  {name:"bear-notes",emoji:"🐻",description:"Bear notes management",source:"OpenClaw",eligible:false},
+  {name:"summarize",emoji:"📑",description:"Summarize URLs, articles, PDFs, and YouTube videos",source:"OpenClaw",eligible:false},
+  {name:"github",emoji:"🐙",description:"GitHub CLI for PRs, code review, and branching",source:"OpenClaw",eligible:false},
+  {name:"spotify-player",emoji:"🎵",description:"Spotify playback and search",source:"OpenClaw",eligible:false},
+  {name:"weather",emoji:"🌤️",description:"Weather forecasts (no API key required)",source:"OpenClaw",eligible:false},
+  {name:"skill-creator",emoji:"🛠️",description:"Create custom skills",source:"OpenClaw",eligible:false},
+  {name:"clawhub",emoji:"🏪",description:"Discover and install skills from ClawHub",source:"OpenClaw",eligible:false},
+]
 
 // Map file extension to MIME type (used by Tauri file-drop handler)
 function getMimeTypeFromExt(ext: string): string {
@@ -843,18 +863,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     pushAssistant('⚡ **Advanced mode enabled.** I can now run shell commands to install software, check versions, and execute scripts. Dangerous commands are blocked for safety.')
   }, [])
 
-  // Skills panel — fetch skills status from gateway
+  // Skills panel — fetch from backend, fall back to static catalog
   const fetchSkills = useCallback(async () => {
     setSkillsLoading(true)
     setSkillsError(null)
     try {
       const resp = await apiGet<{ success: boolean; skills?: any; error?: string }>('/api/clawd/skills/status')
       if (resp.success && resp.skills) {
-        // Gateway returns skills as an array or object — normalize
         const raw = Array.isArray(resp.skills) ? resp.skills : (resp.skills?.skills || [])
-        // Normalize gateway fields to match frontend SkillInfo shape:
-        // - gateway uses "install" → frontend expects "installOptions"
-        // - gateway "missing" is {bins,env,...} → frontend expects string[]
         const normalized = (raw as any[]).map((s: any) => {
           const skill = { ...s }
           if (!skill.installOptions && skill.install) {
@@ -874,10 +890,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         })
         setSkills(normalized as SkillInfo[])
       } else {
-        setSkillsError(resp.error || 'Failed to load skills')
+        // Backend returned error — use static catalog
+        setSkills(FALLBACK_SKILLS)
       }
-    } catch (e: any) {
-      setSkillsError(e?.message || 'Failed to connect to gateway')
+    } catch {
+      // Backend unreachable — use static catalog
+      setSkills(FALLBACK_SKILLS)
     } finally {
       setSkillsLoading(false)
     }
