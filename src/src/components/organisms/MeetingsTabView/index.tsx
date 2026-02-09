@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 
 import { FeedItem } from 'src/api/feed_items'
 import { IThread, ThreadType } from 'src/api/threads'
-import { ConnectionKeys, IConnections } from 'src/api/connections'
+import { Connection, ConnectionKeys } from 'src/api/connections'
 import { LLMParams } from 'src/App'
 import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
 import KNDateUtils from 'src/utils/KNDateUtils'
@@ -47,7 +47,7 @@ interface MeetingsTabViewProps {
   copyToClipboard: (text: string) => void
   handleErrorContact: (message: string) => void
   recordingHandlers: RecordingContextProps
-  connections?: IConnections
+  connections?: Record<string, Connection>
   onConnectCalendar?: () => void
 }
 
@@ -451,7 +451,7 @@ const MeetingsTabView = ({
                       </div>
                       <Button
                         label="Connect Calendar"
-                        variant={ButtonVariant.secondary}
+                        variant={ButtonVariant.borderBlue}
                         onClick={onConnectCalendar}
                       />
                     </div>
