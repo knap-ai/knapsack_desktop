@@ -325,10 +325,6 @@ async function getOpenAIKey(): Promise<string | null> {
   return null
 }
 
-function clearCachedApiKey() {
-  _cachedApiKey = null
-}
-
 const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
 const ANTHROPIC_MODEL_STORAGE = 'moltbot_anthropic_model'
 const GEMINI_MODEL_STORAGE = 'moltbot_gemini_model'

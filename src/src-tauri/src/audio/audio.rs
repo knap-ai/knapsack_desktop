@@ -24,6 +24,9 @@ use crate::audio::macos::{count_microphone_users, record_speaker_output};
 #[cfg(target_os = "windows")]
 use crate::audio::windows::{count_microphone_users, record_speaker_output};
 
+#[cfg(target_os = "linux")]
+use crate::audio::linux::{count_microphone_users, record_speaker_output};
+
 use clap::Parser;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample};
