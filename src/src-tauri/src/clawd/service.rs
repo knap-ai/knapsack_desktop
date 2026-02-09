@@ -976,7 +976,24 @@ pub async fn set_service_enabled(
       let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/extensions");
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
 
+      // Build a PATH that includes the directory where we found node (so npm
+      // is also discoverable), plus common macOS paths.  LaunchAgents get a
+      // minimal PATH by default which typically excludes /opt/homebrew/bin.
+      let node_dir = node_path.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+      let mut path_parts: Vec<String> = Vec::new();
+      if !node_dir.is_empty() {
+        path_parts.push(node_dir);
+      }
+      for p in &["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
+        let s = p.to_string();
+        if !path_parts.contains(&s) {
+          path_parts.push(s);
+        }
+      }
+      let clawdbot_path = path_parts.join(":");
+
       let mut env = vec![
+        ("PATH".to_string(), clawdbot_path),
         ("CLAWDBOT_HOME".to_string(), clawdbot_home_str.clone()),
         // Point state dir (config, sessions, logs) to the app data dir so
         // clawdbot finds our config file instead of looking in ~/.clawdbot/
