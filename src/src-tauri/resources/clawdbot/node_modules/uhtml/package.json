@@ -1,0 +1,111 @@
+{
+  "name": "uhtml",
+  "version": "5.0.9",
+  "type": "module",
+  "scripts": {
+    "build": "npm run types && npm run build:js",
+    "build:js": "rm -rf dist && npm test && npm run build:prod && npm run build:dev && npm run size",
+    "build:dev": "sed -i 's/false/true/' src/debug.js && rollup -c build/dev.js",
+    "build:prod": "sed -i 's/true/false/' src/debug.js && rollup -c build/prod.js",
+    "coverage": "mkdir -p ./coverage; c8 report --reporter=text-lcov > ./coverage/lcov.info",
+    "size": "echo \"dom\t\t$(cat dist/prod/dom.js | brotli | wc -c)\"; echo \"json\t\t$(cat dist/prod/json.js | brotli | wc -c)\"; echo \"parser\t\t$(cat dist/prod/parser.js | brotli | wc -c)\"",
+    "test": "c8 node test/parser.js",
+    "test:json": "node test/json.js",
+    "test:all": "npm run test:json && npm run test",
+    "types": "rm -rf types && tsc --allowJs --checkJs --lib dom,esnext --moduleResolution nodenext --module NodeNext --target esnext -d --emitDeclarationOnly --outDir ./types ./src/*.js ./src/*/*.js"
+  },
+  "files": [
+    "dist",
+    "types",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "types": "./types/dom/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/prod/dom.js",
+      "types": "./types/dom/index.d.ts",
+      "description": "uhtml default browsers' export"
+    },
+    "./auto": {
+      "import": "./dist/prod/cdn.js",
+      "types": "./types/dom/index.d.ts",
+      "description": "uhtml browsers' export with automatic dev/prod switch on ?dev or ?debug pages' URLs"
+    },
+    "./cdn": {
+      "import": "./dist/prod/cdn.js",
+      "types": "./types/dom/index.d.ts",
+      "description": "uhtml browsers' export with automatic dev/prod switch on ?dev or ?debug pages' URLs"
+    },
+    "./debug": {
+      "import": "./dist/dev/dom.js",
+      "types": "./types/dom/index.d.ts",
+      "description": "alias for uhtml browsers' debugging export"
+    },
+    "./dev": {
+      "import": "./dist/dev/dom.js",
+      "types": "./types/dom/index.d.ts",
+      "description": "explicit uhtml browsers' debugging export"
+    },
+    "./prod": {
+      "import": "./dist/prod/dom.js",
+      "types": "./types/dom/index.d.ts",
+      "description": "explicit uhtml browsers' production export"
+    },
+    "./dom": {
+      "import": "./src/dom/index.js",
+      "types": "./types/dom/index.d.ts",
+      "description": "source code shortcut for ./src/dom/index.js"
+    },
+    "./dom/creator": {
+      "import": "./src/dom/creator.js",
+      "types": "./types/dom/creator.d.ts",
+      "description": "source code shortcut for ./src/dom/creator.js"
+    },
+    "./dom/ish": {
+      "import": "./src/dom/ish.js",
+      "types": "./types/dom/ish.d.ts",
+      "description": "source code shortcut for ./src/dom/ish.js"
+    },
+    "./json": {
+      "import": "./src/json/index.js",
+      "types": "./types/json/index.d.ts",
+      "description": "source code shortcut for ./src/json/index.js"
+    },
+    "./parser": {
+      "import": "./src/parser/index.js",
+      "types": "./types/parser/index.d.ts",
+      "description": "source code shortcut for ./src/parser/index.js"
+    }
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "c8": "^10.1.3",
+    "rollup": "^4.46.2",
+    "typescript": "^5.9.2"
+  },
+  "description": "A minimalistic library to create fast and reactive Web pages",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WebReflection/uhtml.git"
+  },
+  "keywords": [
+    "template",
+    "literals",
+    "vanilla",
+    "components",
+    "dom",
+    "library"
+  ],
+  "author": "Andrea Giammarchi, @WebReflection",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/WebReflection/uhtml/issues"
+  },
+  "homepage": "https://github.com/WebReflection/uhtml#readme",
+  "dependencies": {
+    "@webreflection/alien-signals": "^0.3.2"
+  }
+}
