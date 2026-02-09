@@ -243,8 +243,8 @@ type ProviderOption = {
 const PROVIDERS: ProviderOption[] = [
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.2, GPT-4o, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.5, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini', name: 'Google Gemini', description: 'Gemini 2.5 Flash, Gemini 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
-  { id: 'groq', name: 'Groq', description: 'Llama 4, DeepSeek R1 — ultra-fast inference', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
+  { id: 'gemini', name: 'Google Gemini', description: 'Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'groq', name: 'Groq', description: 'Llama 4, DeepSeek R1, Mixtral — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
 ]
 
 type AnthropicModelOption = {
@@ -257,6 +257,8 @@ const ANTHROPIC_MODELS: AnthropicModelOption[] = [
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for complex tasks' },
   { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Fast and capable, good balance' },
   { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable' },
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Previous gen, still highly capable' },
+  { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Previous gen flagship model' },
 ]
 
 type GeminiModelOption = {
@@ -267,8 +269,28 @@ type GeminiModelOption = {
 
 const GEMINI_MODELS: GeminiModelOption[] = [
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, best for complex tasks' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fastest, most affordable' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fast and affordable' },
+  { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', description: 'Ultra-fast, lowest cost' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Previous gen, 2M token context' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Previous gen, fast and versatile' },
+]
+
+type GroqModelOption = {
+  id: string
+  name: string
+  description: string
+}
+
+const GROQ_MODELS: GroqModelOption[] = [
+  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Latest Llama, fast with tool use' },
+  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, highest quality' },
+  { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill', description: 'Reasoning model, great for logic' },
+  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', description: 'Versatile and reliable' },
+  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', description: 'Ultra-fast, lightweight' },
+  { id: 'gemma2-9b-it', name: 'Gemma 2 9B', description: 'Google Gemma, compact and fast' },
+  { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', description: 'Mixture of experts, 32K context' },
+  { id: 'qwen-qwq-32b', name: 'Qwen QwQ 32B', description: 'Alibaba reasoning model' },
 ]
 
 // In Tauri dev, the UI runs on Vite (1420) while the Rust server listens on 8897.
@@ -305,6 +327,9 @@ function clearCachedApiKey() {
 }
 
 const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
+const ANTHROPIC_MODEL_STORAGE = 'moltbot_anthropic_model'
+const GEMINI_MODEL_STORAGE = 'moltbot_gemini_model'
+const GROQ_MODEL_STORAGE = 'moltbot_groq_model'
 const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
 const CHAT_HISTORY_STORAGE = 'moltbot_chat_history'
@@ -692,6 +717,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [apiKey, setApiKey] = useState('')
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-4o'
+  })
+  const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
+    return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-20250514'
+  })
+  const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(() => {
+    return localStorage.getItem(GEMINI_MODEL_STORAGE) || 'gemini-2.5-flash'
+  })
+  const [selectedGroqModel, setSelectedGroqModel] = useState<string>(() => {
+    return localStorage.getItem(GROQ_MODEL_STORAGE) || 'meta-llama/llama-4-scout-17b-16e-instruct'
   })
   const [selectedProvider, setSelectedProvider] = useState<Provider>('openai')
   const [savingKey, setSavingKey] = useState(false)
@@ -1350,14 +1384,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     setSavingKey(true)
     try {
+      const modelForProvider = selectedProvider === 'openai' ? selectedModel
+        : selectedProvider === 'anthropic' ? selectedAnthropicModel
+        : selectedProvider === 'gemini' ? selectedGeminiModel
+        : selectedProvider === 'groq' ? selectedGroqModel
+        : undefined
       await apiPost('/api/clawd/service/set-api-key', {
         key: apiKey.trim(),
-        model: selectedProvider === 'openai' ? selectedModel : undefined,
+        model: modelForProvider,
         provider: selectedProvider,
       })
       if (selectedProvider === 'openai') {
         _cachedApiKey = apiKey.trim() // Update in-memory cache for voice/TTS
         localStorage.setItem(OPENAI_MODEL_STORAGE, selectedModel)
+      } else if (selectedProvider === 'anthropic') {
+        localStorage.setItem(ANTHROPIC_MODEL_STORAGE, selectedAnthropicModel)
+      } else if (selectedProvider === 'gemini') {
+        localStorage.setItem(GEMINI_MODEL_STORAGE, selectedGeminiModel)
+      } else if (selectedProvider === 'groq') {
+        localStorage.setItem(GROQ_MODEL_STORAGE, selectedGroqModel)
       }
       setShowKeyPrompt(false)
       setHasCompletedOnboarding(true)
@@ -1372,11 +1417,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (selectedProvider === 'openai') {
           modelName = OPENAI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel
         } else if (selectedProvider === 'anthropic') {
-          modelName = 'Claude Sonnet 4'
+          modelName = ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || selectedAnthropicModel
         } else if (selectedProvider === 'groq') {
-          modelName = 'Llama 4 Scout'
+          modelName = GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel
         } else {
-          modelName = 'Gemini 2.5 Flash'
+          modelName = GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel
         }
         pushAssistant(`Great! I'm all set up with ${providerInfo?.name || selectedProvider} (${modelName}) and ready to help. Try asking me to browse a website!`)
       } catch (e: any) {
@@ -1389,7 +1434,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedProvider])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedProvider])
 
   useEffect(() => {
     const init = async () => {
@@ -2152,9 +2197,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             {autonomyMode === 'autonomous' ? '🚀 Autonomous' : '🤝 Assist'}
           </button>
           <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
-            {selectedProvider === 'anthropic' ? 'Anthropic'
-              : selectedProvider === 'gemini' ? 'Gemini'
-              : selectedProvider === 'groq' ? 'Groq'
+            {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || 'Anthropic')
+              : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || 'Gemini')
+              : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || 'Groq')
               : OPENAI_MODELS.find(m => m.id === selectedModel)?.name || 'OpenAI'}
           </button>
           <button disabled={busy} onClick={() => setShowToneSelector(true)}>
@@ -2560,21 +2605,60 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             )}
 
             {selectedProvider === 'anthropic' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Claude Sonnet 4 for the best balance of speed and capability with tool use.
-              </p>
+              <>
+                <label className="ClawdKeyPromptLabel">Model</label>
+                <div className="ClawdModelSelector">
+                  {ANTHROPIC_MODELS.map(model => (
+                    <button
+                      key={model.id}
+                      className={`ClawdModelOption ${selectedAnthropicModel === model.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedAnthropicModel(model.id)}
+                      disabled={savingKey}
+                    >
+                      <span className="ClawdModelName">{model.name}</span>
+                      <span className="ClawdModelDesc">{model.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
 
             {selectedProvider === 'gemini' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Gemini 2.5 Flash for fast, efficient responses with tool use.
-              </p>
+              <>
+                <label className="ClawdKeyPromptLabel">Model</label>
+                <div className="ClawdModelSelector">
+                  {GEMINI_MODELS.map(model => (
+                    <button
+                      key={model.id}
+                      className={`ClawdModelOption ${selectedGeminiModel === model.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedGeminiModel(model.id)}
+                      disabled={savingKey}
+                    >
+                      <span className="ClawdModelName">{model.name}</span>
+                      <span className="ClawdModelDesc">{model.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
 
             {selectedProvider === 'groq' && (
-              <p className="ClawdKeyPromptNote">
-                Uses Groq's ultra-fast inference with Llama 4 Scout for tool use.
-              </p>
+              <>
+                <label className="ClawdKeyPromptLabel">Model</label>
+                <div className="ClawdModelSelector">
+                  {GROQ_MODELS.map(model => (
+                    <button
+                      key={model.id}
+                      className={`ClawdModelOption ${selectedGroqModel === model.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedGroqModel(model.id)}
+                      disabled={savingKey}
+                    >
+                      <span className="ClawdModelName">{model.name}</span>
+                      <span className="ClawdModelDesc">{model.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
 
             <div className="ClawdKeyPromptActions">

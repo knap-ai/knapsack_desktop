@@ -30,7 +30,13 @@ struct StoredTokens {
   #[serde(default)]
   anthropic_api_key: Option<String>,
   #[serde(default)]
+  anthropic_model: Option<String>,
+  #[serde(default)]
   gemini_api_key: Option<String>,
+  #[serde(default)]
+  gemini_model: Option<String>,
+  #[serde(default)]
+  groq_model: Option<String>,
   #[serde(default)]
   active_provider: Option<String>,
 }
@@ -86,7 +92,10 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     openai_api_key: None,
     openai_model: None,
     anthropic_api_key: None,
+    anthropic_model: None,
     gemini_api_key: None,
+    gemini_model: None,
+    groq_model: None,
     active_provider: None,
   };
 
@@ -2335,10 +2344,10 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
   }
 
   // Tool loop - allow up to 75 iterations for complex multi-step tasks
-  // Determine model based on provider
+  // Determine model based on provider (reads user's selection from stored config)
   let model = match provider.as_str() {
-    "anthropic" => "claude-sonnet-4-5-20250929".to_string(),
-    "gemini" => "gemini-2.5-flash".to_string(),
+    "anthropic" => super::service::get_anthropic_model(&app_handle),
+    "gemini" => super::service::get_gemini_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
   };
   eprintln!("[clawd/chat] Using provider={} model={}", provider, model);
