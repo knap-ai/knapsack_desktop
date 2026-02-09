@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "build": {
     "beforeBuildCommand": "cd .. && npm run build",
-    "beforeDevCommand": "cd .. && npx vite",
+    "beforeDevCommand": "cd .. && npm run dev",
     "devPath": "http://localhost:1420",
     "distDir": "../dist"
   },

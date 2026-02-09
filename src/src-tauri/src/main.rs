@@ -526,8 +526,17 @@ async fn main() {
   // rewrite the config so the IPC is enabled on this URL
   context.config_mut().build.dist_dir = AppUrl::Url(window_url.clone());
 
-  let mut builder = tauri::Builder::default()
-    .plugin(tauri_plugin_localhost::Builder::new(1420).build())
+  let mut builder = tauri::Builder::default();
+
+  // Only load the localhost plugin in production builds.
+  // In dev mode, Vite's dev server runs on port 1420 (configured in vite.config.ts).
+  // Loading the plugin in dev steals port 1420 from Vite, causing a white screen.
+  #[cfg(not(dev))]
+  {
+    builder = builder.plugin(tauri_plugin_localhost::Builder::new(1420).build());
+  }
+
+  builder = builder
     .plugin(tauri_plugin_store::Builder::default().build())
     .plugin(tauri_plugin_autostart::init(
       MacosLauncher::LaunchAgent,
