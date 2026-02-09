@@ -548,6 +548,16 @@ pub struct SetLlmKeysResponse {
   pub message: String,
 }
 
+/// Mask an API key, showing only the last 4 characters: "••••••••abcd"
+fn mask_key(key: &str) -> String {
+  let trimmed = key.trim();
+  if trimmed.len() <= 4 {
+    return "••••••••".to_string();
+  }
+  let last4 = &trimmed[trimmed.len() - 4..];
+  format!("••••••••{}", last4)
+}
+
 /// Check API key status for all providers
 #[derive(Debug, Serialize)]
 pub struct ApiKeyStatusResponse {
@@ -559,6 +569,9 @@ pub struct ApiKeyStatusResponse {
   pub has_openai_key: bool,
   pub has_anthropic_key: bool,
   pub has_gemini_key: bool,
+  pub openai_key_hint: Option<String>,
+  pub anthropic_key_hint: Option<String>,
+  pub gemini_key_hint: Option<String>,
 }
 
 #[get("/api/clawd/service/api-key-status")]
@@ -575,6 +588,9 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         has_openai_key: false,
         has_anthropic_key: false,
         has_gemini_key: false,
+        openai_key_hint: None,
+        anthropic_key_hint: None,
+        gemini_key_hint: None,
       })
     }
   };
@@ -586,6 +602,10 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 
   let model = tokens.openai_model.clone();
   let active_provider = tokens.active_provider.clone();
+
+  let openai_hint = tokens.openai_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
+  let anthropic_hint = tokens.anthropic_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
+  let gemini_hint = tokens.gemini_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
 
   HttpResponse::Ok().json(ApiKeyStatusResponse {
     success: true,
@@ -600,7 +620,113 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     has_openai_key: has_openai,
     has_anthropic_key: has_anthropic,
     has_gemini_key: has_gemini,
+    openai_key_hint: openai_hint,
+    anthropic_key_hint: anthropic_hint,
+    gemini_key_hint: gemini_hint,
   })
+}
+
+/// Validate an API key by making a lightweight test request to the provider.
+#[derive(Debug, Deserialize)]
+pub struct ValidateApiKeyRequest {
+  pub key: String,
+  /// "openai", "anthropic", "gemini", or "groq"
+  pub provider: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ValidateApiKeyResponse {
+  pub success: bool,
+  pub valid: bool,
+  pub message: String,
+}
+
+#[post("/api/clawd/service/validate-api-key")]
+pub async fn validate_api_key(
+  payload: web::Json<ValidateApiKeyRequest>,
+) -> impl Responder {
+  let key = payload.key.trim().to_string();
+  if key.is_empty() {
+    return HttpResponse::BadRequest().json(ValidateApiKeyResponse {
+      success: false,
+      valid: false,
+      message: "API key cannot be empty".to_string(),
+    });
+  }
+
+  let provider = payload.provider.as_deref().unwrap_or("openai").to_lowercase();
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(10))
+    .build()
+    .unwrap_or_default();
+
+  let result = match provider.as_str() {
+    "anthropic" => {
+      // Use the messages API with max_tokens=1 for a minimal validation call
+      client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .body(r#"{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}"#)
+        .send()
+        .await
+    }
+    "gemini" => {
+      // List models endpoint to validate the key
+      let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+        key
+      );
+      client.get(&url).send().await
+    }
+    "groq" => {
+      client
+        .get("https://api.groq.com/openai/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
+    _ => {
+      // OpenAI: list models
+      client
+        .get("https://api.openai.com/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
+  };
+
+  match result {
+    Ok(resp) => {
+      let status = resp.status();
+      if status.is_success() {
+        HttpResponse::Ok().json(ValidateApiKeyResponse {
+          success: true,
+          valid: true,
+          message: "API key is valid".to_string(),
+        })
+      } else if status.as_u16() == 401 || status.as_u16() == 403 {
+        HttpResponse::Ok().json(ValidateApiKeyResponse {
+          success: true,
+          valid: false,
+          message: "Invalid API key".to_string(),
+        })
+      } else {
+        let body = resp.text().await.unwrap_or_default();
+        HttpResponse::Ok().json(ValidateApiKeyResponse {
+          success: true,
+          valid: false,
+          message: format!("Provider returned error ({}): {}", status.as_u16(), body),
+        })
+      }
+    }
+    Err(e) => HttpResponse::Ok().json(ValidateApiKeyResponse {
+      success: true,
+      valid: false,
+      message: format!("Could not reach provider: {}", e),
+    }),
+  }
 }
 
 /// Set API key for any provider (OpenAI, Anthropic, Gemini)

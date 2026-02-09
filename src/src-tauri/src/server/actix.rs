@@ -191,6 +191,7 @@ pub async fn start_server<'a>(
       .service(clawd::service::set_llm_keys)
       .service(clawd::service::set_service_enabled)
       .service(clawd::service::api_key_status)
+      .service(clawd::service::validate_api_key)
       .service(clawd::service::set_api_key)
       .service(clawd::service::get_api_key)
       // Skills management endpoints

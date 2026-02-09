@@ -70,7 +70,11 @@ type ApiKeyStatusResponse = {
   model?: string
   has_openai_key?: boolean
   has_anthropic_key?: boolean
+  openai_key_hint?: string
+  anthropic_key_hint?: string
 }
+
+type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid'
 
 type ProviderSignInDialogProps = {
   isOpen: boolean
@@ -90,9 +94,77 @@ export const ProviderSignInDialog = ({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [keyStatus, setKeyStatus] = useState<ApiKeyStatusResponse | null>(null)
+  const [validation, setValidation] = useState<ValidationState>('idle')
+  const [validationMsg, setValidationMsg] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
+  const validateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const providerConfig = PROVIDER_CONFIGS.find(p => p.id === selectedProvider)!
+
+  // Get the masked key hint for the current provider
+  const getKeyHint = (provider: Provider): string | undefined => {
+    if (!keyStatus) return undefined
+    if (provider === 'openai') return keyStatus.openai_key_hint
+    if (provider === 'anthropic') return keyStatus.anthropic_key_hint
+    return undefined
+  }
+
+  // Validate API key with debounce
+  const validateKey = useCallback(async (key: string, provider: string) => {
+    if (!key.trim()) {
+      setValidation('idle')
+      setValidationMsg('')
+      return
+    }
+
+    setValidation('validating')
+    setValidationMsg('')
+
+    try {
+      const res = await fetch(`${API_BASE}/api/clawd/service/validate-api-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key.trim(), provider }),
+      })
+      const data = await res.json()
+
+      if (data.valid) {
+        setValidation('valid')
+        setValidationMsg('API key is valid')
+      } else {
+        setValidation('invalid')
+        setValidationMsg(data.message || 'Invalid API key')
+      }
+    } catch {
+      setValidation('idle')
+      setValidationMsg('')
+    }
+  }, [])
+
+  // Debounced validation when key changes
+  const handleKeyChange = useCallback((value: string) => {
+    setApiKey(value)
+    setError('')
+    setValidation('idle')
+    setValidationMsg('')
+
+    if (validateTimerRef.current) {
+      clearTimeout(validateTimerRef.current)
+    }
+
+    if (value.trim().length >= 10) {
+      validateTimerRef.current = setTimeout(() => {
+        validateKey(value, selectedProvider)
+      }, 800)
+    }
+  }, [selectedProvider, validateKey])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (validateTimerRef.current) clearTimeout(validateTimerRef.current)
+    }
+  }, [])
 
   // Fetch current status when dialog opens
   useEffect(() => {
@@ -100,6 +172,8 @@ export const ProviderSignInDialog = ({
     setApiKey('')
     setError('')
     setSuccess('')
+    setValidation('idle')
+    setValidationMsg('')
 
     fetch(`${API_BASE}/api/clawd/service/api-key-status`)
       .then(r => r.json())
@@ -129,6 +203,8 @@ export const ProviderSignInDialog = ({
     setApiKey('')
     setError('')
     setSuccess('')
+    setValidation('idle')
+    setValidationMsg('')
   }, [selectedProvider])
 
   const handleSave = useCallback(async () => {
@@ -140,6 +216,29 @@ export const ProviderSignInDialog = ({
     setSaving(true)
     setError('')
     setSuccess('')
+
+    // Validate first if not already validated
+    if (validation !== 'valid') {
+      setValidation('validating')
+      try {
+        const valRes = await fetch(`${API_BASE}/api/clawd/service/validate-api-key`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: apiKey.trim(), provider: selectedProvider }),
+        })
+        const valData = await valRes.json()
+        if (!valData.valid) {
+          setValidation('invalid')
+          setValidationMsg(valData.message || 'Invalid API key')
+          setError(valData.message || 'Invalid API key. Please check and try again.')
+          setSaving(false)
+          return
+        }
+        setValidation('valid')
+      } catch {
+        // If validation endpoint is unreachable, proceed anyway
+      }
+    }
 
     try {
       const res = await fetch(`${API_BASE}/api/clawd/service/set-api-key`, {
@@ -173,7 +272,7 @@ export const ProviderSignInDialog = ({
     } finally {
       setSaving(false)
     }
-  }, [apiKey, selectedProvider, selectedModel, providerConfig, handleClose])
+  }, [apiKey, selectedProvider, selectedModel, providerConfig, handleClose, validation])
 
   const hasExistingKey = (provider: Provider): boolean => {
     if (!keyStatus) return false
@@ -185,6 +284,8 @@ export const ProviderSignInDialog = ({
   const isActiveProvider = (provider: Provider): boolean => {
     return keyStatus?.active_provider === provider
   }
+
+  const keyHint = getKeyHint(selectedProvider)
 
   return (
     <Dialog
@@ -243,15 +344,38 @@ export const ProviderSignInDialog = ({
           <label className={styles.formLabel}>
             {providerConfig.name} API Key
           </label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={e => { setApiKey(e.target.value); setError('') }}
-            placeholder={`${providerConfig.keyPrefix}...`}
-            disabled={saving}
-            className={styles.formInput}
-            onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
-          />
+          <div className={styles.inputWrapper}>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={e => handleKeyChange(e.target.value)}
+              placeholder={keyHint || `${providerConfig.keyPrefix}...`}
+              disabled={saving}
+              className={`${styles.formInput} ${validation === 'valid' ? styles.formInputValid : ''} ${validation === 'invalid' ? styles.formInputInvalid : ''}`}
+              onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+            />
+            <div className={styles.validationIcon}>
+              {validation === 'validating' && (
+                <span className={styles.spinner} title="Validating..." />
+              )}
+              {validation === 'valid' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className={styles.checkIcon}>
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="#4caf50"/>
+                </svg>
+              )}
+              {validation === 'invalid' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className={styles.invalidIcon}>
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="#f44336"/>
+                </svg>
+              )}
+            </div>
+          </div>
+          {validationMsg && validation === 'valid' && (
+            <p className={styles.validationSuccess}>{validationMsg}</p>
+          )}
+          {validationMsg && validation === 'invalid' && (
+            <p className={styles.validationError}>{validationMsg}</p>
+          )}
 
           <label className={styles.formLabel}>Model</label>
           <div className={styles.modelSelector}>

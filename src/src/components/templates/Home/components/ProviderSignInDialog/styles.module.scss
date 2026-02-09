@@ -131,14 +131,18 @@
   margin-top: 0;
 }
 
+.inputWrapper {
+  position: relative;
+  margin-bottom: 6px;
+}
+
 .formInput {
   width: 100%;
-  padding: 10px 14px;
+  padding: 10px 40px 10px 14px;
   border-radius: 8px;
   border: 1px solid #d4d4d8;
   font-size: 14px;
   font-family: monospace;
-  margin-bottom: 16px;
   box-sizing: border-box;
   transition: border-color 0.15s ease;
 
@@ -152,6 +156,82 @@
     background: #f4f4f5;
     opacity: 0.7;
   }
+
+  &::placeholder {
+    font-family: monospace;
+    color: #a1a1aa;
+  }
+}
+
+.formInputValid {
+  border-color: #4caf50;
+
+  &:focus {
+    border-color: #4caf50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+  }
+}
+
+.formInputInvalid {
+  border-color: #f44336;
+
+  &:focus {
+    border-color: #f44336;
+    box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.15);
+  }
+}
+
+.validationIcon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #d4d4d8;
+  border-top-color: #c54841;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.checkIcon {
+  animation: fadeIn 0.2s ease;
+}
+
+.invalidIcon {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.validationSuccess {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  color: #4caf50;
+  line-height: 1.4;
+}
+
+.validationError {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  color: #f44336;
+  line-height: 1.4;
 }
 
 .modelSelector {
