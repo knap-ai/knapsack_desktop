@@ -523,16 +523,11 @@ async fn main() {
   let mut context = tauri::generate_context!();
   let url = format!("http://localhost:1420").parse().unwrap();
   let window_url = WindowUrl::External(url);
-  // rewrite the config so the IPC is enabled on this URL (production only)
-  if !cfg!(dev) {
-    context.config_mut().build.dist_dir = AppUrl::Url(window_url.clone());
-  }
+  // rewrite the config so the IPC is enabled on this URL
+  context.config_mut().build.dist_dir = AppUrl::Url(window_url.clone());
 
-  let mut builder = tauri::Builder::default();
-  if !cfg!(dev) {
-    builder = builder.plugin(tauri_plugin_localhost::Builder::new(1420).build());
-  }
-  builder = builder
+  let mut builder = tauri::Builder::default()
+    .plugin(tauri_plugin_localhost::Builder::new(1420).build())
     .plugin(tauri_plugin_store::Builder::default().build())
     .plugin(tauri_plugin_autostart::init(
       MacosLauncher::LaunchAgent,
