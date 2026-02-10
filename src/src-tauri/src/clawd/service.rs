@@ -273,9 +273,9 @@ fn generate_plist(program_args: &[String], env: &[(String, String)]) -> String {
   }
 
   format!(
-    r#"<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
-<plist version=\"1.0\">
+    r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
 <dict>
   <key>Label</key>
   <string>{label}</string>
@@ -498,6 +498,29 @@ pub async fn service_status() -> impl Responder {
     };
 
     let installed = plist_path.exists();
+
+    // Auto-fix: older versions wrote escaped quotes (\" instead of ") into the
+    // plist XML header because the Rust template used r#"..."# raw strings with
+    // leftover backslash escapes. launchd cannot parse such files, causing the
+    // service to fail with "Input/output error". Fix in-place and reload.
+    if installed {
+      if let Ok(content) = fs::read_to_string(&plist_path) {
+        if content.contains(r#"\""#) {
+          let fixed = content.replace(r#"\""#, "\"");
+          let _ = fs::write(&plist_path, &fixed);
+          eprintln!("[clawd/service] Auto-fixed escaped quotes in plist");
+          // Reload the fixed plist
+          let uid_fix = unsafe { libc::getuid() };
+          let domain_fix = format!("gui/{}", uid_fix);
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootout", &domain_fix, plist_path.to_string_lossy().as_ref()])
+            .status();
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootstrap", &domain_fix, plist_path.to_string_lossy().as_ref()])
+            .status();
+        }
+      }
+    }
 
     // Best-effort: `launchctl print gui/<uid>/<label>` exits 0 when loaded.
     let uid = unsafe { libc::getuid() };

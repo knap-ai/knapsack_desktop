@@ -80,8 +80,17 @@ pub struct OaiChatReq {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ChatUsage {
+  pub input_tokens: i64,
+  pub output_tokens: i64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OaiChatResp {
   pub choices: Vec<OaiChoice>,
+  /// Token usage extracted from the provider response (if available).
+  #[serde(default)]
+  pub usage: Option<ChatUsage>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -478,7 +487,14 @@ pub async fn openai_chat(
     let text = res.text().await.unwrap_or_default();
 
     if status.is_success() {
-      let parsed: OaiChatResp = serde_json::from_str(&text)?;
+      let raw: JsonValue = serde_json::from_str(&text)?;
+      let usage = raw.get("usage").and_then(|u| {
+        let input = u.get("prompt_tokens").or_else(|| u.get("input_tokens")).and_then(|v| v.as_i64()).unwrap_or(0);
+        let output = u.get("completion_tokens").or_else(|| u.get("output_tokens")).and_then(|v| v.as_i64()).unwrap_or(0);
+        if input > 0 || output > 0 { Some(ChatUsage { input_tokens: input, output_tokens: output }) } else { None }
+      });
+      let mut parsed: OaiChatResp = serde_json::from_value(raw)?;
+      parsed.usage = usage;
       return Ok(parsed);
     }
 
@@ -646,6 +662,12 @@ pub async fn anthropic_chat(
       // Parse Anthropic response → OAI format
       let parsed: JsonValue = serde_json::from_str(&text)?;
 
+      let usage = parsed.get("usage").and_then(|u| {
+        let input = u.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let output = u.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        if input > 0 || output > 0 { Some(ChatUsage { input_tokens: input, output_tokens: output }) } else { None }
+      });
+
       let mut reply_text = String::new();
       let mut tool_calls: Vec<OaiToolCall> = Vec::new();
 
@@ -682,6 +704,7 @@ pub async fn anthropic_chat(
             tool_calls,
           },
         }],
+        usage,
       });
     }
 
@@ -821,6 +844,13 @@ pub async fn gemini_chat(
     if status.is_success() {
       let parsed: JsonValue = serde_json::from_str(&text)?;
 
+      // Gemini returns usageMetadata with promptTokenCount / candidatesTokenCount
+      let usage = parsed.get("usageMetadata").and_then(|u| {
+        let input = u.get("promptTokenCount").and_then(|v| v.as_i64()).unwrap_or(0);
+        let output = u.get("candidatesTokenCount").and_then(|v| v.as_i64()).unwrap_or(0);
+        if input > 0 || output > 0 { Some(ChatUsage { input_tokens: input, output_tokens: output }) } else { None }
+      });
+
       let mut reply_text = String::new();
       let mut tool_calls: Vec<OaiToolCall> = Vec::new();
       let mut tc_counter = 0;
@@ -859,6 +889,7 @@ pub async fn gemini_chat(
             tool_calls,
           },
         }],
+        usage,
       });
     }
 
