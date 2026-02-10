@@ -138,7 +138,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     openai_api_key: None, // User must provide their own API key
     openai_model: None,   // Defaults to gpt-4o
     anthropic_api_key: None,
-    anthropic_model: None, // Defaults to claude-sonnet-4-20250514
+    anthropic_model: None, // Defaults to claude-sonnet-4-5-20250929
     gemini_api_key: None,
     gemini_model: None,    // Defaults to gemini-2.5-flash
     groq_model: None,      // Defaults to meta-llama/llama-4-scout-17b-16e-instruct

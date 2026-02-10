@@ -246,8 +246,8 @@ type ProviderOption = {
 const PROVIDERS: ProviderOption[] = [
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.2, GPT-4o, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.5, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini', name: 'Google Gemini', description: 'Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
-  { id: 'groq', name: 'Groq', description: 'Llama 4, DeepSeek R1, Mixtral — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
+  { id: 'gemini', name: 'Google', description: 'Gemini 3 Pro, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'groq', name: 'Groq', description: 'Llama 4, Kimi K2, DeepSeek R1 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
 ]
 
 type AnthropicModelOption = {
@@ -257,11 +257,11 @@ type AnthropicModelOption = {
 }
 
 const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for complex tasks' },
-  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Fast and capable, good balance' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable' },
-  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Previous gen, still highly capable' },
-  { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Previous gen flagship model' },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for agents and coding' },
+  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Best balance of speed and intelligence' },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost' },
+  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous flagship, excellent for long tasks' },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Reliable legacy model' },
 ]
 
 type GeminiModelOption = {
@@ -271,12 +271,11 @@ type GeminiModelOption = {
 }
 
 const GEMINI_MODELS: GeminiModelOption[] = [
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, best for complex tasks' },
+  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', description: 'Most intelligent, state-of-the-art reasoning' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Fast and affordable' },
-  { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', description: 'Ultra-fast, lowest cost' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Previous gen, 2M token context' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Previous gen, fast and versatile' },
+  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', description: 'Optimized for speed and low cost' },
 ]
 
 type GroqModelOption = {
@@ -286,14 +285,14 @@ type GroqModelOption = {
 }
 
 const GROQ_MODELS: GroqModelOption[] = [
-  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Latest Llama, fast with tool use' },
-  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, highest quality' },
+  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Multimodal MoE, 10M context window' },
+  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, 128 experts, 1M context' },
+  { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2', description: '1T params, agentic coding, 256K context' },
+  { id: 'qwen/qwen-3-32b', name: 'Qwen 3 32B', description: 'Latest Qwen, strong reasoning' },
   { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill', description: 'Reasoning model, great for logic' },
-  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', description: 'Versatile and reliable' },
+  { id: 'qwen-qwq-32b', name: 'Qwen QwQ 32B', description: 'Reasoning model, chain-of-thought' },
+  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', description: 'Versatile general-purpose model' },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', description: 'Ultra-fast, lightweight' },
-  { id: 'gemma2-9b-it', name: 'Gemma 2 9B', description: 'Google Gemma, compact and fast' },
-  { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', description: 'Mixture of experts, 32K context' },
-  { id: 'qwen-qwq-32b', name: 'Qwen QwQ 32B', description: 'Alibaba reasoning model' },
 ]
 
 // In Tauri dev, the UI runs on Vite (1420) while the Rust server listens on 8897.
@@ -2251,7 +2250,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </button>
           <button
             onClick={() => { if (onToggleActivity) { onToggleActivity(); setShowSkillsPanel(false); setShowKeyPrompt(false) } }}
-            disabled={busy}
             className={externalActivityPanel ? 'toggle-on' : ''}
             title="View live activity — tool calls, commands, and browser actions"
           >
