@@ -40,6 +40,7 @@ import { KNChatMessage } from './api/threads'
 import { Automation, AutomationRun, Cadence } from './automations/automation'
 import BaseStep from './automations/steps/Base'
 import { useAutomations } from './hooks/automation/useAutomations'
+import { useBackgroundNotifications } from './hooks/notifications/useBackgroundNotifications'
 import { useConnections } from './hooks/connections/useConnections'
 import { uploadAllData } from './utils/batchData'
 import DataFetcher from './utils/data_fetch'
@@ -729,6 +730,18 @@ function App() {
     },
   })
 
+  const {
+    handleBackgroundInsightNotification,
+    handlePostMeetingFollowup,
+    createInsightFeedItem,
+    createFollowupFeedItem,
+  } = useBackgroundNotifications({
+    userEmail,
+    userName,
+    openNotificationWindow,
+    addToLLMQueue,
+  })
+
   const { feed, syncMeetings, handleAutomationsFeedScheduleService, updateMeetingStatuses } =
     useFeed(
       automations,
@@ -756,13 +769,14 @@ function App() {
 
       handleNotificationsScheduleService(date)
       handleAutomationsFeedScheduleService(date)
+      handleBackgroundInsightNotification(date)
       updateMeetingStatuses(currentTime)
     }, MINUTE_MS)
 
     return () => {
       clearInterval(minuteInterval)
     }
-  }, [userEmail])
+  }, [userEmail, handleBackgroundInsightNotification])
 
   // TODO test this hook the refresh don't look being working as expected
   useEffect(() => {
@@ -907,6 +921,24 @@ function App() {
     }
   }, [])
 
+  // Listen for notes_synthesized event to trigger post-meeting follow-up notifications
+  useEffect(() => {
+    const unlistenPromise = listen(
+      'notes_synthesized',
+      async (event: Event<{ threadId: number; meetingTitle: string }>) => {
+        try {
+          await handlePostMeetingFollowup(event.payload.meetingTitle, event.payload.threadId)
+        } catch (error) {
+          console.error('Error triggering post-meeting follow-up:', error)
+        }
+      },
+    )
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten())
+    }
+  }, [handlePostMeetingFollowup])
+
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 
   useEffect(() => {
@@ -998,6 +1030,19 @@ function App() {
       startMeetingNotification(meetingId, false, true),
     meeting_open_notification_handler: async (meetingId: string | null) =>
       startMeetingNotification(meetingId, false, false),
+    background_insight_notification_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      await createInsightFeedItem()
+    },
+    post_meeting_followup_notification_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      await createFollowupFeedItem()
+    },
+    dismiss_notification_handler: async (_meetingId: string | null) => {
+      await invoke('close_notification_window')
+    },
   }
 
   useEffect(() => {
