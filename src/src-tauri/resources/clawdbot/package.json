@@ -181,6 +181,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "file-type": "^21.3.0",
+    "google-auth-library": "^10.5.0",
     "grammy": "^1.39.3",
     "hono": "4.11.4",
     "jiti": "^2.6.1",

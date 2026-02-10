@@ -1,0 +1,30 @@
+{
+  "name": "html-parse-string",
+  "version": "0.0.9",
+  "description": "Utils for parsing and stringify html strings",
+  "main": "lib/index.js",
+  "module": "dist/index.js",
+  "types": "types/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "prepublishOnly": "npm run build",
+    "test": "NODE_OPTIONS='--experimental-vm-modules $NODE_OPTIONS' jest",
+    "prepare": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryansolid/html-string-parser.git"
+  },
+  "author": "Ryan Carniato <ryansolid@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ryansolid/html-string-parser/issues"
+  },
+  "homepage": "https://github.com/ryansolid/html-string-parser#readme",
+  "devDependencies": {
+    "rollup": "3.10.0",
+    "jest": "29.5.0",
+    "jest-environment-jsdom": "29.5.0"
+  }
+}

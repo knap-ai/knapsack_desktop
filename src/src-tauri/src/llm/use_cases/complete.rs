@@ -65,7 +65,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     "anthropic" if anthropic_key.is_some() => return Ok(ResolvedProvider {
       name: "anthropic".into(),
       api_key: anthropic_key.unwrap(),
-      model: "claude-sonnet-4-20250514".into(),
+      model: "claude-sonnet-4-5-20250929".into(),
       base_url: "https://api.anthropic.com/v1".into(),
       is_anthropic: true,
     }),
@@ -93,7 +93,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     return Ok(ResolvedProvider {
       name: "anthropic".into(),
       api_key: key,
-      model: "claude-sonnet-4-20250514".into(),
+      model: "claude-sonnet-4-5-20250929".into(),
       base_url: "https://api.anthropic.com/v1".into(),
       is_anthropic: true,
     });

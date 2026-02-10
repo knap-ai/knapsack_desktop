@@ -18,6 +18,7 @@ import { openMicrosoftAuthScreen } from 'src/utils/permissions/microsoft'
 
 import { SettingsDialog } from './components/SettingsDialog'
 import { SignInDialog } from './components/SigninDialog'
+import { ProviderSignInDialog } from './components/ProviderSignInDialog'
 import { ButtonVariant } from 'src/components/atoms/button'
 import HeaderRecording from 'src/components/molecules/HeaderRecording'
 import AutomationLabModal from 'src/components/molecules/AutomationLabModal'
@@ -80,6 +81,8 @@ function Home({
   const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Moltbot)
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
+  const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
+  const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<'openai' | 'anthropic' | undefined>(undefined)
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
   const [showActivityPanel, setShowActivityPanel] = useState(false)
@@ -236,6 +239,11 @@ function Home({
     }
   }
 
+  const handleOpenProviderSignIn = useCallback((provider?: 'openai' | 'anthropic') => {
+    setProviderSignInInitialProvider(provider)
+    setIsProviderSignInDialogOpened(true)
+  }, [])
+
   const handleBackToHome = async () => {
     setCurrentTab(TabChoices.Work)
   }
@@ -338,6 +346,7 @@ function Home({
                 connections={connections}
                 onGoogleItemClick={handleGoogleMenuItemClick}
                 onSettingsClick={() => setIsSettingsDialogOpened(true)}
+                onProviderSignInClick={() => handleOpenProviderSignIn()}
                 connectionsDropdownOpened={connectionsDropdownOpened}
                 setConnectionsDropdownOpened={setConnectionsDropdownOpened}
               />
@@ -351,7 +360,10 @@ function Home({
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
-              <SigninButton onClick={handleSigninButtonClick} connections={connections} />
+              <SigninButton
+                onGoogleSignIn={handleSigninButtonClick}
+                onProviderSignIn={(provider) => handleOpenProviderSignIn(provider)}
+              />
             </div>
           )
         }
@@ -367,6 +379,12 @@ function Home({
         fetchConnections={fetchConnections}
         deleteConnection={deleteConnection}
         profile={auth.profile}
+        onProviderSignInClick={handleOpenProviderSignIn}
+      />
+      <ProviderSignInDialog
+        isOpen={isProviderSignInDialogOpened}
+        handleClose={() => setIsProviderSignInDialogOpened(false)}
+        initialProvider={providerSignInInitialProvider}
       />
       <SignInDialog
         isOpen={isSignInDialogOpened}
