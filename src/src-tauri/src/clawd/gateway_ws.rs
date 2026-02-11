@@ -111,7 +111,7 @@ pub async fn gateway_request(
     let (mut write, mut read) = ws_stream.split();
 
     // Wait for connect.challenge event
-    let challenge_msg = tokio::time::timeout(std::time::Duration::from_secs(5), read.next())
+    let challenge_msg = tokio::time::timeout(std::time::Duration::from_secs(10), read.next())
         .await
         .map_err(|_| "Timeout waiting for challenge")?
         .ok_or("Connection closed before challenge")?
@@ -164,7 +164,7 @@ pub async fn gateway_request(
         .map_err(|e| format!("Failed to send connect: {}", e))?;
 
     // Wait for connect response
-    let connect_resp = tokio::time::timeout(std::time::Duration::from_secs(5), read.next())
+    let connect_resp = tokio::time::timeout(std::time::Duration::from_secs(10), read.next())
         .await
         .map_err(|_| "Timeout waiting for connect response")?
         .ok_or("Connection closed before connect response")?
@@ -203,7 +203,7 @@ pub async fn gateway_request(
 
     // Wait for response (may receive events in between, skip them)
     loop {
-        let msg = tokio::time::timeout(std::time::Duration::from_secs(10), read.next())
+        let msg = tokio::time::timeout(std::time::Duration::from_secs(30), read.next())
             .await
             .map_err(|_| "Timeout waiting for response")?
             .ok_or("Connection closed before response")?
