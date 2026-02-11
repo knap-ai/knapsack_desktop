@@ -1,5 +1,27 @@
 import { runCommandWithTimeout } from "../process/exec.js";
+// Try to load the native clipboard module; fall back to CLI tools if unavailable.
+let nativeClipboard = null;
+try {
+    const mod = await import("@mariozechner/clipboard");
+    // Verify setText is a real function, not a degradation stub
+    if (typeof mod.setText === "function") {
+        nativeClipboard = mod;
+    }
+}
+catch {
+    // Native clipboard unavailable — CLI fallbacks will be used
+}
 export async function copyToClipboard(value) {
+    // Prefer the native binding when available
+    if (nativeClipboard) {
+        try {
+            nativeClipboard.setText(value);
+            return true;
+        }
+        catch {
+            // native call failed, fall through to CLI fallbacks
+        }
+    }
     const attempts = [
         { argv: ["pbcopy"] },
         { argv: ["xclip", "-selection", "clipboard"] },
