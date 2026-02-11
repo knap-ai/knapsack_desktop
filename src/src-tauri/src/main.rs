@@ -357,6 +357,16 @@ async fn show_notification_window(
 }
 
 #[tauri::command]
+async fn resize_notification_window(app: tauri::AppHandle, width: f64, height: f64) -> Result<(), String> {
+  if let Some(window) = app.get_window("notification") {
+    window
+      .set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }))
+      .map_err(|e| e.to_string())?;
+  }
+  Ok(())
+}
+
+#[tauri::command]
 fn close_notification_window(app: tauri::AppHandle) {
   if let Some(window) = app.get_window("notification") {
     window.hide().unwrap();
@@ -639,6 +649,7 @@ async fn main() {
       kn_get_search_indexing_status,
       start_oauth,
       show_notification_window,
+      resize_notification_window,
       close_notification_window,
       start_meeting_recording,
       activate_main_window,

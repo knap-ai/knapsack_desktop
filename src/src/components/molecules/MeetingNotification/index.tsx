@@ -38,6 +38,26 @@ function NotificationWindow() {
         setButtonConfigs(event.payload.button_configs)
         setTitle(event.payload.title)
         setTime(event.payload.time)
+
+        // Resize the notification window to fit content (within sane bounds)
+        // so long messages don't bleed off-screen or get truncated.
+        // We do this after React paints.
+        requestAnimationFrame(() => {
+          const root = document.getElementById('notification-root')
+          if (!root) return
+
+          const rect = root.getBoundingClientRect()
+          const padding = 24
+          const targetWidth = Math.min(720, Math.max(420, Math.ceil(rect.width + padding)))
+          const targetHeight = Math.min(520, Math.max(120, Math.ceil(rect.height + padding)))
+
+          invoke('resize_notification_window', {
+            width: targetWidth,
+            height: targetHeight,
+          }).catch(() => {
+            // non-fatal; window will just keep default size
+          })
+        })
       },
     )
 
@@ -116,10 +136,10 @@ function NotificationWindow() {
         </div>
 
         <div className="flex-1 min-w-0 pr-2">
-          <h3 className="text-[14px] font-semibold text-gray-900 truncate">
+          <h3 className="text-[14px] font-semibold text-gray-900 whitespace-pre-wrap break-words">
             {title}
           </h3>
-          <p className="text-sm text-gray-600 truncate">{time}</p>
+          <p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{time}</p>
         </div>
         {buttonConfigs.length > 0 && (
           <div
