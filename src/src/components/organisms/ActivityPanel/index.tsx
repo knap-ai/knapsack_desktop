@@ -7,6 +7,7 @@ import {
   KN_API_TOKEN_USAGE_RECENT,
   KN_API_TOKEN_USAGE_BUDGET,
 } from 'src/utils/constants'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 type ActivitySubTab = 'logs' | 'costs' | 'terminal'
 
@@ -231,6 +232,8 @@ interface BudgetStatus {
   monthlyCostUsd: number
 }
 
+const MODEL_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
+
 const TokenCostsView: React.FC = () => {
   const [summary, setSummary] = useState<UsageSummary | null>(null)
   const [records, setRecords] = useState<TokenUsageRecord[]>([])
@@ -245,7 +248,7 @@ const TokenCostsView: React.FC = () => {
     try {
       const results = await Promise.allSettled([
         fetch(`${KN_API_TOKEN_USAGE_SUMMARY}?days=${days}`),
-        fetch(`${KN_API_TOKEN_USAGE_RECENT}?limit=100`),
+        fetch(`${KN_API_TOKEN_USAGE_RECENT}?limit=1000`),
         fetch(KN_API_TOKEN_USAGE_BUDGET),
       ])
 
@@ -290,6 +293,31 @@ const TokenCostsView: React.FC = () => {
   const totalTokens = totalInputTokens + totalOutputTokens
   const byModel = Array.isArray(summary?.byModel) ? summary.byModel : []
   const safeRecords = Array.isArray(records) ? records : []
+
+  // Aggregate records by date + model for the line chart
+  const { chartData, modelNames } = useMemo(() => {
+    const byDateModel: Record<string, Record<string, number>> = {}
+    const models = new Set<string>()
+    for (const r of safeRecords) {
+      const ts = Number(r.timestamp) || 0
+      if (ts === 0) continue
+      const date = new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const model = r.model || 'unknown'
+      models.add(model)
+      if (!byDateModel[date]) byDateModel[date] = {}
+      byDateModel[date][model] = (byDateModel[date][model] || 0) + (Number(r.costUsd) || 0)
+    }
+    // Build chart rows sorted chronologically (records are already DESC, so reverse)
+    const dates = Object.keys(byDateModel).reverse()
+    const data = dates.map(date => {
+      const row: Record<string, string | number> = { date }
+      for (const m of models) {
+        row[m] = Number((byDateModel[date][m] || 0).toFixed(6))
+      }
+      return row
+    })
+    return { chartData: data, modelNames: Array.from(models) }
+  }, [safeRecords])
 
   if (error) {
     return (
@@ -381,6 +409,38 @@ const TokenCostsView: React.FC = () => {
                 <span className="text-gray-700 font-mono">${(Number(m.totalCostUsd) || 0).toFixed(4)}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cost over time chart */}
+      {chartData.length > 1 && (
+        <div className="mb-4">
+          <div className="text-xs font-medium text-gray-500 mb-2">Cost Over Time by Model</div>
+          <div className="bg-white border border-gray-200 rounded-lg p-3">
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
+                <Tooltip
+                  contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                  formatter={(value: number) => [`$${value.toFixed(6)}`, undefined]}
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                {modelNames.map((model, i) => (
+                  <Line
+                    key={model}
+                    type="monotone"
+                    dataKey={model}
+                    stroke={MODEL_COLORS[i % MODEL_COLORS.length]}
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                    activeDot={{ r: 4 }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
