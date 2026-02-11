@@ -1130,6 +1130,43 @@ export function useFeed(
         groupedFeedItems[key] = KNDateUtils.sortByTimestamp(groupedFeedItems[key])
       })
 
+      // Inject upcoming calendar events that don't already have feed items
+      if (meetings) {
+        const existingEventIds = new Set<string>()
+        Object.values(groupedFeedItems).forEach(items => {
+          items.forEach(item => {
+            const rp =
+              typeof item.run?.runParams === 'string'
+                ? JSON.parse(item.run.runParams)
+                : item.run?.runParams
+            if (rp?.event_id) {
+              existingEventIds.add(String(rp.event_id))
+            }
+          })
+        })
+
+        const nowSeconds = Date.now() / 1000
+        Object.entries(meetings).forEach(([id, meeting]) => {
+          if (meeting.end > nowSeconds && !existingEventIds.has(String(id))) {
+            const feedItem = new FeedItem({
+              timestamp: new Date(meeting.start * 1000),
+              title: meeting.title,
+              calendarEvent: meeting,
+              isLoading: false,
+              isRecording: false,
+            })
+            const timelineKey = KNDateUtils.timelineKeyFromTimestamp(feedItem.timestamp)
+            groupedFeedItems[timelineKey] = groupedFeedItems[timelineKey] || []
+            groupedFeedItems[timelineKey].push(feedItem)
+          }
+        })
+
+        // Re-sort any keys that received calendar events
+        Object.keys(groupedFeedItems).forEach(key => {
+          groupedFeedItems[key] = KNDateUtils.sortByTimestamp(groupedFeedItems[key])
+        })
+      }
+
       if (userEmail && !hasEmailAutopilot) {
         const emailAutopilotItem = feed.createEmailAutoPilot()
         groupedFeedItems[STATIONARY_ITEMS] = [emailAutopilotItem]
