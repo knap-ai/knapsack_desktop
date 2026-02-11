@@ -71,8 +71,8 @@ use console_subscriber;
 pub const KNAPSACK_DATA_DIR: &str = ".knapsack";
 pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
-const NOTIF_HEIGHT: f64 = 64.0;
-const NOTIF_WIDTH: f64 = 384.0;
+const NOTIF_HEIGHT: f64 = 400.0;
+const NOTIF_WIDTH: f64 = 600.0;
 //const NOTIF_Y_POSITION: i32 = 40 + (NOTIF_HEIGHT as i32);
 const NOTIF_START_X_OFFSET: i32 = 500;
 const NOTIF_END_X_OFFSET: i32 = 20;
@@ -295,18 +295,6 @@ async fn kn_get_search_indexing_status(
   })
 }
 
-#[tauri::command]
-async fn resize_notification_window(app: tauri::AppHandle, height: f64) {
-  if let Some(window) = app.get_window("notification") {
-    if let Ok(current_size) = window.outer_size() {
-        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-          width: current_size.width,
-          height: (height as u32),
-        }));
-    }
-  }
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct ButtonConfig {
@@ -326,13 +314,11 @@ async fn show_notification_window(
     if let Ok(monitor) = window.current_monitor() {
       if let Some(monitor) = monitor {
         let screen_size = monitor.size();
-        let window_size = window.outer_size().unwrap();
 
         let top_margin_percentage = 0.05;
         let y_position = (screen_size.height as f64 * top_margin_percentage) as i32;
 
         let start_x = screen_size.width as i32 + NOTIF_START_X_OFFSET;
-        let final_x = screen_size.width as i32 - window_size.width as i32 - NOTIF_END_X_OFFSET;
 
         window
           .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
@@ -342,6 +328,9 @@ async fn show_notification_window(
           .unwrap();
 
         window.emit("notification_event_id", json!({"event_id": event_id, "button_configs": button_configs, "title": title, "time": time})).unwrap();
+
+        let final_x = screen_size.width as i32 - NOTIF_WIDTH as i32 - NOTIF_END_X_OFFSET;
+
         for i in 0..=NOTIF_ANIMATION_DURATION {
           let t = i as f32 / NOTIF_ANIMATION_DURATION as f32;
 
@@ -657,7 +646,6 @@ async fn main() {
       open_screen_recording_settings,
       open_microphone_settings,
       audio::audio::emit_stop_events,
-      resize_notification_window,
       spotlight::kn_init_app,
       kn_read_logs,
       kn_get_log_path,

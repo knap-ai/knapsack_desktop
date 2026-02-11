@@ -33,9 +33,6 @@ function NotificationWindow() {
           button_configs: ButtonConfig[]
         }
       }) => {
-        if (isDropdownOpen) {
-          invoke('resize_notification_window', { height: 128 })
-        }
         setIsDropdownOpen(false)
         setCurrentMeetingId(event.payload.event_id ? event.payload.event_id : null)
         setButtonConfigs(event.payload.button_configs)
@@ -87,21 +84,9 @@ function NotificationWindow() {
     setIsDropdownOpen(!isDropdownOpen)
   }
 
-  useEffect(() => {
-    const resizeWindow = async () => {
-      if (isDropdownOpen) {
-        await invoke('resize_notification_window', { height: 328 })
-      } else {
-        await invoke('resize_notification_window', { height: 128 })
-      }
-    }
-
-    resizeWindow()
-  }, [isDropdownOpen])
-
   return (
-    <div className="flex h-16 w-full bg-white rounded-lg overflow-visible">
-      <div className="relative w-96 h-16 bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-center gap-3 group overflow-visible ">
+    <div className="inline-flex bg-white rounded-lg overflow-visible">
+      <div className="relative bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-center gap-3 group overflow-visible">
         <button
           onClick={() => invoke('close_notification_window')}
           className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 p-1"
@@ -122,7 +107,7 @@ function NotificationWindow() {
           </svg>
         </button>
 
-        <div className="w-8 h-8 ml-1 flex items-center justify-center">
+        <div className="w-8 h-8 ml-1 flex-shrink-0 flex items-center justify-center">
           <img
             src="/assets/images/icons/notification-logo.png"
             alt="App Icon"
@@ -130,20 +115,20 @@ function NotificationWindow() {
           />
         </div>
 
-        <div className="flex-grow overflow-hidden">
-          <h3 className="text-[14px] font-semibold text-gray-900 truncate pr-2 max-w-[140px]">
+        <div className="flex-1 min-w-0 pr-2">
+          <h3 className="text-[14px] font-semibold text-gray-900 truncate">
             {title}
           </h3>
-          <p className="text-sm text-gray-600">{time}</p>
+          <p className="text-sm text-gray-600 truncate">{time}</p>
         </div>
         {buttonConfigs.length > 0 && (
           <div
-            className="relative flex h-8  bg-orange-800 hover:bg-red-900 rounded "
+            className="relative flex h-8 flex-shrink-0 bg-orange-800 hover:bg-red-900 rounded"
             ref={dropdownRef}
           >
             <button
               onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
-              className="px-4 py-2 active:bg-bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-2"
+              className="px-4 py-2 active:bg-bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-2 whitespace-nowrap"
             >
               {buttonConfigs[0].buttonText}
             </button>

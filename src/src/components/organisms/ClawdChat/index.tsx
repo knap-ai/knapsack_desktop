@@ -747,7 +747,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Proactive mode — controls whether background notifications fire automatically
   const [proactiveMode, setProactiveMode] = useState(() => {
     const stored = localStorage.getItem(PROACTIVE_MODE_STORAGE)
-    return stored === null ? true : stored === 'true' // on by default
+    return stored === null ? false : stored === 'true' // off by default (Reactive mode)
   })
   const [showProactiveModal, setShowProactiveModal] = useState(false)
   const [pendingProactiveState, setPendingProactiveState] = useState<boolean>(false)
