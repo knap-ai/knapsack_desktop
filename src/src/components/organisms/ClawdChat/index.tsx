@@ -332,6 +332,7 @@ const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
 const CHAT_HISTORY_STORAGE = 'moltbot_chat_history'
 const AUTONOMY_MODE_STORAGE = 'moltbot_autonomy_mode'
+const PROACTIVE_MODE_STORAGE = 'moltbot_proactive_mode'
 const ADVANCED_MODE_STORAGE = 'moltbot_advanced_mode'
 const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
@@ -743,6 +744,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return (stored === 'assist' || stored === 'autonomous') ? stored : 'autonomous'
   })
 
+  // Proactive mode — controls whether background notifications fire automatically
+  const [proactiveMode, setProactiveMode] = useState(() => {
+    const stored = localStorage.getItem(PROACTIVE_MODE_STORAGE)
+    return stored === null ? true : stored === 'true' // on by default
+  })
+  const [showProactiveModal, setShowProactiveModal] = useState(false)
+  const [pendingProactiveState, setPendingProactiveState] = useState<boolean>(false)
+
   // Advanced mode - allows shell command execution
   const [advancedMode, setAdvancedMode] = useState(() => {
     return localStorage.getItem(ADVANCED_MODE_STORAGE) === 'true'
@@ -904,6 +913,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       )
     }
   }, [autonomyMode])
+
+  // Proactive mode toggle — shows modal explaining implications
+  const toggleProactiveMode = useCallback(() => {
+    const newState = !proactiveMode
+    setPendingProactiveState(newState)
+    setShowProactiveModal(true)
+  }, [proactiveMode])
+
+  const confirmProactiveToggle = useCallback(() => {
+    setProactiveMode(pendingProactiveState)
+    localStorage.setItem(PROACTIVE_MODE_STORAGE, String(pendingProactiveState))
+    setShowProactiveModal(false)
+    pushAssistant(pendingProactiveState
+      ? "🔔 **Proactive mode enabled.** I'll send you background notifications — morning briefings, email alerts, meeting prep, and post-meeting follow-ups."
+      : "🔕 **Reactive mode enabled.** Background notifications are off. I'll only respond when you ask. You can still trigger notifications manually with /morning, /emails, /prep, or /fu."
+    )
+  }, [pendingProactiveState])
 
   // Advanced mode toggle — shows warning dialog before enabling
   const toggleAdvancedMode = useCallback(() => {
@@ -2222,6 +2248,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           >
             {autonomyMode === 'autonomous' ? '🚀 Autonomous' : '🤝 Assist'}
           </button>
+          <button
+            disabled={busy}
+            onClick={toggleProactiveMode}
+            className={proactiveMode ? 'toggle-proactive-on' : 'toggle-proactive-off'}
+            title={proactiveMode
+              ? 'Proactive mode: background notifications enabled. Click to switch to Reactive.'
+              : 'Reactive mode: notifications off. Click to switch to Proactive.'}
+          >
+            {proactiveMode ? '🔔 Proactive' : '🔕 Reactive'}
+          </button>
           <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
             {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || 'Anthropic')
               : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || 'Gemini')
@@ -2311,6 +2347,46 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <div className="ClawdAdvancedWarningActions">
               <button onClick={() => setShowAdvancedWarning(false)}>Cancel</button>
               <button onClick={confirmAdvancedMode}>Enable Advanced Mode</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProactiveModal && (
+        <div className="ClawdProactiveModal">
+          <div className="ClawdProactiveModalContent">
+            <h3>{pendingProactiveState ? 'Enable Proactive Mode?' : 'Switch to Reactive Mode?'}</h3>
+            {pendingProactiveState ? (
+              <>
+                <p>Proactive mode lets Knapsack work in the background and notify you automatically. This includes:</p>
+                <ul>
+                  <li><strong>Morning briefings</strong> — a summary of your day, emails, and upcoming meetings</li>
+                  <li><strong>Email alerts</strong> — flagged when something important lands in your inbox</li>
+                  <li><strong>Meeting prep</strong> — context and attendee info before your next meeting</li>
+                  <li><strong>Post-meeting follow-ups</strong> — action items and notes after calls</li>
+                </ul>
+                <div className="ClawdProactiveNote">
+                  <strong>Token usage:</strong> Each background notification uses LLM tokens to analyze your emails and calendar. Expect roughly 4–8 notifications per day during work hours.
+                </div>
+              </>
+            ) : (
+              <>
+                <p>Reactive mode turns off all automatic background notifications. Knapsack will only respond when you ask it something directly.</p>
+                <ul>
+                  <li>No morning briefings, email alerts, or meeting prep</li>
+                  <li>No automatic token usage in the background</li>
+                  <li>You can still trigger any notification manually with slash commands: <strong>/morning</strong>, <strong>/emails</strong>, <strong>/prep</strong>, <strong>/fu</strong></li>
+                </ul>
+                <div className="ClawdProactiveNote">
+                  <strong>Saves tokens:</strong> Reactive mode eliminates background LLM calls entirely. Use this if you want full control over when Knapsack uses your API quota.
+                </div>
+              </>
+            )}
+            <div className="ClawdProactiveModalActions">
+              <button onClick={() => setShowProactiveModal(false)}>Cancel</button>
+              <button onClick={confirmProactiveToggle}>
+                {pendingProactiveState ? 'Enable Proactive' : 'Switch to Reactive'}
+              </button>
             </div>
           </div>
         </div>
