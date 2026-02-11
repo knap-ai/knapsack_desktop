@@ -46,7 +46,7 @@ import { EmailDocument } from 'src/utils/SourceDocument'
 import { SubTabChoices } from 'src/components/organisms/CenterWorkspace'
 
 import { HandleAutomationArgs, IGoogleAuthControls } from '../automation/useAutomations'
-import useCalendar from '../dataSources/useCalendar'
+import useCalendar, { Meeting } from '../dataSources/useCalendar'
 
 export interface DisplayEmail {
   message: EmailDocument
@@ -134,6 +134,13 @@ export interface IFeed {
   handleClickRecording: () => void
   getRecordingFeedItemTitle: () => string | undefined
   createNewMeeting: () => Promise<
+    | {
+        feedItemId: number | undefined
+        threadId: number
+      }
+    | undefined
+  >
+  openCalendarEvent: (meeting: Meeting) => Promise<
     | {
         feedItemId: number | undefined
         threadId: number
@@ -1146,8 +1153,14 @@ export function useFeed(
         })
 
         const nowSeconds = Date.now() / 1000
+        // Only show meetings through end of tomorrow
+        const endOfTomorrow = new Date()
+        endOfTomorrow.setDate(endOfTomorrow.getDate() + 2)
+        endOfTomorrow.setHours(0, 0, 0, 0)
+        const endOfTomorrowSeconds = endOfTomorrow.getTime() / 1000
+
         Object.entries(meetings).forEach(([id, meeting]) => {
-          if (meeting.end > nowSeconds && !existingEventIds.has(meeting.event_id)) {
+          if (meeting.end > nowSeconds && meeting.start < endOfTomorrowSeconds && !existingEventIds.has(meeting.event_id)) {
             const feedItem = new FeedItem({
               timestamp: new Date(meeting.start * 1000),
               title: meeting.title,
@@ -1466,6 +1479,68 @@ export function useFeed(
     }
   }
 
+  const openCalendarEvent = async (meeting: Meeting) => {
+    try {
+      const title = meeting.title || 'Untitled Meeting'
+      const feedItemReturn = await insertFeedItemAPI(meeting.start * 1000, title)
+      const newThread = await createThread(
+        meeting.start * 1000,
+        true,
+        feedItemReturn.id,
+        '',
+        title,
+        ThreadType.MEETING_NOTES,
+      )
+      if (newThread) {
+        const thread = {
+          id: newThread.id,
+          date: newThread.timestamp ? new Date(newThread.timestamp) : undefined,
+          hideFollowUp: true,
+          messages: [],
+          isLoading: true,
+          title: newThread.title,
+          subtitle: newThread.subtitle,
+          threadType: newThread.threadType,
+        } as IThread
+        const feedItem = new FeedItem({
+          id: feedItemReturn.id,
+          timestamp: new Date(feedItemReturn.timestamp),
+          threads: [thread],
+          run: undefined,
+          isLoading: false,
+          title: feedItemReturn.title,
+          calendarEvent: meeting,
+        })
+        const timelineKey = KNDateUtils.timelineKeyFromTimestamp(feedItem.timestamp)
+        setFeedContent(prevState => {
+          if (!prevState[timelineKey]) {
+            prevState[timelineKey] = []
+          }
+          // Remove the calendar-only placeholder if present
+          prevState[timelineKey] = prevState[timelineKey].filter(
+            item => !(item.calendarEvent?.event_id === meeting.event_id && !item.id),
+          )
+          prevState[timelineKey].push(feedItem)
+          prevState[timelineKey] = KNDateUtils.sortByTimestamp(prevState[timelineKey])
+          return { ...prevState }
+        })
+
+        setSelectedFeedItem(feedItem)
+        setSubTab(SubTabChoices.Workspace)
+        return { threadId: thread.id, feedItemId: feedItem.id }
+      }
+    } catch (error) {
+      if (error instanceof HttpError) {
+        logError(new Error('openCalendarEvent failed'), {
+          additionalInfo: 'Error occurred while opening calendar event.',
+          error: error.message,
+        })
+        handleErrorContact('Error opening meeting, please try again later.')
+      }
+      throw error
+    }
+  }
+
   const renameMeeting = async (threadId: number, newTitle: string, feedItemId?: number) => {
     if (!feedItemId) return
 
@@ -1768,6 +1843,7 @@ export function useFeed(
     handleClickRecording,
     getRecordingFeedItemTitle,
     createNewMeeting,
+    openCalendarEvent,
     renameMeeting,
     refreshFeedItems,
     runEmailAutopilot,

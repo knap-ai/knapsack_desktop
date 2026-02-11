@@ -358,6 +358,8 @@ const MeetingsTabView = ({
                             onClick={() => {
                               if (item.id != null) {
                                 feed.selectFeedItem(key, item.id)
+                              } else if (item.calendarEvent) {
+                                feed.openCalendarEvent(item.calendarEvent)
                               }
                             }}
                           >
@@ -376,6 +378,8 @@ const MeetingsTabView = ({
                                   setIsSelected={() => {
                                     if (item.id != null) {
                                       feed.selectFeedItem(key, item.id)
+                                    } else if (item.calendarEvent) {
+                                      feed.openCalendarEvent(item.calendarEvent)
                                     }
                                   }}
                                   hasLabel={false}
