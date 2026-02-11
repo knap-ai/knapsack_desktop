@@ -237,30 +237,43 @@ const TokenCostsView: React.FC = () => {
   const [budget, setBudget] = useState<BudgetStatus | null>(null)
   const [days, setDays] = useState(30)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     setIsLoading(true)
+    setError(null)
     try {
-      const [summaryRes, recentRes, budgetRes] = await Promise.all([
+      const results = await Promise.allSettled([
         fetch(`${KN_API_TOKEN_USAGE_SUMMARY}?days=${days}`),
         fetch(`${KN_API_TOKEN_USAGE_RECENT}?limit=100`),
         fetch(KN_API_TOKEN_USAGE_BUDGET),
       ])
 
-      if (summaryRes.ok) {
-        const data = await summaryRes.json()
-        if (data.success) setSummary(data)
+      const summaryRes = results[0].status === 'fulfilled' ? results[0].value : null
+      const recentRes = results[1].status === 'fulfilled' ? results[1].value : null
+      const budgetRes = results[2].status === 'fulfilled' ? results[2].value : null
+
+      if (summaryRes?.ok) {
+        try {
+          const data = await summaryRes.json()
+          if (data.success) setSummary(data)
+        } catch { /* invalid JSON */ }
       }
-      if (recentRes.ok) {
-        const data = await recentRes.json()
-        if (data.success) setRecords(data.records || [])
+      if (recentRes?.ok) {
+        try {
+          const data = await recentRes.json()
+          if (data.success && Array.isArray(data.records)) setRecords(data.records)
+        } catch { /* invalid JSON */ }
       }
-      if (budgetRes.ok) {
-        const data = await budgetRes.json()
-        if (data.success) setBudget(data)
+      if (budgetRes?.ok) {
+        try {
+          const data = await budgetRes.json()
+          if (data.success) setBudget(data)
+        } catch { /* invalid JSON */ }
       }
-    } catch {
-      // Server may not be running yet - silently fail
+    } catch (err) {
+      console.error('TokenCostsView fetchData error:', err)
+      setError(String(err))
     } finally {
       setIsLoading(false)
     }
@@ -272,9 +285,25 @@ const TokenCostsView: React.FC = () => {
     return () => clearInterval(interval)
   }, [fetchData])
 
-  const totalTokens = summary
-    ? summary.totalInputTokens + summary.totalOutputTokens
-    : 0
+  const totalInputTokens = Number(summary?.totalInputTokens) || 0
+  const totalOutputTokens = Number(summary?.totalOutputTokens) || 0
+  const totalTokens = totalInputTokens + totalOutputTokens
+  const byModel = Array.isArray(summary?.byModel) ? summary.byModel : []
+  const safeRecords = Array.isArray(records) ? records : []
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-full px-4 py-3 items-center justify-center">
+        <div className="text-gray-400 text-sm">Could not load token usage data</div>
+        <button
+          onClick={fetchData}
+          className="mt-3 px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full px-4 py-3 overflow-y-auto">
@@ -286,28 +315,28 @@ const TokenCostsView: React.FC = () => {
             {totalTokens.toLocaleString()}
           </div>
           <div className="text-[10px] text-gray-400 mt-1">
-            {(summary?.totalInputTokens || 0).toLocaleString()} in / {(summary?.totalOutputTokens || 0).toLocaleString()} out
+            {totalInputTokens.toLocaleString()} in / {totalOutputTokens.toLocaleString()} out
           </div>
         </div>
         <div className="ActivityPanel__costCard">
           <div className="text-xs text-gray-500 mb-1">Total Cost ({days}d)</div>
           <div className="text-2xl font-semibold text-gray-900">
-            ${(summary?.totalCostUsd || 0).toFixed(4)}
+            ${(Number(summary?.totalCostUsd) || 0).toFixed(4)}
           </div>
         </div>
         <div className="ActivityPanel__costCard">
           <div className="text-xs text-gray-500 mb-1">API Calls ({days}d)</div>
           <div className="text-2xl font-semibold text-gray-900">
-            {summary?.totalRequests || 0}
+            {Number(summary?.totalRequests) || 0}
           </div>
         </div>
         <div className="ActivityPanel__costCard">
           <div className="text-xs text-gray-500 mb-1">Budget (today / 30d)</div>
           <div className="text-lg font-semibold text-gray-900">
-            ${(budget?.dailyCostUsd || 0).toFixed(4)}
+            ${(Number(budget?.dailyCostUsd) || 0).toFixed(4)}
           </div>
           <div className="text-[10px] text-gray-400 mt-1">
-            ${(budget?.monthlyCostUsd || 0).toFixed(4)} this month
+            ${(Number(budget?.monthlyCostUsd) || 0).toFixed(4)} this month
           </div>
         </div>
       </div>
@@ -338,18 +367,18 @@ const TokenCostsView: React.FC = () => {
       </div>
 
       {/* Model breakdown */}
-      {summary?.byModel && summary.byModel.length > 0 && (
+      {byModel.length > 0 && (
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-2">By Model</div>
           <div className="flex flex-wrap gap-2">
-            {summary.byModel.map((m, i) => (
+            {byModel.map((m, i) => (
               <div key={i} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs">
                 <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px] mr-2">
                   {m.model}
                 </span>
-                <span className="text-gray-500">{m.request_count ?? 0} calls</span>
+                <span className="text-gray-500">{Number(m.request_count) || 0} calls</span>
                 <span className="text-gray-400 mx-1">&middot;</span>
-                <span className="text-gray-700 font-mono">${(m.total_cost_usd ?? 0).toFixed(4)}</span>
+                <span className="text-gray-700 font-mono">${(Number(m.total_cost_usd) || 0).toFixed(4)}</span>
               </div>
             ))}
           </div>
@@ -359,7 +388,7 @@ const TokenCostsView: React.FC = () => {
       {/* Recent records table */}
       <div className="flex-1">
         <div className="text-sm font-medium text-gray-700 mb-3">Recent Activity</div>
-        {records.length === 0 ? (
+        {safeRecords.length === 0 ? (
           <div className="text-center py-10">
             <div className="text-gray-400 text-sm">No token usage recorded yet</div>
             <div className="text-gray-300 text-xs mt-1">
@@ -380,10 +409,10 @@ const TokenCostsView: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {records.map(record => (
+                {safeRecords.map(record => (
                   <tr key={record.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-2 text-gray-500">
-                      {new Date((record.created_at ?? 0) * 1000).toLocaleString()}
+                      {new Date((Number(record.created_at) || 0) * 1000).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-gray-700">{record.requestType || 'LLM Call'}</td>
                     <td className="px-4 py-2">
@@ -392,13 +421,13 @@ const TokenCostsView: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700 font-mono">
-                      {(record.input_tokens ?? 0).toLocaleString()}
+                      {(Number(record.input_tokens) || 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700 font-mono">
-                      {(record.output_tokens ?? 0).toLocaleString()}
+                      {(Number(record.output_tokens) || 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700 font-mono">
-                      ${(record.cost_usd ?? 0).toFixed(6)}
+                      ${(Number(record.cost_usd) || 0).toFixed(6)}
                     </td>
                   </tr>
                 ))}
