@@ -1139,9 +1139,9 @@ export function useFeed(
 
       // Inject upcoming calendar events that don't already have feed items
       if (meetings) {
-        const existingEventIds = new Set<string>()
-        Object.values(groupedFeedItems).forEach(items => {
-          items.forEach(item => {
+        const existingEventIds = new Set<string>();
+        (Object.values(groupedFeedItems) as any[][]).forEach((items) => {
+          items.forEach((item: any) => {
             const rp =
               typeof item.run?.runParams === 'string'
                 ? JSON.parse(item.run.runParams)
@@ -1159,7 +1159,7 @@ export function useFeed(
         endOfTomorrow.setHours(0, 0, 0, 0)
         const endOfTomorrowSeconds = endOfTomorrow.getTime() / 1000
 
-        Object.entries(meetings).forEach(([id, meeting]) => {
+        Object.entries(meetings).forEach(([_id, meeting]) => {
           if (meeting.end > nowSeconds && meeting.start < endOfTomorrowSeconds && !existingEventIds.has(meeting.event_id)) {
             const feedItem = new FeedItem({
               timestamp: new Date(meeting.start * 1000),
