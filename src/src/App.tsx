@@ -978,7 +978,7 @@ function App() {
     const unlistenHelp = listen('kn_trigger_help', async () => {
       handleOpenToastr(
         <span>
-          Commands: /kn:briefing, /kn:emails, /kn:prep, /kn:followup
+          Commands: /morning, /emails, /prep, /fu, /help
         </span>,
         'info',
         5000,

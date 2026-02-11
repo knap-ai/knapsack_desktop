@@ -69,17 +69,17 @@ function KnapsackLMBar({ LLMBarUtils }: KnapsackLMBarProps) {
 
   // Easter egg commands: type these in the chat to trigger notifications manually
   const KN_COMMANDS: Record<string, { event: string; description: string }> = {
-    '/kn:briefing': { event: 'kn_trigger_morning_briefing', description: 'Morning briefing' },
-    '/kn:emails': { event: 'kn_trigger_email_check', description: 'Email alert check' },
-    '/kn:prep': { event: 'kn_trigger_meeting_prep', description: 'Pre-meeting prep' },
-    '/kn:followup': { event: 'kn_trigger_post_meeting', description: 'Post-meeting follow-up (last recording)' },
+    '/morning': { event: 'kn_trigger_morning_briefing', description: 'Morning briefing' },
+    '/emails': { event: 'kn_trigger_email_check', description: 'Email alert check' },
+    '/prep': { event: 'kn_trigger_meeting_prep', description: 'Pre-meeting prep' },
+    '/fu': { event: 'kn_trigger_post_meeting', description: 'Post-meeting follow-up' },
   }
 
   const handleSubmitUserQuery = async (userQuery: string) => {
     const trimmed = userQuery.trim().toLowerCase()
 
     // Easter egg: show available commands
-    if (trimmed === '/kn:help' || trimmed === '/kn') {
+    if (trimmed === '/help') {
       const helpLines = Object.entries(KN_COMMANDS)
         .map(([cmd, { description }]) => `  ${cmd} — ${description}`)
         .join('\n')
