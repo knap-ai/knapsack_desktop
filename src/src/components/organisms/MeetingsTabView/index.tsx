@@ -92,7 +92,9 @@ const MeetingsTabView = ({
         if (key === STATIONARY_ITEMS) return
 
         feedItems.forEach(item => {
-          if (item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)) {
+          const hasMeetingNotes = item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
+          const isUpcomingCalendarEvent = item.calendarEvent && !item.id
+          if (hasMeetingNotes || isUpcomingCalendarEvent) {
             const dateKey = key
             if (!groups[dateKey]) {
               groups[dateKey] = []
@@ -103,9 +105,15 @@ const MeetingsTabView = ({
       })
     }
 
-    // Sort items within each group by timestamp descending
+    // Sort items within each group by timestamp
     Object.keys(groups).forEach(dateKey => {
-      groups[dateKey].sort((a, b) => b.item.timestamp.getTime() - a.item.timestamp.getTime())
+      if (dateKey === 'COMING UP') {
+        // Upcoming: soonest first (ascending)
+        groups[dateKey].sort((a, b) => a.item.timestamp.getTime() - b.item.timestamp.getTime())
+      } else {
+        // Past: most recent first (descending)
+        groups[dateKey].sort((a, b) => b.item.timestamp.getTime() - a.item.timestamp.getTime())
+      }
     })
 
     return groups
@@ -127,7 +135,7 @@ const MeetingsTabView = ({
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     const initialState: Record<string, boolean> = {}
     orderedDateKeys.forEach(key => {
-      if (!key.includes('Today') && !feed.isRecentDate(key, true, false)) {
+      if (!key.includes('Today') && !feed.isRecentDate(key, true, true)) {
         initialState[key] = true
       }
     })
@@ -154,10 +162,13 @@ const MeetingsTabView = ({
       const newState = { ...prev }
       orderedDateKeys.forEach(key => {
         if (!manuallyToggled[key]) {
+          // Auto-collapse old past dates, but keep today/yesterday/upcoming expanded
           if (
             !key.includes('Today') &&
+            !key.includes('Yesterday') &&
+            !key.includes('COMING UP') &&
             groupedMeetings[key] &&
-            groupedMeetings[key][0]?.item.timestamp > new Date() &&
+            KNDateUtils.isPastDay(groupedMeetings[key][0]?.item.timestamp) &&
             !prev[key]
           ) {
             newState[key] = true
@@ -296,8 +307,8 @@ const MeetingsTabView = ({
               const items = groupedMeetings[dateKey]
               if (!items || items.length === 0) return null
 
-              // Filter to only show recent dates (past + today/yesterday)
-              if (!feed.isRecentDate(dateKey, true, false)) return null
+              // Filter to only show recent dates (past + today/yesterday + upcoming)
+              if (!feed.isRecentDate(dateKey, true, true)) return null
 
               const isCollapsed = collapsedSections[dateKey]
 
@@ -330,10 +341,11 @@ const MeetingsTabView = ({
                     className={`MeetingsTabView__date-items ${isCollapsed ? 'MeetingsTabView__date-items--collapsed' : ''}`}
                   >
                     {items.map(({ key, item }) => {
-                      const isSelected = selectedMeeting?.id === item.id
+                      const isSelected = item.id != null && selectedMeeting?.id === item.id
+                      const itemKey = item.id ?? `cal-${item.calendarEvent?.id ?? item.title}`
 
                       return (
-                        <Fragment key={item.id}>
+                        <Fragment key={itemKey}>
                           <div
                             className={`flex flex-col w-full text-left border-r border-t border-b rounded-r-md
                               ${
@@ -341,10 +353,14 @@ const MeetingsTabView = ({
                                   ? 'bg-ks-warm-grey-100 border-ks-warm-grey-200'
                                   : 'hover:bg-ks-warm-grey-100 hover:border-ks-warm-grey-200 border-transparent'
                               }`}
-                            id={`MeetingCard${item.id}`}
+                            id={`MeetingCard${itemKey}`}
                             ref={isSelected ? threadCardRef : null}
                             onClick={() => {
-                              feed.selectFeedItem(key, item.id)
+                              if (item.id != null) {
+                                feed.selectFeedItem(key, item.id)
+                              } else if (item.calendarEvent) {
+                                feed.openCalendarEvent(item.calendarEvent)
+                              }
                             }}
                           >
                             <div className="flex items-center w-full">
@@ -360,10 +376,14 @@ const MeetingsTabView = ({
                                   isSelected={isSelected}
                                   isRecording={item.isRecording}
                                   setIsSelected={() => {
-                                    feed.selectFeedItem(key, item.id)
+                                    if (item.id != null) {
+                                      feed.selectFeedItem(key, item.id)
+                                    } else if (item.calendarEvent) {
+                                      feed.openCalendarEvent(item.calendarEvent)
+                                    }
                                   }}
                                   hasLabel={false}
-                                  showFullDate={false}
+                                  showFullDate={dateKey === 'COMING UP'}
                                   onTitleChange={newTitle => {
                                     if (item.id !== undefined) {
                                       handleTitleChange(key, item.id, newTitle)

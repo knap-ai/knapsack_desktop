@@ -138,7 +138,7 @@ impl CalendarEvent {
   pub fn find_by_timestamp_range(start: u64, end: u64) -> Vec<CalendarEvent> {
     let connection = get_db_conn();
     let mut stmt = connection
-      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE start >= ?1 AND end <= ?2 ORDER BY start")
+      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE start >= ?1 AND start <= ?2 ORDER BY start")
       .expect("could not prepare query get calendar events");
     let rows = stmt
       .query_map([start, end], |row| {
