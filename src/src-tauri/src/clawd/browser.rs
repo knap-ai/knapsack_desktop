@@ -139,7 +139,7 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
 
 async fn control_client() -> Result<reqwest::Client, String> {
   reqwest::Client::builder()
-    .timeout(std::time::Duration::from_millis(15000))
+    .timeout(std::time::Duration::from_millis(120_000))
     .build()
     .map_err(|e| format!("Failed to init HTTP client: {}", e))
 }
