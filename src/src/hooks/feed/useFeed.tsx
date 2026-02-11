@@ -1147,7 +1147,7 @@ export function useFeed(
 
         const nowSeconds = Date.now() / 1000
         Object.entries(meetings).forEach(([id, meeting]) => {
-          if (meeting.end > nowSeconds && !existingEventIds.has(String(id))) {
+          if (meeting.end > nowSeconds && !existingEventIds.has(meeting.event_id)) {
             const feedItem = new FeedItem({
               timestamp: new Date(meeting.start * 1000),
               title: meeting.title,
@@ -1296,7 +1296,7 @@ export function useFeed(
   const isRecentDate = (date: string, showPastDates: boolean, showFutureDates: boolean) => {
     const recentDates = ['Today', 'Yesterday', 'COMING UP']
     if (showPastDates && showFutureDates) {
-      return pastDays.includes(date) || futureDays.includes(date) || recentDates.includes(date)
+      return pastDays.includes(date) || futureDays.includes(date) || recentDates.some(recentDate => date.includes(recentDate))
     } else if (showPastDates) {
       return pastDays.includes(date) || recentDates.some(recentDate => date.includes(recentDate))
     } else if (showFutureDates) {
