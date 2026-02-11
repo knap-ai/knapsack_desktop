@@ -127,7 +127,7 @@ const MeetingsTabView = ({
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     const initialState: Record<string, boolean> = {}
     orderedDateKeys.forEach(key => {
-      if (!key.includes('Today') && !feed.isRecentDate(key, true, false)) {
+      if (!key.includes('Today') && !feed.isRecentDate(key, true, true)) {
         initialState[key] = true
       }
     })
@@ -154,10 +154,13 @@ const MeetingsTabView = ({
       const newState = { ...prev }
       orderedDateKeys.forEach(key => {
         if (!manuallyToggled[key]) {
+          // Auto-collapse old past dates, but keep today/yesterday/upcoming expanded
           if (
             !key.includes('Today') &&
+            !key.includes('Yesterday') &&
+            !key.includes('COMING UP') &&
             groupedMeetings[key] &&
-            groupedMeetings[key][0]?.item.timestamp > new Date() &&
+            KNDateUtils.isPastDay(groupedMeetings[key][0]?.item.timestamp) &&
             !prev[key]
           ) {
             newState[key] = true
@@ -296,8 +299,8 @@ const MeetingsTabView = ({
               const items = groupedMeetings[dateKey]
               if (!items || items.length === 0) return null
 
-              // Filter to only show recent dates (past + today/yesterday)
-              if (!feed.isRecentDate(dateKey, true, false)) return null
+              // Filter to only show recent dates (past + today/yesterday + upcoming)
+              if (!feed.isRecentDate(dateKey, true, true)) return null
 
               const isCollapsed = collapsedSections[dateKey]
 
