@@ -59,6 +59,47 @@ export const setBudgetSettings = async (settings: BudgetSettings) => {
   await KNLocalStorage.setItem(KN_BUDGET_WARNING_PERCENT, settings.warningPercent)
 }
 
+// Background notifications settings
+export const KN_BACKGROUND_NOTIFICATIONS_ENABLED = 'kn_background_notifications_enabled'
+export const KN_BACKGROUND_NOTIFICATIONS_LAST_RUN = 'kn_background_notifications_last_run'
+export const KN_POST_MEETING_FOLLOWUP_ENABLED = 'kn_post_meeting_followup_enabled'
+export const KN_BACKGROUND_NOTIFICATION_HOURS = 'kn_background_notification_hours'
+
+export const getBackgroundNotificationsEnabled = async (): Promise<boolean> => {
+  const value = await KNLocalStorage.getItem(KN_BACKGROUND_NOTIFICATIONS_ENABLED)
+  return value !== false // enabled by default
+}
+
+export const setBackgroundNotificationsEnabled = async (enabled: boolean) => {
+  await KNLocalStorage.setItem(KN_BACKGROUND_NOTIFICATIONS_ENABLED, enabled)
+}
+
+export const getBackgroundNotificationHours = async (): Promise<number[]> => {
+  const value = await KNLocalStorage.getItem(KN_BACKGROUND_NOTIFICATION_HOURS)
+  return value ?? [9, 14] // default: 9 AM and 2 PM
+}
+
+export const setBackgroundNotificationHours = async (hours: number[]) => {
+  await KNLocalStorage.setItem(KN_BACKGROUND_NOTIFICATION_HOURS, hours)
+}
+
+export const getBackgroundNotificationsLastRun = async (): Promise<string | null> => {
+  return await KNLocalStorage.getItem(KN_BACKGROUND_NOTIFICATIONS_LAST_RUN)
+}
+
+export const setBackgroundNotificationsLastRun = async (timestamp: string) => {
+  await KNLocalStorage.setItem(KN_BACKGROUND_NOTIFICATIONS_LAST_RUN, timestamp)
+}
+
+export const getPostMeetingFollowupEnabled = async (): Promise<boolean> => {
+  const value = await KNLocalStorage.getItem(KN_POST_MEETING_FOLLOWUP_ENABLED)
+  return value !== false // enabled by default
+}
+
+export const setPostMeetingFollowupEnabled = async (enabled: boolean) => {
+  await KNLocalStorage.setItem(KN_POST_MEETING_FOLLOWUP_ENABLED, enabled)
+}
+
 // Model routing: use cheaper models for simple tasks
 export const getModelRoutingEnabled = async (): Promise<boolean> => {
   const value = await KNLocalStorage.getItem(KN_MODEL_ROUTING_ENABLED)

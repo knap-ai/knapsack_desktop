@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import styles from './styles.module.scss'
 
 import { XMarkIcon } from '@heroicons/react/24/outline'
+import { emit } from '@tauri-apps/api/event'
 import { ILLMBar } from 'src/hooks/feed/useLLMBar'
 
 import MenuItem, { MenuItemVariant } from '../../../components/molecules/MenuItem'
@@ -66,7 +67,35 @@ function KnapsackLMBar({ LLMBarUtils }: KnapsackLMBarProps) {
     return await dataFetcher.semanticSearch(query, [], dataSources)
   }, [])
 
+  // Easter egg commands: type these in the chat to trigger notifications manually
+  const KN_COMMANDS: Record<string, { event: string; description: string }> = {
+    '/morning': { event: 'kn_trigger_morning_briefing', description: 'Morning briefing' },
+    '/emails': { event: 'kn_trigger_email_check', description: 'Email alert check' },
+    '/prep': { event: 'kn_trigger_meeting_prep', description: 'Pre-meeting prep' },
+    '/fu': { event: 'kn_trigger_post_meeting', description: 'Post-meeting follow-up' },
+  }
+
   const handleSubmitUserQuery = async (userQuery: string) => {
+    const trimmed = userQuery.trim().toLowerCase()
+
+    // Easter egg: show available commands
+    if (trimmed === '/help') {
+      const helpLines = Object.entries(KN_COMMANDS)
+        .map(([cmd, { description }]) => `  ${cmd} — ${description}`)
+        .join('\n')
+      console.log(`🔔 Knapsack notification commands:\n${helpLines}`)
+      await emit('kn_trigger_help', {})
+      return
+    }
+
+    // Easter egg: trigger a notification manually
+    const command = KN_COMMANDS[trimmed]
+    if (command) {
+      console.log(`🔔 Triggering: ${command.description}`)
+      await emit(command.event, {})
+      return
+    }
+
     try {
       let docsForQuery = LLMBarUtils.selectedDocuments
       if (LLMBarUtils.selectedDocuments.length <= 0) {

@@ -5,6 +5,7 @@ import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
 
+import { emit } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/shell'
 
 export interface RecordingContextProps {
@@ -149,6 +150,11 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         setHasSynthesized(threadId, true)
         setIsRecording(threadId, false)
         await saveNotes(threadId, notesMarkdown)
+        // Emit event for post-meeting follow-up notifications
+        emit('notes_synthesized', {
+          threadId,
+          meetingTitle: meeting?.title || 'Meeting',
+        }).catch(err => console.warn('Failed to emit notes_synthesized event:', err))
       } catch (error) {
         const lastError = error instanceof Error ? error : new Error(String(error))
         logError(lastError, { additionalInfo: 'Issue synthesizing/saving notes' }, true)

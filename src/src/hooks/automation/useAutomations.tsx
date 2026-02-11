@@ -66,9 +66,11 @@ type UseAutomationProps = {
   automationHelperFunctions: AutomationHelperFunctions
 }
 
-enum NotificationTypes {
+export enum NotificationTypes {
   MEETING_PREP = 'meeting-prep',
   MEETING_NOTES = 'meeting-notes',
+  BACKGROUND_INSIGHTS = 'background-insights',
+  POST_MEETING_FOLLOWUP = 'post-meeting-followup',
 }
 
 type NotificationService = {

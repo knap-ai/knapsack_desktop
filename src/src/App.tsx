@@ -40,6 +40,7 @@ import { KNChatMessage } from './api/threads'
 import { Automation, AutomationRun, Cadence } from './automations/automation'
 import BaseStep from './automations/steps/Base'
 import { useAutomations } from './hooks/automation/useAutomations'
+import { useBackgroundNotifications } from './hooks/notifications/useBackgroundNotifications'
 import { useConnections } from './hooks/connections/useConnections'
 import { uploadAllData } from './utils/batchData'
 import DataFetcher from './utils/data_fetch'
@@ -533,6 +534,8 @@ function App() {
           await syncMeetings()
           await scheduleRuns(userEmail)
           await syncAutomations()
+          // Check for upcoming meetings that need prep notifications
+          backgroundNotificationsRef.current.handleCalendarSyncComplete()
         }
       },
     )
@@ -587,6 +590,8 @@ function App() {
       async (event: Event<{ success: boolean }>) => {
         if (event.payload.success) {
           await feedRef.current.runEmailAutopilot()
+          // Check if new emails warrant a background notification
+          backgroundNotificationsRef.current.handleEmailSyncComplete()
         }
       },
     )
@@ -729,6 +734,32 @@ function App() {
     },
   })
 
+  const {
+    checkMorningBriefing,
+    handleEmailSyncComplete,
+    handleCalendarSyncComplete,
+    handlePostMeetingFollowup,
+    createInsightFeedItem,
+    createFollowupFeedItem,
+  } = useBackgroundNotifications({
+    userEmail,
+    userName,
+    openNotificationWindow,
+    addToLLMQueue,
+  })
+
+  // Use refs for background notification handlers to avoid stale closures in event listeners
+  const backgroundNotificationsRef = useRef({
+    handleEmailSyncComplete: async (_force?: boolean) => {},
+    handleCalendarSyncComplete: async (_force?: boolean) => {},
+  })
+  useEffect(() => {
+    backgroundNotificationsRef.current = {
+      handleEmailSyncComplete,
+      handleCalendarSyncComplete,
+    }
+  }, [handleEmailSyncComplete, handleCalendarSyncComplete])
+
   const { feed, syncMeetings, handleAutomationsFeedScheduleService, updateMeetingStatuses } =
     useFeed(
       automations,
@@ -756,13 +787,14 @@ function App() {
 
       handleNotificationsScheduleService(date)
       handleAutomationsFeedScheduleService(date)
+      checkMorningBriefing(date)
       updateMeetingStatuses(currentTime)
     }, MINUTE_MS)
 
     return () => {
       clearInterval(minuteInterval)
     }
-  }, [userEmail])
+  }, [userEmail, checkMorningBriefing])
 
   // TODO test this hook the refresh don't look being working as expected
   useEffect(() => {
@@ -907,6 +939,69 @@ function App() {
     }
   }, [])
 
+  // Listen for notes_synthesized event to trigger post-meeting follow-up notifications
+  useEffect(() => {
+    const unlistenPromise = listen(
+      'notes_synthesized',
+      async (event: Event<{ threadId: number; meetingTitle: string }>) => {
+        try {
+          await handlePostMeetingFollowup(event.payload.meetingTitle, event.payload.threadId)
+        } catch (error) {
+          console.error('Error triggering post-meeting follow-up:', error)
+        }
+      },
+    )
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten())
+    }
+  }, [handlePostMeetingFollowup])
+
+  // Easter egg: listen for manual notification triggers from /kn: chat commands
+  useEffect(() => {
+    const unlistenBriefing = listen('kn_trigger_morning_briefing', async () => {
+      console.log('🔔 Manual trigger: morning briefing')
+      await checkMorningBriefingRef.current(new Date(), true)
+    })
+    const unlistenEmail = listen('kn_trigger_email_check', async () => {
+      console.log('🔔 Manual trigger: email alert check')
+      await backgroundNotificationsRef.current.handleEmailSyncComplete(true)
+    })
+    const unlistenPrep = listen('kn_trigger_meeting_prep', async () => {
+      console.log('🔔 Manual trigger: meeting prep check')
+      await backgroundNotificationsRef.current.handleCalendarSyncComplete(true)
+    })
+    const unlistenFollowup = listen('kn_trigger_post_meeting', async () => {
+      console.log('🔔 Manual trigger: post-meeting follow-up (using last recording)')
+      handlePostMeetingFollowupRef.current('Last Meeting', -1)
+    })
+    const unlistenHelp = listen('kn_trigger_help', async () => {
+      handleOpenToastr(
+        <span>
+          Commands: /morning, /emails, /prep, /fu, /help
+        </span>,
+        'info',
+        5000,
+      )
+    })
+
+    return () => {
+      unlistenBriefing.then(u => u())
+      unlistenEmail.then(u => u())
+      unlistenPrep.then(u => u())
+      unlistenFollowup.then(u => u())
+      unlistenHelp.then(u => u())
+    }
+  }, [handleOpenToastr])
+
+  // Refs for easter egg triggers to avoid stale closures
+  const checkMorningBriefingRef = useRef(checkMorningBriefing)
+  const handlePostMeetingFollowupRef = useRef(handlePostMeetingFollowup)
+  useEffect(() => {
+    checkMorningBriefingRef.current = checkMorningBriefing
+    handlePostMeetingFollowupRef.current = handlePostMeetingFollowup
+  }, [checkMorningBriefing, handlePostMeetingFollowup])
+
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 
   useEffect(() => {
@@ -998,6 +1093,19 @@ function App() {
       startMeetingNotification(meetingId, false, true),
     meeting_open_notification_handler: async (meetingId: string | null) =>
       startMeetingNotification(meetingId, false, false),
+    background_insight_notification_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      await createInsightFeedItem()
+    },
+    post_meeting_followup_notification_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      await createFollowupFeedItem()
+    },
+    dismiss_notification_handler: async (_meetingId: string | null) => {
+      await invoke('close_notification_window')
+    },
   }
 
   useEffect(() => {
