@@ -775,8 +775,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     return localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
   })
-  const audioChunksRef = { current: [] as Blob[] }
-  const currentAudioRef = { current: null as HTMLAudioElement | null }
+  const audioChunksRef = useRef<Blob[]>([])
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Audio device selection - using system defaults (setters kept for future device picker UI)
   const [selectedInputDevice, _setSelectedInputDevice] = useState<string>('')
@@ -791,13 +791,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
 
   // Voice silence detection refs
-  const silenceTimeoutRef = { current: null as ReturnType<typeof setTimeout> | null }
-  const audioContextRef = { current: null as AudioContext | null }
-  const analyserRef = { current: null as AnalyserNode | null }
+  const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
 
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
-  const doSendRef = { current: null as ((text: string) => Promise<void>) | null }
-  const pushAssistantRef = { current: null as ((text: string) => void) | null }
+  const doSendRef = useRef<((text: string) => Promise<void>) | null>(null)
+  const pushAssistantRef = useRef<((text: string) => void) | null>(null)
 
   // Gateway service state - kept for scheduled tasks but channels UI removed
 
@@ -2169,8 +2169,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }
 
-  // Keep doSendRef updated for voice auto-submit
+  // Keep doSendRef updated so the stable callback always invokes the latest doSend.
+  // This avoids re-creating the callback identity on every render, which would
+  // defeat React.memo on ChatInputBar and cause input lag during polling re-renders.
   doSendRef.current = doSend
+
+  // Stable-identity wrapper — passed to ChatInputBar instead of doSend directly.
+  const stableDoSend = useCallback((text: string) => {
+    return doSendRef.current?.(text) ?? Promise.resolve()
+  }, [])
 
   const statusLine = useMemo(() => {
     if (!status && !health) return <span>Checking Moltbot...</span>
@@ -2480,7 +2487,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         isTranscribing={isTranscribing}
         voiceEnabled={voiceEnabled}
         attachedFiles={attachedFiles}
-        onSend={doSend}
+        onSend={stableDoSend}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
         onStartRecording={startRecording}
