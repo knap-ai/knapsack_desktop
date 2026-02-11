@@ -71,8 +71,8 @@ use console_subscriber;
 pub const KNAPSACK_DATA_DIR: &str = ".knapsack";
 pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
-const NOTIF_HEIGHT: f64 = 64.0;
-const NOTIF_WIDTH: f64 = 384.0;
+const NOTIF_HEIGHT: f64 = 400.0;
+const NOTIF_WIDTH: f64 = 600.0;
 //const NOTIF_Y_POSITION: i32 = 40 + (NOTIF_HEIGHT as i32);
 const NOTIF_START_X_OFFSET: i32 = 500;
 const NOTIF_END_X_OFFSET: i32 = 20;
@@ -296,14 +296,12 @@ async fn kn_get_search_indexing_status(
 }
 
 #[tauri::command]
-async fn resize_notification_window(app: tauri::AppHandle, height: f64) {
+async fn resize_notification_window(app: tauri::AppHandle, width: f64, height: f64) {
   if let Some(window) = app.get_window("notification") {
-    if let Ok(current_size) = window.outer_size() {
-        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-          width: current_size.width,
-          height: (height as u32),
-        }));
-    }
+    let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+      width: width as u32,
+      height: height as u32,
+    }));
   }
 }
 
@@ -326,13 +324,11 @@ async fn show_notification_window(
     if let Ok(monitor) = window.current_monitor() {
       if let Some(monitor) = monitor {
         let screen_size = monitor.size();
-        let window_size = window.outer_size().unwrap();
 
         let top_margin_percentage = 0.05;
         let y_position = (screen_size.height as f64 * top_margin_percentage) as i32;
 
         let start_x = screen_size.width as i32 + NOTIF_START_X_OFFSET;
-        let final_x = screen_size.width as i32 - window_size.width as i32 - NOTIF_END_X_OFFSET;
 
         window
           .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
@@ -341,7 +337,14 @@ async fn show_notification_window(
           }))
           .unwrap();
 
+        // Emit event and wait for React to render and resize the window
         window.emit("notification_event_id", json!({"event_id": event_id, "button_configs": button_configs, "title": title, "time": time})).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+        // Re-read window size after React has measured and resized
+        let window_size = window.outer_size().unwrap();
+        let final_x = screen_size.width as i32 - window_size.width as i32 - NOTIF_END_X_OFFSET;
+
         for i in 0..=NOTIF_ANIMATION_DURATION {
           let t = i as f32 / NOTIF_ANIMATION_DURATION as f32;
 
