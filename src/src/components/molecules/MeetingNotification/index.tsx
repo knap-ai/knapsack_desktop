@@ -13,6 +13,13 @@ export interface ButtonConfig {
   buttonHandler: string
 }
 
+function abbreviateActionLabel(text: string, maxLen = 40): string {
+  const cleaned = (text || '').replace(/\s+/g, ' ').trim()
+  if (!cleaned) return ''
+  if (cleaned.length <= maxLen) return cleaned
+  return cleaned.slice(0, maxLen - 1).trimEnd() + '…'
+}
+
 function NotificationWindow() {
   const [currentMeetingId, setCurrentMeetingId] = useState<string | null>(null)
   const [buttonConfigs, setButtonConfigs] = useState<ButtonConfig[]>([])
@@ -150,7 +157,7 @@ function NotificationWindow() {
               onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
               className="px-4 py-2 active:bg-bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-2 whitespace-nowrap"
             >
-              {buttonConfigs[0].buttonText}
+              {abbreviateActionLabel(buttonConfigs[0].buttonText) || buttonConfigs[0].buttonText}
             </button>
             {buttonConfigs.length > 1 && (
               <>
@@ -174,7 +181,7 @@ function NotificationWindow() {
                     onClick={() => handleJoinMeeting(currentMeetingId, config.buttonHandler)}
                     className="px-4 py-2 text-xs text-gray-700 hover:text-orange-800 cursor-pointer text-right"
                   >
-                    {config.buttonText}
+                    {abbreviateActionLabel(config.buttonText) || config.buttonText}
                   </div>
                 ))}
               </div>
