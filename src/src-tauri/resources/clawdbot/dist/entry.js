@@ -118,7 +118,8 @@ if (!ensureExperimentalWarningSuppressed()) {
         // Keep Commander and ad-hoc argv checks consistent.
         process.argv = parsed.argv;
     }
-    import("./cli/run-main.js")
+    import("./shims/clipboard-shim.js")
+        .then(() => import("./cli/run-main.js"))
         .then(({ runCli }) => runCli(process.argv))
         .catch((error) => {
         console.error("[clawdbot] Failed to start CLI:", error instanceof Error ? (error.stack ?? error.message) : error);
