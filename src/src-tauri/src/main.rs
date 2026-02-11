@@ -295,16 +295,6 @@ async fn kn_get_search_indexing_status(
   })
 }
 
-#[tauri::command]
-async fn resize_notification_window(app: tauri::AppHandle, width: f64, height: f64) {
-  if let Some(window) = app.get_window("notification") {
-    let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-      width: width as u32,
-      height: height as u32,
-    }));
-  }
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct ButtonConfig {
@@ -337,13 +327,9 @@ async fn show_notification_window(
           }))
           .unwrap();
 
-        // Emit event and wait for React to render and resize the window
         window.emit("notification_event_id", json!({"event_id": event_id, "button_configs": button_configs, "title": title, "time": time})).unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
-        // Re-read window size after React has measured and resized
-        let window_size = window.outer_size().unwrap();
-        let final_x = screen_size.width as i32 - window_size.width as i32 - NOTIF_END_X_OFFSET;
+        let final_x = screen_size.width as i32 - NOTIF_WIDTH as i32 - NOTIF_END_X_OFFSET;
 
         for i in 0..=NOTIF_ANIMATION_DURATION {
           let t = i as f32 / NOTIF_ANIMATION_DURATION as f32;
@@ -660,7 +646,6 @@ async fn main() {
       open_screen_recording_settings,
       open_microphone_settings,
       audio::audio::emit_stop_events,
-      resize_notification_window,
       spotlight::kn_init_app,
       kn_read_logs,
       kn_get_log_path,

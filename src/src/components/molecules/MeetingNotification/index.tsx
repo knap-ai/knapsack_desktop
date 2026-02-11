@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -21,17 +21,6 @@ function NotificationWindow() {
   const isProcessing = React.useRef(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const resizeToFit = useCallback(async () => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      await invoke('resize_notification_window', {
-        width: Math.ceil(rect.width) + 4,
-        height: Math.ceil(rect.height) + 4,
-      })
-    }
-  }, [])
 
   useEffect(() => {
     const unlistenPromise = listen(
@@ -95,14 +84,8 @@ function NotificationWindow() {
     setIsDropdownOpen(!isDropdownOpen)
   }
 
-  // Auto-resize window to fit content whenever content or dropdown state changes
-  useEffect(() => {
-    const timer = setTimeout(resizeToFit, 20)
-    return () => clearTimeout(timer)
-  }, [title, time, buttonConfigs, isDropdownOpen, resizeToFit])
-
   return (
-    <div ref={containerRef} className="inline-flex bg-white rounded-lg overflow-visible">
+    <div className="inline-flex bg-white rounded-lg overflow-visible">
       <div className="relative bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-center gap-3 group overflow-visible">
         <button
           onClick={() => invoke('close_notification_window')}
@@ -132,11 +115,11 @@ function NotificationWindow() {
           />
         </div>
 
-        <div className="flex-shrink-0">
-          <h3 className="text-[14px] font-semibold text-gray-900 pr-2">
+        <div className="flex-1 min-w-0 pr-2">
+          <h3 className="text-[14px] font-semibold text-gray-900 truncate">
             {title}
           </h3>
-          <p className="text-sm text-gray-600">{time}</p>
+          <p className="text-sm text-gray-600 truncate">{time}</p>
         </div>
         {buttonConfigs.length > 0 && (
           <div
