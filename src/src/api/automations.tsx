@@ -15,7 +15,6 @@ import SemanticSearch from '../automations/steps/SemanticSearch'
 import {
   API_SERVER_AUTOMATIONS,
   KN_API_AUTOMATION_RUNS,
-  KN_API_AUTOMATION_SCHEDULE_RUNS,
   KN_API_AUTOMATIONS,
   KN_API_AUTOMATIONS_START_CHECK,
   KN_API_SYSTEM_MESSAGES,
@@ -303,14 +302,3 @@ export async function insertSystemMessage(
   return serializeThreadWithMessages(data.thread)
 }
 
-export async function scheduleRuns(userEmail: string) {
-  const response = await fetch(KN_API_AUTOMATION_SCHEDULE_RUNS, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ user_email: userEmail }),
-  })
-  const data = await response.json()
-  return !!data?.success
-}

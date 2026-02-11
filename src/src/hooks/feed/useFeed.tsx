@@ -1166,45 +1166,6 @@ export function useFeed(
     })
   }, [])
 
-  const handleAutomationsFeedScheduleService = useCallback(
-    async (now: Date) => {
-      for (const feedItem of Object.values(feedContent)) {
-        const readyRuns = feedItem.filter(item =>
-          item.run &&
-          !item.run.executionDate &&
-          item.run.scheduleDate &&
-          item.run.scheduleDate.getTime() < now.getTime() &&
-          item.run?.automationUuid
-            ? automations[item.run?.automationUuid].getIsActive()
-            : false,
-        )
-        for (const feedItem of readyRuns) {
-          // TODO: use handleFutureAutomation in the future,need to understand automationTigger impact
-          const automation = feedItem.run?.automationUuid
-            ? automations[feedItem.run?.automationUuid]
-            : undefined
-          const run = feedItem.run
-          if (feedItem.run) {
-            feedItem.run.executionDate = now
-          }
-          if (automation) {
-            await handleAutomation({
-              automation,
-              trigger: AutomationTrigger.CADENCE,
-              run,
-              args: {
-                feedItem,
-                errorCallback,
-                sucessHandler,
-              },
-            })
-          }
-        }
-      }
-    },
-    [automations, handleAutomation],
-  )
-
   const getTodayKey = useCallback(() => {
     const feedContentKeys = Object.entries(feedContent).map(([key, value]) => ({
       key,
@@ -1759,7 +1720,6 @@ export function useFeed(
     feed,
     meetings,
     syncMeetings,
-    handleAutomationsFeedScheduleService,
     updateMeetingStatuses,
   }
 }

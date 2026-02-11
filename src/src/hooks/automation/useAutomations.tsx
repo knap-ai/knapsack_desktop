@@ -5,7 +5,6 @@ import {
   deleteAutomationAPI,
   getAutomations,
   getAutomationStartStatusAPI,
-  scheduleRuns,
   updateAutomationAPI,
 } from 'src/api/automations'
 import { ConnectionKeys, getAccessToken } from 'src/api/connections'
@@ -506,9 +505,7 @@ export function useAutomations({
   // On load
   useEffect(() => {
     if (userEmail) {
-      scheduleRuns(userEmail).finally(() => {
-        syncAutomations()
-      })
+      syncAutomations()
     }
 
     const unlistenPromisse = listen('close-notification', () => {
@@ -539,7 +536,6 @@ export function useAutomations({
     handleAutomation,
     handleAutomationPreview,
     handleNotificationsScheduleService,
-    scheduleRuns,
     googleAuthControls,
     openNotificationWindow,
   }

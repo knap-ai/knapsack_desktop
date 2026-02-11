@@ -531,7 +531,6 @@ function App() {
           })
 
           await syncMeetings()
-          await scheduleRuns(userEmail)
           await syncAutomations()
         }
       },
@@ -715,7 +714,6 @@ function App() {
     updateAutomation,
     handleAutomationPreview,
     handleNotificationsScheduleService,
-    scheduleRuns,
     syncAutomations,
     googleAuthControls,
     openNotificationWindow,
@@ -729,7 +727,7 @@ function App() {
     },
   })
 
-  const { feed, syncMeetings, handleAutomationsFeedScheduleService, updateMeetingStatuses } =
+  const { feed, syncMeetings, updateMeetingStatuses } =
     useFeed(
       automations,
       handleErrorContact,
@@ -755,7 +753,6 @@ function App() {
       const currentTime = (window as any).testTime ? (window as any).testTime : Date.now() / 1000
 
       handleNotificationsScheduleService(date)
-      handleAutomationsFeedScheduleService(date)
       updateMeetingStatuses(currentTime)
     }, MINUTE_MS)
 
@@ -772,7 +769,6 @@ function App() {
     const fiveMinutesInterval = setInterval(async () => {
       await syncConnections(userEmail, connections)
       await syncMeetings()
-      await scheduleRuns(userEmail)
       await syncAutomations()
     }, MINUTE_MS * 5)
 
@@ -782,8 +778,6 @@ function App() {
   }, [
     syncAutomations,
     syncMeetings,
-    scheduleRuns,
-    handleAutomationsFeedScheduleService,
     handleNotificationsScheduleService,
     syncConnections,
     connections,
