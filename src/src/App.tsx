@@ -750,8 +750,8 @@ function App() {
 
   // Use refs for background notification handlers to avoid stale closures in event listeners
   const backgroundNotificationsRef = useRef({
-    handleEmailSyncComplete: async () => {},
-    handleCalendarSyncComplete: async () => {},
+    handleEmailSyncComplete: async (_force?: boolean) => {},
+    handleCalendarSyncComplete: async (_force?: boolean) => {},
   })
   useEffect(() => {
     backgroundNotificationsRef.current = {
@@ -956,6 +956,51 @@ function App() {
       unlistenPromise.then(unlisten => unlisten())
     }
   }, [handlePostMeetingFollowup])
+
+  // Easter egg: listen for manual notification triggers from /kn: chat commands
+  useEffect(() => {
+    const unlistenBriefing = listen('kn_trigger_morning_briefing', async () => {
+      console.log('🔔 Manual trigger: morning briefing')
+      await checkMorningBriefingRef.current(new Date(), true)
+    })
+    const unlistenEmail = listen('kn_trigger_email_check', async () => {
+      console.log('🔔 Manual trigger: email alert check')
+      await backgroundNotificationsRef.current.handleEmailSyncComplete(true)
+    })
+    const unlistenPrep = listen('kn_trigger_meeting_prep', async () => {
+      console.log('🔔 Manual trigger: meeting prep check')
+      await backgroundNotificationsRef.current.handleCalendarSyncComplete(true)
+    })
+    const unlistenFollowup = listen('kn_trigger_post_meeting', async () => {
+      console.log('🔔 Manual trigger: post-meeting follow-up (using last recording)')
+      handlePostMeetingFollowupRef.current('Last Meeting', -1)
+    })
+    const unlistenHelp = listen('kn_trigger_help', async () => {
+      handleOpenToastr(
+        <span>
+          Commands: /kn:briefing, /kn:emails, /kn:prep, /kn:followup
+        </span>,
+        'info',
+        5000,
+      )
+    })
+
+    return () => {
+      unlistenBriefing.then(u => u())
+      unlistenEmail.then(u => u())
+      unlistenPrep.then(u => u())
+      unlistenFollowup.then(u => u())
+      unlistenHelp.then(u => u())
+    }
+  }, [handleOpenToastr])
+
+  // Refs for easter egg triggers to avoid stale closures
+  const checkMorningBriefingRef = useRef(checkMorningBriefing)
+  const handlePostMeetingFollowupRef = useRef(handlePostMeetingFollowup)
+  useEffect(() => {
+    checkMorningBriefingRef.current = checkMorningBriefing
+    handlePostMeetingFollowupRef.current = handlePostMeetingFollowup
+  }, [checkMorningBriefing, handlePostMeetingFollowup])
 
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 

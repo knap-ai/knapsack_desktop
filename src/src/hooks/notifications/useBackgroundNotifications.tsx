@@ -404,11 +404,13 @@ export function useBackgroundNotifications({
    * Called when the `finish_fetch_email` event fires with new emails.
    * Checks if any recent emails warrant a notification.
    */
-  const handleEmailSyncComplete = useCallback(async () => {
+  const handleEmailSyncComplete = useCallback(async (force = false) => {
     if (!userEmail || processingLockRef.current) return
 
-    const canSend = await canSendNotification('medium')
-    if (!canSend) return
+    if (!force) {
+      const canSend = await canSendNotification('medium')
+      if (!canSend) return
+    }
 
     const { context, emailCount } = await gatherEmailContext()
     if (!context || emailCount === 0) return
@@ -427,32 +429,40 @@ export function useBackgroundNotifications({
    * Called when the `finish_fetch_calendar` event fires.
    * Checks for upcoming meetings that need preparation.
    */
-  const handleCalendarSyncComplete = useCallback(async () => {
+  const handleCalendarSyncComplete = useCallback(async (force = false) => {
     if (!userEmail || processingLockRef.current) return
 
     try {
       const upcomingMeetings = await dataFetcher.getRecentCalendarEvents()
       if (!upcomingMeetings?.length) return
 
-      const now = new Date()
-      const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000)
-      const fifteenMinFromNow = new Date(now.getTime() + 15 * 60 * 1000)
+      let meetingNeedingPrep
+      if (force) {
+        // When forced, pick the next upcoming meeting regardless of time window
+        meetingNeedingPrep = upcomingMeetings[0]
+      } else {
+        const now = new Date()
+        const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000)
+        const fifteenMinFromNow = new Date(now.getTime() + 15 * 60 * 1000)
 
-      // Find meetings starting in the next 15-30 minutes with multiple attendees
-      const meetingNeedingPrep = upcomingMeetings.find(meeting => {
-        const meetingStart = new Date(meeting.start)
-        const hasMultipleAttendees = (meeting.participants?.length || 0) >= 2
-        const isInWindow =
-          meetingStart >= fifteenMinFromNow && meetingStart <= thirtyMinFromNow
-        const meetingKey = meeting.eventId || String(meeting.id)
-        const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
-        return hasMultipleAttendees && isInWindow && notAlreadyPrepped
-      })
+        // Find meetings starting in the next 15-30 minutes with multiple attendees
+        meetingNeedingPrep = upcomingMeetings.find(meeting => {
+          const meetingStart = new Date(meeting.start)
+          const hasMultipleAttendees = (meeting.participants?.length || 0) >= 2
+          const isInWindow =
+            meetingStart >= fifteenMinFromNow && meetingStart <= thirtyMinFromNow
+          const meetingKey = meeting.eventId || String(meeting.id)
+          const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
+          return hasMultipleAttendees && isInWindow && notAlreadyPrepped
+        })
+      }
 
       if (!meetingNeedingPrep) return
 
-      const canSend = await canSendNotification('high')
-      if (!canSend) return
+      if (!force) {
+        const canSend = await canSendNotification('high')
+        if (!canSend) return
+      }
 
       // Mark meeting as prepped to avoid duplicate notifications
       const meetingKey =
@@ -491,71 +501,75 @@ export function useBackgroundNotifications({
    * Only active during 7:00 AM - 11:00 AM.
    */
   const checkMorningBriefing = useCallback(
-    async (now: Date) => {
+    async (now: Date, force = false) => {
       if (!userEmail || processingLockRef.current) return
 
-      // Check if already sent today
-      const today = dayjs(now).format('YYYY-MM-DD')
-      const morningBriefingDate = await KNLocalStorage.getItem(KN_MORNING_BRIEFING_DATE)
-      if (morningBriefingDate === today) return
+      if (!force) {
+        // Check if already sent today
+        const today = dayjs(now).format('YYYY-MM-DD')
+        const morningBriefingDate = await KNLocalStorage.getItem(KN_MORNING_BRIEFING_DATE)
+        if (morningBriefingDate === today) return
 
-      const currentHour = now.getHours()
-      const currentMinute = now.getMinutes()
+        const currentHour = now.getHours()
+        const currentMinute = now.getMinutes()
 
-      // Only check during morning hours (7 AM - 11 AM)
-      if (currentHour < 7 || currentHour > 11) return
+        // Only check during morning hours (7 AM - 11 AM)
+        if (currentHour < 7 || currentHour > 11) return
 
-      let shouldTrigger = false
+        let shouldTrigger = false
 
-      try {
-        // Look at today's calendar to find the first meeting
-        const todayStart = new Date(now)
-        todayStart.setHours(0, 0, 0, 0)
-        const todayEnd = new Date(now)
-        todayEnd.setHours(23, 59, 59, 999)
+        try {
+          // Look at today's calendar to find the first meeting
+          const todayStart = new Date(now)
+          todayStart.setHours(0, 0, 0, 0)
+          const todayEnd = new Date(now)
+          todayEnd.setHours(23, 59, 59, 999)
 
-        const todayEvents = await getCalendarEvents(
-          Math.floor(todayStart.getTime() / 1000),
-          Math.floor(todayEnd.getTime() / 1000),
-        )
+          const todayEvents = await getCalendarEvents(
+            Math.floor(todayStart.getTime() / 1000),
+            Math.floor(todayEnd.getTime() / 1000),
+          )
 
-        if (todayEvents?.length) {
-          // Find the first future meeting today
-          const nowTimestamp = Math.floor(now.getTime() / 1000)
-          const futureMeetings = (todayEvents as CalendarEvents[])
-            .filter((e: CalendarEvents) => e.start && e.start > nowTimestamp)
-            .sort((a: CalendarEvents, b: CalendarEvents) => (a.start || 0) - (b.start || 0))
+          if (todayEvents?.length) {
+            // Find the first future meeting today
+            const nowTimestamp = Math.floor(now.getTime() / 1000)
+            const futureMeetings = (todayEvents as CalendarEvents[])
+              .filter((e: CalendarEvents) => e.start && e.start > nowTimestamp)
+              .sort(
+                (a: CalendarEvents, b: CalendarEvents) => (a.start || 0) - (b.start || 0),
+              )
 
-          if (futureMeetings.length > 0) {
-            const firstMeetingStart = futureMeetings[0].start! * 1000
-            const minutesUntilFirstMeeting =
-              (firstMeetingStart - now.getTime()) / (1000 * 60)
+            if (futureMeetings.length > 0) {
+              const firstMeetingStart = futureMeetings[0].start! * 1000
+              const minutesUntilFirstMeeting =
+                (firstMeetingStart - now.getTime()) / (1000 * 60)
 
-            // Trigger 25-35 minutes before first meeting
-            if (minutesUntilFirstMeeting >= 25 && minutesUntilFirstMeeting <= 35) {
-              shouldTrigger = true
+              // Trigger 25-35 minutes before first meeting
+              if (minutesUntilFirstMeeting >= 25 && minutesUntilFirstMeeting <= 35) {
+                shouldTrigger = true
+              }
             }
+          }
+
+          // Fallback: if it's 9:00 AM and no meeting-based trigger happened
+          if (!shouldTrigger && currentHour === 9 && currentMinute === 0) {
+            shouldTrigger = true
+          }
+        } catch (err) {
+          // If calendar check fails, fall back to 9 AM
+          if (currentHour === 9 && currentMinute === 0) {
+            shouldTrigger = true
           }
         }
 
-        // Fallback: if it's 9:00 AM and no meeting-based trigger happened
-        if (!shouldTrigger && currentHour === 9 && currentMinute === 0) {
-          shouldTrigger = true
-        }
-      } catch (err) {
-        // If calendar check fails, fall back to 9 AM
-        if (currentHour === 9 && currentMinute === 0) {
-          shouldTrigger = true
-        }
+        if (!shouldTrigger) return
+
+        const canSend = await canSendNotification('medium')
+        if (!canSend) return
+
+        // Mark morning briefing as sent for today
+        await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, today)
       }
-
-      if (!shouldTrigger) return
-
-      const canSend = await canSendNotification('medium')
-      if (!canSend) return
-
-      // Mark morning briefing as sent for today
-      await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, today)
 
       const context = await gatherFullContext()
       if (!context) return
