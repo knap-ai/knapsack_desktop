@@ -5,7 +5,9 @@
 //! - Under bursty workloads (e.g., WhatsApp/iMessage gateways), that can create
 //!   reconnect storms, TIME_WAIT buildup, and general port sadness.
 //!
-//! This module provides a single shared connection with a bounded request queue.
+//! This module provides a single shared connection with:
+//! - bounded in-flight requests (backpressure)
+//! - a simple circuit breaker (avoid thrash when gateway is down)
 
 use futures_util::{SinkExt, StreamExt};
 use once_cell::sync::OnceCell;
@@ -14,7 +16,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::{Mutex, oneshot};
+use std::time::{Duration, Instant};
+use tokio::sync::{Mutex, Semaphore, oneshot};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::clawd::gateway_supervisor;
@@ -22,6 +25,13 @@ use crate::clawd::gateway_supervisor;
 const GATEWAY_WS_URL: &str = "ws://127.0.0.1:18789";
 const PROTOCOL_VERSION: u32 = 3;
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
+
+// Backpressure: cap concurrent in-flight requests.
+const MAX_IN_FLIGHT: usize = 64;
+
+// Circuit breaker: trip after N consecutive failures, cool down for a bit.
+const BREAKER_TRIP_AFTER: u32 = 5;
+const BREAKER_COOLDOWN: Duration = Duration::from_secs(20);
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 fn next_request_id() -> String {
@@ -106,6 +116,42 @@ struct Pending {
   tx: oneshot::Sender<Result<Value, String>>,
 }
 
+#[derive(Default)]
+struct CircuitBreaker {
+  consecutive_failures: u32,
+  open_until: Option<Instant>,
+}
+
+impl CircuitBreaker {
+  fn allow(&self) -> bool {
+    match self.open_until {
+      None => true,
+      Some(t) => Instant::now() >= t,
+    }
+  }
+
+  fn on_success(&mut self) {
+    self.consecutive_failures = 0;
+    self.open_until = None;
+  }
+
+  fn on_failure(&mut self) {
+    self.consecutive_failures = self.consecutive_failures.saturating_add(1);
+    if self.consecutive_failures >= BREAKER_TRIP_AFTER {
+      self.open_until = Some(Instant::now() + BREAKER_COOLDOWN);
+    }
+  }
+
+  fn state_string(&self) -> String {
+    if let Some(t) = self.open_until {
+      if Instant::now() < t {
+        return format!("open until {:?}", t);
+      }
+    }
+    format!("closed (failures={})", self.consecutive_failures)
+  }
+}
+
 struct GatewayClient {
   write: Mutex<
     futures_util::stream::SplitSink<
@@ -114,6 +160,8 @@ struct GatewayClient {
     >,
   >,
   pending: Mutex<HashMap<String, Pending>>,
+  in_flight: Semaphore,
+  breaker: Mutex<CircuitBreaker>,
 }
 
 static CLIENT: OnceCell<Arc<GatewayClient>> = OnceCell::new();
@@ -132,7 +180,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   let (mut write, mut read) = ws_stream.split();
 
   // Wait for connect.challenge
-  let challenge_msg = tokio::time::timeout(std::time::Duration::from_secs(10), read.next())
+  let challenge_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
     .await
     .map_err(|_| "Timeout waiting for challenge")?
     .ok_or("Connection closed before challenge")?
@@ -180,7 +228,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     .map_err(|e| format!("Failed to send connect: {}", e))?;
 
   // Wait for connect response
-  let connect_resp_msg = tokio::time::timeout(std::time::Duration::from_secs(10), read.next())
+  let connect_resp_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
     .await
     .map_err(|_| "Timeout waiting for connect response")?
     .ok_or("Connection closed before connect response")?
@@ -204,6 +252,8 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   let client = Arc::new(GatewayClient {
     write: Mutex::new(write),
     pending: Mutex::new(HashMap::new()),
+    in_flight: Semaphore::new(MAX_IN_FLIGHT),
+    breaker: Mutex::new(CircuitBreaker::default()),
   });
 
   // Spawn read loop
@@ -247,8 +297,34 @@ async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
 }
 
 /// Make a request using a persistent gateway connection.
-pub async fn gateway_request_pooled(method: &str, params: Option<Value>, token: &str) -> Result<Value, String> {
+///
+/// Adds:
+/// - bounded in-flight requests (backpressure)
+/// - circuit breaker to avoid thrashing when gateway is down
+pub async fn gateway_request_pooled(
+  method: &str,
+  params: Option<Value>,
+  token: &str,
+) -> Result<Value, String> {
   let client = get_or_connect(token).await?;
+
+  // Circuit breaker check
+  {
+    let breaker = client.breaker.lock().await;
+    if !breaker.allow() {
+      return Err(format!(
+        "Gateway circuit breaker is open ({})",
+        breaker.state_string()
+      ));
+    }
+  }
+
+  // Backpressure: acquire an in-flight permit.
+  let permit = client
+    .in_flight
+    .acquire()
+    .await
+    .map_err(|_| "Gateway request queue closed".to_string())?;
 
   let id = next_request_id();
   let frame = RequestFrame {
@@ -264,16 +340,44 @@ pub async fn gateway_request_pooled(method: &str, params: Option<Value>, token: 
     pending.insert(id.clone(), Pending { tx });
   }
 
-  {
+  let send_res = {
     let mut write = client.write.lock().await;
     write
       .send(Message::Text(serde_json::to_string(&frame).unwrap()))
       .await
-      .map_err(|e| format!("Failed to send request: {}", e))?;
+      .map_err(|e| format!("Failed to send request: {}", e))
+  };
+
+  if let Err(e) = send_res {
+    // Remove pending entry and mark breaker failure.
+    {
+      let mut pending = client.pending.lock().await;
+      pending.remove(&id);
+    }
+    {
+      let mut breaker = client.breaker.lock().await;
+      breaker.on_failure();
+    }
+    drop(permit);
+    return Err(e);
   }
 
-  tokio::time::timeout(std::time::Duration::from_secs(30), rx)
+  let out = tokio::time::timeout(Duration::from_secs(30), rx)
     .await
-    .map_err(|_| "Timeout waiting for response")?
-    .map_err(|_| "Gateway response channel closed".to_string())?
+    .map_err(|_| "Timeout waiting for response".to_string())
+    .and_then(|r| r.map_err(|_| "Gateway response channel closed".to_string()))
+    .and_then(|r| r);
+
+  // Update breaker state based on outcome.
+  {
+    let mut breaker = client.breaker.lock().await;
+    if out.is_ok() {
+      breaker.on_success();
+    } else {
+      breaker.on_failure();
+    }
+  }
+
+  drop(permit);
+  out
 }
