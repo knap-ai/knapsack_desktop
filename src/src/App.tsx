@@ -534,6 +534,8 @@ function App() {
           await syncMeetings()
           await scheduleRuns(userEmail)
           await syncAutomations()
+          // Check for upcoming meetings that need prep notifications
+          backgroundNotificationsRef.current.handleCalendarSyncComplete()
         }
       },
     )
@@ -588,6 +590,8 @@ function App() {
       async (event: Event<{ success: boolean }>) => {
         if (event.payload.success) {
           await feedRef.current.runEmailAutopilot()
+          // Check if new emails warrant a background notification
+          backgroundNotificationsRef.current.handleEmailSyncComplete()
         }
       },
     )
@@ -731,7 +735,9 @@ function App() {
   })
 
   const {
-    handleBackgroundInsightNotification,
+    checkMorningBriefing,
+    handleEmailSyncComplete,
+    handleCalendarSyncComplete,
     handlePostMeetingFollowup,
     createInsightFeedItem,
     createFollowupFeedItem,
@@ -741,6 +747,18 @@ function App() {
     openNotificationWindow,
     addToLLMQueue,
   })
+
+  // Use refs for background notification handlers to avoid stale closures in event listeners
+  const backgroundNotificationsRef = useRef({
+    handleEmailSyncComplete: async () => {},
+    handleCalendarSyncComplete: async () => {},
+  })
+  useEffect(() => {
+    backgroundNotificationsRef.current = {
+      handleEmailSyncComplete,
+      handleCalendarSyncComplete,
+    }
+  }, [handleEmailSyncComplete, handleCalendarSyncComplete])
 
   const { feed, syncMeetings, handleAutomationsFeedScheduleService, updateMeetingStatuses } =
     useFeed(
@@ -769,14 +787,14 @@ function App() {
 
       handleNotificationsScheduleService(date)
       handleAutomationsFeedScheduleService(date)
-      handleBackgroundInsightNotification(date)
+      checkMorningBriefing(date)
       updateMeetingStatuses(currentTime)
     }, MINUTE_MS)
 
     return () => {
       clearInterval(minuteInterval)
     }
-  }, [userEmail, handleBackgroundInsightNotification])
+  }, [userEmail, checkMorningBriefing])
 
   // TODO test this hook the refresh don't look being working as expected
   useEffect(() => {

@@ -5,13 +5,17 @@ import { insertFeedItemAPI } from 'src/api/feed_items'
 import { insertSystemMessage } from 'src/api/automations'
 import { getTranscript } from 'src/api/transcripts'
 import { createThread, ThreadType } from 'src/api/threads'
-import { BACKGROUND_INSIGHTS_PROMPT, POST_MEETING_FOLLOWUP_PROMPT } from 'src/prompts'
+import {
+  MORNING_BRIEFING_PROMPT,
+  EMAIL_ALERT_PROMPT,
+  PRE_MEETING_PREP_PROMPT,
+  POST_MEETING_FOLLOWUP_PROMPT,
+} from 'src/prompts'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
+import { CalendarEvents } from 'src/hooks/dataSources/useCalendar'
 import { logError } from 'src/utils/errorHandling'
 import {
   getBackgroundNotificationsEnabled,
-  getBackgroundNotificationHours,
-  getBackgroundNotificationsLastRun,
   setBackgroundNotificationsLastRun,
   getPostMeetingFollowupEnabled,
 } from 'src/utils/settings'
@@ -19,6 +23,7 @@ import { arePushNotificationsOSEnabledAndWantedByUser } from 'src/utils/permissi
 import { ButtonConfig } from 'src/components/molecules/MeetingNotification'
 import { LLMParams } from 'src/App'
 import KNAnalytics from 'src/utils/KNAnalytics'
+import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 
 type BackgroundNotificationResult = {
   notificationTitle: string
@@ -28,6 +33,7 @@ type BackgroundNotificationResult = {
   priority?: string
   actionItemCount?: number
   meetingTitle?: string
+  shouldNotify?: boolean
 }
 
 type UseBackgroundNotificationsProps = {
@@ -42,8 +48,20 @@ type UseBackgroundNotificationsProps = {
   addToLLMQueue: (item: LLMParams) => void
 }
 
-// Minimum hours between background insight runs (to prevent spamming)
-const MIN_HOURS_BETWEEN_RUNS = 4
+// Adaptive throttle: minimum minutes between notifications by priority
+const THROTTLE_MINUTES = {
+  high: 30,
+  medium: 90,
+  low: 120,
+}
+
+// Maximum background notifications per day (excludes post-meeting follow-ups)
+const MAX_DAILY_NOTIFICATIONS = 6
+
+// LocalStorage keys for notification state
+const KN_MORNING_BRIEFING_DATE = 'kn_morning_briefing_date'
+const KN_DAILY_NOTIFICATION_COUNT = 'kn_daily_notification_count'
+const KN_DAILY_NOTIFICATION_DATE = 'kn_daily_notification_date'
 
 export function useBackgroundNotifications({
   userEmail,
@@ -52,15 +70,99 @@ export function useBackgroundNotifications({
   addToLLMQueue,
 }: UseBackgroundNotificationsProps) {
   const dataFetcher = useMemo(() => new DataFetcher(), [])
-  const [isGeneratingInsight, setIsGeneratingInsight] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const pendingInsightRef = useRef<BackgroundNotificationResult | null>(null)
   const pendingFollowupRef = useRef<BackgroundNotificationResult | null>(null)
+  const lastNotificationTimeRef = useRef<number>(0)
+  const preppedMeetingIdsRef = useRef<Set<string>>(new Set())
+  const processingLockRef = useRef<boolean>(false)
 
   /**
-   * Gather context from all data sources for background insights.
-   * Collects recent emails, upcoming calendar events, and today's full schedule.
+   * Check if we can send a notification given the priority and daily limits.
+   * Uses adaptive throttling: high-priority notifications can fire more frequently.
    */
-  const gatherInsightContext = useCallback(async (): Promise<string> => {
+  const canSendNotification = useCallback(
+    async (priority: string): Promise<boolean> => {
+      const enabled = await getBackgroundNotificationsEnabled()
+      if (!enabled) return false
+
+      const notificationsEnabled = await arePushNotificationsOSEnabledAndWantedByUser()
+      if (!notificationsEnabled) return false
+
+      // Check throttle based on priority
+      const now = Date.now()
+      const minutesSinceLast = (now - lastNotificationTimeRef.current) / (1000 * 60)
+      const minMinutes =
+        THROTTLE_MINUTES[priority as keyof typeof THROTTLE_MINUTES] || THROTTLE_MINUTES.medium
+      if (minutesSinceLast < minMinutes) return false
+
+      // Check daily limit
+      const today = dayjs().format('YYYY-MM-DD')
+      const storedDate = await KNLocalStorage.getItem(KN_DAILY_NOTIFICATION_DATE)
+      let dailyCount = 0
+      if (storedDate === today) {
+        dailyCount = (await KNLocalStorage.getItem(KN_DAILY_NOTIFICATION_COUNT)) || 0
+      }
+      if (dailyCount >= MAX_DAILY_NOTIFICATIONS) return false
+
+      return true
+    },
+    [],
+  )
+
+  /**
+   * Record that a notification was sent. Updates throttle timer and daily count.
+   */
+  const recordNotification = useCallback(async (type: string) => {
+    lastNotificationTimeRef.current = Date.now()
+
+    const today = dayjs().format('YYYY-MM-DD')
+    const storedDate = await KNLocalStorage.getItem(KN_DAILY_NOTIFICATION_DATE)
+    let dailyCount = 0
+    if (storedDate === today) {
+      dailyCount = (await KNLocalStorage.getItem(KN_DAILY_NOTIFICATION_COUNT)) || 0
+    }
+    await KNLocalStorage.setItem(KN_DAILY_NOTIFICATION_DATE, today)
+    await KNLocalStorage.setItem(KN_DAILY_NOTIFICATION_COUNT, dailyCount + 1)
+    await setBackgroundNotificationsLastRun(new Date().toISOString())
+
+    KNAnalytics.trackEvent('backgroundNotification', {
+      type,
+      timestamp: dayjs().format('MM/DD/YYYY HH:mm:ss'),
+    })
+  }, [])
+
+  /**
+   * Parse LLM JSON response, handling markdown code fences.
+   */
+  const parseLLMResponse = useCallback(
+    (response: string): BackgroundNotificationResult | null => {
+      try {
+        let cleaned = response.trim()
+        if (cleaned.startsWith('```json')) {
+          cleaned = cleaned.slice(7)
+        } else if (cleaned.startsWith('```')) {
+          cleaned = cleaned.slice(3)
+        }
+        if (cleaned.endsWith('```')) {
+          cleaned = cleaned.slice(0, -3)
+        }
+        cleaned = cleaned.trim()
+
+        return JSON.parse(cleaned) as BackgroundNotificationResult
+      } catch (err) {
+        console.error('Failed to parse background notification LLM response:', err)
+        return null
+      }
+    },
+    [],
+  )
+
+  /**
+   * Gather comprehensive context from all data sources (emails, calendar, meetings).
+   * Used for morning briefing which needs a full picture.
+   */
+  const gatherFullContext = useCallback(async (): Promise<string> => {
     const contextParts: string[] = []
 
     // Fetch recent emails (last 2 days, up to 15)
@@ -80,7 +182,7 @@ export function useBackgroundNotifications({
       console.warn('Failed to fetch emails for background insight:', err)
     }
 
-    // Fetch today's full calendar events for a comprehensive view
+    // Fetch today's full calendar
     try {
       const todayStart = new Date()
       todayStart.setHours(0, 0, 0, 0)
@@ -115,7 +217,7 @@ export function useBackgroundNotifications({
       console.warn('Failed to fetch today calendar events:', err)
     }
 
-    // Fetch upcoming meetings (next 3)
+    // Fetch upcoming meetings
     try {
       const upcomingMeetings = await dataFetcher.getRecentCalendarEvents()
       if (upcomingMeetings?.length) {
@@ -132,169 +234,347 @@ export function useBackgroundNotifications({
       console.warn('Failed to fetch upcoming meetings for background insight:', err)
     }
 
-    if (contextParts.length === 0) {
-      return ''
-    }
-
+    if (contextParts.length === 0) return ''
     return contextParts.join('\n')
   }, [dataFetcher])
 
   /**
-   * Parse LLM JSON response, handling markdown code fences.
+   * Gather email-focused context for email alert notifications.
+   * Only includes recent emails (last 6 hours) to focus on what just arrived.
    */
-  const parseLLMResponse = useCallback(
-    (response: string): BackgroundNotificationResult | null => {
+  const gatherEmailContext = useCallback(
+    async (): Promise<{ context: string; emailCount: number }> => {
       try {
-        let cleaned = response.trim()
-        if (cleaned.startsWith('```json')) {
-          cleaned = cleaned.slice(7)
-        } else if (cleaned.startsWith('```')) {
-          cleaned = cleaned.slice(3)
-        }
-        if (cleaned.endsWith('```')) {
-          cleaned = cleaned.slice(0, -3)
-        }
-        cleaned = cleaned.trim()
+        const emails = await dataFetcher.getRecentGmailMessages(1, 20)
+        if (!emails?.length) return { context: '', emailCount: 0 }
 
-        return JSON.parse(cleaned) as BackgroundNotificationResult
+        // Filter to recent emails (last 6 hours)
+        const sixHoursAgo = Date.now() / 1000 - 6 * 3600
+        const recentEmails = emails.filter(e => e.date > sixHoursAgo)
+        if (!recentEmails.length) return { context: '', emailCount: 0 }
+
+        const contextParts: string[] = ['## Recent Emails (Last 6 Hours)\n']
+        for (const email of recentEmails.slice(0, 10)) {
+          const dateStr = new Date(email.date * 1000).toLocaleString()
+          const preview = (email.summary || email.body || '').slice(0, 300)
+          contextParts.push(
+            `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
+          )
+        }
+
+        return { context: contextParts.join('\n'), emailCount: recentEmails.length }
       } catch (err) {
-        console.error('Failed to parse background notification LLM response:', err)
-        return null
+        console.warn('Failed to gather email context:', err)
+        return { context: '', emailCount: 0 }
       }
     },
-    [],
+    [dataFetcher],
   )
 
   /**
-   * Check if it's time to show a background insight notification.
-   * Triggers at configured hours (default 9 AM and 2 PM), with a minimum gap
-   * of MIN_HOURS_BETWEEN_RUNS to prevent duplicate notifications.
+   * Gather context for a specific meeting prep notification.
+   * Includes meeting details and recent emails with attendees.
    */
-  const shouldShowBackgroundInsight = useCallback(async (now: Date): Promise<boolean> => {
-    const enabled = await getBackgroundNotificationsEnabled()
-    if (!enabled) return false
+  const gatherMeetingPrepContext = useCallback(
+    async (meeting: {
+      title: string
+      start: Date
+      participants?: { name: string; email: string }[]
+      description?: string
+    }): Promise<string> => {
+      const contextParts: string[] = []
 
-    const notificationsEnabled = await arePushNotificationsOSEnabledAndWantedByUser()
-    if (!notificationsEnabled) return false
-
-    const scheduledHours = await getBackgroundNotificationHours()
-    const currentHour = now.getHours()
-    const currentMinute = now.getMinutes()
-
-    // Only trigger at the exact scheduled hour (within first minute of the hour)
-    if (!scheduledHours.includes(currentHour) || currentMinute !== 0) {
-      return false
-    }
-
-    // Check last run to prevent duplicates
-    const lastRunStr = await getBackgroundNotificationsLastRun()
-    if (lastRunStr) {
-      const lastRun = new Date(lastRunStr)
-      const hoursSinceLastRun = (now.getTime() - lastRun.getTime()) / (1000 * 60 * 60)
-      if (hoursSinceLastRun < MIN_HOURS_BETWEEN_RUNS) {
-        return false
+      const startTime = dayjs(meeting.start).format('h:mm A')
+      const participantNames =
+        meeting.participants?.map(p => p.name || p.email).join(', ') || 'N/A'
+      contextParts.push('## Upcoming Meeting\n')
+      contextParts.push(`- **Title:** ${meeting.title}`)
+      contextParts.push(`- **Time:** ${startTime}`)
+      contextParts.push(`- **Participants:** ${participantNames}`)
+      if (meeting.description) {
+        contextParts.push(`- **Description:** ${meeting.description}`)
       }
-    }
 
-    return true
-  }, [])
+      // Fetch recent emails from meeting participants for context
+      if (meeting.participants?.length) {
+        try {
+          const addresses = meeting.participants.map(p => p.email)
+          const participantEmails =
+            await dataFetcher.getGmailSearchResultsByAddresses(addresses)
+          if (participantEmails?.length) {
+            contextParts.push('\n## Recent Emails with Attendees\n')
+            for (const email of participantEmails.slice(0, 5)) {
+              const dateStr = new Date(email.date * 1000).toLocaleString()
+              const preview = (email.summary || email.body || '').slice(0, 200)
+              contextParts.push(
+                `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
+              )
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to fetch participant emails:', err)
+        }
+      }
+
+      return contextParts.join('\n')
+    },
+    [dataFetcher],
+  )
 
   /**
-   * Generate and show a background insight notification.
-   * Called every minute from the main polling loop - only triggers at scheduled hours.
+   * Internal helper: generate an LLM-based notification and show it.
+   * Handles the full flow: LLM call → parse → show notification window.
    */
-  const handleBackgroundInsightNotification = useCallback(
-    async (now: Date) => {
-      if (isGeneratingInsight || !userEmail) return
-
-      const shouldShow = await shouldShowBackgroundInsight(now)
-      if (!shouldShow) return
-
-      setIsGeneratingInsight(true)
+  const generateAndShowNotification = useCallback(
+    async (
+      context: string,
+      promptTemplate: string,
+      notificationType: string,
+      buttonHandler: string,
+      buttonText: string,
+    ) => {
+      if (processingLockRef.current) return
+      processingLockRef.current = true
+      setIsProcessing(true)
 
       try {
-        // Record the run time immediately to prevent duplicate triggers
-        await setBackgroundNotificationsLastRun(now.toISOString())
-
-        // Gather context from data sources
-        const context = await gatherInsightContext()
-        if (!context) {
-          setIsGeneratingInsight(false)
-          return
-        }
-
-        // Build the prompt with context
-        const prompt =
+        const fullPrompt =
           context +
           '\n\n' +
-          BACKGROUND_INSIGHTS_PROMPT.replace('{userName}', userName).replace(
-            '{userEmail}',
-            userEmail,
-          )
+          promptTemplate
+            .replace('{userName}', userName)
+            .replace('{userEmail}', userEmail)
 
-        KNAnalytics.trackEvent('backgroundInsightGeneration', {
-          timestamp: dayjs(now).format('MM/DD/YYYY HH:mm:ss'),
-        })
-
-        // Use LLM to generate the insight
         addToLLMQueue({
-          prompt,
+          prompt: fullPrompt,
           documents: [],
           messageStreamCallback: () => {},
           messageFinishCallback: async (response: string) => {
-            setIsGeneratingInsight(false)
+            processingLockRef.current = false
+            setIsProcessing(false)
             const parsed = parseLLMResponse(response)
+            if (!parsed) return response
 
-            if (parsed) {
-              pendingInsightRef.current = parsed
-
-              // Show the notification window
-              await openNotificationWindow(
-                undefined,
-                [
-                  {
-                    buttonText: 'View Details',
-                    buttonHandler: 'background_insight_notification_handler',
-                  },
-                  {
-                    buttonText: 'Dismiss',
-                    buttonHandler: 'dismiss_notification_handler',
-                  },
-                ],
-                parsed.notificationTitle,
-                parsed.notificationBody,
-              )
+            // For email alerts, respect the shouldNotify flag from the LLM
+            if (notificationType === 'email_alert' && parsed.shouldNotify === false) {
+              return response
             }
+
+            pendingInsightRef.current = parsed
+            await recordNotification(notificationType)
+
+            await openNotificationWindow(
+              undefined,
+              [
+                { buttonText, buttonHandler },
+                { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+              ],
+              parsed.notificationTitle,
+              parsed.notificationBody,
+            )
             return response
           },
           errorCallback: () => {
-            setIsGeneratingInsight(false)
-            console.error('Failed to generate background insight')
+            processingLockRef.current = false
+            setIsProcessing(false)
+            console.error(`Failed to generate ${notificationType} notification`)
           },
         })
       } catch (error) {
-        setIsGeneratingInsight(false)
-        logError(new Error('Error generating background insight'), {
-          additionalInfo: 'Error in handleBackgroundInsightNotification',
+        processingLockRef.current = false
+        setIsProcessing(false)
+        logError(new Error(`Error generating ${notificationType}`), {
+          additionalInfo: `Error in generateAndShowNotification for ${notificationType}`,
           error: String(error),
         })
       }
     },
     [
-      isGeneratingInsight,
-      userEmail,
       userName,
-      shouldShowBackgroundInsight,
-      gatherInsightContext,
+      userEmail,
       addToLLMQueue,
       openNotificationWindow,
       parseLLMResponse,
+      recordNotification,
     ],
   )
 
   /**
-   * Handle the post-meeting follow-up notification after a recording stops.
-   * Fetches the transcript for the given thread and generates follow-up suggestions.
+   * EVENT TRIGGER: Email sync completed.
+   * Called when the `finish_fetch_email` event fires with new emails.
+   * Checks if any recent emails warrant a notification.
+   */
+  const handleEmailSyncComplete = useCallback(async () => {
+    if (!userEmail || processingLockRef.current) return
+
+    const canSend = await canSendNotification('medium')
+    if (!canSend) return
+
+    const { context, emailCount } = await gatherEmailContext()
+    if (!context || emailCount === 0) return
+
+    await generateAndShowNotification(
+      context,
+      EMAIL_ALERT_PROMPT,
+      'email_alert',
+      'background_insight_notification_handler',
+      'View Details',
+    )
+  }, [userEmail, canSendNotification, gatherEmailContext, generateAndShowNotification])
+
+  /**
+   * EVENT TRIGGER: Calendar sync completed.
+   * Called when the `finish_fetch_calendar` event fires.
+   * Checks for upcoming meetings that need preparation.
+   */
+  const handleCalendarSyncComplete = useCallback(async () => {
+    if (!userEmail || processingLockRef.current) return
+
+    try {
+      const upcomingMeetings = await dataFetcher.getRecentCalendarEvents()
+      if (!upcomingMeetings?.length) return
+
+      const now = new Date()
+      const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000)
+      const fifteenMinFromNow = new Date(now.getTime() + 15 * 60 * 1000)
+
+      // Find meetings starting in the next 15-30 minutes with multiple attendees
+      const meetingNeedingPrep = upcomingMeetings.find(meeting => {
+        const meetingStart = new Date(meeting.start)
+        const hasMultipleAttendees = (meeting.participants?.length || 0) >= 2
+        const isInWindow =
+          meetingStart >= fifteenMinFromNow && meetingStart <= thirtyMinFromNow
+        const meetingKey = meeting.eventId || String(meeting.id)
+        const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
+        return hasMultipleAttendees && isInWindow && notAlreadyPrepped
+      })
+
+      if (!meetingNeedingPrep) return
+
+      const canSend = await canSendNotification('high')
+      if (!canSend) return
+
+      // Mark meeting as prepped to avoid duplicate notifications
+      const meetingKey =
+        meetingNeedingPrep.eventId || String(meetingNeedingPrep.id)
+      preppedMeetingIdsRef.current.add(meetingKey)
+
+      const context = await gatherMeetingPrepContext(meetingNeedingPrep)
+
+      await generateAndShowNotification(
+        context,
+        PRE_MEETING_PREP_PROMPT,
+        'pre_meeting_prep',
+        'background_insight_notification_handler',
+        'View Prep',
+      )
+    } catch (error) {
+      logError(new Error('Error in handleCalendarSyncComplete'), {
+        additionalInfo: 'Error checking for meeting prep notifications',
+        error: String(error),
+      })
+    }
+  }, [
+    userEmail,
+    dataFetcher,
+    canSendNotification,
+    gatherMeetingPrepContext,
+    generateAndShowNotification,
+  ])
+
+  /**
+   * TIMER TRIGGER: Morning briefing check.
+   * Called every minute from the main polling loop.
+   * Triggers once daily, adaptively timed:
+   *   - 30 minutes before the first meeting of the day, OR
+   *   - At 9:00 AM as a fallback if no meetings
+   * Only active during 7:00 AM - 11:00 AM.
+   */
+  const checkMorningBriefing = useCallback(
+    async (now: Date) => {
+      if (!userEmail || processingLockRef.current) return
+
+      // Check if already sent today
+      const today = dayjs(now).format('YYYY-MM-DD')
+      const morningBriefingDate = await KNLocalStorage.getItem(KN_MORNING_BRIEFING_DATE)
+      if (morningBriefingDate === today) return
+
+      const currentHour = now.getHours()
+      const currentMinute = now.getMinutes()
+
+      // Only check during morning hours (7 AM - 11 AM)
+      if (currentHour < 7 || currentHour > 11) return
+
+      let shouldTrigger = false
+
+      try {
+        // Look at today's calendar to find the first meeting
+        const todayStart = new Date(now)
+        todayStart.setHours(0, 0, 0, 0)
+        const todayEnd = new Date(now)
+        todayEnd.setHours(23, 59, 59, 999)
+
+        const todayEvents = await getCalendarEvents(
+          Math.floor(todayStart.getTime() / 1000),
+          Math.floor(todayEnd.getTime() / 1000),
+        )
+
+        if (todayEvents?.length) {
+          // Find the first future meeting today
+          const nowTimestamp = Math.floor(now.getTime() / 1000)
+          const futureMeetings = (todayEvents as CalendarEvents[])
+            .filter((e: CalendarEvents) => e.start && e.start > nowTimestamp)
+            .sort((a: CalendarEvents, b: CalendarEvents) => (a.start || 0) - (b.start || 0))
+
+          if (futureMeetings.length > 0) {
+            const firstMeetingStart = futureMeetings[0].start! * 1000
+            const minutesUntilFirstMeeting =
+              (firstMeetingStart - now.getTime()) / (1000 * 60)
+
+            // Trigger 25-35 minutes before first meeting
+            if (minutesUntilFirstMeeting >= 25 && minutesUntilFirstMeeting <= 35) {
+              shouldTrigger = true
+            }
+          }
+        }
+
+        // Fallback: if it's 9:00 AM and no meeting-based trigger happened
+        if (!shouldTrigger && currentHour === 9 && currentMinute === 0) {
+          shouldTrigger = true
+        }
+      } catch (err) {
+        // If calendar check fails, fall back to 9 AM
+        if (currentHour === 9 && currentMinute === 0) {
+          shouldTrigger = true
+        }
+      }
+
+      if (!shouldTrigger) return
+
+      const canSend = await canSendNotification('medium')
+      if (!canSend) return
+
+      // Mark morning briefing as sent for today
+      await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, today)
+
+      const context = await gatherFullContext()
+      if (!context) return
+
+      await generateAndShowNotification(
+        context,
+        MORNING_BRIEFING_PROMPT,
+        'morning_briefing',
+        'background_insight_notification_handler',
+        'View Briefing',
+      )
+    },
+    [userEmail, canSendNotification, gatherFullContext, generateAndShowNotification],
+  )
+
+  /**
+   * EVENT TRIGGER: Post-meeting follow-up.
+   * Called when the `notes_synthesized` event fires after a recording stops.
+   * Fetches the transcript and generates follow-up suggestions.
    */
   const handlePostMeetingFollowup = useCallback(
     async (meetingTitle: string, threadId: number) => {
@@ -307,10 +587,8 @@ export function useBackgroundNotifications({
       if (!notificationsEnabled) return
 
       try {
-        // Fetch the transcript for the meeting
         const transcript = await getTranscript(threadId)
         if (!transcript?.content || transcript.content.trim().length < 100) {
-          // Transcript too short to generate meaningful follow-ups
           return
         }
 
@@ -337,6 +615,7 @@ export function useBackgroundNotifications({
 
             if (parsed) {
               pendingFollowupRef.current = parsed
+              await recordNotification('post_meeting_followup')
 
               await openNotificationWindow(
                 undefined,
@@ -367,12 +646,19 @@ export function useBackgroundNotifications({
         })
       }
     },
-    [userEmail, userName, addToLLMQueue, openNotificationWindow, parseLLMResponse],
+    [
+      userEmail,
+      userName,
+      addToLLMQueue,
+      openNotificationWindow,
+      parseLLMResponse,
+      recordNotification,
+    ],
   )
 
   /**
-   * Create a feed item with the full analysis when a background insight
-   * notification is clicked. Returns the feed item ID for navigation.
+   * Create a feed item with the full analysis when a background notification
+   * is clicked. Returns the feed item ID for navigation.
    */
   const createInsightFeedItem = useCallback(async (): Promise<number | undefined> => {
     const insight = pendingInsightRef.current
@@ -454,10 +740,12 @@ export function useBackgroundNotifications({
   }, [])
 
   return {
-    handleBackgroundInsightNotification,
+    checkMorningBriefing,
+    handleEmailSyncComplete,
+    handleCalendarSyncComplete,
     handlePostMeetingFollowup,
     createInsightFeedItem,
     createFollowupFeedItem,
-    isGeneratingInsight,
+    isGeneratingInsight: isProcessing,
   }
 }
