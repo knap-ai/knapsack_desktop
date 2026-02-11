@@ -347,9 +347,9 @@ const TokenCostsView: React.FC = () => {
                 <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px] mr-2">
                   {m.model}
                 </span>
-                <span className="text-gray-500">{m.request_count} calls</span>
+                <span className="text-gray-500">{m.request_count ?? 0} calls</span>
                 <span className="text-gray-400 mx-1">&middot;</span>
-                <span className="text-gray-700 font-mono">${m.total_cost_usd.toFixed(4)}</span>
+                <span className="text-gray-700 font-mono">${(m.total_cost_usd ?? 0).toFixed(4)}</span>
               </div>
             ))}
           </div>
@@ -383,7 +383,7 @@ const TokenCostsView: React.FC = () => {
                 {records.map(record => (
                   <tr key={record.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-2 text-gray-500">
-                      {new Date(record.created_at * 1000).toLocaleString()}
+                      {new Date((record.created_at ?? 0) * 1000).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-gray-700">{record.requestType || 'LLM Call'}</td>
                     <td className="px-4 py-2">
@@ -392,13 +392,13 @@ const TokenCostsView: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700 font-mono">
-                      {record.input_tokens.toLocaleString()}
+                      {(record.input_tokens ?? 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700 font-mono">
-                      {record.output_tokens.toLocaleString()}
+                      {(record.output_tokens ?? 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700 font-mono">
-                      ${record.cost_usd.toFixed(6)}
+                      ${(record.cost_usd ?? 0).toFixed(6)}
                     </td>
                   </tr>
                 ))}

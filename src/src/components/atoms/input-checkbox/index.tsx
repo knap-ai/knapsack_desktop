@@ -21,6 +21,7 @@ const InputCheckbox = React.forwardRef<HTMLInputElement, IInputCheckboxProps>(
       children,
       onClick,
     },
+    _ref,
   ): JSX.Element => {
     return (
       <div
