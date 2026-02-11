@@ -365,9 +365,10 @@ export const EmailAutopilot = ({
             </div>
           </div>
         )}
-        {feed.emailAutopilotStatus.status === 'fetching-emails' ||
+        {(feed.emailAutopilotStatus.status === 'fetching-emails' ||
         feed.emailAutopilotStatus.status === 'classifying-emails' ||
-        feed.emailAutopilotStatus.status === 'sync-email' ? (
+        feed.emailAutopilotStatus.status === 'sync-email') &&
+        (!emailsCategory || emailsCategory.length === 0) ? (
           <div className="flex flex-col items-center justify-center mb-8">
             <CircularProgress size="3rem" sx={{ color: '#C14841' }} />
             <Typography className="mt-4 text-gray-500">
