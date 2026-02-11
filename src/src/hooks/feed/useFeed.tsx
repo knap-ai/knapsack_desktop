@@ -1159,8 +1159,11 @@ export function useFeed(
         endOfTomorrow.setHours(0, 0, 0, 0)
         const endOfTomorrowSeconds = endOfTomorrow.getTime() / 1000
 
+        const seenMeetingKeys = new Set<string>()
         Object.entries(meetings).forEach(([_id, meeting]) => {
-          if (meeting.end > nowSeconds && meeting.start < endOfTomorrowSeconds && !existingEventIds.has(meeting.event_id)) {
+          const meetingKey = `${meeting.title}_${meeting.start}`
+          if (meeting.end > nowSeconds && meeting.start < endOfTomorrowSeconds && !existingEventIds.has(meeting.event_id) && !seenMeetingKeys.has(meetingKey)) {
+            seenMeetingKeys.add(meetingKey)
             const feedItem = new FeedItem({
               timestamp: new Date(meeting.start * 1000),
               title: meeting.title,

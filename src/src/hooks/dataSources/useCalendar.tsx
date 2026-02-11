@@ -155,11 +155,16 @@ const useCalendar = () => {
     const updatedMeetings = meetings.reduce(
       (acc: Record<string, Meeting>, meeting: CalendarEvents) => {
         const serializedMeeting = serializeCalendarEventToMeeting(meeting)
-        acc[meeting.id] = {
-          ...serializedMeeting,
-          end: meeting.end,
-          hasEnded: currentTime >= meeting.end,
-          getReadableFormat: serializedMeeting.getReadableFormat,
+        // Deduplicate by title+start so the same meeting synced from multiple
+        // accounts (different event_ids) only appears once.
+        const dedupeKey = `${meeting.title}_${meeting.start}`
+        if (!acc[dedupeKey]) {
+          acc[dedupeKey] = {
+            ...serializedMeeting,
+            end: meeting.end,
+            hasEnded: currentTime >= meeting.end,
+            getReadableFormat: serializedMeeting.getReadableFormat,
+          }
         }
         return acc
       },
