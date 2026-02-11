@@ -295,17 +295,32 @@ const TokenCostsView: React.FC = () => {
   const safeRecords = Array.isArray(records) ? records : []
 
   // Aggregate records by date + model for the line chart
+  // Uses hourly buckets if all data is within a single day, daily buckets otherwise
   const { chartData, modelNames } = useMemo(() => {
     const byDateModel: Record<string, Record<string, number>> = {}
     const models = new Set<string>()
+    // Determine time span to pick granularity
+    let minTs = Infinity, maxTs = 0
     for (const r of safeRecords) {
       const ts = Number(r.timestamp) || 0
       if (ts === 0) continue
-      const date = new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      if (ts < minTs) minTs = ts
+      if (ts > maxTs) maxTs = ts
+    }
+    const spanHours = (maxTs - minTs) / 3600
+    const useHourly = spanHours < 48
+
+    for (const r of safeRecords) {
+      const ts = Number(r.timestamp) || 0
+      if (ts === 0) continue
+      const d = new Date(ts * 1000)
+      const bucket = useHourly
+        ? `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${d.getHours().toString().padStart(2, '0')}:00`
+        : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       const model = r.model || 'unknown'
       models.add(model)
-      if (!byDateModel[date]) byDateModel[date] = {}
-      byDateModel[date][model] = (byDateModel[date][model] || 0) + (Number(r.costUsd) || 0)
+      if (!byDateModel[bucket]) byDateModel[bucket] = {}
+      byDateModel[bucket][model] = (byDateModel[bucket][model] || 0) + (Number(r.costUsd) || 0)
     }
     // Build chart rows sorted chronologically (records are already DESC, so reverse)
     const dates = Object.keys(byDateModel).reverse()
@@ -414,7 +429,7 @@ const TokenCostsView: React.FC = () => {
       )}
 
       {/* Cost over time chart */}
-      {chartData.length > 1 && (
+      {chartData.length > 0 && (
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-2">Cost Over Time by Model</div>
           <div className="bg-white border border-gray-200 rounded-lg p-3">
