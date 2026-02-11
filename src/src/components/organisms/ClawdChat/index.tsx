@@ -564,6 +564,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
   } = props
   const [input, setInput] = useState('')
+  const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -636,7 +637,15 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={e => { setInput(e.target.value); autoResize() }}
+            onChange={e => {
+              if (debugPerf) performance.mark('ks:chatInput:onChange:start')
+              setInput(e.target.value)
+              autoResize()
+              if (debugPerf) {
+                performance.mark('ks:chatInput:onChange:end')
+                performance.measure('ks:chatInput:onChange', 'ks:chatInput:onChange:start', 'ks:chatInput:onChange:end')
+              }
+            }}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
