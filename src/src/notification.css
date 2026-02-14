@@ -61,10 +61,9 @@ html, body {
 }
 
 #notification-root {
-  width: fit-content;
+  width: 100%;
   height: fit-content;
-  min-width: 420px;
-  min-height: 120px;
+  min-height: 80px;
 }
 
 .titlebar {

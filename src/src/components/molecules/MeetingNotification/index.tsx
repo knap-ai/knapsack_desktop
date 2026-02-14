@@ -9,9 +9,8 @@ import { getCurrent, LogicalSize } from '@tauri-apps/api/window'
 
 dayjs.extend(relativeTime)
 
-const MIN_WIDTH = 420
-const MAX_WIDTH = 720
-const MIN_HEIGHT = 120
+const NOTIF_WIDTH = 600 // Must match Rust NOTIF_WIDTH constant
+const MIN_HEIGHT = 80
 const MAX_HEIGHT = 520
 const PADDING = 24
 
@@ -72,11 +71,10 @@ function NotificationWindow() {
     if (!root) return
 
     const resizeWindow = async () => {
-      const contentWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, root.scrollWidth + PADDING))
       const contentHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, root.scrollHeight + PADDING))
 
       const appWindow = getCurrent()
-      await appWindow.setSize(new LogicalSize(contentWidth, contentHeight))
+      await appWindow.setSize(new LogicalSize(NOTIF_WIDTH, contentHeight))
     }
 
     resizeWindow()
@@ -107,8 +105,8 @@ function NotificationWindow() {
   }
 
   return (
-    <div className="inline-flex bg-white rounded-lg overflow-visible">
-      <div className="relative bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-center gap-3 group overflow-visible">
+    <div className="flex bg-white rounded-lg overflow-visible">
+      <div className="relative bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-start gap-3 group overflow-visible">
         <button
           onClick={() => invoke('close_notification_window')}
           className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 p-1"
@@ -141,7 +139,7 @@ function NotificationWindow() {
           <h3 className="text-[14px] font-semibold text-gray-900 truncate">
             {title}
           </h3>
-          <p className="text-sm text-gray-600 truncate">{time}</p>
+          <p className="text-sm text-gray-600 line-clamp-4">{time}</p>
         </div>
         {buttonConfigs.length > 0 && (
           <div
