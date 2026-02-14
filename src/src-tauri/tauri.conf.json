@@ -4,7 +4,8 @@
     "beforeBuildCommand": "cd .. && npm run build",
     "beforeDevCommand": "cd .. && npm run dev",
     "devPath": "http://localhost:1420",
-    "distDir": "../dist"
+    "distDir": "../dist",
+    "withGlobalTauri": true
   },
   "package": {
     "productName": "Knapsack",
