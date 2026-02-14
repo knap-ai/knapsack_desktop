@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 
 import { Connection, ConnectionKeys, connectionsMap } from 'src/api/connections'
+import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
 import { setIsFilesEnabled } from 'src/utils/permissions/files'
@@ -90,6 +91,8 @@ export const SettingsDialog = ({
     has_anthropic_key?: boolean
   } | null>(null)
   const settingsContainerRef = useRef<HTMLDivElement>(null)
+  const channels = useChannelStatus(isOpen)
+  const [channelBusy, setChannelBusy] = useState<string | null>(null)
 
   useEffect(() => {
     if(profile && profile.provider){
@@ -280,6 +283,91 @@ export const SettingsDialog = ({
               </Typography>
             </div>
           </div>
+        </div>
+        <hr className="border-zinc-200" />
+        <div className="p-6 flex flex-col gap-4">
+          <Typography weight={TypographyWeight.medium}>Messaging Channels</Typography>
+          <div className="flex flex-col gap-2">
+            {/* WhatsApp */}
+            <div className="flex justify-between h-[36px] items-center">
+              <div className="flex items-center gap-2">
+                <Typography>WhatsApp</Typography>
+                {channels.whatsapp?.linked && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                    Connected
+                  </span>
+                )}
+                {channels.whatsapp && channels.whatsapp.enabled && !channels.whatsapp.linked && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                    Not linked
+                  </span>
+                )}
+              </div>
+              <Typography
+                className={`cursor-pointer ${styles.link}`}
+                onClick={async () => {
+                  if (channelBusy) return
+                  setChannelBusy('whatsapp')
+                  try {
+                    if (channels.whatsapp?.linked) {
+                      await channels.toggleWhatsApp(false)
+                    } else {
+                      await channels.connectWhatsApp()
+                    }
+                  } finally {
+                    setChannelBusy(null)
+                  }
+                }}
+              >
+                {channelBusy === 'whatsapp'
+                  ? 'Working...'
+                  : channels.whatsapp?.linked
+                    ? 'Disconnect'
+                    : 'Connect'}
+              </Typography>
+            </div>
+            {/* iMessage */}
+            <div className="flex justify-between h-[36px] items-center">
+              <div className="flex items-center gap-2">
+                <Typography>iMessage</Typography>
+                {channels.imessage?.configured && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                    Connected
+                  </span>
+                )}
+                {channels.imessage && channels.imessage.enabled && !channels.imessage.configured && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                    Needs setup
+                  </span>
+                )}
+              </div>
+              <Typography
+                className={`cursor-pointer ${styles.link}`}
+                onClick={async () => {
+                  if (channelBusy) return
+                  setChannelBusy('imessage')
+                  try {
+                    if (channels.imessage?.configured) {
+                      await channels.toggleIMessage(false)
+                    } else {
+                      await channels.connectIMessage()
+                    }
+                  } finally {
+                    setChannelBusy(null)
+                  }
+                }}
+              >
+                {channelBusy === 'imessage'
+                  ? 'Working...'
+                  : channels.imessage?.configured
+                    ? 'Disconnect'
+                    : 'Connect'}
+              </Typography>
+            </div>
+          </div>
+          {channels.error && (
+            <Typography className="text-xs text-red-500">{channels.error}</Typography>
+          )}
         </div>
         <hr className="border-zinc-200" />
         <div className="PermissionContainer p-6 flex flex-col gap-4">
