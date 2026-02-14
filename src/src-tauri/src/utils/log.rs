@@ -11,7 +11,6 @@ use sentry;
 use crate::error::Error;
 use serde_json::Value;
 use std::fs;
-use std::path::PathBuf;
 
 
 
@@ -43,6 +42,9 @@ fn get_user_uuid_from_profile() -> Option<(String, String)> {
 
 pub fn knap_log_error(msg: String, error: Option<Error>, slack_flag: Option<bool>) -> Error {
   let should_notify_slack = slack_flag.unwrap_or(false);
+  let error_detail = error.as_ref().map(|e| format!(": {:?}", e)).unwrap_or_default();
+  let full_msg = format!("{}{}", msg, error_detail);
+
   if let Some((uuid, email)) = get_user_uuid_from_profile() {
     sentry::configure_scope(|scope| {
       scope.set_user(Some(sentry::User {
@@ -56,19 +58,22 @@ pub fn knap_log_error(msg: String, error: Option<Error>, slack_flag: Option<bool
         scope.set_tag("slackNotification", "false");
       }
     });
-    
+
     // Log with user UUID
-    log::error!("[User: {}] {}: {:?}", uuid, msg, error);
-  } 
+    log::error!("[User: {}] {}", uuid, full_msg);
+  }
   sentry::capture_message(
-    &format!("{}: {:?}", msg, error),
+    &full_msg,
     sentry::Level::Error
   );
-  log::error!("{}: {:?}", msg, error);
-  Error::KSError(format!("{}: {:?}", msg, error))
+  log::error!("{}", full_msg);
+  Error::KSError(full_msg)
 }
 
 pub fn knap_log_debug(msg: String, error: Option<Error>) -> Error {
+  let error_detail = error.as_ref().map(|e| format!(": {:?}", e)).unwrap_or_default();
+  let full_msg = format!("{}{}", msg, error_detail);
+
   if let Some((uuid, email)) = get_user_uuid_from_profile() {
     sentry::configure_scope(|scope| {
       scope.set_user(Some(sentry::User {
@@ -77,16 +82,16 @@ pub fn knap_log_debug(msg: String, error: Option<Error>) -> Error {
         ..Default::default()
       }));
     });
-    
+
     // Log with user UUID
-    log::error!("[User: {}] {}: {:?}", uuid, msg, error);
-  } 
+    log::debug!("[User: {}] {}", uuid, full_msg);
+  }
   sentry::capture_message(
-    &format!("{}: {:?}", msg, error),
+    &full_msg,
     sentry::Level::Debug
   );
-  log::error!("{}: {:?}", msg, error);
-  Error::KSError(format!("{}: {:?}", msg, error))
+  log::debug!("{}", full_msg);
+  Error::KSError(full_msg)
 }
 
 pub fn setup_logger(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
