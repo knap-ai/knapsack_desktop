@@ -2110,6 +2110,67 @@
   font-size: 15px;
 }
 
+// Channel connection banner — shown in welcome area when no messaging channels are linked
+.ClawdChannelBanner {
+  background: linear-gradient(135deg, #f0f9ff 0%, #f5f3ff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.ClawdChannelBannerTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+  margin: 0 0 4px;
+}
+
+.ClawdChannelBannerDesc {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
+.ClawdChannelBannerButtons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ClawdChannelBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+
+  &--whatsapp {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #bbf7d0;
+
+    &:hover {
+      background: #bbf7d0;
+    }
+  }
+
+  &--imessage {
+    background: #dbeafe;
+    color: #1e40af;
+    border-color: #bfdbfe;
+
+    &:hover {
+      background: #bfdbfe;
+    }
+  }
+}
+
 // Activity Monitor Panel — flex sibling of main content, pushes chat left
 .ClawdActivityPanel {
   width: 340px;
