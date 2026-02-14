@@ -1,12 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
+import { getCurrent, LogicalSize } from '@tauri-apps/api/window'
 
 dayjs.extend(relativeTime)
+
+const MIN_WIDTH = 420
+const MAX_WIDTH = 720
+const MIN_HEIGHT = 120
+const MAX_HEIGHT = 520
+const PADDING = 24
 
 export interface ButtonConfig {
   buttonText: string
@@ -59,6 +66,21 @@ function NotificationWindow() {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
+
+  useLayoutEffect(() => {
+    const root = document.getElementById('notification-root')
+    if (!root) return
+
+    const resizeWindow = async () => {
+      const contentWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, root.scrollWidth + PADDING))
+      const contentHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, root.scrollHeight + PADDING))
+
+      const appWindow = getCurrent()
+      await appWindow.setSize(new LogicalSize(contentWidth, contentHeight))
+    }
+
+    resizeWindow()
+  }, [title, time, buttonConfigs, isDropdownOpen])
 
   const closeNotification = async () => {
     await invoke('close_notification_window')
