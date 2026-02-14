@@ -1,0 +1,20 @@
+{
+  "name": "gateway-mock",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mock WebSocket server that emulates the Clawdbot Gateway protocol for local Knapsack Desktop development",
+  "scripts": {
+    "start": "tsx gateway_mock.ts",
+    "build": "tsc",
+    "start:js": "node dist/gateway_mock.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
