@@ -100,6 +100,7 @@ base64 = "0.21"
 url = "2.3"
 urlencoding = "2.1.3"
 flacenc = "0.4"
+libc = "0.2"
 
 
 [dependencies.console-subscriber]

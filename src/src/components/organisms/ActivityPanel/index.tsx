@@ -2,11 +2,20 @@ import './style.scss'
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
+import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import {
   KN_API_TOKEN_USAGE_SUMMARY,
   KN_API_TOKEN_USAGE_RECENT,
   KN_API_TOKEN_USAGE_BUDGET,
 } from 'src/utils/constants'
+
+/** Strip ANSI escape codes from a string for clean terminal display */
+function stripAnsi(text: string): string {
+  return text
+    .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')
+    .replace(/\x1B\][^\x07]*\x07/g, '')
+    .replace(/\x1B\(B/g, '')
+}
 
 type ActivitySubTab = 'logs' | 'costs' | 'terminal'
 
@@ -425,6 +434,7 @@ interface TerminalSession {
   historyIndex: number
   inputValue: string
   isExecuting: boolean
+  streamingProcessId: string | null
 }
 
 const DEFAULT_SESSIONS: { id: string; label: string; initialCwd: string }[] = [
@@ -443,6 +453,7 @@ function makeSession(id: string, label: string, initialCwd: string): TerminalSes
     historyIndex: -1,
     inputValue: '',
     isExecuting: false,
+    streamingProcessId: null,
   }
 }
 
@@ -536,7 +547,7 @@ const TerminalView: React.FC = () => {
       } catch (err) {
         addLine('clawdbot', 'stderr', `Failed to fetch status: ${err}`)
       }
-      addLine('clawdbot', 'system', 'Commands: "status", "logs" (stream live), "skills list"')
+      addLine('clawdbot', 'system', 'Commands: "status", "logs" (stream live), "skills list", "claude <prompt>" (run Claude Code)')
     }
     fetchStatus()
   }, [sessions, addLine])
@@ -563,6 +574,55 @@ const TerminalView: React.FC = () => {
     const interval = setInterval(poll, 2000)
     return () => clearInterval(interval)
   }, [liveLogsSession, addLine])
+
+  // ── Streaming process event listeners (for claude code CLI, etc.) ──
+  useEffect(() => {
+    const unlisteners: Promise<UnlistenFn>[] = []
+
+    unlisteners.push(
+      listen<{ processId: string; sessionId: string; text: string }>('streaming-stdout', event => {
+        const { sessionId, text } = event.payload
+        addLine(sessionId, 'stdout', stripAnsi(text))
+      }),
+    )
+
+    unlisteners.push(
+      listen<{ processId: string; sessionId: string; text: string }>('streaming-stderr', event => {
+        const { sessionId, text } = event.payload
+        addLine(sessionId, 'stderr', stripAnsi(text))
+      }),
+    )
+
+    unlisteners.push(
+      listen<{ processId: string; sessionId: string; exitCode: number }>('streaming-exit', event => {
+        const { sessionId, exitCode } = event.payload
+        addLine(sessionId, 'system', `Process exited with code ${exitCode}`)
+        updateSession(sessionId, s => ({
+          ...s,
+          isExecuting: false,
+          streamingProcessId: null,
+        }))
+      }),
+    )
+
+    return () => {
+      unlisteners.forEach(p => p.then(unlisten => unlisten()))
+    }
+  }, [addLine, updateSession])
+
+  const killStreamingProcess = useCallback(
+    async (sessionId: string) => {
+      const session = sessions.find(s => s.id === sessionId)
+      if (!session?.streamingProcessId) return
+      try {
+        await invoke('kn_kill_streaming_process', { processId: session.streamingProcessId })
+        addLine(sessionId, 'system', 'Process terminated.')
+      } catch (err) {
+        addLine(sessionId, 'stderr', `Failed to kill process: ${err}`)
+      }
+    },
+    [sessions, addLine],
+  )
 
   const executeCommand = useCallback(
     async (sessionId: string, command: string) => {
@@ -755,6 +815,24 @@ const TerminalView: React.FC = () => {
         return
       }
 
+      // Claude Code CLI — run as a streaming process so output appears in real-time
+      if (trimmed === 'claude' || trimmed.startsWith('claude ')) {
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        try {
+          addLine(sessionId, 'system', 'Starting Claude Code...')
+          const processId: string = await invoke('kn_spawn_streaming_command', {
+            command: trimmed,
+            cwd: session.cwd || undefined,
+            sessionId,
+          })
+          updateSession(sessionId, s => ({ ...s, streamingProcessId: processId }))
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed to start Claude Code: ${err}`)
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
+        return
+      }
+
       updateSession(sessionId, s => ({ ...s, isExecuting: true }))
       try {
         const cwd = session.cwd
@@ -864,7 +942,14 @@ const TerminalView: React.FC = () => {
       {/* Terminal body */}
       <div
         className="ActivityPanel__terminal flex-1 flex flex-col"
+        tabIndex={0}
         onClick={() => inputRef.current?.focus()}
+        onKeyDown={e => {
+          if (e.key === 'c' && e.ctrlKey && activeSession.streamingProcessId) {
+            e.preventDefault()
+            killStreamingProcess(activeSession.id)
+          }
+        }}
       >
         <div ref={outputRef} className="terminal__output flex-1">
           {activeSession.lines.map((line, i) => (
@@ -872,26 +957,38 @@ const TerminalView: React.FC = () => {
               {line.text}
             </div>
           ))}
-          {activeSession.isExecuting && (
+          {activeSession.isExecuting && !activeSession.streamingProcessId && (
             <div className="terminal__line--system animate-pulse">Running...</div>
+          )}
+          {activeSession.streamingProcessId && (
+            <div className="terminal__line--system animate-pulse">Claude Code running...</div>
           )}
         </div>
 
         <div className="terminal__input-row">
           <span className="terminal__prompt">{cwdDisplay} $</span>
-          <input
-            ref={inputRef}
-            type="text"
-            className="terminal__input"
-            value={activeSession.inputValue}
-            onChange={e =>
-              updateSession(activeSession.id, s => ({ ...s, inputValue: e.target.value }))
-            }
-            onKeyDown={handleKeyDown}
-            placeholder={activeSession.isExecuting ? 'Waiting for command to finish...' : 'Enter a command...'}
-            disabled={activeSession.isExecuting}
-            autoFocus
-          />
+          {activeSession.streamingProcessId ? (
+            <button
+              className="terminal__stop-btn"
+              onClick={() => killStreamingProcess(activeSession.id)}
+            >
+              Stop
+            </button>
+          ) : (
+            <input
+              ref={inputRef}
+              type="text"
+              className="terminal__input"
+              value={activeSession.inputValue}
+              onChange={e =>
+                updateSession(activeSession.id, s => ({ ...s, inputValue: e.target.value }))
+              }
+              onKeyDown={handleKeyDown}
+              placeholder={activeSession.isExecuting ? 'Waiting for command to finish...' : 'Enter a command...'}
+              disabled={activeSession.isExecuting}
+              autoFocus
+            />
+          )}
         </div>
       </div>
     </div>
