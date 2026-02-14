@@ -332,6 +332,56 @@
     font-size: 0.9em;
   }
 
+  .ClawdCodeBlockWrapper {
+    position: relative;
+    margin: 0.5em 0;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .ClawdCodeBlockActions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 4px 6px;
+      background: rgba(0, 0, 0, 0.06);
+      border-radius: 6px 6px 0 0;
+    }
+
+    .ClawdCodeBlockBtn {
+      font-size: 11px;
+      font-family: Inter, sans-serif;
+      padding: 2px 8px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      color: #666;
+      background: rgba(255, 255, 255, 0.7);
+      transition: background 0.15s, color 0.15s;
+
+      &:hover {
+        background: rgba(255, 255, 255, 1);
+        color: #333;
+      }
+
+      &--run {
+        color: #4a6fa5;
+        font-weight: 500;
+
+        &:hover {
+          background: #4a6fa5;
+          color: white;
+        }
+      }
+    }
+
+    pre {
+      border-radius: 0 0 6px 6px;
+      margin: 0;
+    }
+  }
+
   pre {
     background: rgba(0, 0, 0, 0.04);
     border-radius: 6px;

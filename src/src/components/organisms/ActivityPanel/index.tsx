@@ -850,6 +850,23 @@ const TerminalView: React.FC = () => {
     [sessions, addLine, updateSession],
   )
 
+  // Listen for "Run in Terminal" clicks from the chat code blocks
+  const executeCommandRef = useRef(executeCommand)
+  executeCommandRef.current = executeCommand
+  const activeSessionIdRef = useRef(activeSessionId)
+  activeSessionIdRef.current = activeSessionId
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const command = (e as CustomEvent).detail?.command
+      if (typeof command === 'string' && command) {
+        executeCommandRef.current(activeSessionIdRef.current, command)
+      }
+    }
+    window.addEventListener('run-in-terminal', handler)
+    return () => window.removeEventListener('run-in-terminal', handler)
+  }, [])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const sid = activeSession.id
     if (e.key === 'Enter' && !activeSession.isExecuting) {

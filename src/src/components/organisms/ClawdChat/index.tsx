@@ -1767,6 +1767,44 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     )
   }, []) as Components['a']
 
+  // Custom code block renderer with Copy + Run in Terminal buttons
+  const ChatCodeBlock: Components['pre'] = useCallback(({ children }: any) => {
+    const codeText = (() => {
+      // ReactMarkdown wraps code in <pre><code>...
+      // children is the <code> element; extract its text content
+      try {
+        const codeChild = children?.props?.children
+        if (typeof codeChild === 'string') return codeChild
+        if (Array.isArray(codeChild)) return codeChild.join('')
+      } catch { /* fallback */ }
+      return ''
+    })()
+
+    const handleCopy = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      navigator.clipboard.writeText(codeText)
+    }
+
+    const handleRunInTerminal = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: codeText.trim() } }))
+    }
+
+    return (
+      <div className="ClawdCodeBlockWrapper">
+        <div className="ClawdCodeBlockActions">
+          <button className="ClawdCodeBlockBtn" onClick={handleCopy} title="Copy to clipboard">
+            Copy
+          </button>
+          <button className="ClawdCodeBlockBtn ClawdCodeBlockBtn--run" onClick={handleRunInTerminal} title="Run in terminal">
+            Run in Terminal
+          </button>
+        </div>
+        <pre>{children}</pre>
+      </div>
+    )
+  }, []) as Components['pre']
+
   // Toggle voice mode - stop audio when disabling
   const toggleVoiceOutput = useCallback(() => {
     const newValue = !voiceEnabled
@@ -2429,7 +2467,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 {m.isClickable ? (
                   <p>{m.text}</p>
                 ) : (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ChatLink }}>{cleaned}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ChatLink, pre: ChatCodeBlock }}>{cleaned}</ReactMarkdown>
                 )}
                 {actions.length > 0 && (
                   <div className="ClawdPromptActions">
