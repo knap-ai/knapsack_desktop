@@ -107,18 +107,21 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
 }
 
 fn bearer_token_for_control(app_handle: &tauri::AppHandle) -> Option<String> {
-  // Prefer explicit env var if present.
-  if let Ok(token) = std::env::var("CLAWDBOT_BROWSER_CONTROL_TOKEN") {
-    let t = token.trim().to_string();
-    if !t.is_empty() {
-      return Some(t);
+  // Browser control auth is now unified with gateway auth in OpenClaw 2026.2+.
+  // Check the gateway token env vars first.
+  for var in ["OPENCLAW_GATEWAY_TOKEN", "CLAWDBOT_GATEWAY_TOKEN"] {
+    if let Ok(token) = std::env::var(var) {
+      let t = token.trim().to_string();
+      if !t.is_empty() {
+        return Some(t);
+      }
     }
   }
 
   // Fall back to our stored tokens.json (created by Settings->Enable).
   load_or_create_tokens(app_handle)
     .ok()
-    .map(|t| t.browser_control_token)
+    .map(|t| t.gateway_token)
     .and_then(|t| {
       let t = t.trim().to_string();
       if t.is_empty() {

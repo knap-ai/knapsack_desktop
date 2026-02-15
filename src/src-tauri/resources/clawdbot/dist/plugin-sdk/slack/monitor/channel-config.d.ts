@@ -1,0 +1,40 @@
+import type { SlackReactionNotificationMode } from "../../config/config.js";
+import type { SlackMessageEvent } from "../types.js";
+import { type ChannelMatchSource } from "../../channels/channel-config.js";
+export type SlackChannelConfigResolved = {
+    allowed: boolean;
+    requireMention: boolean;
+    allowBots?: boolean;
+    users?: Array<string | number>;
+    skills?: string[];
+    systemPrompt?: string;
+    matchKey?: string;
+    matchSource?: ChannelMatchSource;
+};
+export declare function shouldEmitSlackReactionNotification(params: {
+    mode: SlackReactionNotificationMode | undefined;
+    botId?: string | null;
+    messageAuthorId?: string | null;
+    userId: string;
+    userName?: string | null;
+    allowlist?: Array<string | number> | null;
+}): boolean;
+export declare function resolveSlackChannelLabel(params: {
+    channelId?: string;
+    channelName?: string;
+}): string;
+export declare function resolveSlackChannelConfig(params: {
+    channelId: string;
+    channelName?: string;
+    channels?: Record<string, {
+        enabled?: boolean;
+        allow?: boolean;
+        requireMention?: boolean;
+        allowBots?: boolean;
+        users?: Array<string | number>;
+        skills?: string[];
+        systemPrompt?: string;
+    }>;
+    defaultRequireMention?: boolean;
+}): SlackChannelConfigResolved | null;
+export type { SlackMessageEvent };

@@ -368,7 +368,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       .and_then(|c| {
         let fut = c
           .get("http://127.0.0.1:18791/")
-          .bearer_auth(tokens.browser_control_token.clone())
+          .bearer_auth(tokens.gateway_token.clone())
           .send();
         Some(fut)
       });
@@ -1094,12 +1094,21 @@ pub async fn set_service_enabled(
       let clawdbot_home = app_clawdbot_home(&app_handle);
       let clawdbot_home_str = clawdbot_home.to_string_lossy().to_string();
 
-      // Ensure clawdbot config exists with gateway.mode=local for first-run.
-      // Without this, clawdbot refuses to start on a fresh machine.
+      // Ensure OpenClaw config exists with gateway.mode=local for first-run.
+      // Without this, OpenClaw refuses to start on a fresh machine.
       // NOTE: plugins.slots.memory must be set to "none" explicitly — if omitted,
-      // clawdbot's config normalizer defaults it to "memory-core" which then fails
+      // OpenClaw's config normalizer defaults it to "memory-core" which then fails
       // validation because the config validator runs before plugin discovery.
-      let config_path = clawdbot_home.join("clawdbot.json");
+      // Use openclaw.json (preferred in 2026.2+); also check for legacy clawdbot.json.
+      let config_path = clawdbot_home.join("openclaw.json");
+      let legacy_config_path = clawdbot_home.join("clawdbot.json");
+      // If the legacy config exists but the new one doesn't, rename it.
+      if legacy_config_path.exists() && !config_path.exists() {
+        match fs::rename(&legacy_config_path, &config_path) {
+          Ok(_) => eprintln!("[clawd/service] Migrated config from clawdbot.json to openclaw.json"),
+          Err(e) => eprintln!("[clawd/service] WARNING: Failed to migrate config: {}. Will create new.", e),
+        }
+      }
       if !config_path.exists() {
         let _ = ensure_dir(&clawdbot_home);
         let default_config = serde_json::json!({
@@ -1186,22 +1195,22 @@ pub async fn set_service_enabled(
 
       let mut env = vec![
         ("PATH".to_string(), clawdbot_path),
-        ("CLAWDBOT_HOME".to_string(), clawdbot_home_str.clone()),
+        // OpenClaw 2026.2+ only recognizes OPENCLAW_HOME (no CLAWDBOT_HOME fallback).
+        ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
         // Point state dir (config, sessions, logs) to the app data dir so
-        // clawdbot finds our config file instead of looking in ~/.clawdbot/
+        // OpenClaw finds our config file instead of looking in ~/.openclaw/
         ("CLAWDBOT_STATE_DIR".to_string(), clawdbot_home_str),
         (
           "CLAWDBOT_GATEWAY_TOKEN".to_string(),
           tokens.gateway_token.clone(),
         ),
-        (
-          "CLAWDBOT_BROWSER_CONTROL_TOKEN".to_string(),
-          tokens.browser_control_token.clone(),
-        ),
+        // Browser control auth is now unified with gateway auth in OpenClaw 2026.2+.
+        // The old CLAWDBOT_BROWSER_CONTROL_TOKEN is no longer recognized.
         // Ensure control server family ports remain default.
         ("CLAWDBOT_GATEWAY_PORT".to_string(), "18789".to_string()),
-        // Point to bundled plugins/extensions directory so clawdbot can find memory-core etc.
-        ("CLAWDBOT_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
+        // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
+        // Note: only OPENCLAW_BUNDLED_PLUGINS_DIR is recognized in 2026.2+ (no CLAWDBOT_ fallback).
+        ("OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
       ];
 
       // Propagate LLM keys to clawdbot subprocess AND to the current Tauri process

@@ -1,0 +1,20 @@
+import { type GatewayCallOptions } from "./gateway.js";
+export type NodeListNode = {
+    nodeId: string;
+    displayName?: string;
+    platform?: string;
+    version?: string;
+    coreVersion?: string;
+    uiVersion?: string;
+    remoteIp?: string;
+    deviceFamily?: string;
+    modelIdentifier?: string;
+    caps?: string[];
+    commands?: string[];
+    permissions?: Record<string, boolean>;
+    paired?: boolean;
+    connected?: boolean;
+};
+export declare function listNodes(opts: GatewayCallOptions): Promise<NodeListNode[]>;
+export declare function resolveNodeIdFromList(nodes: NodeListNode[], query?: string, allowDefault?: boolean): string;
+export declare function resolveNodeId(opts: GatewayCallOptions, query?: string, allowDefault?: boolean): Promise<string>;

@@ -1,9 +1,13 @@
 {
-  "name": "@clawdbot/google-gemini-cli-auth",
-  "version": "2026.1.24",
+  "name": "@openclaw/google-gemini-cli-auth",
+  "version": "2026.2.13",
+  "private": true,
+  "description": "OpenClaw Gemini CLI OAuth provider plugin",
   "type": "module",
-  "description": "Clawdbot Gemini CLI OAuth provider plugin",
-  "clawdbot": {
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
     "extensions": [
       "./index.ts"
     ]

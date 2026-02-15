@@ -1,9 +1,8 @@
+import type { PluginRuntime } from "openclaw/plugin-sdk";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { PluginRuntime } from "clawdbot/plugin-sdk";
 import { setMatrixRuntime } from "../runtime.js";
 
-vi.mock("matrix-bot-sdk", () => ({
+vi.mock("@vector-im/matrix-bot-sdk", () => ({
   ConsoleLogger: class {
     trace = vi.fn();
     debug = vi.fn();
@@ -25,6 +24,8 @@ const loadWebMediaMock = vi.fn().mockResolvedValue({
   contentType: "image/png",
   kind: "image",
 });
+const mediaKindFromMimeMock = vi.fn(() => "image");
+const isVoiceCompatibleAudioMock = vi.fn(() => false);
 const getImageMetadataMock = vi.fn().mockResolvedValue(null);
 const resizeToJpegMock = vi.fn();
 
@@ -34,8 +35,8 @@ const runtimeStub = {
   },
   media: {
     loadWebMedia: (...args: unknown[]) => loadWebMediaMock(...args),
-    mediaKindFromMime: () => "image",
-    isVoiceCompatibleAudio: () => false,
+    mediaKindFromMime: (...args: unknown[]) => mediaKindFromMimeMock(...args),
+    isVoiceCompatibleAudio: (...args: unknown[]) => isVoiceCompatibleAudioMock(...args),
     getImageMetadata: (...args: unknown[]) => getImageMetadataMock(...args),
     resizeToJpeg: (...args: unknown[]) => resizeToJpegMock(...args),
   },
@@ -60,7 +61,7 @@ const makeClient = () => {
     sendMessage,
     uploadContent,
     getUserId: vi.fn().mockResolvedValue("@bot:example.org"),
-  } as unknown as import("matrix-bot-sdk").MatrixClient;
+  } as unknown as import("@vector-im/matrix-bot-sdk").MatrixClient;
   return { client, sendMessage, uploadContent };
 };
 
@@ -72,6 +73,8 @@ describe("sendMessageMatrix media", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mediaKindFromMimeMock.mockReturnValue("image");
+    isVoiceCompatibleAudioMock.mockReturnValue(false);
     setMatrixRuntime(runtimeStub);
   });
 
@@ -133,6 +136,66 @@ describe("sendMessageMatrix media", () => {
     };
     expect(content.url).toBeUndefined();
     expect(content.file?.url).toBe("mxc://example/file");
+  });
+
+  it("marks voice metadata and sends caption follow-up when audioAsVoice is compatible", async () => {
+    const { client, sendMessage } = makeClient();
+    mediaKindFromMimeMock.mockReturnValue("audio");
+    isVoiceCompatibleAudioMock.mockReturnValue(true);
+    loadWebMediaMock.mockResolvedValueOnce({
+      buffer: Buffer.from("audio"),
+      fileName: "clip.mp3",
+      contentType: "audio/mpeg",
+      kind: "audio",
+    });
+
+    await sendMessageMatrix("room:!room:example", "voice caption", {
+      client,
+      mediaUrl: "file:///tmp/clip.mp3",
+      audioAsVoice: true,
+    });
+
+    expect(isVoiceCompatibleAudioMock).toHaveBeenCalledWith({
+      contentType: "audio/mpeg",
+      fileName: "clip.mp3",
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    const mediaContent = sendMessage.mock.calls[0]?.[1] as {
+      msgtype?: string;
+      body?: string;
+      "org.matrix.msc3245.voice"?: Record<string, never>;
+    };
+    expect(mediaContent.msgtype).toBe("m.audio");
+    expect(mediaContent.body).toBe("Voice message");
+    expect(mediaContent["org.matrix.msc3245.voice"]).toEqual({});
+  });
+
+  it("keeps regular audio payload when audioAsVoice media is incompatible", async () => {
+    const { client, sendMessage } = makeClient();
+    mediaKindFromMimeMock.mockReturnValue("audio");
+    isVoiceCompatibleAudioMock.mockReturnValue(false);
+    loadWebMediaMock.mockResolvedValueOnce({
+      buffer: Buffer.from("audio"),
+      fileName: "clip.wav",
+      contentType: "audio/wav",
+      kind: "audio",
+    });
+
+    await sendMessageMatrix("room:!room:example", "voice caption", {
+      client,
+      mediaUrl: "file:///tmp/clip.wav",
+      audioAsVoice: true,
+    });
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const mediaContent = sendMessage.mock.calls[0]?.[1] as {
+      msgtype?: string;
+      body?: string;
+      "org.matrix.msc3245.voice"?: Record<string, never>;
+    };
+    expect(mediaContent.msgtype).toBe("m.audio");
+    expect(mediaContent.body).toBe("voice caption");
+    expect(mediaContent["org.matrix.msc3245.voice"]).toBeUndefined();
   });
 });
 

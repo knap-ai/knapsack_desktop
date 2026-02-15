@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-
-import lockfile from "proper-lockfile";
+import { safeParseJson } from "openclaw/plugin-sdk";
+import { withFileLock as withPathLock } from "./file-lock.js";
 
 const STORE_LOCK_OPTIONS = {
   retries: {
@@ -15,14 +15,6 @@ const STORE_LOCK_OPTIONS = {
   stale: 30_000,
 } as const;
 
-function safeParseJson<T>(raw: string): T | null {
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
 export async function readJsonFile<T>(
   filePath: string,
   fallback: T,
@@ -30,11 +22,15 @@ export async function readJsonFile<T>(
   try {
     const raw = await fs.promises.readFile(filePath, "utf-8");
     const parsed = safeParseJson<T>(raw);
-    if (parsed == null) return { value: fallback, exists: true };
+    if (parsed == null) {
+      return { value: fallback, exists: true };
+    }
     return { value: parsed, exists: true };
   } catch (err) {
     const code = (err as { code?: string }).code;
-    if (code === "ENOENT") return { value: fallback, exists: false };
+    if (code === "ENOENT") {
+      return { value: fallback, exists: false };
+    }
     return { value: fallback, exists: false };
   }
 }
@@ -64,17 +60,7 @@ export async function withFileLock<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   await ensureJsonFile(filePath, fallback);
-  let release: (() => Promise<void>) | undefined;
-  try {
-    release = await lockfile.lock(filePath, STORE_LOCK_OPTIONS);
+  return await withPathLock(filePath, STORE_LOCK_OPTIONS, async () => {
     return await fn();
-  } finally {
-    if (release) {
-      try {
-        await release();
-      } catch {
-        // ignore unlock errors
-      }
-    }
-  }
+  });
 }
