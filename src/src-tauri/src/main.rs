@@ -357,6 +357,11 @@ async fn show_notification_window(
           window.show();
           tokio::time::sleep(std::time::Duration::from_millis(NOTIF_FRAME_TIME)).await;
         }
+
+        // On macOS, always-on-top transparent windows are floating panels that
+        // don't become the key window on click. Without key status, WKWebView
+        // won't forward mouse events to JavaScript, making buttons unclickable.
+        window.set_focus().ok();
       }
     }
   }
