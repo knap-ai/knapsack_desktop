@@ -189,7 +189,8 @@ async function connectBrowser(cdpUrl) {
         return await connecting;
     const connectWithRetry = async () => {
         let lastErr;
-        for (let attempt = 0; attempt < 3; attempt += 1) {
+        const maxAttempts = 4;
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             try {
                 const timeout = 5000 + attempt * 2000;
                 const wsUrl = await getChromeWebSocketUrl(normalized, timeout).catch(() => null);
@@ -207,7 +208,8 @@ async function connectBrowser(cdpUrl) {
             }
             catch (err) {
                 lastErr = err;
-                const delay = 250 + attempt * 250;
+                // Exponential-ish backoff: 500ms, 1s, 2s, ...
+                const delay = 500 * Math.pow(2, attempt);
                 await new Promise((r) => setTimeout(r, delay));
             }
         }

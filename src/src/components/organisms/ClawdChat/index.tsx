@@ -126,6 +126,19 @@ function friendlyError(raw: string): string {
   if (lower.includes('model_not_found') || lower.includes('does not exist') || lower.includes('no access')) {
     return '⚠️ **Model not available.** Your API key may not have access to this model. Try switching to a different model in Settings.'
   }
+  // Browser automation errors
+  if (lower.includes('browser control server') || lower.includes('browser not running') || lower.includes('clawdbot base_url is not configured')) {
+    return '🌐 **Browser not available.** The browser assistant is not running. Go to Settings and enable Clawd, then try again.'
+  }
+  if (lower.includes('no pages available') || lower.includes('tab not found') || lower.includes('no tabs')) {
+    return '🌐 **No browser tab found.** Open a URL first (e.g. "open https://example.com") and try again.'
+  }
+  if (lower.includes('no supported browser found') || lower.includes('chrome') && lower.includes('not found')) {
+    return '🌐 **Chrome not found.** Install Google Chrome or Chromium and try again.'
+  }
+  if (lower.includes('failed to start chrome cdp')) {
+    return '🌐 **Browser failed to start.** Chrome could not launch. Check the logs for details or try restarting.'
+  }
   // Network / connection errors
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
     return '🌐 **Connection error.** Unable to reach the AI service. Check your internet connection and try again.'

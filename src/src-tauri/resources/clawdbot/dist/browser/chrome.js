@@ -135,7 +135,8 @@ export async function launchClawdChrome(resolved, profile) {
             args.push("--headless=new");
             args.push("--disable-gpu");
         }
-        if (resolved.noSandbox) {
+        if (resolved.noSandbox || (process.platform === "linux" && process.getuid?.() === 0)) {
+            // Explicitly requested, or running as root on Linux (common in containers/WSL).
             args.push("--no-sandbox");
             args.push("--disable-setuid-sandbox");
         }
@@ -199,9 +200,20 @@ export async function launchClawdChrome(resolved, profile) {
         log.warn(`clawd browser clean-exit prefs failed: ${String(err)}`);
     }
     const proc = spawnOnce();
+    // Capture stderr to provide better diagnostics on startup failure.
+    let stderrBuf = "";
+    proc.stderr?.on("data", (chunk) => {
+        stderrBuf += String(chunk);
+        // Keep only the last 2KB to avoid unbounded growth.
+        if (stderrBuf.length > 2048)
+            stderrBuf = stderrBuf.slice(-2048);
+    });
     // Wait for CDP to come up.
     const readyDeadline = Date.now() + 15_000;
     while (Date.now() < readyDeadline) {
+        // If the process exited early, stop waiting immediately.
+        if (proc.exitCode != null)
+            break;
         if (await isChromeReachable(profile.cdpUrl, 500))
             break;
         await new Promise((r) => setTimeout(r, 200));
@@ -213,7 +225,19 @@ export async function launchClawdChrome(resolved, profile) {
         catch {
             // ignore
         }
-        throw new Error(`Failed to start Chrome CDP on port ${profile.cdpPort} for profile "${profile.name}".`);
+        // Build a helpful error message with stderr hints.
+        let hint = "";
+        if (stderrBuf.includes("Running as root without --no-sandbox")) {
+            hint = " Hint: set browser.noSandbox=true in config or run as a non-root user.";
+        }
+        else if (stderrBuf.includes("No usable sandbox")) {
+            hint = " Hint: set browser.noSandbox=true in config (required in containers/WSL).";
+        }
+        else if (proc.exitCode != null) {
+            const snippet = stderrBuf.trim().split("\n").slice(-3).join(" | ");
+            hint = snippet ? ` Chrome exited with code ${proc.exitCode}: ${snippet}` : ` Chrome exited with code ${proc.exitCode}.`;
+        }
+        throw new Error(`Failed to start Chrome CDP on port ${profile.cdpPort} for profile "${profile.name}".${hint}`);
     }
     const pid = proc.pid ?? -1;
     log.info(`🦞 clawd browser started (${exe.kind}) profile "${profile.name}" on 127.0.0.1:${profile.cdpPort} (pid ${pid})`);

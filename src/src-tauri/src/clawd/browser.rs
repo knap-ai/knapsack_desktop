@@ -140,8 +140,40 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
 async fn control_client() -> Result<reqwest::Client, String> {
   reqwest::Client::builder()
     .timeout(std::time::Duration::from_millis(120_000))
+    // Accept self-signed certificates for local browser control server.
+    // The control server binds to 127.0.0.1 and uses bearer-token auth,
+    // so TLS verification of the loopback endpoint is not security-critical.
+    .danger_accept_invalid_certs(true)
     .build()
     .map_err(|e| format!("Failed to init HTTP client: {}", e))
+}
+
+/// Send a request to the browser control server with automatic retry.
+/// Retries up to `max_retries` times with a short delay between attempts,
+/// which helps when the gateway is still starting or temporarily unreachable.
+async fn control_request_with_retry(
+  client: &reqwest::Client,
+  request_builder: impl Fn() -> reqwest::RequestBuilder,
+  max_retries: u32,
+) -> Result<reqwest::Response, String> {
+  let mut last_err = String::new();
+  for attempt in 0..=max_retries {
+    match request_builder().send().await {
+      Ok(res) => return Ok(res),
+      Err(e) => {
+        last_err = format!("{}", e);
+        if attempt < max_retries {
+          let delay_ms = 500 * (attempt as u64 + 1); // 500ms, 1s, 1.5s
+          tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        }
+      }
+    }
+  }
+  Err(format!(
+    "Failed to reach browser control server after {} attempts: {}",
+    max_retries + 1,
+    last_err
+  ))
 }
 
 fn openai_key(app_handle: &tauri::AppHandle) -> Option<String> {
@@ -274,59 +306,83 @@ pub async fn open_browser(
       }
     };
 
-    let mut req = client
-      .post(endpoint)
-      .json(&ClawdbotTabsOpenRequest { url: url.clone() });
+    let token = bearer_token_for_control(&app_handle);
 
-    if let Some(token) = bearer_token_for_control(&app_handle) {
-      req = req.bearer_auth(token);
-    }
+    // Retry connection failures (gateway may still be starting)
+    let max_retries = 2u32;
+    let mut last_err = String::new();
+    for attempt in 0..=max_retries {
+      let mut req = client
+        .post(&endpoint)
+        .json(&ClawdbotTabsOpenRequest { url: url.clone() });
 
-    match req.send().await {
-      Ok(res) => {
-        if !res.status().is_success() {
-          let status = res.status();
-          let body = res.text().await.unwrap_or_default();
+      if let Some(ref token) = token {
+        req = req.bearer_auth(token);
+      }
+
+      match req.send().await {
+        Ok(res) => {
+          if !res.status().is_success() {
+            let status = res.status();
+            let body = res.text().await.unwrap_or_default();
+            return HttpResponse::BadGateway().json(OpenBrowserResponse {
+              success: false,
+              message: if body.is_empty() {
+                format!("Clawdbot error: HTTP {}", status)
+              } else {
+                format!("Clawdbot error: HTTP {}: {}", status, body)
+              },
+              target_id: None,
+              used_clawdbot: true,
+            });
+          }
+
+          match res.json::<ClawdbotTab>().await {
+            Ok(tab) => {
+              return HttpResponse::Ok().json(OpenBrowserResponse {
+                success: true,
+                message: format!("Opened via Clawdbot ({profile}): {}", url),
+                target_id: Some(tab.target_id),
+                used_clawdbot: true,
+              })
+            }
+            Err(e) => {
+              return HttpResponse::BadGateway().json(OpenBrowserResponse {
+                success: false,
+                message: format!("Clawdbot returned invalid JSON: {}", e),
+                target_id: None,
+                used_clawdbot: true,
+              })
+            }
+          }
+        }
+        Err(e) => {
+          last_err = format!("{}", e);
+          if attempt < max_retries {
+            tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
+            continue;
+          }
           return HttpResponse::BadGateway().json(OpenBrowserResponse {
             success: false,
-            message: if body.is_empty() {
-              format!("Clawdbot error: HTTP {}", status)
-            } else {
-              format!("Clawdbot error: HTTP {}: {}", status, body)
-            },
+            message: format!(
+              "Failed to reach Clawdbot control server after {} attempts: {}",
+              max_retries + 1,
+              last_err
+            ),
             target_id: None,
             used_clawdbot: true,
           });
         }
-
-        match res.json::<ClawdbotTab>().await {
-          Ok(tab) => {
-            return HttpResponse::Ok().json(OpenBrowserResponse {
-              success: true,
-              message: format!("Opened via Clawdbot ({profile}): {}", url),
-              target_id: Some(tab.target_id),
-              used_clawdbot: true,
-            })
-          }
-          Err(e) => {
-            return HttpResponse::BadGateway().json(OpenBrowserResponse {
-              success: false,
-              message: format!("Clawdbot returned invalid JSON: {}", e),
-              target_id: None,
-              used_clawdbot: true,
-            })
-          }
-        }
-      }
-      Err(e) => {
-        return HttpResponse::BadGateway().json(OpenBrowserResponse {
-          success: false,
-          message: format!("Failed to reach Clawdbot control server: {}", e),
-          target_id: None,
-          used_clawdbot: true,
-        })
       }
     }
+
+    // Should not be reached, but handle it gracefully
+    return HttpResponse::BadGateway().json(OpenBrowserResponse {
+      success: false,
+      message: format!("Failed to reach Clawdbot control server: {}", last_err),
+      target_id: None,
+      used_clawdbot: true,
+    });
   }
 
   // Fallback path: open on the host using Tauri's shell open.
@@ -388,28 +444,42 @@ pub async fn list_tabs(
     }
   };
 
-  let mut req = client.get(endpoint);
-  if let Some(token) = bearer_token_for_control(&app_handle) {
-    req = req.bearer_auth(token);
-  }
+  let token = bearer_token_for_control(&app_handle);
 
-  match req.send().await {
-    Ok(res) => {
-      let status = res.status();
-      if !status.is_success() {
-        let body = res.text().await.unwrap_or_default();
-        return HttpResponse::BadGateway().json(serde_json::json!({
-          "success": false,
-          "message": if body.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, body) }
-        }));
+  // Retry connection failures (gateway may still be starting)
+  let max_retries = 2u32;
+  let mut last_err = String::new();
+  for attempt in 0..=max_retries {
+    let mut req = client.get(&endpoint);
+    if let Some(ref token) = token {
+      req = req.bearer_auth(token);
+    }
+
+    match req.send().await {
+      Ok(res) => {
+        let status = res.status();
+        if !status.is_success() {
+          let body = res.text().await.unwrap_or_default();
+          return HttpResponse::BadGateway().json(serde_json::json!({
+            "success": false,
+            "message": if body.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, body) }
+          }));
+        }
+        match res.json::<TabsListResponse>().await {
+          Ok(tabs) => return HttpResponse::Ok().json(serde_json::json!({"success": true, "running": tabs.running, "tabs": tabs.tabs})),
+          Err(e) => return HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Invalid JSON from Clawdbot: {}", e)})),
+        }
       }
-      match res.json::<TabsListResponse>().await {
-        Ok(tabs) => HttpResponse::Ok().json(serde_json::json!({"success": true, "running": tabs.running, "tabs": tabs.tabs})),
-        Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Invalid JSON from Clawdbot: {}", e)})),
+      Err(e) => {
+        last_err = format!("{}", e);
+        if attempt < max_retries {
+          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
+          continue;
+        }
       }
     }
-    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach Clawdbot control server: {}", e)})),
   }
+  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
 
 #[derive(Debug, Deserialize)]
@@ -455,27 +525,43 @@ pub async fn focus_tab(
     }
   };
 
-  let mut req = client
-    .post(endpoint)
-    .json(&serde_json::json!({"targetId": target_id}));
-  if let Some(token) = bearer_token_for_control(&app_handle) {
-    req = req.bearer_auth(token);
-  }
+  let token = bearer_token_for_control(&app_handle);
 
-  match req.send().await {
-    Ok(res) => {
-      let status = res.status();
-      let body = res.text().await.unwrap_or_default();
-      if !status.is_success() {
-        return HttpResponse::BadGateway().json(serde_json::json!({
-          "success": false,
-          "message": if body.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, body) }
-        }));
-      }
-      HttpResponse::Ok().json(serde_json::json!({"success": true, "message": "Focused tab", "targetId": target_id}))
+  // Retry connection failures (gateway may still be starting)
+  let max_retries = 2u32;
+  let mut last_err = String::new();
+  for attempt in 0..=max_retries {
+    let mut req = client
+      .post(&endpoint)
+      .json(&serde_json::json!({"targetId": target_id}));
+    if let Some(ref token) = token {
+      req = req.bearer_auth(token);
     }
-    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach Clawdbot control server: {}", e)})),
+
+    match req.send().await {
+      Ok(res) => {
+        let status = res.status();
+        let body = res.text().await.unwrap_or_default();
+        if !status.is_success() {
+          return HttpResponse::BadGateway().json(serde_json::json!({
+            "success": false,
+            "message": if body.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, body) }
+          }));
+        }
+        return HttpResponse::Ok().json(
+          serde_json::json!({"success": true, "message": "Focused tab", "targetId": target_id}),
+        );
+      }
+      Err(e) => {
+        last_err = format!("{}", e);
+        if attempt < max_retries {
+          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
+          continue;
+        }
+      }
+    }
   }
+  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
 
 #[derive(Debug, Deserialize)]
@@ -561,28 +647,42 @@ pub async fn snapshot(
     }
   };
 
-  let mut req = client.get(url);
-  if let Some(token) = bearer_token_for_control(&app_handle) {
-    req = req.bearer_auth(token);
-  }
+  let token = bearer_token_for_control(&app_handle);
 
-  match req.send().await {
-    Ok(res) => {
-      let status = res.status();
-      let text = res.text().await.unwrap_or_default();
-      if !status.is_success() {
-        return HttpResponse::BadGateway().json(serde_json::json!({
-          "success": false,
-          "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
-        }));
-      }
-
-      // Snapshot responses can be large; forward as raw text JSON.
-      // If it's JSON, the UI can pretty-print.
-      HttpResponse::Ok().body(text)
+  // Retry connection failures (gateway may still be starting)
+  let max_retries = 2u32;
+  let mut last_err = String::new();
+  for attempt in 0..=max_retries {
+    let mut req = client.get(&url);
+    if let Some(ref token) = token {
+      req = req.bearer_auth(token);
     }
-    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach Clawdbot control server: {}", e)})),
+
+    match req.send().await {
+      Ok(res) => {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        if !status.is_success() {
+          return HttpResponse::BadGateway().json(serde_json::json!({
+            "success": false,
+            "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
+          }));
+        }
+
+        // Snapshot responses can be large; forward as raw text JSON.
+        // If it's JSON, the UI can pretty-print.
+        return HttpResponse::Ok().body(text);
+      }
+      Err(e) => {
+        last_err = format!("{}", e);
+        if attempt < max_retries {
+          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
+          continue;
+        }
+      }
+    }
   }
+  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
 
 #[derive(Debug, Deserialize)]
@@ -624,25 +724,39 @@ pub async fn act(
     obj.remove("chrome");
   }
 
-  let mut req = client.post(endpoint).json(&forward);
-  if let Some(token) = bearer_token_for_control(&app_handle) {
-    req = req.bearer_auth(token);
-  }
+  let token = bearer_token_for_control(&app_handle);
 
-  match req.send().await {
-    Ok(res) => {
-      let status = res.status();
-      let text = res.text().await.unwrap_or_default();
-      if !status.is_success() {
-        return HttpResponse::BadGateway().json(serde_json::json!({
-          "success": false,
-          "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
-        }));
-      }
-      HttpResponse::Ok().body(text)
+  // Retry connection failures (gateway may still be starting)
+  let max_retries = 2u32;
+  let mut last_err = String::new();
+  for attempt in 0..=max_retries {
+    let mut req = client.post(&endpoint).json(&forward);
+    if let Some(ref token) = token {
+      req = req.bearer_auth(token);
     }
-    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach Clawdbot control server: {}", e)})),
+
+    match req.send().await {
+      Ok(res) => {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        if !status.is_success() {
+          return HttpResponse::BadGateway().json(serde_json::json!({
+            "success": false,
+            "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
+          }));
+        }
+        return HttpResponse::Ok().body(text);
+      }
+      Err(e) => {
+        last_err = format!("{}", e);
+        if attempt < max_retries {
+          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
+          continue;
+        }
+      }
+    }
   }
+  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
 
 /// Parse a natural language schedule string into a cron schedule JSON value
@@ -656,7 +770,10 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_j
       .ok()
       .and_then(|re| re.captures(&s))
     {
-      let num: u64 = caps.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(1);
+      let num: u64 = caps
+        .get(1)
+        .and_then(|m| m.as_str().parse().ok())
+        .unwrap_or(1);
       let unit = caps.get(2).map(|m| m.as_str()).unwrap_or("hour");
       let ms = match unit {
         "minute" | "min" => num * 60 * 1000,
@@ -677,11 +794,21 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_j
       .ok()
       .and_then(|re| re.captures(&s))
     {
-      let mut hour: u32 = caps.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(9);
-      let minute: u32 = caps.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
+      let mut hour: u32 = caps
+        .get(1)
+        .and_then(|m| m.as_str().parse().ok())
+        .unwrap_or(9);
+      let minute: u32 = caps
+        .get(2)
+        .and_then(|m| m.as_str().parse().ok())
+        .unwrap_or(0);
       let ampm = caps.get(3).map(|m| m.as_str());
-      if ampm == Some("pm") && hour < 12 { hour += 12; }
-      if ampm == Some("am") && hour == 12 { hour = 0; }
+      if ampm == Some("pm") && hour < 12 {
+        hour += 12;
+      }
+      if ampm == Some("am") && hour == 12 {
+        hour = 0;
+      }
       let cron_expr = format!("{} {} * * *", minute, hour);
       let mut result = json!({ "kind": "cron", "expr": cron_expr });
       if let Some(tz) = timezone {
@@ -692,10 +819,20 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_j
 
     // Every [weekday] at X
     let days = [
-      ("sunday", "0"), ("monday", "1"), ("tuesday", "2"), ("wednesday", "3"),
-      ("thursday", "4"), ("friday", "5"), ("saturday", "6"),
-      ("sun", "0"), ("mon", "1"), ("tue", "2"), ("wed", "3"),
-      ("thu", "4"), ("fri", "5"), ("sat", "6"),
+      ("sunday", "0"),
+      ("monday", "1"),
+      ("tuesday", "2"),
+      ("wednesday", "3"),
+      ("thursday", "4"),
+      ("friday", "5"),
+      ("saturday", "6"),
+      ("sun", "0"),
+      ("mon", "1"),
+      ("tue", "2"),
+      ("wed", "3"),
+      ("thu", "4"),
+      ("fri", "5"),
+      ("sat", "6"),
     ];
     for (day_name, day_num) in days {
       if s.contains(day_name) {
@@ -704,11 +841,21 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_j
           .ok()
           .and_then(|re| re.captures(&s));
         let (hour, minute) = if let Some(caps) = hour_minute {
-          let mut h: u32 = caps.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(9);
-          let m: u32 = caps.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
+          let mut h: u32 = caps
+            .get(1)
+            .and_then(|m| m.as_str().parse().ok())
+            .unwrap_or(9);
+          let m: u32 = caps
+            .get(2)
+            .and_then(|m| m.as_str().parse().ok())
+            .unwrap_or(0);
           let ampm = caps.get(3).map(|m| m.as_str());
-          if ampm == Some("pm") && h < 12 { h += 12; }
-          if ampm == Some("am") && h == 12 { h = 0; }
+          if ampm == Some("pm") && h < 12 {
+            h += 12;
+          }
+          if ampm == Some("am") && h == 12 {
+            h = 0;
+          }
           (h, m)
         } else {
           (9, 0) // default 9am
@@ -749,10 +896,11 @@ fn extract_pdf_text(content: &str) -> String {
   };
 
   // Decode base64
-  let pdf_bytes = match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, base64_data) {
-    Ok(bytes) => bytes,
-    Err(e) => return format!("[Error decoding PDF: {}]", e),
-  };
+  let pdf_bytes =
+    match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, base64_data) {
+      Ok(bytes) => bytes,
+      Err(e) => return format!("[Error decoding PDF: {}]", e),
+    };
 
   // Parse PDF and extract text
   match lopdf::Document::load_mem(&pdf_bytes) {
@@ -793,10 +941,11 @@ fn extract_docx_text(content: &str) -> String {
   };
 
   // Decode base64
-  let doc_bytes = match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, base64_data) {
-    Ok(bytes) => bytes,
-    Err(e) => return format!("[Error decoding document: {}]", e),
-  };
+  let doc_bytes =
+    match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, base64_data) {
+      Ok(bytes) => bytes,
+      Err(e) => return format!("[Error decoding document: {}]", e),
+    };
 
   // Write to temp file since dotext requires a file path
   let temp_path = std::env::temp_dir().join(format!("clawd_docx_{}.docx", std::process::id()));
@@ -849,7 +998,10 @@ pub async fn chat(
     let mut context = String::new();
     for att in attachments {
       let name = att.get("name").and_then(|v| v.as_str()).unwrap_or("file");
-      let file_type = att.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
+      let file_type = att
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
       let content = att.get("content").and_then(|v| v.as_str()).unwrap_or("");
 
       // For images: extract base64 data and pass as vision content blocks
@@ -868,42 +1020,73 @@ pub async fn chat(
             media_type,
             data: base64_data.to_string(),
           });
-          context.push_str(&format!("\n\n[Image attached: {} — visible in the message above]", name));
+          context.push_str(&format!(
+            "\n\n[Image attached: {} — visible in the message above]",
+            name
+          ));
         } else {
-          context.push_str(&format!("\n\n[Image attached: {} — could not parse image data]", name));
+          context.push_str(&format!(
+            "\n\n[Image attached: {} — could not parse image data]",
+            name
+          ));
         }
       } else if file_type == "application/pdf" || content.starts_with("data:application/pdf") {
         // Extract text from PDF
         let pdf_text = extract_pdf_text(content);
         let truncated = if pdf_text.len() > 50000 {
-          format!("{}...\n\n(Content truncated - {} chars total)", &pdf_text[..50000], pdf_text.len())
+          format!(
+            "{}...\n\n(Content truncated - {} chars total)",
+            &pdf_text[..50000],
+            pdf_text.len()
+          )
         } else {
           pdf_text
         };
-        context.push_str(&format!("\n\n--- PDF File: {} ---\n{}\n--- End of {} ---", name, truncated, name));
-      } else if file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          || file_type == "application/msword"
-          || name.ends_with(".docx")
-          || name.ends_with(".doc")
-          || content.starts_with("data:application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-          || content.starts_with("data:application/msword") {
+        context.push_str(&format!(
+          "\n\n--- PDF File: {} ---\n{}\n--- End of {} ---",
+          name, truncated, name
+        ));
+      } else if file_type
+        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        || file_type == "application/msword"
+        || name.ends_with(".docx")
+        || name.ends_with(".doc")
+        || content.starts_with(
+          "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        || content.starts_with("data:application/msword")
+      {
         // Extract text from Word document
         let doc_text = extract_docx_text(content);
         let truncated = if doc_text.len() > 50000 {
-          format!("{}...\n\n(Content truncated - {} chars total)", &doc_text[..50000], doc_text.len())
+          format!(
+            "{}...\n\n(Content truncated - {} chars total)",
+            &doc_text[..50000],
+            doc_text.len()
+          )
         } else {
           doc_text
         };
-        context.push_str(&format!("\n\n--- Word Document: {} ---\n{}\n--- End of {} ---", name, truncated, name));
+        context.push_str(&format!(
+          "\n\n--- Word Document: {} ---\n{}\n--- End of {} ---",
+          name, truncated, name
+        ));
       } else {
         // Text content - include it directly
         // Limit content size to avoid overwhelming the model
         let truncated = if content.len() > 50000 {
-          format!("{}...\n\n(Content truncated - {} bytes total)", &content[..50000], content.len())
+          format!(
+            "{}...\n\n(Content truncated - {} bytes total)",
+            &content[..50000],
+            content.len()
+          )
         } else {
           content.to_string()
         };
-        context.push_str(&format!("\n\n--- File: {} ({}) ---\n{}\n--- End of {} ---", name, file_type, truncated, name));
+        context.push_str(&format!(
+          "\n\n--- File: {} ({}) ---\n{}\n--- End of {} ---",
+          name, file_type, truncated, name
+        ));
       }
     }
     context
@@ -915,7 +1098,10 @@ pub async fn chat(
   let full_text = if attachment_context.is_empty() {
     text.clone()
   } else {
-    format!("{}\n\n**Attached files context:**{}", text, attachment_context)
+    format!(
+      "{}\n\n**Attached files context:**{}",
+      text, attachment_context
+    )
   };
 
   if text.is_empty() && attachment_context.is_empty() && image_attachments.is_empty() {
@@ -1017,43 +1203,81 @@ pub async fn chat(
     let args_map = chat_agent::parse_args_map(args);
     let token = bearer_token_for_control(app_handle);
 
-    // Helper function for GET requests
+    // Helper function for GET requests (with retry on connection failures)
     async fn do_get(
       client: &reqwest::Client,
       path: &str,
       token: Option<String>,
     ) -> anyhow::Result<String> {
-      let mut req = client.get(path);
-      if let Some(t) = token {
-        req = req.bearer_auth(t);
+      let max_retries = 2u32;
+      let mut last_err = String::new();
+      for attempt in 0..=max_retries {
+        let mut req = client.get(path);
+        if let Some(ref t) = token {
+          req = req.bearer_auth(t);
+        }
+        match req.send().await {
+          Ok(res) => {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            if !status.is_success() {
+              anyhow::bail!("HTTP {}: {}", status, text);
+            }
+            return Ok(text);
+          }
+          Err(e) => {
+            last_err = format!("{}", e);
+            if attempt < max_retries {
+              tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1)))
+                .await;
+            }
+          }
+        }
       }
-      let res = req.send().await.map_err(|e| anyhow::anyhow!(e))?;
-      let status = res.status();
-      let text = res.text().await.unwrap_or_default();
-      if !status.is_success() {
-        anyhow::bail!("HTTP {}: {}", status, text);
-      }
-      Ok(text)
+      anyhow::bail!(
+        "Browser control server unreachable after {} attempts: {}",
+        max_retries + 1,
+        last_err
+      )
     }
 
-    // Helper function for POST requests
+    // Helper function for POST requests (with retry on connection failures)
     async fn do_post(
       client: &reqwest::Client,
       path: &str,
       payload: JsonValue,
       token: Option<String>,
     ) -> anyhow::Result<String> {
-      let mut req = client.post(path).json(&payload);
-      if let Some(t) = token {
-        req = req.bearer_auth(t);
+      let max_retries = 2u32;
+      let mut last_err = String::new();
+      for attempt in 0..=max_retries {
+        let mut req = client.post(path).json(&payload);
+        if let Some(ref t) = token {
+          req = req.bearer_auth(t);
+        }
+        match req.send().await {
+          Ok(res) => {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            if !status.is_success() {
+              anyhow::bail!("HTTP {}: {}", status, text);
+            }
+            return Ok(text);
+          }
+          Err(e) => {
+            last_err = format!("{}", e);
+            if attempt < max_retries {
+              tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1)))
+                .await;
+            }
+          }
+        }
       }
-      let res = req.send().await.map_err(|e| anyhow::anyhow!(e))?;
-      let status = res.status();
-      let text = res.text().await.unwrap_or_default();
-      if !status.is_success() {
-        anyhow::bail!("HTTP {}: {}", status, text);
-      }
-      Ok(text)
+      anyhow::bail!(
+        "Browser control server unreachable after {} attempts: {}",
+        max_retries + 1,
+        last_err
+      )
     }
 
     if name == "open_url" {
@@ -1137,7 +1361,13 @@ pub async fn chat(
         base_url.trim_end_matches('/'),
         profile
       );
-      let out = do_post(client, &endpoint, serde_json::json!({"targetId": target_id}), token).await?;
+      let out = do_post(
+        client,
+        &endpoint,
+        serde_json::json!({"targetId": target_id}),
+        token,
+      )
+      .await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -1159,10 +1389,7 @@ pub async fn chat(
         .filter(|s| !s.is_empty());
 
       // Don't use "efficient" mode - it truncates too much and loses important content
-      let mut qs = vec![
-        ("format", "ai".to_string()),
-        ("refs", "aria".to_string()),
-      ];
+      let mut qs = vec![("format", "ai".to_string()), ("refs", "aria".to_string())];
       if let Some(tid) = target_id {
         qs.push(("targetId", tid));
       }
@@ -1246,7 +1473,11 @@ pub async fn chat(
         Ok(content) => {
           // Truncate if too large
           let truncated = if content.len() > 50000 {
-            format!("{}... [truncated, file is {} bytes]", &content[..50000], content.len())
+            format!(
+              "{}... [truncated, file is {} bytes]",
+              &content[..50000],
+              content.len()
+            )
           } else {
             content
           };
@@ -1317,13 +1548,24 @@ pub async fn chat(
         path_raw.to_string()
       };
       // Simple glob matching
-      let glob_pattern = glob::Pattern::new(pattern).map_err(|e| anyhow::anyhow!("Invalid pattern: {}", e))?;
+      let glob_pattern =
+        glob::Pattern::new(pattern).map_err(|e| anyhow::anyhow!("Invalid pattern: {}", e))?;
       let mut matches: Vec<String> = Vec::new();
-      fn search_dir(dir: &std::path::Path, pattern: &glob::Pattern, recursive: bool, matches: &mut Vec<String>, max: usize) {
-        if matches.len() >= max { return; }
+      fn search_dir(
+        dir: &std::path::Path,
+        pattern: &glob::Pattern,
+        recursive: bool,
+        matches: &mut Vec<String>,
+        max: usize,
+      ) {
+        if matches.len() >= max {
+          return;
+        }
         if let Ok(entries) = std::fs::read_dir(dir) {
           for entry in entries.flatten() {
-            if matches.len() >= max { return; }
+            if matches.len() >= max {
+              return;
+            }
             let name = entry.file_name().to_string_lossy().to_string();
             let path = entry.path();
             if pattern.matches(&name) {
@@ -1335,8 +1577,16 @@ pub async fn chat(
           }
         }
       }
-      search_dir(std::path::Path::new(&path), &glob_pattern, recursive, &mut matches, 100);
-      return Ok(json!({"ok": true, "pattern": pattern, "matches": matches, "count": matches.len()}));
+      search_dir(
+        std::path::Path::new(&path),
+        &glob_pattern,
+        recursive,
+        &mut matches,
+        100,
+      );
+      return Ok(
+        json!({"ok": true, "pattern": pattern, "matches": matches, "count": matches.len()}),
+      );
     }
 
     // Write file tool
@@ -1362,15 +1612,25 @@ pub async fn chat(
       };
       // Block writes to sensitive paths (defense in depth)
       let sensitive_prefixes = [
-        ".ssh/", ".gnupg/", ".gpg/", ".aws/", ".config/gcloud/",
-        ".azure/", ".password-store/", "Library/Keychains/",
-        ".clawdbot/tokens.json", ".netrc", ".docker/config.json",
+        ".ssh/",
+        ".gnupg/",
+        ".gpg/",
+        ".aws/",
+        ".config/gcloud/",
+        ".azure/",
+        ".password-store/",
+        "Library/Keychains/",
+        ".clawdbot/tokens.json",
+        ".netrc",
+        ".docker/config.json",
       ];
       let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
       for prefix in &sensitive_prefixes {
         let sensitive_path = format!("{}/{}", home, prefix);
         if path.starts_with(&sensitive_path) {
-          return Ok(json!({"ok": false, "error": format!("Refusing to write to sensitive path: {}", path)}));
+          return Ok(
+            json!({"ok": false, "error": format!("Refusing to write to sensitive path: {}", path)}),
+          );
         }
       }
       let file_name = std::path::Path::new(&path)
@@ -1378,13 +1638,17 @@ pub async fn chat(
         .and_then(|n| n.to_str())
         .unwrap_or("");
       if file_name == ".env" || file_name == ".env.local" || file_name == ".env.production" {
-        return Ok(json!({"ok": false, "error": format!("Refusing to write to environment file: {}", path)}));
+        return Ok(
+          json!({"ok": false, "error": format!("Refusing to write to environment file: {}", path)}),
+        );
       }
       // Create parent directories if needed
       if let Some(parent) = std::path::Path::new(&path).parent() {
         if !parent.exists() {
           if let Err(e) = std::fs::create_dir_all(parent) {
-            return Ok(json!({"ok": false, "error": format!("Failed to create parent directories: {}", e)}));
+            return Ok(
+              json!({"ok": false, "error": format!("Failed to create parent directories: {}", e)}),
+            );
           }
         }
       }
@@ -1417,7 +1681,9 @@ pub async fn chat(
       // Create temp directory for scripts
       let script_dir = std::env::temp_dir().join("knapsack-scripts");
       if let Err(e) = std::fs::create_dir_all(&script_dir) {
-        return Ok(json!({"ok": false, "error": format!("Failed to create temp script directory: {}", e)}));
+        return Ok(
+          json!({"ok": false, "error": format!("Failed to create temp script directory: {}", e)}),
+        );
       }
       // Write script to temp file with unique name
       let script_name = format!("clawd_script_{}.py", std::process::id());
@@ -1441,7 +1707,11 @@ pub async fn chat(
 
       let timeout_duration = std::time::Duration::from_secs(timeout_secs);
       // First attempt
-      let result = tokio::time::timeout(timeout_duration, run_once(script_path.clone(), script_dir.clone())).await;
+      let result = tokio::time::timeout(
+        timeout_duration,
+        run_once(script_path.clone(), script_dir.clone()),
+      )
+      .await;
 
       // Check for ModuleNotFoundError — auto-install and retry once
       let result = match &result {
@@ -1455,13 +1725,41 @@ pub async fn chat(
             let pip_package = raw_module.split('.').next().unwrap_or(raw_module);
             // Allowlist of safe-to-install packages
             let allowed = [
-              "matplotlib", "numpy", "pandas", "scipy", "requests", "pillow",
-              "seaborn", "plotly", "beautifulsoup4", "lxml", "openpyxl",
-              "scikit-learn", "sklearn", "sympy", "networkx", "pyyaml",
-              "tabulate", "tqdm", "rich", "httpx", "aiohttp", "flask",
-              "fastapi", "jinja2", "markdown", "dateutil", "python-dateutil",
-              "pytz", "arrow", "pydantic", "sqlalchemy", "xlsxwriter",
-              "csvkit", "chardet", "PIL",
+              "matplotlib",
+              "numpy",
+              "pandas",
+              "scipy",
+              "requests",
+              "pillow",
+              "seaborn",
+              "plotly",
+              "beautifulsoup4",
+              "lxml",
+              "openpyxl",
+              "scikit-learn",
+              "sklearn",
+              "sympy",
+              "networkx",
+              "pyyaml",
+              "tabulate",
+              "tqdm",
+              "rich",
+              "httpx",
+              "aiohttp",
+              "flask",
+              "fastapi",
+              "jinja2",
+              "markdown",
+              "dateutil",
+              "python-dateutil",
+              "pytz",
+              "arrow",
+              "pydantic",
+              "sqlalchemy",
+              "xlsxwriter",
+              "csvkit",
+              "chardet",
+              "PIL",
             ];
             // Map common import names to pip package names
             let pip_name = match pip_package {
@@ -1473,8 +1771,15 @@ pub async fn chat(
               "cv2" => "opencv-python",
               other => other,
             };
-            if allowed.iter().any(|a| a.eq_ignore_ascii_case(pip_name) || a.eq_ignore_ascii_case(pip_package)) {
-              log::info!("[run_script] auto-installing missing module: {} (pip: {})", raw_module, pip_name);
+            if allowed
+              .iter()
+              .any(|a| a.eq_ignore_ascii_case(pip_name) || a.eq_ignore_ascii_case(pip_package))
+            {
+              log::info!(
+                "[run_script] auto-installing missing module: {} (pip: {})",
+                raw_module,
+                pip_name
+              );
               // Try pip3 install
               let pip_result = std::process::Command::new("python3")
                 .args(["-m", "pip", "install", "--quiet", pip_name])
@@ -1483,10 +1788,17 @@ pub async fn chat(
                 .output();
               match pip_result {
                 Ok(pip_out) if pip_out.status.success() => {
-                  log::info!("[run_script] installed {} successfully, retrying script", pip_name);
+                  log::info!(
+                    "[run_script] installed {} successfully, retrying script",
+                    pip_name
+                  );
                   // Re-write the script (in case it was cleaned up) and retry
                   let _ = std::fs::write(&script_path, &script);
-                  tokio::time::timeout(timeout_duration, run_once(script_path.clone(), script_dir.clone())).await
+                  tokio::time::timeout(
+                    timeout_duration,
+                    run_once(script_path.clone(), script_dir.clone()),
+                  )
+                  .await
                 }
                 Ok(pip_out) => {
                   let pip_err = String::from_utf8_lossy(&pip_out.stderr);
@@ -1499,7 +1811,10 @@ pub async fn chat(
                 }
               }
             } else {
-              log::info!("[run_script] module '{}' not in allowlist, skipping auto-install", pip_package);
+              log::info!(
+                "[run_script] module '{}' not in allowlist, skipping auto-install",
+                pip_package
+              );
               result
             }
           } else {
@@ -1517,12 +1832,20 @@ pub async fn chat(
           let stderr = String::from_utf8_lossy(&output.stderr).to_string();
           let exit_code = output.status.code().unwrap_or(-1);
           let stdout_truncated = if stdout.len() > 50000 {
-            format!("{}... [truncated, {} bytes total]", &stdout[..50000], stdout.len())
+            format!(
+              "{}... [truncated, {} bytes total]",
+              &stdout[..50000],
+              stdout.len()
+            )
           } else {
             stdout
           };
           let stderr_truncated = if stderr.len() > 10000 {
-            format!("{}... [truncated, {} bytes total]", &stderr[..10000], stderr.len())
+            format!(
+              "{}... [truncated, {} bytes total]",
+              &stderr[..10000],
+              stderr.len()
+            )
           } else {
             stderr
           };
@@ -1534,13 +1857,17 @@ pub async fn chat(
           }));
         }
         Ok(Ok(Err(e))) => {
-          return Ok(json!({"ok": false, "error": format!("Failed to execute python3: {}. Is Python 3 installed?", e)}));
+          return Ok(
+            json!({"ok": false, "error": format!("Failed to execute python3: {}. Is Python 3 installed?", e)}),
+          );
         }
         Ok(Err(e)) => {
           return Ok(json!({"ok": false, "error": format!("Script execution error: {}", e)}));
         }
         Err(_) => {
-          return Ok(json!({"ok": false, "error": format!("Script timed out after {} seconds", timeout_secs), "timeout": true}));
+          return Ok(
+            json!({"ok": false, "error": format!("Script timed out after {} seconds", timeout_secs), "timeout": true}),
+          );
         }
       }
     }
@@ -1584,10 +1911,14 @@ pub async fn chat(
 
       match gateway_ws::cron_add(task_name, schedule, payload, None).await {
         Ok(result) => {
-          return Ok(json!({"ok": true, "message": format!("Scheduled task '{}' created successfully", task_name), "result": result}));
+          return Ok(
+            json!({"ok": true, "message": format!("Scheduled task '{}' created successfully", task_name), "result": result}),
+          );
         }
         Err(e) => {
-          return Ok(json!({"ok": false, "error": format!("Failed to create scheduled task: {}. Note: Scheduling requires the Clawdbot gateway to be running.", e)}));
+          return Ok(
+            json!({"ok": false, "error": format!("Failed to create scheduled task: {}. Note: Scheduling requires the Clawdbot gateway to be running.", e)}),
+          );
         }
       }
     }
@@ -1600,7 +1931,9 @@ pub async fn chat(
           return Ok(json!({"ok": true, "tasks": result}));
         }
         Err(e) => {
-          return Ok(json!({"ok": false, "error": format!("Failed to list scheduled tasks: {}. Note: Scheduling requires the Clawdbot gateway to be running.", e)}));
+          return Ok(
+            json!({"ok": false, "error": format!("Failed to list scheduled tasks: {}. Note: Scheduling requires the Clawdbot gateway to be running.", e)}),
+          );
         }
       }
     }
@@ -1620,10 +1953,14 @@ pub async fn chat(
 
       match gateway_ws::cron_remove(task_id, None).await {
         Ok(result) => {
-          return Ok(json!({"ok": true, "message": format!("Scheduled task '{}' cancelled successfully", task_id), "result": result}));
+          return Ok(
+            json!({"ok": true, "message": format!("Scheduled task '{}' cancelled successfully", task_id), "result": result}),
+          );
         }
         Err(e) => {
-          return Ok(json!({"ok": false, "error": format!("Failed to cancel scheduled task: {}. Note: Scheduling requires the Clawdbot gateway to be running.", e)}));
+          return Ok(
+            json!({"ok": false, "error": format!("Failed to cancel scheduled task: {}. Note: Scheduling requires the Clawdbot gateway to be running.", e)}),
+          );
         }
       }
     }
@@ -1640,11 +1977,7 @@ pub async fn chat(
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string());
 
-      let meetings = crate::clawd::meeting_context::list_meetings(
-        days,
-        search.as_deref(),
-      )
-      .await;
+      let meetings = crate::clawd::meeting_context::list_meetings(days, search.as_deref()).await;
       return Ok(json!({"ok": true, "meetings": meetings}));
     }
 
@@ -1675,7 +2008,9 @@ pub async fn chat(
           return Ok(json!({"ok": true, "thread_id": thread_id, "notes": content}));
         }
         Ok(None) => {
-          return Ok(json!({"ok": true, "thread_id": thread_id, "notes": null, "message": "No notes found for this meeting"}));
+          return Ok(
+            json!({"ok": true, "thread_id": thread_id, "notes": null, "message": "No notes found for this meeting"}),
+          );
         }
         Err(e) => {
           return Ok(json!({"ok": false, "error": format!("Failed to get notes: {}", e)}));
@@ -1709,39 +2044,68 @@ pub async fn chat(
 
       // Safety: block dangerous command patterns
       let dangerous_patterns = [
-        "rm -rf /", "rm -rf /*", "rm -fr /", "rm -fr /*",
-        "mkfs", "dd if=", "shutdown", "reboot", "halt",
+        "rm -rf /",
+        "rm -rf /*",
+        "rm -fr /",
+        "rm -fr /*",
+        "mkfs",
+        "dd if=",
+        "shutdown",
+        "reboot",
+        "halt",
         ":(){ :|:& };:", // fork bomb
-        "format c:", "del /f /s /q",
-        "> /dev/sda", "chmod -R 777 /",
-        "mv / ", "mv /* ",
+        "format c:",
+        "del /f /s /q",
+        "> /dev/sda",
+        "chmod -R 777 /",
+        "mv / ",
+        "mv /* ",
         // Password and credential changes must always be done by the user
-        "passwd", "chpasswd", "usermod -p", "dscl . -passwd",
+        "passwd",
+        "chpasswd",
+        "usermod -p",
+        "dscl . -passwd",
         "security set-keychain-password",
         "htpasswd",
       ];
       let cmd_lower = command.to_lowercase();
       for pattern in &dangerous_patterns {
         if cmd_lower.contains(pattern) {
-          return Ok(json!({"ok": false, "error": format!("Blocked: dangerous command pattern detected ({})", pattern)}));
+          return Ok(
+            json!({"ok": false, "error": format!("Blocked: dangerous command pattern detected ({})", pattern)}),
+          );
         }
       }
 
       // Block pipe-to-shell patterns (curl | sh, wget | bash, etc.)
       if (cmd_lower.contains("curl ") || cmd_lower.contains("wget "))
-        && (cmd_lower.contains("| sh") || cmd_lower.contains("| bash")
-            || cmd_lower.contains("|sh") || cmd_lower.contains("|bash"))
+        && (cmd_lower.contains("| sh")
+          || cmd_lower.contains("| bash")
+          || cmd_lower.contains("|sh")
+          || cmd_lower.contains("|bash"))
       {
-        return Ok(json!({"ok": false, "error": "Blocked: pipe-to-shell execution is not allowed for security reasons. Download the file first, inspect it, then run it."}));
+        return Ok(
+          json!({"ok": false, "error": "Blocked: pipe-to-shell execution is not allowed for security reasons. Download the file first, inspect it, then run it."}),
+        );
       }
 
       // Block writes to sensitive paths
       let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
-      let sensitive_dirs = [".ssh", ".gnupg", ".gpg", ".aws", ".config/gcloud", ".azure", ".password-store"];
+      let sensitive_dirs = [
+        ".ssh",
+        ".gnupg",
+        ".gpg",
+        ".aws",
+        ".config/gcloud",
+        ".azure",
+        ".password-store",
+      ];
       for dir in &sensitive_dirs {
         let sensitive = format!("{}/{}", home, dir);
         if command.contains(&sensitive) {
-          return Ok(json!({"ok": false, "error": format!("Blocked: command references sensitive path ({})", sensitive)}));
+          return Ok(
+            json!({"ok": false, "error": format!("Blocked: command references sensitive path ({})", sensitive)}),
+          );
         }
       }
 
@@ -1752,19 +2116,26 @@ pub async fn chat(
         working_dir
       };
 
-      eprintln!("[clawd/chat] run_command: {} (timeout={}s, cwd={})", command, timeout_secs, wd);
+      eprintln!(
+        "[clawd/chat] run_command: {} (timeout={}s, cwd={})",
+        command, timeout_secs, wd
+      );
 
       let cmd_clone = command.clone();
       let wd_clone = wd.clone();
       let timeout_duration = std::time::Duration::from_secs(timeout_secs);
-      let result = tokio::time::timeout(timeout_duration, tokio::task::spawn_blocking(move || {
-        std::process::Command::new("/bin/bash")
-          .args(["-c", &cmd_clone])
-          .current_dir(&wd_clone)
-          .stdout(std::process::Stdio::piped())
-          .stderr(std::process::Stdio::piped())
-          .output()
-      })).await;
+      let result = tokio::time::timeout(
+        timeout_duration,
+        tokio::task::spawn_blocking(move || {
+          std::process::Command::new("/bin/bash")
+            .args(["-c", &cmd_clone])
+            .current_dir(&wd_clone)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+        }),
+      )
+      .await;
 
       match result {
         Ok(Ok(Ok(output))) => {
@@ -1773,11 +2144,23 @@ pub async fn chat(
           let exit_code = output.status.code().unwrap_or(-1);
           // Truncate output
           let stdout_t = if stdout.len() > 50000 {
-            format!("{}... [truncated, {} bytes]", &stdout[..50000], stdout.len())
-          } else { stdout };
+            format!(
+              "{}... [truncated, {} bytes]",
+              &stdout[..50000],
+              stdout.len()
+            )
+          } else {
+            stdout
+          };
           let stderr_t = if stderr.len() > 10000 {
-            format!("{}... [truncated, {} bytes]", &stderr[..10000], stderr.len())
-          } else { stderr };
+            format!(
+              "{}... [truncated, {} bytes]",
+              &stderr[..10000],
+              stderr.len()
+            )
+          } else {
+            stderr
+          };
           return Ok(json!({
             "ok": exit_code == 0,
             "exit_code": exit_code,
@@ -1792,7 +2175,9 @@ pub async fn chat(
           return Ok(json!({"ok": false, "error": format!("Command execution error: {}", e)}));
         }
         Err(_) => {
-          return Ok(json!({"ok": false, "error": format!("Command timed out after {} seconds", timeout_secs), "timeout": true}));
+          return Ok(
+            json!({"ok": false, "error": format!("Command timed out after {} seconds", timeout_secs), "timeout": true}),
+          );
         }
       }
     }
@@ -2005,7 +2390,8 @@ When the user asks "what can you do" or "what skills do you have", mention that 
     String::new()
   };
 
-  let system_content = format!(r#"You are Moltbot, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
+  let system_content = format!(
+    r#"You are Moltbot, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
 {}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
@@ -2331,7 +2717,14 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
 6. **Complete** the full task (don't stop partway)
 7. **Summarize** what you found/did
 
-**Remember**: You are PERSISTENT. When given a complex task, work through it systematically. Try multiple approaches if one fails. Don't stop until the job is FULLY DONE or you've exhausted reasonable options."#, tone_section, voice_section, autonomy_section, meeting_section, advanced_section, skills_section);
+**Remember**: You are PERSISTENT. When given a complex task, work through it systematically. Try multiple approaches if one fails. Don't stop until the job is FULLY DONE or you've exhausted reasonable options."#,
+    tone_section,
+    voice_section,
+    autonomy_section,
+    meeting_section,
+    advanced_section,
+    skills_section
+  );
 
   let system = chat_agent::OaiMessage::System {
     content: system_content,
@@ -2365,9 +2758,9 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
     // Skip delay on the first call; add a small pause between subsequent tool-loop iterations.
     if tool_iter > 1 {
       let delay_ms: u64 = match provider.as_str() {
-        "anthropic" => 500,  // Anthropic has tighter rate limits
+        "anthropic" => 500, // Anthropic has tighter rate limits
         "gemini" => 300,
-        _ => 100,            // OpenAI is more generous
+        _ => 100, // OpenAI is more generous
       };
       tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
     }
@@ -2377,8 +2770,9 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
         match chat_agent::anthropic_chat(&api_key, &model, messages.clone(), tools.clone()).await {
           Ok(r) => r,
           Err(e) => {
-            return HttpResponse::InternalServerError()
-              .json(serde_json::json!({"ok": false, "message": format!("Anthropic error: {}", e)}));
+            return HttpResponse::InternalServerError().json(
+              serde_json::json!({"ok": false, "message": format!("Anthropic error: {}", e)}),
+            );
           }
         }
       }
@@ -2391,15 +2785,13 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
           }
         }
       }
-      _ => {
-        match chat_agent::openai_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-          Ok(r) => r,
-          Err(e) => {
-            return HttpResponse::InternalServerError()
-              .json(serde_json::json!({"ok": false, "message": format!("OpenAI error: {}", e)}));
-          }
+      _ => match chat_agent::openai_chat(&api_key, &model, messages.clone(), tools.clone()).await {
+        Ok(r) => r,
+        Err(e) => {
+          return HttpResponse::InternalServerError()
+            .json(serde_json::json!({"ok": false, "message": format!("OpenAI error: {}", e)}));
         }
-      }
+      },
     };
 
     let choice = match resp.choices.first() {
@@ -2509,23 +2901,37 @@ pub async fn screenshot(
     obj.remove("chrome");
   }
 
-  let mut req = client.post(endpoint).json(&forward);
-  if let Some(token) = bearer_token_for_control(&app_handle) {
-    req = req.bearer_auth(token);
-  }
+  let token = bearer_token_for_control(&app_handle);
 
-  match req.send().await {
-    Ok(res) => {
-      let status = res.status();
-      let text = res.text().await.unwrap_or_default();
-      if !status.is_success() {
-        return HttpResponse::BadGateway().json(serde_json::json!({
-          "success": false,
-          "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
-        }));
-      }
-      HttpResponse::Ok().body(text)
+  // Retry connection failures (gateway may still be starting)
+  let max_retries = 2u32;
+  let mut last_err = String::new();
+  for attempt in 0..=max_retries {
+    let mut req = client.post(&endpoint).json(&forward);
+    if let Some(ref token) = token {
+      req = req.bearer_auth(token);
     }
-    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach Clawdbot control server: {}", e)})),
+
+    match req.send().await {
+      Ok(res) => {
+        let status = res.status();
+        let text = res.text().await.unwrap_or_default();
+        if !status.is_success() {
+          return HttpResponse::BadGateway().json(serde_json::json!({
+            "success": false,
+            "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
+          }));
+        }
+        return HttpResponse::Ok().body(text);
+      }
+      Err(e) => {
+        last_err = format!("{}", e);
+        if attempt < max_retries {
+          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
+          continue;
+        }
+      }
+    }
   }
+  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
