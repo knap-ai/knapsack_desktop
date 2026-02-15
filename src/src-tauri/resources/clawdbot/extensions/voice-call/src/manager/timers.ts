@@ -1,8 +1,21 @@
-import { TerminalStates, type CallId } from "../types.js";
 import type { CallManagerContext } from "./context.js";
+import { TerminalStates, type CallId } from "../types.js";
 import { persistCallRecord } from "./store.js";
 
-export function clearMaxDurationTimer(ctx: CallManagerContext, callId: CallId): void {
+type TimerContext = Pick<
+  CallManagerContext,
+  "activeCalls" | "maxDurationTimers" | "config" | "storePath" | "transcriptWaiters"
+>;
+type MaxDurationTimerContext = Pick<
+  TimerContext,
+  "activeCalls" | "maxDurationTimers" | "config" | "storePath"
+>;
+type TranscriptWaiterContext = Pick<TimerContext, "transcriptWaiters">;
+
+export function clearMaxDurationTimer(
+  ctx: Pick<MaxDurationTimerContext, "maxDurationTimers">,
+  callId: CallId,
+): void {
   const timer = ctx.maxDurationTimers.get(callId);
   if (timer) {
     clearTimeout(timer);
@@ -11,7 +24,7 @@ export function clearMaxDurationTimer(ctx: CallManagerContext, callId: CallId): 
 }
 
 export function startMaxDurationTimer(params: {
-  ctx: CallManagerContext;
+  ctx: MaxDurationTimerContext;
   callId: CallId;
   onTimeout: (callId: CallId) => Promise<void>;
 }): void {
@@ -38,39 +51,42 @@ export function startMaxDurationTimer(params: {
   params.ctx.maxDurationTimers.set(params.callId, timer);
 }
 
-export function clearTranscriptWaiter(ctx: CallManagerContext, callId: CallId): void {
+export function clearTranscriptWaiter(ctx: TranscriptWaiterContext, callId: CallId): void {
   const waiter = ctx.transcriptWaiters.get(callId);
-  if (!waiter) return;
+  if (!waiter) {
+    return;
+  }
   clearTimeout(waiter.timeout);
   ctx.transcriptWaiters.delete(callId);
 }
 
 export function rejectTranscriptWaiter(
-  ctx: CallManagerContext,
+  ctx: TranscriptWaiterContext,
   callId: CallId,
   reason: string,
 ): void {
   const waiter = ctx.transcriptWaiters.get(callId);
-  if (!waiter) return;
+  if (!waiter) {
+    return;
+  }
   clearTranscriptWaiter(ctx, callId);
   waiter.reject(new Error(reason));
 }
 
 export function resolveTranscriptWaiter(
-  ctx: CallManagerContext,
+  ctx: TranscriptWaiterContext,
   callId: CallId,
   transcript: string,
 ): void {
   const waiter = ctx.transcriptWaiters.get(callId);
-  if (!waiter) return;
+  if (!waiter) {
+    return;
+  }
   clearTranscriptWaiter(ctx, callId);
   waiter.resolve(transcript);
 }
 
-export function waitForFinalTranscript(
-  ctx: CallManagerContext,
-  callId: CallId,
-): Promise<string> {
+export function waitForFinalTranscript(ctx: TimerContext, callId: CallId): Promise<string> {
   // Only allow one in-flight waiter per call.
   rejectTranscriptWaiter(ctx, callId, "Transcript waiter replaced");
 

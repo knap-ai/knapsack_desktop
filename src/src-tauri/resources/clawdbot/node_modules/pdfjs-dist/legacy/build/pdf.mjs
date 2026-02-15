@@ -21,13 +21,13 @@
  */
 
 /**
- * pdfjsVersion = 5.4.530
- * pdfjsBuild = 50cc4adac
+ * pdfjsVersion = 5.4.624
+ * pdfjsBuild = 384c6208b
  */
 /******/ var __webpack_modules__ = ({
 
-/***/ 34:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 34
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isCallable = __webpack_require__(4901);
@@ -37,10 +37,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 81:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 81
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var call = __webpack_require__(9565);
@@ -58,10 +58,10 @@ module.exports = function (argument, usingIterator) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 116:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 116
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -97,10 +97,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: findWithoutClosingOnEar
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 283:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 283
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -159,10 +159,10 @@ Function.prototype.toString = makeBuiltIn(function toString() {
 }, 'toString');
 
 
-/***/ }),
+/***/ },
 
-/***/ 350:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 350
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -184,10 +184,10 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 397:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 397
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var getBuiltIn = __webpack_require__(7751);
@@ -195,19 +195,19 @@ var getBuiltIn = __webpack_require__(7751);
 module.exports = getBuiltIn('document', 'documentElement');
 
 
-/***/ }),
+/***/ },
 
-/***/ 421:
-/***/ ((module) => {
+/***/ 421
+(module) {
 
 
 module.exports = {};
 
 
-/***/ }),
+/***/ },
 
-/***/ 456:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 456
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -245,10 +245,10 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 507:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 507
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var call = __webpack_require__(9565);
@@ -264,10 +264,10 @@ module.exports = function (record, fn, ITERATOR_INSTEAD_OF_RECORD) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 531:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 531
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -332,10 +332,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 616:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 616
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var fails = __webpack_require__(9039);
@@ -348,10 +348,10 @@ module.exports = !fails(function () {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 655:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 655
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var classof = __webpack_require__(6955);
@@ -364,10 +364,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 679:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 679
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isPrototypeOf = __webpack_require__(1625);
@@ -380,10 +380,10 @@ module.exports = function (it, Prototype) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 684:
-/***/ ((module) => {
+/***/ 684
+(module) {
 
 
 // Should throw an error on invalid iterator
@@ -399,10 +399,10 @@ module.exports = function (methodName, argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 741:
-/***/ ((module) => {
+/***/ 741
+(module) {
 
 
 var ceil = Math.ceil;
@@ -417,10 +417,10 @@ module.exports = Math.trunc || function trunc(x) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 757:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 757
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var getBuiltIn = __webpack_require__(7751);
@@ -438,10 +438,10 @@ module.exports = USE_SYMBOL_AS_UID ? function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 851:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 851
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var classof = __webpack_require__(6955);
@@ -459,10 +459,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 944:
-/***/ ((module) => {
+/***/ 944
+(module) {
 
 
 var $TypeError = TypeError;
@@ -474,10 +474,10 @@ module.exports = function (options) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 1072:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1072
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var internalObjectKeys = __webpack_require__(1828);
@@ -491,10 +491,10 @@ module.exports = Object.keys || function keys(O) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 1103:
-/***/ ((module) => {
+/***/ 1103
+(module) {
 
 
 module.exports = function (exec) {
@@ -506,10 +506,10 @@ module.exports = function (exec) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 1108:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1108
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var classof = __webpack_require__(6955);
@@ -520,10 +520,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 1148:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1148
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -559,10 +559,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: everyWithoutClosingOnEa
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 1181:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1181
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var NATIVE_WEAK_MAP = __webpack_require__(8622);
@@ -637,10 +637,10 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 1291:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1291
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var trunc = __webpack_require__(741);
@@ -654,10 +654,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 1385:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1385
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var iteratorClose = __webpack_require__(9539);
@@ -677,10 +677,10 @@ module.exports = function (iters, kind, value) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 1548:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1548
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -700,20 +700,20 @@ module.exports = !!structuredClone && !fails(function () {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 1549:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1549
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 // TODO: Remove from `core-js@4`
 __webpack_require__(6632);
 
 
-/***/ }),
+/***/ },
 
-/***/ 1625:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1625
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -721,10 +721,10 @@ var uncurryThis = __webpack_require__(9504);
 module.exports = uncurryThis({}.isPrototypeOf);
 
 
-/***/ }),
+/***/ },
 
-/***/ 1689:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1689
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -761,10 +761,10 @@ $({ target: 'Promise', stat: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 1698:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1698
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -781,10 +781,10 @@ $({ target: 'Set', proto: true, real: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 1701:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1701
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -832,10 +832,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 1767:
-/***/ ((module) => {
+/***/ 1767
+(module) {
 
 
 // `GetIteratorDirect(obj)` abstract operation
@@ -849,10 +849,10 @@ module.exports = function (obj) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 1828:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 1828
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -877,10 +877,10 @@ module.exports = function (object, names) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2106:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2106
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var makeBuiltIn = __webpack_require__(283);
@@ -893,10 +893,10 @@ module.exports = function (target, name, descriptor) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2140:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2140
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var wellKnownSymbol = __webpack_require__(8227);
@@ -909,10 +909,10 @@ test[TO_STRING_TAG] = 'z';
 module.exports = String(test) === '[object z]';
 
 
-/***/ }),
+/***/ },
 
-/***/ 2195:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2195
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -925,10 +925,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2211:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2211
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var fails = __webpack_require__(9039);
@@ -941,10 +941,10 @@ module.exports = !fails(function () {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 2303:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2303
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -974,10 +974,10 @@ module.exports = function (string, into) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2360:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2360
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 /* global ActiveXObject -- old IE, WSH */
@@ -1066,10 +1066,10 @@ module.exports = Object.create || function create(O, Properties) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2475:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2475
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -1087,10 +1087,10 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 2489:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2489
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -1145,10 +1145,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 2529:
-/***/ ((module) => {
+/***/ 2529
+(module) {
 
 
 // `CreateIterResultObject` abstract operation
@@ -1158,10 +1158,10 @@ module.exports = function (value, done) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2603:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2603
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toString = __webpack_require__(655);
@@ -1171,10 +1171,10 @@ module.exports = function (argument, $default) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2652:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2652
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var bind = __webpack_require__(6080);
@@ -1247,10 +1247,10 @@ module.exports = function (iterable, unboundFunction, options) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2777:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2777
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var call = __webpack_require__(9565);
@@ -1280,10 +1280,10 @@ module.exports = function (input, pref) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2787:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2787
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var hasOwn = __webpack_require__(9297);
@@ -1309,10 +1309,10 @@ module.exports = CORRECT_PROTOTYPE_GETTER ? $Object.getPrototypeOf : function (O
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2796:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2796
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var fails = __webpack_require__(9039);
@@ -1339,10 +1339,10 @@ var POLYFILL = isForced.POLYFILL = 'P';
 module.exports = isForced;
 
 
-/***/ }),
+/***/ },
 
-/***/ 2804:
-/***/ ((module) => {
+/***/ 2804
+(module) {
 
 
 var commonAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -1365,10 +1365,10 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2812:
-/***/ ((module) => {
+/***/ 2812
+(module) {
 
 
 var $TypeError = TypeError;
@@ -1379,10 +1379,10 @@ module.exports = function (passed, required) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 2839:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2839
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -1393,10 +1393,10 @@ var userAgent = navigator && navigator.userAgent;
 module.exports = userAgent ? String(userAgent) : '';
 
 
-/***/ }),
+/***/ },
 
-/***/ 2967:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 2967
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 /* eslint-disable no-proto -- safe */
@@ -1429,10 +1429,10 @@ module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () {
 }() : undefined);
 
 
-/***/ }),
+/***/ },
 
-/***/ 3068:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3068
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 // based on Shewchuk's algorithm for exactly floating point addition
@@ -1587,10 +1587,10 @@ $({ target: 'Math', stat: true }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 3167:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3167
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isCallable = __webpack_require__(4901);
@@ -1613,10 +1613,10 @@ module.exports = function ($this, dummy, Wrapper) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3238:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3238
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -1637,10 +1637,10 @@ module.exports = function (O) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3392:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3392
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -1654,10 +1654,10 @@ module.exports = function (key) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3440:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3440
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aSet = __webpack_require__(7080);
@@ -1687,10 +1687,10 @@ module.exports = function difference(other) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3463:
-/***/ ((module) => {
+/***/ 3463
+(module) {
 
 
 var $TypeError = TypeError;
@@ -1701,10 +1701,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3506:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3506
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isPossiblePrototype = __webpack_require__(3925);
@@ -1718,10 +1718,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3579:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3579
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -1757,10 +1757,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: someWithoutClosingOnEar
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 3650:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3650
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aSet = __webpack_require__(7080);
@@ -1787,10 +1787,10 @@ module.exports = function symmetricDifference(other) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3706:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3706
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -1809,20 +1809,20 @@ if (!isCallable(store.inspectSource)) {
 module.exports = store.inspectSource;
 
 
-/***/ }),
+/***/ },
 
-/***/ 3717:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ 3717
+(__unused_webpack_module, exports) {
 
 
 // eslint-disable-next-line es/no-object-getownpropertysymbols -- safe
 exports.f = Object.getOwnPropertySymbols;
 
 
-/***/ }),
+/***/ },
 
-/***/ 3724:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3724
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var fails = __webpack_require__(9039);
@@ -1834,10 +1834,10 @@ module.exports = !fails(function () {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 3789:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3789
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aCallable = __webpack_require__(9306);
@@ -1881,10 +1881,10 @@ module.exports = function (obj) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3838:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3838
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aSet = __webpack_require__(7080);
@@ -1904,10 +1904,10 @@ module.exports = function isSubsetOf(other) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3853:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3853
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -1925,10 +1925,10 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 3925:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3925
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isObject = __webpack_require__(34);
@@ -1938,10 +1938,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 3972:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 3972
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isObject = __webpack_require__(34);
@@ -1955,10 +1955,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4055:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4055
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -1973,10 +1973,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4114:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4114
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -2022,10 +2022,10 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 4117:
-/***/ ((module) => {
+/***/ 4117
+(module) {
 
 
 // we can't use just `it == null` since of `document.all` special case
@@ -2035,10 +2035,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4149:
-/***/ ((module) => {
+/***/ 4149
+(module) {
 
 
 var $RangeError = RangeError;
@@ -2050,10 +2050,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4154:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4154
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var classof = __webpack_require__(6955);
@@ -2068,10 +2068,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4204:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4204
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aSet = __webpack_require__(7080);
@@ -2093,10 +2093,10 @@ module.exports = function union(other) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4209:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4209
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var wellKnownSymbol = __webpack_require__(8227);
@@ -2111,10 +2111,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4215:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4215
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 /* global Bun, Deno -- detection */
@@ -2139,10 +2139,10 @@ module.exports = (function () {
 })();
 
 
-/***/ }),
+/***/ },
 
-/***/ 4226:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4226
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -2165,20 +2165,20 @@ if (globalThis.Uint8Array) $({ target: 'Uint8Array', proto: true }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 4235:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4235
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 // TODO: Remove from `core-js@4`
 __webpack_require__(3068);
 
 
-/***/ }),
+/***/ },
 
-/***/ 4270:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4270
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var call = __webpack_require__(9565);
@@ -2198,10 +2198,10 @@ module.exports = function (input, pref) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4376:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4376
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var classof = __webpack_require__(2195);
@@ -2214,10 +2214,10 @@ module.exports = Array.isArray || function isArray(argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4402:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4402
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -2235,10 +2235,10 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4449:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4449
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aSet = __webpack_require__(7080);
@@ -2264,10 +2264,10 @@ module.exports = function isDisjointFrom(other) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4483:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4483
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -2308,10 +2308,10 @@ if (PROPER_STRUCTURED_CLONE_TRANSFER) {
 module.exports = detach;
 
 
-/***/ }),
+/***/ },
 
-/***/ 4495:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4495
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 /* eslint-disable es/no-symbol -- required for testing */
@@ -2334,10 +2334,10 @@ module.exports = !!Object.getOwnPropertySymbols && !fails(function () {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 4527:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4527
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -2368,10 +2368,10 @@ module.exports = SILENT_ON_NON_WRITABLE_LENGTH_SET ? function (O, length) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4549:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4549
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -2398,10 +2398,10 @@ module.exports = function (METHOD_NAME, ExpectedError) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4576:
-/***/ (function(module) {
+/***/ 4576
+(module) {
 
 
 var check = function (it) {
@@ -2421,10 +2421,10 @@ module.exports =
   (function () { return this; })() || Function('return this')();
 
 
-/***/ }),
+/***/ },
 
-/***/ 4603:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4603
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var defineBuiltIn = __webpack_require__(6840);
@@ -2477,10 +2477,10 @@ if (params + '' !== 'a=2') {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ 4628:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4628
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -2500,10 +2500,10 @@ $({ target: 'Promise', stat: true }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 4644:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4644
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var NATIVE_ARRAY_BUFFER = __webpack_require__(7811);
@@ -2700,10 +2700,10 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4659:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4659
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -2716,10 +2716,10 @@ module.exports = function (object, key, value) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4901:
-/***/ ((module) => {
+/***/ 4901
+(module) {
 
 
 // https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot
@@ -2735,10 +2735,10 @@ module.exports = typeof documentAll == 'undefined' && documentAll !== undefined 
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4913:
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+/***/ 4913
+(__unused_webpack_module, exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -2786,10 +2786,10 @@ exports.f = DESCRIPTORS ? V8_PROTOTYPE_DEFINE_BUG ? function defineProperty(O, P
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4916:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4916
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var getBuiltIn = __webpack_require__(7751);
@@ -2851,10 +2851,10 @@ module.exports = function (name, callback) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 4972:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4972
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -2902,10 +2902,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || takeWithoutC
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 4979:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 4979
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -2977,10 +2977,10 @@ if (PolyfilledDOMExceptionPrototype.constructor !== PolyfilledDOMException) {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ 5002:
-/***/ ((module) => {
+/***/ 5002
+(module) {
 
 
 module.exports = {
@@ -3012,10 +3012,10 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5024:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5024
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -3032,10 +3032,10 @@ $({ target: 'Set', proto: true, real: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 5031:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5031
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var getBuiltIn = __webpack_require__(7751);
@@ -3054,10 +3054,10 @@ module.exports = getBuiltIn('Reflect', 'ownKeys') || function ownKeys(it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5169:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5169
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isDetached = __webpack_require__(3238);
@@ -3070,10 +3070,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5170:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5170
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThisAccessor = __webpack_require__(6706);
@@ -3084,10 +3084,10 @@ module.exports = uncurryThisAccessor(SetHelpers.proto, 'size', 'get') || functio
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5213:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5213
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -3120,10 +3120,10 @@ if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: INCORRECT_BEHAVIOR
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 5370:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5370
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var lengthOfArrayLike = __webpack_require__(6198);
@@ -3137,10 +3137,10 @@ module.exports = function (Constructor, list, $length) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5397:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5397
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 // toObject with fallback for non-array-like ES3 strings
@@ -3152,10 +3152,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5610:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5610
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toIntegerOrInfinity = __webpack_require__(1291);
@@ -3172,20 +3172,20 @@ module.exports = function (index, length) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5623:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5623
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 // TODO: Remove from `core-js@4`
 __webpack_require__(456);
 
 
-/***/ }),
+/***/ },
 
-/***/ 5636:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5636
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -3234,10 +3234,10 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5745:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5745
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var store = __webpack_require__(7629);
@@ -3247,10 +3247,10 @@ module.exports = function (key, value) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5781:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5781
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -3277,10 +3277,10 @@ $({ target: 'URL', stat: true, forced: !USE_NATIVE_URL }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 5854:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5854
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toPrimitive = __webpack_require__(2777);
@@ -3297,10 +3297,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 5876:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5876
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -3318,10 +3318,10 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 5917:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5917
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -3337,10 +3337,10 @@ module.exports = !DESCRIPTORS && !fails(function () {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 5966:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 5966
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aCallable = __webpack_require__(9306);
@@ -3354,10 +3354,10 @@ module.exports = function (V, P) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6043:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6043
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aCallable = __webpack_require__(9306);
@@ -3382,10 +3382,10 @@ module.exports.f = function (C) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6080:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6080
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(7476);
@@ -3403,10 +3403,10 @@ module.exports = function (fn, that) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6119:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6119
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var shared = __webpack_require__(5745);
@@ -3419,10 +3419,10 @@ module.exports = function (key) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6193:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6193
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var ENVIRONMENT = __webpack_require__(4215);
@@ -3430,10 +3430,10 @@ var ENVIRONMENT = __webpack_require__(4215);
 module.exports = ENVIRONMENT === 'NODE';
 
 
-/***/ }),
+/***/ },
 
-/***/ 6198:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6198
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toLength = __webpack_require__(8014);
@@ -3445,19 +3445,19 @@ module.exports = function (obj) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6269:
-/***/ ((module) => {
+/***/ 6269
+(module) {
 
 
 module.exports = {};
 
 
-/***/ }),
+/***/ },
 
-/***/ 6279:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6279
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var defineBuiltIn = __webpack_require__(6840);
@@ -3468,10 +3468,10 @@ module.exports = function (target, src, options) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6319:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6319
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var anObject = __webpack_require__(8551);
@@ -3487,19 +3487,19 @@ module.exports = function (iterator, fn, value, ENTRIES) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6395:
-/***/ ((module) => {
+/***/ 6395
+(module) {
 
 
 module.exports = false;
 
 
-/***/ }),
+/***/ },
 
-/***/ 6518:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6518
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -3558,10 +3558,10 @@ module.exports = function (options, source) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6573:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6573
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -3582,10 +3582,10 @@ if (DESCRIPTORS && !('detached' in ArrayBufferPrototype)) {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ 6632:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6632
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -3626,10 +3626,10 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 6699:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6699
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -3644,10 +3644,10 @@ module.exports = DESCRIPTORS ? function (object, key, value) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6706:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6706
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -3661,10 +3661,10 @@ module.exports = function (object, key, method) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6801:
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+/***/ 6801
+(__unused_webpack_module, exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -3689,10 +3689,10 @@ exports.f = DESCRIPTORS && !V8_PROTOTYPE_DEFINE_BUG ? Object.defineProperties : 
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6823:
-/***/ ((module) => {
+/***/ 6823
+(module) {
 
 
 var $String = String;
@@ -3706,10 +3706,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6837:
-/***/ ((module) => {
+/***/ 6837
+(module) {
 
 
 var $TypeError = TypeError;
@@ -3721,10 +3721,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6840:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6840
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isCallable = __webpack_require__(4901);
@@ -3756,10 +3756,10 @@ module.exports = function (O, key, value, options) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6955:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6955
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var TO_STRING_TAG_SUPPORT = __webpack_require__(2140);
@@ -3793,10 +3793,10 @@ module.exports = TO_STRING_TAG_SUPPORT ? classofRaw : function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6969:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 6969
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toPrimitive = __webpack_require__(2777);
@@ -3810,10 +3810,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 6980:
-/***/ ((module) => {
+/***/ 6980
+(module) {
 
 
 module.exports = function (bitmap, value) {
@@ -3826,10 +3826,10 @@ module.exports = function (bitmap, value) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7040:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7040
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 /* eslint-disable es/no-symbol -- required for testing */
@@ -3840,10 +3840,10 @@ module.exports = NATIVE_SYMBOL &&
   typeof Symbol.iterator == 'symbol';
 
 
-/***/ }),
+/***/ },
 
-/***/ 7055:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7055
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -3863,10 +3863,10 @@ module.exports = fails(function () {
 } : $Object;
 
 
-/***/ }),
+/***/ },
 
-/***/ 7080:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7080
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var has = (__webpack_require__(4402).has);
@@ -3878,10 +3878,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7347:
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+/***/ 7347
+(__unused_webpack_module, exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -3908,10 +3908,10 @@ exports.f = DESCRIPTORS ? $getOwnPropertyDescriptor : function getOwnPropertyDes
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7394:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7394
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -3930,10 +3930,10 @@ module.exports = ArrayBuffer && uncurryThisAccessor(ArrayBuffer.prototype, 'byte
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7416:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7416
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var fails = __webpack_require__(9039);
@@ -3979,10 +3979,10 @@ module.exports = !fails(function () {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 7476:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7476
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var classofRaw = __webpack_require__(2195);
@@ -3996,10 +3996,10 @@ module.exports = function (fn) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7566:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7566
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var defineBuiltIn = __webpack_require__(6840);
@@ -4031,10 +4031,10 @@ if (params.has('a', 2) || !params.has('a', undefined)) {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ 7588:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7588
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -4070,10 +4070,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: forEachWithoutClosingOn
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 7629:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7629
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var IS_PURE = __webpack_require__(6395);
@@ -4092,10 +4092,10 @@ var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, 
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 7642:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7642
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -4136,10 +4136,10 @@ $({ target: 'Set', proto: true, real: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 7657:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7657
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var fails = __webpack_require__(9039);
@@ -4192,10 +4192,10 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7680:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7680
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -4203,10 +4203,10 @@ var uncurryThis = __webpack_require__(9504);
 module.exports = uncurryThis([].slice);
 
 
-/***/ }),
+/***/ },
 
-/***/ 7696:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7696
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toIntegerOrInfinity = __webpack_require__(1291);
@@ -4225,10 +4225,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7740:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7740
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var hasOwn = __webpack_require__(9297);
@@ -4249,10 +4249,10 @@ module.exports = function (target, source, exceptions) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7750:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7750
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isNullOrUndefined = __webpack_require__(4117);
@@ -4267,10 +4267,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7751:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7751
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -4285,20 +4285,20 @@ module.exports = function (namespace, method) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 7811:
-/***/ ((module) => {
+/***/ 7811
+(module) {
 
 
 // eslint-disable-next-line es/no-typed-arrays -- safe
 module.exports = typeof ArrayBuffer != 'undefined' && typeof DataView != 'undefined';
 
 
-/***/ }),
+/***/ },
 
-/***/ 7936:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 7936
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -4313,10 +4313,10 @@ if ($transfer) $({ target: 'ArrayBuffer', proto: true }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 8004:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8004
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -4338,10 +4338,10 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 8014:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8014
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toIntegerOrInfinity = __webpack_require__(1291);
@@ -4356,10 +4356,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8100:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8100
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -4374,10 +4374,10 @@ if ($transfer) $({ target: 'ArrayBuffer', proto: true }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 8111:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8111
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -4446,10 +4446,10 @@ $({ global: true, constructor: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 8227:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8227
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -4472,10 +4472,10 @@ module.exports = function (name) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8235:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8235
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -4535,10 +4535,10 @@ module.exports = function (source, i) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8237:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8237
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -4594,20 +4594,20 @@ $({ target: 'Iterator', proto: true, real: true, forced: FAILS_ON_INITIAL_UNDEFI
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 8335:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8335
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 // TODO: Remove from `core-js@4`
 __webpack_require__(9112);
 
 
-/***/ }),
+/***/ },
 
-/***/ 8469:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8469
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -4625,10 +4625,10 @@ module.exports = function (set, fn, interruptible) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8480:
-/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+/***/ 8480
+(__unused_webpack_module, exports, __webpack_require__) {
 
 
 var internalObjectKeys = __webpack_require__(1828);
@@ -4644,10 +4644,10 @@ exports.f = Object.getOwnPropertyNames || function getOwnPropertyNames(O) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8527:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8527
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aSet = __webpack_require__(7080);
@@ -4670,10 +4670,10 @@ module.exports = function isSupersetOf(other) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8551:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8551
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isObject = __webpack_require__(34);
@@ -4688,10 +4688,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8574:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8574
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -4711,10 +4711,10 @@ module.exports = function (stack, dropEntries) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8622:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8622
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -4725,10 +4725,10 @@ var WeakMap = globalThis.WeakMap;
 module.exports = isCallable(WeakMap) && /native code/.test(String(WeakMap));
 
 
-/***/ }),
+/***/ },
 
-/***/ 8646:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8646
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var call = __webpack_require__(9565);
@@ -4743,10 +4743,10 @@ module.exports = function (obj, stringHandling) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8686:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8686
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -4763,10 +4763,10 @@ module.exports = DESCRIPTORS && fails(function () {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 8721:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8721
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var DESCRIPTORS = __webpack_require__(3724);
@@ -4791,10 +4791,10 @@ if (DESCRIPTORS && !('size' in URLSearchParamsPrototype)) {
 }
 
 
-/***/ }),
+/***/ },
 
-/***/ 8727:
-/***/ ((module) => {
+/***/ 8727
+(module) {
 
 
 // IE8- don't enum bug keys
@@ -4809,10 +4809,10 @@ module.exports = [
 ];
 
 
-/***/ }),
+/***/ },
 
-/***/ 8745:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8745
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var NATIVE_BIND = __webpack_require__(616);
@@ -4827,10 +4827,10 @@ module.exports = typeof Reflect == 'object' && Reflect.apply || (NATIVE_BIND ? c
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 8750:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8750
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var aSet = __webpack_require__(7080);
@@ -4865,10 +4865,10 @@ module.exports = function intersection(other) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 8773:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ 8773
+(__unused_webpack_module, exports) {
 
 
 var $propertyIsEnumerable = {}.propertyIsEnumerable;
@@ -4886,10 +4886,10 @@ exports.f = NASHORN_BUG ? function propertyIsEnumerable(V) {
 } : $propertyIsEnumerable;
 
 
-/***/ }),
+/***/ },
 
-/***/ 8981:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 8981
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var requireObjectCoercible = __webpack_require__(7750);
@@ -4903,10 +4903,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9039:
-/***/ ((module) => {
+/***/ 9039
+(module) {
 
 
 module.exports = function (exec) {
@@ -4918,10 +4918,10 @@ module.exports = function (exec) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9112:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9112
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -5176,10 +5176,10 @@ $({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 9143:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9143
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -5340,10 +5340,10 @@ module.exports = function (string, options, into, maxLength) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9286:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9286
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var SetHelpers = __webpack_require__(4402);
@@ -5361,10 +5361,10 @@ module.exports = function (set) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9297:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9297
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var uncurryThis = __webpack_require__(9504);
@@ -5380,10 +5380,10 @@ module.exports = Object.hasOwn || function hasOwn(it, key) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9306:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9306
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var isCallable = __webpack_require__(4901);
@@ -5398,10 +5398,10 @@ module.exports = function (argument) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9314:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9314
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -5458,10 +5458,10 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 9429:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9429
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -5480,20 +5480,20 @@ module.exports = function (name) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9432:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9432
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 // TODO: Remove from `core-js@4`
 __webpack_require__(5213);
 
 
-/***/ }),
+/***/ },
 
-/***/ 9433:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9433
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -5510,10 +5510,10 @@ module.exports = function (key, value) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9462:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9462
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var call = __webpack_require__(9565);
@@ -5603,10 +5603,10 @@ module.exports = function (nextHandler, IS_ITERATOR, RETURN_HANDLER_RESULT) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9486:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9486
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var $ = __webpack_require__(6518);
@@ -5670,10 +5670,10 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
 });
 
 
-/***/ }),
+/***/ },
 
-/***/ 9504:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9504
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var NATIVE_BIND = __webpack_require__(616);
@@ -5690,10 +5690,10 @@ module.exports = NATIVE_BIND ? uncurryThisWithBind : function (fn) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9519:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9519
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var globalThis = __webpack_require__(4576);
@@ -5725,10 +5725,10 @@ if (!version && userAgent) {
 module.exports = version;
 
 
-/***/ }),
+/***/ },
 
-/***/ 9539:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9539
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var call = __webpack_require__(9565);
@@ -5756,10 +5756,10 @@ module.exports = function (iterator, kind, value) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9565:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9565
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var NATIVE_BIND = __webpack_require__(616);
@@ -5771,10 +5771,10 @@ module.exports = NATIVE_BIND ? call.bind(call) : function () {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9577:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9577
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 var arrayWith = __webpack_require__(9928);
@@ -5818,10 +5818,10 @@ exportTypedArrayMethod('with', { 'with': function (index, value) {
 } }['with'], !PROPER_ORDER || THROW_ON_NEGATIVE_FRACTIONAL_INDEX);
 
 
-/***/ }),
+/***/ },
 
-/***/ 9590:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9590
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toIntegerOrInfinity = __webpack_require__(1291);
@@ -5835,10 +5835,10 @@ module.exports = function (it) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9617:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9617
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var toIndexedObject = __webpack_require__(5397);
@@ -5876,30 +5876,30 @@ module.exports = {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9631:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9631
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 // TODO: Remove from `core-js@4`
 __webpack_require__(9486);
 
 
-/***/ }),
+/***/ },
 
-/***/ 9797:
-/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9797
+(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
 
 
 // TODO: Remove from `core-js@4`
 __webpack_require__(4226);
 
 
-/***/ }),
+/***/ },
 
-/***/ 9835:
-/***/ ((module) => {
+/***/ 9835
+(module) {
 
 
 // Should get iterator record of a set-like object before cloning this
@@ -5933,10 +5933,10 @@ module.exports = function (METHOD_NAME) {
 };
 
 
-/***/ }),
+/***/ },
 
-/***/ 9928:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+/***/ 9928
+(module, __unused_webpack_exports, __webpack_require__) {
 
 
 var lengthOfArrayLike = __webpack_require__(6198);
@@ -5958,7 +5958,7 @@ module.exports = function (O, C, index, value) {
 };
 
 
-/***/ })
+/***/ }
 
 /******/ });
 /************************************************************************/
@@ -6019,14 +6019,10 @@ var es_array_buffer_transfer_to_fixed_length = __webpack_require__(7936);
 var es_iterator_constructor = __webpack_require__(8111);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/es.iterator.reduce.js
 var es_iterator_reduce = __webpack_require__(8237);
-// EXTERNAL MODULE: ./node_modules/core-js/modules/es.promise.try.js
-var es_promise_try = __webpack_require__(1689);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/es.typed-array.with.js
 var es_typed_array_with = __webpack_require__(9577);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/esnext.math.sum-precise.js
 var esnext_math_sum_precise = __webpack_require__(4235);
-// EXTERNAL MODULE: ./node_modules/core-js/modules/esnext.uint8-array.from-base64.js
-var esnext_uint8_array_from_base64 = __webpack_require__(9432);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/esnext.uint8-array.set-from-base64.js
 var esnext_uint8_array_set_from_base64 = __webpack_require__(1549);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/esnext.uint8-array.set-from-hex.js
@@ -6035,14 +6031,9 @@ var esnext_uint8_array_set_from_hex = __webpack_require__(9797);
 var esnext_uint8_array_to_base64 = __webpack_require__(9631);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/esnext.uint8-array.to-hex.js
 var esnext_uint8_array_to_hex = __webpack_require__(5623);
-// EXTERNAL MODULE: ./node_modules/core-js/modules/web.dom-exception.stack.js
-var web_dom_exception_stack = __webpack_require__(4979);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/web.url.parse.js
 var web_url_parse = __webpack_require__(5781);
 ;// ./src/shared/util.js
-
-
-
 
 
 
@@ -6903,24 +6894,6 @@ function _isValidExplicitDest(validRef, validName, dest) {
 }
 function MathClamp(v, min, max) {
   return Math.min(Math.max(v, min), max);
-}
-function toHexUtil(arr) {
-  if (Uint8Array.prototype.toHex) {
-    return arr.toHex();
-  }
-  return Array.from(arr, num => hexNumbers[num]).join("");
-}
-function toBase64Util(arr) {
-  if (Uint8Array.prototype.toBase64) {
-    return arr.toBase64();
-  }
-  return btoa(bytesToString(arr));
-}
-function fromBase64Util(str) {
-  if (Uint8Array.fromBase64) {
-    return Uint8Array.fromBase64(str);
-  }
-  return stringToBytes(atob(str));
 }
 if (typeof Math.sumPrecise !== "function") {
   Math.sumPrecise = function (numbers) {
@@ -7922,6 +7895,115 @@ function makePathFromDrawOPS(data) {
   }
   return path;
 }
+class PagesMapper {
+  static #idToPageNumber = null;
+  static #pageNumberToId = null;
+  static #prevIdToPageNumber = null;
+  static #pagesNumber = 0;
+  static #listeners = [];
+  get pagesNumber() {
+    return PagesMapper.#pagesNumber;
+  }
+  set pagesNumber(n) {
+    if (PagesMapper.#pagesNumber === n) {
+      return;
+    }
+    PagesMapper.#pagesNumber = n;
+    if (n === 0) {
+      PagesMapper.#pageNumberToId = null;
+      PagesMapper.#idToPageNumber = null;
+    }
+  }
+  addListener(listener) {
+    PagesMapper.#listeners.push(listener);
+  }
+  removeListener(listener) {
+    const index = PagesMapper.#listeners.indexOf(listener);
+    if (index >= 0) {
+      PagesMapper.#listeners.splice(index, 1);
+    }
+  }
+  #updateListeners() {
+    for (const listener of PagesMapper.#listeners) {
+      listener();
+    }
+  }
+  #init(mustInit) {
+    if (PagesMapper.#pageNumberToId) {
+      return;
+    }
+    const n = PagesMapper.#pagesNumber;
+    const array = new Uint32Array(3 * n);
+    const pageNumberToId = PagesMapper.#pageNumberToId = array.subarray(0, n);
+    const idToPageNumber = PagesMapper.#idToPageNumber = array.subarray(n, 2 * n);
+    if (mustInit) {
+      for (let i = 0; i < n; i++) {
+        pageNumberToId[i] = idToPageNumber[i] = i + 1;
+      }
+    }
+    PagesMapper.#prevIdToPageNumber = array.subarray(2 * n);
+  }
+  movePages(selectedPages, pagesToMove, index) {
+    this.#init(true);
+    const pageNumberToId = PagesMapper.#pageNumberToId;
+    const idToPageNumber = PagesMapper.#idToPageNumber;
+    PagesMapper.#prevIdToPageNumber.set(idToPageNumber);
+    const movedCount = pagesToMove.length;
+    const mappedPagesToMove = new Uint32Array(movedCount);
+    let removedBeforeTarget = 0;
+    for (let i = 0; i < movedCount; i++) {
+      const pageIndex = pagesToMove[i] - 1;
+      mappedPagesToMove[i] = pageNumberToId[pageIndex];
+      if (pageIndex < index) {
+        removedBeforeTarget += 1;
+      }
+    }
+    const pagesNumber = PagesMapper.#pagesNumber;
+    let adjustedTarget = index - removedBeforeTarget;
+    const remainingLen = pagesNumber - movedCount;
+    adjustedTarget = MathClamp(adjustedTarget, 0, remainingLen);
+    for (let i = 0, r = 0; i < pagesNumber; i++) {
+      if (!selectedPages.has(i + 1)) {
+        pageNumberToId[r++] = pageNumberToId[i];
+      }
+    }
+    pageNumberToId.copyWithin(adjustedTarget + movedCount, adjustedTarget, remainingLen);
+    pageNumberToId.set(mappedPagesToMove, adjustedTarget);
+    let hasChanged = false;
+    for (let i = 0, ii = pagesNumber; i < ii; i++) {
+      const id = pageNumberToId[i];
+      hasChanged ||= id !== i + 1;
+      idToPageNumber[id - 1] = i + 1;
+    }
+    this.#updateListeners();
+    if (!hasChanged) {
+      this.pagesNumber = 0;
+    }
+  }
+  hasBeenAltered() {
+    return PagesMapper.#pageNumberToId !== null;
+  }
+  getPageMappingForSaving() {
+    return {
+      pageIndices: PagesMapper.#idToPageNumber ? PagesMapper.#idToPageNumber.map(x => x - 1) : null
+    };
+  }
+  getPrevPageNumber(pageNumber) {
+    return PagesMapper.#prevIdToPageNumber[PagesMapper.#pageNumberToId[pageNumber - 1] - 1];
+  }
+  getPageNumber(id) {
+    return PagesMapper.#idToPageNumber?.[id - 1] ?? id;
+  }
+  getPageId(pageNumber) {
+    return PagesMapper.#pageNumberToId?.[pageNumber - 1] ?? pageNumber;
+  }
+  static get instance() {
+    return shadow(this, "instance", new PagesMapper());
+  }
+  getMapping() {
+    return PagesMapper.#pageNumberToId.subarray(0, this.pagesNumber);
+  }
+}
 
 // EXTERNAL MODULE: ./node_modules/core-js/modules/es.iterator.take.js
 var es_iterator_take = __webpack_require__(4972);
@@ -7941,6 +8023,8 @@ var es_set_is_superset_of_v2 = __webpack_require__(2475);
 var es_set_symmetric_difference_v2 = __webpack_require__(5024);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/es.set.union.v2.js
 var es_set_union_v2 = __webpack_require__(1698);
+// EXTERNAL MODULE: ./node_modules/core-js/modules/web.dom-exception.stack.js
+var web_dom_exception_stack = __webpack_require__(4979);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/es.iterator.drop.js
 var es_iterator_drop = __webpack_require__(9314);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/es.iterator.every.js
@@ -8847,6 +8931,9 @@ class AnnotationEditorUIManager {
     eventBus._on("switchannotationeditorparams", evt => this.updateParams(evt.type, evt.value), {
       signal
     });
+    eventBus._on("pagesedited", this.onPagesEdited.bind(this), {
+      signal
+    });
     window.addEventListener("pointerdown", () => {
       this.#isPointerDown = true;
     }, {
@@ -9008,6 +9095,21 @@ class AnnotationEditorUIManager {
   removeComment(editor) {
     this.#commentManager?.removeComments([editor.uid]);
   }
+  deleteComment(editor, savedData) {
+    const undo = () => {
+      editor.comment = savedData;
+    };
+    const cmd = () => {
+      this._editorUndoBar?.show(undo, "comment");
+      this.toggleComment(null);
+      editor.comment = null;
+    };
+    this.addCommands({
+      cmd,
+      undo,
+      mustExec: true
+    });
+  }
   toggleComment(editor, isSelected, visibility = undefined) {
     this.#commentManager?.toggleCommentPopup(editor, isSelected, visibility);
   }
@@ -9068,6 +9170,24 @@ class AnnotationEditorUIManager {
       case "enableNewAltTextWhenAddingImage":
         this.#enableNewAltTextWhenAddingImage = value;
         break;
+    }
+  }
+  onPagesEdited({
+    pagesMapper
+  }) {
+    for (const editor of this.#allEditors.values()) {
+      editor.updatePageIndex(pagesMapper.getPrevPageNumber(editor.pageIndex + 1) - 1);
+    }
+    const allLayers = this.#allLayers;
+    const newAllLayers = this.#allLayers = new Map();
+    for (const [pageIndex, layer] of allLayers) {
+      const prevPageIndex = pagesMapper.getPrevPageNumber(pageIndex + 1) - 1;
+      if (prevPageIndex === -1) {
+        layer.destroy();
+        continue;
+      }
+      newAllLayers.set(prevPageIndex, layer);
+      layer.updatePageIndex(prevPageIndex);
     }
   }
   onPageChanging({
@@ -10829,6 +10949,16 @@ class Comment {
     this.#date = new Date();
     this.#deleted = false;
   }
+  restoreData({
+    text,
+    richText,
+    date
+  }) {
+    this.#text = text;
+    this.#richText = richText;
+    this.#date = date;
+    this.#deleted = false;
+  }
   setInitialText(text, richText = null) {
     this.#initialText = text;
     this.data = text;
@@ -11131,6 +11261,9 @@ class AnnotationEditor {
     this.y = parameters.y / height;
     this.isAttachedToDOM = false;
     this.deleted = false;
+  }
+  updatePageIndex(newPageIndex) {
+    this.pageIndex = newPageIndex;
   }
   get editorType() {
     return Object.getPrototypeOf(this).constructor._type;
@@ -11818,6 +11951,9 @@ class AnnotationEditor {
     this.#commentStandaloneButton?.classList.add("hidden");
   }
   get comment() {
+    if (!this.#comment) {
+      return null;
+    }
     const {
       data: {
         richText,
@@ -11835,9 +11971,13 @@ class AnnotationEditor {
       opacity: this.opacity ?? 1
     };
   }
-  set comment(text) {
+  set comment(value) {
     this.#comment ||= new Comment(this);
-    this.#comment.data = text;
+    if (typeof value === "object" && value !== null) {
+      this.#comment.restoreData(value);
+    } else {
+      this.#comment.data = value;
+    }
     if (this.hasComment) {
       this.removeCommentButtonFromToolbar();
       this.addStandaloneCommentButton();
@@ -12901,6 +13041,10 @@ class AnnotationStorage {
     let hasBitmap = false;
     for (const [key, val] of this.#storage) {
       const serialized = val instanceof AnnotationEditor ? val.serialize(false, context) : val;
+      if (val.page) {
+        val.pageIndex = val.page._pageIndex;
+        delete val.page;
+      }
       if (serialized) {
         map.set(key, serialized);
         hash.update(`${key}:${JSON.stringify(serialized)}`);
@@ -13296,7 +13440,7 @@ class FontFaceObject {
     if (!this.data || this.disableFontFace) {
       return null;
     }
-    const url = `url(data:${this.mimetype};base64,${toBase64Util(this.data)});`;
+    const url = `url(data:${this.mimetype};base64,${this.data.toBase64()});`;
     let rule;
     if (!this.cssFontInfo) {
       rule = `@font-face {font-family:"${this.loadedName}";src:${url}}`;
@@ -14196,6 +14340,8 @@ class LoopbackPort {
   }
 }
 
+// EXTERNAL MODULE: ./node_modules/core-js/modules/es.promise.try.js
+var es_promise_try = __webpack_require__(1689);
 ;// ./src/shared/message_handler.js
 
 
@@ -18893,6 +19039,98 @@ class OptionalContentConfig {
   }
 }
 
+// EXTERNAL MODULE: ./node_modules/core-js/modules/es.iterator.find.js
+var es_iterator_find = __webpack_require__(116);
+;// ./src/shared/base_pdf_stream.js
+
+
+
+
+
+
+
+
+
+class BasePDFStream {
+  #PDFStreamReader = null;
+  #PDFStreamRangeReader = null;
+  _fullReader = null;
+  _rangeReaders = new Set();
+  _source = null;
+  constructor(source, PDFStreamReader, PDFStreamRangeReader) {
+    this._source = source;
+    this.#PDFStreamReader = PDFStreamReader;
+    this.#PDFStreamRangeReader = PDFStreamRangeReader;
+  }
+  get _progressiveDataLength() {
+    return this._fullReader?._loaded ?? 0;
+  }
+  getFullReader() {
+    assert(!this._fullReader, "BasePDFStream.getFullReader can only be called once.");
+    return this._fullReader = new this.#PDFStreamReader(this);
+  }
+  getRangeReader(begin, end) {
+    if (end <= this._progressiveDataLength) {
+      return null;
+    }
+    const reader = new this.#PDFStreamRangeReader(this, begin, end);
+    this._rangeReaders.add(reader);
+    return reader;
+  }
+  cancelAllRequests(reason) {
+    this._fullReader?.cancel(reason);
+    for (const reader of new Set(this._rangeReaders)) {
+      reader.cancel(reason);
+    }
+  }
+}
+class BasePDFStreamReader {
+  onProgress = null;
+  _contentLength = 0;
+  _filename = null;
+  _headersCapability = Promise.withResolvers();
+  _isRangeSupported = false;
+  _isStreamingSupported = false;
+  _loaded = 0;
+  _stream = null;
+  constructor(stream) {
+    this._stream = stream;
+  }
+  get headersReady() {
+    return this._headersCapability.promise;
+  }
+  get filename() {
+    return this._filename;
+  }
+  get contentLength() {
+    return this._contentLength;
+  }
+  get isRangeSupported() {
+    return this._isRangeSupported;
+  }
+  get isStreamingSupported() {
+    return this._isStreamingSupported;
+  }
+  async read() {
+    unreachable("Abstract method `read` called");
+  }
+  cancel(reason) {
+    unreachable("Abstract method `cancel` called");
+  }
+}
+class BasePDFStreamRangeReader {
+  _stream = null;
+  constructor(stream, begin, end) {
+    this._stream = stream;
+  }
+  async read() {
+    unreachable("Abstract method `read` called");
+  }
+  cancel(reason) {
+    unreachable("Abstract method `cancel` called");
+  }
+}
+
 ;// ./src/display/transport_stream.js
 
 
@@ -18908,145 +19146,114 @@ class OptionalContentConfig {
 
 
 
-class PDFDataTransportStream {
-  constructor(pdfDataRangeTransport, {
-    disableRange = false,
-    disableStream = false
-  }) {
-    assert(pdfDataRangeTransport, 'PDFDataTransportStream - missing required "pdfDataRangeTransport" argument.');
+
+function getArrayBuffer(val) {
+  return val instanceof Uint8Array && val.byteLength === val.buffer.byteLength ? val.buffer : new Uint8Array(val).buffer;
+}
+class PDFDataTransportStream extends BasePDFStream {
+  _progressiveDone = false;
+  _queuedChunks = [];
+  constructor(source) {
+    super(source, PDFDataTransportStreamReader, PDFDataTransportStreamRangeReader);
     const {
-      length,
+      pdfDataRangeTransport
+    } = source;
+    const {
       initialData,
-      progressiveDone,
-      contentDispositionFilename
+      progressiveDone
     } = pdfDataRangeTransport;
-    this._queuedChunks = [];
-    this._progressiveDone = progressiveDone;
-    this._contentDispositionFilename = contentDispositionFilename;
     if (initialData?.length > 0) {
-      const buffer = initialData instanceof Uint8Array && initialData.byteLength === initialData.buffer.byteLength ? initialData.buffer : new Uint8Array(initialData).buffer;
+      const buffer = getArrayBuffer(initialData);
       this._queuedChunks.push(buffer);
     }
-    this._pdfDataRangeTransport = pdfDataRangeTransport;
-    this._isStreamingSupported = !disableStream;
-    this._isRangeSupported = !disableRange;
-    this._contentLength = length;
-    this._fullRequestReader = null;
-    this._rangeReaders = [];
+    this._progressiveDone = progressiveDone;
     pdfDataRangeTransport.addRangeListener((begin, chunk) => {
-      this._onReceiveData({
-        begin,
-        chunk
-      });
+      this.#onReceiveData(begin, chunk);
     });
     pdfDataRangeTransport.addProgressListener((loaded, total) => {
-      this._onProgress({
-        loaded,
-        total
-      });
+      if (total !== undefined) {
+        this._fullReader?.onProgress?.({
+          loaded,
+          total
+        });
+      }
     });
     pdfDataRangeTransport.addProgressiveReadListener(chunk => {
-      this._onReceiveData({
-        chunk
-      });
+      this.#onReceiveData(undefined, chunk);
     });
     pdfDataRangeTransport.addProgressiveDoneListener(() => {
-      this._onProgressiveDone();
+      this._fullReader?.progressiveDone();
+      this._progressiveDone = true;
     });
     pdfDataRangeTransport.transportReady();
   }
-  _onReceiveData({
-    begin,
-    chunk
-  }) {
-    const buffer = chunk instanceof Uint8Array && chunk.byteLength === chunk.buffer.byteLength ? chunk.buffer : new Uint8Array(chunk).buffer;
+  #onReceiveData(begin, chunk) {
+    const buffer = getArrayBuffer(chunk);
     if (begin === undefined) {
-      if (this._fullRequestReader) {
-        this._fullRequestReader._enqueue(buffer);
+      if (this._fullReader) {
+        this._fullReader._enqueue(buffer);
       } else {
         this._queuedChunks.push(buffer);
       }
     } else {
-      const found = this._rangeReaders.some(function (rangeReader) {
-        if (rangeReader._begin !== begin) {
-          return false;
-        }
-        rangeReader._enqueue(buffer);
-        return true;
-      });
-      assert(found, "_onReceiveData - no `PDFDataTransportStreamRangeReader` instance found.");
-    }
-  }
-  get _progressiveDataLength() {
-    return this._fullRequestReader?._loaded ?? 0;
-  }
-  _onProgress(evt) {
-    if (evt.total === undefined) {
-      this._rangeReaders[0]?.onProgress?.({
-        loaded: evt.loaded
-      });
-    } else {
-      this._fullRequestReader?.onProgress?.({
-        loaded: evt.loaded,
-        total: evt.total
-      });
-    }
-  }
-  _onProgressiveDone() {
-    this._fullRequestReader?.progressiveDone();
-    this._progressiveDone = true;
-  }
-  _removeRangeReader(reader) {
-    const i = this._rangeReaders.indexOf(reader);
-    if (i >= 0) {
-      this._rangeReaders.splice(i, 1);
+      const rangeReader = this._rangeReaders.keys().find(r => r._begin === begin);
+      assert(rangeReader, "#onReceiveData - no `PDFDataTransportStreamRangeReader` instance found.");
+      rangeReader._enqueue(buffer);
     }
   }
   getFullReader() {
-    assert(!this._fullRequestReader, "PDFDataTransportStream.getFullReader can only be called once.");
-    const queuedChunks = this._queuedChunks;
+    const reader = super.getFullReader();
     this._queuedChunks = null;
-    return new PDFDataTransportStreamReader(this, queuedChunks, this._progressiveDone, this._contentDispositionFilename);
+    return reader;
   }
   getRangeReader(begin, end) {
-    if (end <= this._progressiveDataLength) {
-      return null;
+    const reader = super.getRangeReader(begin, end);
+    if (reader) {
+      reader.onDone = () => this._rangeReaders.delete(reader);
+      this._source.pdfDataRangeTransport.requestDataRange(begin, end);
     }
-    const reader = new PDFDataTransportStreamRangeReader(this, begin, end);
-    this._pdfDataRangeTransport.requestDataRange(begin, end);
-    this._rangeReaders.push(reader);
     return reader;
   }
   cancelAllRequests(reason) {
-    this._fullRequestReader?.cancel(reason);
-    for (const reader of this._rangeReaders.slice(0)) {
-      reader.cancel(reason);
-    }
-    this._pdfDataRangeTransport.abort();
+    super.cancelAllRequests(reason);
+    this._source.pdfDataRangeTransport.abort();
   }
 }
-class PDFDataTransportStreamReader {
-  constructor(stream, queuedChunks, progressiveDone = false, contentDispositionFilename = null) {
-    this._stream = stream;
-    this._done = progressiveDone || false;
-    this._filename = isPdfFile(contentDispositionFilename) ? contentDispositionFilename : null;
-    this._queuedChunks = queuedChunks || [];
-    this._loaded = 0;
+class PDFDataTransportStreamReader extends BasePDFStreamReader {
+  _done = false;
+  _queuedChunks = null;
+  _requests = [];
+  constructor(stream) {
+    super(stream);
+    const {
+      pdfDataRangeTransport,
+      disableRange,
+      disableStream
+    } = stream._source;
+    const {
+      length,
+      contentDispositionFilename
+    } = pdfDataRangeTransport;
+    this._queuedChunks = stream._queuedChunks || [];
     for (const chunk of this._queuedChunks) {
       this._loaded += chunk.byteLength;
     }
-    this._requests = [];
-    this._headersReady = Promise.resolve();
-    stream._fullRequestReader = this;
-    this.onProgress = null;
+    this._done = stream._progressiveDone;
+    this._contentLength = length;
+    this._isStreamingSupported = !disableStream;
+    this._isRangeSupported = !disableRange;
+    if (isPdfFile(contentDispositionFilename)) {
+      this._filename = contentDispositionFilename;
+    }
+    this._headersCapability.resolve();
   }
   _enqueue(chunk) {
     if (this._done) {
       return;
     }
     if (this._requests.length > 0) {
-      const requestCapability = this._requests.shift();
-      requestCapability.resolve({
+      const capability = this._requests.shift();
+      capability.resolve({
         value: chunk,
         done: false
       });
@@ -19054,21 +19261,6 @@ class PDFDataTransportStreamReader {
       this._queuedChunks.push(chunk);
     }
     this._loaded += chunk.byteLength;
-  }
-  get headersReady() {
-    return this._headersReady;
-  }
-  get filename() {
-    return this._filename;
-  }
-  get isRangeSupported() {
-    return this._stream._isRangeSupported;
-  }
-  get isStreamingSupported() {
-    return this._stream._isStreamingSupported;
-  }
-  get contentLength() {
-    return this._stream._contentLength;
   }
   async read() {
     if (this._queuedChunks.length > 0) {
@@ -19084,14 +19276,14 @@ class PDFDataTransportStreamReader {
         done: true
       };
     }
-    const requestCapability = Promise.withResolvers();
-    this._requests.push(requestCapability);
-    return requestCapability.promise;
+    const capability = Promise.withResolvers();
+    this._requests.push(capability);
+    return capability.promise;
   }
   cancel(reason) {
     this._done = true;
-    for (const requestCapability of this._requests) {
-      requestCapability.resolve({
+    for (const capability of this._requests) {
+      capability.resolve({
         value: undefined,
         done: true
       });
@@ -19099,21 +19291,18 @@ class PDFDataTransportStreamReader {
     this._requests.length = 0;
   }
   progressiveDone() {
-    if (this._done) {
-      return;
-    }
-    this._done = true;
+    this._done ||= true;
   }
 }
-class PDFDataTransportStreamRangeReader {
+class PDFDataTransportStreamRangeReader extends BasePDFStreamRangeReader {
+  onDone = null;
+  _begin = -1;
+  _done = false;
+  _queuedChunk = null;
+  _requests = [];
   constructor(stream, begin, end) {
-    this._stream = stream;
+    super(stream, begin, end);
     this._begin = begin;
-    this._end = end;
-    this._queuedChunk = null;
-    this._requests = [];
-    this._done = false;
-    this.onProgress = null;
   }
   _enqueue(chunk) {
     if (this._done) {
@@ -19122,13 +19311,13 @@ class PDFDataTransportStreamRangeReader {
     if (this._requests.length === 0) {
       this._queuedChunk = chunk;
     } else {
-      const requestsCapability = this._requests.shift();
-      requestsCapability.resolve({
+      const firstCapability = this._requests.shift();
+      firstCapability.resolve({
         value: chunk,
         done: false
       });
-      for (const requestCapability of this._requests) {
-        requestCapability.resolve({
+      for (const capability of this._requests) {
+        capability.resolve({
           value: undefined,
           done: true
         });
@@ -19136,10 +19325,7 @@ class PDFDataTransportStreamRangeReader {
       this._requests.length = 0;
     }
     this._done = true;
-    this._stream._removeRangeReader(this);
-  }
-  get isStreamingSupported() {
-    return false;
+    this.onDone?.();
   }
   async read() {
     if (this._queuedChunk) {
@@ -19156,20 +19342,20 @@ class PDFDataTransportStreamRangeReader {
         done: true
       };
     }
-    const requestCapability = Promise.withResolvers();
-    this._requests.push(requestCapability);
-    return requestCapability.promise;
+    const capability = Promise.withResolvers();
+    this._requests.push(capability);
+    return capability.promise;
   }
   cancel(reason) {
     this._done = true;
-    for (const requestCapability of this._requests) {
-      requestCapability.resolve({
+    for (const capability of this._requests) {
+      capability.resolve({
         value: undefined,
         done: true
       });
     }
     this._requests.length = 0;
-    this._stream._removeRangeReader(this);
+    this.onDone?.();
   }
 }
 
@@ -19376,8 +19562,10 @@ function extractFilenameFromHeader(responseHeaders) {
 function createResponseError(status, url) {
   return new ResponseException(`Unexpected server response (${status}) while retrieving PDF "${url}".`, status, status === 404 || status === 0 && url.startsWith("file:"));
 }
-function validateResponseStatus(status) {
-  return status === 200 || status === 206;
+function ensureResponseOrigin(rangeOrigin, origin) {
+  if (rangeOrigin !== origin) {
+    throw new Error(`Expected range response-origin "${rangeOrigin}" to match "${origin}".`);
+  }
 }
 
 ;// ./src/display/fetch_stream.js
@@ -19393,17 +19581,22 @@ function validateResponseStatus(status) {
 
 
 
-function createFetchOptions(headers, withCredentials, abortController) {
-  return {
+function fetchUrl(url, headers, withCredentials, abortController) {
+  return fetch(url, {
     method: "GET",
     headers,
     signal: abortController.signal,
     mode: "cors",
     credentials: withCredentials ? "include" : "same-origin",
     redirect: "follow"
-  };
+  });
 }
-function getArrayBuffer(val) {
+function ensureResponseStatus(status, url) {
+  if (status !== 200 && status !== 206) {
+    throw createResponseError(status, url);
+  }
+}
+function fetch_stream_getArrayBuffer(val) {
   if (val instanceof Uint8Array) {
     return val.buffer;
   }
@@ -19413,65 +19606,35 @@ function getArrayBuffer(val) {
   warn(`getArrayBuffer - unexpected data format: ${val}`);
   return new Uint8Array(val).buffer;
 }
-class PDFFetchStream {
+class PDFFetchStream extends BasePDFStream {
   _responseOrigin = null;
   constructor(source) {
-    this.source = source;
+    super(source, PDFFetchStreamReader, PDFFetchStreamRangeReader);
     this.isHttp = /^https?:/i.test(source.url);
     this.headers = createHeaders(this.isHttp, source.httpHeaders);
-    this._fullRequestReader = null;
-    this._rangeRequestReaders = [];
-  }
-  get _progressiveDataLength() {
-    return this._fullRequestReader?._loaded ?? 0;
-  }
-  getFullReader() {
-    assert(!this._fullRequestReader, "PDFFetchStream.getFullReader can only be called once.");
-    this._fullRequestReader = new PDFFetchStreamReader(this);
-    return this._fullRequestReader;
-  }
-  getRangeReader(begin, end) {
-    if (end <= this._progressiveDataLength) {
-      return null;
-    }
-    const reader = new PDFFetchStreamRangeReader(this, begin, end);
-    this._rangeRequestReaders.push(reader);
-    return reader;
-  }
-  cancelAllRequests(reason) {
-    this._fullRequestReader?.cancel(reason);
-    for (const reader of this._rangeRequestReaders.slice(0)) {
-      reader.cancel(reason);
-    }
   }
 }
-class PDFFetchStreamReader {
+class PDFFetchStreamReader extends BasePDFStreamReader {
+  _abortController = new AbortController();
+  _reader = null;
   constructor(stream) {
-    this._stream = stream;
-    this._reader = null;
-    this._loaded = 0;
-    this._filename = null;
-    const source = stream.source;
-    this._withCredentials = source.withCredentials || false;
-    this._contentLength = source.length;
-    this._headersCapability = Promise.withResolvers();
-    this._disableRange = source.disableRange || false;
-    this._rangeChunkSize = source.rangeChunkSize;
-    if (!this._rangeChunkSize && !this._disableRange) {
-      this._disableRange = true;
-    }
-    this._abortController = new AbortController();
-    this._isStreamingSupported = !source.disableStream;
-    this._isRangeSupported = !source.disableRange;
+    super(stream);
+    const {
+      disableRange,
+      disableStream,
+      length,
+      rangeChunkSize,
+      url,
+      withCredentials
+    } = stream._source;
+    this._contentLength = length;
+    this._isStreamingSupported = !disableStream;
+    this._isRangeSupported = !disableRange;
     const headers = new Headers(stream.headers);
-    const url = source.url;
-    fetch(url, createFetchOptions(headers, this._withCredentials, this._abortController)).then(response => {
+    fetchUrl(url, headers, withCredentials, this._abortController).then(response => {
       stream._responseOrigin = getResponseOrigin(response.url);
-      if (!validateResponseStatus(response.status)) {
-        throw createResponseError(response.status, url);
-      }
+      ensureResponseStatus(response.status, url);
       this._reader = response.body.getReader();
-      this._headersCapability.resolve();
       const responseHeaders = response.headers;
       const {
         allowRangeRequests,
@@ -19479,8 +19642,8 @@ class PDFFetchStreamReader {
       } = validateRangeRequestCapabilities({
         responseHeaders,
         isHttp: stream.isHttp,
-        rangeChunkSize: this._rangeChunkSize,
-        disableRange: this._disableRange
+        rangeChunkSize,
+        disableRange
       });
       this._isRangeSupported = allowRangeRequests;
       this._contentLength = suggestedLength || this._contentLength;
@@ -19488,23 +19651,8 @@ class PDFFetchStreamReader {
       if (!this._isStreamingSupported && this._isRangeSupported) {
         this.cancel(new AbortException("Streaming is disabled."));
       }
+      this._headersCapability.resolve();
     }).catch(this._headersCapability.reject);
-    this.onProgress = null;
-  }
-  get headersReady() {
-    return this._headersCapability.promise;
-  }
-  get filename() {
-    return this._filename;
-  }
-  get contentLength() {
-    return this._contentLength;
-  }
-  get isRangeSupported() {
-    return this._isRangeSupported;
-  }
-  get isStreamingSupported() {
-    return this._isStreamingSupported;
   }
   async read() {
     await this._headersCapability.promise;
@@ -19524,7 +19672,7 @@ class PDFFetchStreamReader {
       total: this._contentLength
     });
     return {
-      value: getArrayBuffer(value),
+      value: fetch_stream_getArrayBuffer(value),
       done: false
     };
   }
@@ -19533,34 +19681,25 @@ class PDFFetchStreamReader {
     this._abortController.abort();
   }
 }
-class PDFFetchStreamRangeReader {
+class PDFFetchStreamRangeReader extends BasePDFStreamRangeReader {
+  _abortController = new AbortController();
+  _readCapability = Promise.withResolvers();
+  _reader = null;
   constructor(stream, begin, end) {
-    this._stream = stream;
-    this._reader = null;
-    this._loaded = 0;
-    const source = stream.source;
-    this._withCredentials = source.withCredentials || false;
-    this._readCapability = Promise.withResolvers();
-    this._isStreamingSupported = !source.disableStream;
-    this._abortController = new AbortController();
+    super(stream, begin, end);
+    const {
+      url,
+      withCredentials
+    } = stream._source;
     const headers = new Headers(stream.headers);
     headers.append("Range", `bytes=${begin}-${end - 1}`);
-    const url = source.url;
-    fetch(url, createFetchOptions(headers, this._withCredentials, this._abortController)).then(response => {
+    fetchUrl(url, headers, withCredentials, this._abortController).then(response => {
       const responseOrigin = getResponseOrigin(response.url);
-      if (responseOrigin !== stream._responseOrigin) {
-        throw new Error(`Expected range response-origin "${responseOrigin}" to match "${stream._responseOrigin}".`);
-      }
-      if (!validateResponseStatus(response.status)) {
-        throw createResponseError(response.status, url);
-      }
-      this._readCapability.resolve();
+      ensureResponseOrigin(responseOrigin, stream._responseOrigin);
+      ensureResponseStatus(response.status, url);
       this._reader = response.body.getReader();
+      this._readCapability.resolve();
     }).catch(this._readCapability.reject);
-    this.onProgress = null;
-  }
-  get isStreamingSupported() {
-    return this._isStreamingSupported;
   }
   async read() {
     await this._readCapability.promise;
@@ -19574,12 +19713,8 @@ class PDFFetchStreamRangeReader {
         done
       };
     }
-    this._loaded += value.byteLength;
-    this.onProgress?.({
-      loaded: this._loaded
-    });
     return {
-      value: getArrayBuffer(value),
+      value: fetch_stream_getArrayBuffer(value),
       done: false
     };
   }
@@ -19596,73 +19731,59 @@ class PDFFetchStreamRangeReader {
 
 
 
+
 const OK_RESPONSE = 200;
 const PARTIAL_CONTENT_RESPONSE = 206;
-function network_getArrayBuffer(xhr) {
-  const data = xhr.response;
-  if (typeof data !== "string") {
-    return data;
-  }
-  return stringToBytes(data).buffer;
+function network_getArrayBuffer(val) {
+  return typeof val !== "string" ? val : stringToBytes(val).buffer;
 }
-class NetworkManager {
+class PDFNetworkStream extends BasePDFStream {
+  #pendingRequests = new WeakMap();
   _responseOrigin = null;
-  constructor({
-    url,
-    httpHeaders,
-    withCredentials
-  }) {
-    this.url = url;
-    this.isHttp = /^https?:/i.test(url);
-    this.headers = createHeaders(this.isHttp, httpHeaders);
-    this.withCredentials = withCredentials || false;
-    this.currXhrId = 0;
-    this.pendingRequests = Object.create(null);
+  constructor(source) {
+    super(source, PDFNetworkStreamReader, PDFNetworkStreamRangeReader);
+    this.url = source.url;
+    this.isHttp = /^https?:/i.test(this.url);
+    this.headers = createHeaders(this.isHttp, source.httpHeaders);
   }
-  request(args) {
+  _request(args) {
     const xhr = new XMLHttpRequest();
-    const xhrId = this.currXhrId++;
-    const pendingRequest = this.pendingRequests[xhrId] = {
-      xhr
+    const pendingRequest = {
+      validateStatus: null,
+      onHeadersReceived: args.onHeadersReceived,
+      onDone: args.onDone,
+      onError: args.onError,
+      onProgress: args.onProgress
     };
+    this.#pendingRequests.set(xhr, pendingRequest);
     xhr.open("GET", this.url);
-    xhr.withCredentials = this.withCredentials;
+    xhr.withCredentials = this._source.withCredentials;
     for (const [key, val] of this.headers) {
       xhr.setRequestHeader(key, val);
     }
     if (this.isHttp && "begin" in args && "end" in args) {
       xhr.setRequestHeader("Range", `bytes=${args.begin}-${args.end - 1}`);
-      pendingRequest.expectedStatus = PARTIAL_CONTENT_RESPONSE;
+      pendingRequest.validateStatus = status => status === PARTIAL_CONTENT_RESPONSE || status === OK_RESPONSE;
     } else {
-      pendingRequest.expectedStatus = OK_RESPONSE;
+      pendingRequest.validateStatus = status => status === OK_RESPONSE;
     }
     xhr.responseType = "arraybuffer";
     assert(args.onError, "Expected `onError` callback to be provided.");
-    xhr.onerror = () => {
-      args.onError(xhr.status);
-    };
-    xhr.onreadystatechange = this.onStateChange.bind(this, xhrId);
-    xhr.onprogress = this.onProgress.bind(this, xhrId);
-    pendingRequest.onHeadersReceived = args.onHeadersReceived;
-    pendingRequest.onDone = args.onDone;
-    pendingRequest.onError = args.onError;
-    pendingRequest.onProgress = args.onProgress;
+    xhr.onerror = () => args.onError(xhr.status);
+    xhr.onreadystatechange = this.#onStateChange.bind(this, xhr);
+    xhr.onprogress = this.#onProgress.bind(this, xhr);
     xhr.send(null);
-    return xhrId;
+    return xhr;
   }
-  onProgress(xhrId, evt) {
-    const pendingRequest = this.pendingRequests[xhrId];
+  #onProgress(xhr, evt) {
+    const pendingRequest = this.#pendingRequests.get(xhr);
+    pendingRequest?.onProgress?.(evt);
+  }
+  #onStateChange(xhr, evt) {
+    const pendingRequest = this.#pendingRequests.get(xhr);
     if (!pendingRequest) {
       return;
     }
-    pendingRequest.onProgress?.(evt);
-  }
-  onStateChange(xhrId, evt) {
-    const pendingRequest = this.pendingRequests[xhrId];
-    if (!pendingRequest) {
-      return;
-    }
-    const xhr = pendingRequest.xhr;
     if (xhr.readyState >= 2 && pendingRequest.onHeadersReceived) {
       pendingRequest.onHeadersReceived();
       delete pendingRequest.onHeadersReceived;
@@ -19670,116 +19791,74 @@ class NetworkManager {
     if (xhr.readyState !== 4) {
       return;
     }
-    if (!(xhrId in this.pendingRequests)) {
+    if (!this.#pendingRequests.has(xhr)) {
       return;
     }
-    delete this.pendingRequests[xhrId];
+    this.#pendingRequests.delete(xhr);
     if (xhr.status === 0 && this.isHttp) {
       pendingRequest.onError(xhr.status);
       return;
     }
     const xhrStatus = xhr.status || OK_RESPONSE;
-    const ok_response_on_range_request = xhrStatus === OK_RESPONSE && pendingRequest.expectedStatus === PARTIAL_CONTENT_RESPONSE;
-    if (!ok_response_on_range_request && xhrStatus !== pendingRequest.expectedStatus) {
+    if (!pendingRequest.validateStatus(xhrStatus)) {
       pendingRequest.onError(xhr.status);
       return;
     }
-    const chunk = network_getArrayBuffer(xhr);
+    const chunk = network_getArrayBuffer(xhr.response);
     if (xhrStatus === PARTIAL_CONTENT_RESPONSE) {
       const rangeHeader = xhr.getResponseHeader("Content-Range");
-      const matches = /bytes (\d+)-(\d+)\/(\d+)/.exec(rangeHeader);
-      if (matches) {
-        pendingRequest.onDone({
-          begin: parseInt(matches[1], 10),
-          chunk
-        });
+      if (/bytes (\d+)-(\d+)\/(\d+)/.test(rangeHeader)) {
+        pendingRequest.onDone(chunk);
       } else {
         warn(`Missing or invalid "Content-Range" header.`);
         pendingRequest.onError(0);
       }
     } else if (chunk) {
-      pendingRequest.onDone({
-        begin: 0,
-        chunk
-      });
+      pendingRequest.onDone(chunk);
     } else {
       pendingRequest.onError(xhr.status);
     }
   }
-  getRequestXhr(xhrId) {
-    return this.pendingRequests[xhrId].xhr;
-  }
-  isPendingRequest(xhrId) {
-    return xhrId in this.pendingRequests;
-  }
-  abortRequest(xhrId) {
-    const xhr = this.pendingRequests[xhrId].xhr;
-    delete this.pendingRequests[xhrId];
-    xhr.abort();
-  }
-}
-class PDFNetworkStream {
-  constructor(source) {
-    this._source = source;
-    this._manager = new NetworkManager(source);
-    this._rangeChunkSize = source.rangeChunkSize;
-    this._fullRequestReader = null;
-    this._rangeRequestReaders = [];
-  }
-  _onRangeRequestReaderClosed(reader) {
-    const i = this._rangeRequestReaders.indexOf(reader);
-    if (i >= 0) {
-      this._rangeRequestReaders.splice(i, 1);
+  _abortRequest(xhr) {
+    if (this.#pendingRequests.has(xhr)) {
+      this.#pendingRequests.delete(xhr);
+      xhr.abort();
     }
-  }
-  getFullReader() {
-    assert(!this._fullRequestReader, "PDFNetworkStream.getFullReader can only be called once.");
-    this._fullRequestReader = new PDFNetworkStreamFullRequestReader(this._manager, this._source);
-    return this._fullRequestReader;
   }
   getRangeReader(begin, end) {
-    const reader = new PDFNetworkStreamRangeRequestReader(this._manager, begin, end);
-    reader.onClosed = this._onRangeRequestReaderClosed.bind(this);
-    this._rangeRequestReaders.push(reader);
+    const reader = super.getRangeReader(begin, end);
+    if (reader) {
+      reader.onClosed = () => this._rangeReaders.delete(reader);
+    }
     return reader;
   }
-  cancelAllRequests(reason) {
-    this._fullRequestReader?.cancel(reason);
-    for (const reader of this._rangeRequestReaders.slice(0)) {
-      reader.cancel(reason);
-    }
-  }
 }
-class PDFNetworkStreamFullRequestReader {
-  constructor(manager, source) {
-    this._manager = manager;
-    this._url = source.url;
-    this._fullRequestId = manager.request({
-      onHeadersReceived: this._onHeadersReceived.bind(this),
-      onDone: this._onDone.bind(this),
-      onError: this._onError.bind(this),
-      onProgress: this._onProgress.bind(this)
+class PDFNetworkStreamReader extends BasePDFStreamReader {
+  _cachedChunks = [];
+  _done = false;
+  _requests = [];
+  _storedError = null;
+  constructor(stream) {
+    super(stream);
+    const {
+      length
+    } = stream._source;
+    this._contentLength = length;
+    this._fullRequestXhr = stream._request({
+      onHeadersReceived: this.#onHeadersReceived.bind(this),
+      onDone: this.#onDone.bind(this),
+      onError: this.#onError.bind(this),
+      onProgress: this.#onProgress.bind(this)
     });
-    this._headersCapability = Promise.withResolvers();
-    this._disableRange = source.disableRange || false;
-    this._contentLength = source.length;
-    this._rangeChunkSize = source.rangeChunkSize;
-    if (!this._rangeChunkSize && !this._disableRange) {
-      this._disableRange = true;
-    }
-    this._isStreamingSupported = false;
-    this._isRangeSupported = false;
-    this._cachedChunks = [];
-    this._requests = [];
-    this._done = false;
-    this._storedError = undefined;
-    this._filename = null;
-    this.onProgress = null;
   }
-  _onHeadersReceived() {
-    const fullRequestXhrId = this._fullRequestId;
-    const fullRequestXhr = this._manager.getRequestXhr(fullRequestXhrId);
-    this._manager._responseOrigin = getResponseOrigin(fullRequestXhr.responseURL);
+  #onHeadersReceived() {
+    const stream = this._stream;
+    const {
+      disableRange,
+      rangeChunkSize
+    } = stream._source;
+    const fullRequestXhr = this._fullRequestXhr;
+    stream._responseOrigin = getResponseOrigin(fullRequestXhr.responseURL);
     const rawResponseHeaders = fullRequestXhr.getAllResponseHeaders();
     const responseHeaders = new Headers(rawResponseHeaders ? rawResponseHeaders.trimStart().replace(/[^\S ]+$/, "").split(/[\r\n]+/).map(x => {
       const [key, ...val] = x.split(": ");
@@ -19790,9 +19869,9 @@ class PDFNetworkStreamFullRequestReader {
       suggestedLength
     } = validateRangeRequestCapabilities({
       responseHeaders,
-      isHttp: this._manager.isHttp,
-      rangeChunkSize: this._rangeChunkSize,
-      disableRange: this._disableRange
+      isHttp: stream.isHttp,
+      rangeChunkSize,
+      disableRange
     });
     if (allowRangeRequests) {
       this._isRangeSupported = true;
@@ -19800,63 +19879,46 @@ class PDFNetworkStreamFullRequestReader {
     this._contentLength = suggestedLength || this._contentLength;
     this._filename = extractFilenameFromHeader(responseHeaders);
     if (this._isRangeSupported) {
-      this._manager.abortRequest(fullRequestXhrId);
+      stream._abortRequest(fullRequestXhr);
     }
     this._headersCapability.resolve();
   }
-  _onDone(data) {
-    if (data) {
-      if (this._requests.length > 0) {
-        const requestCapability = this._requests.shift();
-        requestCapability.resolve({
-          value: data.chunk,
-          done: false
-        });
-      } else {
-        this._cachedChunks.push(data.chunk);
-      }
+  #onDone(chunk) {
+    if (this._requests.length > 0) {
+      const capability = this._requests.shift();
+      capability.resolve({
+        value: chunk,
+        done: false
+      });
+    } else {
+      this._cachedChunks.push(chunk);
     }
     this._done = true;
     if (this._cachedChunks.length > 0) {
       return;
     }
-    for (const requestCapability of this._requests) {
-      requestCapability.resolve({
+    for (const capability of this._requests) {
+      capability.resolve({
         value: undefined,
         done: true
       });
     }
     this._requests.length = 0;
   }
-  _onError(status) {
-    this._storedError = createResponseError(status, this._url);
+  #onError(status) {
+    this._storedError = createResponseError(status, this._stream.url);
     this._headersCapability.reject(this._storedError);
-    for (const requestCapability of this._requests) {
-      requestCapability.reject(this._storedError);
+    for (const capability of this._requests) {
+      capability.reject(this._storedError);
     }
     this._requests.length = 0;
     this._cachedChunks.length = 0;
   }
-  _onProgress(evt) {
+  #onProgress(evt) {
     this.onProgress?.({
       loaded: evt.loaded,
       total: evt.lengthComputable ? evt.total : this._contentLength
     });
-  }
-  get filename() {
-    return this._filename;
-  }
-  get isRangeSupported() {
-    return this._isRangeSupported;
-  }
-  get isStreamingSupported() {
-    return this._isStreamingSupported;
-  }
-  get contentLength() {
-    return this._contentLength;
-  }
-  get headersReady() {
-    return this._headersCapability.promise;
   }
   async read() {
     await this._headersCapability.promise;
@@ -19876,60 +19938,54 @@ class PDFNetworkStreamFullRequestReader {
         done: true
       };
     }
-    const requestCapability = Promise.withResolvers();
-    this._requests.push(requestCapability);
-    return requestCapability.promise;
+    const capability = Promise.withResolvers();
+    this._requests.push(capability);
+    return capability.promise;
   }
   cancel(reason) {
     this._done = true;
     this._headersCapability.reject(reason);
-    for (const requestCapability of this._requests) {
-      requestCapability.resolve({
+    for (const capability of this._requests) {
+      capability.resolve({
         value: undefined,
         done: true
       });
     }
     this._requests.length = 0;
-    if (this._manager.isPendingRequest(this._fullRequestId)) {
-      this._manager.abortRequest(this._fullRequestId);
-    }
-    this._fullRequestReader = null;
+    this._stream._abortRequest(this._fullRequestXhr);
+    this._fullRequestXhr = null;
   }
 }
-class PDFNetworkStreamRangeRequestReader {
-  constructor(manager, begin, end) {
-    this._manager = manager;
-    this._url = manager.url;
-    this._requestId = manager.request({
+class PDFNetworkStreamRangeReader extends BasePDFStreamRangeReader {
+  onClosed = null;
+  _done = false;
+  _queuedChunk = null;
+  _requests = [];
+  _storedError = null;
+  constructor(stream, begin, end) {
+    super(stream, begin, end);
+    this._requestXhr = stream._request({
       begin,
       end,
-      onHeadersReceived: this._onHeadersReceived.bind(this),
-      onDone: this._onDone.bind(this),
-      onError: this._onError.bind(this),
-      onProgress: this._onProgress.bind(this)
+      onHeadersReceived: this.#onHeadersReceived.bind(this),
+      onDone: this.#onDone.bind(this),
+      onError: this.#onError.bind(this),
+      onProgress: null
     });
-    this._requests = [];
-    this._queuedChunk = null;
-    this._done = false;
-    this._storedError = undefined;
-    this.onProgress = null;
-    this.onClosed = null;
   }
-  _onHeadersReceived() {
-    const responseOrigin = getResponseOrigin(this._manager.getRequestXhr(this._requestId)?.responseURL);
-    if (responseOrigin !== this._manager._responseOrigin) {
-      this._storedError = new Error(`Expected range response-origin "${responseOrigin}" to match "${this._manager._responseOrigin}".`);
-      this._onError(0);
+  #onHeadersReceived() {
+    const responseOrigin = getResponseOrigin(this._requestXhr?.responseURL);
+    try {
+      ensureResponseOrigin(responseOrigin, this._stream._responseOrigin);
+    } catch (ex) {
+      this._storedError = ex;
+      this.#onError(0);
     }
   }
-  _close() {
-    this.onClosed?.(this);
-  }
-  _onDone(data) {
-    const chunk = data.chunk;
+  #onDone(chunk) {
     if (this._requests.length > 0) {
-      const requestCapability = this._requests.shift();
-      requestCapability.resolve({
+      const capability = this._requests.shift();
+      capability.resolve({
         value: chunk,
         done: false
       });
@@ -19937,32 +19993,22 @@ class PDFNetworkStreamRangeRequestReader {
       this._queuedChunk = chunk;
     }
     this._done = true;
-    for (const requestCapability of this._requests) {
-      requestCapability.resolve({
+    for (const capability of this._requests) {
+      capability.resolve({
         value: undefined,
         done: true
       });
     }
     this._requests.length = 0;
-    this._close();
+    this.onClosed?.();
   }
-  _onError(status) {
-    this._storedError ??= createResponseError(status, this._url);
-    for (const requestCapability of this._requests) {
-      requestCapability.reject(this._storedError);
+  #onError(status) {
+    this._storedError ??= createResponseError(status, this._stream.url);
+    for (const capability of this._requests) {
+      capability.reject(this._storedError);
     }
     this._requests.length = 0;
     this._queuedChunk = null;
-  }
-  _onProgress(evt) {
-    if (!this.isStreamingSupported) {
-      this.onProgress?.({
-        loaded: evt.loaded
-      });
-    }
-  }
-  get isStreamingSupported() {
-    return false;
   }
   async read() {
     if (this._storedError) {
@@ -19982,23 +20028,21 @@ class PDFNetworkStreamRangeRequestReader {
         done: true
       };
     }
-    const requestCapability = Promise.withResolvers();
-    this._requests.push(requestCapability);
-    return requestCapability.promise;
+    const capability = Promise.withResolvers();
+    this._requests.push(capability);
+    return capability.promise;
   }
   cancel(reason) {
     this._done = true;
-    for (const requestCapability of this._requests) {
-      requestCapability.resolve({
+    for (const capability of this._requests) {
+      capability.resolve({
         value: undefined,
         done: true
       });
     }
     this._requests.length = 0;
-    if (this._manager.isPendingRequest(this._requestId)) {
-      this._manager.abortRequest(this._requestId);
-    }
-    this._close();
+    this._stream._abortRequest(this._requestXhr);
+    this.onClosed?.();
   }
 }
 
@@ -20026,217 +20070,135 @@ function parseUrlOrPath(sourceUrl) {
   const url = process.getBuiltinModule("url");
   return new URL(url.pathToFileURL(sourceUrl));
 }
-class PDFNodeStream {
+function getReadableStream(readStream) {
+  const {
+    Readable
+  } = process.getBuiltinModule("stream");
+  if (typeof Readable.toWeb === "function") {
+    return Readable.toWeb(readStream);
+  }
+  const require = process.getBuiltinModule("module").createRequire(import.meta.url);
+  const polyfill = require("node-readable-to-web-readable-stream");
+  return polyfill.makeDefaultReadableStreamFromNodeReadable(readStream);
+}
+function node_stream_getArrayBuffer(val) {
+  if (val instanceof Uint8Array) {
+    return val.buffer;
+  }
+  if (val instanceof ArrayBuffer) {
+    return val;
+  }
+  warn(`getArrayBuffer - unexpected data format: ${val}`);
+  return new Uint8Array(val).buffer;
+}
+class PDFNodeStream extends BasePDFStream {
   constructor(source) {
-    this.source = source;
+    super(source, PDFNodeStreamReader, PDFNodeStreamRangeReader);
     this.url = parseUrlOrPath(source.url);
     assert(this.url.protocol === "file:", "PDFNodeStream only supports file:// URLs.");
-    this._fullRequestReader = null;
-    this._rangeRequestReaders = [];
-  }
-  get _progressiveDataLength() {
-    return this._fullRequestReader?._loaded ?? 0;
-  }
-  getFullReader() {
-    assert(!this._fullRequestReader, "PDFNodeStream.getFullReader can only be called once.");
-    this._fullRequestReader = new PDFNodeStreamFsFullReader(this);
-    return this._fullRequestReader;
-  }
-  getRangeReader(start, end) {
-    if (end <= this._progressiveDataLength) {
-      return null;
-    }
-    const rangeReader = new PDFNodeStreamFsRangeReader(this, start, end);
-    this._rangeRequestReaders.push(rangeReader);
-    return rangeReader;
-  }
-  cancelAllRequests(reason) {
-    this._fullRequestReader?.cancel(reason);
-    for (const reader of this._rangeRequestReaders.slice(0)) {
-      reader.cancel(reason);
-    }
   }
 }
-class PDFNodeStreamFsFullReader {
+class PDFNodeStreamReader extends BasePDFStreamReader {
+  _reader = null;
   constructor(stream) {
-    this._url = stream.url;
-    this._done = false;
-    this._storedError = null;
-    this.onProgress = null;
-    const source = stream.source;
-    this._contentLength = source.length;
-    this._loaded = 0;
-    this._filename = null;
-    this._disableRange = source.disableRange || false;
-    this._rangeChunkSize = source.rangeChunkSize;
-    if (!this._rangeChunkSize && !this._disableRange) {
-      this._disableRange = true;
-    }
-    this._isStreamingSupported = !source.disableStream;
-    this._isRangeSupported = !source.disableRange;
-    this._readableStream = null;
-    this._readCapability = Promise.withResolvers();
-    this._headersCapability = Promise.withResolvers();
+    super(stream);
+    const {
+      disableRange,
+      disableStream,
+      length,
+      rangeChunkSize
+    } = stream._source;
+    this._contentLength = length;
+    this._isStreamingSupported = !disableStream;
+    this._isRangeSupported = !disableRange;
+    const url = stream.url;
     const fs = process.getBuiltinModule("fs");
-    fs.promises.lstat(this._url).then(stat => {
-      this._contentLength = stat.size;
-      this._setReadableStream(fs.createReadStream(this._url));
-      this._headersCapability.resolve();
-    }, error => {
-      if (error.code === "ENOENT") {
-        error = createResponseError(0, this._url.href);
+    fs.promises.lstat(url).then(stat => {
+      const readStream = fs.createReadStream(url);
+      const readableStream = getReadableStream(readStream);
+      this._reader = readableStream.getReader();
+      const {
+        size
+      } = stat;
+      if (size <= 2 * rangeChunkSize) {
+        this._isRangeSupported = false;
       }
-      this._storedError = error;
+      this._contentLength = size;
+      if (!this._isStreamingSupported && this._isRangeSupported) {
+        this.cancel(new AbortException("Streaming is disabled."));
+      }
+      this._headersCapability.resolve();
+    }).catch(error => {
+      if (error.code === "ENOENT") {
+        error = createResponseError(0, url.href);
+      }
       this._headersCapability.reject(error);
     });
   }
-  get headersReady() {
-    return this._headersCapability.promise;
-  }
-  get filename() {
-    return this._filename;
-  }
-  get contentLength() {
-    return this._contentLength;
-  }
-  get isRangeSupported() {
-    return this._isRangeSupported;
-  }
-  get isStreamingSupported() {
-    return this._isStreamingSupported;
-  }
   async read() {
-    await this._readCapability.promise;
-    if (this._done) {
+    await this._headersCapability.promise;
+    const {
+      value,
+      done
+    } = await this._reader.read();
+    if (done) {
       return {
-        value: undefined,
-        done: true
+        value,
+        done
       };
     }
-    if (this._storedError) {
-      throw this._storedError;
-    }
-    const chunk = this._readableStream.read();
-    if (chunk === null) {
-      this._readCapability = Promise.withResolvers();
-      return this.read();
-    }
-    this._loaded += chunk.length;
+    this._loaded += value.length;
     this.onProgress?.({
       loaded: this._loaded,
       total: this._contentLength
     });
-    const buffer = new Uint8Array(chunk).buffer;
     return {
-      value: buffer,
+      value: node_stream_getArrayBuffer(value),
       done: false
     };
   }
   cancel(reason) {
-    if (!this._readableStream) {
-      this._error(reason);
-      return;
-    }
-    this._readableStream.destroy(reason);
-  }
-  _error(reason) {
-    this._storedError = reason;
-    this._readCapability.resolve();
-  }
-  _setReadableStream(readableStream) {
-    this._readableStream = readableStream;
-    readableStream.on("readable", () => {
-      this._readCapability.resolve();
-    });
-    readableStream.on("end", () => {
-      readableStream.destroy();
-      this._done = true;
-      this._readCapability.resolve();
-    });
-    readableStream.on("error", reason => {
-      this._error(reason);
-    });
-    if (!this._isStreamingSupported && this._isRangeSupported) {
-      this._error(new AbortException("streaming is disabled"));
-    }
-    if (this._storedError) {
-      this._readableStream.destroy(this._storedError);
-    }
+    this._reader?.cancel(reason);
   }
 }
-class PDFNodeStreamFsRangeReader {
-  constructor(stream, start, end) {
-    this._url = stream.url;
-    this._done = false;
-    this._storedError = null;
-    this.onProgress = null;
-    this._loaded = 0;
-    this._readableStream = null;
-    this._readCapability = Promise.withResolvers();
-    const source = stream.source;
-    this._isStreamingSupported = !source.disableStream;
+class PDFNodeStreamRangeReader extends BasePDFStreamRangeReader {
+  _readCapability = Promise.withResolvers();
+  _reader = null;
+  constructor(stream, begin, end) {
+    super(stream, begin, end);
+    const url = stream.url;
     const fs = process.getBuiltinModule("fs");
-    this._setReadableStream(fs.createReadStream(this._url, {
-      start,
-      end: end - 1
-    }));
-  }
-  get isStreamingSupported() {
-    return this._isStreamingSupported;
+    try {
+      const readStream = fs.createReadStream(url, {
+        start: begin,
+        end: end - 1
+      });
+      const readableStream = getReadableStream(readStream);
+      this._reader = readableStream.getReader();
+      this._readCapability.resolve();
+    } catch (error) {
+      this._readCapability.reject(error);
+    }
   }
   async read() {
     await this._readCapability.promise;
-    if (this._done) {
+    const {
+      value,
+      done
+    } = await this._reader.read();
+    if (done) {
       return {
-        value: undefined,
-        done: true
+        value,
+        done
       };
     }
-    if (this._storedError) {
-      throw this._storedError;
-    }
-    const chunk = this._readableStream.read();
-    if (chunk === null) {
-      this._readCapability = Promise.withResolvers();
-      return this.read();
-    }
-    this._loaded += chunk.length;
-    this.onProgress?.({
-      loaded: this._loaded
-    });
-    const buffer = new Uint8Array(chunk).buffer;
     return {
-      value: buffer,
+      value: node_stream_getArrayBuffer(value),
       done: false
     };
   }
   cancel(reason) {
-    if (!this._readableStream) {
-      this._error(reason);
-      return;
-    }
-    this._readableStream.destroy(reason);
-  }
-  _error(reason) {
-    this._storedError = reason;
-    this._readCapability.resolve();
-  }
-  _setReadableStream(readableStream) {
-    this._readableStream = readableStream;
-    readableStream.on("readable", () => {
-      this._readCapability.resolve();
-    });
-    readableStream.on("end", () => {
-      readableStream.destroy();
-      this._done = true;
-      this._readCapability.resolve();
-    });
-    readableStream.on("error", reason => {
-      this._error(reason);
-    });
-    if (this._storedError) {
-      this._readableStream.destroy(this._storedError);
-    }
+    this._reader?.cancel(reason);
   }
 }
 
@@ -20471,6 +20433,9 @@ class TextLayer {
           this.#container.classList.add("markedContent");
           if (item.id) {
             this.#container.setAttribute("id", `${item.id}`);
+          }
+          if (item.tag === "Artifact") {
+            this.#container.ariaHidden = true;
           }
           parent.append(this.#container);
         } else if (item.type === "endMarkedContent") {
@@ -20800,7 +20765,7 @@ function getDocument(src = {}) {
   }
   const docParams = {
     docId,
-    apiVersion: "5.4.530",
+    apiVersion: "5.4.624",
     data,
     password,
     disableAutoFetch,
@@ -20830,6 +20795,7 @@ function getDocument(src = {}) {
     ownerDocument,
     pdfBug,
     styleElement,
+    enableHWA,
     loadingParams: {
       disableAutoFetch,
       enableXfa
@@ -20845,7 +20811,8 @@ function getDocument(src = {}) {
     const workerIdPromise = worker.messageHandler.sendWithPromise("GetDocRequest", docParams, data ? [data.buffer] : null);
     let networkStream;
     if (rangeTransport) {
-      networkStream = new PDFDataTransportStream(rangeTransport, {
+      networkStream = new PDFDataTransportStream({
+        pdfDataRangeTransport: rangeTransport,
         disableRange,
         disableStream
       });
@@ -20872,7 +20839,7 @@ function getDocument(src = {}) {
         throw new Error("Worker was destroyed");
       }
       const messageHandler = new MessageHandler(docId, workerId, worker.port);
-      const transport = new WorkerTransport(messageHandler, task, networkStream, transportParams, transportFactory, enableHWA);
+      const transport = new WorkerTransport(messageHandler, task, networkStream, transportParams, transportFactory);
       task._transport = transport;
       messageHandler.send("Ready", null);
     });
@@ -21091,6 +21058,7 @@ class PDFDocumentProxy {
 }
 class PDFPageProxy {
   #pendingCleanup = false;
+  #pagesMapper = PagesMapper.instance;
   constructor(pageIndex, pageInfo, transport, pdfBug = false) {
     this._pageIndex = pageIndex;
     this._pageInfo = pageInfo;
@@ -21105,6 +21073,9 @@ class PDFPageProxy {
   }
   get pageNumber() {
     return this._pageIndex + 1;
+  }
+  set pageNumber(value) {
+    this._pageIndex = value - 1;
   }
   get rotate() {
     return this._pageInfo.rotate;
@@ -21319,6 +21290,7 @@ class PDFPageProxy {
   } = {}) {
     const TEXT_CONTENT_CHUNK_SIZE = 100;
     return this._transport.messageHandler.sendWithStream("GetTextContent", {
+      pageId: this.#pagesMapper.getPageId(this._pageIndex + 1) - 1,
       pageIndex: this._pageIndex,
       includeMarkedContent: includeMarkedContent === true,
       disableNormalization: disableNormalization === true
@@ -21441,6 +21413,7 @@ class PDFPageProxy {
       transfer
     } = annotationStorageSerializable;
     const readableStream = this._transport.messageHandler.sendWithStream("GetOperatorList", {
+      pageId: this.#pagesMapper.getPageId(this._pageIndex + 1) - 1,
       pageIndex: this._pageIndex,
       intent: renderingIntent,
       cacheKey,
@@ -21746,19 +21719,25 @@ class PDFWorker {
   }
 }
 class WorkerTransport {
+  downloadInfoCapability = Promise.withResolvers();
+  #fullReader = null;
   #methodPromises = new Map();
+  #networkStream = null;
   #pageCache = new Map();
   #pagePromises = new Map();
   #pageRefCache = new Map();
   #passwordCapability = null;
-  constructor(messageHandler, loadingTask, networkStream, params, factory, enableHWA) {
+  #pagesMapper = PagesMapper.instance;
+  constructor(messageHandler, loadingTask, networkStream, params, factory) {
     this.messageHandler = messageHandler;
     this.loadingTask = loadingTask;
+    this.#networkStream = networkStream;
     this.commonObjs = new PDFObjects();
     this.fontLoader = new FontLoader({
       ownerDocument: params.ownerDocument,
       styleElement: params.styleElement
     });
+    this.enableHWA = params.enableHWA;
     this.loadingParams = params.loadingParams;
     this._params = params;
     this.canvasFactory = factory.canvasFactory;
@@ -21768,12 +21747,25 @@ class WorkerTransport {
     this.wasmFactory = factory.wasmFactory;
     this.destroyed = false;
     this.destroyCapability = null;
-    this._networkStream = networkStream;
-    this._fullReader = null;
-    this._lastProgress = null;
-    this.downloadInfoCapability = Promise.withResolvers();
-    this.enableHWA = enableHWA;
     this.setupMessageHandler();
+    this.#pagesMapper.addListener(this.#updateCaches.bind(this));
+  }
+  #updateCaches() {
+    const newPageCache = new Map();
+    const newPromiseCache = new Map();
+    for (let i = 0, ii = this.#pagesMapper.pagesNumber; i < ii; i++) {
+      const prevPageIndex = this.#pagesMapper.getPrevPageNumber(i + 1) - 1;
+      const page = this.#pageCache.get(prevPageIndex);
+      if (page) {
+        newPageCache.set(i, page);
+      }
+      const promise = this.#pagePromises.get(prevPageIndex);
+      if (promise) {
+        newPromiseCache.set(i, promise);
+      }
+    }
+    this.#pageCache = newPageCache;
+    this.#pagePromises = newPromiseCache;
   }
   #cacheSimpleMethod(name, data = null) {
     const cachedPromise = this.#methodPromises.get(name);
@@ -21783,6 +21775,16 @@ class WorkerTransport {
     const promise = this.messageHandler.sendWithPromise(name, data);
     this.#methodPromises.set(name, promise);
     return promise;
+  }
+  #onProgress({
+    loaded,
+    total
+  }) {
+    this.loadingTask.onProgress?.({
+      loaded,
+      total,
+      percent: MathClamp(Math.round(loaded / total * 100), 0, 100)
+    });
   }
   get annotationStorage() {
     return shadow(this, "annotationStorage", new AnnotationStorage());
@@ -21862,7 +21864,7 @@ class WorkerTransport {
       this.#methodPromises.clear();
       this.filterFactory.destroy();
       TextLayer.cleanup();
-      this._networkStream?.cancelAllRequests(new AbortException("Worker was terminated."));
+      this.#networkStream?.cancelAllRequests(new AbortException("Worker was terminated."));
       this.messageHandler?.destroy();
       this.messageHandler = null;
       this.destroyCapability.resolve();
@@ -21875,16 +21877,11 @@ class WorkerTransport {
       loadingTask
     } = this;
     messageHandler.on("GetReader", (data, sink) => {
-      assert(this._networkStream, "GetReader - no `IPDFStream` instance available.");
-      this._fullReader = this._networkStream.getFullReader();
-      this._fullReader.onProgress = evt => {
-        this._lastProgress = {
-          loaded: evt.loaded,
-          total: evt.total
-        };
-      };
+      assert(this.#networkStream, "GetReader - no `BasePDFStream` instance available.");
+      this.#fullReader = this.#networkStream.getFullReader();
+      this.#fullReader.onProgress = evt => this.#onProgress(evt);
       sink.onPull = () => {
-        this._fullReader.read().then(function ({
+        this.#fullReader.read().then(function ({
           value,
           done
         }) {
@@ -21899,7 +21896,7 @@ class WorkerTransport {
         });
       };
       sink.onCancel = reason => {
-        this._fullReader.cancel(reason);
+        this.#fullReader.cancel(reason);
         sink.ready.catch(readyReason => {
           if (this.destroyed) {
             return;
@@ -21909,22 +21906,14 @@ class WorkerTransport {
       };
     });
     messageHandler.on("ReaderHeadersReady", async data => {
-      await this._fullReader.headersReady;
+      await this.#fullReader.headersReady;
       const {
         isStreamingSupported,
         isRangeSupported,
         contentLength
-      } = this._fullReader;
-      if (!isStreamingSupported || !isRangeSupported) {
-        if (this._lastProgress) {
-          loadingTask.onProgress?.(this._lastProgress);
-        }
-        this._fullReader.onProgress = evt => {
-          loadingTask.onProgress?.({
-            loaded: evt.loaded,
-            total: evt.total
-          });
-        };
+      } = this.#fullReader;
+      if (isStreamingSupported && isRangeSupported) {
+        this.#fullReader.onProgress = null;
       }
       return {
         isStreamingSupported,
@@ -21933,8 +21922,8 @@ class WorkerTransport {
       };
     });
     messageHandler.on("GetRangeReader", (data, sink) => {
-      assert(this._networkStream, "GetRangeReader - no `IPDFStream` instance available.");
-      const rangeReader = this._networkStream.getRangeReader(data.begin, data.end);
+      assert(this.#networkStream, "GetRangeReader - no `BasePDFStream` instance available.");
+      const rangeReader = this.#networkStream.getRangeReader(data.begin, data.end);
       if (!rangeReader) {
         sink.close();
         return;
@@ -21967,6 +21956,7 @@ class WorkerTransport {
     messageHandler.on("GetDoc", ({
       pdfInfo
     }) => {
+      this.#pagesMapper.pagesNumber = pdfInfo.numPages;
       this._numPages = pdfInfo.numPages;
       this._htmlForXfa = pdfInfo.htmlForXfa;
       delete pdfInfo.htmlForXfa;
@@ -21997,7 +21987,7 @@ class WorkerTransport {
       return this.#passwordCapability.promise;
     });
     messageHandler.on("DataLoaded", data => {
-      loadingTask.onProgress?.({
+      this.#onProgress({
         loaded: data.length,
         total: data.length
       });
@@ -22095,10 +22085,7 @@ class WorkerTransport {
       if (this.destroyed) {
         return;
       }
-      loadingTask.onProgress?.({
-        loaded: data.loaded,
-        total: data.total
-      });
+      this.#onProgress(data);
     });
     messageHandler.on("FetchBinaryData", async data => {
       if (this.destroyed) {
@@ -22126,7 +22113,7 @@ class WorkerTransport {
       isPureXfa: !!this._htmlForXfa,
       numPages: this._numPages,
       annotationStorage: map,
-      filename: this._fullReader?.filename ?? null
+      filename: this.#fullReader?.filename ?? null
     }, transfer).finally(() => {
       this.annotationStorage.resetModified();
     });
@@ -22137,22 +22124,23 @@ class WorkerTransport {
     });
   }
   getPage(pageNumber) {
-    if (!Number.isInteger(pageNumber) || pageNumber <= 0 || pageNumber > this._numPages) {
+    if (!Number.isInteger(pageNumber) || pageNumber <= 0 || pageNumber > this.#pagesMapper.pagesNumber) {
       return Promise.reject(new Error("Invalid page request."));
     }
-    const pageIndex = pageNumber - 1,
-      cachedPromise = this.#pagePromises.get(pageIndex);
+    const pageIndex = pageNumber - 1;
+    const newPageIndex = this.#pagesMapper.getPageId(pageNumber) - 1;
+    const cachedPromise = this.#pagePromises.get(pageIndex);
     if (cachedPromise) {
       return cachedPromise;
     }
     const promise = this.messageHandler.sendWithPromise("GetPage", {
-      pageIndex
+      pageIndex: newPageIndex
     }).then(pageInfo => {
       if (this.destroyed) {
         throw new Error("Transport destroyed");
       }
       if (pageInfo.refStr) {
-        this.#pageRefCache.set(pageInfo.refStr, pageNumber);
+        this.#pageRefCache.set(pageInfo.refStr, newPageIndex);
       }
       const page = new PDFPageProxy(pageIndex, pageInfo, this, this._params.pdfBug);
       this.#pageCache.set(pageIndex, page);
@@ -22161,18 +22149,19 @@ class WorkerTransport {
     this.#pagePromises.set(pageIndex, promise);
     return promise;
   }
-  getPageIndex(ref) {
+  async getPageIndex(ref) {
     if (!isRefProxy(ref)) {
-      return Promise.reject(new Error("Invalid pageIndex request."));
+      throw new Error("Invalid pageIndex request.");
     }
-    return this.messageHandler.sendWithPromise("GetPageIndex", {
+    const index = await this.messageHandler.sendWithPromise("GetPageIndex", {
       num: ref.num,
       gen: ref.gen
     });
+    return this.#pagesMapper.getPageNumber(index + 1) - 1;
   }
   getAnnotations(pageIndex, intent) {
     return this.messageHandler.sendWithPromise("GetAnnotations", {
-      pageIndex,
+      pageIndex: this.#pagesMapper.getPageId(pageIndex + 1) - 1,
       intent
     });
   }
@@ -22225,12 +22214,12 @@ class WorkerTransport {
   }
   getPageJSActions(pageIndex) {
     return this.messageHandler.sendWithPromise("GetPageJSActions", {
-      pageIndex
+      pageIndex: this.#pagesMapper.getPageId(pageIndex + 1) - 1
     });
   }
   getStructTree(pageIndex) {
     return this.messageHandler.sendWithPromise("GetStructTree", {
-      pageIndex
+      pageIndex: this.#pagesMapper.getPageId(pageIndex + 1) - 1
     });
   }
   getOutline() {
@@ -22251,8 +22240,8 @@ class WorkerTransport {
     const promise = this.messageHandler.sendWithPromise(name, null).then(results => ({
       info: results[0],
       metadata: results[1] ? new Metadata(results[1]) : null,
-      contentDispositionFilename: this._fullReader?.filename ?? null,
-      contentLength: this._fullReader?.contentLength ?? null,
+      contentDispositionFilename: this.#fullReader?.filename ?? null,
+      contentLength: this.#fullReader?.contentLength ?? null,
       hasStructTree: results[2]
     }));
     this.#methodPromises.set(name, promise);
@@ -22285,32 +22274,33 @@ class WorkerTransport {
       return null;
     }
     const refStr = ref.gen === 0 ? `${ref.num}R` : `${ref.num}R${ref.gen}`;
-    return this.#pageRefCache.get(refStr) ?? null;
+    const pageIndex = this.#pageRefCache.get(refStr);
+    return pageIndex >= 0 ? this.#pagesMapper.getPageNumber(pageIndex + 1) : null;
   }
 }
 class RenderTask {
-  #internalRenderTask = null;
+  _internalRenderTask = null;
   onContinue = null;
   onError = null;
   constructor(internalRenderTask) {
-    this.#internalRenderTask = internalRenderTask;
+    this._internalRenderTask = internalRenderTask;
   }
   get promise() {
-    return this.#internalRenderTask.capability.promise;
+    return this._internalRenderTask.capability.promise;
   }
   cancel(extraDelay = 0) {
-    this.#internalRenderTask.cancel(null, extraDelay);
+    this._internalRenderTask.cancel(null, extraDelay);
   }
   get separateAnnots() {
     const {
       separateAnnots
-    } = this.#internalRenderTask.operatorList;
+    } = this._internalRenderTask.operatorList;
     if (!separateAnnots) {
       return false;
     }
     const {
       annotationCanvasMap
-    } = this.#internalRenderTask;
+    } = this._internalRenderTask;
     return separateAnnots.form || separateAnnots.canvas && annotationCanvasMap?.size > 0;
   }
 }
@@ -22467,8 +22457,8 @@ class InternalRenderTask {
     }
   }
 }
-const version = "5.4.530";
-const build = "50cc4adac";
+const version = "5.4.624";
+const build = "384c6208b";
 
 ;// ./src/display/editor/color_picker.js
 
@@ -22752,8 +22742,6 @@ class BasicColorPicker {
   hideDropdown() {}
 }
 
-// EXTERNAL MODULE: ./node_modules/core-js/modules/es.iterator.find.js
-var es_iterator_find = __webpack_require__(116);
 // EXTERNAL MODULE: ./node_modules/core-js/modules/es.iterator.flat-map.js
 var es_iterator_flat_map = __webpack_require__(531);
 ;// ./src/shared/scripting_utils.js
@@ -23073,7 +23061,7 @@ class AnnotationElement {
       this.annotationStorage.setValue(`${AnnotationEditorPrefix}${data.id}`, {
         id: data.id,
         annotationType: data.annotationType,
-        pageIndex: this.parent.page._pageIndex,
+        page: this.parent.page,
         popup,
         popupRef: data.popupRef,
         modificationDate: new Date()
@@ -30059,7 +30047,10 @@ class ContourDrawOutline extends InkDrawOutline {
   }
 }
 
+// EXTERNAL MODULE: ./node_modules/core-js/modules/esnext.uint8-array.from-base64.js
+var esnext_uint8_array_from_base64 = __webpack_require__(9432);
 ;// ./src/display/editor/drawers/signaturedraw.js
+
 
 
 
@@ -30615,11 +30606,11 @@ class SignatureExtractor {
     writer.close();
     const buf = await new Response(cs.readable).arrayBuffer();
     const bytes = new Uint8Array(buf);
-    return toBase64Util(bytes);
+    return bytes.toBase64();
   }
   static async decompressSignature(signatureData) {
     try {
-      const bytes = fromBase64Util(signatureData);
+      const bytes = Uint8Array.fromBase64(signatureData);
       const {
         readable,
         writable
@@ -31821,6 +31812,9 @@ class AnnotationEditorLayer {
     this._structTree = structTreeLayer;
     this.#uiManager.addLayer(this);
   }
+  updatePageIndex(newPageIndex) {
+    this.pageIndex = newPageIndex;
+  }
   get isEmpty() {
     return this.#editors.size === 0;
   }
@@ -32528,11 +32522,6 @@ class DrawLayer {
   #mapping = new Map();
   #toUpdate = new Map();
   static #id = 0;
-  constructor({
-    pageIndex
-  }) {
-    this.pageIndex = pageIndex;
-  }
   setParent(parent) {
     if (!this.#parent) {
       this.#parent = parent;
@@ -32594,7 +32583,7 @@ class DrawLayer {
     root.append(defs);
     const path = DrawLayer._svgFactory.createElement("path");
     defs.append(path);
-    const pathId = `path_p${this.pageIndex}_${id}`;
+    const pathId = `path_${id}`;
     path.setAttribute("id", pathId);
     path.setAttribute("vector-effect", "non-scaling-stroke");
     if (isPathUpdatable) {
@@ -32618,14 +32607,14 @@ class DrawLayer {
     root.append(defs);
     const path = DrawLayer._svgFactory.createElement("path");
     defs.append(path);
-    const pathId = `path_p${this.pageIndex}_${id}`;
+    const pathId = `path_${id}`;
     path.setAttribute("id", pathId);
     path.setAttribute("vector-effect", "non-scaling-stroke");
     let maskId;
     if (mustRemoveSelfIntersections) {
       const mask = DrawLayer._svgFactory.createElement("mask");
       defs.append(mask);
-      maskId = `mask_p${this.pageIndex}_${id}`;
+      maskId = `mask_${id}`;
       mask.setAttribute("id", maskId);
       mask.setAttribute("maskUnits", "objectBoundingBox");
       const rect = DrawLayer._svgFactory.createElement("rect");
@@ -32781,6 +32770,7 @@ globalThis.pdfjsLib = {
   normalizeUnicode: normalizeUnicode,
   OPS: OPS,
   OutputScale: OutputScale,
+  PagesMapper: PagesMapper,
   PasswordResponses: PasswordResponses,
   PDFDataRangeTransport: PDFDataRangeTransport,
   PDFDateString: PDFDateString,
@@ -32804,6 +32794,6 @@ globalThis.pdfjsLib = {
   XfaLayer: XfaLayer
 };
 
-export { AbortException, AnnotationEditorLayer, AnnotationEditorParamsType, AnnotationEditorType, AnnotationEditorUIManager, AnnotationLayer, AnnotationMode, AnnotationType, CSSConstants, ColorPicker, DOMSVGFactory, DrawLayer, util_FeatureTest as FeatureTest, GlobalWorkerOptions, util_ImageKind as ImageKind, InvalidPDFException, MathClamp, OPS, OutputScale, PDFDataRangeTransport, PDFDateString, PDFWorker, PasswordResponses, PermissionFlag, PixelsPerInch, RenderingCancelledException, ResponseException, SignatureExtractor, SupportedImageMimeTypes, TextLayer, TouchManager, Util, VerbosityLevel, XfaLayer, applyOpacity, build, createValidAbsoluteUrl, fetchData, findContrastColor, getDocument, getFilenameFromUrl, getPdfFilenameFromUrl, getRGB, getUuid, getXfaPageViewport, isDataScheme, isPdfFile, isValidExplicitDest, noContextMenu, normalizeUnicode, renderRichText, setLayerDimensions, shadow, stopEvent, updateUrlHash, version };
+export { AbortException, AnnotationEditorLayer, AnnotationEditorParamsType, AnnotationEditorType, AnnotationEditorUIManager, AnnotationLayer, AnnotationMode, AnnotationType, CSSConstants, ColorPicker, DOMSVGFactory, DrawLayer, util_FeatureTest as FeatureTest, GlobalWorkerOptions, util_ImageKind as ImageKind, InvalidPDFException, MathClamp, OPS, OutputScale, PDFDataRangeTransport, PDFDateString, PDFWorker, PagesMapper, PasswordResponses, PermissionFlag, PixelsPerInch, RenderingCancelledException, ResponseException, SignatureExtractor, SupportedImageMimeTypes, TextLayer, TouchManager, Util, VerbosityLevel, XfaLayer, applyOpacity, build, createValidAbsoluteUrl, fetchData, findContrastColor, getDocument, getFilenameFromUrl, getPdfFilenameFromUrl, getRGB, getUuid, getXfaPageViewport, isDataScheme, isPdfFile, isValidExplicitDest, noContextMenu, normalizeUnicode, renderRichText, setLayerDimensions, shadow, stopEvent, updateUrlHash, version };
 
 //# sourceMappingURL=pdf.mjs.map

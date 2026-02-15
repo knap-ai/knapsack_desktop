@@ -1,4 +1,4 @@
-import type { MatrixClient } from "matrix-bot-sdk";
+import type { MatrixClient } from "@vector-im/matrix-bot-sdk";
 
 export const MsgType = {
   Text: "m.text",
@@ -57,6 +57,7 @@ export type MatrixRawEvent = {
 export type MatrixActionClientOpts = {
   client?: MatrixClient;
   timeoutMs?: number;
+  accountId?: string | null;
 };
 
 export type MatrixMessageSummary = {

@@ -82,6 +82,12 @@ struct StoredTokens {
   /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq"
   #[serde(default)]
   active_provider: Option<String>,
+
+  /// Additional provider API keys (env_var_name -> key).
+  /// These are passed as environment variables to the OpenClaw subprocess.
+  /// e.g. {"MINIMAX_API_KEY": "...", "ZAI_API_KEY": "...", "HF_TOKEN": "..."}
+  #[serde(default)]
+  extra_provider_keys: Option<std::collections::HashMap<String, String>>,
 }
 
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -136,13 +142,14 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     browser_control_token,
     groq_api_key: None,
     openai_api_key: None, // User must provide their own API key
-    openai_model: None,   // Defaults to gpt-4o
+    openai_model: None,   // Defaults to gpt-5.2
     anthropic_api_key: None,
     anthropic_model: None, // Defaults to claude-sonnet-4-5-20250929
     gemini_api_key: None,
     gemini_model: None,    // Defaults to gemini-2.5-flash
     groq_model: None,      // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
     active_provider: None, // Defaults to openai
+    extra_provider_keys: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -201,6 +208,28 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     let m = m.trim();
     if !m.is_empty() { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
   }
+  // Propagate extra provider keys (MiniMax, ZAI/GLM, HuggingFace, etc.)
+  if let Some(extra) = &tokens.extra_provider_keys {
+    for (env_var, key) in extra {
+      let key = key.trim();
+      if !key.is_empty() && is_allowed_extra_env_var(env_var) {
+        std::env::set_var(env_var, key);
+      }
+    }
+  }
+}
+
+/// Allowlist of environment variable names that extra_provider_keys may set.
+/// Prevents arbitrary env injection from a tampered tokens.json.
+fn is_allowed_extra_env_var(name: &str) -> bool {
+  matches!(
+    name,
+    "MINIMAX_API_KEY"
+      | "ZAI_API_KEY"
+      | "Z_AI_API_KEY"
+      | "HF_TOKEN"
+      | "HUGGINGFACE_HUB_TOKEN"
+  )
 }
 
 fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(), String> {
@@ -217,12 +246,12 @@ fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(
   Ok(())
 }
 
-/// Get the configured OpenAI model (defaults to gpt-4o if not set)
+/// Get the configured OpenAI model (defaults to gpt-5.2 if not set)
 pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.openai_model)
-    .unwrap_or_else(|| "gpt-4o".to_string())
+    .unwrap_or_else(|| "gpt-5.2".to_string())
 }
 
 /// Get the configured Anthropic model (defaults to claude-sonnet-4-5-20250929 if not set)
@@ -368,7 +397,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       .and_then(|c| {
         let fut = c
           .get("http://127.0.0.1:18791/")
-          .bearer_auth(tokens.browser_control_token.clone())
+          .bearer_auth(tokens.gateway_token.clone())
           .send();
         Some(fut)
       });
@@ -572,6 +601,17 @@ pub struct ApiKeyStatusResponse {
   pub openai_key_hint: Option<String>,
   pub anthropic_key_hint: Option<String>,
   pub gemini_key_hint: Option<String>,
+  /// Extra providers: list of {id, env_var, has_key, key_hint}
+  #[serde(skip_serializing_if = "Vec::is_empty")]
+  pub extra_providers: Vec<ExtraProviderStatus>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExtraProviderStatus {
+  pub id: String,
+  pub env_var: String,
+  pub has_key: bool,
+  pub key_hint: Option<String>,
 }
 
 #[get("/api/clawd/service/api-key-status")]
@@ -591,6 +631,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         openai_key_hint: None,
         anthropic_key_hint: None,
         gemini_key_hint: None,
+        extra_providers: vec![],
       })
     }
   };
@@ -606,6 +647,29 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let openai_hint = tokens.openai_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
   let anthropic_hint = tokens.anthropic_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
   let gemini_hint = tokens.gemini_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
+
+  // Build extra provider status list
+  let extra_provider_defs: &[(&str, &str)] = &[
+    ("minimax", "MINIMAX_API_KEY"),
+    ("zai", "ZAI_API_KEY"),
+    ("huggingface", "HF_TOKEN"),
+  ];
+  let extra_providers: Vec<ExtraProviderStatus> = extra_provider_defs
+    .iter()
+    .map(|(id, env_var)| {
+      let key = tokens
+        .extra_provider_keys
+        .as_ref()
+        .and_then(|m| m.get(*env_var))
+        .filter(|k| !k.trim().is_empty());
+      ExtraProviderStatus {
+        id: id.to_string(),
+        env_var: env_var.to_string(),
+        has_key: key.is_some(),
+        key_hint: key.map(|k| mask_key(k)),
+      }
+    })
+    .collect();
 
   HttpResponse::Ok().json(ApiKeyStatusResponse {
     success: true,
@@ -623,6 +687,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     openai_key_hint: openai_hint,
     anthropic_key_hint: anthropic_hint,
     gemini_key_hint: gemini_hint,
+    extra_providers,
   })
 }
 
@@ -687,6 +752,30 @@ pub async fn validate_api_key(
         .send()
         .await
     }
+    "minimax" => {
+      // MiniMax uses Anthropic-messages-compatible endpoint
+      client
+        .get("https://api.minimax.io/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
+    "zai" => {
+      // ZAI/GLM uses Anthropic-messages-compatible endpoint
+      client
+        .get("https://api.synthetic.new/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
+    "huggingface" => {
+      // Hugging Face: validate with whoami endpoint
+      client
+        .get("https://huggingface.co/api/whoami-v2")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
     _ => {
       // OpenAI: list models
       client
@@ -729,13 +818,16 @@ pub async fn validate_api_key(
   }
 }
 
-/// Set API key for any provider (OpenAI, Anthropic, Gemini)
+/// Set API key for any provider (OpenAI, Anthropic, Gemini, or extra providers)
 #[derive(Debug, Deserialize)]
 pub struct SetApiKeyRequest {
   pub key: String,
   pub model: Option<String>,
-  /// "openai" (default), "anthropic", "gemini", or "groq"
+  /// "openai" (default), "anthropic", "gemini", "groq", "minimax", "zai", "huggingface"
   pub provider: Option<String>,
+  /// For extra providers: the environment variable name to store the key under.
+  /// e.g. "MINIMAX_API_KEY", "ZAI_API_KEY", "HF_TOKEN"
+  pub env_var: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -793,10 +885,37 @@ pub async fn set_api_key(
       }
       "Groq"
     }
+    "minimax" | "zai" | "huggingface" => {
+      // Extra providers: store key in extra_provider_keys map.
+      // Determine the env var name from the request or derive from provider.
+      let env_var = payload.env_var.clone().unwrap_or_else(|| {
+        match provider.as_str() {
+          "minimax" => "MINIMAX_API_KEY".to_string(),
+          "zai" => "ZAI_API_KEY".to_string(),
+          "huggingface" => "HF_TOKEN".to_string(),
+          _ => format!("{}_API_KEY", provider.to_uppercase()),
+        }
+      });
+      if !is_allowed_extra_env_var(&env_var) {
+        return HttpResponse::BadRequest().json(SetApiKeyResponse {
+          success: false,
+          message: format!("Environment variable {} is not allowed", env_var),
+        });
+      }
+      let extra = tokens.extra_provider_keys.get_or_insert_with(std::collections::HashMap::new);
+      extra.insert(env_var.clone(), key);
+      // Don't change active_provider — these are supplementary to the main 4.
+      match provider.as_str() {
+        "minimax" => "MiniMax",
+        "zai" => "ZAI (GLM)",
+        "huggingface" => "Hugging Face",
+        _ => "Extra Provider",
+      }
+    }
     _ => {
       tokens.openai_api_key = Some(key);
       tokens.active_provider = Some("openai".to_string());
-      // Save model if provided, default to gpt-4o
+      // Save model if provided, default to gpt-5.2
       if let Some(model) = &payload.model {
         tokens.openai_model = Some(model.trim().to_string());
       }
@@ -821,10 +940,64 @@ pub async fn set_api_key(
   if let Some(m) = &tokens.anthropic_model { std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", m); }
   if let Some(m) = &tokens.gemini_model { std::env::set_var("KNAPSACK_GEMINI_MODEL", m); }
   if let Some(m) = &tokens.groq_model { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
+  if let Some(extra) = &tokens.extra_provider_keys {
+    for (env_var, key) in extra {
+      if is_allowed_extra_env_var(env_var) && !key.trim().is_empty() {
+        std::env::set_var(env_var, key.trim());
+      }
+    }
+  }
 
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
     message: format!("{} API key saved successfully", provider_name),
+  })
+}
+
+/// Remove an extra provider key.
+#[derive(Debug, Deserialize)]
+pub struct DeleteExtraProviderKeyRequest {
+  pub env_var: String,
+}
+
+#[post("/api/clawd/service/delete-extra-provider-key")]
+pub async fn delete_extra_provider_key(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<DeleteExtraProviderKeyRequest>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+        success: false,
+        message: e,
+      })
+    }
+  };
+
+  let env_var = payload.env_var.trim();
+  if !is_allowed_extra_env_var(env_var) {
+    return HttpResponse::BadRequest().json(SetApiKeyResponse {
+      success: false,
+      message: format!("Environment variable {} is not allowed", env_var),
+    });
+  }
+
+  if let Some(extra) = tokens.extra_provider_keys.as_mut() {
+    extra.remove(env_var);
+  }
+  std::env::remove_var(env_var);
+
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+      success: false,
+      message: e,
+    });
+  }
+
+  HttpResponse::Ok().json(SetApiKeyResponse {
+    success: true,
+    message: format!("Removed {}", env_var),
   })
 }
 
@@ -1094,12 +1267,21 @@ pub async fn set_service_enabled(
       let clawdbot_home = app_clawdbot_home(&app_handle);
       let clawdbot_home_str = clawdbot_home.to_string_lossy().to_string();
 
-      // Ensure clawdbot config exists with gateway.mode=local for first-run.
-      // Without this, clawdbot refuses to start on a fresh machine.
+      // Ensure OpenClaw config exists with gateway.mode=local for first-run.
+      // Without this, OpenClaw refuses to start on a fresh machine.
       // NOTE: plugins.slots.memory must be set to "none" explicitly — if omitted,
-      // clawdbot's config normalizer defaults it to "memory-core" which then fails
+      // OpenClaw's config normalizer defaults it to "memory-core" which then fails
       // validation because the config validator runs before plugin discovery.
-      let config_path = clawdbot_home.join("clawdbot.json");
+      // Use openclaw.json (preferred in 2026.2+); also check for legacy clawdbot.json.
+      let config_path = clawdbot_home.join("openclaw.json");
+      let legacy_config_path = clawdbot_home.join("clawdbot.json");
+      // If the legacy config exists but the new one doesn't, rename it.
+      if legacy_config_path.exists() && !config_path.exists() {
+        match fs::rename(&legacy_config_path, &config_path) {
+          Ok(_) => eprintln!("[clawd/service] Migrated config from clawdbot.json to openclaw.json"),
+          Err(e) => eprintln!("[clawd/service] WARNING: Failed to migrate config: {}. Will create new.", e),
+        }
+      }
       if !config_path.exists() {
         let _ = ensure_dir(&clawdbot_home);
         let default_config = serde_json::json!({
@@ -1186,22 +1368,22 @@ pub async fn set_service_enabled(
 
       let mut env = vec![
         ("PATH".to_string(), clawdbot_path),
-        ("CLAWDBOT_HOME".to_string(), clawdbot_home_str.clone()),
+        // OpenClaw 2026.2+ only recognizes OPENCLAW_HOME (no CLAWDBOT_HOME fallback).
+        ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
         // Point state dir (config, sessions, logs) to the app data dir so
-        // clawdbot finds our config file instead of looking in ~/.clawdbot/
+        // OpenClaw finds our config file instead of looking in ~/.openclaw/
         ("CLAWDBOT_STATE_DIR".to_string(), clawdbot_home_str),
         (
           "CLAWDBOT_GATEWAY_TOKEN".to_string(),
           tokens.gateway_token.clone(),
         ),
-        (
-          "CLAWDBOT_BROWSER_CONTROL_TOKEN".to_string(),
-          tokens.browser_control_token.clone(),
-        ),
+        // Browser control auth is now unified with gateway auth in OpenClaw 2026.2+.
+        // The old CLAWDBOT_BROWSER_CONTROL_TOKEN is no longer recognized.
         // Ensure control server family ports remain default.
         ("CLAWDBOT_GATEWAY_PORT".to_string(), "18789".to_string()),
-        // Point to bundled plugins/extensions directory so clawdbot can find memory-core etc.
-        ("CLAWDBOT_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
+        // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
+        // Note: only OPENCLAW_BUNDLED_PLUGINS_DIR is recognized in 2026.2+ (no CLAWDBOT_ fallback).
+        ("OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
       ];
 
       // Propagate LLM keys to clawdbot subprocess AND to the current Tauri process
@@ -1235,6 +1417,17 @@ pub async fn set_service_enabled(
         if !k.is_empty() {
           std::env::set_var("GEMINI_API_KEY", &k);
           env.push(("GEMINI_API_KEY".to_string(), k));
+        }
+      }
+
+      // Propagate extra provider keys (MiniMax, ZAI/GLM, HuggingFace, etc.)
+      if let Some(extra) = &tokens.extra_provider_keys {
+        for (env_var, key) in extra {
+          let key = key.trim().to_string();
+          if !key.is_empty() && is_allowed_extra_env_var(env_var) {
+            std::env::set_var(env_var, &key);
+            env.push((env_var.clone(), key));
+          }
         }
       }
 

@@ -1,9 +1,13 @@
 {
-  "name": "@clawdbot/mattermost",
-  "version": "2026.1.24",
+  "name": "@openclaw/mattermost",
+  "version": "2026.2.13",
+  "private": true,
+  "description": "OpenClaw Mattermost channel plugin",
   "type": "module",
-  "description": "Clawdbot Mattermost channel plugin",
-  "clawdbot": {
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
     "extensions": [
       "./index.ts"
     ],
@@ -17,7 +21,7 @@
       "order": 65
     },
     "install": {
-      "npmSpec": "@clawdbot/mattermost",
+      "npmSpec": "@openclaw/mattermost",
       "localPath": "extensions/mattermost",
       "defaultChoice": "npm"
     }

@@ -460,6 +460,47 @@ const parts = splitText("Hello <and> world [then] !", ["<and>", "[then]"]);
 console.log(parts); // ["Hello ", new Separator("<and>"), " world ", new Separator("[then]"), " !"]
 ```
 
+### `scopeExit`
+Create a scope exit handle that will call the provided callback when disposed, to be used with `using` or `await using`.
+
+For example, this code:
+```typescript
+import {scopeExit} from "lifecycle-utils";
+
+function example() {
+    using exitHandle = scopeExit(() => {
+        console.log("exiting scope");
+    });
+    console.log("inside scope");
+}
+
+async function asyncExample() {
+    await using exitHandle = scopeExit(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        console.log("exiting async scope");
+    });
+    console.log("inside async scope");
+}
+
+example();
+console.log("example done");
+console.log()
+
+await asyncExample();
+console.log("asyncExample done");
+```
+
+Will print this:
+```
+inside scope
+exiting scope
+example done
+
+inside async scope
+exiting async scope
+asyncExample done
+```
+
 ## Contributing
 To contribute to `lifecycle-utils` see [CONTRIBUTING.md](https://github.com/giladgd/lifecycle-utils/blob/master/CONTRIBUTING.md).
 

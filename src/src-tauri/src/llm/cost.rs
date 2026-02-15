@@ -24,23 +24,30 @@ pub fn get_pricing(provider: &str, model: &str) -> ModelPricing {
 }
 
 fn openai_pricing(model: &str) -> ModelPricing {
-    if model.contains("gpt-4o-mini") {
+    if model.contains("gpt-5.2-pro") {
+        // $21/M input, $168/M output
+        ModelPricing { input_per_1k: 0.021, output_per_1k: 0.168 }
+    } else if model.contains("gpt-5.2") {
+        // $1.75/M input, $14/M output
+        ModelPricing { input_per_1k: 0.00175, output_per_1k: 0.014 }
+    } else if model.contains("o3-mini") {
+        ModelPricing { input_per_1k: 0.0011, output_per_1k: 0.0044 }
+    } else if model.contains("o3") {
+        ModelPricing { input_per_1k: 0.01, output_per_1k: 0.04 }
+    } else if model.contains("gpt-4o-mini") {
+        // Legacy — kept for cost history on older usage records
         ModelPricing { input_per_1k: 0.00015, output_per_1k: 0.0006 }
     } else if model.contains("gpt-4o") {
         ModelPricing { input_per_1k: 0.0025, output_per_1k: 0.01 }
-    } else if model.contains("gpt-4-turbo") {
-        ModelPricing { input_per_1k: 0.01, output_per_1k: 0.03 }
     } else if model.contains("gpt-4") {
         ModelPricing { input_per_1k: 0.03, output_per_1k: 0.06 }
-    } else if model.contains("gpt-3.5") {
-        ModelPricing { input_per_1k: 0.0005, output_per_1k: 0.0015 }
     } else if model.contains("o1-mini") {
         ModelPricing { input_per_1k: 0.003, output_per_1k: 0.012 }
     } else if model.contains("o1") {
         ModelPricing { input_per_1k: 0.015, output_per_1k: 0.06 }
     } else {
-        // Default to gpt-4o pricing as a safe estimate
-        ModelPricing { input_per_1k: 0.0025, output_per_1k: 0.01 }
+        // Default to gpt-5.2 pricing
+        ModelPricing { input_per_1k: 0.00175, output_per_1k: 0.014 }
     }
 }
 

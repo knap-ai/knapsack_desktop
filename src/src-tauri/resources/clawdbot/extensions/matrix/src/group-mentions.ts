@@ -1,7 +1,7 @@
-import type { ChannelGroupContext, GroupToolPolicyConfig } from "clawdbot/plugin-sdk";
-
-import { resolveMatrixRoomConfig } from "./matrix/monitor/rooms.js";
+import type { ChannelGroupContext, GroupToolPolicyConfig } from "openclaw/plugin-sdk";
 import type { CoreConfig } from "./types.js";
+import { resolveMatrixAccountConfig } from "./matrix/accounts.js";
+import { resolveMatrixRoomConfig } from "./matrix/monitor/rooms.js";
 
 export function resolveMatrixGroupRequireMention(params: ChannelGroupContext): boolean {
   const rawGroupId = params.groupId?.trim() ?? "";
@@ -19,16 +19,23 @@ export function resolveMatrixGroupRequireMention(params: ChannelGroupContext): b
   const groupChannel = params.groupChannel?.trim() ?? "";
   const aliases = groupChannel ? [groupChannel] : [];
   const cfg = params.cfg as CoreConfig;
+  const matrixConfig = resolveMatrixAccountConfig({ cfg, accountId: params.accountId });
   const resolved = resolveMatrixRoomConfig({
-    rooms: cfg.channels?.matrix?.groups ?? cfg.channels?.matrix?.rooms,
+    rooms: matrixConfig.groups ?? matrixConfig.rooms,
     roomId,
     aliases,
     name: groupChannel || undefined,
   }).config;
   if (resolved) {
-    if (resolved.autoReply === true) return false;
-    if (resolved.autoReply === false) return true;
-    if (typeof resolved.requireMention === "boolean") return resolved.requireMention;
+    if (resolved.autoReply === true) {
+      return false;
+    }
+    if (resolved.autoReply === false) {
+      return true;
+    }
+    if (typeof resolved.requireMention === "boolean") {
+      return resolved.requireMention;
+    }
   }
   return true;
 }
@@ -51,8 +58,9 @@ export function resolveMatrixGroupToolPolicy(
   const groupChannel = params.groupChannel?.trim() ?? "";
   const aliases = groupChannel ? [groupChannel] : [];
   const cfg = params.cfg as CoreConfig;
+  const matrixConfig = resolveMatrixAccountConfig({ cfg, accountId: params.accountId });
   const resolved = resolveMatrixRoomConfig({
-    rooms: cfg.channels?.matrix?.groups ?? cfg.channels?.matrix?.rooms,
+    rooms: matrixConfig.groups ?? matrixConfig.rooms,
     roomId,
     aliases,
     name: groupChannel || undefined,

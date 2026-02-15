@@ -50,7 +50,7 @@ type SaveMode = (typeof SAVE_MODES)[number];
 const ANTIGRAVITY_ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
 
 const ANTIGRAVITY_HEADERS = {
-	"User-Agent": "antigravity/1.11.5 darwin/arm64",
+	"User-Agent": "antigravity/1.15.8 darwin/arm64",
 	"X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
 	"Client-Metadata": JSON.stringify({
 		ideType: "IDE_UNSPECIFIED",
@@ -352,7 +352,7 @@ export default function antigravityImageGen(pi: ExtensionAPI) {
 		description:
 			"Generate an image via Google Antigravity image models. Returns the image as a tool result attachment. Optional saving via save=project|global|custom|none, or PI_IMAGE_SAVE_MODE/PI_IMAGE_SAVE_DIR.",
 		parameters: TOOL_PARAMS,
-		async execute(_toolCallId, params: ToolParams, onUpdate, ctx, signal) {
+		async execute(_toolCallId, params: ToolParams, signal, onUpdate, ctx) {
 			const { accessToken, projectId } = await getCredentials(ctx);
 			const model = params.model || DEFAULT_MODEL;
 			const aspectRatio = params.aspectRatio || DEFAULT_ASPECT_RATIO;

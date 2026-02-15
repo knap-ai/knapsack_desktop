@@ -1,0 +1,11 @@
+export declare function setVerbose(v: boolean): void;
+export declare function isVerbose(): boolean;
+export declare function shouldLogVerbose(): boolean;
+export declare function logVerbose(message: string): void;
+export declare function logVerboseConsole(message: string): void;
+export declare function setYes(v: boolean): void;
+export declare function isYes(): boolean;
+export declare const success: import("node_modules/chalk/source/index.js").ChalkInstance;
+export declare const warn: import("node_modules/chalk/source/index.js").ChalkInstance;
+export declare const info: import("node_modules/chalk/source/index.js").ChalkInstance;
+export declare const danger: import("node_modules/chalk/source/index.js").ChalkInstance;

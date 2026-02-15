@@ -88,6 +88,7 @@ export const SettingsDialog = ({
     active_provider?: string
     has_openai_key?: boolean
     has_anthropic_key?: boolean
+    extra_providers?: Array<{ id: string; env_var: string; has_key: boolean }>
   } | null>(null)
   const settingsContainerRef = useRef<HTMLDivElement>(null)
 
@@ -114,6 +115,7 @@ export const SettingsDialog = ({
           active_provider: data.active_provider,
           has_openai_key: data.has_openai_key,
           has_anthropic_key: data.has_anthropic_key,
+          extra_providers: data.extra_providers,
         })
       })
       .catch(() => {})
@@ -279,6 +281,32 @@ export const SettingsDialog = ({
                 {providerStatus?.has_anthropic_key ? 'Change' : 'Sign in'}
               </Typography>
             </div>
+            {/* Extra providers (MiniMax, ZAI/GLM, HuggingFace) */}
+            {[
+              { id: 'minimax', envVar: 'MINIMAX_API_KEY', name: 'MiniMax' },
+              { id: 'zai', envVar: 'ZAI_API_KEY', name: 'ZAI (GLM)' },
+              { id: 'huggingface', envVar: 'HF_TOKEN', name: 'Hugging Face' },
+            ].map(ep => {
+              const status = providerStatus?.extra_providers?.find(p => p.env_var === ep.envVar)
+              return (
+                <div key={ep.id} className="flex justify-between h-[36px] items-center">
+                  <div className="flex items-center gap-2">
+                    <Typography>{ep.name}</Typography>
+                    {status?.has_key && (
+                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <Typography
+                    className={`cursor-pointer ${styles.link}`}
+                    onClick={() => { handleClose(); onProviderSignInClick?.() }}
+                  >
+                    {status?.has_key ? 'Change' : 'Add key'}
+                  </Typography>
+                </div>
+              )
+            })}
           </div>
         </div>
         <hr className="border-zinc-200" />
