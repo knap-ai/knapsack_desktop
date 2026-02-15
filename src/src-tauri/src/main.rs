@@ -453,11 +453,19 @@ async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<Stri
     if output.status.success() {
         Ok(stdout)
     } else {
-        if stderr.is_empty() {
-            Err(format!("Command failed with exit code: {}", output.status))
-        } else {
-            Err(stderr)
+        // Include both stdout and stderr so error messages aren't swallowed
+        let mut msg = String::new();
+        if !stderr.is_empty() {
+            msg.push_str(&stderr);
         }
+        if !stdout.is_empty() {
+            if !msg.is_empty() { msg.push('\n'); }
+            msg.push_str(&stdout);
+        }
+        if msg.is_empty() {
+            msg = format!("Command failed with exit code: {}", output.status);
+        }
+        Err(msg)
     }
 }
 
