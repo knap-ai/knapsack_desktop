@@ -165,17 +165,11 @@ struct GatewayClient {
   breaker: Mutex<CircuitBreaker>,
 }
 
-/// Holds the current gateway connection.  Unlike OnceCell this can be
-/// replaced when the underlying WebSocket drops, allowing transparent
-/// reconnection on the next request.
-static CLIENT: tokio::sync::OnceCell<Mutex<Option<Arc<GatewayClient>>>> =
-  tokio::sync::OnceCell::const_new();
-
-async fn client_holder() -> &'static Mutex<Option<Arc<GatewayClient>>> {
-  CLIENT
-    .get_or_init(|| async { Mutex::new(None) })
-    .await
-}
+/// Holds the current gateway connection.  Uses a std RwLock (never held
+/// across await points) so the connection can be replaced when the
+/// underlying WebSocket drops, enabling transparent reconnection.
+static CLIENT: once_cell::sync::Lazy<std::sync::RwLock<Option<Arc<GatewayClient>>>> =
+  once_cell::sync::Lazy::new(|| std::sync::RwLock::new(None));
 
 async fn ensure_gateway_best_effort(token: &str) {
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
@@ -293,28 +287,33 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
       let _ = p.tx.send(Err("Gateway connection closed".to_string()));
     }
     drop(pending);
-    invalidate_client().await;
+    invalidate_client();
   });
 
   Ok(client)
 }
 
 async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
-  let holder = client_holder().await;
-  let mut guard = holder.lock().await;
-  if let Some(ref c) = *guard {
-    return Ok(c.clone());
+  // Fast path: return existing connection.
+  {
+    let guard = CLIENT.read().unwrap();
+    if let Some(ref c) = *guard {
+      return Ok(c.clone());
+    }
   }
 
+  // Slow path: establish a new connection.
   let client = connect_and_handshake(token).await?;
-  *guard = Some(client.clone());
+  {
+    let mut guard = CLIENT.write().unwrap();
+    *guard = Some(client.clone());
+  }
   Ok(client)
 }
 
 /// Invalidate the current connection so the next request reconnects.
-async fn invalidate_client() {
-  let holder = client_holder().await;
-  let mut guard = holder.lock().await;
+fn invalidate_client() {
+  let mut guard = CLIENT.write().unwrap();
   *guard = None;
 }
 
@@ -381,7 +380,7 @@ pub async fn gateway_request_pooled(
       let mut breaker = client.breaker.lock().await;
       breaker.on_failure();
     }
-    invalidate_client().await;
+    invalidate_client();
     drop(permit);
     return Err(e);
   }
@@ -401,7 +400,7 @@ pub async fn gateway_request_pooled(
       breaker.on_failure();
       // Connection may be stale; drop it so we reconnect next time.
       drop(breaker);
-      invalidate_client().await;
+      invalidate_client();
     }
   }
 
