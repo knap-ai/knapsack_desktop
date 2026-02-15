@@ -978,10 +978,34 @@ function App() {
     const unlistenHelp = listen('kn_trigger_help', async () => {
       handleOpenToastr(
         <span>
-          Commands: /morning, /emails, /prep, /fu, /help
+          Commands: /morning, /emails, /prep, /fu, /testnotif, /help
         </span>,
         'info',
         5000,
+      )
+    })
+    const unlistenTestNotif = listen('kn_trigger_test_notification', async () => {
+      console.log('🔔 Manual trigger: test notification')
+      openNotificationWindow(
+        'test-' + Date.now(),
+        [
+          { buttonText: 'View Details', buttonHandler: 'dismiss_notification_handler' },
+          { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+        ],
+        'Action: Apple Dev account change',
+        'Apple Developer: Account Holder changed. Team admin role has been reassigned. Verify team access and renew certificates. See invoice thread FYI.',
+      )
+    })
+    const unlistenProactiveWelcome = listen('kn_trigger_proactive_welcome', async () => {
+      console.log('🔔 Proactive mode enabled: welcome notification')
+      openNotificationWindow(
+        'proactive-welcome-' + Date.now(),
+        [
+          { buttonText: 'View Briefing', buttonHandler: 'morning_briefing_handler' },
+          { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+        ],
+        'Proactive mode is now active',
+        "You'll receive background notifications for morning briefings, email alerts, meeting prep, and follow-ups.",
       )
     })
 
@@ -991,6 +1015,8 @@ function App() {
       unlistenPrep.then(u => u())
       unlistenFollowup.then(u => u())
       unlistenHelp.then(u => u())
+      unlistenTestNotif.then(u => u())
+      unlistenProactiveWelcome.then(u => u())
     }
   }, [handleOpenToastr])
 
@@ -1093,6 +1119,11 @@ function App() {
       startMeetingNotification(meetingId, false, true),
     meeting_open_notification_handler: async (meetingId: string | null) =>
       startMeetingNotification(meetingId, false, false),
+    morning_briefing_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      await checkMorningBriefingRef.current(new Date(), true)
+    },
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')

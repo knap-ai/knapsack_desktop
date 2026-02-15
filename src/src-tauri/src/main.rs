@@ -71,7 +71,7 @@ use console_subscriber;
 pub const KNAPSACK_DATA_DIR: &str = ".knapsack";
 pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
-const NOTIF_HEIGHT: f64 = 400.0;
+const NOTIF_HEIGHT: f64 = 80.0;
 const NOTIF_WIDTH: f64 = 600.0;
 //const NOTIF_Y_POSITION: i32 = 40 + (NOTIF_HEIGHT as i32);
 const NOTIF_START_X_OFFSET: i32 = 500;
@@ -314,11 +314,17 @@ async fn show_notification_window(
     if let Ok(monitor) = window.current_monitor() {
       if let Some(monitor) = monitor {
         let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+
+        // Convert logical notification dimensions to physical pixels
+        let physical_notif_width = (NOTIF_WIDTH * scale_factor) as i32;
+        let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
+        let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
         let top_margin_percentage = 0.05;
         let y_position = (screen_size.height as f64 * top_margin_percentage) as i32;
 
-        let start_x = screen_size.width as i32 + NOTIF_START_X_OFFSET;
+        let start_x = screen_size.width as i32 + physical_start_offset;
 
         window
           .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
@@ -329,7 +335,7 @@ async fn show_notification_window(
 
         window.emit("notification_event_id", json!({"event_id": event_id, "button_configs": button_configs, "title": title, "time": time})).unwrap();
 
-        let final_x = screen_size.width as i32 - NOTIF_WIDTH as i32 - NOTIF_END_X_OFFSET;
+        let final_x = screen_size.width as i32 - physical_notif_width - physical_end_offset;
 
         for i in 0..=NOTIF_ANIMATION_DURATION {
           let t = i as f32 / NOTIF_ANIMATION_DURATION as f32;
@@ -351,6 +357,11 @@ async fn show_notification_window(
           window.show();
           tokio::time::sleep(std::time::Duration::from_millis(NOTIF_FRAME_TIME)).await;
         }
+
+        // On macOS, always-on-top transparent windows are floating panels that
+        // don't become the key window on click. Without key status, WKWebView
+        // won't forward mouse events to JavaScript, making buttons unclickable.
+        window.set_focus().ok();
       }
     }
   }
@@ -585,7 +596,7 @@ async fn main() {
       };
 
       // notification window
-      let notification_window = WindowBuilder::new(
+      let mut notification_builder = WindowBuilder::new(
         app,
         "notification",
         WindowUrl::App("notification.html".into()),
@@ -596,8 +607,17 @@ async fn main() {
       .decorations(false)
       .always_on_top(true)
       .transparent(true)
-      .visible(false)
-      .build()?;
+      .visible(false);
+
+      // On macOS, transparent always-on-top windows are floating NSPanels.
+      // Without accept_first_mouse the first click only focuses the panel;
+      // the user would have to click a second time for JS to see the event.
+      #[cfg(target_os = "macos")]
+      {
+        notification_builder = notification_builder.accept_first_mouse(true);
+      }
+
+      let notification_window = notification_builder.build()?;
       app.manage(Arc::new(Mutex::new(notification_window)));
 
       let llm_path = app
