@@ -800,6 +800,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [showSkillsPanel, setShowSkillsPanel] = useState(false)
   const [showChannelsPanel, setShowChannelsPanel] = useState(false)
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
+  const [channelError, setChannelError] = useState<string | null>(null)
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
@@ -2888,13 +2889,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 disabled={channelBusy === 'whatsapp'}
                 onClick={async () => {
                   setChannelBusy('whatsapp')
+                  setChannelError(null)
                   try {
                     if (channelStatus.whatsapp?.linked) {
                       await channelStatus.toggleWhatsApp(false)
                     } else {
                       await channelStatus.connectWhatsApp()
                     }
-                  } catch {} finally { setChannelBusy(null) }
+                  } catch (err: any) {
+                    const msg = err?.message || String(err)
+                    console.error('[Channels] WhatsApp error:', msg)
+                    setChannelError(`WhatsApp: ${msg}`)
+                  } finally { setChannelBusy(null) }
                 }}
               >
                 {channelBusy === 'whatsapp' ? 'Working...' : channelStatus.whatsapp?.linked ? 'Disconnect' : 'Connect'}
@@ -2946,13 +2952,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 disabled={channelBusy === 'imessage'}
                 onClick={async () => {
                   setChannelBusy('imessage')
+                  setChannelError(null)
                   try {
                     if (channelStatus.imessage?.configured) {
                       await channelStatus.toggleIMessage(false)
                     } else {
                       await channelStatus.connectIMessage()
                     }
-                  } catch {} finally { setChannelBusy(null) }
+                  } catch (err: any) {
+                    const msg = err?.message || String(err)
+                    console.error('[Channels] iMessage error:', msg)
+                    setChannelError(`iMessage: ${msg}`)
+                  } finally { setChannelBusy(null) }
                 }}
               >
                 {channelBusy === 'imessage' ? 'Working...' : channelStatus.imessage?.configured ? 'Disconnect' : 'Connect'}
@@ -2985,6 +2996,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               </div>
             )}
 
+            {channelError && (
+              <div className="ClawdChannelsPanelError">
+                {channelError}
+                <button className="ClawdChannelErrorDismiss" onClick={() => setChannelError(null)}>×</button>
+              </div>
+            )}
             {channelStatus.error && (
               <div className="ClawdChannelsPanelError">{channelStatus.error}</div>
             )}

@@ -2406,6 +2406,23 @@
   padding: 8px 12px;
   background: #fef2f2;
   border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.ClawdChannelErrorDismiss {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-left: auto;
 }
 
 .ClawdChannelsPanelFooter {

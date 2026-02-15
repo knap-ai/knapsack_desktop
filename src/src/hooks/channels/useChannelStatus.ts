@@ -56,23 +56,28 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   // ── Actions ────────────────────────────────────────────
 
   const toggleWhatsApp = useCallback(async (on: boolean) => {
-    await enableWhatsApp(on)
+    const res = await enableWhatsApp(on)
+    if (!res.success) throw new Error(res.message ?? 'Failed to toggle WhatsApp')
     await refresh()
   }, [refresh])
 
   const connectWhatsApp = useCallback(async () => {
-    await enableWhatsApp(true)
-    await startWhatsAppLogin()
+    const enableRes = await enableWhatsApp(true)
+    if (!enableRes.success) throw new Error(enableRes.message ?? 'Failed to enable WhatsApp')
+    const loginRes = await startWhatsAppLogin()
+    if (!loginRes.success) throw new Error(loginRes.message ?? 'Failed to start WhatsApp login')
     await refresh()
   }, [refresh])
 
   const toggleIMessage = useCallback(async (on: boolean) => {
-    await enableIMessage(on)
+    const res = await enableIMessage(on)
+    if (!res.success) throw new Error(res.message ?? 'Failed to toggle iMessage')
     await refresh()
   }, [refresh])
 
   const connectIMessage = useCallback(async () => {
-    await enableIMessage(true)
+    const enableRes = await enableIMessage(true)
+    if (!enableRes.success) throw new Error(enableRes.message ?? 'Failed to enable iMessage')
     const result = await setupIMessage()
     if (!result.configured) {
       await openFullDiskAccess()
