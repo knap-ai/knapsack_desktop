@@ -732,6 +732,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [keyHints, setKeyHints] = useState<Record<string, string | undefined>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
 
+  // Claude Code activity tracking — shows indicator when Claude Code is running
+  const [claudeCodeActive, setClaudeCodeActive] = useState(false)
+  const [claudeCodePrompt, setClaudeCodePrompt] = useState<string | null>(null)
+
   // Tone selection
   const [selectedTone, setSelectedTone] = useState<string>(() => {
     return localStorage.getItem(TONE_STORAGE) || 'snarky'
@@ -1421,6 +1425,52 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         dragCounter.current = 0
       })
       cleanups.push(unlistenCancel)
+    })()
+
+    return () => {
+      cancelled = true
+      cleanups.forEach(fn => fn())
+    }
+  }, [])
+
+  // Listen for Claude Code started/exited events to auto-open Activity Panel
+  // and show an indicator in the chat while it's running.
+  const onToggleActivityRef = useRef(onToggleActivity)
+  onToggleActivityRef.current = onToggleActivity
+  const externalActivityPanelRef = useRef(externalActivityPanel)
+  externalActivityPanelRef.current = externalActivityPanel
+
+  useEffect(() => {
+    let cancelled = false
+    const cleanups: Array<() => void> = []
+
+    ;(async () => {
+      const unlistenStarted = await tauriListen<{ processId: string; sessionId: string; prompt: string; cwd: string }>(
+        'claude-code-started',
+        (event) => {
+          if (cancelled) return
+          setClaudeCodeActive(true)
+          setClaudeCodePrompt(event.payload.prompt)
+          // Auto-open Activity Panel if not already open
+          if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
+            onToggleActivityRef.current()
+          }
+        },
+      )
+      cleanups.push(unlistenStarted)
+
+      const unlistenExit = await tauriListen<{ processId: string; sessionId: string; exitCode: number }>(
+        'streaming-exit',
+        (event) => {
+          if (cancelled) return
+          // Only handle exits from the claude-code session
+          if (event.payload.sessionId === 'claude-code') {
+            setClaudeCodeActive(false)
+            setClaudeCodePrompt(null)
+          }
+        },
+      )
+      cleanups.push(unlistenExit)
     })()
 
     return () => {
@@ -2514,6 +2564,27 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <div className="ClawdMsg ClawdMsg-assistant ClawdMsg-thinking">
             <div className="ClawdBubble">
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ChatLink }}>{thinkingMessage}</ReactMarkdown>
+            </div>
+          </div>
+        )}
+        {claudeCodeActive && (
+          <div className="ClawdMsg ClawdMsg-assistant ClawdMsg-claude-code">
+            <div className="ClawdBubble ClawdBubble--claude-code">
+              <div className="ClawdClaudeCodeIndicator">
+                <span className="ClawdClaudeCodeIndicator__pulse" />
+                <span className="ClawdClaudeCodeIndicator__label">Claude Code is working</span>
+                {claudeCodePrompt && (
+                  <span className="ClawdClaudeCodeIndicator__prompt">{claudeCodePrompt.length > 80 ? claudeCodePrompt.slice(0, 80) + '...' : claudeCodePrompt}</span>
+                )}
+                <button
+                  className="ClawdClaudeCodeIndicator__btn"
+                  onClick={() => {
+                    if (!externalActivityPanel && onToggleActivity) onToggleActivity()
+                  }}
+                >
+                  View in Terminal
+                </button>
+              </div>
             </div>
           </div>
         )}

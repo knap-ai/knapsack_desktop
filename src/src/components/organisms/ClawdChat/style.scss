@@ -279,6 +279,70 @@
   50% { opacity: 1; }
 }
 
+// Claude Code running indicator
+.ClawdMsg-claude-code {
+  .ClawdBubble--claude-code {
+    background: rgba(45, 55, 72, 0.06);
+    border-color: rgba(45, 55, 72, 0.2);
+    border-left: 3px solid #5b6abf;
+  }
+}
+
+.ClawdClaudeCodeIndicator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+
+  &__pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #5b6abf;
+    animation: ccPulse 1.2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  &__label {
+    font-weight: 600;
+    color: #2d3748;
+  }
+
+  &__prompt {
+    width: 100%;
+    color: #718096;
+    font-size: 12px;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__btn {
+    margin-left: auto;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5b6abf;
+    background: rgba(91, 106, 191, 0.1);
+    border: 1px solid rgba(91, 106, 191, 0.25);
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba(91, 106, 191, 0.18);
+      border-color: rgba(91, 106, 191, 0.4);
+    }
+  }
+}
+
+@keyframes ccPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
 .ClawdBubble {
   max-width: 720px;
   word-wrap: break-word;

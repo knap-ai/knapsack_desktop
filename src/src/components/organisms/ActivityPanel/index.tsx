@@ -575,6 +575,55 @@ const TerminalView: React.FC = () => {
     return () => clearInterval(interval)
   }, [liveLogsSession, addLine])
 
+  // ── Claude Code session creation on-demand ──
+  // When the chat agent delegates to Claude Code, a `claude-code-started` event
+  // creates the session (if needed), switches to it, and shows the prompt.
+  useEffect(() => {
+    const unlisteners: Promise<UnlistenFn>[] = []
+
+    unlisteners.push(
+      listen<{ processId: string; sessionId: string; prompt: string; cwd: string }>(
+        'claude-code-started',
+        event => {
+          const { processId, sessionId, prompt, cwd } = event.payload
+          // Create session if it doesn't exist, otherwise clear it for the new run
+          setSessions(prev => {
+            const exists = prev.find(s => s.id === sessionId)
+            if (exists) {
+              return prev.map(s =>
+                s.id === sessionId
+                  ? {
+                      ...s,
+                      lines: [{ type: 'system' as const, text: `Claude Code: ${prompt}`, timestamp: new Date() }],
+                      isExecuting: true,
+                      streamingProcessId: processId,
+                      cwd: cwd || s.cwd,
+                    }
+                  : s,
+              )
+            }
+            return [
+              ...prev,
+              {
+                ...makeSession(sessionId, 'Claude Code', cwd || '~'),
+                lines: [{ type: 'system' as const, text: `Claude Code: ${prompt}`, timestamp: new Date() }],
+                cwd: cwd || '',
+                isExecuting: true,
+                streamingProcessId: processId,
+              },
+            ]
+          })
+          // Auto-switch to the Claude Code tab
+          setActiveSessionId(sessionId)
+        },
+      ),
+    )
+
+    return () => {
+      unlisteners.forEach(p => p.then(unlisten => unlisten()))
+    }
+  }, [])
+
   // ── Streaming process event listeners (for claude code CLI, etc.) ──
   useEffect(() => {
     const unlisteners: Promise<UnlistenFn>[] = []
@@ -582,33 +631,58 @@ const TerminalView: React.FC = () => {
     unlisteners.push(
       listen<{ processId: string; sessionId: string; text: string }>('streaming-stdout', event => {
         const { sessionId, text } = event.payload
-        addLine(sessionId, 'stdout', stripAnsi(text))
+        // For dynamically-created sessions (claude-code), ensure the session exists
+        setSessions(prev => {
+          const exists = prev.find(s => s.id === sessionId)
+          if (!exists) return prev // ignore events for unknown sessions
+          return prev.map(s =>
+            s.id === sessionId
+              ? { ...s, lines: [...s.lines, { type: 'stdout' as const, text: stripAnsi(text), timestamp: new Date() }] }
+              : s,
+          )
+        })
       }),
     )
 
     unlisteners.push(
       listen<{ processId: string; sessionId: string; text: string }>('streaming-stderr', event => {
         const { sessionId, text } = event.payload
-        addLine(sessionId, 'stderr', stripAnsi(text))
+        setSessions(prev => {
+          const exists = prev.find(s => s.id === sessionId)
+          if (!exists) return prev
+          return prev.map(s =>
+            s.id === sessionId
+              ? { ...s, lines: [...s.lines, { type: 'stderr' as const, text: stripAnsi(text), timestamp: new Date() }] }
+              : s,
+          )
+        })
       }),
     )
 
     unlisteners.push(
       listen<{ processId: string; sessionId: string; exitCode: number }>('streaming-exit', event => {
         const { sessionId, exitCode } = event.payload
-        addLine(sessionId, 'system', `Process exited with code ${exitCode}`)
-        updateSession(sessionId, s => ({
-          ...s,
-          isExecuting: false,
-          streamingProcessId: null,
-        }))
+        setSessions(prev => {
+          const exists = prev.find(s => s.id === sessionId)
+          if (!exists) return prev
+          return prev.map(s =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  lines: [...s.lines, { type: 'system' as const, text: `Process exited with code ${exitCode}`, timestamp: new Date() }],
+                  isExecuting: false,
+                  streamingProcessId: null,
+                }
+              : s,
+          )
+        })
       }),
     )
 
     return () => {
       unlisteners.forEach(p => p.then(unlisten => unlisten()))
     }
-  }, [addLine, updateSession])
+  }, [])
 
   const killStreamingProcess = useCallback(
     async (sessionId: string) => {

@@ -1683,6 +1683,166 @@ pub async fn chat(
       }
     }
 
+    // Claude Code delegation — spawn Claude Code CLI as a streaming process
+    // so the user can see live progress in the Activity Panel.
+    if name == "run_claude_code" {
+      let prompt = args_map
+        .get("prompt")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+      if prompt.is_empty() {
+        anyhow::bail!("prompt is required");
+      }
+      let working_dir = args_map
+        .get("working_dir")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()));
+
+      let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+      let wd = if working_dir.starts_with("~/") {
+        format!("{}/{}", home, &working_dir[2..])
+      } else {
+        working_dir
+      };
+
+      eprintln!("[clawd/chat] run_claude_code: prompt={} cwd={}", prompt, wd);
+
+      // Use a fixed session ID so the Activity Panel can route output to the right terminal tab
+      let session_id = "claude-code".to_string();
+      let process_id = uuid::Uuid::new_v4().to_string();
+
+      // Emit a "claude-code-started" event so the frontend auto-opens the Activity Panel
+      let _ = app_handle.emit_all("claude-code-started", json!({
+        "processId": process_id,
+        "sessionId": session_id,
+        "prompt": prompt,
+        "cwd": wd,
+      }));
+
+      // Build the claude command: use --print for non-interactive mode
+      // Escape single quotes in the prompt for safe shell embedding
+      let escaped_prompt = prompt.replace('\'', "'\\''");
+      let claude_cmd = format!("claude --print '{}'", escaped_prompt);
+
+      let wd_clone = wd.clone();
+      let app1 = app_handle.clone();
+      let app2 = app_handle.clone();
+      let app3 = app_handle.clone();
+      let sid1 = session_id.clone();
+      let sid2 = session_id.clone();
+      let sid3 = session_id.clone();
+      let pid1 = process_id.clone();
+      let pid2 = process_id.clone();
+      let pid3 = process_id.clone();
+
+      // Spawn the process and stream output via Tauri events
+      let result = tokio::task::spawn_blocking(move || {
+        use std::io::{BufRead, BufReader};
+        use std::process::{Command, Stdio};
+
+        let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+        let mut child = Command::new(&user_shell)
+          .args(["-l", "-c", &claude_cmd])
+          .current_dir(&wd_clone)
+          .stdout(Stdio::piped())
+          .stderr(Stdio::piped())
+          .spawn()
+          .map_err(|e| format!("Failed to spawn claude: {}", e))?;
+
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        let mut all_stdout = String::new();
+
+        // Stream stdout line-by-line
+        let stdout_handle = if let Some(stdout) = stdout {
+          let app = app1;
+          let sid = sid1;
+          let pid = pid1;
+          Some(std::thread::spawn(move || {
+            let mut collected = String::new();
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().flatten() {
+              let _ = app.emit_all("streaming-stdout", json!({
+                "processId": pid,
+                "sessionId": sid,
+                "text": line,
+              }));
+              collected.push_str(&line);
+              collected.push('\n');
+            }
+            collected
+          }))
+        } else {
+          None
+        };
+
+        // Stream stderr line-by-line
+        let stderr_handle = if let Some(stderr) = stderr {
+          let app = app2;
+          let sid = sid2;
+          let pid = pid2;
+          Some(std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().flatten() {
+              let _ = app.emit_all("streaming-stderr", json!({
+                "processId": pid,
+                "sessionId": sid,
+                "text": line,
+              }));
+            }
+          }))
+        } else {
+          None
+        };
+
+        // Wait for process to finish
+        let status = child.wait().map_err(|e| format!("Failed to wait: {}", e))?;
+        let exit_code = status.code().unwrap_or(-1);
+
+        // Collect stdout
+        if let Some(handle) = stdout_handle {
+          all_stdout = handle.join().unwrap_or_default();
+        }
+        if let Some(handle) = stderr_handle {
+          let _ = handle.join();
+        }
+
+        // Emit exit event
+        let _ = app3.emit_all("streaming-exit", json!({
+          "processId": pid3,
+          "sessionId": sid3,
+          "exitCode": exit_code,
+        }));
+
+        Ok::<(i32, String), String>((exit_code, all_stdout))
+      }).await;
+
+      match result {
+        Ok(Ok((exit_code, stdout))) => {
+          let truncated = if stdout.len() > 50000 {
+            format!("{}... [truncated, {} bytes total]", &stdout[..50000], stdout.len())
+          } else {
+            stdout
+          };
+          return Ok(json!({
+            "ok": exit_code == 0,
+            "exit_code": exit_code,
+            "output": truncated,
+          }));
+        }
+        Ok(Err(e)) => {
+          return Ok(json!({"ok": false, "error": e}));
+        }
+        Err(e) => {
+          return Ok(json!({"ok": false, "error": format!("Task error: {}", e)}));
+        }
+      }
+    }
+
     // Shell command execution (Advanced Mode only — gated at tool-list level,
     // but also checked here as defense-in-depth)
     if name == "run_command" {
@@ -1983,6 +2143,26 @@ You must NEVER change, set, or reset passwords or authentication credentials on 
 - Web service passwords (never fill in "change password" forms on behalf of the user)
 - Keychain/credential store entries
 If the user asks you to change a password, explain that for security reasons they must do it themselves and provide the steps they should follow.
+
+### CLAUDE CODE DELEGATION
+You also have access to the `run_claude_code` tool, which delegates complex coding tasks to **Claude Code** — an AI coding agent that can autonomously read/write files, run commands, search codebases, and perform multi-step software engineering work.
+
+**When to use `run_claude_code`:**
+- The user asks to modify, create, or debug code in a project
+- Multi-step coding tasks (refactoring, adding features, fixing bugs)
+- Any task that involves reading multiple files, making changes, and running tests
+- When the user says "via claude code" or "use claude code"
+
+**When NOT to use it:**
+- Simple one-liner shell commands (use `run_command` instead)
+- Non-coding tasks (browsing, emails, calendar)
+- Quick file reads or directory listings
+
+**How it works:**
+- You provide a `prompt` describing the task and a `working_dir` for the project
+- Claude Code runs in the terminal — the user can see its live progress in the Activity Panel
+- The Activity Panel auto-opens so the user has full visibility into what Claude Code is doing
+- When done, you receive the output and can summarize results for the user
 "#.to_string()
   } else {
     String::new()
@@ -2045,6 +2225,7 @@ When a task seems complex:
 - **list_directory(path)**: List files in a directory
 - **search_files(path, pattern)**: Search for files by glob pattern
 - **run_script(script)**: Execute a Python script and return stdout/stderr/exit_code. 30s timeout. Common packages (matplotlib, numpy, pandas, scipy, requests, pillow, seaborn, plotly, beautifulsoup4, openpyxl, scikit-learn, sympy, etc.) are auto-installed if missing. Use for calculations, data processing, charts, file transformations, or any task that benefits from code execution.
+- **run_claude_code(prompt, working_dir)**: [Advanced Mode] Delegate a complex coding task to Claude Code, an AI coding agent. It can read/write files, run commands, and perform multi-step software engineering tasks. The user sees live progress in the Activity Panel terminal. Use for any coding task: creating features, fixing bugs, refactoring, project setup.
 - **list_recent_meetings(days?, search?)**: List meeting recordings with titles, dates, participants, and thread_ids. Without search, returns meetings from the last N days (default 30, max 365). **When search is provided, searches ALL meetings regardless of date** to find matches by title or participant name. Use to find meetings, then retrieve full content with the tools below.
 - **get_meeting_transcript(thread_id)**: Get the full spoken transcript of a meeting recording. Use when the user asks about what was said or discussed in a meeting.
 - **get_meeting_notes(thread_id)**: Get the user's written notes for a meeting. These are separate from the transcript — they are user-created summaries or annotations.
@@ -2361,7 +2542,7 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
   let mut tools = chat_agent::default_tools();
   if advanced_mode {
     tools.extend(chat_agent::advanced_tools());
-    eprintln!("[clawd/chat] Advanced mode enabled — run_command tool available");
+    eprintln!("[clawd/chat] Advanced mode enabled — run_command and run_claude_code tools available");
   }
 
   // Tool loop - allow up to 75 iterations for complex multi-step tasks
