@@ -1119,6 +1119,11 @@ function App() {
       startMeetingNotification(meetingId, false, true),
     meeting_open_notification_handler: async (meetingId: string | null) =>
       startMeetingNotification(meetingId, false, false),
+    morning_briefing_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      await checkMorningBriefingRef.current(new Date(), true)
+    },
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
