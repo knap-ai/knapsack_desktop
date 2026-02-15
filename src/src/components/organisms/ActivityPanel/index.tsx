@@ -17,6 +17,45 @@ function stripAnsi(text: string): string {
     .replace(/\x1B\(B/g, '')
 }
 
+// ── Module-level cache for active Claude Code session ──
+// Persists across TerminalView mount/unmount cycles so that when the
+// Activity Panel reopens, TerminalView can pick up a running (or finished)
+// Claude Code session it missed because the event fired before it mounted.
+
+interface ClaudeCodeSessionInfo {
+  processId: string
+  sessionId: string
+  prompt: string
+  cwd: string
+  isActive: boolean
+}
+
+let _activeClaudeCodeSession: ClaudeCodeSessionInfo | null = null
+let _moduleListenerInitialized = false
+
+function initModuleListeners() {
+  if (_moduleListenerInitialized) return
+  _moduleListenerInitialized = true
+
+  listen<{ processId: string; sessionId: string; prompt: string; cwd: string }>(
+    'claude-code-started',
+    event => {
+      _activeClaudeCodeSession = { ...event.payload, isActive: true }
+    },
+  )
+
+  listen<{ processId: string; sessionId: string; exitCode: number }>(
+    'streaming-exit',
+    event => {
+      if (_activeClaudeCodeSession && event.payload.sessionId === _activeClaudeCodeSession.sessionId) {
+        _activeClaudeCodeSession = { ..._activeClaudeCodeSession, isActive: false }
+      }
+    },
+  )
+}
+
+initModuleListeners()
+
 type ActivitySubTab = 'logs' | 'costs' | 'terminal'
 
 interface TerminalLine {
@@ -622,6 +661,30 @@ const TerminalView: React.FC = () => {
     return () => {
       unlisteners.forEach(p => p.then(unlisten => unlisten()))
     }
+  }, [])
+
+  // ── Reconcile with module-level cache on mount ──
+  // If claude-code-started fired before this component mounted, the event
+  // listener above missed it. Read the module-level cache and create the
+  // session so the Claude Code tab appears immediately.
+  useEffect(() => {
+    if (!_activeClaudeCodeSession) return
+    const { processId, sessionId, prompt, cwd, isActive } = _activeClaudeCodeSession
+
+    setSessions(prev => {
+      if (prev.find(s => s.id === sessionId)) return prev
+      return [
+        ...prev,
+        {
+          ...makeSession(sessionId, 'Claude Code', cwd || '~'),
+          lines: [{ type: 'system' as const, text: `Claude Code: ${prompt}`, timestamp: new Date() }],
+          cwd: cwd || '',
+          isExecuting: isActive,
+          streamingProcessId: isActive ? processId : null,
+        },
+      ]
+    })
+    setActiveSessionId(sessionId)
   }, [])
 
   // ── Streaming process event listeners (for claude code CLI, etc.) ──
