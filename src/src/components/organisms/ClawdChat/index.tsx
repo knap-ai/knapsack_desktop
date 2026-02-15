@@ -1798,7 +1798,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }, [voiceEnabled, stopCurrentAudio])
 
   // Called by ChatInputBar (via onSend) or by handleSendWithText (prompt actions, voice)
+  // Slash commands that trigger Tauri events instead of hitting the LLM
+  const SLASH_COMMANDS: Record<string, string> = {
+    '/morning': 'kn_trigger_morning_briefing',
+    '/emails': 'kn_trigger_email_check',
+    '/prep': 'kn_trigger_meeting_prep',
+    '/fu': 'kn_trigger_post_meeting',
+    '/testnotif': 'kn_trigger_test_notification',
+  }
+
   const doSend = async (text: string) => {
+
+    // Intercept slash commands before any LLM processing
+    const slashEvent = SLASH_COMMANDS[text.trim().toLowerCase()]
+    if (slashEvent) {
+      console.log(`🔔 Triggering command: ${text}`)
+      await emit(slashEvent, {})
+      return
+    }
 
     // Check if we need to prompt for API key first
     if (!hasCompletedOnboarding) {
