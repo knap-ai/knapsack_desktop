@@ -1593,7 +1593,7 @@ pub async fn skills_install(
   match super::gateway_client::gateway_request_pooled(
     "skills.install",
     Some(params),
-    Some(&tokens.gateway_token),
+    &tokens.gateway_token,
   ).await {
     Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "result": result})),
     Err(e) => {
@@ -1642,7 +1642,7 @@ pub async fn skills_update(
   match super::gateway_client::gateway_request_pooled(
     "skills.update",
     Some(params),
-    Some(&tokens.gateway_token),
+    &tokens.gateway_token,
   ).await {
     Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "result": result})),
     Err(e) => {
