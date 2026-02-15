@@ -596,7 +596,7 @@ async fn main() {
       };
 
       // notification window
-      let notification_window = WindowBuilder::new(
+      let mut notification_builder = WindowBuilder::new(
         app,
         "notification",
         WindowUrl::App("notification.html".into()),
@@ -607,8 +607,17 @@ async fn main() {
       .decorations(false)
       .always_on_top(true)
       .transparent(true)
-      .visible(false)
-      .build()?;
+      .visible(false);
+
+      // On macOS, transparent always-on-top windows are floating NSPanels.
+      // Without accept_first_mouse the first click only focuses the panel;
+      // the user would have to click a second time for JS to see the event.
+      #[cfg(target_os = "macos")]
+      {
+        notification_builder = notification_builder.accept_first_mouse(true);
+      }
+
+      let notification_window = notification_builder.build()?;
       app.manage(Arc::new(Mutex::new(notification_window)));
 
       let llm_path = app
