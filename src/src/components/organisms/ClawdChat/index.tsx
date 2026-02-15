@@ -5,7 +5,7 @@ import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { open } from '@tauri-apps/api/shell'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
-import { convertFileSrc } from '@tauri-apps/api/tauri'
+import { convertFileSrc, invoke } from '@tauri-apps/api/tauri'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -948,6 +948,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       ? "🔔 **Proactive mode enabled.** I'll send you background notifications — morning briefings, email alerts, meeting prep, and post-meeting follow-ups."
       : "🔕 **Reactive mode enabled.** Background notifications are off. I'll only respond when you ask. You can still trigger notifications manually with /morning, /emails, /prep, or /fu."
     )
+
+    // Fire a welcome notification so the user can see it works immediately
+    if (pendingProactiveState) {
+      invoke('show_notification_window', {
+        eventId: null,
+        buttonConfigs: [
+          { buttonText: 'View Briefing', buttonHandler: 'morning_briefing_handler' },
+          { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+        ],
+        title: 'Proactive mode is now active',
+        time: "You'll receive background notifications for morning briefings, email alerts, meeting prep, and follow-ups.",
+      })
+    }
   }, [pendingProactiveState])
 
   // Advanced mode toggle — shows warning dialog before enabling
