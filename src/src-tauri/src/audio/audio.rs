@@ -310,6 +310,14 @@ pub async fn start_recording(
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack");
 
+  // Clean up any stale intermediate transcript files from a previous recording of this thread.
+  // These files use .append(true), so leftover content would contaminate the new recording.
+  let transcripts_dir = knapsack_data_dir.join("transcripts");
+  let stale_input_txt = transcripts_dir.join(format!("{}.txt", input_filename));
+  let stale_output_txt = transcripts_dir.join(format!("{}.txt", output_filename));
+  let _ = std::fs::remove_file(&stale_input_txt);
+  let _ = std::fs::remove_file(&stale_output_txt);
+
   // Setup input device
   let input_wav_path = knapsack_data_dir.join(&input_filename);
   let (mic_input_device, mic_input_config) = setup_audio_device(&host, &opt.device, true)
@@ -382,6 +390,21 @@ pub async fn start_recording(
     *feed_item_id_guard = Some(feed_item_id.clone());
   }
 
+  // If a transcript already exists for this thread (e.g., re-recording), delete it first
+  // to avoid UNIQUE constraint violation on thread_id.
+  if let Ok(Some(existing_transcript)) = Transcript::find_by_thread_id(thread_id) {
+    let home_dir_cleanup = dirs::home_dir().expect("Couldn't get home_dir for platform.");
+    let transcript_file = home_dir_cleanup
+      .join(".knapsack/transcripts")
+      .join(&existing_transcript.filename);
+    if transcript_file.exists() {
+      let _ = std::fs::remove_file(&transcript_file);
+    }
+    if let Err(e) = existing_transcript.delete() {
+      log::warn!("Failed to delete old transcript for thread {}: {:?}", thread_id, e);
+    }
+  }
+
   let filename = Uuid::new_v4().to_string();
   let start_time = std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
@@ -395,7 +418,14 @@ pub async fn start_recording(
     end_time: None,
     timestamp: None,
   };
-  transcript.create();
+  if let Err(e) = transcript.create() {
+    recording_state.is_recording.store(false, Ordering::Relaxed);
+    log::error!("Failed to create transcript record: {:?}", e);
+    return Ok(
+      HttpResponse::InternalServerError()
+        .body(format!("Failed to create transcript record: {:?}", e)),
+    );
+  }
 
   Ok(HttpResponse::Ok().body("Recording started successfully"))
 }
@@ -878,6 +908,13 @@ async fn stream_audio(
   data: StartRecordingRequest,
 ) -> Result<(), String> {
   log::debug!("RECORDING MIC AUDIO! -----------------------------------");
+
+  // Clear any leftover samples from a previous recording session
+  {
+    let mut global_samples = GLOBAL_SAMPLES.lock().unwrap();
+    global_samples.clear();
+  }
+
   let err_fn = move |err| {
     log::error!("an error occurred on stream: {}", err);
   };
@@ -1013,7 +1050,7 @@ async fn stream_audio(
     sample_format => return Err(format!("Unsupported sample format '{sample_format}'")),
   };
 
-  stream.play();
+  stream.play().map_err(|e| format!("Failed to start audio stream: {}", e))?;
   let start_time = Utc::now();
   let mic_users_beginning = count_microphone_users();
   let mut mic_users_after_connections = 0;

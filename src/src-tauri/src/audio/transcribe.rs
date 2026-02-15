@@ -22,6 +22,7 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
       let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
       let knapsack_data_dir = home_dir.join(".knapsack");
       let transcripts_dir = knapsack_data_dir.join("transcripts");
+      fs::create_dir_all(&transcripts_dir)?;
 
       let transcript_path = transcripts_dir.join(filename);
 
