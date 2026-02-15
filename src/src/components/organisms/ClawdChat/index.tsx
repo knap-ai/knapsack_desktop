@@ -2261,6 +2261,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             {status?.running ? '✓ Enabled' : '○ Disabled'}
           </button>
           <button
+            onClick={() => { setShowChannelsPanel(prev => !prev); setShowSkillsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity() }}
+            className={`${showChannelsPanel ? 'toggle-on' : ''} ${hasAnyChannel ? 'channels-connected' : 'channels-disconnected'}`}
+            title="Connect WhatsApp or iMessage"
+          >
+            {hasAnyChannel ? '💬 Channels' : '💬 Channels'}
+          </button>
+          <button
             disabled={busy}
             onClick={toggleAutonomyMode}
             className={autonomyMode === 'autonomous' ? 'toggle-autonomy-on' : 'toggle-autonomy-off'}
@@ -2298,13 +2305,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               : 'Standard mode — click to enable shell commands.'}
           >
             {advancedMode ? '⚡ Advanced' : '▸ Standard'}
-          </button>
-          <button
-            onClick={() => { setShowChannelsPanel(prev => !prev); setShowSkillsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity() }}
-            className={`${showChannelsPanel ? 'toggle-on' : ''} ${hasAnyChannel ? 'channels-connected' : 'channels-disconnected'}`}
-            title="Connect WhatsApp or iMessage"
-          >
-            {hasAnyChannel ? '💬 Channels' : '💬 Channels'}
           </button>
           <button
             disabled={busy}
