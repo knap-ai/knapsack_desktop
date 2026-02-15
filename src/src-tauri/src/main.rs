@@ -314,11 +314,17 @@ async fn show_notification_window(
     if let Ok(monitor) = window.current_monitor() {
       if let Some(monitor) = monitor {
         let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+
+        // Convert logical notification dimensions to physical pixels
+        let physical_notif_width = (NOTIF_WIDTH * scale_factor) as i32;
+        let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
+        let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
         let top_margin_percentage = 0.05;
         let y_position = (screen_size.height as f64 * top_margin_percentage) as i32;
 
-        let start_x = screen_size.width as i32 + NOTIF_START_X_OFFSET;
+        let start_x = screen_size.width as i32 + physical_start_offset;
 
         window
           .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
@@ -329,7 +335,7 @@ async fn show_notification_window(
 
         window.emit("notification_event_id", json!({"event_id": event_id, "button_configs": button_configs, "title": title, "time": time})).unwrap();
 
-        let final_x = screen_size.width as i32 - NOTIF_WIDTH as i32 - NOTIF_END_X_OFFSET;
+        let final_x = screen_size.width as i32 - physical_notif_width - physical_end_offset;
 
         for i in 0..=NOTIF_ANIMATION_DURATION {
           let t = i as f32 / NOTIF_ANIMATION_DURATION as f32;
