@@ -996,6 +996,18 @@ function App() {
         'Apple Developer: Account Holder changed. Team admin role has been reassigned. Verify team access and renew certificates. See invoice thread FYI.',
       )
     })
+    const unlistenProactiveWelcome = listen('kn_trigger_proactive_welcome', async () => {
+      console.log('🔔 Proactive mode enabled: welcome notification')
+      openNotificationWindow(
+        'proactive-welcome-' + Date.now(),
+        [
+          { buttonText: 'View Briefing', buttonHandler: 'morning_briefing_handler' },
+          { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+        ],
+        'Proactive mode is now active',
+        "You'll receive background notifications for morning briefings, email alerts, meeting prep, and follow-ups.",
+      )
+    })
 
     return () => {
       unlistenBriefing.then(u => u())
@@ -1004,6 +1016,7 @@ function App() {
       unlistenFollowup.then(u => u())
       unlistenHelp.then(u => u())
       unlistenTestNotif.then(u => u())
+      unlistenProactiveWelcome.then(u => u())
     }
   }, [handleOpenToastr])
 
