@@ -2,7 +2,7 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
-use crate::clawd::gateway_ws;
+use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
 /// Response for channel status
@@ -84,7 +84,7 @@ fn parse_channel_from_summary(status: &serde_json::Value, channel_name: &str) ->
 /// Get WhatsApp channel status
 #[get("/api/clawd/channels/whatsapp/status")]
 pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    match gateway_ws::get_channel_status(None).await {
+    match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (enabled, linked, _configured) = parse_channel_from_summary(&status, "WhatsApp");
 
@@ -115,7 +115,7 @@ pub async fn whatsapp_enable(
     body: web::Json<EnableRequest>,
 ) -> impl Responder {
     // First get current config to obtain baseHash
-    let config_result = gateway_ws::config_get(None).await;
+    let config_result = gateway_client::config_get(None).await;
 
     match config_result {
         Ok(config_snapshot) => {
@@ -131,7 +131,7 @@ pub async fn whatsapp_enable(
                 r#"{"channels": {"whatsapp": null}}"#
             };
 
-            match gateway_ws::config_patch(patch, &base_hash, None).await {
+            match gateway_client::config_patch(patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
@@ -168,7 +168,7 @@ pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
         "channelId": "whatsapp"
     });
 
-    match gateway_ws::call_channel_method("channel.whatsapp.startLogin", Some(params), None).await {
+    match gateway_client::call_channel_method("channel.whatsapp.startLogin", Some(params), None).await {
         Ok(result) => {
             let success = result
                 .get("success")
@@ -194,7 +194,7 @@ pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
 /// Get iMessage channel status
 #[get("/api/clawd/channels/imessage/status")]
 pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    match gateway_ws::get_channel_status(None).await {
+    match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (enabled, _linked, configured) = parse_channel_from_summary(&status, "iMessage");
 
@@ -225,7 +225,7 @@ pub async fn imessage_enable(
     body: web::Json<EnableRequest>,
 ) -> impl Responder {
     // First get current config to obtain baseHash
-    let config_result = gateway_ws::config_get(None).await;
+    let config_result = gateway_client::config_get(None).await;
 
     match config_result {
         Ok(config_snapshot) => {
@@ -240,7 +240,7 @@ pub async fn imessage_enable(
                 r#"{"channels": {"imessage": null}}"#
             };
 
-            match gateway_ws::config_patch(patch, &base_hash, None).await {
+            match gateway_client::config_patch(patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
@@ -272,7 +272,7 @@ pub async fn imessage_enable(
 #[post("/api/clawd/channels/imessage/setup")]
 pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
     // Check iMessage status from gateway
-    match gateway_ws::get_channel_status(None).await {
+    match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (_enabled, _linked, configured) = parse_channel_from_summary(&status, "iMessage");
 
@@ -304,7 +304,7 @@ pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
 /// Get voice channel status
 #[get("/api/clawd/channels/voice/status")]
 pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    match gateway_ws::get_channel_status(None).await {
+    match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             // Voice calls are handled by plugins, check channelSummary for Twilio/Telnyx/etc
             let channel_summary = status
@@ -362,7 +362,7 @@ pub async fn voice_enable(
     body: web::Json<EnableRequest>,
 ) -> impl Responder {
     // First get current config to obtain baseHash
-    let config_result = gateway_ws::config_get(None).await;
+    let config_result = gateway_client::config_get(None).await;
 
     match config_result {
         Ok(config_snapshot) => {
@@ -375,7 +375,7 @@ pub async fn voice_enable(
                 r#"{"plugins": {"entries": {"voice-call": null}}}"#
             };
 
-            match gateway_ws::config_patch(patch, &base_hash, None).await {
+            match gateway_client::config_patch(patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {

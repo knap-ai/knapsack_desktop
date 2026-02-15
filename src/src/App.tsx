@@ -1028,6 +1028,19 @@ function App() {
     handlePostMeetingFollowupRef.current = handlePostMeetingFollowup
   }, [checkMorningBriefing, handlePostMeetingFollowup])
 
+  // Refs for notification button handlers to avoid stale closures in the
+  // useEffect([], []) listener below.  Without refs the listener captures
+  // the initial (empty/null) versions of these functions and button clicks
+  // silently do nothing.
+  // Initialised with no-op placeholders; the useEffect below keeps them
+  // up-to-date after every render.
+  const createInsightFeedItemRef = useRef(createInsightFeedItem)
+  const createFollowupFeedItemRef = useRef(createFollowupFeedItem)
+  const startMeetingNotificationRef = useRef<
+    (meetingId: string | null, openUrl: boolean, startRecord: boolean) => Promise<void>
+  >(() => Promise.resolve())
+  const stopMeetingNotificationRef = useRef<() => Promise<void>>(() => Promise.resolve())
+
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 
   useEffect(() => {
@@ -1110,15 +1123,28 @@ function App() {
     }
   }
 
-  const notificationStrategies = {
+  // Keep notification handler refs up-to-date after every render.
+  useEffect(() => {
+    createInsightFeedItemRef.current = createInsightFeedItem
+    createFollowupFeedItemRef.current = createFollowupFeedItem
+    startMeetingNotificationRef.current = startMeetingNotification
+    stopMeetingNotificationRef.current = stopMeetingNotification
+  })
+
+  // Notification strategies use refs so the listener below (which mounts
+  // once with []) always calls the latest function versions.
+  const notificationStrategies: Record<
+    string,
+    (meetingId: string | null) => Promise<void>
+  > = {
     meeting_start_notification_handler: async (meetingId: string | null) =>
-      startMeetingNotification(meetingId, true, true),
+      startMeetingNotificationRef.current(meetingId, true, true),
     still_there_notification_handler: async (_meetingId: string | null) =>
-      stopMeetingNotification(),
+      stopMeetingNotificationRef.current(),
     meeting_record_notification_handler: async (meetingId: string | null) =>
-      startMeetingNotification(meetingId, false, true),
+      startMeetingNotificationRef.current(meetingId, false, true),
     meeting_open_notification_handler: async (meetingId: string | null) =>
-      startMeetingNotification(meetingId, false, false),
+      startMeetingNotificationRef.current(meetingId, false, false),
     morning_briefing_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
@@ -1127,12 +1153,12 @@ function App() {
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      await createInsightFeedItem()
+      await createInsightFeedItemRef.current()
     },
     post_meeting_followup_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      await createFollowupFeedItem()
+      await createFollowupFeedItemRef.current()
     },
     dismiss_notification_handler: async (_meetingId: string | null) => {
       await invoke('close_notification_window')
@@ -1143,11 +1169,8 @@ function App() {
     const unlistenPromise = listen(
       'notification_handler',
       async (event: Event<{ meetingId: string | null; buttonHandler: string }>) => {
-        if (event.payload.buttonHandler in notificationStrategies) {
-          const handler =
-            notificationStrategies[
-              event.payload.buttonHandler as keyof typeof notificationStrategies
-            ]
+        const handler = notificationStrategies[event.payload.buttonHandler]
+        if (handler) {
           await handler(event.payload.meetingId)
         } else {
           console.error(`Unknown button handler: ${event.payload.buttonHandler}`)
