@@ -25,6 +25,7 @@ export const useGoogleConnections = (
         let err = error as Error
         if (err.message.includes('400')) {
           removeConnection?.(ConnectionKeys.GOOGLE_DRIVE)
+          return
         }
         setConnectionState?.(ConnectionKeys.GOOGLE_DRIVE, ConnectionStates.FAILED)
       }
@@ -42,6 +43,7 @@ export const useGoogleConnections = (
         let err = error as Error
         if (err.message.includes('400')) {
           removeConnection?.(ConnectionKeys.GOOGLE_GMAIL)
+          return
         }
         setConnectionState?.(ConnectionKeys.GOOGLE_GMAIL, ConnectionStates.FAILED)
       }
@@ -59,6 +61,7 @@ export const useGoogleConnections = (
         let err = error as Error
         if (err.message.includes('400')) {
           removeConnection?.(ConnectionKeys.GOOGLE_CALENDAR)
+          return
         }
         setConnectionState?.(ConnectionKeys.GOOGLE_CALENDAR, ConnectionStates.FAILED)
       }

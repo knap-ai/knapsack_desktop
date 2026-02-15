@@ -25,6 +25,7 @@ export const useMicrosoftConnections = (
         let err = error as Error
         if (err.message.includes('400')) {
           removeConnection?.(ConnectionKeys.MICROSOFT_ONEDRIVE)
+          return
         }
         setConnectionState?.(ConnectionKeys.MICROSOFT_ONEDRIVE, ConnectionStates.FAILED)
       }
@@ -43,6 +44,7 @@ export const useMicrosoftConnections = (
         let err = error as Error
         if (err.message.includes('400')) {
           removeConnection?.(ConnectionKeys.MICROSOFT_OUTLOOK)
+          return
         }
         setConnectionState?.(ConnectionKeys.MICROSOFT_OUTLOOK, ConnectionStates.FAILED)
       }
@@ -61,6 +63,7 @@ export const useMicrosoftConnections = (
         let err = error as Error
         if (err.message.includes('400')) {
           removeConnection?.(ConnectionKeys.MICROSOFT_CALENDAR)
+          return
         }
         setConnectionState?.(ConnectionKeys.MICROSOFT_CALENDAR, ConnectionStates.FAILED)
       }
