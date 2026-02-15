@@ -59,6 +59,8 @@ struct ResponseFrame {
     #[serde(default)]
     data: Option<Value>,
     #[serde(default)]
+    payload: Option<Value>,
+    #[serde(default)]
     error: Option<Value>,
 }
 
@@ -230,9 +232,10 @@ pub async fn gateway_request(
         if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&text) {
             if resp.id == req_id {
                 if resp.ok {
-                    // Gateway may use "result" or "data" for the payload
+                    // Gateway may use "result", "data", or "payload" for the response body
                     let result = resp.result
                         .or(resp.data)
+                        .or(resp.payload)
                         .unwrap_or(Value::Null);
                     return Ok(result);
                 } else {
@@ -250,6 +253,7 @@ pub async fn gateway_request(
                         // Try to extract result from any field
                         let result = val.get("result")
                             .or_else(|| val.get("data"))
+                            .or_else(|| val.get("payload"))
                             .cloned()
                             .unwrap_or(Value::Null);
                         let ok = val.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);

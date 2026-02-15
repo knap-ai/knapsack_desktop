@@ -9,7 +9,7 @@
   },
   "package": {
     "productName": "Knapsack",
-    "version": "0.9.502"
+    "version": "0.9.51"
   },
   "tauri": {
     "allowlist": {

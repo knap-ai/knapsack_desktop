@@ -31,6 +31,30 @@ struct GenericResponse {
     linked: Option<bool>,
 }
 
+/// Extract baseHash from a config.get snapshot response.
+/// The gateway returns the snapshot with a "hash" field at the top level,
+/// computed from the raw config file contents.
+/// When the config file doesn't exist yet (exists == false), the gateway
+/// doesn't require a baseHash, so we return an empty string in that case.
+fn extract_base_hash(snapshot: &serde_json::Value) -> String {
+    // Try top-level "hash" field first (standard snapshot shape)
+    if let Some(h) = snapshot.get("hash").and_then(|v| v.as_str()) {
+        if !h.is_empty() {
+            return h.to_string();
+        }
+    }
+    // If config file doesn't exist, no hash is needed
+    if let Some(false) = snapshot.get("exists").and_then(|v| v.as_bool()) {
+        return String::new();
+    }
+    // Log a warning so we can debug if the snapshot shape changes
+    eprintln!(
+        "[channels] warning: could not extract baseHash from config snapshot (keys: {:?})",
+        snapshot.as_object().map(|o| o.keys().collect::<Vec<_>>())
+    );
+    String::new()
+}
+
 /// Helper to parse channel summary from gateway status response
 /// The gateway returns channelSummary as an array of strings like:
 /// ["WhatsApp: linked +1234567890", "iMessage: not configured", ...]
@@ -95,11 +119,8 @@ pub async fn whatsapp_enable(
 
     match config_result {
         Ok(config_snapshot) => {
-            // Extract baseHash from snapshot
-            let base_hash = config_snapshot
-                .get("hash")
-                .and_then(|h| h.as_str())
-                .unwrap_or("");
+            // Extract baseHash from snapshot — the gateway uses "hash" at the top level
+            let base_hash = extract_base_hash(&config_snapshot);
 
             // Create patch to add/update whatsapp channel config
             // The schema expects the channel config directly, not nested under "default"
@@ -110,7 +131,7 @@ pub async fn whatsapp_enable(
                 r#"{"channels": {"whatsapp": null}}"#
             };
 
-            match gateway_ws::config_patch(patch, base_hash, None).await {
+            match gateway_ws::config_patch(patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
@@ -208,11 +229,7 @@ pub async fn imessage_enable(
 
     match config_result {
         Ok(config_snapshot) => {
-            // Extract baseHash from snapshot
-            let base_hash = config_snapshot
-                .get("hash")
-                .and_then(|h| h.as_str())
-                .unwrap_or("");
+            let base_hash = extract_base_hash(&config_snapshot);
 
             // Create patch to add/update imessage channel config
             // The schema expects the channel config directly, not nested under "default"
@@ -223,7 +240,7 @@ pub async fn imessage_enable(
                 r#"{"channels": {"imessage": null}}"#
             };
 
-            match gateway_ws::config_patch(patch, base_hash, None).await {
+            match gateway_ws::config_patch(patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
@@ -349,11 +366,7 @@ pub async fn voice_enable(
 
     match config_result {
         Ok(config_snapshot) => {
-            // Extract baseHash from snapshot
-            let base_hash = config_snapshot
-                .get("hash")
-                .and_then(|h| h.as_str())
-                .unwrap_or("");
+            let base_hash = extract_base_hash(&config_snapshot);
 
             // Voice calls are handled via plugins - create/remove plugin entry
             let patch = if body.enabled {
@@ -362,7 +375,7 @@ pub async fn voice_enable(
                 r#"{"plugins": {"entries": {"voice-call": null}}}"#
             };
 
-            match gateway_ws::config_patch(patch, base_hash, None).await {
+            match gateway_ws::config_patch(patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
