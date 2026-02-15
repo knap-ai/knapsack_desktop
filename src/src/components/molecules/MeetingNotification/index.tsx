@@ -92,15 +92,16 @@ function NotificationWindow() {
 
     isProcessing.current = true
 
-    await invoke('activate_main_window')
-    await invoke('emit_event', {
-      event: 'notification_handler',
-      payload: { meetingId: meetingId, buttonHandler: buttonHandler },
-    })
-    await invoke('close_notification_window')
-
-    isProcessing.current = false
-    await closeNotification()
+    try {
+      await invoke('activate_main_window')
+      await invoke('emit_event', {
+        event: 'notification_handler',
+        payload: { meetingId: meetingId, buttonHandler: buttonHandler },
+      })
+      await invoke('close_notification_window')
+    } finally {
+      isProcessing.current = false
+    }
   }
 
   const toggleDropdown = () => {
