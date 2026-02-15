@@ -2904,12 +2904,27 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               <div className="ClawdChannelGuide">
                 <div className="ClawdChannelGuideTitle">How to connect WhatsApp</div>
                 <ol className="ClawdChannelGuideSteps">
-                  <li><span className="ClawdChannelGuideNum">1</span> Click <strong>Connect</strong> above</li>
-                  <li><span className="ClawdChannelGuideNum">2</span> A QR code will appear — open <strong>WhatsApp on your phone</strong></li>
-                  <li><span className="ClawdChannelGuideNum">3</span> Go to <strong>Settings &gt; Linked Devices &gt; Link a Device</strong></li>
-                  <li><span className="ClawdChannelGuideNum">4</span> Scan the QR code with your phone</li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">1</span>
+                    <span>Click <strong>Connect</strong> above. Knapsack will enable the WhatsApp channel and start the login flow.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">2</span>
+                    <span>A QR code will appear in a <strong>separate window</strong>. If you don't see it, check the Clawdbot gateway logs at <code>/tmp/knapsack-clawdbot.out.log</code>.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">3</span>
+                    <span>On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">4</span>
+                    <span>Scan the QR code. Once linked, this panel will update automatically.</span>
+                  </li>
                 </ol>
-                <div className="ClawdChannelGuideNote">Your phone stays the primary device. Knapsack links as a companion, like WhatsApp Web.</div>
+                <div className="ClawdChannelGuideNote">
+                  Knapsack doesn't need your phone number — it links as a companion device, just like WhatsApp Web.
+                  Your phone stays the primary device.
+                </div>
               </div>
             )}
 
@@ -2949,13 +2964,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 <ol className="ClawdChannelGuideSteps">
                   <li>
                     <span className="ClawdChannelGuideNum">1</span>
-                    <strong>Grant Full Disk Access</strong> to Knapsack
-                    <div className="ClawdChannelGuideDetail">System Settings &gt; Privacy &amp; Security &gt; Full Disk Access &gt; toggle Knapsack ON</div>
+                    <span>Click <strong>Connect</strong> above. If Full Disk Access hasn't been granted yet, System Settings will open automatically.</span>
                   </li>
-                  <li><span className="ClawdChannelGuideNum">2</span> <strong>Restart Knapsack</strong> after granting access (required by macOS)</li>
-                  <li><span className="ClawdChannelGuideNum">3</span> Click <strong>Connect</strong> above — Knapsack reads your local iMessage database</li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">2</span>
+                    <span>In System Settings, find <strong>Knapsack</strong> in the Full Disk Access list and toggle it <strong>ON</strong>. If Knapsack isn't listed, click the <strong>+</strong> button to add it.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">3</span>
+                    <span><strong>Quit and reopen Knapsack</strong> — macOS requires a restart for the new permission to take effect.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">4</span>
+                    <span>Open this panel again and click <strong>Connect</strong>. It should now show <strong>Connected</strong>.</span>
+                  </li>
                 </ol>
-                <div className="ClawdChannelGuideNote">iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing is sent to the cloud.</div>
+                <div className="ClawdChannelGuideNote">
+                  iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
+                </div>
               </div>
             )}
 
