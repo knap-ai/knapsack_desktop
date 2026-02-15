@@ -388,6 +388,22 @@ pub fn advanced_tools() -> Vec<OaiToolSpec> {
         }),
       },
     },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
+        name: "run_claude_code".to_string(),
+        description: "Delegate a complex coding task to Claude Code (an AI coding agent). Claude Code can read/write files, run commands, search codebases, and perform multi-step software engineering tasks autonomously. Use this when the user asks to modify code, create projects, debug issues, or perform any coding task. The user will see Claude Code's live progress in the terminal panel. Prefer this over run_command for any multi-step coding work.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "prompt": { "type": "string", "description": "The coding task to delegate to Claude Code (e.g., 'Add a dark mode toggle to the React app in ~/Projects/myapp')" },
+            "working_dir": { "type": "string", "description": "The project directory for Claude Code to work in (e.g., '~/Projects/myapp')" }
+          },
+          "required": ["prompt", "working_dir"],
+          "additionalProperties": false
+        }),
+      },
+    },
   ]
 }
 

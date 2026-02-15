@@ -2,11 +2,59 @@ import './style.scss'
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
+import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import {
   KN_API_TOKEN_USAGE_SUMMARY,
   KN_API_TOKEN_USAGE_RECENT,
   KN_API_TOKEN_USAGE_BUDGET,
 } from 'src/utils/constants'
+
+/** Strip ANSI escape codes from a string for clean terminal display */
+function stripAnsi(text: string): string {
+  return text
+    .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')
+    .replace(/\x1B\][^\x07]*\x07/g, '')
+    .replace(/\x1B\(B/g, '')
+}
+
+// ── Module-level cache for active Claude Code session ──
+// Persists across TerminalView mount/unmount cycles so that when the
+// Activity Panel reopens, TerminalView can pick up a running (or finished)
+// Claude Code session it missed because the event fired before it mounted.
+
+interface ClaudeCodeSessionInfo {
+  processId: string
+  sessionId: string
+  prompt: string
+  cwd: string
+  isActive: boolean
+}
+
+let _activeClaudeCodeSession: ClaudeCodeSessionInfo | null = null
+let _moduleListenerInitialized = false
+
+function initModuleListeners() {
+  if (_moduleListenerInitialized) return
+  _moduleListenerInitialized = true
+
+  listen<{ processId: string; sessionId: string; prompt: string; cwd: string }>(
+    'claude-code-started',
+    event => {
+      _activeClaudeCodeSession = { ...event.payload, isActive: true }
+    },
+  )
+
+  listen<{ processId: string; sessionId: string; exitCode: number }>(
+    'streaming-exit',
+    event => {
+      if (_activeClaudeCodeSession && event.payload.sessionId === _activeClaudeCodeSession.sessionId) {
+        _activeClaudeCodeSession = { ..._activeClaudeCodeSession, isActive: false }
+      }
+    },
+  )
+}
+
+initModuleListeners()
 
 type ActivitySubTab = 'logs' | 'costs' | 'terminal'
 
@@ -425,6 +473,7 @@ interface TerminalSession {
   historyIndex: number
   inputValue: string
   isExecuting: boolean
+  streamingProcessId: string | null
 }
 
 const DEFAULT_SESSIONS: { id: string; label: string; initialCwd: string }[] = [
@@ -443,6 +492,7 @@ function makeSession(id: string, label: string, initialCwd: string): TerminalSes
     historyIndex: -1,
     inputValue: '',
     isExecuting: false,
+    streamingProcessId: null,
   }
 }
 
@@ -536,7 +586,7 @@ const TerminalView: React.FC = () => {
       } catch (err) {
         addLine('clawdbot', 'stderr', `Failed to fetch status: ${err}`)
       }
-      addLine('clawdbot', 'system', 'Commands: "status", "logs" (stream live), "skills list"')
+      addLine('clawdbot', 'system', 'Commands: "status", "logs" (stream live), "skills list", "claude <prompt>" (run Claude Code)')
     }
     fetchStatus()
   }, [sessions, addLine])
@@ -563,6 +613,153 @@ const TerminalView: React.FC = () => {
     const interval = setInterval(poll, 2000)
     return () => clearInterval(interval)
   }, [liveLogsSession, addLine])
+
+  // ── Claude Code session creation on-demand ──
+  // When the chat agent delegates to Claude Code, a `claude-code-started` event
+  // creates the session (if needed), switches to it, and shows the prompt.
+  useEffect(() => {
+    const unlisteners: Promise<UnlistenFn>[] = []
+
+    unlisteners.push(
+      listen<{ processId: string; sessionId: string; prompt: string; cwd: string }>(
+        'claude-code-started',
+        event => {
+          const { processId, sessionId, prompt, cwd } = event.payload
+          // Create session if it doesn't exist, otherwise clear it for the new run
+          setSessions(prev => {
+            const exists = prev.find(s => s.id === sessionId)
+            if (exists) {
+              return prev.map(s =>
+                s.id === sessionId
+                  ? {
+                      ...s,
+                      lines: [{ type: 'system' as const, text: `Claude Code: ${prompt}`, timestamp: new Date() }],
+                      isExecuting: true,
+                      streamingProcessId: processId,
+                      cwd: cwd || s.cwd,
+                    }
+                  : s,
+              )
+            }
+            return [
+              ...prev,
+              {
+                ...makeSession(sessionId, 'Claude Code', cwd || '~'),
+                lines: [{ type: 'system' as const, text: `Claude Code: ${prompt}`, timestamp: new Date() }],
+                cwd: cwd || '',
+                isExecuting: true,
+                streamingProcessId: processId,
+              },
+            ]
+          })
+          // Auto-switch to the Claude Code tab
+          setActiveSessionId(sessionId)
+        },
+      ),
+    )
+
+    return () => {
+      unlisteners.forEach(p => p.then(unlisten => unlisten()))
+    }
+  }, [])
+
+  // ── Reconcile with module-level cache on mount ──
+  // If claude-code-started fired before this component mounted, the event
+  // listener above missed it. Read the module-level cache and create the
+  // session so the Claude Code tab appears immediately.
+  useEffect(() => {
+    if (!_activeClaudeCodeSession) return
+    const { processId, sessionId, prompt, cwd, isActive } = _activeClaudeCodeSession
+
+    setSessions(prev => {
+      if (prev.find(s => s.id === sessionId)) return prev
+      return [
+        ...prev,
+        {
+          ...makeSession(sessionId, 'Claude Code', cwd || '~'),
+          lines: [{ type: 'system' as const, text: `Claude Code: ${prompt}`, timestamp: new Date() }],
+          cwd: cwd || '',
+          isExecuting: isActive,
+          streamingProcessId: isActive ? processId : null,
+        },
+      ]
+    })
+    setActiveSessionId(sessionId)
+  }, [])
+
+  // ── Streaming process event listeners (for claude code CLI, etc.) ──
+  useEffect(() => {
+    const unlisteners: Promise<UnlistenFn>[] = []
+
+    unlisteners.push(
+      listen<{ processId: string; sessionId: string; text: string }>('streaming-stdout', event => {
+        const { sessionId, text } = event.payload
+        // For dynamically-created sessions (claude-code), ensure the session exists
+        setSessions(prev => {
+          const exists = prev.find(s => s.id === sessionId)
+          if (!exists) return prev // ignore events for unknown sessions
+          return prev.map(s =>
+            s.id === sessionId
+              ? { ...s, lines: [...s.lines, { type: 'stdout' as const, text: stripAnsi(text), timestamp: new Date() }] }
+              : s,
+          )
+        })
+      }),
+    )
+
+    unlisteners.push(
+      listen<{ processId: string; sessionId: string; text: string }>('streaming-stderr', event => {
+        const { sessionId, text } = event.payload
+        setSessions(prev => {
+          const exists = prev.find(s => s.id === sessionId)
+          if (!exists) return prev
+          return prev.map(s =>
+            s.id === sessionId
+              ? { ...s, lines: [...s.lines, { type: 'stderr' as const, text: stripAnsi(text), timestamp: new Date() }] }
+              : s,
+          )
+        })
+      }),
+    )
+
+    unlisteners.push(
+      listen<{ processId: string; sessionId: string; exitCode: number }>('streaming-exit', event => {
+        const { sessionId, exitCode } = event.payload
+        setSessions(prev => {
+          const exists = prev.find(s => s.id === sessionId)
+          if (!exists) return prev
+          return prev.map(s =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  lines: [...s.lines, { type: 'system' as const, text: `Process exited with code ${exitCode}`, timestamp: new Date() }],
+                  isExecuting: false,
+                  streamingProcessId: null,
+                }
+              : s,
+          )
+        })
+      }),
+    )
+
+    return () => {
+      unlisteners.forEach(p => p.then(unlisten => unlisten()))
+    }
+  }, [])
+
+  const killStreamingProcess = useCallback(
+    async (sessionId: string) => {
+      const session = sessions.find(s => s.id === sessionId)
+      if (!session?.streamingProcessId) return
+      try {
+        await invoke('kn_kill_streaming_process', { processId: session.streamingProcessId })
+        addLine(sessionId, 'system', 'Process terminated.')
+      } catch (err) {
+        addLine(sessionId, 'stderr', `Failed to kill process: ${err}`)
+      }
+    },
+    [sessions, addLine],
+  )
 
   const executeCommand = useCallback(
     async (sessionId: string, command: string) => {
@@ -755,6 +952,24 @@ const TerminalView: React.FC = () => {
         return
       }
 
+      // Claude Code CLI — run as a streaming process so output appears in real-time
+      if (trimmed === 'claude' || trimmed.startsWith('claude ')) {
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        try {
+          addLine(sessionId, 'system', 'Starting Claude Code...')
+          const processId: string = await invoke('kn_spawn_streaming_command', {
+            command: trimmed,
+            cwd: session.cwd || undefined,
+            sessionId,
+          })
+          updateSession(sessionId, s => ({ ...s, streamingProcessId: processId }))
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed to start Claude Code: ${err}`)
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
+        return
+      }
+
       updateSession(sessionId, s => ({ ...s, isExecuting: true }))
       try {
         const cwd = session.cwd
@@ -771,6 +986,23 @@ const TerminalView: React.FC = () => {
     },
     [sessions, addLine, updateSession],
   )
+
+  // Listen for "Run in Terminal" clicks from the chat code blocks
+  const executeCommandRef = useRef(executeCommand)
+  executeCommandRef.current = executeCommand
+  const activeSessionIdRef = useRef(activeSessionId)
+  activeSessionIdRef.current = activeSessionId
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const command = (e as CustomEvent).detail?.command
+      if (typeof command === 'string' && command) {
+        executeCommandRef.current(activeSessionIdRef.current, command)
+      }
+    }
+    window.addEventListener('run-in-terminal', handler)
+    return () => window.removeEventListener('run-in-terminal', handler)
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const sid = activeSession.id
@@ -864,7 +1096,14 @@ const TerminalView: React.FC = () => {
       {/* Terminal body */}
       <div
         className="ActivityPanel__terminal flex-1 flex flex-col"
+        tabIndex={0}
         onClick={() => inputRef.current?.focus()}
+        onKeyDown={e => {
+          if (e.key === 'c' && e.ctrlKey && activeSession.streamingProcessId) {
+            e.preventDefault()
+            killStreamingProcess(activeSession.id)
+          }
+        }}
       >
         <div ref={outputRef} className="terminal__output flex-1">
           {activeSession.lines.map((line, i) => (
@@ -872,26 +1111,38 @@ const TerminalView: React.FC = () => {
               {line.text}
             </div>
           ))}
-          {activeSession.isExecuting && (
+          {activeSession.isExecuting && !activeSession.streamingProcessId && (
             <div className="terminal__line--system animate-pulse">Running...</div>
+          )}
+          {activeSession.streamingProcessId && (
+            <div className="terminal__line--system animate-pulse">Claude Code running...</div>
           )}
         </div>
 
         <div className="terminal__input-row">
           <span className="terminal__prompt">{cwdDisplay} $</span>
-          <input
-            ref={inputRef}
-            type="text"
-            className="terminal__input"
-            value={activeSession.inputValue}
-            onChange={e =>
-              updateSession(activeSession.id, s => ({ ...s, inputValue: e.target.value }))
-            }
-            onKeyDown={handleKeyDown}
-            placeholder={activeSession.isExecuting ? 'Waiting for command to finish...' : 'Enter a command...'}
-            disabled={activeSession.isExecuting}
-            autoFocus
-          />
+          {activeSession.streamingProcessId ? (
+            <button
+              className="terminal__stop-btn"
+              onClick={() => killStreamingProcess(activeSession.id)}
+            >
+              Stop
+            </button>
+          ) : (
+            <input
+              ref={inputRef}
+              type="text"
+              className="terminal__input"
+              value={activeSession.inputValue}
+              onChange={e =>
+                updateSession(activeSession.id, s => ({ ...s, inputValue: e.target.value }))
+              }
+              onKeyDown={handleKeyDown}
+              placeholder={activeSession.isExecuting ? 'Waiting for command to finish...' : 'Enter a command...'}
+              disabled={activeSession.isExecuting}
+              autoFocus
+            />
+          )}
         </div>
       </div>
     </div>

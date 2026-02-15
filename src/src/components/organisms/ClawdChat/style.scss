@@ -279,6 +279,70 @@
   50% { opacity: 1; }
 }
 
+// Claude Code running indicator
+.ClawdMsg-claude-code {
+  .ClawdBubble--claude-code {
+    background: rgba(45, 55, 72, 0.06);
+    border-color: rgba(45, 55, 72, 0.2);
+    border-left: 3px solid #5b6abf;
+  }
+}
+
+.ClawdClaudeCodeIndicator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+
+  &__pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #5b6abf;
+    animation: ccPulse 1.2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  &__label {
+    font-weight: 600;
+    color: #2d3748;
+  }
+
+  &__prompt {
+    width: 100%;
+    color: #718096;
+    font-size: 12px;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__btn {
+    margin-left: auto;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5b6abf;
+    background: rgba(91, 106, 191, 0.1);
+    border: 1px solid rgba(91, 106, 191, 0.25);
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba(91, 106, 191, 0.18);
+      border-color: rgba(91, 106, 191, 0.4);
+    }
+  }
+}
+
+@keyframes ccPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
 .ClawdBubble {
   max-width: 720px;
   word-wrap: break-word;
@@ -325,15 +389,67 @@
   }
 
   code {
-    background: rgba(0, 0, 0, 0.06);
+    background: rgba(0, 0, 0, 0.07);
+    color: #1a1a2e;
     padding: 0.15em 0.4em;
     border-radius: 4px;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     font-size: 0.9em;
   }
 
+  .ClawdCodeBlockWrapper {
+    position: relative;
+    margin: 0.5em 0;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .ClawdCodeBlockActions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 4px 6px;
+      background: #181825;
+      border-radius: 6px 6px 0 0;
+    }
+
+    .ClawdCodeBlockBtn {
+      font-size: 11px;
+      font-family: Inter, sans-serif;
+      padding: 2px 8px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      color: #a6adc8;
+      background: rgba(255, 255, 255, 0.08);
+      transition: background 0.15s, color 0.15s;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.18);
+        color: #cdd6f4;
+      }
+
+      &--run {
+        color: #89b4fa;
+        font-weight: 500;
+
+        &:hover {
+          background: #89b4fa;
+          color: #1e1e2e;
+        }
+      }
+    }
+
+    pre {
+      border-radius: 0 0 6px 6px;
+      margin: 0;
+    }
+  }
+
   pre {
-    background: rgba(0, 0, 0, 0.04);
+    background: #1e1e2e;
+    color: #cdd6f4;
     border-radius: 6px;
     padding: 0.75em 1em;
     overflow-x: auto;
@@ -344,6 +460,7 @@
 
     code {
       background: none;
+      color: inherit;
       padding: 0;
       font-size: 0.85em;
     }

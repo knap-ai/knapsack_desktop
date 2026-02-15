@@ -441,11 +441,16 @@ async fn kn_get_log_path(app: AppHandle) -> Result<String, String> {
 async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<String, String> {
     use std::process::Command;
 
-    let shell = if cfg!(target_os = "windows") { "cmd" } else { "sh" };
-    let flag = if cfg!(target_os = "windows") { "/C" } else { "-c" };
+    let (shell, args) = if cfg!(target_os = "windows") {
+        ("cmd".to_string(), vec!["/C".to_string(), command])
+    } else {
+        // Use a login shell so the user's PATH (node, npm, claude, etc.) is available
+        let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+        (user_shell, vec!["-l".to_string(), "-c".to_string(), command])
+    };
 
-    let mut cmd = Command::new(shell);
-    cmd.arg(flag).arg(&command);
+    let mut cmd = Command::new(&shell);
+    cmd.args(&args);
 
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
@@ -459,11 +464,165 @@ async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<Stri
     if output.status.success() {
         Ok(stdout)
     } else {
-        if stderr.is_empty() {
-            Err(format!("Command failed with exit code: {}", output.status))
-        } else {
-            Err(stderr)
+        // Include both stdout and stderr so error messages aren't swallowed
+        let mut msg = String::new();
+        if !stderr.is_empty() {
+            msg.push_str(&stderr);
         }
+        if !stdout.is_empty() {
+            if !msg.is_empty() { msg.push('\n'); }
+            msg.push_str(&stdout);
+        }
+        if msg.is_empty() {
+            msg = format!("Command failed with exit code: {}", output.status);
+        }
+        Err(msg)
+    }
+}
+
+// ── Streaming process support (for long-running commands like Claude Code) ──
+
+struct StreamingProcessState {
+    pids: Arc<StdMutex<std::collections::HashMap<String, u32>>>,
+}
+
+#[tauri::command]
+async fn kn_spawn_streaming_command(
+    app: AppHandle,
+    command: String,
+    cwd: Option<String>,
+    session_id: String,
+    state: State<'_, StreamingProcessState>,
+) -> Result<String, String> {
+    use std::io::{BufRead, BufReader};
+    use std::process::{Command, Stdio};
+
+    let process_id = Uuid::new_v4().to_string();
+
+    let (shell, args) = if cfg!(target_os = "windows") {
+        ("cmd".to_string(), vec!["/C".to_string(), command])
+    } else {
+        let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+        (user_shell, vec!["-l".to_string(), "-c".to_string(), command])
+    };
+
+    let mut cmd = Command::new(&shell);
+    cmd.args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // Make the child its own process group so we can kill it + children without
+    // accidentally terminating the Knapsack app.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+
+    if let Some(ref dir) = cwd {
+        cmd.current_dir(dir);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn: {}", e))?;
+    let child_pid = child.id();
+
+    // Store PID so it can be killed later
+    state
+        .pids
+        .lock()
+        .unwrap()
+        .insert(process_id.clone(), child_pid);
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    // Background thread: stream stdout line-by-line via Tauri events
+    let app1 = app.clone();
+    let sid1 = session_id.clone();
+    let pid1 = process_id.clone();
+    if let Some(stdout) = stdout {
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().flatten() {
+                let _ = app1.emit_all(
+                    "streaming-stdout",
+                    json!({
+                        "processId": pid1,
+                        "sessionId": sid1,
+                        "text": line,
+                    }),
+                );
+            }
+        });
+    }
+
+    // Background thread: stream stderr line-by-line via Tauri events
+    let app2 = app.clone();
+    let sid2 = session_id.clone();
+    let pid2 = process_id.clone();
+    if let Some(stderr) = stderr {
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().flatten() {
+                let _ = app2.emit_all(
+                    "streaming-stderr",
+                    json!({
+                        "processId": pid2,
+                        "sessionId": sid2,
+                        "text": line,
+                    }),
+                );
+            }
+        });
+    }
+
+    // Background thread: wait for exit, emit exit event, clean up PID map
+    let app3 = app.clone();
+    let sid3 = session_id.clone();
+    let pid3 = process_id.clone();
+    let pids_ref = state.pids.clone();
+    std::thread::spawn(move || {
+        let status = child.wait();
+        let exit_code = status.map(|s| s.code().unwrap_or(-1)).unwrap_or(-1);
+        let _ = app3.emit_all(
+            "streaming-exit",
+            json!({
+                "processId": pid3,
+                "sessionId": sid3,
+                "exitCode": exit_code,
+            }),
+        );
+        pids_ref.lock().unwrap().remove(&pid3);
+    });
+
+    Ok(process_id)
+}
+
+#[tauri::command]
+async fn kn_kill_streaming_process(
+    process_id: String,
+    state: State<'_, StreamingProcessState>,
+) -> Result<(), String> {
+    let pids = state.pids.lock().unwrap();
+    if let Some(&pid) = pids.get(&process_id) {
+        #[cfg(unix)]
+        {
+            // Send SIGTERM to the process group to also kill child processes
+            unsafe {
+                libc::kill(-(pid as i32), libc::SIGTERM);
+            }
+        }
+        #[cfg(windows)]
+        {
+            use std::process::Command;
+            Command::new("taskkill")
+                .args(&["/PID", &pid.to_string(), "/T", "/F"])
+                .output()
+                .ok();
+        }
+        Ok(())
+    } else {
+        Err("Process not found".to_string())
     }
 }
 
@@ -669,12 +828,17 @@ async fn main() {
       spotlight::kn_init_app,
       kn_read_logs,
       kn_get_log_path,
-      kn_execute_command
+      kn_execute_command,
+      kn_spawn_streaming_command,
+      kn_kill_streaming_process
     ])
     .manage(UUIDState {
       uuid: StdMutex::new(None),
     }) // Initialize state with no UUID
     .manage(progress_state)
+    .manage(StreamingProcessState {
+      pids: Arc::new(StdMutex::new(std::collections::HashMap::new())),
+    })
     .on_window_event(|event| match event.event() {
       tauri::WindowEvent::Focused(true) => {
         event

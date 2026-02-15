@@ -111,6 +111,22 @@
           color: #585b70;
         }
       }
+
+      .terminal__stop-btn {
+        padding: 3px 14px;
+        font-size: 12px;
+        font-family: 'RobotoMono', 'Courier New', monospace;
+        color: #1e1e2e;
+        background: #f38ba8;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.15s;
+
+        &:hover {
+          background: #eba0ac;
+        }
+      }
     }
   }
 
