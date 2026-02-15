@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { open } from '@tauri-apps/api/shell'
-import { listen as tauriListen } from '@tauri-apps/api/event'
+import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
@@ -567,9 +567,28 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
+  // Easter egg commands supported in chat input
+  const CHAT_COMMANDS: Record<string, string> = {
+    '/morning': 'kn_trigger_morning_briefing',
+    '/emails': 'kn_trigger_email_check',
+    '/prep': 'kn_trigger_meeting_prep',
+    '/fu': 'kn_trigger_post_meeting',
+    '/testnotif': 'kn_trigger_test_notification',
+  }
+
   const handleSend = () => {
     const text = input.trim()
     if (!text && attachedFiles.length === 0) return
+
+    // Intercept slash commands before sending to LLM
+    const cmd = CHAT_COMMANDS[text.toLowerCase()]
+    if (cmd) {
+      console.log(`🔔 Triggering command: ${text}`)
+      emit(cmd, {})
+      setInput('')
+      return
+    }
+
     onSend(text)
     setInput('')
     // Reset textarea height after send
