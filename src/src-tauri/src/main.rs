@@ -71,7 +71,7 @@ use console_subscriber;
 pub const KNAPSACK_DATA_DIR: &str = ".knapsack";
 pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
-const NOTIF_HEIGHT: f64 = 400.0;
+const NOTIF_HEIGHT: f64 = 80.0;
 const NOTIF_WIDTH: f64 = 600.0;
 //const NOTIF_Y_POSITION: i32 = 40 + (NOTIF_HEIGHT as i32);
 const NOTIF_START_X_OFFSET: i32 = 500;

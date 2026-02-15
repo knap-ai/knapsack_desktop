@@ -12,7 +12,7 @@ dayjs.extend(relativeTime)
 const NOTIF_WIDTH = 600 // Must match Rust NOTIF_WIDTH constant
 const MIN_HEIGHT = 80
 const MAX_HEIGHT = 520
-const PADDING = 24
+const PADDING = 4
 
 export interface ButtonConfig {
   buttonText: string
@@ -139,7 +139,7 @@ function NotificationWindow() {
         </div>
 
         <div className="flex-1 min-w-0 pr-2">
-          <h3 className="text-[14px] font-semibold text-gray-900 truncate">
+          <h3 className="text-[14px] font-semibold text-gray-900 line-clamp-2">
             {title}
           </h3>
           <p className="text-sm text-gray-600 line-clamp-4">{time}</p>
