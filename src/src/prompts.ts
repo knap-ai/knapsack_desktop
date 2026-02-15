@@ -338,7 +338,7 @@ isStarred: true
 Now, analyze the emails provided above and classify according to the above guidelines. Ensure your response is a valid JSON object. Output ONLY JSON, no other text, and it better be EXACTLY like this JSON output.
 `
 
-export const MORNING_BRIEFING_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). Generate a morning briefing based on the data above.
+export const MORNING_BRIEFING_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). Generate a morning briefing based on the data above. Address {userName} directly using "you/your" (second person) — never refer to them in the third person.
 
 Your briefing should cover:
 1. **Today's Schedule Overview**: Key meetings, their purpose, and who you're meeting with
@@ -350,7 +350,7 @@ Your briefing should cover:
 Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max - compelling morning headline>",
-  "notificationBody": "<20 words max - the most important thing to know>",
+  "notificationBody": "<20 words max - the most important thing to know, addressing the user as 'you'>",
   "fullAnalysis": "<Comprehensive morning briefing in Markdown. Be specific with names, times, subjects. Use headers and bullet points.>",
   "category": "morning_briefing",
   "priority": "<high if urgent items exist, medium otherwise>"
@@ -366,7 +366,7 @@ Rules:
 - Output ONLY the JSON object, no other text
 `
 
-export const EMAIL_ALERT_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). New emails have arrived that may need attention. Review the emails above and determine if any warrant immediate notification.
+export const EMAIL_ALERT_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). New emails have arrived that may need attention. Review the emails above and determine if any warrant immediate notification. Address {userName} directly using "you/your" (second person) — never refer to them in the third person.
 
 Focus on:
 1. **Emails needing urgent response**: From clients, managers, or key contacts
@@ -376,7 +376,7 @@ Focus on:
 Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max>",
-  "notificationBody": "<20 words max>",
+  "notificationBody": "<20 words max - address the user as 'you'>",
   "fullAnalysis": "<Analysis in Markdown: what needs attention, suggested responses, key context from the emails>",
   "category": "email_alert",
   "priority": "<high if response needed urgently, medium if important but not urgent, low if informational>",
@@ -392,7 +392,7 @@ Rules:
 - Output ONLY the JSON object, no other text
 `
 
-export const PRE_MEETING_PREP_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). A meeting is coming up soon. Using the meeting details and related context above, prepare a quick briefing.
+export const PRE_MEETING_PREP_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). A meeting is coming up soon. Using the meeting details and related context above, prepare a quick briefing. Address {userName} directly using "you/your" (second person) — never refer to them in the third person.
 
 Your prep should include:
 1. **Meeting Context**: What this meeting is about, based on title, description, and any related emails
@@ -404,7 +404,7 @@ Your prep should include:
 Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max - mention the meeting>",
-  "notificationBody": "<20 words max - key prep point>",
+  "notificationBody": "<20 words max - key prep point, address the user as 'you'>",
   "fullAnalysis": "<Meeting prep briefing in Markdown: attendee context, relevant recent emails, suggested talking points, open items>",
   "category": "pre_meeting_prep",
   "priority": "high",
@@ -420,7 +420,7 @@ Rules:
 - Output ONLY the JSON object, no other text
 `
 
-export const POST_MEETING_FOLLOWUP_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). A meeting just ended and you have the meeting transcript and context above.
+export const POST_MEETING_FOLLOWUP_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). A meeting just ended and you have the meeting transcript and context above. Address {userName} directly using "you/your" (second person) — never refer to them in the third person.
 
 Analyze the meeting transcript and generate follow-up suggestions. Identify:
 
@@ -433,7 +433,7 @@ Analyze the meeting transcript and generate follow-up suggestions. Identify:
 Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max - the headline for the notification>",
-  "notificationBody": "<20 words max - brief summary of what to do next>",
+  "notificationBody": "<20 words max - brief summary of what to do next, address the user as 'you'>",
   "fullAnalysis": "<Your comprehensive follow-up plan in Markdown. Include specific action items as checkboxes, draft email snippets where appropriate, and concrete next steps. Reference specific things discussed in the meeting.>",
   "actionItemCount": <number of action items identified>,
   "meetingTitle": "<the meeting title>"

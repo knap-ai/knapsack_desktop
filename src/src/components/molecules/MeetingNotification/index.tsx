@@ -70,11 +70,14 @@ function NotificationWindow() {
     const root = document.getElementById('notification-root')
     if (!root) return
 
-    const resizeWindow = async () => {
-      const contentHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, root.scrollHeight + PADDING))
+    const resizeWindow = () => {
+      // Use rAF to let the browser finish layout before measuring
+      requestAnimationFrame(async () => {
+        const contentHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, root.scrollHeight + PADDING))
 
-      const appWindow = getCurrent()
-      await appWindow.setSize(new LogicalSize(NOTIF_WIDTH, contentHeight))
+        const appWindow = getCurrent()
+        await appWindow.setSize(new LogicalSize(NOTIF_WIDTH, contentHeight))
+      })
     }
 
     resizeWindow()
@@ -105,8 +108,8 @@ function NotificationWindow() {
   }
 
   return (
-    <div className="flex bg-white rounded-lg overflow-visible">
-      <div className="relative bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-start gap-3 group overflow-visible">
+    <div className="flex w-full bg-white rounded-lg overflow-visible">
+      <div className="relative w-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-start gap-3 group overflow-visible">
         <button
           onClick={() => invoke('close_notification_window')}
           className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 p-1"
