@@ -73,6 +73,7 @@ function KnapsackLMBar({ LLMBarUtils }: KnapsackLMBarProps) {
     '/emails': { event: 'kn_trigger_email_check', description: 'Email alert check' },
     '/prep': { event: 'kn_trigger_meeting_prep', description: 'Pre-meeting prep' },
     '/fu': { event: 'kn_trigger_post_meeting', description: 'Post-meeting follow-up' },
+    '/testnotif': { event: 'kn_trigger_test_notification', description: 'Test notification popup' },
   }
 
   const handleSubmitUserQuery = async (userQuery: string) => {

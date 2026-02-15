@@ -978,10 +978,22 @@ function App() {
     const unlistenHelp = listen('kn_trigger_help', async () => {
       handleOpenToastr(
         <span>
-          Commands: /morning, /emails, /prep, /fu, /help
+          Commands: /morning, /emails, /prep, /fu, /testnotif, /help
         </span>,
         'info',
         5000,
+      )
+    })
+    const unlistenTestNotif = listen('kn_trigger_test_notification', async () => {
+      console.log('🔔 Manual trigger: test notification')
+      openNotificationWindow(
+        'test-' + Date.now(),
+        [
+          { buttonText: 'View Details', buttonHandler: 'dismiss_notification_handler' },
+          { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+        ],
+        'Action: Apple Dev account change',
+        'Apple Developer: Account Holder changed. Team admin role has been reassigned. Verify team access and renew certificates. See invoice thread FYI.',
       )
     })
 
@@ -991,6 +1003,7 @@ function App() {
       unlistenPrep.then(u => u())
       unlistenFollowup.then(u => u())
       unlistenHelp.then(u => u())
+      unlistenTestNotif.then(u => u())
     }
   }, [handleOpenToastr])
 
