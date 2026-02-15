@@ -358,7 +358,7 @@ fn build_gmail_response_doc_from_email_row(email: Email) -> Option<GmailSearchRe
   let document_id = match get_document_id_from_email(email.clone()) {
     Some(id) => id,
     None => {
-      log::error!("No Document ID for Email Msg: {:?}", email);
+      log::warn!("No Document ID for Email Msg: {:?}", email);
       return None;
     }
   };

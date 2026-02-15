@@ -29,7 +29,7 @@ use crate::{
   },
   error::Error,
   memory::semantic::SemanticService,
-  utils::log::{knap_log_error,knap_log_debug},
+  utils::log::knap_log_error,
 };
 use crate::audio::audio::generate_filename;
 
@@ -823,8 +823,6 @@ fn schedule_data_source_future_run_google_calendar(
     ) {
       Ok(Some(run)) if run.feed_item_id.is_some() => {
         log::debug!("Skipping event ID {} with existing feed item", event_id);
-        let err_msg = format!("Skipping event ID {} with existing feed item", event_id);
-        knap_log_debug(err_msg, None);
         continue;
       },
       Ok(Some(run)) => {
