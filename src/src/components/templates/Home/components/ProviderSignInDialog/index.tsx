@@ -63,6 +63,51 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   },
 ]
 
+// Extra providers that OpenClaw supports via env vars.
+// These don't need model selection — OpenClaw auto-discovers models.
+type ExtraProviderConfig = {
+  id: string
+  name: string
+  description: string
+  envVar: string
+  helpUrl: string
+  helpLabel: string
+}
+
+const EXTRA_PROVIDER_CONFIGS: ExtraProviderConfig[] = [
+  {
+    id: 'minimax',
+    name: 'MiniMax',
+    description: 'M2.5 (reasoning), M2.1, VL-01 (vision)',
+    envVar: 'MINIMAX_API_KEY',
+    helpUrl: 'https://platform.minimaxi.com',
+    helpLabel: 'platform.minimaxi.com',
+  },
+  {
+    id: 'zai',
+    name: 'ZAI (GLM)',
+    description: 'GLM-5 (reasoning + vision), GLM-4.6',
+    envVar: 'ZAI_API_KEY',
+    helpUrl: 'https://open.bigmodel.cn',
+    helpLabel: 'open.bigmodel.cn',
+  },
+  {
+    id: 'huggingface',
+    name: 'Hugging Face',
+    description: 'Open models via Inference API',
+    envVar: 'HF_TOKEN',
+    helpUrl: 'https://huggingface.co/settings/tokens',
+    helpLabel: 'huggingface.co/settings/tokens',
+  },
+]
+
+type ExtraProviderStatusItem = {
+  id: string
+  env_var: string
+  has_key: boolean
+  key_hint?: string
+}
+
 type ApiKeyStatusResponse = {
   success: boolean
   has_key: boolean
@@ -72,6 +117,7 @@ type ApiKeyStatusResponse = {
   has_anthropic_key?: boolean
   openai_key_hint?: string
   anthropic_key_hint?: string
+  extra_providers?: ExtraProviderStatusItem[]
 }
 
 type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid'
@@ -99,6 +145,16 @@ export const ProviderSignInDialog = ({
   const containerRef = useRef<HTMLDivElement>(null)
   const validateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Extra provider inline editing state
+  const [editingExtraId, setEditingExtraId] = useState<string | null>(null)
+  const [extraKey, setExtraKey] = useState('')
+  const [extraValidation, setExtraValidation] = useState<ValidationState>('idle')
+  const [extraValidationMsg, setExtraValidationMsg] = useState('')
+  const [extraSaving, setExtraSaving] = useState(false)
+  const [extraSuccess, setExtraSuccess] = useState('')
+  const [extraError, setExtraError] = useState('')
+  const extraValidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const providerConfig = PROVIDER_CONFIGS.find(p => p.id === selectedProvider)!
 
   // Get the masked key hint for the current provider
@@ -108,6 +164,17 @@ export const ProviderSignInDialog = ({
     if (provider === 'anthropic') return keyStatus.anthropic_key_hint
     return undefined
   }
+
+  const fetchKeyStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/clawd/service/api-key-status`)
+      const data = await res.json()
+      setKeyStatus(data)
+      return data as ApiKeyStatusResponse
+    } catch {
+      return null
+    }
+  }, [])
 
   // Validate API key with debounce
   const validateKey = useCallback(async (key: string, provider: string) => {
@@ -163,6 +230,7 @@ export const ProviderSignInDialog = ({
   useEffect(() => {
     return () => {
       if (validateTimerRef.current) clearTimeout(validateTimerRef.current)
+      if (extraValidateTimerRef.current) clearTimeout(extraValidateTimerRef.current)
     }
   }, [])
 
@@ -174,26 +242,28 @@ export const ProviderSignInDialog = ({
     setSuccess('')
     setValidation('idle')
     setValidationMsg('')
+    setEditingExtraId(null)
+    setExtraKey('')
+    setExtraSuccess('')
+    setExtraError('')
 
-    fetch(`${API_BASE}/api/clawd/service/api-key-status`)
-      .then(r => r.json())
-      .then((data: ApiKeyStatusResponse) => {
-        setKeyStatus(data)
-        if (initialProvider) {
-          setSelectedProvider(initialProvider)
-          const config = PROVIDER_CONFIGS.find(p => p.id === initialProvider)!
-          setSelectedModel(config.defaultModel)
-        } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic') {
-          setSelectedProvider(data.active_provider as Provider)
-          const config = PROVIDER_CONFIGS.find(p => p.id === data.active_provider)!
-          setSelectedModel(data.model || config.defaultModel)
-        } else {
-          setSelectedModel(providerConfig.defaultModel)
-        }
-      })
-      .catch(() => {
+    fetchKeyStatus().then(data => {
+      if (!data) {
         setSelectedModel(providerConfig.defaultModel)
-      })
+        return
+      }
+      if (initialProvider) {
+        setSelectedProvider(initialProvider)
+        const config = PROVIDER_CONFIGS.find(p => p.id === initialProvider)!
+        setSelectedModel(config.defaultModel)
+      } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic') {
+        setSelectedProvider(data.active_provider as Provider)
+        const config = PROVIDER_CONFIGS.find(p => p.id === data.active_provider)!
+        setSelectedModel(data.model || config.defaultModel)
+      } else {
+        setSelectedModel(providerConfig.defaultModel)
+      }
+    })
   }, [isOpen, initialProvider])
 
   // Update default model when provider changes
@@ -256,12 +326,7 @@ export const ProviderSignInDialog = ({
       if (data.success) {
         setSuccess(`${providerConfig.name} connected successfully!`)
         setApiKey('')
-        // Refresh status
-        try {
-          const statusRes = await fetch(`${API_BASE}/api/clawd/service/api-key-status`)
-          const statusData = await statusRes.json()
-          setKeyStatus(statusData)
-        } catch { /* ignore */ }
+        await fetchKeyStatus()
         // Auto-close after short delay
         setTimeout(() => handleClose(), 1200)
       } else {
@@ -272,7 +337,7 @@ export const ProviderSignInDialog = ({
     } finally {
       setSaving(false)
     }
-  }, [apiKey, selectedProvider, selectedModel, providerConfig, handleClose, validation])
+  }, [apiKey, selectedProvider, selectedModel, providerConfig, handleClose, validation, fetchKeyStatus])
 
   const hasExistingKey = (provider: Provider): boolean => {
     if (!keyStatus) return false
@@ -284,6 +349,94 @@ export const ProviderSignInDialog = ({
   const isActiveProvider = (provider: Provider): boolean => {
     return keyStatus?.active_provider === provider
   }
+
+  const getExtraProviderStatus = (envVar: string): ExtraProviderStatusItem | undefined => {
+    return keyStatus?.extra_providers?.find(ep => ep.env_var === envVar)
+  }
+
+  // Extra provider key handlers
+  const handleExtraKeyChange = useCallback((value: string, providerId: string) => {
+    setExtraKey(value)
+    setExtraError('')
+    setExtraValidation('idle')
+    setExtraValidationMsg('')
+
+    if (extraValidateTimerRef.current) {
+      clearTimeout(extraValidateTimerRef.current)
+    }
+
+    if (value.trim().length >= 10) {
+      extraValidateTimerRef.current = setTimeout(async () => {
+        setExtraValidation('validating')
+        try {
+          const res = await fetch(`${API_BASE}/api/clawd/service/validate-api-key`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: value.trim(), provider: providerId }),
+          })
+          const data = await res.json()
+          if (data.valid) {
+            setExtraValidation('valid')
+            setExtraValidationMsg('API key is valid')
+          } else {
+            setExtraValidation('invalid')
+            setExtraValidationMsg(data.message || 'Invalid API key')
+          }
+        } catch {
+          setExtraValidation('idle')
+        }
+      }, 800)
+    }
+  }, [])
+
+  const handleExtraSave = useCallback(async (config: ExtraProviderConfig) => {
+    if (!extraKey.trim()) return
+
+    setExtraSaving(true)
+    setExtraError('')
+    setExtraSuccess('')
+
+    try {
+      const res = await fetch(`${API_BASE}/api/clawd/service/set-api-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: extraKey.trim(),
+          provider: config.id,
+          env_var: config.envVar,
+        }),
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        setExtraSuccess(`${config.name} connected!`)
+        setExtraKey('')
+        setEditingExtraId(null)
+        await fetchKeyStatus()
+        setTimeout(() => setExtraSuccess(''), 3000)
+      } else {
+        setExtraError(data.message || 'Failed to save.')
+      }
+    } catch (e: any) {
+      setExtraError(e?.message || 'Failed to connect.')
+    } finally {
+      setExtraSaving(false)
+    }
+  }, [extraKey, fetchKeyStatus])
+
+  const handleExtraRemove = useCallback(async (config: ExtraProviderConfig) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/clawd/service/delete-extra-provider-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ env_var: config.envVar }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        await fetchKeyStatus()
+      }
+    } catch { /* ignore */ }
+  }, [fetchKeyStatus])
 
   const keyHint = getKeyHint(selectedProvider)
 
@@ -303,7 +456,7 @@ export const ProviderSignInDialog = ({
             Sign in with AI Provider
           </Typography>
           <p className={styles.providerSignInSubtitle}>
-            Connect your Anthropic or OpenAI account to use their models. Your API key is stored locally and never shared.
+            Connect your AI provider accounts. API keys are stored locally and never shared.
           </p>
         </div>
 
@@ -418,6 +571,131 @@ export const ProviderSignInDialog = ({
               {providerConfig.helpLabel}
             </a>
           </p>
+        </div>
+
+        {/* More Providers section */}
+        <div className={styles.extraProvidersSection}>
+          <div className={styles.extraProvidersHeader}>
+            <Typography weight={TypographyWeight.medium} className="text-sm">
+              More Providers
+            </Typography>
+            <span className={styles.extraProvidersSubtitle}>
+              Models auto-selected by OpenClaw
+            </span>
+          </div>
+
+          {extraSuccess && (
+            <p className={styles.successMessage} style={{ margin: '0 24px 8px' }}>{extraSuccess}</p>
+          )}
+
+          <div className={styles.extraProvidersList}>
+            {EXTRA_PROVIDER_CONFIGS.map(config => {
+              const status = getExtraProviderStatus(config.envVar)
+              const isEditing = editingExtraId === config.id
+              const hasKey = status?.has_key ?? false
+
+              return (
+                <div key={config.id} className={styles.extraProviderItem}>
+                  <div className={styles.extraProviderRow}>
+                    <div className={styles.extraProviderInfo}>
+                      <span className={styles.extraProviderName}>{config.name}</span>
+                      <span className={styles.extraProviderDesc}>{config.description}</span>
+                    </div>
+                    <div className={styles.extraProviderActions}>
+                      {hasKey && (
+                        <span className={styles.providerTabBadge} style={{ marginRight: 8 }}>
+                          Connected
+                        </span>
+                      )}
+                      {hasKey && !isEditing && (
+                        <button
+                          className={styles.extraProviderLink}
+                          onClick={() => handleExtraRemove(config)}
+                        >
+                          Remove
+                        </button>
+                      )}
+                      {!isEditing && (
+                        <button
+                          className={styles.extraProviderLink}
+                          onClick={() => {
+                            setEditingExtraId(config.id)
+                            setExtraKey('')
+                            setExtraValidation('idle')
+                            setExtraValidationMsg('')
+                            setExtraError('')
+                          }}
+                        >
+                          {hasKey ? 'Change' : 'Add key'}
+                        </button>
+                      )}
+                      {isEditing && (
+                        <button
+                          className={styles.extraProviderLink}
+                          onClick={() => setEditingExtraId(null)}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <div className={styles.extraProviderForm}>
+                      <div className={styles.inputWrapper}>
+                        <input
+                          type="password"
+                          value={extraKey}
+                          onChange={e => handleExtraKeyChange(e.target.value, config.id)}
+                          placeholder={status?.key_hint || 'Paste your API key...'}
+                          disabled={extraSaving}
+                          className={`${styles.formInput} ${extraValidation === 'valid' ? styles.formInputValid : ''} ${extraValidation === 'invalid' ? styles.formInputInvalid : ''}`}
+                          onKeyDown={e => { if (e.key === 'Enter') handleExtraSave(config) }}
+                          autoFocus
+                        />
+                        <div className={styles.validationIcon}>
+                          {extraValidation === 'validating' && <span className={styles.spinner} />}
+                          {extraValidation === 'valid' && (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className={styles.checkIcon}>
+                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="#4caf50"/>
+                            </svg>
+                          )}
+                          {extraValidation === 'invalid' && (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className={styles.invalidIcon}>
+                              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="#f44336"/>
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                      {extraValidationMsg && extraValidation === 'valid' && (
+                        <p className={styles.validationSuccess}>{extraValidationMsg}</p>
+                      )}
+                      {extraValidationMsg && extraValidation === 'invalid' && (
+                        <p className={styles.validationError}>{extraValidationMsg}</p>
+                      )}
+                      {extraError && <p className={styles.validationError}>{extraError}</p>}
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                          className={styles.saveButton}
+                          style={{ flex: 1, marginBottom: 0 }}
+                          onClick={() => handleExtraSave(config)}
+                          disabled={extraSaving || !extraKey.trim()}
+                        >
+                          {extraSaving ? 'Saving...' : `Connect ${config.name}`}
+                        </button>
+                      </div>
+                      <p className={styles.helpText} style={{ marginTop: 8 }}>
+                        Get your key at{' '}
+                        <a href={config.helpUrl} target="_blank" rel="noopener noreferrer">
+                          {config.helpLabel}
+                        </a>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     </Dialog>

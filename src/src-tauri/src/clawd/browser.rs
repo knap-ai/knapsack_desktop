@@ -39,6 +39,8 @@ struct StoredTokens {
   groq_model: Option<String>,
   #[serde(default)]
   active_provider: Option<String>,
+  #[serde(default)]
+  extra_provider_keys: Option<std::collections::HashMap<String, String>>,
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -97,6 +99,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     gemini_model: None,
     groq_model: None,
     active_provider: None,
+    extra_provider_keys: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())

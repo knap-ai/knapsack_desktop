@@ -82,6 +82,12 @@ struct StoredTokens {
   /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq"
   #[serde(default)]
   active_provider: Option<String>,
+
+  /// Additional provider API keys (env_var_name -> key).
+  /// These are passed as environment variables to the OpenClaw subprocess.
+  /// e.g. {"MINIMAX_API_KEY": "...", "ZAI_API_KEY": "...", "HF_TOKEN": "..."}
+  #[serde(default)]
+  extra_provider_keys: Option<std::collections::HashMap<String, String>>,
 }
 
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -143,6 +149,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     gemini_model: None,    // Defaults to gemini-2.5-flash
     groq_model: None,      // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
     active_provider: None, // Defaults to openai
+    extra_provider_keys: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -201,6 +208,28 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     let m = m.trim();
     if !m.is_empty() { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
   }
+  // Propagate extra provider keys (MiniMax, ZAI/GLM, HuggingFace, etc.)
+  if let Some(extra) = &tokens.extra_provider_keys {
+    for (env_var, key) in extra {
+      let key = key.trim();
+      if !key.is_empty() && is_allowed_extra_env_var(env_var) {
+        std::env::set_var(env_var, key);
+      }
+    }
+  }
+}
+
+/// Allowlist of environment variable names that extra_provider_keys may set.
+/// Prevents arbitrary env injection from a tampered tokens.json.
+fn is_allowed_extra_env_var(name: &str) -> bool {
+  matches!(
+    name,
+    "MINIMAX_API_KEY"
+      | "ZAI_API_KEY"
+      | "Z_AI_API_KEY"
+      | "HF_TOKEN"
+      | "HUGGINGFACE_HUB_TOKEN"
+  )
 }
 
 fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(), String> {
@@ -572,6 +601,17 @@ pub struct ApiKeyStatusResponse {
   pub openai_key_hint: Option<String>,
   pub anthropic_key_hint: Option<String>,
   pub gemini_key_hint: Option<String>,
+  /// Extra providers: list of {id, env_var, has_key, key_hint}
+  #[serde(skip_serializing_if = "Vec::is_empty")]
+  pub extra_providers: Vec<ExtraProviderStatus>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExtraProviderStatus {
+  pub id: String,
+  pub env_var: String,
+  pub has_key: bool,
+  pub key_hint: Option<String>,
 }
 
 #[get("/api/clawd/service/api-key-status")]
@@ -591,6 +631,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         openai_key_hint: None,
         anthropic_key_hint: None,
         gemini_key_hint: None,
+        extra_providers: vec![],
       })
     }
   };
@@ -606,6 +647,29 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let openai_hint = tokens.openai_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
   let anthropic_hint = tokens.anthropic_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
   let gemini_hint = tokens.gemini_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
+
+  // Build extra provider status list
+  let extra_provider_defs: &[(&str, &str)] = &[
+    ("minimax", "MINIMAX_API_KEY"),
+    ("zai", "ZAI_API_KEY"),
+    ("huggingface", "HF_TOKEN"),
+  ];
+  let extra_providers: Vec<ExtraProviderStatus> = extra_provider_defs
+    .iter()
+    .map(|(id, env_var)| {
+      let key = tokens
+        .extra_provider_keys
+        .as_ref()
+        .and_then(|m| m.get(*env_var))
+        .filter(|k| !k.trim().is_empty());
+      ExtraProviderStatus {
+        id: id.to_string(),
+        env_var: env_var.to_string(),
+        has_key: key.is_some(),
+        key_hint: key.map(|k| mask_key(k)),
+      }
+    })
+    .collect();
 
   HttpResponse::Ok().json(ApiKeyStatusResponse {
     success: true,
@@ -623,6 +687,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     openai_key_hint: openai_hint,
     anthropic_key_hint: anthropic_hint,
     gemini_key_hint: gemini_hint,
+    extra_providers,
   })
 }
 
@@ -687,6 +752,30 @@ pub async fn validate_api_key(
         .send()
         .await
     }
+    "minimax" => {
+      // MiniMax uses Anthropic-messages-compatible endpoint
+      client
+        .get("https://api.minimax.io/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
+    "zai" => {
+      // ZAI/GLM uses Anthropic-messages-compatible endpoint
+      client
+        .get("https://api.synthetic.new/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
+    "huggingface" => {
+      // Hugging Face: validate with whoami endpoint
+      client
+        .get("https://huggingface.co/api/whoami-v2")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
     _ => {
       // OpenAI: list models
       client
@@ -729,13 +818,16 @@ pub async fn validate_api_key(
   }
 }
 
-/// Set API key for any provider (OpenAI, Anthropic, Gemini)
+/// Set API key for any provider (OpenAI, Anthropic, Gemini, or extra providers)
 #[derive(Debug, Deserialize)]
 pub struct SetApiKeyRequest {
   pub key: String,
   pub model: Option<String>,
-  /// "openai" (default), "anthropic", "gemini", or "groq"
+  /// "openai" (default), "anthropic", "gemini", "groq", "minimax", "zai", "huggingface"
   pub provider: Option<String>,
+  /// For extra providers: the environment variable name to store the key under.
+  /// e.g. "MINIMAX_API_KEY", "ZAI_API_KEY", "HF_TOKEN"
+  pub env_var: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -793,6 +885,33 @@ pub async fn set_api_key(
       }
       "Groq"
     }
+    "minimax" | "zai" | "huggingface" => {
+      // Extra providers: store key in extra_provider_keys map.
+      // Determine the env var name from the request or derive from provider.
+      let env_var = payload.env_var.clone().unwrap_or_else(|| {
+        match provider.as_str() {
+          "minimax" => "MINIMAX_API_KEY".to_string(),
+          "zai" => "ZAI_API_KEY".to_string(),
+          "huggingface" => "HF_TOKEN".to_string(),
+          _ => format!("{}_API_KEY", provider.to_uppercase()),
+        }
+      });
+      if !is_allowed_extra_env_var(&env_var) {
+        return HttpResponse::BadRequest().json(SetApiKeyResponse {
+          success: false,
+          message: format!("Environment variable {} is not allowed", env_var),
+        });
+      }
+      let extra = tokens.extra_provider_keys.get_or_insert_with(std::collections::HashMap::new);
+      extra.insert(env_var.clone(), key);
+      // Don't change active_provider — these are supplementary to the main 4.
+      match provider.as_str() {
+        "minimax" => "MiniMax",
+        "zai" => "ZAI (GLM)",
+        "huggingface" => "Hugging Face",
+        _ => "Extra Provider",
+      }
+    }
     _ => {
       tokens.openai_api_key = Some(key);
       tokens.active_provider = Some("openai".to_string());
@@ -821,10 +940,64 @@ pub async fn set_api_key(
   if let Some(m) = &tokens.anthropic_model { std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", m); }
   if let Some(m) = &tokens.gemini_model { std::env::set_var("KNAPSACK_GEMINI_MODEL", m); }
   if let Some(m) = &tokens.groq_model { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
+  if let Some(extra) = &tokens.extra_provider_keys {
+    for (env_var, key) in extra {
+      if is_allowed_extra_env_var(env_var) && !key.trim().is_empty() {
+        std::env::set_var(env_var, key.trim());
+      }
+    }
+  }
 
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
     message: format!("{} API key saved successfully", provider_name),
+  })
+}
+
+/// Remove an extra provider key.
+#[derive(Debug, Deserialize)]
+pub struct DeleteExtraProviderKeyRequest {
+  pub env_var: String,
+}
+
+#[post("/api/clawd/service/delete-extra-provider-key")]
+pub async fn delete_extra_provider_key(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<DeleteExtraProviderKeyRequest>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+        success: false,
+        message: e,
+      })
+    }
+  };
+
+  let env_var = payload.env_var.trim();
+  if !is_allowed_extra_env_var(env_var) {
+    return HttpResponse::BadRequest().json(SetApiKeyResponse {
+      success: false,
+      message: format!("Environment variable {} is not allowed", env_var),
+    });
+  }
+
+  if let Some(extra) = tokens.extra_provider_keys.as_mut() {
+    extra.remove(env_var);
+  }
+  std::env::remove_var(env_var);
+
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+      success: false,
+      message: e,
+    });
+  }
+
+  HttpResponse::Ok().json(SetApiKeyResponse {
+    success: true,
+    message: format!("Removed {}", env_var),
   })
 }
 
@@ -1244,6 +1417,17 @@ pub async fn set_service_enabled(
         if !k.is_empty() {
           std::env::set_var("GEMINI_API_KEY", &k);
           env.push(("GEMINI_API_KEY".to_string(), k));
+        }
+      }
+
+      // Propagate extra provider keys (MiniMax, ZAI/GLM, HuggingFace, etc.)
+      if let Some(extra) = &tokens.extra_provider_keys {
+        for (env_var, key) in extra {
+          let key = key.trim().to_string();
+          if !key.is_empty() && is_allowed_extra_env_var(env_var) {
+            std::env::set_var(env_var, &key);
+            env.push((env_var.clone(), key));
+          }
         }
       }
 

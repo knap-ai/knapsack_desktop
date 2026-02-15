@@ -342,3 +342,89 @@
     }
   }
 }
+
+// --- More Providers section ---
+
+.extraProvidersSection {
+  border-top: 1px solid #e4e4e7;
+  padding-bottom: 16px;
+}
+
+.extraProvidersHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 16px 24px 8px;
+}
+
+.extraProvidersSubtitle {
+  font-size: 11px;
+  color: #a1a1aa;
+}
+
+.extraProvidersList {
+  display: flex;
+  flex-direction: column;
+}
+
+.extraProviderItem {
+  border-bottom: 1px solid #f4f4f5;
+  padding: 0 24px;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.extraProviderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  min-height: 42px;
+}
+
+.extraProviderInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.extraProviderName {
+  font-weight: 600;
+  font-size: 13px;
+  color: #18181b;
+}
+
+.extraProviderDesc {
+  font-size: 11px;
+  color: #71717a;
+  margin-top: 1px;
+}
+
+.extraProviderActions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.extraProviderLink {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #c54841;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.1s ease;
+
+  &:hover {
+    background: rgba(197, 72, 65, 0.06);
+    text-decoration: underline;
+  }
+}
+
+.extraProviderForm {
+  padding: 0 0 12px 0;
+}
