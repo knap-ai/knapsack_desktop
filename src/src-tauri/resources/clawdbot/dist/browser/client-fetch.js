@@ -29,6 +29,7 @@ function unwrapCause(err) {
 function enhanceBrowserFetchError(url, err, timeoutMs) {
     const cause = unwrapCause(err);
     const code = extractErrorCode(cause) ?? extractErrorCode(err) ?? "";
+    const msg = formatErrorMessage(err);
     const hint = `Start (or restart) the Clawdbot gateway (Clawdbot.app menubar, or \`${formatCliCommand("clawdbot gateway")}\`) and try again.`;
     if (code === "ECONNREFUSED") {
         return new Error(`Can't reach the clawd browser control server at ${url} (connection refused). ${hint}`);
@@ -36,9 +37,12 @@ function enhanceBrowserFetchError(url, err, timeoutMs) {
     if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT") {
         return new Error(`Can't reach the clawd browser control server at ${url} (timed out after ${timeoutMs}ms). ${hint}`);
     }
-    const msg = formatErrorMessage(err);
     if (msg.toLowerCase().includes("abort")) {
         return new Error(`Can't reach the clawd browser control server at ${url} (timed out after ${timeoutMs}ms). ${hint}`);
+    }
+    // Detect SSL/TLS certificate errors
+    if (msg.toLowerCase().includes("cert") || msg.toLowerCase().includes("ssl") || msg.toLowerCase().includes("tls") || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" || code === "CERT_HAS_EXPIRED" || code === "ERR_TLS_CERT_ALTNAME_INVALID" || code === "DEPTH_ZERO_SELF_SIGNED_CERT" || code === "SELF_SIGNED_CERT_IN_CHAIN") {
+        return new Error(`Can't reach the clawd browser control server at ${url} (SSL/TLS certificate error: ${msg}). If using a local server, ensure it is configured for HTTP or set NODE_TLS_REJECT_UNAUTHORIZED=0 for development.`);
     }
     return new Error(`Can't reach the clawd browser control server at ${url}. ${hint} (${msg})`);
 }
