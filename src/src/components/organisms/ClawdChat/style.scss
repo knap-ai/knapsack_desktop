@@ -2171,6 +2171,181 @@
   }
 }
 
+// Channels Panel — flex sibling of main content, same pattern as Skills panel
+.ClawdChannelsPanel {
+  width: 340px;
+  flex-shrink: 0;
+  background: white;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ClawdChannelsPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 16px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+
+  h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  button {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: white;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover { background: #f5f5f5; }
+  }
+}
+
+.ClawdChannelsPanelBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ClawdChannelsPanelIntro {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.45;
+  margin: 0 0 4px;
+}
+
+.ClawdChannelCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fafafa;
+  transition: border-color 0.15s, background 0.15s;
+
+  &--connected {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+  }
+}
+
+.ClawdChannelCardIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &--whatsapp {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  &--imessage {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+}
+
+.ClawdChannelCardInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.ClawdChannelCardName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.ClawdChannelCardStatus {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.ClawdChannelCard--connected .ClawdChannelCardStatus {
+  color: #16a34a;
+}
+
+.ClawdChannelCardAction {
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s;
+  flex-shrink: 0;
+
+  &--connect {
+    background: #3b82f6;
+    color: white;
+
+    &:hover { background: #2563eb; }
+  }
+
+  &--disconnect {
+    background: white;
+    color: #64748b;
+    border-color: #e2e8f0;
+
+    &:hover { background: #f1f5f9; }
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.ClawdChannelsPanelError {
+  font-size: 12px;
+  color: #dc2626;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border-radius: 6px;
+}
+
+.ClawdChannelsPanelFooter {
+  padding: 14px 20px;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.5;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+// Toolbar button highlight for channels state
+.ClawdChatActions .channels-disconnected:not(.toggle-on) {
+  animation: channels-pulse 2s ease-in-out 3;
+}
+
+@keyframes channels-pulse {
+  0%, 100% { background: inherit; }
+  50% { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.3); }
+}
+
+.ClawdChatActions .channels-connected {
+  color: #16a34a;
+}
+
 // Activity Monitor Panel — flex sibling of main content, pushes chat left
 .ClawdActivityPanel {
   width: 340px;
