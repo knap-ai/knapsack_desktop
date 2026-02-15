@@ -9,19 +9,6 @@ import { getCurrent, LogicalSize } from '@tauri-apps/api/window'
 
 dayjs.extend(relativeTime)
 
-// DEV ONLY: test helper — call window.testNotification() from the console
-;(window as any).testNotification = (opts?: { title?: string; time?: string; buttonConfigs?: any[] }) => {
-  invoke('show_notification_window', {
-    eventId: 'test-123',
-    title: opts?.title ?? 'Action: Apple Dev account change',
-    time: opts?.time ?? 'Apple Developer: Account Holder changed. Team admin role has been reassigned. Verify team access and renew certificates. See invoice thread FYI.',
-    buttonConfigs: opts?.buttonConfigs ?? [
-      { buttonText: 'View Details', buttonHandler: 'view_details' },
-      { buttonText: 'Dismiss', buttonHandler: 'dismiss' },
-    ],
-  })
-}
-
 const NOTIF_WIDTH = 600 // Must match Rust NOTIF_WIDTH constant
 const MIN_HEIGHT = 80
 const MAX_HEIGHT = 520

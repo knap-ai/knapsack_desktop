@@ -6,6 +6,20 @@ import App from './App'
 
 import './main.css'
 
+// DEV ONLY: test helper — call window.testNotification() from the browser console
+import { invoke } from '@tauri-apps/api/tauri'
+;(window as any).testNotification = (opts?: { title?: string; time?: string; buttonConfigs?: any[] }) => {
+  invoke('show_notification_window', {
+    eventId: 'test-' + Date.now(),
+    title: opts?.title ?? 'Action: Apple Dev account change',
+    time: opts?.time ?? 'Apple Developer: Account Holder changed. Team admin role has been reassigned. Verify team access and renew certificates. See invoice thread FYI.',
+    buttonConfigs: opts?.buttonConfigs ?? [
+      { buttonText: 'View Details', buttonHandler: 'view_details' },
+      { buttonText: 'Dismiss', buttonHandler: 'dismiss' },
+    ],
+  })
+}
+
 import * as Sentry from '@sentry/react'
 import { BrowserRouter } from 'react-router-dom'
 
