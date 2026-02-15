@@ -389,7 +389,8 @@
   }
 
   code {
-    background: rgba(0, 0, 0, 0.06);
+    background: rgba(0, 0, 0, 0.07);
+    color: #1a1a2e;
     padding: 0.15em 0.4em;
     border-radius: 4px;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
@@ -409,7 +410,7 @@
       justify-content: flex-end;
       gap: 4px;
       padding: 4px 6px;
-      background: rgba(0, 0, 0, 0.06);
+      background: #181825;
       border-radius: 6px 6px 0 0;
     }
 
@@ -420,22 +421,22 @@
       border: none;
       border-radius: 3px;
       cursor: pointer;
-      color: #666;
-      background: rgba(255, 255, 255, 0.7);
+      color: #a6adc8;
+      background: rgba(255, 255, 255, 0.08);
       transition: background 0.15s, color 0.15s;
 
       &:hover {
-        background: rgba(255, 255, 255, 1);
-        color: #333;
+        background: rgba(255, 255, 255, 0.18);
+        color: #cdd6f4;
       }
 
       &--run {
-        color: #4a6fa5;
+        color: #89b4fa;
         font-weight: 500;
 
         &:hover {
-          background: #4a6fa5;
-          color: white;
+          background: #89b4fa;
+          color: #1e1e2e;
         }
       }
     }
@@ -447,7 +448,8 @@
   }
 
   pre {
-    background: rgba(0, 0, 0, 0.04);
+    background: #1e1e2e;
+    color: #cdd6f4;
     border-radius: 6px;
     padding: 0.75em 1em;
     overflow-x: auto;
@@ -458,6 +460,7 @@
 
     code {
       background: none;
+      color: inherit;
       padding: 0;
       font-size: 0.85em;
     }
