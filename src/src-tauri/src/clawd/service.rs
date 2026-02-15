@@ -1397,7 +1397,7 @@ pub async fn skills_install(
     params["installId"] = serde_json::json!(id);
   }
 
-  match super::gateway_ws::gateway_request(
+  match super::gateway_client::gateway_request_pooled(
     "skills.install",
     Some(params),
     Some(&tokens.gateway_token),
@@ -1446,7 +1446,7 @@ pub async fn skills_update(
     params["env"] = env.clone();
   }
 
-  match super::gateway_ws::gateway_request(
+  match super::gateway_client::gateway_request_pooled(
     "skills.update",
     Some(params),
     Some(&tokens.gateway_token),
