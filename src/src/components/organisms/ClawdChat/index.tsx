@@ -1837,6 +1837,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     const handleRunInTerminal = (e: React.MouseEvent) => {
       e.stopPropagation()
+      // Auto-open Activity Panel if not already open
+      if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
+        onToggleActivityRef.current()
+      }
       window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: codeText.trim() } }))
     }
 
