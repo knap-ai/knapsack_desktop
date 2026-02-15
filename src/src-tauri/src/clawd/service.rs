@@ -142,7 +142,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     browser_control_token,
     groq_api_key: None,
     openai_api_key: None, // User must provide their own API key
-    openai_model: None,   // Defaults to gpt-4o
+    openai_model: None,   // Defaults to gpt-5.2
     anthropic_api_key: None,
     anthropic_model: None, // Defaults to claude-sonnet-4-5-20250929
     gemini_api_key: None,
@@ -246,12 +246,12 @@ fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(
   Ok(())
 }
 
-/// Get the configured OpenAI model (defaults to gpt-4o if not set)
+/// Get the configured OpenAI model (defaults to gpt-5.2 if not set)
 pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.openai_model)
-    .unwrap_or_else(|| "gpt-4o".to_string())
+    .unwrap_or_else(|| "gpt-5.2".to_string())
 }
 
 /// Get the configured Anthropic model (defaults to claude-sonnet-4-5-20250929 if not set)
@@ -915,7 +915,7 @@ pub async fn set_api_key(
     _ => {
       tokens.openai_api_key = Some(key);
       tokens.active_provider = Some("openai".to_string());
-      // Save model if provided, default to gpt-4o
+      // Save model if provided, default to gpt-5.2
       if let Some(model) = &payload.model {
         tokens.openai_model = Some(model.trim().to_string());
       }

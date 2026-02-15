@@ -51,7 +51,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
-  let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-4o".to_string());
+  let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.2".to_string());
 
   // Try the user's active provider first
   match active.as_str() {
@@ -139,7 +139,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
     if complexity == "haiku" {
         // Downgrade to cheapest model within each provider
         let (new_model, label) = match provider.name.as_str() {
-            "openai" => ("gpt-4o-mini".to_string(), "GPT-4o-mini"),
+            "openai" => ("o3-mini".to_string(), "o3-mini"),
             "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
             "gemini" => ("gemini-2.5-flash".to_string(), "Flash"), // already cheap
             "groq" => (provider.model.clone(), "Groq"),           // already cheap

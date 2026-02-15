@@ -371,16 +371,6 @@ const OPENAI_MODELS: OpenAIModelOption[] = [
     description: 'Extended thinking for harder problems',
   },
   {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    description: 'Fast and capable, good for most tasks',
-  },
-  {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    description: 'Fastest and most affordable',
-  },
-  {
     id: 'o3',
     name: 'o3 (Reasoning)',
     description: 'Reasoning model for complex logic',
@@ -756,7 +746,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-4o'
+    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5.2'
   })
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
     return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-5-20250929'

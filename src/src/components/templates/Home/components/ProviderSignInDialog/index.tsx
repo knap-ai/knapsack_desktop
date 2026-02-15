@@ -38,14 +38,12 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     helpUrl: 'https://platform.openai.com/api-keys',
     helpLabel: 'platform.openai.com/api-keys',
     models: [
-      { id: 'gpt-5.2', name: 'GPT-5.2', description: 'Most intelligent, best for complex tasks' },
-      { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro', description: 'Extended thinking for harder problems' },
-      { id: 'gpt-4o', name: 'GPT-4o', description: 'Fast and capable, good for most tasks' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fastest and most affordable' },
+      { id: 'gpt-5.2', name: 'GPT-5.2', description: 'Fast and capable, good for most tasks' },
+      { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro', description: 'Most intelligent, extended thinking' },
       { id: 'o3', name: 'o3 (Reasoning)', description: 'Reasoning model for complex logic' },
-      { id: 'o3-mini', name: 'o3 Mini', description: 'Fast reasoning model' },
+      { id: 'o3-mini', name: 'o3 Mini', description: 'Fast and affordable reasoning' },
     ],
-    defaultModel: 'gpt-4o',
+    defaultModel: 'gpt-5.2',
   },
   {
     id: 'anthropic',
