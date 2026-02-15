@@ -426,19 +426,36 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       None => false,
     };
 
+    // When gateway is down, include the last few lines from stderr so the
+    // user/UI can see why the process is failing without opening Terminal.
+    let mut message = if gateway_ok && browser_ok {
+      "Clawdbot gateway + browser are healthy".to_string()
+    } else if gateway_ok {
+      "Clawdbot gateway OK; browser control not reachable".to_string()
+    } else if browser_ok {
+      "Browser control OK; gateway not reachable".to_string()
+    } else {
+      "Clawdbot not reachable".to_string()
+    };
+
+    if !gateway_ok {
+      let err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+      if let Ok(content) = std::fs::read_to_string(&err_path) {
+        let tail: Vec<&str> = content.lines().rev().take(8).collect();
+        if !tail.is_empty() {
+          let mut tail_lines: Vec<&str> = tail.into_iter().collect();
+          tail_lines.reverse();
+          message.push_str("\n--- last stderr ---\n");
+          message.push_str(&tail_lines.join("\n"));
+        }
+      }
+    }
+
     HttpResponse::Ok().json(ServiceHealthResponse {
       success: true,
       gateway_ok,
       browser_ok,
-      message: if gateway_ok && browser_ok {
-        "Clawdbot gateway + browser are healthy".to_string()
-      } else if gateway_ok {
-        "Clawdbot gateway OK; browser control not reachable".to_string()
-      } else if browser_ok {
-        "Browser control OK; gateway not reachable".to_string()
-      } else {
-        "Clawdbot not reachable".to_string()
-      },
+      message,
     })
   }
 }
@@ -1366,8 +1383,17 @@ pub async fn set_service_enabled(
       }
       let clawdbot_path = path_parts.join(":");
 
+      // Resolve user HOME dir — LaunchAgents on macOS *usually* inherit it
+      // from the user session, but some contexts (especially after reboot before
+      // first interactive login) may not have it set.  Node.js and many npm
+      // packages assume HOME is available.
+      let user_home = dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+
       let mut env = vec![
         ("PATH".to_string(), clawdbot_path),
+        ("HOME".to_string(), user_home),
         // OpenClaw 2026.2+ only recognizes OPENCLAW_HOME (no CLAWDBOT_HOME fallback).
         ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
         // Point state dir (config, sessions, logs) to the app data dir so
