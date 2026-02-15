@@ -2309,6 +2309,20 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
 - Not for general information or explanations (just use plain text)
 - Not for external websites (use the actual URL only if you've verified it)
 
+## Code Blocks
+When suggesting shell commands, scripts, or code snippets that the user might want to run, **always use fenced code blocks** (triple backticks) with a language tag. NEVER use inline code for runnable commands. The chat UI adds Copy and Run in Terminal buttons to fenced code blocks.
+
+**Correct:**
+````
+```bash
+ls -la
+```
+````
+
+**Incorrect:** `ls -la` (inline code — no buttons will appear)
+
+If listing multiple commands, put each in its own fenced code block so each gets its own Run button.
+
 ## Response Style
 - Use **bold** for emphasis, bullet points for lists
 - Keep responses conversational and actionable
