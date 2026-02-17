@@ -9,6 +9,8 @@ export interface ChannelStatus {
   linked?: boolean
   provider?: string
   message?: string
+  /** Account identifier: phone number (WhatsApp) or email (iMessage) */
+  account?: string
 }
 
 interface GenericResponse {
@@ -70,3 +72,14 @@ export const setupIMessage = () =>
 
 export const openFullDiskAccess = () =>
   post<GenericResponse>('/api/clawd/channels/open-full-disk-access')
+
+// ── Send Message ────────────────────────────────────────────
+
+export interface SendMessageResponse {
+  success: boolean
+  message?: string
+}
+
+/** Send a message to a user through a connected channel (WhatsApp or iMessage). */
+export const sendChannelMessage = (channel: string, to: string, message: string) =>
+  post<SendMessageResponse>('/api/clawd/channels/send', { channel, to, message })

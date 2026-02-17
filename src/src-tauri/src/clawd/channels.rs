@@ -6,6 +6,24 @@ use std::time::Duration;
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
+/// Request body for sending a message through a channel.
+#[derive(Deserialize)]
+struct SendMessageRequest {
+    /// Channel to send through: "whatsapp" or "imessage"
+    channel: String,
+    /// Recipient address: phone number (WhatsApp) or email/phone (iMessage)
+    to: String,
+    /// The message text
+    message: String,
+}
+
+/// Response for send-message
+#[derive(Serialize)]
+struct SendMessageResponse {
+    success: bool,
+    message: Option<String>,
+}
+
 /// Response for channel status
 #[derive(Serialize)]
 struct ChannelStatusResponse {
@@ -15,6 +33,9 @@ struct ChannelStatusResponse {
     linked: Option<bool>,
     provider: Option<String>,
     message: Option<String>,
+    /// The account identifier (e.g. phone number for WhatsApp, email for iMessage)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    account: Option<String>,
 }
 
 /// Request body for enable/disable
@@ -162,12 +183,40 @@ fn parse_channel_from_summary(status: &serde_json::Value, channel_name: &str) ->
     (false, false, false)
 }
 
+/// Extract a phone number from the channelSummary for a given channel.
+///
+/// WhatsApp summary looks like: "WhatsApp: linked +1234567890 auth 2h ago"
+/// We extract the token that starts with '+' followed by digits.
+fn parse_account_from_summary(status: &serde_json::Value, channel_name: &str) -> Option<String> {
+    let channel_summary = status.get("channelSummary")?.as_array()?;
+    let prefix = format!("{}: ", channel_name.to_lowercase());
+    for line in channel_summary {
+        if let Some(text) = line.as_str() {
+            let lower = text.to_lowercase();
+            if lower.starts_with(&prefix) {
+                // Find a token starting with '+' and containing digits
+                for token in text.split_whitespace() {
+                    if token.starts_with('+') && token.len() > 1 && token[1..].chars().all(|c| c.is_ascii_digit()) {
+                        return Some(token.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Get WhatsApp channel status
 #[get("/api/clawd/channels/whatsapp/status")]
 pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
     match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (enabled, linked, _configured) = parse_channel_from_summary(&status, "WhatsApp");
+            let account = if linked {
+                parse_account_from_summary(&status, "WhatsApp")
+            } else {
+                None
+            };
 
             HttpResponse::Ok().json(ChannelStatusResponse {
                 success: true,
@@ -176,6 +225,7 @@ pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
                 linked: Some(linked),
                 provider: None,
                 message: None,
+                account,
             })
         }
         Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
@@ -185,6 +235,7 @@ pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
             linked: Some(false),
             provider: None,
             message: Some(format!("Gateway error: {}", e)),
+            account: None,
         }),
     }
 }
@@ -336,6 +387,7 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
                 linked: None,
                 provider: None,
                 message: None,
+                account: None,
             })
         }
         Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
@@ -345,6 +397,7 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
             linked: None,
             provider: None,
             message: Some(format!("Gateway error: {}", e)),
+            account: None,
         }),
     }
 }
@@ -478,6 +531,7 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
                 linked: None,
                 provider,
                 message: None,
+                account: None,
             })
         }
         Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
@@ -487,6 +541,7 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
             linked: None,
             provider: None,
             message: Some(format!("Gateway error: {}", e)),
+            account: None,
         }),
     }
 }
@@ -536,6 +591,54 @@ pub async fn voice_enable(
             configured: None,
             linked: None,
         }),
+    }
+}
+
+/// Send a message through a connected channel (WhatsApp or iMessage).
+///
+/// Wraps the gateway's `send` JSON-RPC method. The frontend calls this
+/// to push notification content to the user via their connected channels.
+#[post("/api/clawd/channels/send")]
+pub async fn send_channel_message(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    body: web::Json<SendMessageRequest>,
+) -> impl Responder {
+    let channel = body.channel.to_lowercase();
+    if channel != "whatsapp" && channel != "imessage" {
+        return HttpResponse::BadRequest().json(SendMessageResponse {
+            success: false,
+            message: Some("Channel must be 'whatsapp' or 'imessage'".to_string()),
+        });
+    }
+
+    let idempotency_key = format!(
+        "knapsack-{}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        rand::random::<u32>()
+    );
+
+    let params = serde_json::json!({
+        "to": body.to,
+        "message": body.message,
+        "channel": channel,
+        "idempotencyKey": idempotency_key,
+    });
+
+    match gateway_client::call_channel_method("send", Some(params), None).await {
+        Ok(_result) => HttpResponse::Ok().json(SendMessageResponse {
+            success: true,
+            message: Some(format!("Message sent via {}", channel)),
+        }),
+        Err(e) => {
+            eprintln!("[channels] send via {} failed: {}", channel, e);
+            HttpResponse::Ok().json(SendMessageResponse {
+                success: false,
+                message: Some(format!("Failed to send: {}", e)),
+            })
+        }
     }
 }
 

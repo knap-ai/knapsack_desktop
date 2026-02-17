@@ -206,6 +206,7 @@ pub async fn start_server<'a>(
       .service(clawd::channels::imessage_status)
       .service(clawd::channels::imessage_enable)
       .service(clawd::channels::imessage_setup)
+      .service(clawd::channels::send_channel_message)
       .service(clawd::channels::voice_status)
       .service(clawd::channels::voice_enable)
       .service(clawd::channels::open_full_disk_access)

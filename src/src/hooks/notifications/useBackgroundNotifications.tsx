@@ -24,6 +24,11 @@ import { ButtonConfig } from 'src/components/molecules/MeetingNotification'
 import { LLMParams } from 'src/App'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
+import {
+  getWhatsAppStatus,
+  getIMessageStatus,
+  sendChannelMessage,
+} from 'src/api/channels'
 
 type BackgroundNotificationResult = {
   notificationTitle: string
@@ -156,6 +161,51 @@ export function useBackgroundNotifications({
       }
     },
     [],
+  )
+
+  /**
+   * Push a notification to connected messaging channels (WhatsApp, iMessage).
+   * Runs in the background — failures are logged but never block the notification flow.
+   */
+  const pushToChannels = useCallback(
+    async (title: string, body: string) => {
+      const text = `${title}\n\n${body}`
+
+      try {
+        const [waStatus, imStatus] = await Promise.all([
+          getWhatsAppStatus().catch(() => null),
+          getIMessageStatus().catch(() => null),
+        ])
+
+        const sends: Promise<unknown>[] = []
+
+        // WhatsApp: send to the linked account's own number (self-chat)
+        if (waStatus?.enabled && waStatus?.linked && waStatus?.account) {
+          sends.push(
+            sendChannelMessage('whatsapp', waStatus.account, text).catch(err =>
+              console.warn('[notifications] WhatsApp send failed:', err),
+            ),
+          )
+        }
+
+        // iMessage: send to the user's own email
+        if (imStatus?.enabled && imStatus?.configured && userEmail) {
+          sends.push(
+            sendChannelMessage('imessage', userEmail, text).catch(err =>
+              console.warn('[notifications] iMessage send failed:', err),
+            ),
+          )
+        }
+
+        if (sends.length > 0) {
+          await Promise.all(sends)
+        }
+      } catch (err) {
+        // Never let channel sends block the notification flow
+        console.warn('[notifications] pushToChannels error:', err)
+      }
+    },
+    [userEmail],
   )
 
   /**
@@ -372,6 +422,10 @@ export function useBackgroundNotifications({
               parsed.notificationTitle,
               parsed.notificationBody,
             )
+
+            // Also push to connected messaging channels (non-blocking)
+            pushToChannels(parsed.notificationTitle, parsed.notificationBody)
+
             return response
           },
           errorCallback: () => {
@@ -396,6 +450,7 @@ export function useBackgroundNotifications({
       openNotificationWindow,
       parseLLMResponse,
       recordNotification,
+      pushToChannels,
     ],
   )
 
@@ -631,6 +686,9 @@ export function useBackgroundNotifications({
               pendingFollowupRef.current = parsed
               await recordNotification('post_meeting_followup')
 
+              const title = parsed.notificationTitle || `Follow up: ${meetingTitle}`
+              const body = parsed.notificationBody || 'Action items and follow-ups ready'
+
               await openNotificationWindow(
                 undefined,
                 [
@@ -643,9 +701,12 @@ export function useBackgroundNotifications({
                     buttonHandler: 'dismiss_notification_handler',
                   },
                 ],
-                parsed.notificationTitle || `Follow up: ${meetingTitle}`,
-                parsed.notificationBody || 'Action items and follow-ups ready',
+                title,
+                body,
               )
+
+              // Also push to connected messaging channels (non-blocking)
+              pushToChannels(title, body)
             }
             return response
           },
@@ -667,6 +728,7 @@ export function useBackgroundNotifications({
       openNotificationWindow,
       parseLLMResponse,
       recordNotification,
+      pushToChannels,
     ],
   )
 
