@@ -389,26 +389,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       }
     };
 
-    // 1) Browser control server health is a simple HTTP GET.
-    let browser_ok = reqwest::Client::builder()
-      .timeout(std::time::Duration::from_millis(800))
-      .build()
-      .ok()
-      .and_then(|c| {
-        let fut = c
-          .get("http://127.0.0.1:18791/")
-          .bearer_auth(tokens.gateway_token.clone())
-          .send();
-        Some(fut)
-      });
-
-    let browser_ok = match browser_ok {
-      Some(fut) => fut.await.map(|r| r.status().is_success()).unwrap_or(false),
-      None => false,
-    };
-
-    // 2) Gateway health: try a simple HTTP request to the gateway's HTTP endpoint
-    // The gateway also listens on HTTP for health checks
+    // Gateway health: try a simple HTTP request to the gateway's HTTP endpoint.
+    // The gateway also listens on HTTP for health checks.
     let gateway_ok = reqwest::Client::builder()
       .timeout(std::time::Duration::from_millis(800))
       .build()
@@ -425,6 +407,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       Some(fut) => fut.await.map(|r| r.status().is_success() || r.status().as_u16() == 404).unwrap_or(false),
       None => false,
     };
+
+    // Browser control is integrated into the gateway in OpenClaw 2026.2+
+    // (no separate HTTP server on port 18791). If the gateway is healthy,
+    // browser control is available through the gateway's RPC interface.
+    let browser_ok = gateway_ok;
 
     // When gateway is down, include the last few lines from stderr so the
     // user/UI can see why the process is failing without opening Terminal.
