@@ -184,16 +184,19 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
   let (mut write, mut read) = ws_stream.split();
 
-  // Wait for connect.challenge
-  let challenge_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
-    .await
-    .map_err(|_| "Timeout waiting for challenge")?
-    .ok_or("Connection closed before challenge")?
-    .map_err(|e| format!("Error receiving challenge: {}", e))?;
+  // Wait for connect.challenge (skip ping/pong control frames)
+  let challenge_text = loop {
+    let challenge_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
+      .await
+      .map_err(|_| "Timeout waiting for challenge")?
+      .ok_or("Connection closed before challenge")?
+      .map_err(|e| format!("Error receiving challenge: {}", e))?;
 
-  let challenge_text = match challenge_msg {
-    Message::Text(t) => t,
-    _ => return Err("Expected text message for challenge".to_string()),
+    match challenge_msg {
+      Message::Text(t) => break t,
+      Message::Close(_) => return Err("Connection closed during challenge".to_string()),
+      _ => continue, // Skip ping/pong control frames
+    }
   };
 
   let event: EventFrame = serde_json::from_str(&challenge_text)
@@ -232,16 +235,19 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     .await
     .map_err(|e| format!("Failed to send connect: {}", e))?;
 
-  // Wait for connect response
-  let connect_resp_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
-    .await
-    .map_err(|_| "Timeout waiting for connect response")?
-    .ok_or("Connection closed before connect response")?
-    .map_err(|e| format!("Error receiving connect response: {}", e))?;
+  // Wait for connect response (skip ping/pong control frames)
+  let connect_resp_text = loop {
+    let connect_resp_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
+      .await
+      .map_err(|_| "Timeout waiting for connect response")?
+      .ok_or("Connection closed before connect response")?
+      .map_err(|e| format!("Error receiving connect response: {}", e))?;
 
-  let connect_resp_text = match connect_resp_msg {
-    Message::Text(t) => t,
-    _ => return Err("Expected text message for connect response".to_string()),
+    match connect_resp_msg {
+      Message::Text(t) => break t,
+      Message::Close(_) => return Err("Connection closed during connect".to_string()),
+      _ => continue, // Skip ping/pong control frames
+    }
   };
 
   let connect_resp: ResponseFrame = serde_json::from_str(&connect_resp_text)
