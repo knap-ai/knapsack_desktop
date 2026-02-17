@@ -421,7 +421,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // method.  Send a lightweight request to verify it's responsive.
     let browser_ok = if gateway_ok {
       match gateway_client::browser_request(
-        "GET", "/tabs", Some(serde_json::json!({"profile": "clawd"})), None, None,
+        "GET", "/tabs", Some(serde_json::json!({"profile": "openclaw"})), None, None,
       ).await {
         Ok(_) => true,
         Err(e) => {

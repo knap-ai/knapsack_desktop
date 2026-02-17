@@ -140,7 +140,7 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   if chrome.unwrap_or(false) {
     "chrome"
   } else {
-    "clawd"
+    "openclaw"
   }
 }
 
