@@ -1486,7 +1486,7 @@ pub async fn set_service_enabled(
       // Best-effort: auto-configure browser control URL for Knapsack (in-memory)
       {
         let mut cfg_guard = cfg.write().await;
-        cfg_guard.base_url = Some("http://127.0.0.1:18791".to_string());
+        cfg_guard.base_url = Some("http://127.0.0.1:18789".to_string());
       }
 
       // Log version and OS info for diagnostics

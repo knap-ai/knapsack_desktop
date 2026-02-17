@@ -1187,7 +1187,7 @@ pub async fn chat(
   };
 
   let base_url = { cfg.read().await.base_url.clone() };
-  let base_url = base_url.unwrap_or_else(|| "http://127.0.0.1:18791".to_string());
+  let base_url = base_url.unwrap_or_else(|| "http://127.0.0.1:18789".to_string());
 
   let client = match control_client().await {
     Ok(c) => c,
