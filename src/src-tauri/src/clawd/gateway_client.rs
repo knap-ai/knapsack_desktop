@@ -323,6 +323,15 @@ fn invalidate_client() {
   *guard = None;
 }
 
+/// Public wrapper: drop the cached connection.
+///
+/// Call this when the gateway is known to have restarted (e.g. after a
+/// config.patch that triggers SIGUSR1) so the next request opens a fresh
+/// WebSocket instead of sending into a dead socket.
+pub fn invalidate() {
+  invalidate_client();
+}
+
 /// Make a request using a persistent gateway connection.
 ///
 /// Adds:

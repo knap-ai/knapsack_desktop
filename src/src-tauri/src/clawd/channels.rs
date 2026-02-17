@@ -1,6 +1,7 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+use std::time::Duration;
 
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
@@ -131,12 +132,13 @@ pub async fn whatsapp_enable(
             // Extract baseHash from snapshot — the gateway uses "hash" at the top level
             let base_hash = extract_base_hash(&config_snapshot);
 
-            // Create patch to add/update whatsapp channel config
-            // The schema expects the channel config directly, not nested under "default"
+            // WhatsApp channel config:
+            // - allowFrom ["*"] = accept messages from anyone
+            // - dmPolicy "open" = auto-reply to all inbound DMs
+            // - groupPolicy "allowlist" = only join groups explicitly added
             let patch = if body.enabled {
-                r#"{"channels": {"whatsapp": {}}}"#
+                r#"{"channels": {"whatsapp": {"allowFrom": ["*"], "dmPolicy": "open"}}}"#
             } else {
-                // Setting to null removes the channel config, effectively disabling
                 r#"{"channels": {"whatsapp": null}}"#
             };
 
@@ -177,39 +179,73 @@ struct WhatsAppLoginResponse {
     qr_data_url: Option<String>,
 }
 
-/// Start WhatsApp login flow
+/// Start WhatsApp login flow.
+///
+/// After config.patch enables WhatsApp, the gateway restarts (SIGUSR1).
+/// The WebSocket connection drops during restart, so we retry a few times
+/// with backoff to let the gateway come back up before calling web.login.start.
 #[post("/api/clawd/channels/whatsapp/login")]
 pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    // The gateway uses the generic "web.login.start" method which routes
-    // to the WhatsApp channel plugin's loginWithQrStart handler.
     let params = serde_json::json!({
         "force": true
     });
 
-    match gateway_client::call_channel_method("web.login.start", Some(params), None).await {
-        Ok(result) => {
-            let qr_data_url = result
-                .get("qrDataUrl")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            let message = result
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("WhatsApp login started. Scan the QR code.")
-                .to_string();
+    // Invalidate the pooled connection — the gateway may have restarted
+    // after config.patch.  The next request will open a fresh connection.
+    gateway_client::invalidate();
 
-            HttpResponse::Ok().json(WhatsAppLoginResponse {
-                success: true,
-                message: Some(message),
-                qr_data_url,
-            })
+    let mut last_err = String::new();
+    let delays = [
+        Duration::from_secs(2),
+        Duration::from_secs(3),
+        Duration::from_secs(4),
+    ];
+
+    for (attempt, delay) in delays.iter().enumerate() {
+        tokio::time::sleep(*delay).await;
+
+        match gateway_client::call_channel_method(
+            "web.login.start",
+            Some(params.clone()),
+            None,
+        )
+        .await
+        {
+            Ok(result) => {
+                let qr_data_url = result
+                    .get("qrDataUrl")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let message = result
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("WhatsApp login started. Scan the QR code.")
+                    .to_string();
+
+                return HttpResponse::Ok().json(WhatsAppLoginResponse {
+                    success: true,
+                    message: Some(message),
+                    qr_data_url,
+                });
+            }
+            Err(e) => {
+                eprintln!(
+                    "[channels] web.login.start attempt {} failed: {}",
+                    attempt + 1,
+                    e
+                );
+                last_err = e;
+                // Invalidate again so the next attempt opens a fresh connection
+                gateway_client::invalidate();
+            }
         }
-        Err(e) => HttpResponse::Ok().json(WhatsAppLoginResponse {
-            success: false,
-            message: Some(format!("Login failed: {}", e)),
-            qr_data_url: None,
-        }),
     }
+
+    HttpResponse::Ok().json(WhatsAppLoginResponse {
+        success: false,
+        message: Some(format!("Login failed after retries: {}", last_err)),
+        qr_data_url: None,
+    })
 }
 
 /// Get iMessage channel status
@@ -252,12 +288,13 @@ pub async fn imessage_enable(
         Ok(config_snapshot) => {
             let base_hash = extract_base_hash(&config_snapshot);
 
-            // Create patch to add/update imessage channel config
-            // The schema expects the channel config directly, not nested under "default"
+            // iMessage channel config:
+            // - allowFrom ["*"] = accept messages from anyone
+            // - dmPolicy "open" = auto-reply to all inbound DMs
+            // - service "auto" = detect iMessage vs SMS automatically
             let patch = if body.enabled {
-                r#"{"channels": {"imessage": {}}}"#
+                r#"{"channels": {"imessage": {"allowFrom": ["*"], "dmPolicy": "open", "service": "auto"}}}"#
             } else {
-                // Setting to null removes the channel config, effectively disabling
                 r#"{"channels": {"imessage": null}}"#
             };
 

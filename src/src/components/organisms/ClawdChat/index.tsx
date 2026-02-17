@@ -2905,9 +2905,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   } finally { setChannelBusy(null) }
                 }}
               >
-                {channelBusy === 'whatsapp' ? 'Working...' : channelStatus.whatsapp?.linked ? 'Disconnect' : 'Connect'}
+                {channelBusy === 'whatsapp'
+                  ? (channelStatus.whatsappLinking ? 'Starting WhatsApp...' : 'Working...')
+                  : channelStatus.whatsapp?.linked ? 'Disconnect' : 'Connect'}
               </button>
             </div>
+            {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && (
+              <div className="ClawdChannelGuide" style={{ textAlign: 'center', padding: '20px 16px' }}>
+                <div style={{ fontSize: 14, color: '#888' }}>Starting WhatsApp service and generating QR code...</div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>This can take up to 10 seconds while the gateway restarts.</div>
+              </div>
+            )}
             {channelStatus.whatsapp?.linked ? (
               <div className="ClawdChannelGuide">
                 <div className="ClawdChannelGuideTitle">How to use WhatsApp</div>

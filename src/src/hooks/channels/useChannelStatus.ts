@@ -17,6 +17,9 @@ export interface ChannelStates {
   error: string | null
   /** Base64 data URL for the WhatsApp QR code, if login is in progress. */
   whatsappQrUrl: string | null
+  /** True while the backend is waiting for the gateway to restart and
+   *  generate a QR code (can take ~10 s due to retry backoff). */
+  whatsappLinking: boolean
 }
 
 /**
@@ -31,6 +34,7 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [whatsappQrUrl, setWhatsappQrUrl] = useState<string | null>(null)
+  const [whatsappLinking, setWhatsappLinking] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -42,6 +46,11 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
       ])
       setWhatsapp(wa)
       setImessage(im)
+      // Clear QR code if WhatsApp is now linked
+      if (wa?.linked) {
+        setWhatsappQrUrl(null)
+        setWhatsappLinking(false)
+      }
     } catch (e: any) {
       setError(e?.message ?? 'Failed to fetch channel status')
     } finally {
@@ -61,17 +70,28 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   const toggleWhatsApp = useCallback(async (on: boolean) => {
     const res = await enableWhatsApp(on)
     if (!res.success) throw new Error(res.message ?? 'Failed to toggle WhatsApp')
+    if (!on) {
+      setWhatsappQrUrl(null)
+      setWhatsappLinking(false)
+    }
     await refresh()
   }, [refresh])
 
   const connectWhatsApp = useCallback(async () => {
     setWhatsappQrUrl(null)
-    const enableRes = await enableWhatsApp(true)
-    if (!enableRes.success) throw new Error(enableRes.message ?? 'Failed to enable WhatsApp')
-    const loginRes = await startWhatsAppLogin()
-    if (!loginRes.success) throw new Error(loginRes.message ?? 'Failed to start WhatsApp login')
-    if (loginRes.qrDataUrl) {
-      setWhatsappQrUrl(loginRes.qrDataUrl)
+    setWhatsappLinking(true)
+    try {
+      // Step 1: enable the WhatsApp channel in gateway config
+      const enableRes = await enableWhatsApp(true)
+      if (!enableRes.success) throw new Error(enableRes.message ?? 'Failed to enable WhatsApp')
+      // Step 2: start QR login (backend retries while gateway restarts)
+      const loginRes = await startWhatsAppLogin()
+      if (!loginRes.success) throw new Error(loginRes.message ?? 'Failed to start WhatsApp login')
+      if (loginRes.qrDataUrl) {
+        setWhatsappQrUrl(loginRes.qrDataUrl)
+      }
+    } finally {
+      setWhatsappLinking(false)
     }
     await refresh()
   }, [refresh])
@@ -98,6 +118,7 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     loading,
     error,
     whatsappQrUrl,
+    whatsappLinking,
     refresh,
     toggleWhatsApp,
     connectWhatsApp,
