@@ -815,6 +815,67 @@ export function useBackgroundNotifications({
     return undefined
   }, [])
 
+  /**
+   * Generate a morning briefing, create a feed item, and return its ID.
+   *
+   * Unlike checkMorningBriefing (which shows a second notification), this
+   * function skips the notification window and directly produces a feed item
+   * so the caller can navigate to it immediately.
+   */
+  const triggerBriefingFeedItem = useCallback(
+    async (): Promise<number | undefined> => {
+      if (!userEmail) return undefined
+
+      const context = await gatherFullContext()
+      if (!context) return undefined
+
+      return new Promise<number | undefined>(resolve => {
+        const fullPrompt =
+          context +
+          '\n\n' +
+          MORNING_BRIEFING_PROMPT.replace('{userName}', userName).replace(
+            '{userEmail}',
+            userEmail,
+          )
+
+        addToLLMQueue({
+          prompt: fullPrompt,
+          documents: [],
+          messageStreamCallback: () => {},
+          messageFinishCallback: async (response: string) => {
+            const parsed = parseLLMResponse(response)
+            if (!parsed) {
+              resolve(undefined)
+              return response
+            }
+
+            // Store so createInsightFeedItem can pick it up
+            pendingInsightRef.current = parsed
+            const feedItemId = await createInsightFeedItem()
+            resolve(feedItemId)
+
+            // Also push to connected channels (non-blocking)
+            pushToChannels(parsed.notificationTitle, parsed.notificationBody)
+
+            return response
+          },
+          errorCallback: () => {
+            resolve(undefined)
+          },
+        })
+      })
+    },
+    [
+      userEmail,
+      userName,
+      gatherFullContext,
+      addToLLMQueue,
+      parseLLMResponse,
+      createInsightFeedItem,
+      pushToChannels,
+    ],
+  )
+
   return {
     checkMorningBriefing,
     handleEmailSyncComplete,
@@ -822,6 +883,7 @@ export function useBackgroundNotifications({
     handlePostMeetingFollowup,
     createInsightFeedItem,
     createFollowupFeedItem,
+    triggerBriefingFeedItem,
     isGeneratingInsight: isProcessing,
   }
 }

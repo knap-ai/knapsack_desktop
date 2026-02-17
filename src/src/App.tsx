@@ -761,6 +761,7 @@ function App() {
     handlePostMeetingFollowup,
     createInsightFeedItem,
     createFollowupFeedItem,
+    triggerBriefingFeedItem,
   } = useBackgroundNotifications({
     userEmail,
     userName,
@@ -1056,6 +1057,7 @@ function App() {
   // up-to-date after every render.
   const createInsightFeedItemRef = useRef(createInsightFeedItem)
   const createFollowupFeedItemRef = useRef(createFollowupFeedItem)
+  const triggerBriefingFeedItemRef = useRef(triggerBriefingFeedItem)
   const startMeetingNotificationRef = useRef<
     (meetingId: string | null, openUrl: boolean, startRecord: boolean) => Promise<void>
   >(() => Promise.resolve())
@@ -1147,6 +1149,7 @@ function App() {
   useEffect(() => {
     createInsightFeedItemRef.current = createInsightFeedItem
     createFollowupFeedItemRef.current = createFollowupFeedItem
+    triggerBriefingFeedItemRef.current = triggerBriefingFeedItem
     startMeetingNotificationRef.current = startMeetingNotification
     stopMeetingNotificationRef.current = stopMeetingNotification
   })
@@ -1168,7 +1171,12 @@ function App() {
     morning_briefing_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      await checkMorningBriefingRef.current(new Date(), true)
+      const feedItemId = await triggerBriefingFeedItemRef.current()
+      if (feedItemId) {
+        await feedRef.current.refreshFeedItems()
+        const dateKey = feedRef.current.getTodayKey()
+        await feedRef.current.selectFeedItem(dateKey, feedItemId)
+      }
     },
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
