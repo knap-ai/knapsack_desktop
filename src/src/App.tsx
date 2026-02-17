@@ -762,6 +762,8 @@ function App() {
     createInsightFeedItem,
     createFollowupFeedItem,
     triggerBriefingFeedItem,
+    getPendingInsightText,
+    getPendingFollowupText,
   } = useBackgroundNotifications({
     userEmail,
     userName,
@@ -1058,6 +1060,8 @@ function App() {
   const createInsightFeedItemRef = useRef(createInsightFeedItem)
   const createFollowupFeedItemRef = useRef(createFollowupFeedItem)
   const triggerBriefingFeedItemRef = useRef(triggerBriefingFeedItem)
+  const getPendingInsightTextRef = useRef(getPendingInsightText)
+  const getPendingFollowupTextRef = useRef(getPendingFollowupText)
   const startMeetingNotificationRef = useRef<
     (meetingId: string | null, openUrl: boolean, startRecord: boolean) => Promise<void>
   >(() => Promise.resolve())
@@ -1150,6 +1154,8 @@ function App() {
     createInsightFeedItemRef.current = createInsightFeedItem
     createFollowupFeedItemRef.current = createFollowupFeedItem
     triggerBriefingFeedItemRef.current = triggerBriefingFeedItem
+    getPendingInsightTextRef.current = getPendingInsightText
+    getPendingFollowupTextRef.current = getPendingFollowupText
     startMeetingNotificationRef.current = startMeetingNotification
     stopMeetingNotificationRef.current = stopMeetingNotification
   })
@@ -1171,32 +1177,33 @@ function App() {
     morning_briefing_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      const feedItemId = await triggerBriefingFeedItemRef.current()
-      if (feedItemId) {
-        await feedRef.current.refreshFeedItems()
-        const dateKey = feedRef.current.getTodayKey()
-        await feedRef.current.selectFeedItem(dateKey, feedItemId)
+      // Trigger LLM briefing generation; result includes fullAnalysis text
+      const { fullAnalysis } = await triggerBriefingFeedItemRef.current()
+      if (fullAnalysis) {
+        setChatStream(fullAnalysis, false)
       }
     },
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      const feedItemId = await createInsightFeedItemRef.current()
-      if (feedItemId) {
-        await feedRef.current.refreshFeedItems()
-        const dateKey = feedRef.current.getTodayKey()
-        await feedRef.current.selectFeedItem(dateKey, feedItemId)
+      // Show the pending insight directly in the chat window
+      const text = getPendingInsightTextRef.current()
+      if (text) {
+        setChatStream(text, false)
       }
+      // Also persist as a feed item in the background
+      createInsightFeedItemRef.current()
     },
     post_meeting_followup_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      const feedItemId = await createFollowupFeedItemRef.current()
-      if (feedItemId) {
-        await feedRef.current.refreshFeedItems()
-        const dateKey = feedRef.current.getTodayKey()
-        await feedRef.current.selectFeedItem(dateKey, feedItemId)
+      // Show the pending follow-up directly in the chat window
+      const text = getPendingFollowupTextRef.current()
+      if (text) {
+        setChatStream(text, false)
       }
+      // Also persist as a feed item in the background
+      createFollowupFeedItemRef.current()
     },
     dismiss_notification_handler: async (_meetingId: string | null) => {
       await invoke('close_notification_window')

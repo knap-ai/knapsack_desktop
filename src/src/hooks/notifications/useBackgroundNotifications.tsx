@@ -816,20 +816,17 @@ export function useBackgroundNotifications({
   }, [])
 
   /**
-   * Generate a morning briefing, create a feed item, and return its ID.
-   *
-   * Unlike checkMorningBriefing (which shows a second notification), this
-   * function skips the notification window and directly produces a feed item
-   * so the caller can navigate to it immediately.
+   * Generate a morning briefing, create a feed item, and return both the ID
+   * and full analysis text so the caller can display it in the chat window.
    */
   const triggerBriefingFeedItem = useCallback(
-    async (): Promise<number | undefined> => {
-      if (!userEmail) return undefined
+    async (): Promise<{ feedItemId?: number; fullAnalysis?: string }> => {
+      if (!userEmail) return {}
 
       const context = await gatherFullContext()
-      if (!context) return undefined
+      if (!context) return {}
 
-      return new Promise<number | undefined>(resolve => {
+      return new Promise<{ feedItemId?: number; fullAnalysis?: string }>(resolve => {
         const fullPrompt =
           context +
           '\n\n' +
@@ -845,14 +842,14 @@ export function useBackgroundNotifications({
           messageFinishCallback: async (response: string) => {
             const parsed = parseLLMResponse(response)
             if (!parsed) {
-              resolve(undefined)
+              resolve({})
               return response
             }
 
             // Store so createInsightFeedItem can pick it up
             pendingInsightRef.current = parsed
             const feedItemId = await createInsightFeedItem()
-            resolve(feedItemId)
+            resolve({ feedItemId, fullAnalysis: parsed.fullAnalysis })
 
             // Also push to connected channels (non-blocking)
             pushToChannels(parsed.notificationTitle, parsed.notificationBody)
@@ -860,7 +857,7 @@ export function useBackgroundNotifications({
             return response
           },
           errorCallback: () => {
-            resolve(undefined)
+            resolve({})
           },
         })
       })
@@ -876,6 +873,22 @@ export function useBackgroundNotifications({
     ],
   )
 
+  /**
+   * Get the full analysis text from the most recent pending insight notification.
+   * Returns null if no insight is pending.
+   */
+  const getPendingInsightText = useCallback((): string | null => {
+    return pendingInsightRef.current?.fullAnalysis ?? null
+  }, [])
+
+  /**
+   * Get the full analysis text from the most recent pending follow-up notification.
+   * Returns null if no follow-up is pending.
+   */
+  const getPendingFollowupText = useCallback((): string | null => {
+    return pendingFollowupRef.current?.fullAnalysis ?? null
+  }, [])
+
   return {
     checkMorningBriefing,
     handleEmailSyncComplete,
@@ -884,6 +897,8 @@ export function useBackgroundNotifications({
     createInsightFeedItem,
     createFollowupFeedItem,
     triggerBriefingFeedItem,
+    getPendingInsightText,
+    getPendingFollowupText,
     isGeneratingInsight: isProcessing,
   }
 }
