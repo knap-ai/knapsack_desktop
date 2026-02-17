@@ -2343,6 +2343,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return doSendRef.current?.(text) ?? Promise.resolve()
   }, [])
 
+  // Same ref-based stability pattern for other ChatInputBar callbacks whose
+  // dependencies change during normal operation (voice toggle, abort controller).
+  const stopGenerationRef = useRef(stopGeneration)
+  stopGenerationRef.current = stopGeneration
+  const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
+
+  const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
+  toggleVoiceOutputRef.current = toggleVoiceOutput
+  const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
+
   const statusLine = useMemo(() => {
     if (!status && !health) return <span>Checking Moltbot...</span>
     const parts: ReactNode[] = []
@@ -2715,8 +2725,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onRemoveFile={removeAttachedFile}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
-        onToggleVoice={toggleVoiceOutput}
-        onStopGeneration={stopGeneration}
+        onToggleVoice={stableToggleVoiceOutput}
+        onStopGeneration={stableStopGeneration}
       />
       </div>
 

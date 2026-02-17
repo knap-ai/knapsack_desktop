@@ -218,6 +218,14 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
       }
     }
   }
+
+  // Propagate gateway token so that in-process gateway RPC callers
+  // (browser_request, channel methods, etc.) can resolve the token
+  // via `resolve_token(None)` without needing an explicit parameter.
+  let gw_token = &tokens.gateway_token;
+  if !gw_token.trim().is_empty() {
+    std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw_token.trim());
+  }
 }
 
 /// Allowlist of environment variable names that extra_provider_keys may set.
@@ -413,10 +421,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // method.  Send a lightweight request to verify it's responsive.
     let browser_ok = if gateway_ok {
       match gateway_client::browser_request(
-        "GET", "/tabs", Some(serde_json::json!({"profile": "default"})), None, None,
+        "GET", "/tabs", Some(serde_json::json!({"profile": "clawd"})), None, None,
       ).await {
         Ok(_) => true,
-        Err(_) => false,
+        Err(e) => {
+          eprintln!("[clawd/service] browser health check failed: {}", e);
+          false
+        }
       }
     } else {
       false
@@ -1476,6 +1487,16 @@ pub async fn set_service_enabled(
             std::env::set_var(env_var, &key);
             env.push((env_var.clone(), key));
           }
+        }
+      }
+
+      // Also set gateway token in the current Tauri process so that
+      // in-process RPC callers (browser_request, etc.) can resolve
+      // the token via env var without needing an explicit parameter.
+      {
+        let gw = tokens.gateway_token.trim();
+        if !gw.is_empty() {
+          std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
         }
       }
 
