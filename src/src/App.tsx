@@ -46,6 +46,7 @@ import { uploadAllData } from './utils/batchData'
 import DataFetcher from './utils/data_fetch'
 import { BaseException } from './utils/exceptions/base'
 import KNAnalytics from './utils/KNAnalytics'
+import { KNLocalStorage, RECONNECT_DISMISSED_AT } from './utils/KNLocalStorage'
 import { isSharingEnabled } from './utils/settings'
 
 export type CreateAutomationProps = {
@@ -202,6 +203,7 @@ function App() {
   const [, setConnectionsDropdownOpened] = useState(false)
   const [isSignInDialogOpened, setIsSignInDialogOpened] = useState(false)
   const reconnectDismissedRef = useRef(false)
+  const reconnectDismissCheckDone = useRef(false)
 
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -220,6 +222,8 @@ function App() {
     if (!show) {
       cleanReconnectKeys()
       reconnectDismissedRef.current = true
+      // Persist dismiss so it survives app restarts (24h cooldown)
+      KNLocalStorage.setItem(RECONNECT_DISMISSED_AT, Date.now())
     }
     setIsSignInDialogOpened(show)
   }, [cleanReconnectKeys])
@@ -446,7 +450,19 @@ function App() {
   }, [auth.profile?.email])
 
   useEffect(() => {
-    if (reconnect && reconnect.length > 0 && auth.profile && !reconnectDismissedRef.current) {
+    if (!reconnect || reconnect.length === 0 || !auth.profile || reconnectDismissedRef.current) return
+
+    // Check persisted dismiss state (24h cooldown)
+    if (!reconnectDismissCheckDone.current) {
+      reconnectDismissCheckDone.current = true
+      KNLocalStorage.getItem(RECONNECT_DISMISSED_AT).then((dismissedAt: number | null) => {
+        if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) {
+          reconnectDismissedRef.current = true
+          return
+        }
+        setIsSignInDialogOpened(true)
+      })
+    } else {
       setIsSignInDialogOpened(true)
     }
   }, [reconnect])
@@ -481,6 +497,8 @@ function App() {
               setIsSignInDialogOpened(false)
               cleanReconnectKeys()
               reconnectDismissedRef.current = false
+              reconnectDismissCheckDone.current = false
+              KNLocalStorage.setItem(RECONNECT_DISMISSED_AT, undefined)
             })
           })
           .catch(error => {
@@ -519,6 +537,8 @@ function App() {
         setIsSignInDialogOpened(false)
         cleanReconnectKeys()
         reconnectDismissedRef.current = false
+        reconnectDismissCheckDone.current = false
+        KNLocalStorage.setItem(RECONNECT_DISMISSED_AT, undefined)
       },
     )
     const unlistenFetchCalendarPromise = listen(

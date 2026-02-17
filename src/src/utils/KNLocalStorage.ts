@@ -2,6 +2,7 @@ export const CONNECTIONS = "KN_CONNECTIONS";
 export const HAS_SHOWN_EA_INFO_MODAL = "EA_INFO_MODAL";
 export const EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS = "EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS";
 export const EMAIL_AUTOPILOT_SCHEDULING_LINKS = "EMAIL_AUTOPILOT_SCHEDULING_LINKS";
+export const RECONNECT_DISMISSED_AT = "KN_RECONNECT_DISMISSED_AT";
 
 import { BaseDirectory, readTextFile, writeTextFile } from '@tauri-apps/api/fs'
 import { join } from '@tauri-apps/api/path'
