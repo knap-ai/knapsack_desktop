@@ -210,21 +210,21 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     min_protocol: PROTOCOL_VERSION,
     max_protocol: PROTOCOL_VERSION,
     client: ClientInfo {
-      id: "knapsack-desktop",
+      id: "gateway-client",
       display_name: "Knapsack Desktop",
       version: env!("CARGO_PKG_VERSION"),
-      platform: "desktop",
-      mode: "app",
+      platform: std::env::consts::OS,
+      mode: "backend",
     },
     auth: Some(AuthInfo {
       token: token.to_string(),
     }),
-    role: "client",
-    scopes: vec!["*"],
+    role: "operator",
+    scopes: vec!["operator.admin"],
   };
 
   let connect_frame = RequestFrame {
-    frame_type: "request",
+    frame_type: "req",
     method: "connect".to_string(),
     id: next_request_id(),
     params: Some(serde_json::to_value(connect_params).unwrap()),
@@ -355,7 +355,7 @@ pub async fn gateway_request_pooled(
 
   let id = next_request_id();
   let frame = RequestFrame {
-    frame_type: "request",
+    frame_type: "req",
     method: method.to_string(),
     id: id.clone(),
     params,
