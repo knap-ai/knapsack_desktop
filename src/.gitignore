@@ -17,8 +17,10 @@ src-tauri/resources/clawdbot/node_modules/@reflink/reflink-linux-*/
 dist
 !src-tauri/resources/clawdbot/dist/
 !src-tauri/resources/clawdbot/node_modules/**/dist/
-src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-ai/dist/
-src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-coding-agent/dist/
+src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-ai/dist/utils/oauth/google-gemini-cli.js.map
+src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-ai/dist/utils/oauth/google-gemini-cli.d.ts.map
+src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-ai/dist/utils/oauth/google-antigravity.js.map
+src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-ai/dist/utils/oauth/google-antigravity.d.ts.map
 src-tauri/resources/clawdbot/node_modules/node-llama-cpp/dist/
 dist-ssr
 *.local
