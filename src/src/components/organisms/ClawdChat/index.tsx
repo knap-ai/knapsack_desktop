@@ -1759,15 +1759,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant
 
-  // Listen for notification insight messages from App.tsx notification handlers
+  // Listen for notification insight messages from App.tsx notification handlers.
+  // Uses pushAssistantRef (not pushAssistant) to avoid re-subscribing on every
+  // render, which causes typing latency in the input box.
   useEffect(() => {
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
-      if (text) pushAssistant(text)
+      if (text) pushAssistantRef.current?.(text)
     }
     window.addEventListener('clawd-push-assistant', handler)
     return () => window.removeEventListener('clawd-push-assistant', handler)
-  }, [pushAssistant])
+  }, [])
 
   const pushUser = (text: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])

@@ -4,6 +4,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
@@ -408,17 +409,14 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       None => false,
     };
 
-    // Browser control runs on a separate HTTP server (port 18791 by default,
-    // gateway port + 2). Check it independently.
+    // Browser control is accessed through the gateway's `browser.request` RPC
+    // method.  Send a lightweight request to verify it's responsive.
     let browser_ok = if gateway_ok {
-      let browser_check = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_millis(800))
-        .build()
-        .ok()
-        .and_then(|c| Some(c.get("http://127.0.0.1:18791/tabs").bearer_auth(tokens.gateway_token.clone()).send()));
-      match browser_check {
-        Some(fut) => fut.await.map(|r| r.status().is_success() || r.status().as_u16() == 404).unwrap_or(false),
-        None => false,
+      match gateway_client::browser_request(
+        "GET", "/tabs", Some(serde_json::json!({"profile": "default"})), None, None,
+      ).await {
+        Ok(_) => true,
+        Err(_) => false,
       }
     } else {
       false

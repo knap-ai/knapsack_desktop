@@ -488,6 +488,31 @@ pub async fn call_channel_method(
   gateway_request_pooled(method, params, &t).await
 }
 
+/// Send a browser control request through the gateway's `browser.request`
+/// RPC method.  The gateway dispatches to its in-process browser control
+/// service (same routes as the legacy HTTP bridge that used to run on
+/// port 18791).
+pub async fn browser_request(
+  http_method: &str,
+  path: &str,
+  query: Option<Value>,
+  body: Option<Value>,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  let mut params = serde_json::json!({
+    "method": http_method,
+    "path": path,
+  });
+  if let Some(q) = query {
+    params["query"] = q;
+  }
+  if let Some(b) = body {
+    params["body"] = b;
+  }
+  gateway_request_pooled("browser.request", Some(params), &t).await
+}
+
 /// Get current config from gateway (pooled).
 pub async fn config_get(token: Option<&str>) -> Result<Value, String> {
   let t = resolve_token(token)?;
