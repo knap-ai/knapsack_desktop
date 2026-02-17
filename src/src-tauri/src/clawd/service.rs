@@ -1303,6 +1303,9 @@ pub async fn set_service_enabled(
           "gateway": {
             "mode": "local"
           },
+          "browser": {
+            "enabled": true
+          },
           "plugins": {
             "slots": {
               "memory": "none"
@@ -1314,18 +1317,20 @@ pub async fn set_service_enabled(
           Err(e) => eprintln!("[clawd/service] WARNING: Failed to create config at {}: {}", config_path.display(), e),
         }
       } else {
-        // Ensure plugins.slots.memory is set to "none" in existing configs.
-        // Clawdbot's config normalizer defaults an absent memory slot to "memory-core",
-        // which triggers a validation error because the config validator runs before
-        // plugin discovery picks up the bundled extensions directory.
+        // Patch existing configs to ensure required fields are present.
         if let Ok(existing) = fs::read_to_string(&config_path) {
           if let Ok(mut cfg) = serde_json::from_str::<serde_json::Value>(&existing) {
+            let mut patched = false;
+
+            // Ensure plugins.slots.memory is set to "none".
+            // Clawdbot's config normalizer defaults an absent memory slot to "memory-core",
+            // which triggers a validation error because the config validator runs before
+            // plugin discovery picks up the bundled extensions directory.
             let current_memory = cfg
               .pointer("/plugins/slots/memory")
               .and_then(|v| v.as_str())
               .unwrap_or("");
             if current_memory != "none" {
-              // Ensure plugins.slots path exists
               if cfg.get("plugins").is_none() {
                 cfg.as_object_mut().unwrap().insert("plugins".to_string(), serde_json::json!({}));
               }
@@ -1335,8 +1340,29 @@ pub async fn set_service_enabled(
               }
               cfg.pointer_mut("/plugins/slots").unwrap().as_object_mut().unwrap()
                 .insert("memory".to_string(), serde_json::json!("none"));
+              eprintln!("[clawd/service] Patched plugins.slots.memory to \"none\"");
+              patched = true;
+            }
+
+            // Ensure browser.enabled is true so the browser control HTTP server
+            // starts on port 18791 (gateway port + 2).
+            let browser_enabled = cfg
+              .pointer("/browser/enabled")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !browser_enabled {
+              if cfg.get("browser").is_none() {
+                cfg.as_object_mut().unwrap().insert("browser".to_string(), serde_json::json!({}));
+              }
+              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                .insert("enabled".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched browser.enabled to true");
+              patched = true;
+            }
+
+            if patched {
               match fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
-                Ok(_) => eprintln!("[clawd/service] Set plugins.slots.memory to \"none\" in config (disables default memory-core)"),
+                Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
                 Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
               }
             }
