@@ -82,7 +82,7 @@ fn resolve_default_model() -> &'static str {
         .map(|k| !k.trim().is_empty())
         .unwrap_or(false)
     {
-        return "anthropic/claude-sonnet-4-5";
+        return "anthropic/claude-opus-4-6";
     }
     if std::env::var("OPENAI_API_KEY")
         .map(|k| !k.trim().is_empty())
@@ -102,8 +102,8 @@ fn resolve_default_model() -> &'static str {
     {
         return "google/gemini-2.0-flash";
     }
-    // Fallback — Anthropic is the most likely provider for Knapsack users
-    "anthropic/claude-sonnet-4-5"
+    // Fallback — matches the gateway's compiled default
+    "anthropic/claude-opus-4-6"
 }
 
 /// Build a config.patch JSON string for enabling a channel.
