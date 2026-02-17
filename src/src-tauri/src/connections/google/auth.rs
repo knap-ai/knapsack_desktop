@@ -164,15 +164,38 @@ async fn refresh_token_via_backend(email: String, refresh_token: String) -> Resu
           .map_err(|e| FetchUuidError::NetworkError(format!("Invalid header value: {}", e)))?
   );
 
-  let response = client
-    .post(format!(
-      "{api_server}/api/authentication/google/refresh-token/?refresh_token={refresh_token}"
-    ))
-    .headers(headers)
-    .send()
-    .await?
-    .json::<GoogleRefreshTokenResponse>()
-    .await?;
+  let retry_strategy = ExponentialBackoff::from_millis(1000)
+    .max_delay(Duration::from_secs(4))
+    .map(jitter)
+    .take(3);
+
+  let response = Retry::spawn(retry_strategy, || {
+    let client = client.clone();
+    let headers = headers.clone();
+    let refresh_token = refresh_token.clone();
+    async move {
+      let resp = client
+        .post(format!(
+          "{api_server}/api/authentication/google/refresh-token/?refresh_token={refresh_token}"
+        ))
+        .headers(headers)
+        .send()
+        .await
+        .map_err(|e| Error::KSError(format!("Network error: {}", e)))?;
+
+      if resp.status().is_server_error() {
+        log::warn!("Server error refreshing Google token ({}), retrying...", resp.status());
+        return Err(Error::KSError(format!("Server error: {}", resp.status())));
+      }
+
+      resp
+        .json::<GoogleRefreshTokenResponse>()
+        .await
+        .map_err(|e| Error::KSError(format!("Failed to parse refresh response: {}", e)))
+    }
+  })
+  .await?;
+
   Ok(response.access_token)
 }
 

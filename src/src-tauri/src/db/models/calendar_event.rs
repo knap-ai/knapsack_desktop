@@ -293,6 +293,10 @@ impl CalendarEvent {
   }
 
   pub fn delete_calendar_events_removed(calendar_events: Vec<String>) -> Result<(), Error> {
+    if calendar_events.is_empty() {
+      return Ok(());
+    }
+
     let connection = get_db_conn();
 
     let id_list = calendar_events
@@ -301,65 +305,16 @@ impl CalendarEvent {
       .collect::<Vec<String>>()
       .join(",");
     let query = format!(
-      "SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id
-         FROM calendar_events
-         WHERE event_id NOT IN ({})",
+      "DELETE FROM calendar_events WHERE event_id NOT IN ({})",
       id_list
     );
-    let mut stmt = connection
-      .prepare(&query)
-      .expect("could not prepare query for filtered calendar events");
+    connection
+      .execute(&query, [])
+      .map_err(|e| {
+        log::error!("Failed to batch delete removed calendar events: {:?}", e);
+        Error::KSError(format!("Failed to delete removed calendar events: {:?}", e))
+      })?;
 
-    let rows = stmt
-      .query_map([], |row| {
-        Ok((
-          row.get::<_, u64>(0),
-          row.get::<_, String>(1),
-          row.get::<_, Option<String>>(2),
-          row.get::<_, Option<String>>(3),
-          row.get::<_, Option<String>>(4),
-          row.get::<_, Option<String>>(5),
-          row.get::<_, Option<String>>(6),
-          row.get::<_, Option<i64>>(7),
-          row.get::<_, Option<i64>>(8),
-          row.get::<_, Option<String>>(9),
-          row.get::<_, Option<String>>(10),
-          row.get::<_, Option<String>>(11),
-        ))
-      })
-      .expect("could not execute query");
-
-    for row in rows {
-      let (
-        id,
-        event_id,
-        title,
-        description,
-        creator_email,
-        attendees_json,
-        location,
-        start,
-        end,
-        google_meet_url,
-        recurrence_json,
-        recurrence_id,
-      ) = row.unwrap();
-      let event = CalendarEvent {
-        id: Some(id.unwrap()),
-        event_id: event_id.unwrap(),
-        title: title.unwrap(),
-        description: description.unwrap(),
-        creator_email: creator_email.unwrap(),
-        attendees_json: attendees_json.unwrap(),
-        location: location.unwrap(),
-        start: start.unwrap(),
-        end: end.unwrap(),
-        google_meet_url: google_meet_url.unwrap(),
-        recurrence_json: recurrence_json.unwrap(),
-        recurrence_id: recurrence_id.unwrap(),
-      };
-      event.delete()?;
-    }
     Ok(())
   }
 
