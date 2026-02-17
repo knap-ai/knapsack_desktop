@@ -1173,12 +1173,22 @@ function App() {
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      await createInsightFeedItemRef.current()
+      const feedItemId = await createInsightFeedItemRef.current()
+      if (feedItemId) {
+        await feedRef.current.refreshFeedItems()
+        const dateKey = feedRef.current.getTodayKey()
+        await feedRef.current.selectFeedItem(dateKey, feedItemId)
+      }
     },
     post_meeting_followup_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      await createFollowupFeedItemRef.current()
+      const feedItemId = await createFollowupFeedItemRef.current()
+      if (feedItemId) {
+        await feedRef.current.refreshFeedItems()
+        const dateKey = feedRef.current.getTodayKey()
+        await feedRef.current.selectFeedItem(dateKey, feedItemId)
+      }
     },
     dismiss_notification_handler: async (_meetingId: string | null) => {
       await invoke('close_notification_window')
