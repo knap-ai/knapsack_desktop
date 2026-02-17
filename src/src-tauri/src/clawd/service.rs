@@ -408,10 +408,21 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       None => false,
     };
 
-    // Browser control is integrated into the gateway in OpenClaw 2026.2+
-    // (no separate HTTP server on port 18791). If the gateway is healthy,
-    // browser control is available through the gateway's RPC interface.
-    let browser_ok = gateway_ok;
+    // Browser control runs on a separate HTTP server (port 18791 by default,
+    // gateway port + 2). Check it independently.
+    let browser_ok = if gateway_ok {
+      let browser_check = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(800))
+        .build()
+        .ok()
+        .and_then(|c| Some(c.get("http://127.0.0.1:18791/tabs").bearer_auth(tokens.gateway_token.clone()).send()));
+      match browser_check {
+        Some(fut) => fut.await.map(|r| r.status().is_success() || r.status().as_u16() == 404).unwrap_or(false),
+        None => false,
+      }
+    } else {
+      false
+    };
 
     // When gateway is down, include the last few lines from stderr so the
     // user/UI can see why the process is failing without opening Terminal.
@@ -1486,7 +1497,7 @@ pub async fn set_service_enabled(
       // Best-effort: auto-configure browser control URL for Knapsack (in-memory)
       {
         let mut cfg_guard = cfg.write().await;
-        cfg_guard.base_url = Some("http://127.0.0.1:18789".to_string());
+        cfg_guard.base_url = Some("http://127.0.0.1:18791".to_string());
       }
 
       // Log version and OS info for diagnostics

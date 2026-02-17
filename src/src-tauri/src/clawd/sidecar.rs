@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 /// add "managed sidecar" startup (bundled binary) once the launch contract is finalized.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ClawdbotConfig {
-  /// Example: http://127.0.0.1:18789
+  /// Example: http://127.0.0.1:18791
   pub base_url: Option<String>,
 }
 

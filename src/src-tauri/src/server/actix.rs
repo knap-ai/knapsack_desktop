@@ -82,7 +82,7 @@ pub async fn start_server<'a>(
       base_url: std::env::var("CLAWDBOT_BASE_URL")
         .ok()
         .map(|s| s.trim_end_matches('/').to_string())
-        .or_else(|| Some("http://127.0.0.1:18789".to_string())),
+        .or_else(|| Some("http://127.0.0.1:18791".to_string())),
     }));
 
   println!("actix.rs: start_server: Starting server on port: {}", port);

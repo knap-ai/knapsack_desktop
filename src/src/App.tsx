@@ -1180,16 +1180,16 @@ function App() {
       // Trigger LLM briefing generation; result includes fullAnalysis text
       const { fullAnalysis } = await triggerBriefingFeedItemRef.current()
       if (fullAnalysis) {
-        setChatStream(fullAnalysis, false)
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: fullAnalysis }))
       }
     },
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      // Show the pending insight directly in the chat window
+      // Show the pending insight directly in the ClawdChat window
       const text = getPendingInsightTextRef.current()
       if (text) {
-        setChatStream(text, false)
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: text }))
       }
       // Also persist as a feed item in the background
       createInsightFeedItemRef.current()
@@ -1197,10 +1197,10 @@ function App() {
     post_meeting_followup_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      // Show the pending follow-up directly in the chat window
+      // Show the pending follow-up directly in the ClawdChat window
       const text = getPendingFollowupTextRef.current()
       if (text) {
-        setChatStream(text, false)
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: text }))
       }
       // Also persist as a feed item in the background
       createFollowupFeedItemRef.current()
