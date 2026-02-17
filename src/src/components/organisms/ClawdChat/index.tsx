@@ -2879,7 +2879,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               <div className="ClawdChannelCardInfo">
                 <div className="ClawdChannelCardName">WhatsApp</div>
                 {channelStatus.whatsapp?.linked ? (
-                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected — your assistant can send and receive WhatsApp messages.</div>
+                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                ) : channelStatus.whatsapp?.enabled ? (
+                  <div className="ClawdChannelCardStatus">Enabled — scan QR code to link</div>
                 ) : (
                   <div className="ClawdChannelCardStatus">Not connected</div>
                 )}
@@ -2906,7 +2908,28 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 {channelBusy === 'whatsapp' ? 'Working...' : channelStatus.whatsapp?.linked ? 'Disconnect' : 'Connect'}
               </button>
             </div>
-            {!channelStatus.whatsapp?.linked && (
+            {channelStatus.whatsapp?.linked ? (
+              <div className="ClawdChannelGuide">
+                <div className="ClawdChannelGuideTitle">How to use WhatsApp</div>
+                <ol className="ClawdChannelGuideSteps">
+                  <li>
+                    <span className="ClawdChannelGuideNum">1</span>
+                    <span>Open <strong>WhatsApp</strong> on your phone and send a message to your own number (or have someone message you).</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">2</span>
+                    <span>Your Knapsack AI assistant will automatically read incoming messages and reply on your behalf.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">3</span>
+                    <span>You can also ask your assistant in this chat: <em>"Send a WhatsApp message to [name/number]"</em>.</span>
+                  </li>
+                </ol>
+                <div className="ClawdChannelGuideNote">
+                  Messages are processed locally. Your assistant uses the linked WhatsApp session — just like WhatsApp Web.
+                </div>
+              </div>
+            ) : (
               <div className="ClawdChannelGuide">
                 {channelStatus.whatsappQrUrl && (
                   <div style={{ textAlign: 'center', margin: '12px 0' }}>
@@ -2921,11 +2944,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   </li>
                   <li>
                     <span className="ClawdChannelGuideNum">2</span>
-                    <span>A QR code will appear above. On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
+                    <span>{channelStatus.whatsappQrUrl ? 'Scan the QR code above.' : 'A QR code will appear above.'} On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
                   </li>
                   <li>
                     <span className="ClawdChannelGuideNum">3</span>
-                    <span>Scan the QR code. Once linked, this panel will update automatically.</span>
+                    <span>Scan the QR code with your phone camera. Once linked, this panel will update automatically.</span>
                   </li>
                 </ol>
                 <div className="ClawdChannelGuideNote">
@@ -2943,7 +2966,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               <div className="ClawdChannelCardInfo">
                 <div className="ClawdChannelCardName">iMessage</div>
                 {channelStatus.imessage?.configured ? (
-                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected — your assistant can send and receive iMessages.</div>
+                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                ) : channelStatus.imessage?.enabled ? (
+                  <div className="ClawdChannelCardStatus">Enabled — needs Full Disk Access</div>
                 ) : (
                   <div className="ClawdChannelCardStatus">Not connected (macOS only)</div>
                 )}
@@ -2970,7 +2995,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 {channelBusy === 'imessage' ? 'Working...' : channelStatus.imessage?.configured ? 'Disconnect' : 'Connect'}
               </button>
             </div>
-            {!channelStatus.imessage?.configured && (
+            {channelStatus.imessage?.configured ? (
+              <div className="ClawdChannelGuide">
+                <div className="ClawdChannelGuideTitle">How to use iMessage</div>
+                <ol className="ClawdChannelGuideSteps">
+                  <li>
+                    <span className="ClawdChannelGuideNum">1</span>
+                    <span>Send an iMessage to this Mac from any Apple device. Your assistant will see incoming messages and reply automatically.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">2</span>
+                    <span>You can also ask your assistant in this chat: <em>"Send an iMessage to [name/number]"</em>.</span>
+                  </li>
+                </ol>
+                <div className="ClawdChannelGuideNote">
+                  iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
+                </div>
+              </div>
+            ) : (
               <div className="ClawdChannelGuide">
                 <div className="ClawdChannelGuideTitle">How to connect iMessage</div>
                 <ol className="ClawdChannelGuideSteps">

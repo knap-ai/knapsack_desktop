@@ -55,23 +55,32 @@ fn extract_base_hash(snapshot: &serde_json::Value) -> String {
     String::new()
 }
 
-/// Helper to parse channel summary from gateway status response
+/// Helper to parse channel summary from gateway status response.
+///
 /// The gateway returns channelSummary as an array of strings like:
-/// ["WhatsApp: linked +1234567890", "iMessage: not configured", ...]
+///   "WhatsApp: linked +1234567890 auth 2h ago"
+///   "WhatsApp: not linked"
+///   "iMessage: configured"
+///   "iMessage: not configured"
+///   "WhatsApp: disabled"
+///
+/// The status keyword is always immediately after ": ".  We use
+/// `starts_with` on the status portion so "not linked" is never
+/// confused with "linked".
 fn parse_channel_from_summary(status: &serde_json::Value, channel_name: &str) -> (bool, bool, bool) {
     let channel_summary = status
         .get("channelSummary")
         .and_then(|cs| cs.as_array());
 
     if let Some(lines) = channel_summary {
+        let prefix = format!("{}: ", channel_name.to_lowercase());
         for line in lines {
             if let Some(text) = line.as_str() {
                 let lower = text.to_lowercase();
-                if lower.starts_with(&channel_name.to_lowercase()) {
-                    // Parse status from line like "WhatsApp: linked" or "iMessage: not configured"
-                    let enabled = !lower.contains("disabled");
-                    let linked = lower.contains("linked");
-                    let configured = lower.contains("configured") && !lower.contains("not configured");
+                if let Some(status_part) = lower.strip_prefix(&prefix) {
+                    let enabled = !status_part.starts_with("disabled");
+                    let linked = status_part.starts_with("linked");
+                    let configured = status_part.starts_with("configured");
                     return (enabled, linked, configured);
                 }
             }
