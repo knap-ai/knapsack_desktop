@@ -159,34 +159,46 @@ pub async fn whatsapp_enable(
     }
 }
 
+/// Response for WhatsApp login (includes QR data URL)
+#[derive(Serialize)]
+struct WhatsAppLoginResponse {
+    success: bool,
+    message: Option<String>,
+    #[serde(rename = "qrDataUrl", skip_serializing_if = "Option::is_none")]
+    qr_data_url: Option<String>,
+}
+
 /// Start WhatsApp login flow
 #[post("/api/clawd/channels/whatsapp/login")]
 pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    // Trigger WhatsApp Web login via gateway
-    // The channel is "whatsapp" per the clawdbot channel naming
+    // The gateway uses the generic "web.login.start" method which routes
+    // to the WhatsApp channel plugin's loginWithQrStart handler.
     let params = serde_json::json!({
-        "channelId": "whatsapp"
+        "force": true
     });
 
-    match gateway_client::call_channel_method("channel.whatsapp.startLogin", Some(params), None).await {
+    match gateway_client::call_channel_method("web.login.start", Some(params), None).await {
         Ok(result) => {
-            let success = result
-                .get("success")
-                .and_then(|s| s.as_bool())
-                .unwrap_or(true); // Assume success if not explicitly false
+            let qr_data_url = result
+                .get("qrDataUrl")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let message = result
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("WhatsApp login started. Scan the QR code.")
+                .to_string();
 
-            HttpResponse::Ok().json(GenericResponse {
-                success,
-                message: Some("WhatsApp login started. Check for QR code.".to_string()),
-                configured: None,
-                linked: Some(success),
+            HttpResponse::Ok().json(WhatsAppLoginResponse {
+                success: true,
+                message: Some(message),
+                qr_data_url,
             })
         }
-        Err(e) => HttpResponse::Ok().json(GenericResponse {
+        Err(e) => HttpResponse::Ok().json(WhatsAppLoginResponse {
             success: false,
             message: Some(format!("Login failed: {}", e)),
-            configured: None,
-            linked: None,
+            qr_data_url: None,
         }),
     }
 }

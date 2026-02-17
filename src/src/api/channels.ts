@@ -18,6 +18,12 @@ interface GenericResponse {
   linked?: boolean
 }
 
+export interface WhatsAppLoginResponse {
+  success: boolean
+  message?: string
+  qrDataUrl?: string
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`)
   if (!res.ok) {
@@ -49,7 +55,7 @@ export const enableWhatsApp = (enabled: boolean) =>
   post<GenericResponse>('/api/clawd/channels/whatsapp/enable', { enabled })
 
 export const startWhatsAppLogin = () =>
-  post<GenericResponse>('/api/clawd/channels/whatsapp/login')
+  post<WhatsAppLoginResponse>('/api/clawd/channels/whatsapp/login')
 
 // ── iMessage ─────────────────────────────────────────────────
 

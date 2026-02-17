@@ -2908,6 +2908,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             </div>
             {!channelStatus.whatsapp?.linked && (
               <div className="ClawdChannelGuide">
+                {channelStatus.whatsappQrUrl && (
+                  <div style={{ textAlign: 'center', margin: '12px 0' }}>
+                    <img src={channelStatus.whatsappQrUrl} alt="WhatsApp QR Code" style={{ width: 200, height: 200, imageRendering: 'pixelated', borderRadius: 8 }} />
+                  </div>
+                )}
                 <div className="ClawdChannelGuideTitle">How to connect WhatsApp</div>
                 <ol className="ClawdChannelGuideSteps">
                   <li>
@@ -2916,14 +2921,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   </li>
                   <li>
                     <span className="ClawdChannelGuideNum">2</span>
-                    <span>A QR code will appear in a <strong>separate window</strong>. If you don't see it, check the Clawdbot gateway logs at <code>/tmp/knapsack-clawdbot.out.log</code>.</span>
+                    <span>A QR code will appear above. On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
                   </li>
                   <li>
                     <span className="ClawdChannelGuideNum">3</span>
-                    <span>On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">4</span>
                     <span>Scan the QR code. Once linked, this panel will update automatically.</span>
                   </li>
                 </ol>

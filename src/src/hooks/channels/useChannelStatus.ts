@@ -15,6 +15,8 @@ export interface ChannelStates {
   imessage: ChannelStatus | null
   loading: boolean
   error: string | null
+  /** Base64 data URL for the WhatsApp QR code, if login is in progress. */
+  whatsappQrUrl: string | null
 }
 
 /**
@@ -28,6 +30,7 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   const [imessage, setImessage] = useState<ChannelStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [whatsappQrUrl, setWhatsappQrUrl] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -62,10 +65,14 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   }, [refresh])
 
   const connectWhatsApp = useCallback(async () => {
+    setWhatsappQrUrl(null)
     const enableRes = await enableWhatsApp(true)
     if (!enableRes.success) throw new Error(enableRes.message ?? 'Failed to enable WhatsApp')
     const loginRes = await startWhatsAppLogin()
     if (!loginRes.success) throw new Error(loginRes.message ?? 'Failed to start WhatsApp login')
+    if (loginRes.qrDataUrl) {
+      setWhatsappQrUrl(loginRes.qrDataUrl)
+    }
     await refresh()
   }, [refresh])
 
@@ -90,6 +97,7 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     imessage,
     loading,
     error,
+    whatsappQrUrl,
     refresh,
     toggleWhatsApp,
     connectWhatsApp,
