@@ -10,8 +10,10 @@ lerna-debug.log*
 node_modules
 !src-tauri/resources/clawdbot/node_modules/
 src-tauri/resources/clawdbot/node_modules/@node-llama-cpp/
+src-tauri/resources/clawdbot/node_modules/@mariozechner/*/dist/
 dist
 !src-tauri/resources/clawdbot/dist/
+!src-tauri/resources/clawdbot/node_modules/**/dist/
 dist-ssr
 *.local
 config
