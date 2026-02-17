@@ -56,6 +56,77 @@ fn extract_base_hash(snapshot: &serde_json::Value) -> String {
     String::new()
 }
 
+/// Check whether `agents.defaults.model` is already set in the config snapshot.
+fn has_default_model(snapshot: &serde_json::Value) -> bool {
+    let config = snapshot.get("config").unwrap_or(snapshot);
+    let model = config.pointer("/agents/defaults/model");
+    match model {
+        Some(serde_json::Value::String(s)) => !s.trim().is_empty(),
+        Some(serde_json::Value::Object(o)) => {
+            // Object form: { "primary": "anthropic/…", "fallbacks": [...] }
+            o.get("primary")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
+/// Pick the best default model based on which LLM API key is available.
+///
+/// The gateway inherits env vars from the desktop app (service.rs propagates
+/// ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, GEMINI_API_KEY).
+fn resolve_default_model() -> &'static str {
+    if std::env::var("ANTHROPIC_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return "anthropic/claude-sonnet-4-5";
+    }
+    if std::env::var("OPENAI_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return "openai/gpt-4o";
+    }
+    if std::env::var("GROQ_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return "groq/llama-3.3-70b-versatile";
+    }
+    if std::env::var("GEMINI_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return "google/gemini-2.0-flash";
+    }
+    // Fallback — Anthropic is the most likely provider for Knapsack users
+    "anthropic/claude-sonnet-4-5"
+}
+
+/// Build a config.patch JSON string for enabling a channel.
+///
+/// If `agents.defaults.model` is not already set, the patch includes it so
+/// that the auto-reply agent can actually generate responses.
+fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> String {
+    if has_default_model(snapshot) {
+        return channel_patch.to_string();
+    }
+    // Merge channel config with agents.defaults.model
+    let model = resolve_default_model();
+    let mut patch: serde_json::Value = serde_json::from_str(channel_patch).unwrap();
+    patch
+        .as_object_mut()
+        .unwrap()
+        .insert(
+            "agents".to_string(),
+            serde_json::json!({"defaults": {"model": model}}),
+        );
+    serde_json::to_string(&patch).unwrap()
+}
+
 /// Helper to parse channel summary from gateway status response.
 ///
 /// The gateway returns channelSummary as an array of strings like:
@@ -135,14 +206,17 @@ pub async fn whatsapp_enable(
             // WhatsApp channel config:
             // - allowFrom ["*"] = accept messages from anyone
             // - dmPolicy "open" = auto-reply to all inbound DMs
-            // - groupPolicy "allowlist" = only join groups explicitly added
+            // Also ensures agents.defaults.model is set so auto-reply actually works.
             let patch = if body.enabled {
-                r#"{"channels": {"whatsapp": {"allowFrom": ["*"], "dmPolicy": "open"}}}"#
+                build_enable_patch(
+                    r#"{"channels": {"whatsapp": {"allowFrom": ["*"], "dmPolicy": "open"}}}"#,
+                    &config_snapshot,
+                )
             } else {
-                r#"{"channels": {"whatsapp": null}}"#
+                r#"{"channels": {"whatsapp": null}}"#.to_string()
             };
 
-            match gateway_client::config_patch(patch, &base_hash, None).await {
+            match gateway_client::config_patch(&patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
@@ -292,13 +366,17 @@ pub async fn imessage_enable(
             // - allowFrom ["*"] = accept messages from anyone
             // - dmPolicy "open" = auto-reply to all inbound DMs
             // - service "auto" = detect iMessage vs SMS automatically
+            // Also ensures agents.defaults.model is set so auto-reply actually works.
             let patch = if body.enabled {
-                r#"{"channels": {"imessage": {"allowFrom": ["*"], "dmPolicy": "open", "service": "auto"}}}"#
+                build_enable_patch(
+                    r#"{"channels": {"imessage": {"allowFrom": ["*"], "dmPolicy": "open", "service": "auto"}}}"#,
+                    &config_snapshot,
+                )
             } else {
-                r#"{"channels": {"imessage": null}}"#
+                r#"{"channels": {"imessage": null}}"#.to_string()
             };
 
-            match gateway_client::config_patch(patch, &base_hash, None).await {
+            match gateway_client::config_patch(&patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
