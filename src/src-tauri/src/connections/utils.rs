@@ -179,7 +179,7 @@ pub fn create_knapsack_api_connection(user_email: String, refresh_internal: &str
     Ok(())
   }
 
-  pub fn get_knapsack_api_connection(user_email: String) -> Result<UserConnection, Box<dyn std::error::Error>> {
+  pub fn get_knapsack_api_connection(user_email: String) -> Result<UserConnection, Box<dyn std::error::Error + Send + Sync>> {
     let user_connection = match UserConnection::find_by_user_email_and_scope(user_email, KNAPSACK_ACCESS_KEY.to_string()) {
       Ok(uc) => uc,
       Err(error) => {
