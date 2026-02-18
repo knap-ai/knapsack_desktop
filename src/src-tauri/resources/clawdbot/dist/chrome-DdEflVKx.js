@@ -1611,7 +1611,7 @@ async function launchOpenClawChrome(resolved, profile) {
 			"--disable-sync",
 			"--disable-background-networking",
 			"--disable-component-update",
-			"--disable-features=Translate,MediaRouter",
+			"--disable-features=Translate,MediaRouter,AutomationControlled",
 			"--disable-session-crashed-bubble",
 			"--hide-crash-restore-bubble",
 			"--password-store=basic"
@@ -1625,7 +1625,6 @@ async function launchOpenClawChrome(resolved, profile) {
 			args.push("--disable-setuid-sandbox");
 		}
 		if (process.platform === "linux") args.push("--disable-dev-shm-usage");
-		args.push("--disable-blink-features=AutomationControlled");
 		args.push("--disable-infobars");
 		args.push("about:blank");
 		return spawn(exe.path, args, {
