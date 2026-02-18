@@ -83,10 +83,6 @@ function NotificationWindow() {
     resizeWindow()
   }, [title, time, buttonConfigs, isDropdownOpen])
 
-  const closeNotification = async () => {
-    await invoke('close_notification_window')
-  }
-
   const handleJoinMeeting = async (meetingId: string | null, buttonHandler: string) => {
     if (isProcessing.current) return
 
