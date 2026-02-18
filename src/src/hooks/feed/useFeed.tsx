@@ -358,7 +358,7 @@ export function useFeed(
   useEffect(() => {
     const intervalId = setInterval(() => {
       processQueueItems(userEmail, userName)
-    }, 200)
+    }, 1000)
 
     return () => clearInterval(intervalId)
   }, [processQueueItems])

@@ -171,11 +171,19 @@ function friendlyError(raw: string): string {
     .replace(/^Gemini error:?\s*/i, '')
     .replace(/^Gemini error after \d+ retries:?\s*/i, '')
     .replace(/^Gemini HTTP \d+[^:]*:?\s*/i, '')
-  // If still very long or contains raw JSON, truncate
-  if (cleaned.length > 200 || cleaned.includes('{')) {
-    return '⚠️ Something went wrong with the AI request. Please try again or check your API key in Settings.'
+  // After prefix stripping, the remainder may be parseable JSON from the provider
+  if (cleaned.includes('{')) {
+    try {
+      const parsed = JSON.parse(cleaned)
+      const msg = parsed?.error?.message || parsed?.message || parsed?.error
+      if (msg && typeof msg === 'string') return `⚠️ ${msg}`
+    } catch { /* not valid JSON, fall through */ }
   }
-  return cleaned
+  // If still very long, truncate rather than hiding the error entirely
+  if (cleaned.length > 200) {
+    return `⚠️ ${cleaned.slice(0, 180)}…`
+  }
+  return `⚠️ ${cleaned}`
 }
 
 type Role = 'system' | 'user' | 'assistant'
