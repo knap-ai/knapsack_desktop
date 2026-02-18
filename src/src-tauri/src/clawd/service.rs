@@ -4,6 +4,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
@@ -217,6 +218,14 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
       }
     }
   }
+
+  // Propagate gateway token so that in-process gateway RPC callers
+  // (browser_request, channel methods, etc.) can resolve the token
+  // via `resolve_token(None)` without needing an explicit parameter.
+  let gw_token = &tokens.gateway_token;
+  if !gw_token.trim().is_empty() {
+    std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw_token.trim());
+  }
 }
 
 /// Allowlist of environment variable names that extra_provider_keys may set.
@@ -389,26 +398,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       }
     };
 
-    // 1) Browser control server health is a simple HTTP GET.
-    let browser_ok = reqwest::Client::builder()
-      .timeout(std::time::Duration::from_millis(800))
-      .build()
-      .ok()
-      .and_then(|c| {
-        let fut = c
-          .get("http://127.0.0.1:18791/")
-          .bearer_auth(tokens.gateway_token.clone())
-          .send();
-        Some(fut)
-      });
-
-    let browser_ok = match browser_ok {
-      Some(fut) => fut.await.map(|r| r.status().is_success()).unwrap_or(false),
-      None => false,
-    };
-
-    // 2) Gateway health: try a simple HTTP request to the gateway's HTTP endpoint
-    // The gateway also listens on HTTP for health checks
+    // Gateway health: try a simple HTTP request to the gateway's HTTP endpoint.
+    // The gateway also listens on HTTP for health checks.
     let gateway_ok = reqwest::Client::builder()
       .timeout(std::time::Duration::from_millis(800))
       .build()
@@ -426,19 +417,52 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       None => false,
     };
 
+    // Browser control is accessed through the gateway's `browser.request` RPC
+    // method.  Send a lightweight request to verify it's responsive.
+    let browser_ok = if gateway_ok {
+      match gateway_client::browser_request(
+        "GET", "/tabs", Some(serde_json::json!({"profile": "openclaw"})), None, None,
+      ).await {
+        Ok(_) => true,
+        Err(e) => {
+          eprintln!("[clawd/service] browser health check failed: {}", e);
+          false
+        }
+      }
+    } else {
+      false
+    };
+
+    // When gateway is down, include the last few lines from stderr so the
+    // user/UI can see why the process is failing without opening Terminal.
+    let mut message = if gateway_ok && browser_ok {
+      "Clawdbot gateway + browser are healthy".to_string()
+    } else if gateway_ok {
+      "Clawdbot gateway OK; browser control not reachable".to_string()
+    } else if browser_ok {
+      "Browser control OK; gateway not reachable".to_string()
+    } else {
+      "Clawdbot not reachable".to_string()
+    };
+
+    if !gateway_ok {
+      let err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+      if let Ok(content) = std::fs::read_to_string(&err_path) {
+        let tail: Vec<&str> = content.lines().rev().take(8).collect();
+        if !tail.is_empty() {
+          let mut tail_lines: Vec<&str> = tail.into_iter().collect();
+          tail_lines.reverse();
+          message.push_str("\n--- last stderr ---\n");
+          message.push_str(&tail_lines.join("\n"));
+        }
+      }
+    }
+
     HttpResponse::Ok().json(ServiceHealthResponse {
       success: true,
       gateway_ok,
       browser_ok,
-      message: if gateway_ok && browser_ok {
-        "Clawdbot gateway + browser are healthy".to_string()
-      } else if gateway_ok {
-        "Clawdbot gateway OK; browser control not reachable".to_string()
-      } else if browser_ok {
-        "Browser control OK; gateway not reachable".to_string()
-      } else {
-        "Clawdbot not reachable".to_string()
-      },
+      message,
     })
   }
 }
@@ -1288,6 +1312,9 @@ pub async fn set_service_enabled(
           "gateway": {
             "mode": "local"
           },
+          "browser": {
+            "enabled": true
+          },
           "plugins": {
             "slots": {
               "memory": "none"
@@ -1299,18 +1326,20 @@ pub async fn set_service_enabled(
           Err(e) => eprintln!("[clawd/service] WARNING: Failed to create config at {}: {}", config_path.display(), e),
         }
       } else {
-        // Ensure plugins.slots.memory is set to "none" in existing configs.
-        // Clawdbot's config normalizer defaults an absent memory slot to "memory-core",
-        // which triggers a validation error because the config validator runs before
-        // plugin discovery picks up the bundled extensions directory.
+        // Patch existing configs to ensure required fields are present.
         if let Ok(existing) = fs::read_to_string(&config_path) {
           if let Ok(mut cfg) = serde_json::from_str::<serde_json::Value>(&existing) {
+            let mut patched = false;
+
+            // Ensure plugins.slots.memory is set to "none".
+            // Clawdbot's config normalizer defaults an absent memory slot to "memory-core",
+            // which triggers a validation error because the config validator runs before
+            // plugin discovery picks up the bundled extensions directory.
             let current_memory = cfg
               .pointer("/plugins/slots/memory")
               .and_then(|v| v.as_str())
               .unwrap_or("");
             if current_memory != "none" {
-              // Ensure plugins.slots path exists
               if cfg.get("plugins").is_none() {
                 cfg.as_object_mut().unwrap().insert("plugins".to_string(), serde_json::json!({}));
               }
@@ -1320,8 +1349,29 @@ pub async fn set_service_enabled(
               }
               cfg.pointer_mut("/plugins/slots").unwrap().as_object_mut().unwrap()
                 .insert("memory".to_string(), serde_json::json!("none"));
+              eprintln!("[clawd/service] Patched plugins.slots.memory to \"none\"");
+              patched = true;
+            }
+
+            // Ensure browser.enabled is true so the browser control HTTP server
+            // starts on port 18791 (gateway port + 2).
+            let browser_enabled = cfg
+              .pointer("/browser/enabled")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !browser_enabled {
+              if cfg.get("browser").is_none() {
+                cfg.as_object_mut().unwrap().insert("browser".to_string(), serde_json::json!({}));
+              }
+              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                .insert("enabled".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched browser.enabled to true");
+              patched = true;
+            }
+
+            if patched {
               match fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
-                Ok(_) => eprintln!("[clawd/service] Set plugins.slots.memory to \"none\" in config (disables default memory-core)"),
+                Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
                 Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
               }
             }
@@ -1366,8 +1416,17 @@ pub async fn set_service_enabled(
       }
       let clawdbot_path = path_parts.join(":");
 
+      // Resolve user HOME dir — LaunchAgents on macOS *usually* inherit it
+      // from the user session, but some contexts (especially after reboot before
+      // first interactive login) may not have it set.  Node.js and many npm
+      // packages assume HOME is available.
+      let user_home = dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+
       let mut env = vec![
         ("PATH".to_string(), clawdbot_path),
+        ("HOME".to_string(), user_home),
         // OpenClaw 2026.2+ only recognizes OPENCLAW_HOME (no CLAWDBOT_HOME fallback).
         ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
         // Point state dir (config, sessions, logs) to the app data dir so
@@ -1428,6 +1487,16 @@ pub async fn set_service_enabled(
             std::env::set_var(env_var, &key);
             env.push((env_var.clone(), key));
           }
+        }
+      }
+
+      // Also set gateway token in the current Tauri process so that
+      // in-process RPC callers (browser_request, etc.) can resolve
+      // the token via env var without needing an explicit parameter.
+      {
+        let gw = tokens.gateway_token.trim();
+        if !gw.is_empty() {
+          std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
         }
       }
 

@@ -4,6 +4,9 @@ use serde_json::Value;
 use log::error;
 use thiserror::Error;
 use serde::Deserialize;
+use std::time::Duration;
+use tokio_retry::strategy::{jitter, ExponentialBackoff};
+use tokio_retry::Retry;
 use crate::db::models::user::{User};
 use crate::db::models::user_connection::UserConnection;
 use crate::db::models::connection::Connection;
@@ -84,11 +87,10 @@ pub async fn fetch_user_uuid(email: &str, refresh_internal: Option<String>) -> R
     }
 }
 
-pub async fn get_api_access_token(email: &str, refresh_internal: Option<String>) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn get_api_access_token(email: &str, refresh_internal: Option<String>) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let api_server: &'static str = env!("VITE_KN_API_SERVER", "Missing VITE_KN_API_SERVER env var");
     let client = Client::new();
 
-    let mut headers = HeaderMap::new();
     let refresh_token = match refresh_internal {
         Some(token) => token,
         None => {
@@ -97,24 +99,54 @@ pub async fn get_api_access_token(email: &str, refresh_internal: Option<String>)
         }
     };
 
-    headers.insert("refresh-token", HeaderValue::from_str(&refresh_token)?);
+    let retry_strategy = ExponentialBackoff::from_millis(1000)
+        .max_delay(Duration::from_secs(4))
+        .map(jitter)
+        .take(3);
 
-    let response = client
-        .get(format!("{api_server}/api/authentication/refresh/app"))
-        .headers(headers)
-        .send()
-        .await?;
+    let refresh_token_clone = refresh_token.clone();
+    let client_clone = client.clone();
 
-    if response.status().is_success() {
-        let response_json: Value = response.json().await?;
-        if let Some(access_token) = response_json["access_token"].as_str() {
-            Ok(access_token.to_string())
-        } else {
-            Err("Access token not found in response".into())
+    let result = Retry::spawn(retry_strategy, || {
+        let refresh_token = refresh_token_clone.clone();
+        let client = client_clone.clone();
+        async move {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "refresh-token",
+                HeaderValue::from_str(&refresh_token)
+                    .map_err(|e| format!("Invalid header value: {}", e))?,
+            );
+
+            let response = client
+                .get(format!("{api_server}/api/authentication/refresh/app"))
+                .headers(headers)
+                .send()
+                .await
+                .map_err(|e| format!("Network error: {}", e))?;
+
+            if response.status().is_success() {
+                let response_json: Value = response
+                    .json()
+                    .await
+                    .map_err(|e| format!("Failed to parse response: {}", e))?;
+                if let Some(access_token) = response_json["access_token"].as_str() {
+                    Ok(access_token.to_string())
+                } else {
+                    Err("Access token not found in response".to_string())
+                }
+            } else if response.status().is_server_error() {
+                log::warn!("Server error refreshing API token ({}), retrying...", response.status());
+                Err(format!("Failed to refresh token: {}", response.status()))
+            } else {
+                Err(format!("Failed to refresh token: {}", response.status()))
+            }
         }
-    } else {
-        Err(format!("Failed to refresh token: {}", response.status()).into())
-    }
+    })
+    .await
+    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { Box::from(e) })?;
+
+    Ok(result)
 }
 
 pub fn create_knapsack_api_connection(user_email: String, refresh_internal: &str) -> Result<(), Box<dyn std::error::Error>> {

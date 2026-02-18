@@ -33,7 +33,7 @@ const MAX_DB_CONNECTIONS: u32 = 10;
 type SqlitePool = Pool<SqliteConnectionManager>;
 
 const AFTER_CONNECT: &str = "PRAGMA journal_mode=WAL;
-PRAGMA busy_timeout=1000;";
+PRAGMA busy_timeout=5000;";
 
 fn create_pool() -> SqlitePool {
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");

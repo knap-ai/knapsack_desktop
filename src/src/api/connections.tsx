@@ -257,6 +257,9 @@ export async function syncGoogleDriveAPI(email: string) {
     },
   })
   const data = await response.json()
+  if (response.status === 400) {
+    throw new Error('400 - ' + data.message)
+  }
   return !!data?.success
 }
 

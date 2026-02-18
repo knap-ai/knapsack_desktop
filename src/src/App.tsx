@@ -46,6 +46,7 @@ import { uploadAllData } from './utils/batchData'
 import DataFetcher from './utils/data_fetch'
 import { BaseException } from './utils/exceptions/base'
 import KNAnalytics from './utils/KNAnalytics'
+import { KNLocalStorage, RECONNECT_DISMISSED_AT } from './utils/KNLocalStorage'
 import { isSharingEnabled } from './utils/settings'
 
 export type CreateAutomationProps = {
@@ -202,6 +203,7 @@ function App() {
   const [, setConnectionsDropdownOpened] = useState(false)
   const [isSignInDialogOpened, setIsSignInDialogOpened] = useState(false)
   const reconnectDismissedRef = useRef(false)
+  const reconnectDismissCheckDone = useRef(false)
 
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -220,6 +222,8 @@ function App() {
     if (!show) {
       cleanReconnectKeys()
       reconnectDismissedRef.current = true
+      // Persist dismiss so it survives app restarts (24h cooldown)
+      KNLocalStorage.setItem(RECONNECT_DISMISSED_AT, Date.now())
     }
     setIsSignInDialogOpened(show)
   }, [cleanReconnectKeys])
@@ -446,7 +450,19 @@ function App() {
   }, [auth.profile?.email])
 
   useEffect(() => {
-    if (reconnect && reconnect.length > 0 && auth.profile && !reconnectDismissedRef.current) {
+    if (!reconnect || reconnect.length === 0 || !auth.profile || reconnectDismissedRef.current) return
+
+    // Check persisted dismiss state (24h cooldown)
+    if (!reconnectDismissCheckDone.current) {
+      reconnectDismissCheckDone.current = true
+      KNLocalStorage.getItem(RECONNECT_DISMISSED_AT).then((dismissedAt: number | null) => {
+        if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) {
+          reconnectDismissedRef.current = true
+          return
+        }
+        setIsSignInDialogOpened(true)
+      })
+    } else {
       setIsSignInDialogOpened(true)
     }
   }, [reconnect])
@@ -481,6 +497,8 @@ function App() {
               setIsSignInDialogOpened(false)
               cleanReconnectKeys()
               reconnectDismissedRef.current = false
+              reconnectDismissCheckDone.current = false
+              KNLocalStorage.setItem(RECONNECT_DISMISSED_AT, undefined)
             })
           })
           .catch(error => {
@@ -519,6 +537,8 @@ function App() {
         setIsSignInDialogOpened(false)
         cleanReconnectKeys()
         reconnectDismissedRef.current = false
+        reconnectDismissCheckDone.current = false
+        KNLocalStorage.setItem(RECONNECT_DISMISSED_AT, undefined)
       },
     )
     const unlistenFetchCalendarPromise = listen(
@@ -741,6 +761,9 @@ function App() {
     handlePostMeetingFollowup,
     createInsightFeedItem,
     createFollowupFeedItem,
+    triggerBriefingFeedItem,
+    getPendingInsightText,
+    getPendingFollowupText,
   } = useBackgroundNotifications({
     userEmail,
     userName,
@@ -1028,6 +1051,22 @@ function App() {
     handlePostMeetingFollowupRef.current = handlePostMeetingFollowup
   }, [checkMorningBriefing, handlePostMeetingFollowup])
 
+  // Refs for notification button handlers to avoid stale closures in the
+  // useEffect([], []) listener below.  Without refs the listener captures
+  // the initial (empty/null) versions of these functions and button clicks
+  // silently do nothing.
+  // Initialised with no-op placeholders; the useEffect below keeps them
+  // up-to-date after every render.
+  const createInsightFeedItemRef = useRef(createInsightFeedItem)
+  const createFollowupFeedItemRef = useRef(createFollowupFeedItem)
+  const triggerBriefingFeedItemRef = useRef(triggerBriefingFeedItem)
+  const getPendingInsightTextRef = useRef(getPendingInsightText)
+  const getPendingFollowupTextRef = useRef(getPendingFollowupText)
+  const startMeetingNotificationRef = useRef<
+    (meetingId: string | null, openUrl: boolean, startRecord: boolean) => Promise<void>
+  >(() => Promise.resolve())
+  const stopMeetingNotificationRef = useRef<() => Promise<void>>(() => Promise.resolve())
+
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 
   useEffect(() => {
@@ -1110,29 +1149,61 @@ function App() {
     }
   }
 
-  const notificationStrategies = {
+  // Keep notification handler refs up-to-date after every render.
+  useEffect(() => {
+    createInsightFeedItemRef.current = createInsightFeedItem
+    createFollowupFeedItemRef.current = createFollowupFeedItem
+    triggerBriefingFeedItemRef.current = triggerBriefingFeedItem
+    getPendingInsightTextRef.current = getPendingInsightText
+    getPendingFollowupTextRef.current = getPendingFollowupText
+    startMeetingNotificationRef.current = startMeetingNotification
+    stopMeetingNotificationRef.current = stopMeetingNotification
+  })
+
+  // Notification strategies use refs so the listener below (which mounts
+  // once with []) always calls the latest function versions.
+  const notificationStrategies: Record<
+    string,
+    (meetingId: string | null) => Promise<void>
+  > = {
     meeting_start_notification_handler: async (meetingId: string | null) =>
-      startMeetingNotification(meetingId, true, true),
+      startMeetingNotificationRef.current(meetingId, true, true),
     still_there_notification_handler: async (_meetingId: string | null) =>
-      stopMeetingNotification(),
+      stopMeetingNotificationRef.current(),
     meeting_record_notification_handler: async (meetingId: string | null) =>
-      startMeetingNotification(meetingId, false, true),
+      startMeetingNotificationRef.current(meetingId, false, true),
     meeting_open_notification_handler: async (meetingId: string | null) =>
-      startMeetingNotification(meetingId, false, false),
+      startMeetingNotificationRef.current(meetingId, false, false),
     morning_briefing_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      await checkMorningBriefingRef.current(new Date(), true)
+      // Trigger LLM briefing generation; result includes fullAnalysis text
+      const { fullAnalysis } = await triggerBriefingFeedItemRef.current()
+      if (fullAnalysis) {
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: fullAnalysis }))
+      }
     },
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      await createInsightFeedItem()
+      // Show the pending insight directly in the ClawdChat window
+      const text = getPendingInsightTextRef.current()
+      if (text) {
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: text }))
+      }
+      // Also persist as a feed item in the background
+      createInsightFeedItemRef.current()
     },
     post_meeting_followup_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
-      await createFollowupFeedItem()
+      // Show the pending follow-up directly in the ClawdChat window
+      const text = getPendingFollowupTextRef.current()
+      if (text) {
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: text }))
+      }
+      // Also persist as a feed item in the background
+      createFollowupFeedItemRef.current()
     },
     dismiss_notification_handler: async (_meetingId: string | null) => {
       await invoke('close_notification_window')
@@ -1143,11 +1214,8 @@ function App() {
     const unlistenPromise = listen(
       'notification_handler',
       async (event: Event<{ meetingId: string | null; buttonHandler: string }>) => {
-        if (event.payload.buttonHandler in notificationStrategies) {
-          const handler =
-            notificationStrategies[
-              event.payload.buttonHandler as keyof typeof notificationStrategies
-            ]
+        const handler = notificationStrategies[event.payload.buttonHandler]
+        if (handler) {
           await handler(event.payload.meetingId)
         } else {
           console.error(`Unknown button handler: ${event.payload.buttonHandler}`)

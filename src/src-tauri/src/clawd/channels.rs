@@ -1,9 +1,28 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+use std::time::Duration;
 
-use crate::clawd::gateway_ws;
+use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
+
+/// Request body for sending a message through a channel.
+#[derive(Deserialize)]
+struct SendMessageRequest {
+    /// Channel to send through: "whatsapp" or "imessage"
+    channel: String,
+    /// Recipient address: phone number (WhatsApp) or email/phone (iMessage)
+    to: String,
+    /// The message text
+    message: String,
+}
+
+/// Response for send-message
+#[derive(Serialize)]
+struct SendMessageResponse {
+    success: bool,
+    message: Option<String>,
+}
 
 /// Response for channel status
 #[derive(Serialize)]
@@ -14,6 +33,9 @@ struct ChannelStatusResponse {
     linked: Option<bool>,
     provider: Option<String>,
     message: Option<String>,
+    /// The account identifier (e.g. phone number for WhatsApp, email for iMessage)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    account: Option<String>,
 }
 
 /// Request body for enable/disable
@@ -55,23 +77,103 @@ fn extract_base_hash(snapshot: &serde_json::Value) -> String {
     String::new()
 }
 
-/// Helper to parse channel summary from gateway status response
+/// Check whether `agents.defaults.model` is already set in the config snapshot.
+fn has_default_model(snapshot: &serde_json::Value) -> bool {
+    let config = snapshot.get("config").unwrap_or(snapshot);
+    let model = config.pointer("/agents/defaults/model");
+    match model {
+        Some(serde_json::Value::String(s)) => !s.trim().is_empty(),
+        Some(serde_json::Value::Object(o)) => {
+            // Object form: { "primary": "anthropic/…", "fallbacks": [...] }
+            o.get("primary")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
+/// Pick the best default model based on which LLM API key is available.
+///
+/// The gateway inherits env vars from the desktop app (service.rs propagates
+/// ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, GEMINI_API_KEY).
+fn resolve_default_model() -> &'static str {
+    if std::env::var("ANTHROPIC_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return "anthropic/claude-opus-4-6";
+    }
+    if std::env::var("OPENAI_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return "openai/gpt-4o";
+    }
+    if std::env::var("GROQ_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return "groq/llama-3.3-70b-versatile";
+    }
+    if std::env::var("GEMINI_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return "google/gemini-2.0-flash";
+    }
+    // Fallback — matches the gateway's compiled default
+    "anthropic/claude-opus-4-6"
+}
+
+/// Build a config.patch JSON string for enabling a channel.
+///
+/// If `agents.defaults.model` is not already set, the patch includes it so
+/// that the auto-reply agent can actually generate responses.
+fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> String {
+    if has_default_model(snapshot) {
+        return channel_patch.to_string();
+    }
+    // Merge channel config with agents.defaults.model
+    let model = resolve_default_model();
+    let mut patch: serde_json::Value = serde_json::from_str(channel_patch).unwrap();
+    patch
+        .as_object_mut()
+        .unwrap()
+        .insert(
+            "agents".to_string(),
+            serde_json::json!({"defaults": {"model": model}}),
+        );
+    serde_json::to_string(&patch).unwrap()
+}
+
+/// Helper to parse channel summary from gateway status response.
+///
 /// The gateway returns channelSummary as an array of strings like:
-/// ["WhatsApp: linked +1234567890", "iMessage: not configured", ...]
+///   "WhatsApp: linked +1234567890 auth 2h ago"
+///   "WhatsApp: not linked"
+///   "iMessage: configured"
+///   "iMessage: not configured"
+///   "WhatsApp: disabled"
+///
+/// The status keyword is always immediately after ": ".  We use
+/// `starts_with` on the status portion so "not linked" is never
+/// confused with "linked".
 fn parse_channel_from_summary(status: &serde_json::Value, channel_name: &str) -> (bool, bool, bool) {
     let channel_summary = status
         .get("channelSummary")
         .and_then(|cs| cs.as_array());
 
     if let Some(lines) = channel_summary {
+        let prefix = format!("{}: ", channel_name.to_lowercase());
         for line in lines {
             if let Some(text) = line.as_str() {
                 let lower = text.to_lowercase();
-                if lower.starts_with(&channel_name.to_lowercase()) {
-                    // Parse status from line like "WhatsApp: linked" or "iMessage: not configured"
-                    let enabled = !lower.contains("disabled");
-                    let linked = lower.contains("linked");
-                    let configured = lower.contains("configured") && !lower.contains("not configured");
+                if let Some(status_part) = lower.strip_prefix(&prefix) {
+                    let enabled = !status_part.starts_with("disabled");
+                    let linked = status_part.starts_with("linked");
+                    let configured = status_part.starts_with("configured");
                     return (enabled, linked, configured);
                 }
             }
@@ -81,12 +183,40 @@ fn parse_channel_from_summary(status: &serde_json::Value, channel_name: &str) ->
     (false, false, false)
 }
 
+/// Extract a phone number from the channelSummary for a given channel.
+///
+/// WhatsApp summary looks like: "WhatsApp: linked +1234567890 auth 2h ago"
+/// We extract the token that starts with '+' followed by digits.
+fn parse_account_from_summary(status: &serde_json::Value, channel_name: &str) -> Option<String> {
+    let channel_summary = status.get("channelSummary")?.as_array()?;
+    let prefix = format!("{}: ", channel_name.to_lowercase());
+    for line in channel_summary {
+        if let Some(text) = line.as_str() {
+            let lower = text.to_lowercase();
+            if lower.starts_with(&prefix) {
+                // Find a token starting with '+' and containing digits
+                for token in text.split_whitespace() {
+                    if token.starts_with('+') && token.len() > 1 && token[1..].chars().all(|c| c.is_ascii_digit()) {
+                        return Some(token.to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Get WhatsApp channel status
 #[get("/api/clawd/channels/whatsapp/status")]
 pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    match gateway_ws::get_channel_status(None).await {
+    match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (enabled, linked, _configured) = parse_channel_from_summary(&status, "WhatsApp");
+            let account = if linked {
+                parse_account_from_summary(&status, "WhatsApp")
+            } else {
+                None
+            };
 
             HttpResponse::Ok().json(ChannelStatusResponse {
                 success: true,
@@ -95,6 +225,7 @@ pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
                 linked: Some(linked),
                 provider: None,
                 message: None,
+                account,
             })
         }
         Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
@@ -104,6 +235,7 @@ pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
             linked: Some(false),
             provider: None,
             message: Some(format!("Gateway error: {}", e)),
+            account: None,
         }),
     }
 }
@@ -115,23 +247,27 @@ pub async fn whatsapp_enable(
     body: web::Json<EnableRequest>,
 ) -> impl Responder {
     // First get current config to obtain baseHash
-    let config_result = gateway_ws::config_get(None).await;
+    let config_result = gateway_client::config_get(None).await;
 
     match config_result {
         Ok(config_snapshot) => {
             // Extract baseHash from snapshot — the gateway uses "hash" at the top level
             let base_hash = extract_base_hash(&config_snapshot);
 
-            // Create patch to add/update whatsapp channel config
-            // The schema expects the channel config directly, not nested under "default"
+            // WhatsApp channel config:
+            // - allowFrom ["*"] = accept messages from anyone
+            // - dmPolicy "open" = auto-reply to all inbound DMs
+            // Also ensures agents.defaults.model is set so auto-reply actually works.
             let patch = if body.enabled {
-                r#"{"channels": {"whatsapp": {}}}"#
+                build_enable_patch(
+                    r#"{"channels": {"whatsapp": {"allowFrom": ["*"], "dmPolicy": "open"}}}"#,
+                    &config_snapshot,
+                )
             } else {
-                // Setting to null removes the channel config, effectively disabling
-                r#"{"channels": {"whatsapp": null}}"#
+                r#"{"channels": {"whatsapp": null}}"#.to_string()
             };
 
-            match gateway_ws::config_patch(patch, &base_hash, None).await {
+            match gateway_client::config_patch(&patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
@@ -159,42 +295,88 @@ pub async fn whatsapp_enable(
     }
 }
 
-/// Start WhatsApp login flow
+/// Response for WhatsApp login (includes QR data URL)
+#[derive(Serialize)]
+struct WhatsAppLoginResponse {
+    success: bool,
+    message: Option<String>,
+    #[serde(rename = "qrDataUrl", skip_serializing_if = "Option::is_none")]
+    qr_data_url: Option<String>,
+}
+
+/// Start WhatsApp login flow.
+///
+/// After config.patch enables WhatsApp, the gateway restarts (SIGUSR1).
+/// The WebSocket connection drops during restart, so we retry a few times
+/// with backoff to let the gateway come back up before calling web.login.start.
 #[post("/api/clawd/channels/whatsapp/login")]
 pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    // Trigger WhatsApp Web login via gateway
-    // The channel is "whatsapp" per the clawdbot channel naming
     let params = serde_json::json!({
-        "channelId": "whatsapp"
+        "force": true
     });
 
-    match gateway_ws::call_channel_method("channel.whatsapp.startLogin", Some(params), None).await {
-        Ok(result) => {
-            let success = result
-                .get("success")
-                .and_then(|s| s.as_bool())
-                .unwrap_or(true); // Assume success if not explicitly false
+    // Invalidate the pooled connection — the gateway may have restarted
+    // after config.patch.  The next request will open a fresh connection.
+    gateway_client::invalidate();
 
-            HttpResponse::Ok().json(GenericResponse {
-                success,
-                message: Some("WhatsApp login started. Check for QR code.".to_string()),
-                configured: None,
-                linked: Some(success),
-            })
+    let mut last_err = String::new();
+    let delays = [
+        Duration::from_secs(2),
+        Duration::from_secs(3),
+        Duration::from_secs(4),
+    ];
+
+    for (attempt, delay) in delays.iter().enumerate() {
+        tokio::time::sleep(*delay).await;
+
+        match gateway_client::call_channel_method(
+            "web.login.start",
+            Some(params.clone()),
+            None,
+        )
+        .await
+        {
+            Ok(result) => {
+                let qr_data_url = result
+                    .get("qrDataUrl")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let message = result
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("WhatsApp login started. Scan the QR code.")
+                    .to_string();
+
+                return HttpResponse::Ok().json(WhatsAppLoginResponse {
+                    success: true,
+                    message: Some(message),
+                    qr_data_url,
+                });
+            }
+            Err(e) => {
+                eprintln!(
+                    "[channels] web.login.start attempt {} failed: {}",
+                    attempt + 1,
+                    e
+                );
+                last_err = e;
+                // Invalidate again so the next attempt opens a fresh connection
+                gateway_client::invalidate();
+            }
         }
-        Err(e) => HttpResponse::Ok().json(GenericResponse {
-            success: false,
-            message: Some(format!("Login failed: {}", e)),
-            configured: None,
-            linked: None,
-        }),
     }
+
+    HttpResponse::Ok().json(WhatsAppLoginResponse {
+        success: false,
+        message: Some(format!("Login failed after retries: {}", last_err)),
+        qr_data_url: None,
+    })
 }
 
 /// Get iMessage channel status
 #[get("/api/clawd/channels/imessage/status")]
 pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    match gateway_ws::get_channel_status(None).await {
+    match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (enabled, _linked, configured) = parse_channel_from_summary(&status, "iMessage");
 
@@ -205,6 +387,7 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
                 linked: None,
                 provider: None,
                 message: None,
+                account: None,
             })
         }
         Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
@@ -214,6 +397,7 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
             linked: None,
             provider: None,
             message: Some(format!("Gateway error: {}", e)),
+            account: None,
         }),
     }
 }
@@ -225,22 +409,27 @@ pub async fn imessage_enable(
     body: web::Json<EnableRequest>,
 ) -> impl Responder {
     // First get current config to obtain baseHash
-    let config_result = gateway_ws::config_get(None).await;
+    let config_result = gateway_client::config_get(None).await;
 
     match config_result {
         Ok(config_snapshot) => {
             let base_hash = extract_base_hash(&config_snapshot);
 
-            // Create patch to add/update imessage channel config
-            // The schema expects the channel config directly, not nested under "default"
+            // iMessage channel config:
+            // - allowFrom ["*"] = accept messages from anyone
+            // - dmPolicy "open" = auto-reply to all inbound DMs
+            // - service "auto" = detect iMessage vs SMS automatically
+            // Also ensures agents.defaults.model is set so auto-reply actually works.
             let patch = if body.enabled {
-                r#"{"channels": {"imessage": {}}}"#
+                build_enable_patch(
+                    r#"{"channels": {"imessage": {"allowFrom": ["*"], "dmPolicy": "open", "service": "auto"}}}"#,
+                    &config_snapshot,
+                )
             } else {
-                // Setting to null removes the channel config, effectively disabling
-                r#"{"channels": {"imessage": null}}"#
+                r#"{"channels": {"imessage": null}}"#.to_string()
             };
 
-            match gateway_ws::config_patch(patch, &base_hash, None).await {
+            match gateway_client::config_patch(&patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
@@ -272,7 +461,7 @@ pub async fn imessage_enable(
 #[post("/api/clawd/channels/imessage/setup")]
 pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
     // Check iMessage status from gateway
-    match gateway_ws::get_channel_status(None).await {
+    match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (_enabled, _linked, configured) = parse_channel_from_summary(&status, "iMessage");
 
@@ -304,7 +493,7 @@ pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
 /// Get voice channel status
 #[get("/api/clawd/channels/voice/status")]
 pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-    match gateway_ws::get_channel_status(None).await {
+    match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             // Voice calls are handled by plugins, check channelSummary for Twilio/Telnyx/etc
             let channel_summary = status
@@ -342,6 +531,7 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
                 linked: None,
                 provider,
                 message: None,
+                account: None,
             })
         }
         Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
@@ -351,6 +541,7 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
             linked: None,
             provider: None,
             message: Some(format!("Gateway error: {}", e)),
+            account: None,
         }),
     }
 }
@@ -362,7 +553,7 @@ pub async fn voice_enable(
     body: web::Json<EnableRequest>,
 ) -> impl Responder {
     // First get current config to obtain baseHash
-    let config_result = gateway_ws::config_get(None).await;
+    let config_result = gateway_client::config_get(None).await;
 
     match config_result {
         Ok(config_snapshot) => {
@@ -375,7 +566,7 @@ pub async fn voice_enable(
                 r#"{"plugins": {"entries": {"voice-call": null}}}"#
             };
 
-            match gateway_ws::config_patch(patch, &base_hash, None).await {
+            match gateway_client::config_patch(patch, &base_hash, None).await {
                 Ok(_) => HttpResponse::Ok().json(GenericResponse {
                     success: true,
                     message: Some(if body.enabled {
@@ -400,6 +591,54 @@ pub async fn voice_enable(
             configured: None,
             linked: None,
         }),
+    }
+}
+
+/// Send a message through a connected channel (WhatsApp or iMessage).
+///
+/// Wraps the gateway's `send` JSON-RPC method. The frontend calls this
+/// to push notification content to the user via their connected channels.
+#[post("/api/clawd/channels/send")]
+pub async fn send_channel_message(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    body: web::Json<SendMessageRequest>,
+) -> impl Responder {
+    let channel = body.channel.to_lowercase();
+    if channel != "whatsapp" && channel != "imessage" {
+        return HttpResponse::BadRequest().json(SendMessageResponse {
+            success: false,
+            message: Some("Channel must be 'whatsapp' or 'imessage'".to_string()),
+        });
+    }
+
+    let idempotency_key = format!(
+        "knapsack-{}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        rand::random::<u32>()
+    );
+
+    let params = serde_json::json!({
+        "to": body.to,
+        "message": body.message,
+        "channel": channel,
+        "idempotencyKey": idempotency_key,
+    });
+
+    match gateway_client::call_channel_method("send", Some(params), None).await {
+        Ok(_result) => HttpResponse::Ok().json(SendMessageResponse {
+            success: true,
+            message: Some(format!("Message sent via {}", channel)),
+        }),
+        Err(e) => {
+            eprintln!("[channels] send via {} failed: {}", channel, e);
+            HttpResponse::Ok().json(SendMessageResponse {
+                success: false,
+                message: Some(format!("Failed to send: {}", e)),
+            })
+        }
     }
 }
 

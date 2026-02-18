@@ -1759,6 +1759,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant
 
+  // Listen for notification insight messages from App.tsx notification handlers.
+  // Uses pushAssistantRef (not pushAssistant) to avoid re-subscribing on every
+  // render, which causes typing latency in the input box.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const text = (e as CustomEvent<string>).detail
+      if (text) pushAssistantRef.current?.(text)
+    }
+    window.addEventListener('clawd-push-assistant', handler)
+    return () => window.removeEventListener('clawd-push-assistant', handler)
+  }, [])
+
   const pushUser = (text: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
   }
@@ -2331,6 +2343,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return doSendRef.current?.(text) ?? Promise.resolve()
   }, [])
 
+  // Same ref-based stability pattern for other ChatInputBar callbacks whose
+  // dependencies change during normal operation (voice toggle, abort controller).
+  const stopGenerationRef = useRef(stopGeneration)
+  stopGenerationRef.current = stopGeneration
+  const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
+
+  const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
+  toggleVoiceOutputRef.current = toggleVoiceOutput
+  const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
+
   const statusLine = useMemo(() => {
     if (!status && !health) return <span>Checking Moltbot...</span>
     const parts: ReactNode[] = []
@@ -2703,8 +2725,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onRemoveFile={removeAttachedFile}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
-        onToggleVoice={toggleVoiceOutput}
-        onStopGeneration={stopGeneration}
+        onToggleVoice={stableToggleVoiceOutput}
+        onStopGeneration={stableStopGeneration}
       />
       </div>
 
@@ -2879,7 +2901,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               <div className="ClawdChannelCardInfo">
                 <div className="ClawdChannelCardName">WhatsApp</div>
                 {channelStatus.whatsapp?.linked ? (
-                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected — your assistant can send and receive WhatsApp messages.</div>
+                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                ) : channelStatus.whatsapp?.enabled ? (
+                  <div className="ClawdChannelCardStatus">Enabled — scan QR code to link</div>
                 ) : (
                   <div className="ClawdChannelCardStatus">Not connected</div>
                 )}
@@ -2903,11 +2927,45 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   } finally { setChannelBusy(null) }
                 }}
               >
-                {channelBusy === 'whatsapp' ? 'Working...' : channelStatus.whatsapp?.linked ? 'Disconnect' : 'Connect'}
+                {channelBusy === 'whatsapp'
+                  ? (channelStatus.whatsappLinking ? 'Starting WhatsApp...' : 'Working...')
+                  : channelStatus.whatsapp?.linked ? 'Disconnect' : 'Connect'}
               </button>
             </div>
-            {!channelStatus.whatsapp?.linked && (
+            {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && (
+              <div className="ClawdChannelGuide" style={{ textAlign: 'center', padding: '20px 16px' }}>
+                <div style={{ fontSize: 14, color: '#888' }}>Starting WhatsApp service and generating QR code...</div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>This can take up to 10 seconds while the gateway restarts.</div>
+              </div>
+            )}
+            {channelStatus.whatsapp?.linked ? (
               <div className="ClawdChannelGuide">
+                <div className="ClawdChannelGuideTitle">How to use WhatsApp</div>
+                <ol className="ClawdChannelGuideSteps">
+                  <li>
+                    <span className="ClawdChannelGuideNum">1</span>
+                    <span>Open <strong>WhatsApp</strong> on your phone and send a message to your own number (or have someone message you).</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">2</span>
+                    <span>Your Knapsack AI assistant will automatically read incoming messages and reply on your behalf.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">3</span>
+                    <span>You can also ask your assistant in this chat: <em>"Send a WhatsApp message to [name/number]"</em>.</span>
+                  </li>
+                </ol>
+                <div className="ClawdChannelGuideNote">
+                  Messages are processed locally. Your assistant uses the linked WhatsApp session — just like WhatsApp Web.
+                </div>
+              </div>
+            ) : (
+              <div className="ClawdChannelGuide">
+                {channelStatus.whatsappQrUrl && (
+                  <div style={{ textAlign: 'center', margin: '12px 0' }}>
+                    <img src={channelStatus.whatsappQrUrl} alt="WhatsApp QR Code" style={{ width: 200, height: 200, imageRendering: 'pixelated', borderRadius: 8 }} />
+                  </div>
+                )}
                 <div className="ClawdChannelGuideTitle">How to connect WhatsApp</div>
                 <ol className="ClawdChannelGuideSteps">
                   <li>
@@ -2916,15 +2974,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   </li>
                   <li>
                     <span className="ClawdChannelGuideNum">2</span>
-                    <span>A QR code will appear in a <strong>separate window</strong>. If you don't see it, check the Clawdbot gateway logs at <code>/tmp/knapsack-clawdbot.out.log</code>.</span>
+                    <span>{channelStatus.whatsappQrUrl ? 'Scan the QR code above.' : 'A QR code will appear above.'} On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
                   </li>
                   <li>
                     <span className="ClawdChannelGuideNum">3</span>
-                    <span>On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">4</span>
-                    <span>Scan the QR code. Once linked, this panel will update automatically.</span>
+                    <span>Scan the QR code with your phone camera. Once linked, this panel will update automatically.</span>
                   </li>
                 </ol>
                 <div className="ClawdChannelGuideNote">
@@ -2942,7 +2996,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               <div className="ClawdChannelCardInfo">
                 <div className="ClawdChannelCardName">iMessage</div>
                 {channelStatus.imessage?.configured ? (
-                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected — your assistant can send and receive iMessages.</div>
+                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                ) : channelStatus.imessage?.enabled ? (
+                  <div className="ClawdChannelCardStatus">Enabled — needs Full Disk Access</div>
                 ) : (
                   <div className="ClawdChannelCardStatus">Not connected (macOS only)</div>
                 )}
@@ -2969,7 +3025,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 {channelBusy === 'imessage' ? 'Working...' : channelStatus.imessage?.configured ? 'Disconnect' : 'Connect'}
               </button>
             </div>
-            {!channelStatus.imessage?.configured && (
+            {channelStatus.imessage?.configured ? (
+              <div className="ClawdChannelGuide">
+                <div className="ClawdChannelGuideTitle">How to use iMessage</div>
+                <ol className="ClawdChannelGuideSteps">
+                  <li>
+                    <span className="ClawdChannelGuideNum">1</span>
+                    <span>Send an iMessage to this Mac from any Apple device. Your assistant will see incoming messages and reply automatically.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">2</span>
+                    <span>You can also ask your assistant in this chat: <em>"Send an iMessage to [name/number]"</em>.</span>
+                  </li>
+                </ol>
+                <div className="ClawdChannelGuideNote">
+                  iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
+                </div>
+              </div>
+            ) : (
               <div className="ClawdChannelGuide">
                 <div className="ClawdChannelGuideTitle">How to connect iMessage</div>
                 <ol className="ClawdChannelGuideSteps">

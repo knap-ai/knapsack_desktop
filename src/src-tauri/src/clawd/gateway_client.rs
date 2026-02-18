@@ -10,7 +10,6 @@
 //! - a simple circuit breaker (avoid thrash when gateway is down)
 
 use futures_util::{SinkExt, StreamExt};
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -72,6 +71,8 @@ struct ResponseFrame {
   result: Option<Value>,
   #[serde(default)]
   data: Option<Value>,
+  #[serde(default)]
+  payload: Option<Value>,
   #[serde(default)]
   error: Option<Value>,
 }
@@ -164,7 +165,11 @@ struct GatewayClient {
   breaker: Mutex<CircuitBreaker>,
 }
 
-static CLIENT: OnceCell<Arc<GatewayClient>> = OnceCell::new();
+/// Holds the current gateway connection.  Uses a std RwLock (never held
+/// across await points) so the connection can be replaced when the
+/// underlying WebSocket drops, enabling transparent reconnection.
+static CLIENT: once_cell::sync::Lazy<std::sync::RwLock<Option<Arc<GatewayClient>>>> =
+  once_cell::sync::Lazy::new(|| std::sync::RwLock::new(None));
 
 async fn ensure_gateway_best_effort(token: &str) {
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
@@ -179,16 +184,19 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
   let (mut write, mut read) = ws_stream.split();
 
-  // Wait for connect.challenge
-  let challenge_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
-    .await
-    .map_err(|_| "Timeout waiting for challenge")?
-    .ok_or("Connection closed before challenge")?
-    .map_err(|e| format!("Error receiving challenge: {}", e))?;
+  // Wait for connect.challenge (skip ping/pong control frames)
+  let challenge_text = loop {
+    let challenge_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
+      .await
+      .map_err(|_| "Timeout waiting for challenge")?
+      .ok_or("Connection closed before challenge")?
+      .map_err(|e| format!("Error receiving challenge: {}", e))?;
 
-  let challenge_text = match challenge_msg {
-    Message::Text(t) => t,
-    _ => return Err("Expected text message for challenge".to_string()),
+    match challenge_msg {
+      Message::Text(t) => break t,
+      Message::Close(_) => return Err("Connection closed during challenge".to_string()),
+      _ => continue, // Skip ping/pong control frames
+    }
   };
 
   let event: EventFrame = serde_json::from_str(&challenge_text)
@@ -202,21 +210,21 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     min_protocol: PROTOCOL_VERSION,
     max_protocol: PROTOCOL_VERSION,
     client: ClientInfo {
-      id: "knapsack-desktop",
+      id: "gateway-client",
       display_name: "Knapsack Desktop",
       version: env!("CARGO_PKG_VERSION"),
-      platform: "desktop",
-      mode: "app",
+      platform: std::env::consts::OS,
+      mode: "backend",
     },
     auth: Some(AuthInfo {
       token: token.to_string(),
     }),
-    role: "client",
-    scopes: vec!["*"],
+    role: "operator",
+    scopes: vec!["operator.admin"],
   };
 
   let connect_frame = RequestFrame {
-    frame_type: "request",
+    frame_type: "req",
     method: "connect".to_string(),
     id: next_request_id(),
     params: Some(serde_json::to_value(connect_params).unwrap()),
@@ -227,16 +235,19 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     .await
     .map_err(|e| format!("Failed to send connect: {}", e))?;
 
-  // Wait for connect response
-  let connect_resp_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
-    .await
-    .map_err(|_| "Timeout waiting for connect response")?
-    .ok_or("Connection closed before connect response")?
-    .map_err(|e| format!("Error receiving connect response: {}", e))?;
+  // Wait for connect response (skip ping/pong control frames)
+  let connect_resp_text = loop {
+    let connect_resp_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
+      .await
+      .map_err(|_| "Timeout waiting for connect response")?
+      .ok_or("Connection closed before connect response")?
+      .map_err(|e| format!("Error receiving connect response: {}", e))?;
 
-  let connect_resp_text = match connect_resp_msg {
-    Message::Text(t) => t,
-    _ => return Err("Expected text message for connect response".to_string()),
+    match connect_resp_msg {
+      Message::Text(t) => break t,
+      Message::Close(_) => return Err("Connection closed during connect".to_string()),
+      _ => continue, // Skip ping/pong control frames
+    }
   };
 
   let connect_resp: ResponseFrame = serde_json::from_str(&connect_resp_text)
@@ -267,7 +278,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
         let mut pending = client_clone.pending.lock().await;
         if let Some(p) = pending.remove(&resp.id) {
           let out = if resp.ok {
-            Ok(resp.result.or(resp.data).unwrap_or(Value::Null))
+            Ok(resp.result.or(resp.data).or(resp.payload).unwrap_or(Value::Null))
           } else {
             Err(format!("Request failed: {:?}", resp.error.unwrap_or(Value::Null)))
           };
@@ -276,24 +287,49 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
       }
     }
 
-    // Connection ended: fail all pending.
+    // Connection ended: fail all pending and invalidate so we reconnect.
     let mut pending = client_clone.pending.lock().await;
     for (_, p) in pending.drain() {
       let _ = p.tx.send(Err("Gateway connection closed".to_string()));
     }
+    drop(pending);
+    invalidate_client();
   });
 
   Ok(client)
 }
 
 async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
-  if let Some(c) = CLIENT.get() {
-    return Ok(c.clone());
+  // Fast path: return existing connection.
+  {
+    let guard = CLIENT.read().unwrap();
+    if let Some(ref c) = *guard {
+      return Ok(c.clone());
+    }
   }
 
+  // Slow path: establish a new connection.
   let client = connect_and_handshake(token).await?;
-  let _ = CLIENT.set(client.clone());
+  {
+    let mut guard = CLIENT.write().unwrap();
+    *guard = Some(client.clone());
+  }
   Ok(client)
+}
+
+/// Invalidate the current connection so the next request reconnects.
+fn invalidate_client() {
+  let mut guard = CLIENT.write().unwrap();
+  *guard = None;
+}
+
+/// Public wrapper: drop the cached connection.
+///
+/// Call this when the gateway is known to have restarted (e.g. after a
+/// config.patch that triggers SIGUSR1) so the next request opens a fresh
+/// WebSocket instead of sending into a dead socket.
+pub fn invalidate() {
+  invalidate_client();
 }
 
 /// Make a request using a persistent gateway connection.
@@ -328,7 +364,7 @@ pub async fn gateway_request_pooled(
 
   let id = next_request_id();
   let frame = RequestFrame {
-    frame_type: "request",
+    frame_type: "req",
     method: method.to_string(),
     id: id.clone(),
     params,
@@ -349,7 +385,8 @@ pub async fn gateway_request_pooled(
   };
 
   if let Err(e) = send_res {
-    // Remove pending entry and mark breaker failure.
+    // Remove pending entry, mark breaker failure, and invalidate the
+    // connection so the next request attempts a fresh handshake.
     {
       let mut pending = client.pending.lock().await;
       pending.remove(&id);
@@ -358,6 +395,7 @@ pub async fn gateway_request_pooled(
       let mut breaker = client.breaker.lock().await;
       breaker.on_failure();
     }
+    invalidate_client();
     drop(permit);
     return Err(e);
   }
@@ -375,9 +413,122 @@ pub async fn gateway_request_pooled(
       breaker.on_success();
     } else {
       breaker.on_failure();
+      // Connection may be stale; drop it so we reconnect next time.
+      drop(breaker);
+      invalidate_client();
     }
   }
 
   drop(permit);
   out
+}
+
+// ---------------------------------------------------------------------------
+// Convenience helpers — mirror the gateway_ws public API but go through the
+// persistent pooled connection instead of opening a new WebSocket each time.
+// ---------------------------------------------------------------------------
+
+/// Get the gateway token from environment or config file.
+fn get_gateway_token() -> Option<String> {
+  for var in ["OPENCLAW_GATEWAY_TOKEN", "CLAWDBOT_GATEWAY_TOKEN"] {
+    if let Ok(token) = std::env::var(var) {
+      let t = token.trim().to_string();
+      if !t.is_empty() {
+        return Some(t);
+      }
+    }
+  }
+
+  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+  let config_candidates = [
+    std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json"),
+    std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json"),
+  ];
+
+  for config_path in &config_candidates {
+    if let Ok(content) = std::fs::read_to_string(config_path) {
+      if let Ok(config) = serde_json::from_str::<Value>(&content) {
+        if let Some(token) = config
+          .get("gateway")
+          .and_then(|g| g.get("auth"))
+          .and_then(|a| a.get("token"))
+          .and_then(|t| t.as_str())
+        {
+          return Some(token.to_string());
+        }
+      }
+    }
+  }
+
+  None
+}
+
+fn resolve_token(token: Option<&str>) -> Result<String, String> {
+  if let Some(t) = token {
+    return Ok(t.to_string());
+  }
+  get_gateway_token().ok_or_else(|| {
+    "No gateway token found. Set OPENCLAW_GATEWAY_TOKEN or configure via Settings.".to_string()
+  })
+}
+
+/// Get channel status from the gateway (pooled).
+pub async fn get_channel_status(token: Option<&str>) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  gateway_request_pooled("status", None, &t).await
+}
+
+/// Call a channel method on the gateway (pooled).
+pub async fn call_channel_method(
+  method: &str,
+  params: Option<Value>,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  gateway_request_pooled(method, params, &t).await
+}
+
+/// Send a browser control request through the gateway's `browser.request`
+/// RPC method.  The gateway dispatches to its in-process browser control
+/// service (same routes as the legacy HTTP bridge that used to run on
+/// port 18791).
+pub async fn browser_request(
+  http_method: &str,
+  path: &str,
+  query: Option<Value>,
+  body: Option<Value>,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  let mut params = serde_json::json!({
+    "method": http_method,
+    "path": path,
+  });
+  if let Some(q) = query {
+    params["query"] = q;
+  }
+  if let Some(b) = body {
+    params["body"] = b;
+  }
+  gateway_request_pooled("browser.request", Some(params), &t).await
+}
+
+/// Get current config from gateway (pooled).
+pub async fn config_get(token: Option<&str>) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  gateway_request_pooled("config.get", None, &t).await
+}
+
+/// Patch config on gateway (pooled) - requires baseHash from config.get.
+pub async fn config_patch(
+  raw_patch: &str,
+  base_hash: &str,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  let params = serde_json::json!({
+    "raw": raw_patch,
+    "baseHash": base_hash
+  });
+  gateway_request_pooled("config.patch", Some(params), &t).await
 }

@@ -419,7 +419,7 @@ export function useAutomations({
         }
       }
     },
-    [],
+    [isNotificationWindowShowing],
   )
 
   // -- Notification handling starts here --

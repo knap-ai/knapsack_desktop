@@ -1626,6 +1626,7 @@ async function launchOpenClawChrome(resolved, profile) {
 		}
 		if (process.platform === "linux") args.push("--disable-dev-shm-usage");
 		args.push("--disable-blink-features=AutomationControlled");
+		args.push("--disable-infobars");
 		args.push("about:blank");
 		return spawn(exe.path, args, {
 			stdio: "pipe",

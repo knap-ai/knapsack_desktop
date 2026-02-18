@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use crate::clawd::chat_agent;
+use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
 // --- local token storage (shared with service.rs) ---
@@ -139,7 +140,7 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   if chrome.unwrap_or(false) {
     "chrome"
   } else {
-    "clawd"
+    "openclaw"
   }
 }
 
@@ -292,103 +293,23 @@ pub async fn open_browser(
 
   let profile = clawd_profile(query.chrome);
 
-  let base_url_opt = { cfg.read().await.base_url.clone() };
-  if let Some(base_url) = base_url_opt {
-    let endpoint = format!(
-      "{}/tabs/open?profile={}",
-      base_url.trim_end_matches('/'),
-      profile
-    );
-
-    let client = match control_client().await {
-      Ok(c) => c,
-      Err(e) => {
-        return HttpResponse::InternalServerError().json(OpenBrowserResponse {
-          success: false,
-          message: e,
-          target_id: None,
-          used_clawdbot: true,
-        })
-      }
-    };
-
-    let token = bearer_token_for_control(&app_handle);
-
-    // Retry connection failures (gateway may still be starting)
-    let max_retries = 2u32;
-    let mut last_err = String::new();
-    for attempt in 0..=max_retries {
-      let mut req = client
-        .post(&endpoint)
-        .json(&ClawdbotTabsOpenRequest { url: url.clone() });
-
-      if let Some(ref token) = token {
-        req = req.bearer_auth(token);
-      }
-
-      match req.send().await {
-        Ok(res) => {
-          if !res.status().is_success() {
-            let status = res.status();
-            let body = res.text().await.unwrap_or_default();
-            return HttpResponse::BadGateway().json(OpenBrowserResponse {
-              success: false,
-              message: if body.is_empty() {
-                format!("Clawdbot error: HTTP {}", status)
-              } else {
-                format!("Clawdbot error: HTTP {}: {}", status, body)
-              },
-              target_id: None,
-              used_clawdbot: true,
-            });
-          }
-
-          match res.json::<ClawdbotTab>().await {
-            Ok(tab) => {
-              return HttpResponse::Ok().json(OpenBrowserResponse {
-                success: true,
-                message: format!("Opened via Clawdbot ({profile}): {}", url),
-                target_id: Some(tab.target_id),
-                used_clawdbot: true,
-              })
-            }
-            Err(e) => {
-              return HttpResponse::BadGateway().json(OpenBrowserResponse {
-                success: false,
-                message: format!("Clawdbot returned invalid JSON: {}", e),
-                target_id: None,
-                used_clawdbot: true,
-              })
-            }
-          }
-        }
-        Err(e) => {
-          last_err = format!("{}", e);
-          if attempt < max_retries {
-            tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
-            continue;
-          }
-          return HttpResponse::BadGateway().json(OpenBrowserResponse {
-            success: false,
-            message: format!(
-              "Failed to reach Clawdbot control server after {} attempts: {}",
-              max_retries + 1,
-              last_err
-            ),
-            target_id: None,
-            used_clawdbot: true,
-          });
-        }
-      }
+  // Try browser control via gateway RPC first
+  let rpc_query = serde_json::json!({"profile": profile});
+  match gateway_client::browser_request(
+    "POST", "/tabs/open", Some(rpc_query), Some(serde_json::json!({"url": url.clone()})), None,
+  ).await {
+    Ok(result) => {
+      let target_id = result.get("targetId").and_then(|v| v.as_str()).map(|s| s.to_string());
+      return HttpResponse::Ok().json(OpenBrowserResponse {
+        success: true,
+        message: format!("Opened via Clawdbot ({profile}): {}", url),
+        target_id,
+        used_clawdbot: true,
+      });
     }
-
-    // Should not be reached, but handle it gracefully
-    return HttpResponse::BadGateway().json(OpenBrowserResponse {
-      success: false,
-      message: format!("Failed to reach Clawdbot control server: {}", last_err),
-      target_id: None,
-      used_clawdbot: true,
-    });
+    Err(e) => {
+      eprintln!("[clawd/browser] open_browser RPC failed, falling back to shell: {}", e);
+    }
   }
 
   // Fallback path: open on the host using Tauri's shell open.
@@ -423,69 +344,16 @@ pub struct TabsListResponse {
 
 #[get("/api/clawd/browser/tabs")]
 pub async fn list_tabs(
-  app_handle: web::Data<tauri::AppHandle>,
-  cfg: web::Data<SharedClawdbotConfig>,
+  _app_handle: web::Data<tauri::AppHandle>,
+  _cfg: web::Data<SharedClawdbotConfig>,
   query: web::Query<BrowserProfileQuery>,
 ) -> impl Responder {
   let profile = clawd_profile(query.chrome);
-  let base_url_opt = { cfg.read().await.base_url.clone() };
-  let Some(base_url) = base_url_opt else {
-    return HttpResponse::BadRequest().json(serde_json::json!({
-      "success": false,
-      "message": "Clawdbot base_url is not configured. Enable Clawd in Settings first."
-    }));
-  };
-
-  let endpoint = format!(
-    "{}/tabs?profile={}",
-    base_url.trim_end_matches('/'),
-    profile
-  );
-
-  let client = match control_client().await {
-    Ok(c) => c,
-    Err(e) => {
-      return HttpResponse::InternalServerError()
-        .json(serde_json::json!({"success": false, "message": e}))
-    }
-  };
-
-  let token = bearer_token_for_control(&app_handle);
-
-  // Retry connection failures (gateway may still be starting)
-  let max_retries = 2u32;
-  let mut last_err = String::new();
-  for attempt in 0..=max_retries {
-    let mut req = client.get(&endpoint);
-    if let Some(ref token) = token {
-      req = req.bearer_auth(token);
-    }
-
-    match req.send().await {
-      Ok(res) => {
-        let status = res.status();
-        if !status.is_success() {
-          let body = res.text().await.unwrap_or_default();
-          return HttpResponse::BadGateway().json(serde_json::json!({
-            "success": false,
-            "message": if body.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, body) }
-          }));
-        }
-        match res.json::<TabsListResponse>().await {
-          Ok(tabs) => return HttpResponse::Ok().json(serde_json::json!({"success": true, "running": tabs.running, "tabs": tabs.tabs})),
-          Err(e) => return HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Invalid JSON from Clawdbot: {}", e)})),
-        }
-      }
-      Err(e) => {
-        last_err = format!("{}", e);
-        if attempt < max_retries {
-          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
-          continue;
-        }
-      }
-    }
+  let rpc_query = serde_json::json!({"profile": profile});
+  match gateway_client::browser_request("GET", "/tabs", Some(rpc_query), None, None).await {
+    Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "data": result})),
+    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
-  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
 
 #[derive(Debug, Deserialize)]
@@ -498,8 +366,8 @@ pub struct FocusRequest {
 
 #[post("/api/clawd/browser/focus")]
 pub async fn focus_tab(
-  app_handle: web::Data<tauri::AppHandle>,
-  cfg: web::Data<SharedClawdbotConfig>,
+  _app_handle: web::Data<tauri::AppHandle>,
+  _cfg: web::Data<SharedClawdbotConfig>,
   payload: web::Json<FocusRequest>,
 ) -> impl Responder {
   let profile = clawd_profile(payload.chrome);
@@ -509,65 +377,13 @@ pub async fn focus_tab(
       .json(serde_json::json!({"success": false, "message": "targetId is required"}));
   }
 
-  let base_url_opt = { cfg.read().await.base_url.clone() };
-  let Some(base_url) = base_url_opt else {
-    return HttpResponse::BadRequest().json(serde_json::json!({
-      "success": false,
-      "message": "Clawdbot base_url is not configured. Enable Clawd in Settings first."
-    }));
-  };
-
-  let endpoint = format!(
-    "{}/tabs/focus?profile={}",
-    base_url.trim_end_matches('/'),
-    profile
-  );
-
-  let client = match control_client().await {
-    Ok(c) => c,
-    Err(e) => {
-      return HttpResponse::InternalServerError()
-        .json(serde_json::json!({"success": false, "message": e}))
-    }
-  };
-
-  let token = bearer_token_for_control(&app_handle);
-
-  // Retry connection failures (gateway may still be starting)
-  let max_retries = 2u32;
-  let mut last_err = String::new();
-  for attempt in 0..=max_retries {
-    let mut req = client
-      .post(&endpoint)
-      .json(&serde_json::json!({"targetId": target_id}));
-    if let Some(ref token) = token {
-      req = req.bearer_auth(token);
-    }
-
-    match req.send().await {
-      Ok(res) => {
-        let status = res.status();
-        let body = res.text().await.unwrap_or_default();
-        if !status.is_success() {
-          return HttpResponse::BadGateway().json(serde_json::json!({
-            "success": false,
-            "message": if body.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, body) }
-          }));
-        }
-        return HttpResponse::Ok().json(
-          serde_json::json!({"success": true, "message": "Focused tab", "targetId": target_id}),
-        );
-      }
-      Err(e) => {
-        last_err = format!("{}", e);
-        if attempt < max_retries {
-          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
-          continue;
-        }
-      }
-    }
+  let rpc_query = serde_json::json!({"profile": profile});
+  match gateway_client::browser_request(
+    "POST", "/tabs/focus", Some(rpc_query), Some(serde_json::json!({"targetId": target_id})), None,
+  ).await {
+    Ok(_) => HttpResponse::Ok().json(serde_json::json!({"success": true, "message": "Focused tab", "targetId": target_id})),
+    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
-  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
 
 #[derive(Debug, Deserialize)]
@@ -583,112 +399,38 @@ pub struct SnapshotQuery {
 
 #[get("/api/clawd/browser/snapshot")]
 pub async fn snapshot(
-  app_handle: web::Data<tauri::AppHandle>,
-  cfg: web::Data<SharedClawdbotConfig>,
+  _app_handle: web::Data<tauri::AppHandle>,
+  _cfg: web::Data<SharedClawdbotConfig>,
   query: web::Query<SnapshotQuery>,
 ) -> impl Responder {
   let profile = clawd_profile(query.chrome);
-
-  let base_url_opt = { cfg.read().await.base_url.clone() };
-  let Some(base_url) = base_url_opt else {
-    return HttpResponse::BadRequest().json(serde_json::json!({
-      "success": false,
-      "message": "Clawdbot base_url is not configured. Enable Clawd in Settings first."
-    }));
-  };
-
-  let mut url = format!(
-    "{}/snapshot?profile={}",
-    base_url.trim_end_matches('/'),
-    profile
-  );
-
-  if let Some(tid) = query
-    .targetId
-    .as_ref()
-    .map(|s| s.trim())
-    .filter(|s| !s.is_empty())
-  {
-    url.push_str(&format!("&targetId={}", urlencoding::encode(tid)));
+  let mut rpc_query = serde_json::json!({"profile": profile});
+  if let Some(tid) = query.targetId.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    rpc_query["targetId"] = json!(tid);
   }
-  if let Some(mode) = query
-    .mode
-    .as_ref()
-    .map(|s| s.trim())
-    .filter(|s| !s.is_empty())
-  {
-    url.push_str(&format!("&mode={}", urlencoding::encode(mode)));
+  if let Some(mode) = query.mode.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    rpc_query["mode"] = json!(mode);
   }
-  if let Some(r) = query
-    .refs
-    .as_ref()
-    .map(|s| s.trim())
-    .filter(|s| !s.is_empty())
-  {
-    url.push_str(&format!("&refs={}", urlencoding::encode(r)));
+  if let Some(r) = query.refs.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    rpc_query["refs"] = json!(r);
   }
-  if let Some(f) = query
-    .format
-    .as_ref()
-    .map(|s| s.trim())
-    .filter(|s| !s.is_empty())
-  {
-    url.push_str(&format!("&format={}", urlencoding::encode(f)));
+  if let Some(f) = query.format.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    rpc_query["format"] = json!(f);
   }
   if let Some(labels) = query.labels {
-    url.push_str(&format!(
-      "&labels={}",
-      if labels { "true" } else { "false" }
-    ));
+    rpc_query["labels"] = json!(labels);
   }
   if let Some(max_chars) = query.maxChars {
-    url.push_str(&format!("&maxChars={}", max_chars));
+    rpc_query["maxChars"] = json!(max_chars);
   }
 
-  let client = match control_client().await {
-    Ok(c) => c,
-    Err(e) => {
-      return HttpResponse::InternalServerError()
-        .json(serde_json::json!({"success": false, "message": e}))
+  match gateway_client::browser_request("GET", "/snapshot", Some(rpc_query), None, None).await {
+    Ok(result) => {
+      let text = if result.is_string() { result.as_str().unwrap().to_string() } else { result.to_string() };
+      HttpResponse::Ok().body(text)
     }
-  };
-
-  let token = bearer_token_for_control(&app_handle);
-
-  // Retry connection failures (gateway may still be starting)
-  let max_retries = 2u32;
-  let mut last_err = String::new();
-  for attempt in 0..=max_retries {
-    let mut req = client.get(&url);
-    if let Some(ref token) = token {
-      req = req.bearer_auth(token);
-    }
-
-    match req.send().await {
-      Ok(res) => {
-        let status = res.status();
-        let text = res.text().await.unwrap_or_default();
-        if !status.is_success() {
-          return HttpResponse::BadGateway().json(serde_json::json!({
-            "success": false,
-            "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
-          }));
-        }
-
-        // Snapshot responses can be large; forward as raw text JSON.
-        // If it's JSON, the UI can pretty-print.
-        return HttpResponse::Ok().body(text);
-      }
-      Err(e) => {
-        last_err = format!("{}", e);
-        if attempt < max_retries {
-          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
-          continue;
-        }
-      }
-    }
+    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
-  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
 
 #[derive(Debug, Deserialize)]
@@ -698,71 +440,27 @@ pub struct ProfileBody {
 
 #[post("/api/clawd/browser/act")]
 pub async fn act(
-  app_handle: web::Data<tauri::AppHandle>,
-  cfg: web::Data<SharedClawdbotConfig>,
+  _app_handle: web::Data<tauri::AppHandle>,
+  _cfg: web::Data<SharedClawdbotConfig>,
   body: web::Json<JsonValue>,
 ) -> impl Responder {
-  // Read chrome from body if present; otherwise default clawd.
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
   let profile = clawd_profile(chrome);
+  let rpc_query = serde_json::json!({"profile": profile});
 
-  let base_url_opt = { cfg.read().await.base_url.clone() };
-  let Some(base_url) = base_url_opt else {
-    return HttpResponse::BadRequest().json(serde_json::json!({
-      "success": false,
-      "message": "Clawdbot base_url is not configured. Enable Clawd in Settings first."
-    }));
-  };
-
-  let endpoint = format!("{}/act?profile={}", base_url.trim_end_matches('/'), profile);
-
-  let client = match control_client().await {
-    Ok(c) => c,
-    Err(e) => {
-      return HttpResponse::InternalServerError()
-        .json(serde_json::json!({"success": false, "message": e}))
-    }
-  };
-
-  // Forward body (minus chrome) to Clawdbot.
+  // Forward body (minus chrome) to the gateway browser control.
   let mut forward = body.into_inner();
   if let Some(obj) = forward.as_object_mut() {
     obj.remove("chrome");
   }
 
-  let token = bearer_token_for_control(&app_handle);
-
-  // Retry connection failures (gateway may still be starting)
-  let max_retries = 2u32;
-  let mut last_err = String::new();
-  for attempt in 0..=max_retries {
-    let mut req = client.post(&endpoint).json(&forward);
-    if let Some(ref token) = token {
-      req = req.bearer_auth(token);
+  match gateway_client::browser_request("POST", "/act", Some(rpc_query), Some(forward), None).await {
+    Ok(result) => {
+      let text = if result.is_string() { result.as_str().unwrap().to_string() } else { result.to_string() };
+      HttpResponse::Ok().body(text)
     }
-
-    match req.send().await {
-      Ok(res) => {
-        let status = res.status();
-        let text = res.text().await.unwrap_or_default();
-        if !status.is_success() {
-          return HttpResponse::BadGateway().json(serde_json::json!({
-            "success": false,
-            "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
-          }));
-        }
-        return HttpResponse::Ok().body(text);
-      }
-      Err(e) => {
-        last_err = format!("{}", e);
-        if attempt < max_retries {
-          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
-          continue;
-        }
-      }
-    }
+    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
-  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
 
 /// Parse a natural language schedule string into a cron schedule JSON value
@@ -1186,104 +884,35 @@ pub async fn chat(
     },
   };
 
-  let base_url = { cfg.read().await.base_url.clone() };
-  let base_url = base_url.unwrap_or_else(|| "http://127.0.0.1:18791".to_string());
+  // Browser control requests go through the gateway's `browser.request` RPC
+  // method — no direct HTTP client needed.
 
-  let client = match control_client().await {
-    Ok(c) => c,
-    Err(e) => {
-      return HttpResponse::InternalServerError()
-        .json(serde_json::json!({"ok": false, "message": e}))
-    }
-  };
-
-  // Helper function for tool implementations
+  // Helper function for tool implementations.
+  // Browser control requests go through the gateway's `browser.request` RPC
+  // method instead of direct HTTP to port 18791.
   async fn run_tool(
     name: &str,
     args: &str,
     app_handle: &tauri::AppHandle,
-    client: &reqwest::Client,
-    base_url: &str,
     profile: &str,
   ) -> anyhow::Result<JsonValue> {
     let args_map = chat_agent::parse_args_map(args);
-    let token = bearer_token_for_control(app_handle);
+    let query = json!({"profile": profile});
 
-    // Helper function for GET requests (with retry on connection failures)
-    async fn do_get(
-      client: &reqwest::Client,
-      path: &str,
-      token: Option<String>,
-    ) -> anyhow::Result<String> {
-      let max_retries = 2u32;
-      let mut last_err = String::new();
-      for attempt in 0..=max_retries {
-        let mut req = client.get(path);
-        if let Some(ref t) = token {
-          req = req.bearer_auth(t);
-        }
-        match req.send().await {
-          Ok(res) => {
-            let status = res.status();
-            let text = res.text().await.unwrap_or_default();
-            if !status.is_success() {
-              anyhow::bail!("HTTP {}: {}", status, text);
-            }
-            return Ok(text);
-          }
-          Err(e) => {
-            last_err = format!("{}", e);
-            if attempt < max_retries {
-              tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1)))
-                .await;
-            }
-          }
-        }
+    // Helper: GET request via gateway RPC
+    async fn do_get(path: &str, query: &JsonValue) -> anyhow::Result<String> {
+      match gateway_client::browser_request("GET", path, Some(query.clone()), None, None).await {
+        Ok(v) => Ok(if v.is_string() { v.as_str().unwrap().to_string() } else { v.to_string() }),
+        Err(e) => anyhow::bail!("{}", e),
       }
-      anyhow::bail!(
-        "Browser control server unreachable after {} attempts: {}",
-        max_retries + 1,
-        last_err
-      )
     }
 
-    // Helper function for POST requests (with retry on connection failures)
-    async fn do_post(
-      client: &reqwest::Client,
-      path: &str,
-      payload: JsonValue,
-      token: Option<String>,
-    ) -> anyhow::Result<String> {
-      let max_retries = 2u32;
-      let mut last_err = String::new();
-      for attempt in 0..=max_retries {
-        let mut req = client.post(path).json(&payload);
-        if let Some(ref t) = token {
-          req = req.bearer_auth(t);
-        }
-        match req.send().await {
-          Ok(res) => {
-            let status = res.status();
-            let text = res.text().await.unwrap_or_default();
-            if !status.is_success() {
-              anyhow::bail!("HTTP {}: {}", status, text);
-            }
-            return Ok(text);
-          }
-          Err(e) => {
-            last_err = format!("{}", e);
-            if attempt < max_retries {
-              tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1)))
-                .await;
-            }
-          }
-        }
+    // Helper: POST request via gateway RPC
+    async fn do_post(path: &str, payload: JsonValue, query: &JsonValue) -> anyhow::Result<String> {
+      match gateway_client::browser_request("POST", path, Some(query.clone()), Some(payload), None).await {
+        Ok(v) => Ok(if v.is_string() { v.as_str().unwrap().to_string() } else { v.to_string() }),
+        Err(e) => anyhow::bail!("{}", e),
       }
-      anyhow::bail!(
-        "Browser control server unreachable after {} attempts: {}",
-        max_retries + 1,
-        last_err
-      )
     }
 
     if name == "open_url" {
@@ -1304,12 +933,7 @@ pub async fn chat(
         format!("https://{}", url_raw)
       };
 
-      let endpoint = format!(
-        "{}/tabs/open?profile={}",
-        base_url.trim_end_matches('/'),
-        profile
-      );
-      let out = do_post(client, &endpoint, serde_json::json!({"url": url}), token).await?;
+      let out = do_post("/tabs/open", serde_json::json!({"url": url}), &query).await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -1338,16 +962,11 @@ pub async fn chat(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-      let endpoint = format!(
-        "{}/navigate?profile={}",
-        base_url.trim_end_matches('/'),
-        profile
-      );
       let mut payload = serde_json::json!({"url": url});
       if let Some(tid) = target_id {
         payload["targetId"] = serde_json::json!(tid);
       }
-      let out = do_post(client, &endpoint, payload, token).await?;
+      let out = do_post("/navigate", payload, &query).await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -1362,28 +981,12 @@ pub async fn chat(
         anyhow::bail!("targetId is required");
       }
 
-      let endpoint = format!(
-        "{}/focus?profile={}",
-        base_url.trim_end_matches('/'),
-        profile
-      );
-      let out = do_post(
-        client,
-        &endpoint,
-        serde_json::json!({"targetId": target_id}),
-        token,
-      )
-      .await?;
+      let out = do_post("/tabs/focus", serde_json::json!({"targetId": target_id}), &query).await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
     if name == "list_tabs" {
-      let endpoint = format!(
-        "{}/tabs?profile={}",
-        base_url.trim_end_matches('/'),
-        profile
-      );
-      let out = do_get(client, &endpoint, token).await?;
+      let out = do_get("/tabs", &query).await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -1395,23 +998,11 @@ pub async fn chat(
         .filter(|s| !s.is_empty());
 
       // Don't use "efficient" mode - it truncates too much and loses important content
-      let mut qs = vec![("format", "ai".to_string()), ("refs", "aria".to_string())];
+      let mut snap_query = json!({"profile": profile, "format": "ai", "refs": "aria"});
       if let Some(tid) = target_id {
-        qs.push(("targetId", tid));
+        snap_query["targetId"] = json!(tid);
       }
-      let qs_str = qs
-        .into_iter()
-        .map(|(k, v)| format!("{}={}", k, urlencoding::encode(&v)))
-        .collect::<Vec<_>>()
-        .join("&");
-
-      let endpoint = format!(
-        "{}/snapshot?profile={}&{}",
-        base_url.trim_end_matches('/'),
-        profile,
-        qs_str
-      );
-      let out = do_get(client, &endpoint, token).await?;
+      let out = do_get("/snapshot", &snap_query).await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -1428,9 +1019,8 @@ pub async fn chat(
         .get("targetId")
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string());
-      let endpoint = format!("{}/act?profile={}", base_url.trim_end_matches('/'), profile);
       let payload = serde_json::json!({"kind": "click", "targetId": target_id, "ref": ref_id});
-      let out = do_post(client, &endpoint, payload, token).await?;
+      let out = do_post("/act", payload, &query).await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -1452,9 +1042,8 @@ pub async fn chat(
         .get("targetId")
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string());
-      let endpoint = format!("{}/act?profile={}", base_url.trim_end_matches('/'), profile);
       let payload = serde_json::json!({"kind": "type", "targetId": target_id, "ref": ref_id, "text": t, "submit": submit});
-      let out = do_post(client, &endpoint, payload, token).await?;
+      let out = do_post("/act", payload, &query).await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -3031,7 +2620,7 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
       let name = &tc.function.name;
       let args = &tc.function.arguments;
       eprintln!("[clawd/chat] tool call: {} args={}", name, args);
-      let mut result = match run_tool(name, args, &app_handle, &client, &base_url, &profile).await {
+      let mut result = match run_tool(name, args, &app_handle, &profile).await {
         Ok(v) => {
           eprintln!("[clawd/chat] tool {} succeeded", name);
           v
@@ -3068,71 +2657,24 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
 
 #[post("/api/clawd/browser/screenshot")]
 pub async fn screenshot(
-  app_handle: web::Data<tauri::AppHandle>,
-  cfg: web::Data<SharedClawdbotConfig>,
+  _app_handle: web::Data<tauri::AppHandle>,
+  _cfg: web::Data<SharedClawdbotConfig>,
   body: web::Json<JsonValue>,
 ) -> impl Responder {
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
   let profile = clawd_profile(chrome);
-
-  let base_url_opt = { cfg.read().await.base_url.clone() };
-  let Some(base_url) = base_url_opt else {
-    return HttpResponse::BadRequest().json(serde_json::json!({
-      "success": false,
-      "message": "Clawdbot base_url is not configured. Enable Clawd in Settings first."
-    }));
-  };
-
-  let endpoint = format!(
-    "{}/screenshot?profile={}",
-    base_url.trim_end_matches('/'),
-    profile
-  );
-
-  let client = match control_client().await {
-    Ok(c) => c,
-    Err(e) => {
-      return HttpResponse::InternalServerError()
-        .json(serde_json::json!({"success": false, "message": e}))
-    }
-  };
+  let rpc_query = serde_json::json!({"profile": profile});
 
   let mut forward = body.into_inner();
   if let Some(obj) = forward.as_object_mut() {
     obj.remove("chrome");
   }
 
-  let token = bearer_token_for_control(&app_handle);
-
-  // Retry connection failures (gateway may still be starting)
-  let max_retries = 2u32;
-  let mut last_err = String::new();
-  for attempt in 0..=max_retries {
-    let mut req = client.post(&endpoint).json(&forward);
-    if let Some(ref token) = token {
-      req = req.bearer_auth(token);
+  match gateway_client::browser_request("POST", "/screenshot", Some(rpc_query), Some(forward), None).await {
+    Ok(result) => {
+      let text = if result.is_string() { result.as_str().unwrap().to_string() } else { result.to_string() };
+      HttpResponse::Ok().body(text)
     }
-
-    match req.send().await {
-      Ok(res) => {
-        let status = res.status();
-        let text = res.text().await.unwrap_or_default();
-        if !status.is_success() {
-          return HttpResponse::BadGateway().json(serde_json::json!({
-            "success": false,
-            "message": if text.is_empty() { format!("Clawdbot error: HTTP {}", status) } else { format!("Clawdbot error: HTTP {}: {}", status, text) }
-          }));
-        }
-        return HttpResponse::Ok().body(text);
-      }
-      Err(e) => {
-        last_err = format!("{}", e);
-        if attempt < max_retries {
-          tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
-          continue;
-        }
-      }
-    }
+    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
-  HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": format!("Failed to reach browser control server after {} attempts: {}", max_retries + 1, last_err)}))
 }
