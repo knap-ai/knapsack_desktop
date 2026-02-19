@@ -412,15 +412,24 @@ export function useBackgroundNotifications({
               return response
             }
 
+            // Debug: log what the LLM returned so we can verify field presence
+            console.log('[notification] parsed LLM response:', {
+              hasSuggestedActionShort: !!parsed.suggestedActionShort,
+              suggestedActionShort: parsed.suggestedActionShort,
+              hasSuggestedActionPrompt: !!parsed.suggestedActionPrompt,
+              suggestedActionPrompt: parsed.suggestedActionPrompt?.slice(0, 80),
+              hasKnapsackLink: parsed.fullAnalysis?.includes('knapsack://prompt/'),
+              fullAnalysisTail: parsed.fullAnalysis?.slice(-200),
+            })
+
             // Ensure the fullAnalysis contains the knapsack://prompt/ CTA link.
             // The LLM returns suggestedActionShort/suggestedActionPrompt as separate fields
             // but doesn't always embed the link inside fullAnalysis. Append it if missing.
-            if (
-              parsed.suggestedActionShort &&
-              parsed.suggestedActionPrompt &&
-              !parsed.fullAnalysis?.includes('knapsack://prompt/')
-            ) {
-              const ctaLink = `[${parsed.suggestedActionShort}](knapsack://prompt/${parsed.suggestedActionPrompt})`
+            if (!parsed.fullAnalysis?.includes('knapsack://prompt/')) {
+              // Prefer the explicit fields, but fall back to inferring from the analysis text
+              const actionLabel = parsed.suggestedActionShort || buttonText
+              const actionPrompt = parsed.suggestedActionPrompt || parsed.suggestedActionShort || 'Review and take action on this notification'
+              const ctaLink = `[${actionLabel}](knapsack://prompt/${actionPrompt})`
               parsed.fullAnalysis = parsed.fullAnalysis
                 ? `${parsed.fullAnalysis.trimEnd()}\n\n${ctaLink}`
                 : ctaLink
@@ -702,13 +711,11 @@ export function useBackgroundNotifications({
             const parsed = parseLLMResponse(response)
 
             if (parsed) {
-              // Ensure fullAnalysis contains the CTA link (same as generateAndShowNotification)
-              if (
-                parsed.suggestedActionShort &&
-                parsed.suggestedActionPrompt &&
-                !parsed.fullAnalysis?.includes('knapsack://prompt/')
-              ) {
-                const ctaLink = `[${parsed.suggestedActionShort}](knapsack://prompt/${parsed.suggestedActionPrompt})`
+              // Ensure fullAnalysis contains the CTA link
+              if (!parsed.fullAnalysis?.includes('knapsack://prompt/')) {
+                const actionLabel = parsed.suggestedActionShort || 'View Follow-ups'
+                const actionPrompt = parsed.suggestedActionPrompt || parsed.suggestedActionShort || 'Review follow-up action items from this meeting'
+                const ctaLink = `[${actionLabel}](knapsack://prompt/${actionPrompt})`
                 parsed.fullAnalysis = parsed.fullAnalysis
                   ? `${parsed.fullAnalysis.trimEnd()}\n\n${ctaLink}`
                   : ctaLink
@@ -883,12 +890,10 @@ export function useBackgroundNotifications({
             }
 
             // Ensure fullAnalysis contains the CTA link
-            if (
-              parsed.suggestedActionShort &&
-              parsed.suggestedActionPrompt &&
-              !parsed.fullAnalysis?.includes('knapsack://prompt/')
-            ) {
-              const ctaLink = `[${parsed.suggestedActionShort}](knapsack://prompt/${parsed.suggestedActionPrompt})`
+            if (!parsed.fullAnalysis?.includes('knapsack://prompt/')) {
+              const actionLabel = parsed.suggestedActionShort || 'View Briefing'
+              const actionPrompt = parsed.suggestedActionPrompt || parsed.suggestedActionShort || 'Review and act on this morning briefing'
+              const ctaLink = `[${actionLabel}](knapsack://prompt/${actionPrompt})`
               parsed.fullAnalysis = parsed.fullAnalysis
                 ? `${parsed.fullAnalysis.trimEnd()}\n\n${ctaLink}`
                 : ctaLink
