@@ -165,6 +165,40 @@ export const EmailAutopilot = ({
     [emailsCategory, selectedEmail],
   )
 
+  const handleEmailActionTaken = useCallback((
+    actionTaken: AutopilotActions,
+    emailUid: string,
+    draftReply?: string,
+  ) => {
+    if (
+      actionTaken === AutopilotActions.MARK_AS_READ ||
+      actionTaken === AutopilotActions.DELETE ||
+      actionTaken === AutopilotActions.ARCHIVE
+    ) {
+      setRemovingEmailUid(emailUid)
+      setTimeout(() => {
+        feed.takeEmailAction(
+          emailUid,
+          actionTaken,
+          profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+        )
+        setRemovingEmailUid('')
+      }, 300)
+    } else if (
+      actionTaken === AutopilotActions.SEND_REPLY ||
+      actionTaken === AutopilotActions.REPLY_ARCHIVE ||
+      actionTaken === AutopilotActions.REPLY_DELETE ||
+      actionTaken === AutopilotActions.GENERATE_DRAFT_REPLY
+    ) {
+      feed.takeEmailAction(
+        emailUid,
+        actionTaken,
+        profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+        draftReply,
+      )
+    }
+  }, [feed.takeEmailAction, profileProvider])
+
   const keyDownHandler = useCallback(
     (event: KeyboardEvent) => {
       const currentItem = feed.currentFeedItem()
@@ -200,7 +234,8 @@ export const EmailAutopilot = ({
       isEditorActive,
       actions,
       arrowRightHandler,
-      navigateEmails
+      navigateEmails,
+      handleEmailActionTaken
     ],
   )
 
@@ -274,40 +309,6 @@ export const EmailAutopilot = ({
       }
     }
   }, [updateVisibleEmails])
-
-  const handleEmailActionTaken = (
-    actionTaken: AutopilotActions,
-    emailUid: string,
-    draftReply?: string,
-  ) => {
-    if (
-      actionTaken === AutopilotActions.MARK_AS_READ ||
-      actionTaken === AutopilotActions.DELETE ||
-      actionTaken === AutopilotActions.ARCHIVE
-    ) {
-      setRemovingEmailUid(emailUid)
-      setTimeout(() => {
-        feed.takeEmailAction(
-          emailUid,
-          actionTaken,
-          profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
-        )
-        setRemovingEmailUid('')
-      }, 300)
-    } else if (
-      actionTaken === AutopilotActions.SEND_REPLY ||
-      actionTaken === AutopilotActions.REPLY_ARCHIVE ||
-      actionTaken === AutopilotActions.REPLY_DELETE ||
-      actionTaken === AutopilotActions.GENERATE_DRAFT_REPLY
-    ) {
-      feed.takeEmailAction(
-        emailUid,
-        actionTaken,
-        profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
-        draftReply,
-      )
-    }
-  }
 
   const getLoadingText = (status: string) => {
     if (status === 'fetching-emails') {
