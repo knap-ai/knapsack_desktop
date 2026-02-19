@@ -69,8 +69,6 @@ zstd-sys = "=2.0.9" # Locked to this version because of the Error: error[E0432]:
 walkdir = "=2.5.0"
 open = "=5"
 regex = "=1.11.1"
-imap = "2.4.1"
-native-tls = "0.2"
 mailparse = "0.15.0"
 rusqlite = { version = "0.32.0", features = ["bundled"] }
 difference = "2.0.0"

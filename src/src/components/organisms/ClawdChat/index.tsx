@@ -171,11 +171,19 @@ function friendlyError(raw: string): string {
     .replace(/^Gemini error:?\s*/i, '')
     .replace(/^Gemini error after \d+ retries:?\s*/i, '')
     .replace(/^Gemini HTTP \d+[^:]*:?\s*/i, '')
-  // If still very long or contains raw JSON, truncate
-  if (cleaned.length > 200 || cleaned.includes('{')) {
-    return '⚠️ Something went wrong with the AI request. Please try again or check your API key in Settings.'
+  // After prefix stripping, the remainder may be parseable JSON from the provider
+  if (cleaned.includes('{')) {
+    try {
+      const parsed = JSON.parse(cleaned)
+      const msg = parsed?.error?.message || parsed?.message || parsed?.error
+      if (msg && typeof msg === 'string') return `⚠️ ${msg}`
+    } catch { /* not valid JSON, fall through */ }
   }
-  return cleaned
+  // If still very long, truncate rather than hiding the error entirely
+  if (cleaned.length > 200) {
+    return `⚠️ ${cleaned.slice(0, 180)}…`
+  }
+  return `⚠️ ${cleaned}`
 }
 
 type Role = 'system' | 'user' | 'assistant'
@@ -837,6 +845,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
   const doSendRef = useRef<((text: string) => Promise<void>) | null>(null)
   const pushAssistantRef = useRef<((text: string) => void) | null>(null)
+  const handleSendWithTextRef = useRef<((text: string) => Promise<void>) | null>(null)
 
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
@@ -1771,6 +1780,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('clawd-push-assistant', handler)
   }, [])
 
+  // Listen for suggested action triggers from notification handlers.
+  // When the user clicks the primary action button on a notification,
+  // the handler pushes the analysis to chat and then dispatches this event
+  // to auto-execute the suggested action prompt.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const text = (e as CustomEvent<string>).detail
+      if (text) handleSendWithTextRef.current?.(text)
+    }
+    window.addEventListener('clawd-send-user', handler)
+    return () => window.removeEventListener('clawd-send-user', handler)
+  }, [])
+
   const pushUser = (text: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
   }
@@ -1830,6 +1852,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     await doSend(text.trim())
   }, [])
+
+  // Keep handleSendWithTextRef updated for the clawd-send-user event listener
+  handleSendWithTextRef.current = handleSendWithText
 
   const handleExampleClick = useCallback((e: React.MouseEvent, text: string) => {
     // Prevent any default link behavior (URLs in text might be auto-linked)
@@ -2293,27 +2318,60 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }))
         }
 
-        const res = await fetch(apiUrl('/api/clawd/chat'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        })
+        // Retry transient failures (429, 500, 502, 503, 504) up to 2 times
+        const maxRetries = 3
+        let lastError = ''
+        let succeeded = false
 
-        if (!res.ok) {
-          const errorText = await res.text().catch(() => '')
-          throw new Error(errorText || `HTTP ${res.status}`)
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            const res = await fetch(apiUrl('/api/clawd/chat'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(requestBody),
+              signal: controller.signal,
+            })
+
+            if (!res.ok) {
+              const errorText = await res.text().catch(() => '')
+              const retryable = [429, 500, 502, 503, 504].includes(res.status)
+              if (retryable && attempt < maxRetries - 1) {
+                const wait = Math.pow(2, attempt + 1) * 1000
+                console.warn(`[chat] HTTP ${res.status} (attempt ${attempt + 1}/${maxRetries}), retrying in ${wait}ms...`)
+                lastError = errorText || `HTTP ${res.status}`
+                await new Promise(r => setTimeout(r, wait))
+                continue
+              }
+              throw new Error(errorText || `HTTP ${res.status}`)
+            }
+
+            const out = await res.json() as { ok?: boolean; reply?: string; error?: string; message?: string; model?: string; usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number } }
+            if (out.reply) {
+              setMsgs(prev => [
+                ...prev,
+                { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
+              ])
+            } else {
+              pushAssistant(friendlyError(out.message || out.error || 'No reply'))
+            }
+            succeeded = true
+            break
+          } catch (fetchErr: any) {
+            if (fetchErr.name === 'AbortError') throw fetchErr
+            // Retry on network errors (fetch failed, connection reset, etc.)
+            const isNetworkError = fetchErr.message?.includes('fetch') || fetchErr.message?.includes('network') || fetchErr.message?.includes('ECONNR')
+            if (isNetworkError && attempt < maxRetries - 1) {
+              const wait = Math.pow(2, attempt + 1) * 1000
+              console.warn(`[chat] Network error (attempt ${attempt + 1}/${maxRetries}), retrying in ${wait}ms...`)
+              lastError = fetchErr.message
+              await new Promise(r => setTimeout(r, wait))
+              continue
+            }
+            throw fetchErr
+          }
         }
-
-        const out = await res.json() as { ok?: boolean; reply?: string; error?: string; message?: string; model?: string; usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number } }
-        if (out.reply) {
-          // Include model info so the user can see which model handled their request
-          setMsgs(prev => [
-            ...prev,
-            { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
-          ])
-        } else {
-          pushAssistant(friendlyError(out.message || out.error || 'No reply'))
+        if (!succeeded && lastError) {
+          throw new Error(lastError)
         }
       } catch (e: any) {
         if (e.name === 'AbortError') {

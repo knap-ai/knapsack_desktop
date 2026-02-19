@@ -161,7 +161,7 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
           ...prev,
           ...finishedConnections,
         }))
-      }, 1000)
+      }, 3000)
     }
     return () => {
       if (interval) {

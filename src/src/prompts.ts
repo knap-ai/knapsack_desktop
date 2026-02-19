@@ -351,7 +351,9 @@ Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max - compelling morning headline>",
   "notificationBody": "<20 words max - the most important thing to know, addressing the user as 'you'>",
-  "fullAnalysis": "<Comprehensive morning briefing in Markdown. Be specific with names, times, subjects. Use headers and bullet points.>",
+  "fullAnalysis": "<Comprehensive morning briefing in Markdown. Be specific with names, times, subjects. Use headers and bullet points. IMPORTANT: End with a single suggested next action as a markdown link in the format [Descriptive Action Label](knapsack://prompt/detailed instruction for the action). For example: [Build Hanwha Brief From My History](knapsack://prompt/Search my email and calendar history for all interactions with Hanwha and compile a comprehensive brief). The action should be the most impactful thing the user can do right now based on the briefing.>",
+  "suggestedActionShort": "<exactly 2 words - verb + noun summarizing the suggested action, e.g. Build Brief, Draft Reply, Review Prep>",
+  "suggestedActionPrompt": "<the full detailed instruction for the suggested action, matching what's in the knapsack://prompt/ link>",
   "category": "morning_briefing",
   "priority": "<high if urgent items exist, medium otherwise>"
 }
@@ -362,6 +364,8 @@ Rules:
 - Reference specific meetings by name and time
 - Include concrete action items, not generic advice
 - If the day is light, suggest proactive tasks based on recent email threads or projects
+- ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -377,7 +381,9 @@ Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max>",
   "notificationBody": "<20 words max - address the user as 'you'>",
-  "fullAnalysis": "<Analysis in Markdown: what needs attention, suggested responses, key context from the emails>",
+  "fullAnalysis": "<Analysis in Markdown: what needs attention, suggested responses, key context from the emails. IMPORTANT: End with a single suggested next action as a markdown link in the format [Descriptive Action Label](knapsack://prompt/detailed instruction for the action). For example: [Draft Reply to Sarah's Budget Request](knapsack://prompt/Draft a reply to Sarah's email about the Q3 budget request, confirming the timeline and asking for the revised numbers). The action should be the most impactful thing the user can do right now based on the emails.>",
+  "suggestedActionShort": "<exactly 2 words - verb + noun summarizing the suggested action, e.g. Draft Reply, Review Email, Send Update>",
+  "suggestedActionPrompt": "<the full detailed instruction for the suggested action, matching what's in the knapsack://prompt/ link>",
   "category": "email_alert",
   "priority": "<high if response needed urgently, medium if important but not urgent, low if informational>",
   "shouldNotify": <true or false - only true if there's something genuinely worth interrupting the user about>
@@ -388,6 +394,8 @@ Rules:
 - Marketing, newsletters, automated notifications, and spam should NOT trigger notifications
 - Focus on emails from real people needing real responses
 - Include sender names and subjects in your analysis
+- ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -405,7 +413,9 @@ Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max - mention the meeting>",
   "notificationBody": "<20 words max - key prep point, address the user as 'you'>",
-  "fullAnalysis": "<Meeting prep briefing in Markdown: attendee context, relevant recent emails, suggested talking points, open items>",
+  "fullAnalysis": "<Meeting prep briefing in Markdown: attendee context, relevant recent emails, suggested talking points, open items. IMPORTANT: End with a single suggested next action as a markdown link in the format [Descriptive Action Label](knapsack://prompt/detailed instruction for the action). For example: [Build Meeting Brief for Acme Sync](knapsack://prompt/Compile a detailed brief for the Acme sync meeting including recent project updates, open items from last meeting, and key discussion points). The action should be the most helpful prep task the user can do right now.>",
+  "suggestedActionShort": "<exactly 2 words - verb + noun summarizing the suggested action, e.g. Build Brief, Review Notes, Prep Agenda>",
+  "suggestedActionPrompt": "<the full detailed instruction for the suggested action, matching what's in the knapsack://prompt/ link>",
   "category": "pre_meeting_prep",
   "priority": "high",
   "meetingTitle": "<the meeting title>"
@@ -416,6 +426,8 @@ Rules:
 - Highlight any unresolved items from previous conversations with these people
 - Suggest concrete talking points based on available context
 - If you have relevant email threads with attendees, summarize them briefly
+- ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -434,7 +446,9 @@ Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max - the headline for the notification>",
   "notificationBody": "<20 words max - brief summary of what to do next, address the user as 'you'>",
-  "fullAnalysis": "<Your comprehensive follow-up plan in Markdown. Include specific action items as checkboxes, draft email snippets where appropriate, and concrete next steps. Reference specific things discussed in the meeting.>",
+  "fullAnalysis": "<Your comprehensive follow-up plan in Markdown. Include specific action items as checkboxes, draft email snippets where appropriate, and concrete next steps. Reference specific things discussed in the meeting. IMPORTANT: End with a single suggested next action as a markdown link in the format [Descriptive Action Label](knapsack://prompt/detailed instruction for the action). For example: [Draft Follow-up Email to Team](knapsack://prompt/Draft a follow-up email summarizing the key decisions and action items from the meeting, addressed to all attendees). The action should be the most impactful follow-up task.>",
+  "suggestedActionShort": "<exactly 2 words - verb + noun summarizing the suggested action, e.g. Draft Email, Send Summary, Create Tasks>",
+  "suggestedActionPrompt": "<the full detailed instruction for the suggested action, matching what's in the knapsack://prompt/ link>",
   "actionItemCount": <number of action items identified>,
   "meetingTitle": "<the meeting title>"
 }
@@ -443,6 +457,8 @@ Rules:
 - Be specific - reference actual topics, names, and decisions from the meeting
 - Action items should have clear owners and deadlines when mentioned
 - If email follow-ups are needed, draft brief outlines of what they should say
+- ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate - only reference what's in the transcript
 - Output ONLY the JSON object, no other text
 `

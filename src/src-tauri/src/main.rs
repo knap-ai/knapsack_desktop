@@ -54,7 +54,7 @@ use uuid::Uuid;
 use window_shadows::set_shadow;
 
 use crate::audio::microphone::open_microphone_settings;
-use crate::audio::permission::open_screen_recording_settings;
+use crate::audio::permission::{open_screen_recording_settings, check_audio_permissions};
 use crate::connections::microsoft::auth::start_oauth;
 use crate::db::db::{start_database, KNAPSACK_DB_FILENAME};
 use crate::utils::log::setup_logger;
@@ -824,6 +824,7 @@ async fn main() {
       emit_event,
       open_screen_recording_settings,
       open_microphone_settings,
+      check_audio_permissions,
       audio::audio::emit_stop_events,
       spotlight::kn_init_app,
       kn_read_logs,

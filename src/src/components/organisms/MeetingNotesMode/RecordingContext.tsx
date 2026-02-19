@@ -6,6 +6,7 @@ import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
 
 import { emit } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/tauri'
 import { open } from '@tauri-apps/api/shell'
 
 export interface RecordingContextProps {
@@ -110,6 +111,50 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     }
     isStartingRef.current = true
     try {
+      // Check macOS permissions before attempting to record
+      try {
+        const permissions = await invoke<{
+          microphone: boolean
+          screen_recording: boolean
+          all_granted: boolean
+        }>('check_audio_permissions')
+
+        if (!permissions.all_granted) {
+          const missing: string[] = []
+          if (!permissions.microphone) missing.push('Microphone')
+          if (!permissions.screen_recording) missing.push('Screen Recording')
+
+          const message = `Recording requires ${missing.join(' and ')} permission${missing.length > 1 ? 's' : ''}. Please grant access in System Settings > Privacy & Security, then try again.`
+
+          // Clear stale localStorage so AudioPermissionChecker re-shows
+          if (!permissions.microphone) localStorage.removeItem('micPermissionGranted')
+          if (!permissions.screen_recording) localStorage.removeItem('screenPermissionGranted')
+
+          logError(
+            new Error('Missing recording permissions'),
+            {
+              additionalInfo: message,
+              error: `microphone=${permissions.microphone}, screen_recording=${permissions.screen_recording}`,
+            },
+            true,
+          )
+          throw new Error(message)
+        }
+      } catch (permErr: any) {
+        // If this is our own permission error, rethrow it
+        if (permErr.message?.includes('permission')) {
+          throw permErr
+        }
+        // If invoke itself failed (e.g. command not found), log but don't block
+        logError(
+          new Error('Permission check failed'),
+          {
+            additionalInfo: 'Could not verify permissions, proceeding anyway.',
+            error: permErr.message || String(permErr),
+          },
+        )
+      }
+
       await startRecord(threadId, feedItemId, eventId, saveTranscript)
       setFeedIsRecording(true)
       setIsRecording(threadId, true)
@@ -127,7 +172,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         },
         true,
       )
-      throw new Error('Error start recording')
+      throw new Error(err.message || 'Error start recording')
     } finally {
       isStartingRef.current = false
     }

@@ -25,9 +25,6 @@ pub enum Error {
   ReqwestError(reqwest::Error),
 
   #[from]
-  ImapError(imap::Error),
-
-  #[from]
   TauriError(tauri::Error),
 
   #[from]

@@ -1,22 +1,167 @@
 use crate::error::Error;
-use crate::llm::groq::llm::GroqLlm;
+use crate::llm::types::LLMError;
 use crate::utils::log::knap_log_error;
 use regex::Regex;
+use reqwest::multipart::{Form, Part};
+use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
-pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
-  let groq = GroqLlm::new()?;
-  match groq
-    .speech_to_text_request(audio_file, Some("en".to_string()), Some(0.5))
+/// A resolved speech-to-text provider (only OpenAI and Groq support Whisper STT).
+struct SttProvider {
+  name: &'static str,
+  api_key: String,
+  base_url: &'static str,
+  model: &'static str,
+}
+
+/// Resolve the best available speech-to-text provider.
+/// Respects the user's active provider when it supports STT, then falls back
+/// through OpenAI → Groq (the two providers with OpenAI-compatible Whisper APIs).
+fn resolve_stt_provider() -> Result<SttProvider, LLMError> {
+  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+  let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+  let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
+
+  // If the user's active provider supports STT, prefer it
+  match active.as_str() {
+    "openai" if openai_key.is_some() => return Ok(SttProvider {
+      name: "openai",
+      api_key: openai_key.unwrap(),
+      base_url: "https://api.openai.com/v1/audio/transcriptions",
+      model: "whisper-1",
+    }),
+    "groq" if groq_key.is_some() => return Ok(SttProvider {
+      name: "groq",
+      api_key: groq_key.unwrap(),
+      base_url: "https://api.groq.com/openai/v1/audio/transcriptions",
+      model: "whisper-large-v3-turbo",
+    }),
+    // Anthropic & Gemini don't offer STT — fall through to any available STT provider
+    _ => {}
+  }
+
+  // Fallback: try any STT-capable provider
+  if let Some(key) = openai_key {
+    return Ok(SttProvider {
+      name: "openai",
+      api_key: key,
+      base_url: "https://api.openai.com/v1/audio/transcriptions",
+      model: "whisper-1",
+    });
+  }
+  if let Some(key) = groq_key {
+    return Ok(SttProvider {
+      name: "groq",
+      api_key: key,
+      base_url: "https://api.groq.com/openai/v1/audio/transcriptions",
+      model: "whisper-large-v3-turbo",
+    });
+  }
+
+  Err(LLMError::ChatCompletionFailed(
+    "No speech-to-text provider available. Please add an OpenAI or Groq API key in Settings.".into(),
+  ))
+}
+
+#[derive(Deserialize, Debug)]
+struct TranscriptSegment {
+  start: f32,
+  end: f32,
+  text: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct TranscriptionResponse {
+  text: String,
+  segments: Vec<TranscriptSegment>,
+}
+
+/// Send audio to an OpenAI-compatible Whisper transcription endpoint.
+async fn speech_to_text(
+  provider: &SttProvider,
+  audio_file: &PathBuf,
+  language: Option<&str>,
+  temperature: Option<f32>,
+) -> Result<String, Error> {
+  if !audio_file.exists() {
+    return Err(LLMError::ChatCompletionFailed("Audio file does not exist".to_string()).into());
+  }
+
+  let file_bytes = tokio::fs::read(&audio_file).await
+    .map_err(|_| LLMError::ChatCompletionFailed("Failed to read audio file".to_string()))?;
+
+  let file_name = audio_file
+    .file_name()
+    .and_then(|n| n.to_str())
+    .unwrap_or("audio.flac");
+
+  let file_part = Part::bytes(file_bytes)
+    .file_name(file_name.to_string())
+    .mime_str("audio/flac")?;
+
+  let mut form = Form::new()
+    .part("file", file_part)
+    .text("model", provider.model.to_string())
+    .text("response_format", "verbose_json");
+
+  if let Some(lang) = language {
+    form = form.text("language", lang.to_string());
+  }
+  if let Some(temp) = temperature {
+    form = form.text("temperature", temp.to_string());
+  }
+
+  let client = reqwest::Client::new();
+  let response = client
+    .post(provider.base_url)
+    .header("Authorization", format!("Bearer {}", provider.api_key))
+    .multipart(form)
+    .send()
     .await
-  {
+    .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
+
+  if !response.status().is_success() {
+    return Err(
+      LLMError::ChatCompletionFailed(format!(
+        "{} transcription failed with status: {}",
+        provider.name,
+        response.status()
+      ))
+      .into(),
+    );
+  }
+
+  let transcription: TranscriptionResponse = response
+    .json()
+    .await
+    .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
+
+  let joined_segments = transcription
+    .segments
+    .iter()
+    .map(|segment| {
+      format!(
+        "[{:.2} - {:.2}]: {}",
+        segment.start, segment.end, segment.text
+      )
+    })
+    .collect::<Vec<String>>()
+    .join("\n");
+  Ok(joined_segments)
+}
+
+pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
+  let provider = resolve_stt_provider()?;
+  log::info!("[transcribe] Using {} for speech-to-text", provider.name);
+  match speech_to_text(&provider, audio_file, Some("en"), Some(0.5)).await {
     Ok(transcription) => {
       log::debug!(
-        "------------------ Groq Transcribed text: {}",
+        "------------------ {} Transcribed text: {}",
+        provider.name,
         transcription
       );
       let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
@@ -37,7 +182,7 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
       Ok(())
     }
     Err(e) => {
-      knap_log_error(format!("Error transcribing with Groq: {:?}", e), None, None);
+      knap_log_error(format!("Error transcribing with {}: {:?}", provider.name, e), None, None);
       Err(e)
     }
   }

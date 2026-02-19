@@ -7,7 +7,7 @@ use flacenc::constant::build_info::FEATURES;
 use std::fs::File;
 use std::io::BufWriter;
 
-use chrono::{Duration as ChronoDuration, LocalResult, TimeZone, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -51,7 +51,6 @@ use crate::RecordingState;
 
 use super::encode::save_chunk;
 use super::transcribe::{finalize_chunk, unify_transcript};
-use chrono::DateTime;
 use cpal::SizedSample;
 use hound::SampleFormat;
 use std::collections::HashMap;
@@ -696,18 +695,13 @@ pub fn generate_filename(thread_subtitle: String, timestamp: i64) -> String {
   }
 
   let meeting_name_sanitized = sanitize_filename(meeting_name.unwrap_or("Untitled".to_string()));
-  match Utc.timestamp_opt(timestamp / 1000, 0) {
-    LocalResult::Single(datetime_utc) => {
+  match DateTime::from_timestamp(timestamp / 1000, 0) {
+    Some(datetime_utc) => {
       let formatted_date = datetime_utc.format("%Y-%m-%d").to_string();
       return format!("{}-{}.txt", formatted_date, meeting_name_sanitized);
     }
-    LocalResult::None => {
+    None => {
       log::debug!("Invalid timestamp");
-      let current_date_formatted = Utc::now().format("%Y-%m-%d").to_string();
-      return format!("{}-{}.txt", current_date_formatted, meeting_name_sanitized);
-    }
-    LocalResult::Ambiguous(_, _) => {
-      log::debug!("Ambiguous timestamp");
       let current_date_formatted = Utc::now().format("%Y-%m-%d").to_string();
       return format!("{}-{}.txt", current_date_formatted, meeting_name_sanitized);
     }
@@ -880,9 +874,7 @@ async fn fetch_meeting_end_time(event_id: u64) -> Result<Option<DateTime<Utc>>, 
   match CalendarEvent::find_by_id(event_id) {
     Ok(Some(event)) => match event.end {
       Some(end_timestamp) => Ok(Some(
-        Utc
-          .timestamp_opt(end_timestamp, 0)
-          .single()
+        DateTime::from_timestamp(end_timestamp, 0)
           .ok_or_else(|| "Invalid timestamp".to_string())?,
       )),
       None => Ok(None),

@@ -51,7 +51,7 @@ pub struct FetchEmailEventPayload {
   pub success: bool,
 }
 
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use gmail1::api::ModifyMessageRequest;
 use gmail1::{chrono, hyper, hyper_rustls, Gmail};
 
@@ -271,8 +271,9 @@ pub async fn fetch_gmail(
         match result {
           Ok(email_message) => {
             if (older_date.timestamp() as u64 > email_message.clone().date) {
-              let naive_date = NaiveDateTime::from_timestamp(email_message.clone().date as i64, 0);
-              older_date = DateTime::<Utc>::from_utc(naive_date, Utc);
+              if let Some(dt) = DateTime::from_timestamp(email_message.clone().date as i64, 0) {
+                older_date = dt;
+              }
             }
             email_documents_clone.lock().await.push(email_message);
           }

@@ -195,7 +195,17 @@ fn record_usage(provider: &str, model: &str, usage: &CompletionUsage, request_ty
   }
 }
 
+/// Check if an HTTP status code is retryable (rate limit, server error, gateway issues).
+fn is_retryable_status(status: reqwest::StatusCode) -> bool {
+  status == reqwest::StatusCode::TOO_MANY_REQUESTS
+    || status == reqwest::StatusCode::INTERNAL_SERVER_ERROR
+    || status == reqwest::StatusCode::BAD_GATEWAY
+    || status == reqwest::StatusCode::SERVICE_UNAVAILABLE
+    || status == reqwest::StatusCode::GATEWAY_TIMEOUT
+}
+
 /// Call an OpenAI-compatible chat completions endpoint (works for OpenAI, Groq, Gemini).
+/// Retries up to 3 times on transient failures with exponential backoff.
 async fn openai_compatible_completion(
   provider: &ResolvedProvider,
   messages: &[LlmMessage],
@@ -216,52 +226,81 @@ async fn openai_compatible_completion(
   });
 
   let url = format!("{}/chat/completions", &provider.base_url);
-  let resp = client.post(&url)
-    .header("Authorization", format!("Bearer {}", &provider.api_key))
-    .header("Content-Type", "application/json")
-    .json(&body)
-    .send()
-    .await
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("{} request failed: {}", provider.name, e)))?;
+  let max_retries = 3;
+  let mut last_error = String::new();
 
-  let status = resp.status();
-  let text = resp.text().await
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("{} response read failed: {}", provider.name, e)))?;
+  for attempt in 0..max_retries {
+    let resp = match client.post(&url)
+      .header("Authorization", format!("Bearer {}", &provider.api_key))
+      .header("Content-Type", "application/json")
+      .json(&body)
+      .send()
+      .await
+    {
+      Ok(r) => r,
+      Err(e) => {
+        last_error = format!("{} request failed: {}", provider.name, e);
+        if attempt < max_retries - 1 {
+          let wait = 2u64.pow(attempt as u32 + 1);
+          log::warn!("[completion] {} (attempt {}/{}), retrying in {}s...", last_error, attempt + 1, max_retries, wait);
+          tokio::time::sleep(tokio::time::Duration::from_secs(wait)).await;
+          continue;
+        }
+        return Err(LLMError::ChatCompletionFailed(last_error));
+      }
+    };
 
-  if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-    return Err(LLMError::TooManyRequests(format!("{} rate limited", provider.name)));
-  }
-  if !status.is_success() {
+    let status = resp.status();
+    let text = resp.text().await
+      .map_err(|e| LLMError::ChatCompletionFailed(format!("{} response read failed: {}", provider.name, e)))?;
+
+    if status.is_success() {
+      let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| LLMError::ChatCompletionFailed(format!("{} JSON parse failed: {}", provider.name, e)))?;
+
+      let mut usage = extract_openai_usage(&json);
+      if usage.input_tokens == 0 {
+        let total_input: usize = messages.iter().map(|m| m.content.len()).sum();
+        usage.input_tokens = estimate_tokens(&" ".repeat(total_input));
+      }
+
+      let content = json["choices"][0]["message"]["content"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| LLMError::ChatCompletionFailed(format!("{}: no content in response", provider.name)))?;
+
+      if usage.output_tokens == 0 {
+        usage.output_tokens = estimate_tokens(&content);
+      }
+
+      record_usage(&provider.name, &provider.model, &usage, "chat");
+      return Ok(content);
+    }
+
+    // Retry on transient errors (429, 500, 502, 503, 504)
+    if is_retryable_status(status) && attempt < max_retries - 1 {
+      let wait = 2u64.pow(attempt as u32 + 1);
+      log::warn!(
+        "[completion] {} error {} (attempt {}/{}), retrying in {}s...",
+        provider.name, status, attempt + 1, max_retries, wait
+      );
+      tokio::time::sleep(tokio::time::Duration::from_secs(wait)).await;
+      last_error = format!("{} error ({}): {}", provider.name, status, text);
+      continue;
+    }
+
+    // Non-retryable error or final attempt
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+      return Err(LLMError::TooManyRequests(format!("{} rate limited", provider.name)));
+    }
     return Err(LLMError::ChatCompletionFailed(format!("{} error ({}): {}", provider.name, status, text)));
   }
 
-  let json: serde_json::Value = serde_json::from_str(&text)
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("{} JSON parse failed: {}", provider.name, e)))?;
-
-  // Track token usage from response
-  let mut usage = extract_openai_usage(&json);
-
-  // If the API didn't return usage (some providers don't), estimate from content
-  if usage.input_tokens == 0 {
-    let total_input: usize = messages.iter().map(|m| m.content.len()).sum();
-    usage.input_tokens = estimate_tokens(&" ".repeat(total_input));
-  }
-
-  let content = json["choices"][0]["message"]["content"]
-    .as_str()
-    .map(|s| s.to_string())
-    .ok_or_else(|| LLMError::ChatCompletionFailed(format!("{}: no content in response", provider.name)))?;
-
-  if usage.output_tokens == 0 {
-    usage.output_tokens = estimate_tokens(&content);
-  }
-
-  record_usage(&provider.name, &provider.model, &usage, "chat");
-
-  Ok(content)
+  Err(LLMError::ChatCompletionFailed(format!("{} failed after {} retries: {}", provider.name, max_retries, last_error)))
 }
 
 /// Call the Anthropic Messages API.
+/// Retries up to 3 times on transient failures with exponential backoff.
 async fn anthropic_completion(
   provider: &ResolvedProvider,
   messages: &[LlmMessage],
@@ -291,51 +330,77 @@ async fn anthropic_completion(
     body["system"] = serde_json::json!(system_text);
   }
 
-  let resp = client.post("https://api.anthropic.com/v1/messages")
-    .header("x-api-key", &provider.api_key)
-    .header("anthropic-version", "2023-06-01")
-    .header("Content-Type", "application/json")
-    .json(&body)
-    .send()
-    .await
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("Anthropic request failed: {}", e)))?;
+  let max_retries = 3;
+  let mut last_error = String::new();
 
-  let status = resp.status();
-  let text = resp.text().await
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("Anthropic response read failed: {}", e)))?;
+  for attempt in 0..max_retries {
+    let resp = match client.post("https://api.anthropic.com/v1/messages")
+      .header("x-api-key", &provider.api_key)
+      .header("anthropic-version", "2023-06-01")
+      .header("Content-Type", "application/json")
+      .json(&body)
+      .send()
+      .await
+    {
+      Ok(r) => r,
+      Err(e) => {
+        last_error = format!("Anthropic request failed: {}", e);
+        if attempt < max_retries - 1 {
+          let wait = 2u64.pow(attempt as u32 + 1);
+          log::warn!("[completion] {} (attempt {}/{}), retrying in {}s...", last_error, attempt + 1, max_retries, wait);
+          tokio::time::sleep(tokio::time::Duration::from_secs(wait)).await;
+          continue;
+        }
+        return Err(LLMError::ChatCompletionFailed(last_error));
+      }
+    };
 
-  if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-    return Err(LLMError::TooManyRequests("Anthropic rate limited".into()));
-  }
-  if !status.is_success() {
+    let status = resp.status();
+    let text = resp.text().await
+      .map_err(|e| LLMError::ChatCompletionFailed(format!("Anthropic response read failed: {}", e)))?;
+
+    if status.is_success() {
+      let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| LLMError::ChatCompletionFailed(format!("Anthropic JSON parse failed: {}", e)))?;
+
+      let mut usage = extract_anthropic_usage(&json);
+      if usage.input_tokens == 0 {
+        let total_input: usize = messages.iter().map(|m| m.content.len()).sum();
+        usage.input_tokens = estimate_tokens(&" ".repeat(total_input));
+      }
+
+      let content = json["content"][0]["text"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| LLMError::ChatCompletionFailed("Anthropic: no text in response".into()))?;
+
+      if usage.output_tokens == 0 {
+        usage.output_tokens = estimate_tokens(&content);
+      }
+
+      record_usage(&provider.name, &provider.model, &usage, "chat");
+      return Ok(content);
+    }
+
+    // Retry on transient errors
+    if is_retryable_status(status) && attempt < max_retries - 1 {
+      let wait = 2u64.pow(attempt as u32 + 1);
+      log::warn!(
+        "[completion] Anthropic error {} (attempt {}/{}), retrying in {}s...",
+        status, attempt + 1, max_retries, wait
+      );
+      tokio::time::sleep(tokio::time::Duration::from_secs(wait)).await;
+      last_error = format!("Anthropic error ({}): {}", status, text);
+      continue;
+    }
+
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+      return Err(LLMError::TooManyRequests("Anthropic rate limited".into()));
+    }
     return Err(LLMError::ChatCompletionFailed(format!("Anthropic error ({}): {}", status, text)));
   }
 
-  let json: serde_json::Value = serde_json::from_str(&text)
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("Anthropic JSON parse failed: {}", e)))?;
-
-  // Track token usage from Anthropic's response
-  let mut usage = extract_anthropic_usage(&json);
-
-  // Estimate if API didn't return usage
-  if usage.input_tokens == 0 {
-    let total_input: usize = messages.iter().map(|m| m.content.len()).sum();
-    usage.input_tokens = estimate_tokens(&" ".repeat(total_input));
-  }
-
-  // Anthropic returns content as an array of blocks
-  let content = json["content"][0]["text"]
-    .as_str()
-    .map(|s| s.to_string())
-    .ok_or_else(|| LLMError::ChatCompletionFailed("Anthropic: no text in response".into()))?;
-
-  if usage.output_tokens == 0 {
-    usage.output_tokens = estimate_tokens(&content);
-  }
-
-  record_usage(&provider.name, &provider.model, &usage, "chat");
-
-  Ok(content)
+  Err(LLMError::ChatCompletionFailed(format!("Anthropic failed after {} retries: {}", max_retries, last_error)))
 }
 
 /// Complete using the best available provider. Falls back through providers on failure.
