@@ -1,34 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { logError } from 'src/utils/errorHandling';
+
+interface AudioPermissions {
+  microphone: boolean;
+  screen_recording: boolean;
+  all_granted: boolean;
+}
 
 interface AudioPermissionCheckerProps {
   onBothPermissionsGranted: () => void;
 }
 
-const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({ 
-  onBothPermissionsGranted 
+const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
+  onBothPermissionsGranted
 }) => {
-  const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true');
-  const [systemAudioPermission, setSystemAudioPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true');
+  const [micPermission, setMicPermission] = useState(false);
+  const [systemAudioPermission, setSystemAudioPermission] = useState(false);
   const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [isCheckingSystemAudio, setIsCheckingSystemAudio] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
-  const checkAndConfirmMicrophonePermission = async () => {
+  const checkRealPermissions = useCallback(async (): Promise<AudioPermissions> => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-
-      setMicPermission(true);
-      localStorage.setItem('micPermissionGranted', 'true');
-      return true;
-    } catch (error) {
-      setMicPermission(false);
-      localStorage.removeItem('micPermissionGranted');
-      return false;
+      const permissions = await invoke<AudioPermissions>('check_audio_permissions');
+      return permissions;
+    } catch {
+      // Fallback: if the command isn't available, use localStorage as before
+      return {
+        microphone: localStorage.getItem('micPermissionGranted') === 'true',
+        screen_recording: localStorage.getItem('screenPermissionGranted') === 'true',
+        all_granted:
+          localStorage.getItem('micPermissionGranted') === 'true' &&
+          localStorage.getItem('screenPermissionGranted') === 'true',
+      };
     }
-  };
+  }, []);
 
   const requestMicrophoneAccess = async () => {
     setIsCheckingMic(true);
@@ -42,21 +49,26 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         })
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-      
-      setMicPermission(true);
-      localStorage.setItem('micPermissionGranted', 'true');
+      // Try browser getUserMedia to trigger the OS permission prompt
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+      } catch {
+        // getUserMedia may fail, but the user might still grant via System Settings
+      }
 
-      if (systemAudioPermission) {
+      // Re-check the actual OS permission status
+      const permissions = await checkRealPermissions();
+      setMicPermission(permissions.microphone);
+      if (permissions.microphone) {
+        localStorage.setItem('micPermissionGranted', 'true');
+      } else {
+        localStorage.removeItem('micPermissionGranted');
+      }
+
+      if (permissions.all_granted) {
         onBothPermissionsGranted();
       }
-      
-      return true;
-    } catch (error) {
-      setMicPermission(false);
-      localStorage.removeItem('micPermissionGranted');
-      return false;
     } finally {
       setIsCheckingMic(false);
     }
@@ -67,27 +79,28 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
     try {
       try {
         await invoke<{ success: boolean }>('open_screen_recording_settings');
-
-        setSystemAudioPermission(true);
-        localStorage.setItem('screenPermissionGranted', 'true');
-
-        if (micPermission) {
-          onBothPermissionsGranted();
-        }
-        
-        return true;
       } catch (error) {
         logError(new Error('Failed to open System audio settings'), {
           additionalInfo: '',
           error: error instanceof Error ? error.message : String(error),
         })
-        localStorage.removeItem('screenPermissionGranted');
-        return false;
       }
-    } catch (error) {
-      setSystemAudioPermission(false);
-      localStorage.removeItem('screenPermissionGranted');
-      return false;
+
+      // Wait a moment for the user to interact with System Settings
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Re-check the actual OS permission status
+      const permissions = await checkRealPermissions();
+      setSystemAudioPermission(permissions.screen_recording);
+      if (permissions.screen_recording) {
+        localStorage.setItem('screenPermissionGranted', 'true');
+      } else {
+        localStorage.removeItem('screenPermissionGranted');
+      }
+
+      if (permissions.all_granted) {
+        onBothPermissionsGranted();
+      }
     } finally {
       setIsCheckingSystemAudio(false);
     }
@@ -96,19 +109,24 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
   useEffect(() => {
     const initialCheck = async () => {
       try {
-        if (localStorage.getItem('micPermissionGranted') === 'true' && 
-            localStorage.getItem('screenPermissionGranted') === 'true') {
-          const hasMicPermission = await checkAndConfirmMicrophonePermission();
-          
-          if (hasMicPermission) {
-            onBothPermissionsGranted();
-          }
+        const permissions = await checkRealPermissions();
+        setMicPermission(permissions.microphone);
+        setSystemAudioPermission(permissions.screen_recording);
+
+        // Sync localStorage with actual OS state
+        if (permissions.microphone) {
+          localStorage.setItem('micPermissionGranted', 'true');
         } else {
-          const hasMicPermission = await checkAndConfirmMicrophonePermission();
-          
-          if (hasMicPermission && localStorage.getItem('screenPermissionGranted') === 'true') {
-            onBothPermissionsGranted();
-          }
+          localStorage.removeItem('micPermissionGranted');
+        }
+        if (permissions.screen_recording) {
+          localStorage.setItem('screenPermissionGranted', 'true');
+        } else {
+          localStorage.removeItem('screenPermissionGranted');
+        }
+
+        if (permissions.all_granted) {
+          onBothPermissionsGranted();
         }
       } catch (error) {
         logError(new Error('Permission initialization check failed'), {
@@ -119,15 +137,38 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         setIsInitializing(false);
       }
     };
-    
+
     initialCheck();
-  }, [onBothPermissionsGranted]);
+  }, [onBothPermissionsGranted, checkRealPermissions]);
 
   useEffect(() => {
     if (micPermission && systemAudioPermission) {
       onBothPermissionsGranted();
     }
   }, [micPermission, systemAudioPermission, onBothPermissionsGranted]);
+
+  // Poll for permission changes while the component is visible
+  // (user may grant permissions in System Settings without coming back to the app)
+  useEffect(() => {
+    if (micPermission && systemAudioPermission) return;
+
+    const interval = setInterval(async () => {
+      const permissions = await checkRealPermissions();
+      if (permissions.microphone && !micPermission) {
+        setMicPermission(true);
+        localStorage.setItem('micPermissionGranted', 'true');
+      }
+      if (permissions.screen_recording && !systemAudioPermission) {
+        setSystemAudioPermission(true);
+        localStorage.setItem('screenPermissionGranted', 'true');
+      }
+      if (permissions.all_granted) {
+        onBothPermissionsGranted();
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [micPermission, systemAudioPermission, onBothPermissionsGranted, checkRealPermissions]);
 
   if (isInitializing) {
     return (
@@ -144,9 +185,9 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
           <div className="py-4 px-6 flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="bg-white rounded-xl p-1 w-9 h-9 flex items-center justify-center">
-                <img 
-                  src="/assets/images/knap-logo-medium.png" 
-                  alt="Knapsack Logo" 
+                <img
+                  src="/assets/images/knap-logo-medium.png"
+                  alt="Knapsack Logo"
                   className="w-7 h-7 object-contain"
                 />
               </div>
@@ -173,9 +214,9 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
                 className="flex items-center justify-center gap-3 w-full py-4 px-8 bg-ks-warm-grey-50 rounded-full text-ks-warm-grey-950 font-normal border-[1px] border-solid border-ks-warm-grey-950"
                 disabled
               >
-                <img 
-                  src="/assets/images/icons/Bullet-Check.svg" 
-                  alt="Check" 
+                <img
+                  src="/assets/images/icons/Bullet-Check.svg"
+                  alt="Check"
                   className="w-6 h-6"
                 />
                 <span>Screen access enabled</span>
@@ -186,7 +227,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
                 onClick={requestSystemAudioAccess}
                 disabled={isCheckingSystemAudio}
               >
-                {isCheckingSystemAudio ? 'Opening...' : 'Enable screen access'}
+                {isCheckingSystemAudio ? 'Checking...' : 'Enable screen access'}
               </button>
             )}
 
@@ -195,9 +236,9 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
                 className="flex items-center justify-center gap-3 w-full py-4 px-8 bg-ks-warm-grey-50 rounded-full text-ks-warm-grey-950 font-normal border-[1px] border-solid border-ks-warm-grey-950"
                 disabled
               >
-                <img 
-                  src="/assets/images/icons/Bullet-Check.svg" 
-                  alt="Check" 
+                <img
+                  src="/assets/images/icons/Bullet-Check.svg"
+                  alt="Check"
                   className="w-6 h-6"
                 />
                 <span>Audio access enabled</span>
@@ -208,7 +249,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
                 onClick={requestMicrophoneAccess}
                 disabled={isCheckingMic}
               >
-                {isCheckingMic ? 'Opening...' : 'Enable audio access'}
+                {isCheckingMic ? 'Checking...' : 'Enable audio access'}
               </button>
             )}
           </div>
