@@ -154,7 +154,7 @@ export const EmailAutopilot = ({
     (direction: 'next' | 'previous') => {
       const accumulatorValue = direction == 'next' ? 1 : -1
       const nextItemIndex = selectedEmail.index + accumulatorValue
-      if (emailsCategory && nextItemIndex < emailsCategory.length) {
+      if (emailsCategory && nextItemIndex >= 0 && nextItemIndex < emailsCategory.length) {
         scrollToSelectedEmail(emailsCategory[nextItemIndex].message.emailUid)
         setSelectedEmail({
           emailUuid: emailsCategory[nextItemIndex].message.emailUid,
@@ -195,7 +195,6 @@ export const EmailAutopilot = ({
     [
       feed.currentFeedItem,
       feed.loggedEmailAutopilot,
-      visibleEmailIds,
       selectedEmail,
       emailsCategory,
       isEditorActive,
