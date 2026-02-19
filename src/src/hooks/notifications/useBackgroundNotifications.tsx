@@ -412,15 +412,30 @@ export function useBackgroundNotifications({
               return response
             }
 
+            // Ensure the fullAnalysis contains the knapsack://prompt/ CTA link.
+            // The LLM returns suggestedActionShort/suggestedActionPrompt as separate fields
+            // but doesn't always embed the link inside fullAnalysis. Append it if missing.
+            if (
+              parsed.suggestedActionShort &&
+              parsed.suggestedActionPrompt &&
+              !parsed.fullAnalysis?.includes('knapsack://prompt/')
+            ) {
+              const ctaLink = `[${parsed.suggestedActionShort}](knapsack://prompt/${parsed.suggestedActionPrompt})`
+              parsed.fullAnalysis = parsed.fullAnalysis
+                ? `${parsed.fullAnalysis.trimEnd()}\n\n${ctaLink}`
+                : ctaLink
+            }
+
             pendingInsightRef.current = parsed
             await recordNotification(notificationType)
 
             const primaryText = parsed.suggestedActionShort || buttonText
+            const secondaryText = buttonText === 'View Details' ? 'View Details' : 'View Briefing'
             await openNotificationWindow(
               undefined,
               [
                 { buttonText: primaryText, buttonHandler: 'suggested_action_notification_handler' },
-                { buttonText: 'View Briefing', buttonHandler: buttonHandler },
+                { buttonText: secondaryText, buttonHandler: buttonHandler },
                 { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
               ],
               parsed.notificationTitle,
@@ -687,6 +702,18 @@ export function useBackgroundNotifications({
             const parsed = parseLLMResponse(response)
 
             if (parsed) {
+              // Ensure fullAnalysis contains the CTA link (same as generateAndShowNotification)
+              if (
+                parsed.suggestedActionShort &&
+                parsed.suggestedActionPrompt &&
+                !parsed.fullAnalysis?.includes('knapsack://prompt/')
+              ) {
+                const ctaLink = `[${parsed.suggestedActionShort}](knapsack://prompt/${parsed.suggestedActionPrompt})`
+                parsed.fullAnalysis = parsed.fullAnalysis
+                  ? `${parsed.fullAnalysis.trimEnd()}\n\n${ctaLink}`
+                  : ctaLink
+              }
+
               pendingFollowupRef.current = parsed
               await recordNotification('post_meeting_followup')
 
@@ -702,7 +729,7 @@ export function useBackgroundNotifications({
                     buttonHandler: 'suggested_followup_action_notification_handler',
                   },
                   {
-                    buttonText: 'View Briefing',
+                    buttonText: 'View Follow-ups',
                     buttonHandler: 'post_meeting_followup_notification_handler',
                   },
                   {
@@ -853,6 +880,18 @@ export function useBackgroundNotifications({
             if (!parsed) {
               resolve({})
               return response
+            }
+
+            // Ensure fullAnalysis contains the CTA link
+            if (
+              parsed.suggestedActionShort &&
+              parsed.suggestedActionPrompt &&
+              !parsed.fullAnalysis?.includes('knapsack://prompt/')
+            ) {
+              const ctaLink = `[${parsed.suggestedActionShort}](knapsack://prompt/${parsed.suggestedActionPrompt})`
+              parsed.fullAnalysis = parsed.fullAnalysis
+                ? `${parsed.fullAnalysis.trimEnd()}\n\n${ctaLink}`
+                : ctaLink
             }
 
             // Store so createInsightFeedItem can pick it up
