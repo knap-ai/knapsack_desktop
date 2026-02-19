@@ -845,6 +845,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
   const doSendRef = useRef<((text: string) => Promise<void>) | null>(null)
   const pushAssistantRef = useRef<((text: string) => void) | null>(null)
+  const handleSendWithTextRef = useRef<((text: string) => Promise<void>) | null>(null)
 
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
@@ -1779,6 +1780,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('clawd-push-assistant', handler)
   }, [])
 
+  // Listen for suggested action triggers from notification handlers.
+  // When the user clicks the primary action button on a notification,
+  // the handler pushes the analysis to chat and then dispatches this event
+  // to auto-execute the suggested action prompt.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const text = (e as CustomEvent<string>).detail
+      if (text) handleSendWithTextRef.current?.(text)
+    }
+    window.addEventListener('clawd-send-user', handler)
+    return () => window.removeEventListener('clawd-send-user', handler)
+  }, [])
+
   const pushUser = (text: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
   }
@@ -1838,6 +1852,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     await doSend(text.trim())
   }, [])
+
+  // Keep handleSendWithTextRef updated for the clawd-send-user event listener
+  handleSendWithTextRef.current = handleSendWithText
 
   const handleExampleClick = useCallback((e: React.MouseEvent, text: string) => {
     // Prevent any default link behavior (URLs in text might be auto-linked)

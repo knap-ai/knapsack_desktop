@@ -39,6 +39,8 @@ type BackgroundNotificationResult = {
   actionItemCount?: number
   meetingTitle?: string
   shouldNotify?: boolean
+  suggestedActionShort?: string
+  suggestedActionPrompt?: string
 }
 
 type UseBackgroundNotificationsProps = {
@@ -413,10 +415,12 @@ export function useBackgroundNotifications({
             pendingInsightRef.current = parsed
             await recordNotification(notificationType)
 
+            const primaryText = parsed.suggestedActionShort || buttonText
             await openNotificationWindow(
               undefined,
               [
-                { buttonText, buttonHandler },
+                { buttonText: primaryText, buttonHandler: 'suggested_action_notification_handler' },
+                { buttonText: 'View Briefing', buttonHandler: buttonHandler },
                 { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
               ],
               parsed.notificationTitle,
@@ -688,12 +692,17 @@ export function useBackgroundNotifications({
 
               const title = parsed.notificationTitle || `Follow up: ${meetingTitle}`
               const body = parsed.notificationBody || 'Action items and follow-ups ready'
+              const primaryText = parsed.suggestedActionShort || 'View Follow-ups'
 
               await openNotificationWindow(
                 undefined,
                 [
                   {
-                    buttonText: 'View Follow-ups',
+                    buttonText: primaryText,
+                    buttonHandler: 'suggested_followup_action_notification_handler',
+                  },
+                  {
+                    buttonText: 'View Briefing',
                     buttonHandler: 'post_meeting_followup_notification_handler',
                   },
                   {
@@ -889,6 +898,22 @@ export function useBackgroundNotifications({
     return pendingFollowupRef.current?.fullAnalysis ?? null
   }, [])
 
+  /**
+   * Get the suggested action prompt from the most recent pending insight notification.
+   * Returns null if no insight or no suggested action is pending.
+   */
+  const getPendingInsightSuggestedAction = useCallback((): string | null => {
+    return pendingInsightRef.current?.suggestedActionPrompt ?? null
+  }, [])
+
+  /**
+   * Get the suggested action prompt from the most recent pending follow-up notification.
+   * Returns null if no follow-up or no suggested action is pending.
+   */
+  const getPendingFollowupSuggestedAction = useCallback((): string | null => {
+    return pendingFollowupRef.current?.suggestedActionPrompt ?? null
+  }, [])
+
   return {
     checkMorningBriefing,
     handleEmailSyncComplete,
@@ -899,6 +924,8 @@ export function useBackgroundNotifications({
     triggerBriefingFeedItem,
     getPendingInsightText,
     getPendingFollowupText,
+    getPendingInsightSuggestedAction,
+    getPendingFollowupSuggestedAction,
     isGeneratingInsight: isProcessing,
   }
 }

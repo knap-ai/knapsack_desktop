@@ -764,6 +764,8 @@ function App() {
     triggerBriefingFeedItem,
     getPendingInsightText,
     getPendingFollowupText,
+    getPendingInsightSuggestedAction,
+    getPendingFollowupSuggestedAction,
   } = useBackgroundNotifications({
     userEmail,
     userName,
@@ -1062,6 +1064,8 @@ function App() {
   const triggerBriefingFeedItemRef = useRef(triggerBriefingFeedItem)
   const getPendingInsightTextRef = useRef(getPendingInsightText)
   const getPendingFollowupTextRef = useRef(getPendingFollowupText)
+  const getPendingInsightSuggestedActionRef = useRef(getPendingInsightSuggestedAction)
+  const getPendingFollowupSuggestedActionRef = useRef(getPendingFollowupSuggestedAction)
   const startMeetingNotificationRef = useRef<
     (meetingId: string | null, openUrl: boolean, startRecord: boolean) => Promise<void>
   >(() => Promise.resolve())
@@ -1156,6 +1160,8 @@ function App() {
     triggerBriefingFeedItemRef.current = triggerBriefingFeedItem
     getPendingInsightTextRef.current = getPendingInsightText
     getPendingFollowupTextRef.current = getPendingFollowupText
+    getPendingInsightSuggestedActionRef.current = getPendingInsightSuggestedAction
+    getPendingFollowupSuggestedActionRef.current = getPendingFollowupSuggestedAction
     startMeetingNotificationRef.current = startMeetingNotification
     stopMeetingNotificationRef.current = stopMeetingNotification
   })
@@ -1204,6 +1210,40 @@ function App() {
       }
       // Also persist as a feed item in the background
       createFollowupFeedItemRef.current()
+    },
+    suggested_action_notification_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      // Show the pending insight in chat, then auto-execute the suggested action
+      const text = getPendingInsightTextRef.current()
+      if (text) {
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: text }))
+      }
+      createInsightFeedItemRef.current()
+      const actionPrompt = getPendingInsightSuggestedActionRef.current()
+      if (actionPrompt) {
+        // Small delay to let the assistant message render before sending the action
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: actionPrompt }))
+        }, 500)
+      }
+    },
+    suggested_followup_action_notification_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      // Show the pending follow-up in chat, then auto-execute the suggested action
+      const text = getPendingFollowupTextRef.current()
+      if (text) {
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: text }))
+      }
+      createFollowupFeedItemRef.current()
+      const actionPrompt = getPendingFollowupSuggestedActionRef.current()
+      if (actionPrompt) {
+        // Small delay to let the assistant message render before sending the action
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: actionPrompt }))
+        }, 500)
+      }
     },
     dismiss_notification_handler: async (_meetingId: string | null) => {
       await invoke('close_notification_window')
