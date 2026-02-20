@@ -105,7 +105,7 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
 
 // Convert raw API/JSON error messages into user-friendly text
 function friendlyError(raw: string): string {
-  if (!raw) return 'Something went wrong. Please try again.'
+  if (!raw) return '⚠️ **Something went wrong.** The AI service returned an empty response. Please try again.'
   const lower = raw.toLowerCase()
   // OpenAI quota / billing errors
   if (lower.includes('insufficient_quota') || lower.includes('exceeded your current quota')) {
@@ -2355,7 +2355,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
             } else {
-              pushAssistant(friendlyError(out.message || out.error || 'No reply'))
+              console.error('[chat] API returned no reply:', JSON.stringify(out).slice(0, 500))
+              pushAssistant(friendlyError(out.message || out.error || ''))
             }
             succeeded = true
             break
@@ -2388,6 +2389,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setAbortController(null)
       }
     } catch (e: any) {
+      console.error('[chat] Request failed:', e)
       pushAssistant(friendlyError(e?.message || String(e)))
     } finally {
       setBusy(false)

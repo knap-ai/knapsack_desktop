@@ -156,7 +156,23 @@ export function useBackgroundNotifications({
         }
         cleaned = cleaned.trim()
 
-        return JSON.parse(cleaned) as BackgroundNotificationResult
+        const parsed = JSON.parse(cleaned) as BackgroundNotificationResult
+
+        // Sanitize Rust-style Unicode escapes (\u{XXXX}) that LLMs sometimes emit.
+        // Replace them with the actual Unicode character or strip zero-width chars.
+        const sanitize = (s: string | undefined) =>
+          s?.replace(/\\u\{([0-9a-fA-F]+)\}/g, (_match, hex) => {
+            const code = parseInt(hex, 16)
+            // Strip zero-width and control characters, convert others to actual chars
+            if (code <= 0x1F || (code >= 0x200B && code <= 0x200F) || code === 0xFEFF) return ''
+            return String.fromCodePoint(code)
+          })
+
+        parsed.notificationTitle = sanitize(parsed.notificationTitle) || parsed.notificationTitle
+        parsed.notificationBody = sanitize(parsed.notificationBody) || parsed.notificationBody
+        parsed.fullAnalysis = sanitize(parsed.fullAnalysis) || parsed.fullAnalysis
+
+        return parsed
       } catch (err) {
         console.error('Failed to parse background notification LLM response:', err)
         return null
