@@ -2292,10 +2292,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const currentTone = TONE_OPTIONS.find(t => t.id === selectedTone)
         const tonePrompt = currentTone?.systemPromptAddition || ''
 
-        // Check if this is the smart prompt - add skill recommendation request
+        // For the smart prompt, add a nudge to recommend specific actions
         const isSmartPrompt = text === SMART_PROMPT
         const actualText = isSmartPrompt
-          ? `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find. For each recommendation, include an action using this exact format: [Short Label](knapsack://prompt/Detailed instruction for what to do). These will be rendered as clickable buttons the user can tap to execute.`
+          ? `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
           : text
 
         // Build request with optional attachments
