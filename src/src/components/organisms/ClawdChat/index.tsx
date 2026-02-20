@@ -235,9 +235,11 @@ type ApiKeyStatus = {
   has_openai_key?: boolean
   has_anthropic_key?: boolean
   has_gemini_key?: boolean
+  has_groq_key?: boolean
   openai_key_hint?: string
   anthropic_key_hint?: string
   gemini_key_hint?: string
+  groq_key_hint?: string
 }
 
 type SkillInfo = {
@@ -895,6 +897,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           openai: keyStatus.openai_key_hint,
           anthropic: keyStatus.anthropic_key_hint,
           gemini: keyStatus.gemini_key_hint,
+          groq: keyStatus.groq_key_hint,
         })
         // Also sync provider-specific models from the backend
         try {

@@ -622,9 +622,11 @@ pub struct ApiKeyStatusResponse {
   pub has_openai_key: bool,
   pub has_anthropic_key: bool,
   pub has_gemini_key: bool,
+  pub has_groq_key: bool,
   pub openai_key_hint: Option<String>,
   pub anthropic_key_hint: Option<String>,
   pub gemini_key_hint: Option<String>,
+  pub groq_key_hint: Option<String>,
   /// Extra providers: list of {id, env_var, has_key, key_hint}
   #[serde(skip_serializing_if = "Vec::is_empty")]
   pub extra_providers: Vec<ExtraProviderStatus>,
@@ -652,9 +654,11 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         has_openai_key: false,
         has_anthropic_key: false,
         has_gemini_key: false,
+        has_groq_key: false,
         openai_key_hint: None,
         anthropic_key_hint: None,
         gemini_key_hint: None,
+        groq_key_hint: None,
         extra_providers: vec![],
       })
     }
@@ -663,7 +667,8 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let has_openai = tokens.openai_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
   let has_anthropic = tokens.anthropic_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
   let has_gemini = tokens.gemini_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
-  let has_key = has_openai || has_anthropic || has_gemini;
+  let has_groq = tokens.groq_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
+  let has_key = has_openai || has_anthropic || has_gemini || has_groq;
 
   let model = tokens.openai_model.clone();
   let active_provider = tokens.active_provider.clone();
@@ -671,6 +676,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let openai_hint = tokens.openai_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
   let anthropic_hint = tokens.anthropic_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
   let gemini_hint = tokens.gemini_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
+  let groq_hint = tokens.groq_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
 
   // Build extra provider status list
   let extra_provider_defs: &[(&str, &str)] = &[
@@ -708,9 +714,11 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     has_openai_key: has_openai,
     has_anthropic_key: has_anthropic,
     has_gemini_key: has_gemini,
+    has_groq_key: has_groq,
     openai_key_hint: openai_hint,
     anthropic_key_hint: anthropic_hint,
     gemini_key_hint: gemini_hint,
+    groq_key_hint: groq_hint,
     extra_providers,
   })
 }
