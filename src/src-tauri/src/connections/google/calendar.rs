@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Map;
 use serde_json::Value;
 use std::sync::Arc;
-use tauri::api::http::Client;
 use tokio::sync::Mutex;
 use crate::spotlight::WINDOW_LABEL;
 use tauri::Manager;

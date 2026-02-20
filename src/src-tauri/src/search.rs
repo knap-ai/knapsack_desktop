@@ -19,9 +19,7 @@ pub struct RecentFile {
   access_time: u64,
 }
 
-lazy_static! {
-  static ref RECENT_FILES: Mutex<Vec<RecentFile>> = Mutex::new(Vec::new());
-}
+static RECENT_FILES: once_cell::sync::Lazy<Mutex<Vec<RecentFile>>> = once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
 
 const RECENT_FILES_NUM_SLICE: usize = 20;
 

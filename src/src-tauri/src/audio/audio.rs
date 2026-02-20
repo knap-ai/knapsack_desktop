@@ -127,9 +127,7 @@ fn wav_spec_from_config(config: &cpal::SupportedStreamConfig) -> hound::WavSpec 
 }
 
 type WavWriterHandle = Arc<Mutex<Option<hound::WavWriter<BufWriter<File>>>>>;
-lazy_static! {
-  static ref GLOBAL_SAMPLES: Mutex<Vec<i32>> = Mutex::new(Vec::new());
-}
+static GLOBAL_SAMPLES: once_cell::sync::Lazy<Mutex<Vec<i32>>> = once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
 
 fn write_audio_data<T, U>(
   input: &[T],

@@ -49,20 +49,21 @@ pub struct FetchGoogleDriveMimeTypesResponse {
   mime_types: Option<Vec<String>>,
 }
 
-lazy_static! {
-  static ref DRIVE_MIME_TYPES_EXPORTABLE_TO_TXT: Vec<&'static str> = vec![
-    "application/vnd.google-apps.document",
-    "application/vnd.google-apps.kix",
-    "application/vnd.google-apps.presentation",
-  ];
-  static ref  GOOGLE_MIME_TYPES: Vec<&'static str> = vec![
+use once_cell::sync::Lazy;
+
+static DRIVE_MIME_TYPES_EXPORTABLE_TO_TXT: Lazy<Vec<&'static str>> = Lazy::new(|| vec![
+  "application/vnd.google-apps.document",
+  "application/vnd.google-apps.kix",
+  "application/vnd.google-apps.presentation",
+]);
+static GOOGLE_MIME_TYPES: Lazy<Vec<&'static str>> = Lazy::new(|| vec![
   "application/vnd.google-apps.document",
   "application/vnd.google-apps.kix",
   "application/vnd.google-apps.presentation",
   "application/vnd.google-apps.spreadsheet",
-];
+]);
 
-static ref MIMETYPE_EXTENSION_MAPPING: HashMap<&'static str, &'static str> = HashMap::from([
+static MIMETYPE_EXTENSION_MAPPING: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| HashMap::from([
   ("application/vnd.google-apps.document", "txt"),
   ("application/vnd.google-apps.kix", "txt"),
   ("application/vnd.google-apps.presentation", "txt"),
@@ -93,9 +94,9 @@ static ref MIMETYPE_EXTENSION_MAPPING: HashMap<&'static str, &'static str> = Has
   ("application/vnd.ms-excel.addin.macroEnabled.12", "xlsx"),
   ("application/vnd.ms-excel.sheet.binary.macroEnabled.12", "xlsx"),
   ("application/vnd.oasis.opendocument.spreadsheet", "xlsx"),
-]);
+]));
 
-static ref  DRIVE_ALLOWED_MIME_TYPES: Vec<&'static str> = vec![
+static DRIVE_ALLOWED_MIME_TYPES: Lazy<Vec<&'static str>> = Lazy::new(|| vec![
   // documents
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -132,8 +133,7 @@ static ref  DRIVE_ALLOWED_MIME_TYPES: Vec<&'static str> = vec![
   "application/vnd.google-apps.kix",
   "application/vnd.google-apps.presentation",
   "application/vnd.google-apps.spreadsheet",
-];
-}
+]);
 
 #[derive(Deserialize, Clone)]
 struct GoogleDriveFilesRequest {

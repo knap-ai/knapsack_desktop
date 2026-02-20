@@ -34,48 +34,45 @@ pub struct LocalFileResponseDoc {
   pub size: u64,
 }
 
-lazy_static! {
-  static ref FILE_CONTENT_SEARCHABLE_EXTS: HashSet<&'static str> = {
-    HashSet::from(["doc", "docx", "pdf", "odp", "ods", "odt", "xlsx", "pptx", "txt", "rtf"])
-  };
-  static ref FILE_NAME_SEARCHABLE_EXTS: HashSet<&'static str> = {
-
-    // https://www.computerhope.com/issues/ch001789.htm
-    HashSet::from([
-      // audio
-      "aif", "cda", "mid", "midi", "mp3", "mpa", "ogg", "wav", "wma", "wpl",
-      // compressed
-      "7z", "arj", "deb", "pkg", "rar", "rpm", "tar.gz", "z", "zip",
-      // disc
-      "bin", "dmg", "iso", "toast", "vcd",
-      // data
-      "csv", "dat", "db", "dbf", "log", "mdb", "sav", "sql", "tar", "xml",
-      // email
-      "email", "eml", "emlx", "msg", "oft", "ost", "pst", "vcf",
-      // executable
-      "bat", "bin", "com", "exe", "gadget", "msi", "sh", "wsf",
-      // font
-      "fnt", "fon", "otf", "ttf",
-      // image
-      "ai", "psd",
-      // "ai", "bmp", "gif", "ico", "jpeg", "jpg", "png", "ps", "psd", "scr", "svg", "tif", "tiff", "webp",
-      // internet
-      // "asp", "aspx", "cer", "cfm", "cgi", "pl", "css", "htm", "html", "js", "jsp", "part", "php", "py", "rss", "xhtml",
-      // presentations
-      "key", "odp", "pps", "ppt", "pptx",
-      // programming
-      // "apk", "c", "cgi", "pl", "class", "cpp", "cs", "h", "jar", "java", "php", "py", "sh", "swift", "vb",
-      // spreadsheets
-      "csv", "ods", "xls", "xlsm", "xlsx",
-      // system
-      // "bak", "cab", "cfg", "cpl", "cur", "dll", "dmp", "drv", "icns", "ico", "ini", "lnk", "msi", "sys", "tmp",
-      // video
-      "3g2", "3gp", "avi", "flv", "h264", "m4v", "mkv", "mov", "mp4", "mpg", "mpeg", "rm", "swf", "vob", "webm", "wmv",
-      // word
-      "doc", "docx", "odt", "pdf", "rtf", "tex", "txt", "wpd"
-        ])
-  };
-}
+static FILE_CONTENT_SEARCHABLE_EXTS: once_cell::sync::Lazy<HashSet<&'static str>> = once_cell::sync::Lazy::new(|| {
+  HashSet::from(["doc", "docx", "pdf", "odp", "ods", "odt", "xlsx", "pptx", "txt", "rtf"])
+});
+static FILE_NAME_SEARCHABLE_EXTS: once_cell::sync::Lazy<HashSet<&'static str>> = once_cell::sync::Lazy::new(|| {
+  // https://www.computerhope.com/issues/ch001789.htm
+  HashSet::from([
+    // audio
+    "aif", "cda", "mid", "midi", "mp3", "mpa", "ogg", "wav", "wma", "wpl",
+    // compressed
+    "7z", "arj", "deb", "pkg", "rar", "rpm", "tar.gz", "z", "zip",
+    // disc
+    "bin", "dmg", "iso", "toast", "vcd",
+    // data
+    "csv", "dat", "db", "dbf", "log", "mdb", "sav", "sql", "tar", "xml",
+    // email
+    "email", "eml", "emlx", "msg", "oft", "ost", "pst", "vcf",
+    // executable
+    "bat", "bin", "com", "exe", "gadget", "msi", "sh", "wsf",
+    // font
+    "fnt", "fon", "otf", "ttf",
+    // image
+    "ai", "psd",
+    // "ai", "bmp", "gif", "ico", "jpeg", "jpg", "png", "ps", "psd", "scr", "svg", "tif", "tiff", "webp",
+    // internet
+    // "asp", "aspx", "cer", "cfm", "cgi", "pl", "css", "htm", "html", "js", "jsp", "part", "php", "py", "rss", "xhtml",
+    // presentations
+    "key", "odp", "pps", "ppt", "pptx",
+    // programming
+    // "apk", "c", "cgi", "pl", "class", "cpp", "cs", "h", "jar", "java", "php", "py", "sh", "swift", "vb",
+    // spreadsheets
+    "csv", "ods", "xls", "xlsm", "xlsx",
+    // system
+    // "bak", "cab", "cfg", "cpl", "cur", "dll", "dmp", "drv", "icns", "ico", "ini", "lnk", "msi", "sys", "tmp",
+    // video
+    "3g2", "3gp", "avi", "flv", "h264", "m4v", "mkv", "mov", "mp4", "mpg", "mpeg", "rm", "swf", "vob", "webm", "wmv",
+    // word
+    "doc", "docx", "odt", "pdf", "rtf", "tex", "txt", "wpd"
+  ])
+});
 
 fn is_file_content_searchable_extension(path: &Path) -> bool {
   path

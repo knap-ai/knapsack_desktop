@@ -2,15 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use tauri::{utils::config::AppUrl, window::WindowBuilder, WindowUrl};
 
-#[macro_use]
-extern crate lazy_static;
-
-extern crate derive_more;
-extern crate dirs;
-extern crate qdrant_client;
-extern crate serde;
-extern crate tokio;
-
 mod api;
 mod audio;
 mod automations;

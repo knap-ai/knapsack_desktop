@@ -14,7 +14,6 @@ use std::sync::{
   Arc, Mutex,
 };
 use std::{mem, ptr};
-use tauri::api::process::Command;
 use tokio::time::{sleep, Duration, Instant};
 
 use super::encode::save_chunk;
@@ -26,16 +25,15 @@ use flacenc::config::Encoder;
 use flacenc::error::Verified;
 use flacenc::error::Verify;
 use flacenc::source::MemSource;
+use once_cell::sync::Lazy;
 use std::fs;
 use std::io::Write;
 use std::sync::MutexGuard;
 use tokio::runtime::Runtime;
 use tokio::sync::Semaphore;
 
-lazy_static::lazy_static! {
-  static ref OUTPUT_FILE: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-  static ref AUDIO_SEMAPHORE: Arc<Mutex<Option<Arc<Semaphore>>>> = Arc::new(Mutex::new(None));
-}
+static OUTPUT_FILE: Lazy<Arc<Mutex<Option<String>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
+static AUDIO_SEMAPHORE: Lazy<Arc<Mutex<Option<Arc<Semaphore>>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
 
 // MacOS imports
 #[cfg(target_os = "macos")]

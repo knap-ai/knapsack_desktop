@@ -6,7 +6,6 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use tauri::api::process::Command;
 use tokio::time::{sleep, Duration};
 use wasapi::*;
 use super::encode::save_chunk;

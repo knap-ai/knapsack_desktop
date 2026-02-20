@@ -1,10 +1,8 @@
 use std::path::PathBuf;
 use tokio::sync::RwLock;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
-lazy_static! {
-    pub static ref CONFIG: RwLock<KnapsackConfig> = RwLock::new(KnapsackConfig::default());
-}
+pub static CONFIG: Lazy<RwLock<KnapsackConfig>> = Lazy::new(|| RwLock::new(KnapsackConfig::default()));
 
 #[derive(Debug, Default)]
 pub struct KnapsackConfig {

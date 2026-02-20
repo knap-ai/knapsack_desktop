@@ -7,7 +7,6 @@ use std::sync::{
   Arc, Mutex,
 };
 use sysinfo::System;
-use tauri::api::process::Command;
 use tauri::utils::platform;
 use crate::utils::platform::{get_os, OS};
 
@@ -134,7 +133,7 @@ pub fn kill_existing_qdrant() {
 
   for (pid, process) in sys.processes() {
     if process.name() == "qdrant" {
-      Command::new("kill").args([format!("-9"), format!("{pid}")]).spawn();
+      StdCommand::new("kill").args([format!("-9"), format!("{pid}")]).spawn().ok();
     }
   }
 }
