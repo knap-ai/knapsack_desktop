@@ -9,6 +9,21 @@ import { getCurrent, LogicalSize } from '@tauri-apps/api/window'
 
 dayjs.extend(relativeTime)
 
+// Strip markdown formatting for plain-text notification display.
+// LLMs sometimes include bold/italic/links even when asked for plain text.
+function stripMarkdown(s: string): string {
+  return s
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')   // [text](url) → text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')          // **bold** → bold
+    .replace(/\*([^*]+)\*/g, '$1')              // *italic* → italic
+    .replace(/__([^_]+)__/g, '$1')              // __bold__ → bold
+    .replace(/_([^_]+)_/g, '$1')                // _italic_ → italic
+    .replace(/^#{1,6}\s+/gm, '')                // # headers → stripped
+    .replace(/`([^`]+)`/g, '$1')                // `code` → code
+    .replace(/\n+/g, ' ')                       // newlines → spaces
+    .trim()
+}
+
 const NOTIF_WIDTH = 600 // Must match Rust NOTIF_WIDTH constant
 const MIN_HEIGHT = 80
 const MAX_HEIGHT = 520
@@ -137,9 +152,9 @@ function NotificationWindow() {
 
         <div className="flex-1 min-w-0 pr-2">
           <h3 className="text-[14px] font-semibold text-gray-900 line-clamp-2">
-            {title}
+            {stripMarkdown(title)}
           </h3>
-          <p className="text-sm text-gray-600 line-clamp-4">{time}</p>
+          <p className="text-sm text-gray-600 line-clamp-4">{stripMarkdown(time)}</p>
         </div>
         {buttonConfigs.length > 0 && (
           <div

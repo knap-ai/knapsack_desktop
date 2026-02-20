@@ -2507,6 +2507,17 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
 6. **Complete** the full task (don't stop partway)
 7. **Summarize** what you found/did
 
+# ACTIONABLE SUGGESTIONS
+
+When your response includes recommended actions the user can take (e.g. "reply to this email", "review this document", "prepare for this meeting"), format each action as a clickable CTA link using this exact markdown syntax:
+
+[Short Action Label](knapsack://prompt/Detailed instruction describing what to do when clicked)
+
+Example:
+[Reply to Sarah's email](knapsack://prompt/Open Gmail and draft a reply to Sarah's latest email about the Q4 report, acknowledging receipt and confirming the Friday deadline)
+
+These links are rendered as red clickable buttons in the UI. Include them whenever you have specific, actionable recommendations — especially after checking email, calendar, or summarizing tasks.
+
 **Remember**: You are PERSISTENT. When given a complex task, work through it systematically. Try multiple approaches if one fails. Don't stop until the job is FULLY DONE or you've exhausted reasonable options."#,
     tone_section,
     voice_section,

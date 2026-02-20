@@ -235,9 +235,11 @@ type ApiKeyStatus = {
   has_openai_key?: boolean
   has_anthropic_key?: boolean
   has_gemini_key?: boolean
+  has_groq_key?: boolean
   openai_key_hint?: string
   anthropic_key_hint?: string
   gemini_key_hint?: string
+  groq_key_hint?: string
 }
 
 type SkillInfo = {
@@ -895,6 +897,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           openai: keyStatus.openai_key_hint,
           anthropic: keyStatus.anthropic_key_hint,
           gemini: keyStatus.gemini_key_hint,
+          groq: keyStatus.groq_key_hint,
         })
         // Also sync provider-specific models from the backend
         try {
@@ -2292,10 +2295,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const currentTone = TONE_OPTIONS.find(t => t.id === selectedTone)
         const tonePrompt = currentTone?.systemPromptAddition || ''
 
-        // Check if this is the smart prompt - add skill recommendation request
+        // For the smart prompt, add a nudge to recommend specific actions
         const isSmartPrompt = text === SMART_PROMPT
         const actualText = isSmartPrompt
-          ? `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find. For each recommendation, include an action using this exact format: [Short Label](knapsack://prompt/Detailed instruction for what to do). These will be rendered as clickable buttons the user can tap to execute.`
+          ? `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
           : text
 
         // Build request with optional attachments
