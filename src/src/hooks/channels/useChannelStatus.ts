@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ChannelStatus,
   getWhatsAppStatus,
@@ -6,9 +6,12 @@ import {
   getTelegramStatus,
   enableWhatsApp,
   enableIMessage,
-  enableTelegram,
   configureTelegram,
   startWhatsAppLogin,
+  waitWhatsAppLogin,
+  disconnectWhatsApp,
+  disconnectIMessage,
+  disconnectTelegram,
   setupIMessage,
   openFullDiskAccess,
 } from 'src/api/channels'
@@ -49,6 +52,9 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   const [whatsappLinking, setWhatsappLinking] = useState(false)
   const [healthChecking, setHealthChecking] = useState(false)
   const [gatewayHealthy, setGatewayHealthy] = useState<boolean | null>(null)
+
+  // Track whether a QR wait is already in flight so we don't double-fire.
+  const qrWaitActiveRef = useRef(false)
 
   const setChannelError = (channel: string, msg: string | null) => {
     setChannelErrors(prev => ({ ...prev, [channel]: msg }))
@@ -120,22 +126,6 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
 
   // ── Actions ────────────────────────────────────────────
 
-  const toggleWhatsApp = useCallback(async (on: boolean) => {
-    setChannelError('whatsapp', null)
-    try {
-      const res = await enableWhatsApp(on)
-      if (!res.success) throw new Error(res.message ?? 'Failed to toggle WhatsApp')
-      if (!on) {
-        setWhatsappQrUrl(null)
-        setWhatsappLinking(false)
-      }
-      await refresh()
-    } catch (e: any) {
-      setChannelError('whatsapp', e.message)
-      throw e
-    }
-  }, [refresh])
-
   const connectWhatsApp = useCallback(async () => {
     setWhatsappQrUrl(null)
     setWhatsappLinking(true)
@@ -144,28 +134,59 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
       // Step 1: enable the WhatsApp channel in gateway config
       const enableRes = await enableWhatsApp(true)
       if (!enableRes.success) throw new Error(enableRes.message ?? 'Failed to enable WhatsApp')
+
       // Step 2: start QR login (backend retries while gateway restarts)
       const loginRes = await startWhatsAppLogin()
       if (!loginRes.success) throw new Error(loginRes.message ?? 'Failed to start WhatsApp login')
+
       if (loginRes.qrDataUrl) {
         setWhatsappQrUrl(loginRes.qrDataUrl)
+        setWhatsappLinking(false)
+
+        // Step 3: Wait for the user to scan the QR code in the background.
+        // This calls web.login.wait which blocks until scan completes or timeout.
+        if (!qrWaitActiveRef.current) {
+          qrWaitActiveRef.current = true
+          waitWhatsAppLogin()
+            .then(async (waitRes) => {
+              if (waitRes.connected) {
+                setWhatsappQrUrl(null)
+                await refresh()
+              } else {
+                // Timeout — user didn't scan in time
+                setWhatsappQrUrl(null)
+                setChannelError('whatsapp', waitRes.message ?? 'QR code expired. Try again.')
+              }
+            })
+            .catch((e: any) => {
+              setWhatsappQrUrl(null)
+              setChannelError('whatsapp', e?.message ?? 'Login wait failed')
+            })
+            .finally(() => {
+              qrWaitActiveRef.current = false
+            })
+        }
+      } else {
+        // No QR returned — may already be linked
+        setWhatsappLinking(false)
+        await refresh()
       }
     } catch (e: any) {
       setChannelError('whatsapp', e.message)
-    } finally {
       setWhatsappLinking(false)
     }
-    await refresh()
   }, [refresh])
 
-  const toggleIMessage = useCallback(async (on: boolean) => {
-    setChannelError('imessage', null)
+  const doDisconnectWhatsApp = useCallback(async () => {
+    setChannelError('whatsapp', null)
     try {
-      const res = await enableIMessage(on)
-      if (!res.success) throw new Error(res.message ?? 'Failed to toggle iMessage')
+      const res = await disconnectWhatsApp()
+      if (!res.success) throw new Error(res.message ?? 'Failed to disconnect WhatsApp')
+      setWhatsappQrUrl(null)
+      setWhatsappLinking(false)
       await refresh()
     } catch (e: any) {
-      setChannelError('imessage', e.message)
+      setChannelError('whatsapp', e.message)
       throw e
     }
   }, [refresh])
@@ -185,14 +206,14 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     }
   }, [refresh])
 
-  const toggleTelegram = useCallback(async (on: boolean) => {
-    setChannelError('telegram', null)
+  const doDisconnectIMessage = useCallback(async () => {
+    setChannelError('imessage', null)
     try {
-      const res = await enableTelegram(on)
-      if (!res.success) throw new Error(res.message ?? 'Failed to toggle Telegram')
+      const res = await disconnectIMessage()
+      if (!res.success) throw new Error(res.message ?? 'Failed to disconnect iMessage')
       await refresh()
     } catch (e: any) {
-      setChannelError('telegram', e.message)
+      setChannelError('imessage', e.message)
       throw e
     }
   }, [refresh])
@@ -202,6 +223,18 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     try {
       const res = await configureTelegram(botToken)
       if (!res.success) throw new Error(res.message ?? 'Failed to configure Telegram')
+      await refresh()
+    } catch (e: any) {
+      setChannelError('telegram', e.message)
+      throw e
+    }
+  }, [refresh])
+
+  const doDisconnectTelegram = useCallback(async () => {
+    setChannelError('telegram', null)
+    try {
+      const res = await disconnectTelegram()
+      if (!res.success) throw new Error(res.message ?? 'Failed to disconnect Telegram')
       await refresh()
     } catch (e: any) {
       setChannelError('telegram', e.message)
@@ -222,11 +255,11 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     gatewayHealthy,
     refresh,
     checkHealth,
-    toggleWhatsApp,
     connectWhatsApp,
-    toggleIMessage,
+    disconnectWhatsApp: doDisconnectWhatsApp,
     connectIMessage,
-    toggleTelegram,
+    disconnectIMessage: doDisconnectIMessage,
     connectTelegram,
+    disconnectTelegram: doDisconnectTelegram,
   }
 }

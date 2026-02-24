@@ -59,6 +59,20 @@ export const enableWhatsApp = (enabled: boolean) =>
 export const startWhatsAppLogin = () =>
   post<WhatsAppLoginResponse>('/api/clawd/channels/whatsapp/login')
 
+export interface WhatsAppLoginWaitResponse {
+  success: boolean
+  connected: boolean
+  message?: string
+}
+
+/** Wait for the user to scan the WhatsApp QR code. Blocks until scan or timeout. */
+export const waitWhatsAppLogin = () =>
+  post<WhatsAppLoginWaitResponse>('/api/clawd/channels/whatsapp/login-wait')
+
+/** Disconnect WhatsApp: logout from Baileys and remove channel config. */
+export const disconnectWhatsApp = () =>
+  post<GenericResponse>('/api/clawd/channels/whatsapp/disconnect', {})
+
 // ── iMessage ─────────────────────────────────────────────────
 
 export const getIMessageStatus = () =>
@@ -73,6 +87,10 @@ export const setupIMessage = () =>
 export const openFullDiskAccess = () =>
   post<GenericResponse>('/api/clawd/channels/open-full-disk-access')
 
+/** Disconnect iMessage: remove channel config. */
+export const disconnectIMessage = () =>
+  post<GenericResponse>('/api/clawd/channels/imessage/disconnect', {})
+
 // ── Telegram ────────────────────────────────────────────────
 
 export const getTelegramStatus = () =>
@@ -83,6 +101,10 @@ export const enableTelegram = (enabled: boolean) =>
 
 export const configureTelegram = (botToken: string) =>
   post<GenericResponse>('/api/clawd/channels/telegram/configure', { bot_token: botToken })
+
+/** Disconnect Telegram: logout the bot and remove channel config. */
+export const disconnectTelegram = () =>
+  post<GenericResponse>('/api/clawd/channels/telegram/disconnect', {})
 
 // ── Send Message ────────────────────────────────────────────
 

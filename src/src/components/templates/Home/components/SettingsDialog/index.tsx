@@ -343,18 +343,23 @@ export const SettingsDialog = ({
             <div className="flex justify-between h-[36px] items-center">
               <div className="flex items-center gap-2">
                 <Typography>WhatsApp</Typography>
-                {channels.whatsapp?.linked && (
+                {channels.whatsapp?.linked && channels.whatsapp?.account && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                    {channels.whatsapp.account}
+                  </span>
+                )}
+                {channels.whatsapp?.linked && !channels.whatsapp?.account && (
                   <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
                     Connected
                   </span>
                 )}
-                {channels.whatsapp && channels.whatsapp.enabled && !channels.whatsapp.linked && (
+                {channels.whatsapp && channels.whatsapp.enabled && !channels.whatsapp.linked && !channels.whatsappLinking && !channels.whatsappQrUrl && (
                   <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
                     Not linked
                   </span>
                 )}
                 {channels.whatsappLinking && (
-                  <span className="text-xs text-gray-400 animate-pulse">Linking...</span>
+                  <span className="text-xs text-gray-400 animate-pulse">Generating QR...</span>
                 )}
               </div>
               <Typography
@@ -364,7 +369,7 @@ export const SettingsDialog = ({
                   setChannelBusy('whatsapp')
                   try {
                     if (channels.whatsapp?.linked) {
-                      await channels.toggleWhatsApp(false)
+                      await channels.disconnectWhatsApp()
                     } else {
                       await channels.connectWhatsApp()
                     }
@@ -388,6 +393,7 @@ export const SettingsDialog = ({
               <div className="flex flex-col items-center gap-2 py-2">
                 <img src={channels.whatsappQrUrl} alt="WhatsApp QR" className="w-[180px] h-[180px] rounded" />
                 <Typography className="text-xs text-gray-500">Scan with WhatsApp on your phone</Typography>
+                <Typography className="text-[10px] text-gray-400 animate-pulse">Waiting for scan...</Typography>
               </div>
             )}
 
@@ -413,7 +419,7 @@ export const SettingsDialog = ({
                   setChannelBusy('imessage')
                   try {
                     if (channels.imessage?.configured) {
-                      await channels.toggleIMessage(false)
+                      await channels.disconnectIMessage()
                     } else {
                       await channels.connectIMessage()
                     }
@@ -455,7 +461,7 @@ export const SettingsDialog = ({
                   if (channels.telegram?.configured) {
                     setChannelBusy('telegram')
                     try {
-                      await channels.toggleTelegram(false)
+                      await channels.disconnectTelegram()
                     } finally {
                       setChannelBusy(null)
                     }

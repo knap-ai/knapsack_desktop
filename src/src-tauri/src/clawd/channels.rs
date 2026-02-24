@@ -804,6 +804,221 @@ struct TelegramConfigureRequest {
     bot_token: String,
 }
 
+// ── WhatsApp login-wait ─────────────────────────────────────────────────
+
+/// Response for WhatsApp login-wait
+#[derive(Serialize)]
+struct WhatsAppLoginWaitResponse {
+    success: bool,
+    connected: bool,
+    message: Option<String>,
+}
+
+/// Wait for the user to scan the WhatsApp QR code and complete login.
+///
+/// Calls the gateway's `web.login.wait` method which blocks until the
+/// Baileys socket connects (i.e. the user scanned the QR) or a timeout
+/// is reached.  The frontend should call this after displaying the QR.
+#[post("/api/clawd/channels/whatsapp/login-wait")]
+pub async fn whatsapp_login_wait(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+    let params = serde_json::json!({
+        "timeoutMs": 60_000
+    });
+
+    match gateway_client::call_channel_method("web.login.wait", Some(params), None).await {
+        Ok(result) => {
+            let connected = result
+                .get("connected")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let message = result
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or(if connected {
+                    "WhatsApp connected successfully."
+                } else {
+                    "WhatsApp login timed out. Please try again."
+                })
+                .to_string();
+
+            HttpResponse::Ok().json(WhatsAppLoginWaitResponse {
+                success: true,
+                connected,
+                message: Some(message),
+            })
+        }
+        Err(e) => {
+            eprintln!("[channels] web.login.wait failed: {}", e);
+            HttpResponse::Ok().json(WhatsAppLoginWaitResponse {
+                success: false,
+                connected: false,
+                message: Some(format!("Login wait failed: {}", e)),
+            })
+        }
+    }
+}
+
+// ── Channel disconnect (logout) ─────────────────────────────────────────
+
+/// Request body for channel disconnect.
+#[derive(Deserialize)]
+struct DisconnectRequest {
+    /// Optional account ID (defaults to "default").
+    #[serde(default)]
+    account_id: Option<String>,
+}
+
+/// Disconnect WhatsApp: calls the gateway's channel.logout method to
+/// clear Baileys credentials, then removes the channel from config.
+#[post("/api/clawd/channels/whatsapp/disconnect")]
+pub async fn whatsapp_disconnect(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    body: web::Json<DisconnectRequest>,
+) -> impl Responder {
+    let account_id = body
+        .account_id
+        .as_deref()
+        .unwrap_or("default")
+        .to_string();
+
+    // Step 1: Ask the gateway to logout the WhatsApp account (clears
+    // Baileys auth directory and stops the monitor).
+    let logout_params = serde_json::json!({
+        "channel": "whatsapp",
+        "accountId": account_id,
+    });
+    if let Err(e) = gateway_client::call_channel_method(
+        "channel.logout",
+        Some(logout_params),
+        None,
+    )
+    .await
+    {
+        eprintln!("[channels] channel.logout(whatsapp) failed: {}", e);
+        // Continue to config removal even if logout RPC fails — the user
+        // still wants the channel removed from config.
+    }
+
+    // Step 2: Remove WhatsApp from the gateway config.
+    let config_result = gateway_client::config_get(None).await;
+    match config_result {
+        Ok(config_snapshot) => {
+            let base_hash = extract_base_hash(&config_snapshot);
+            let patch = r#"{"channels": {"whatsapp": null}}"#;
+            match gateway_client::config_patch(patch, &base_hash, None).await {
+                Ok(_) => HttpResponse::Ok().json(GenericResponse {
+                    success: true,
+                    message: Some("WhatsApp disconnected".to_string()),
+                    configured: None,
+                    linked: None,
+                }),
+                Err(e) => HttpResponse::Ok().json(GenericResponse {
+                    success: false,
+                    message: Some(format!("Failed to remove config: {}", e)),
+                    configured: None,
+                    linked: None,
+                }),
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(GenericResponse {
+            success: false,
+            message: Some(format!("Failed to get config: {}", e)),
+            configured: None,
+            linked: None,
+        }),
+    }
+}
+
+/// Disconnect Telegram: calls channel.logout then removes config.
+#[post("/api/clawd/channels/telegram/disconnect")]
+pub async fn telegram_disconnect(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    body: web::Json<DisconnectRequest>,
+) -> impl Responder {
+    let account_id = body
+        .account_id
+        .as_deref()
+        .unwrap_or("default")
+        .to_string();
+
+    let logout_params = serde_json::json!({
+        "channel": "telegram",
+        "accountId": account_id,
+    });
+    if let Err(e) = gateway_client::call_channel_method(
+        "channel.logout",
+        Some(logout_params),
+        None,
+    )
+    .await
+    {
+        eprintln!("[channels] channel.logout(telegram) failed: {}", e);
+    }
+
+    let config_result = gateway_client::config_get(None).await;
+    match config_result {
+        Ok(config_snapshot) => {
+            let base_hash = extract_base_hash(&config_snapshot);
+            let patch = r#"{"channels": {"telegram": null}}"#;
+            match gateway_client::config_patch(patch, &base_hash, None).await {
+                Ok(_) => HttpResponse::Ok().json(GenericResponse {
+                    success: true,
+                    message: Some("Telegram disconnected".to_string()),
+                    configured: None,
+                    linked: None,
+                }),
+                Err(e) => HttpResponse::Ok().json(GenericResponse {
+                    success: false,
+                    message: Some(format!("Failed to remove config: {}", e)),
+                    configured: None,
+                    linked: None,
+                }),
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(GenericResponse {
+            success: false,
+            message: Some(format!("Failed to get config: {}", e)),
+            configured: None,
+            linked: None,
+        }),
+    }
+}
+
+/// Disconnect iMessage: removes channel from config.
+/// (iMessage doesn't have a separate logout flow — it's system-level.)
+#[post("/api/clawd/channels/imessage/disconnect")]
+pub async fn imessage_disconnect(
+    _cfg: web::Data<SharedClawdbotConfig>,
+) -> impl Responder {
+    let config_result = gateway_client::config_get(None).await;
+    match config_result {
+        Ok(config_snapshot) => {
+            let base_hash = extract_base_hash(&config_snapshot);
+            let patch = r#"{"channels": {"imessage": null}}"#;
+            match gateway_client::config_patch(patch, &base_hash, None).await {
+                Ok(_) => HttpResponse::Ok().json(GenericResponse {
+                    success: true,
+                    message: Some("iMessage disconnected".to_string()),
+                    configured: None,
+                    linked: None,
+                }),
+                Err(e) => HttpResponse::Ok().json(GenericResponse {
+                    success: false,
+                    message: Some(format!("Failed to remove config: {}", e)),
+                    configured: None,
+                    linked: None,
+                }),
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(GenericResponse {
+            success: false,
+            message: Some(format!("Failed to get config: {}", e)),
+            configured: None,
+            linked: None,
+        }),
+    }
+}
+
 /// Open System Preferences to Full Disk Access pane
 #[post("/api/clawd/channels/open-full-disk-access")]
 pub async fn open_full_disk_access() -> impl Responder {

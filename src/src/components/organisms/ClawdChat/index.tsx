@@ -2977,7 +2977,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   setChannelError(null)
                   try {
                     if (channelStatus.whatsapp?.linked) {
-                      await channelStatus.toggleWhatsApp(false)
+                      await channelStatus.disconnectWhatsApp()
                     } else {
                       await channelStatus.connectWhatsApp()
                     }
@@ -3072,7 +3072,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   setChannelError(null)
                   try {
                     if (channelStatus.imessage?.configured) {
-                      await channelStatus.toggleIMessage(false)
+                      await channelStatus.disconnectIMessage()
                     } else {
                       await channelStatus.connectIMessage()
                     }
