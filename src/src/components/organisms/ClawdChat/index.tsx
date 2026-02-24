@@ -5,7 +5,7 @@ import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { open } from '@tauri-apps/api/shell'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
-import { convertFileSrc } from '@tauri-apps/api/tauri'
+import { convertFileSrc, invoke } from '@tauri-apps/api/tauri'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
@@ -3251,6 +3251,43 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 </div>
               </div>
             )}
+
+            {/* ── More channels ── */}
+            <div className="ClawdChannelCard ClawdChannelCard--more">
+              <div className="ClawdChannelCardIcon ClawdChannelCardIcon--more">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+              </div>
+              <div className="ClawdChannelCardInfo">
+                <div className="ClawdChannelCardName">More Channels</div>
+                <div className="ClawdChannelCardStatus">Slack, Discord, IRC, Signal, Google Chat</div>
+              </div>
+              <button
+                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                onClick={async () => {
+                  try {
+                    const cmd: string = await invoke('kn_openclaw_configure_channels_cmd')
+                    // Open Activity panel (terminal)
+                    if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
+                      onToggleActivityRef.current()
+                    }
+                    // Dispatch command to the PTY terminal
+                    window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: cmd } }))
+                    // Close the channels panel
+                    setShowChannelsPanel(false)
+                  } catch (err: any) {
+                    setChannelError(`Failed to start channel setup: ${err?.message || err}`)
+                  }
+                }}
+              >
+                Set up
+              </button>
+            </div>
+            <div className="ClawdChannelGuide">
+              <div className="ClawdChannelGuideNote">
+                OpenClaw supports additional channels that require interactive setup.
+                Clicking <strong>Set up</strong> opens the OpenClaw channel configuration wizard in the terminal.
+              </div>
+            </div>
 
             {channelError && (
               <div className="ClawdChannelsPanelError">

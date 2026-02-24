@@ -518,6 +518,16 @@ export const SettingsDialog = ({
               </div>
             )}
           </div>
+          {/* More channels hint */}
+          <div className="flex justify-between h-[36px] items-center">
+            <div className="flex items-center gap-2">
+              <Typography className="text-gray-500">More (Slack, Discord, IRC, Signal, ...)</Typography>
+            </div>
+            <Typography className={`text-xs text-gray-400`}>
+              Use Channels panel in chat
+            </Typography>
+          </div>
+
           {channels.error && (
             <Typography className="text-xs text-red-500">{channels.error}</Typography>
           )}
