@@ -811,6 +811,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [showChannelsPanel, setShowChannelsPanel] = useState(false)
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
   const [channelError, setChannelError] = useState<string | null>(null)
+  const [telegramBotToken, setTelegramBotToken] = useState('')
+  const [showTelegramInput, setShowTelegramInput] = useState(false)
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
@@ -851,7 +853,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
-  const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured)
+  const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
   const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel
 
   const welcomeMessages = useMemo(
@@ -2483,7 +2485,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <button
             onClick={() => { setShowChannelsPanel(prev => !prev); setShowSkillsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity() }}
             className={`${showChannelsPanel ? 'toggle-on' : ''} ${hasAnyChannel ? 'channels-connected' : 'channels-disconnected'}`}
-            title="Connect WhatsApp or iMessage"
+            title="Connect WhatsApp, iMessage, or Telegram"
           >
             {hasAnyChannel ? '💬 Channels' : '💬 Channels'}
           </button>
@@ -2720,7 +2722,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <div className="ClawdBubble ClawdChannelBanner">
               <p className="ClawdChannelBannerTitle">Connect a messaging channel</p>
               <p className="ClawdChannelBannerDesc">
-                Link your WhatsApp or iMessage so your AI assistant can send and receive messages on your behalf.
+                Link your WhatsApp, iMessage, or Telegram so your AI assistant can send and receive messages on your behalf.
               </p>
               <div className="ClawdChannelBannerButtons">
                 <button
@@ -2970,13 +2972,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 )}
               </div>
               <button
-                className={`ClawdChannelCardAction ${channelStatus.whatsapp?.linked ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
+                className={`ClawdChannelCardAction ${(channelStatus.whatsapp?.linked || channelStatus.whatsapp?.enabled) ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
                 disabled={channelBusy === 'whatsapp'}
                 onClick={async () => {
                   setChannelBusy('whatsapp')
                   setChannelError(null)
                   try {
-                    if (channelStatus.whatsapp?.linked) {
+                    if (channelStatus.whatsapp?.linked || (channelStatus.whatsapp?.enabled && !channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl)) {
                       await channelStatus.disconnectWhatsApp()
                     } else {
                       await channelStatus.connectWhatsApp()
@@ -2990,7 +2992,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               >
                 {channelBusy === 'whatsapp'
                   ? (channelStatus.whatsappLinking ? 'Starting WhatsApp...' : 'Working...')
-                  : channelStatus.whatsapp?.linked ? 'Disconnect' : 'Connect'}
+                  : (channelStatus.whatsapp?.linked || (channelStatus.whatsapp?.enabled && !channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl))
+                    ? 'Disconnect'
+                    : 'Connect'}
               </button>
             </div>
             {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && (
@@ -3126,6 +3130,124 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 </ol>
                 <div className="ClawdChannelGuideNote">
                   iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
+                </div>
+              </div>
+            )}
+
+            {/* ── Telegram ── */}
+            <div className={`ClawdChannelCard ${channelStatus.telegram?.configured ? 'ClawdChannelCard--connected' : ''}`}>
+              <div className="ClawdChannelCardIcon ClawdChannelCardIcon--telegram">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+              </div>
+              <div className="ClawdChannelCardInfo">
+                <div className="ClawdChannelCardName">Telegram</div>
+                {channelStatus.telegram?.configured ? (
+                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                ) : channelStatus.telegram?.enabled ? (
+                  <div className="ClawdChannelCardStatus">Enabled — needs bot token</div>
+                ) : (
+                  <div className="ClawdChannelCardStatus">Not connected</div>
+                )}
+              </div>
+              <button
+                className={`ClawdChannelCardAction ${channelStatus.telegram?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
+                disabled={channelBusy === 'telegram'}
+                onClick={async () => {
+                  if (channelBusy) return
+                  if (channelStatus.telegram?.configured) {
+                    setChannelBusy('telegram')
+                    setChannelError(null)
+                    try {
+                      await channelStatus.disconnectTelegram()
+                    } catch (err: any) {
+                      const msg = err?.message || String(err)
+                      console.error('[Channels] Telegram error:', msg)
+                      setChannelError(`Telegram: ${msg}`)
+                    } finally { setChannelBusy(null) }
+                  } else {
+                    setShowTelegramInput(prev => !prev)
+                  }
+                }}
+              >
+                {channelBusy === 'telegram'
+                  ? 'Working...'
+                  : channelStatus.telegram?.configured
+                    ? 'Disconnect'
+                    : showTelegramInput
+                      ? 'Cancel'
+                      : 'Connect'}
+              </button>
+            </div>
+            {channelStatus.telegram?.configured ? (
+              <div className="ClawdChannelGuide">
+                <div className="ClawdChannelGuideTitle">How to use Telegram</div>
+                <ol className="ClawdChannelGuideSteps">
+                  <li>
+                    <span className="ClawdChannelGuideNum">1</span>
+                    <span>Open <strong>Telegram</strong> and send a message to your bot. Your Knapsack AI assistant will automatically read and reply.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">2</span>
+                    <span>You can also ask your assistant in this chat: <em>"Send a Telegram message to [username]"</em>.</span>
+                  </li>
+                </ol>
+                <div className="ClawdChannelGuideNote">
+                  Messages are routed through your Telegram bot. Your assistant processes everything locally.
+                </div>
+              </div>
+            ) : (
+              <div className="ClawdChannelGuide">
+                {showTelegramInput && (
+                  <div style={{ padding: '12px 0' }}>
+                    <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                      Enter your Telegram bot token from @BotFather:
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        value={telegramBotToken}
+                        onChange={e => setTelegramBotToken(e.target.value)}
+                        placeholder="123456:ABC-DEF..."
+                        style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }}
+                      />
+                      <button
+                        disabled={!telegramBotToken.trim() || channelBusy === 'telegram'}
+                        onClick={async () => {
+                          setChannelBusy('telegram')
+                          setChannelError(null)
+                          try {
+                            await channelStatus.connectTelegram(telegramBotToken.trim())
+                            setShowTelegramInput(false)
+                            setTelegramBotToken('')
+                          } catch (err: any) {
+                            const msg = err?.message || String(err)
+                            setChannelError(`Telegram: ${msg}`)
+                          } finally { setChannelBusy(null) }
+                        }}
+                        style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !telegramBotToken.trim() ? 0.5 : 1 }}
+                      >
+                        {channelBusy === 'telegram' ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="ClawdChannelGuideTitle">How to connect Telegram</div>
+                <ol className="ClawdChannelGuideSteps">
+                  <li>
+                    <span className="ClawdChannelGuideNum">1</span>
+                    <span>Open Telegram and message <strong>@BotFather</strong>. Send <code>/newbot</code> and follow the prompts to create a bot.</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">2</span>
+                    <span>Copy the <strong>bot token</strong> BotFather gives you (e.g. <code>123456:ABC-DEF...</code>).</span>
+                  </li>
+                  <li>
+                    <span className="ClawdChannelGuideNum">3</span>
+                    <span>Click <strong>Connect</strong> above and paste the token. Once saved, the bot will be active.</span>
+                  </li>
+                </ol>
+                <div className="ClawdChannelGuideNote">
+                  Knapsack connects as your Telegram bot. Messages are processed locally on your machine.
                 </div>
               </div>
             )}

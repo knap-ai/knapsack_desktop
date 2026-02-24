@@ -147,19 +147,34 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
         // This calls web.login.wait which blocks until scan completes or timeout.
         if (!qrWaitActiveRef.current) {
           qrWaitActiveRef.current = true
+          const qrShownAt = Date.now()
           waitWhatsAppLogin()
             .then(async (waitRes) => {
               if (waitRes.connected) {
                 setWhatsappQrUrl(null)
                 await refresh()
               } else {
-                // Timeout — user didn't scan in time
-                setWhatsappQrUrl(null)
-                setChannelError('whatsapp', waitRes.message ?? 'QR code expired. Try again.')
+                // If the wait returned very quickly (< 10 s) the backend likely
+                // wasn't ready yet — keep the QR visible so the user can still
+                // scan, but surface a note.  Only clear after a real timeout.
+                const elapsed = Date.now() - qrShownAt
+                if (elapsed < 10_000) {
+                  // Backend returned too fast — keep the QR, don't clear it.
+                  // The polling refresh() will clear it if the user links.
+                  console.warn('[useChannelStatus] login-wait returned in', elapsed, 'ms — keeping QR visible')
+                } else {
+                  // Genuine timeout — user didn't scan in time
+                  setWhatsappQrUrl(null)
+                  setChannelError('whatsapp', waitRes.message ?? 'QR code expired. Click Connect to try again.')
+                }
               }
             })
             .catch((e: any) => {
-              setWhatsappQrUrl(null)
+              // On error, keep the QR visible if it was shown very recently
+              const elapsed = Date.now() - qrShownAt
+              if (elapsed >= 10_000) {
+                setWhatsappQrUrl(null)
+              }
               setChannelError('whatsapp', e?.message ?? 'Login wait failed')
             })
             .finally(() => {

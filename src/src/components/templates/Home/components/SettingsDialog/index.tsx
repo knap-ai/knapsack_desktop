@@ -368,7 +368,7 @@ export const SettingsDialog = ({
                   if (channelBusy) return
                   setChannelBusy('whatsapp')
                   try {
-                    if (channels.whatsapp?.linked) {
+                    if (channels.whatsapp?.linked || (channels.whatsapp?.enabled && !channels.whatsappLinking && !channels.whatsappQrUrl)) {
                       await channels.disconnectWhatsApp()
                     } else {
                       await channels.connectWhatsApp()
@@ -380,7 +380,7 @@ export const SettingsDialog = ({
               >
                 {channelBusy === 'whatsapp'
                   ? 'Working...'
-                  : channels.whatsapp?.linked
+                  : (channels.whatsapp?.linked || (channels.whatsapp?.enabled && !channels.whatsappLinking && !channels.whatsappQrUrl))
                     ? 'Disconnect'
                     : 'Connect'}
               </Typography>
