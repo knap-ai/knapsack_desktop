@@ -1,11 +1,10 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
-import { getCurrent, LogicalSize } from '@tauri-apps/api/window'
 
 dayjs.extend(relativeTime)
 
@@ -23,11 +22,6 @@ function stripMarkdown(s: string): string {
     .replace(/\n+/g, ' ')                       // newlines → spaces
     .trim()
 }
-
-const NOTIF_WIDTH = 600 // Must match Rust NOTIF_WIDTH constant
-const MIN_HEIGHT = 80
-const MAX_HEIGHT = 520
-const PADDING = 4
 
 export interface ButtonConfig {
   buttonText: string
@@ -81,22 +75,8 @@ function NotificationWindow() {
     }
   }, [])
 
-  useLayoutEffect(() => {
-    const root = document.getElementById('notification-root')
-    if (!root) return
-
-    const resizeWindow = () => {
-      // Use rAF to let the browser finish layout before measuring
-      requestAnimationFrame(async () => {
-        const contentHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, root.scrollHeight + PADDING))
-
-        const appWindow = getCurrent()
-        await appWindow.setSize(new LogicalSize(NOTIF_WIDTH, contentHeight))
-      })
-    }
-
-    resizeWindow()
-  }, [title, time, buttonConfigs, isDropdownOpen])
+  // Window height is set to full screen height by the Rust side.
+  // No dynamic resizing needed here.
 
   const handleJoinMeeting = async (meetingId: string | null, buttonHandler: string) => {
     if (isProcessing.current) return
