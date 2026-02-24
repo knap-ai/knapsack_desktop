@@ -150,50 +150,62 @@ function NotificationWindow() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 pr-2">
+        <div className="flex-1 min-w-0">
           <h3 className="text-[14px] font-semibold text-gray-900 line-clamp-2">
             {stripMarkdown(title)}
           </h3>
           <p className="text-sm text-gray-600 line-clamp-4">{stripMarkdown(time)}</p>
         </div>
         {buttonConfigs.length > 0 && (
-          <div
-            className="relative flex h-8 flex-shrink-0 bg-orange-800 hover:bg-red-900 rounded"
-            ref={dropdownRef}
-          >
-            <button
-              onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
-              className="px-4 py-2 active:bg-bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-2 whitespace-nowrap"
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Dismiss button — always visible */}
+            {buttonConfigs.some(c => c.buttonHandler === 'dismiss_notification_handler') && (
+              <button
+                onClick={() => handleJoinMeeting(currentMeetingId, 'dismiss_notification_handler')}
+                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors duration-200"
+              >
+                Dismiss
+              </button>
+            )}
+            {/* Primary action + dropdown for extras */}
+            <div
+              className="relative flex h-8 bg-orange-800 hover:bg-red-900 rounded"
+              ref={dropdownRef}
             >
-              {buttonConfigs[0].buttonText}
-            </button>
-            {buttonConfigs.length > 1 && (
-              <>
-                <div className="w-[1px] bg-[#00000022] outline-1 "></div>
+              <button
+                onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
+                className="px-4 py-2 active:bg-bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-2 whitespace-nowrap"
+              >
+                {buttonConfigs[0].buttonText}
+              </button>
+              {buttonConfigs.filter(c => c.buttonHandler !== 'dismiss_notification_handler').length > 1 && (
+                <>
+                  <div className="w-[1px] bg-[#00000022] outline-1 "></div>
 
-                <button
-                  onClick={toggleDropdown}
-                  className="px-2 py-2 text-white rounded-r-lg text-xs font-medium transition-colors duration-200 border-l border-bg-red-main"
-                >
-                  <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-                  </svg>
-                </button>
-              </>
-            )}
-            {isDropdownOpen && (
-              <div className="absolute w-36 mx-2 left-0 top-full mt-1 bg-white rounded-lg  z-50 border-black shadow-[0px_1px_3px_0px_rgba(40,33,16,0.10)]">
-                {buttonConfigs.slice(1).map((config, index) => (
-                  <div
-                    key={index}
-                    onClick={() => handleJoinMeeting(currentMeetingId, config.buttonHandler)}
-                    className="px-4 py-2 text-xs text-gray-700 hover:text-orange-800 cursor-pointer text-right"
+                  <button
+                    onClick={toggleDropdown}
+                    className="px-2 py-2 text-white rounded-r-lg text-xs font-medium transition-colors duration-200 border-l border-bg-red-main"
                   >
-                    {config.buttonText}
-                  </div>
-                ))}
-              </div>
-            )}
+                    <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                      <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                    </svg>
+                  </button>
+                </>
+              )}
+              {isDropdownOpen && (
+                <div className="absolute w-36 mx-2 left-0 top-full mt-1 bg-white rounded-lg z-50 border-black shadow-[0px_1px_3px_0px_rgba(40,33,16,0.10)]">
+                  {buttonConfigs.slice(1).filter(c => c.buttonHandler !== 'dismiss_notification_handler').map((config, index) => (
+                    <div
+                      key={index}
+                      onClick={() => handleJoinMeeting(currentMeetingId, config.buttonHandler)}
+                      className="px-4 py-2 text-xs text-gray-700 hover:text-orange-800 cursor-pointer"
+                    >
+                      {config.buttonText}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
