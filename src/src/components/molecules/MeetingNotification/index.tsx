@@ -104,7 +104,7 @@ function NotificationWindow() {
     isProcessing.current = true
 
     try {
-      await invoke('activate_main_window')
+      await invoke('activate_main_window_from_notification')
       await invoke('emit_event', {
         event: 'notification_handler',
         payload: { meetingId: meetingId, buttonHandler: buttonHandler },

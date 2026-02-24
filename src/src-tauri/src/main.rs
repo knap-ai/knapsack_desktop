@@ -393,6 +393,45 @@ fn activate_main_window(window: tauri::Window) {
 }
 
 #[tauri::command]
+fn activate_main_window_from_notification(window: tauri::Window) {
+  let app = window.app_handle();
+
+  if let Some(main_window) = app.get_window("main") {
+    // Determine position and size from the notification window so the main
+    // window appears to "expand" from it.
+    if let Some(notification_window) = app.get_window("notification") {
+      if let (Ok(notif_pos), Ok(Some(monitor))) = (
+        notification_window.outer_position(),
+        notification_window.current_monitor(),
+      ) {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+
+        // Use the same width as the notification and ~70% of screen height
+        let logical_height = (screen_size.height as f64 / scale_factor) * 0.7;
+
+        let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+          width: NOTIF_WIDTH,
+          height: logical_height,
+        }));
+
+        // Align the main window with the notification's position
+        let _ = main_window.set_position(tauri::Position::Physical(
+          tauri::PhysicalPosition {
+            x: notif_pos.x,
+            y: notif_pos.y,
+          },
+        ));
+      }
+    }
+
+    let _ = main_window.unminimize();
+    let _ = main_window.show();
+    let _ = main_window.set_focus();
+  }
+}
+
+#[tauri::command]
 async fn emit_event(window: tauri::Window, event: String, payload: Value) -> Result<(), String> {
   let main_window = window
     .app_handle()
@@ -821,6 +860,7 @@ async fn main() {
       close_notification_window,
       start_meeting_recording,
       activate_main_window,
+      activate_main_window_from_notification,
       emit_event,
       open_screen_recording_settings,
       open_microphone_settings,
