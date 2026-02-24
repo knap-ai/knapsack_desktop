@@ -135,7 +135,7 @@ fn platform_spawn(
   unsafe {
     let mut master: libc::c_int = 0;
     let mut slave: libc::c_int = 0;
-    let ws = libc::winsize {
+    let mut ws = libc::winsize {
       ws_row: rows,
       ws_col: cols,
       ws_xpixel: 0,
@@ -147,7 +147,7 @@ fn platform_spawn(
       &mut slave,
       ptr::null_mut(),
       ptr::null_mut(),
-      &ws,
+      &mut ws,
     ) != 0
     {
       return Err("openpty failed".into());
