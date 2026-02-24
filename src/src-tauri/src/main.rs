@@ -321,16 +321,8 @@ async fn show_notification_window(
         let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
         let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
-        let y_position = 0;
-
-        // Resize window to full screen height
-        let screen_height_logical = screen_size.height as f64 / scale_factor;
-        window
-          .set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: NOTIF_WIDTH,
-            height: screen_height_logical,
-          }))
-          .unwrap();
+        let top_margin_percentage = 0.05;
+        let y_position = (screen_size.height as f64 * top_margin_percentage) as i32;
 
         let start_x = screen_size.width as i32 + physical_start_offset;
 
@@ -785,6 +777,19 @@ async fn main() {
       }
 
       let main_window = window_builder.build()?;
+
+      // Resize main window to full screen height
+      if let Ok(Some(monitor)) = main_window.current_monitor() {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        main_window
+          .set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: 1440.0,
+            height: screen_height_logical,
+          }))
+          .unwrap();
+      }
 
       main_window.center()?;
 
