@@ -24,6 +24,7 @@ mod file_upload;
 mod llm;
 mod local_fs;
 mod memory;
+mod pty;
 mod search;
 mod server;
 mod spotlight;
@@ -831,7 +832,11 @@ async fn main() {
       kn_get_log_path,
       kn_execute_command,
       kn_spawn_streaming_command,
-      kn_kill_streaming_process
+      kn_kill_streaming_process,
+      pty::kn_pty_spawn,
+      pty::kn_pty_write,
+      pty::kn_pty_resize,
+      pty::kn_pty_kill
     ])
     .manage(UUIDState {
       uuid: StdMutex::new(None),
@@ -839,6 +844,9 @@ async fn main() {
     .manage(progress_state)
     .manage(StreamingProcessState {
       pids: Arc::new(StdMutex::new(std::collections::HashMap::new())),
+    })
+    .manage(pty::PtySessionState {
+      sessions: Arc::new(StdMutex::new(std::collections::HashMap::new())),
     })
     .on_window_event(|event| match event.event() {
       tauri::WindowEvent::Focused(true) => {

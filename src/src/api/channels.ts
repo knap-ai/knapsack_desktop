@@ -73,6 +73,17 @@ export const setupIMessage = () =>
 export const openFullDiskAccess = () =>
   post<GenericResponse>('/api/clawd/channels/open-full-disk-access')
 
+// ── Telegram ────────────────────────────────────────────────
+
+export const getTelegramStatus = () =>
+  get<ChannelStatus>('/api/clawd/channels/telegram/status')
+
+export const enableTelegram = (enabled: boolean) =>
+  post<GenericResponse>('/api/clawd/channels/telegram/enable', { enabled })
+
+export const configureTelegram = (botToken: string) =>
+  post<GenericResponse>('/api/clawd/channels/telegram/configure', { bot_token: botToken })
+
 // ── Send Message ────────────────────────────────────────────
 
 export interface SendMessageResponse {
@@ -80,6 +91,6 @@ export interface SendMessageResponse {
   message?: string
 }
 
-/** Send a message to a user through a connected channel (WhatsApp or iMessage). */
+/** Send a message to a user through a connected channel (WhatsApp, iMessage, or Telegram). */
 export const sendChannelMessage = (channel: string, to: string, message: string) =>
   post<SendMessageResponse>('/api/clawd/channels/send', { channel, to, message })

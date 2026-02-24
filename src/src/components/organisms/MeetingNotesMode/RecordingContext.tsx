@@ -111,13 +111,18 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     }
     isStartingRef.current = true
     try {
-      // Check macOS permissions before attempting to record
+      // Check macOS permissions before attempting to record.
+      // This must succeed or recording is blocked — we never silently proceed
+      // without verified permissions.
+      console.info(`[Recording] startRecording threadId=${threadId} isStart=${isStart}`)
       try {
         const permissions = await invoke<{
           microphone: boolean
           screen_recording: boolean
           all_granted: boolean
         }>('check_audio_permissions')
+
+        console.info(`[Recording] permissions: mic=${permissions.microphone} screen=${permissions.screen_recording} all=${permissions.all_granted}`)
 
         if (!permissions.all_granted) {
           const missing: string[] = []
@@ -142,20 +147,26 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         }
       } catch (permErr: any) {
         // If this is our own permission error, rethrow it
-        if (permErr.message?.includes('permission')) {
+        if (permErr.message?.includes('permission') || permErr.message?.includes('Permission') || permErr.message?.includes('Recording requires')) {
           throw permErr
         }
-        // If invoke itself failed (e.g. command not found), log but don't block
+        // The permission check command itself failed. This is a real problem —
+        // do NOT silently proceed. Surface the error to the user.
+        const errorMsg = `Permission check failed: ${permErr.message || String(permErr)}. Please restart the app and try again.`
         logError(
           new Error('Permission check failed'),
           {
-            additionalInfo: 'Could not verify permissions, proceeding anyway.',
+            additionalInfo: errorMsg,
             error: permErr.message || String(permErr),
           },
+          true,
         )
+        throw new Error(errorMsg)
       }
 
+      console.info(`[Recording] calling startRecord endpoint for threadId=${threadId}`)
       await startRecord(threadId, feedItemId, eventId, saveTranscript)
+      console.info(`[Recording] startRecord succeeded for threadId=${threadId}`)
       setFeedIsRecording(true)
       setIsRecording(threadId, true)
       if (eventUrl && isStart) {
@@ -164,10 +175,11 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         setIsPaused(false)
       }
     } catch (err: any) {
+      console.error(`[Recording] startRecording failed for threadId=${threadId}:`, err)
       logError(
         new Error('Error starting recording'),
         {
-          additionalInfo: 'Error occurred while startRecord RecordingContext.',
+          additionalInfo: `Error in startRecord for threadId=${threadId}.`,
           error: err.message,
         },
         true,
@@ -224,18 +236,21 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     eventId?: number,
   ) => {
     setIsPaused(false)
+    console.info(`[Recording] stopRecording threadId=${threadId}`)
 
     if (isRecording(threadId)) {
       setLoadingState(threadId, true)
       try {
         await stopRecord(threadId, saveTranscript, eventId)
+        console.info(`[Recording] stopRecord succeeded for threadId=${threadId}`)
         setFeedIsRecording(false)
         setIsRecording(threadId, false)
       } catch (err: any) {
+        console.error(`[Recording] stopRecording failed for threadId=${threadId}:`, err)
         logError(
           new Error('Error stopping recording'),
           {
-            additionalInfo: 'Error occurred while stopRecording RecordingContext.',
+            additionalInfo: `Error in stopRecording for threadId=${threadId}.`,
             error: err.message,
           },
           true,
@@ -251,8 +266,18 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   }
 
   const pauseRecording = async () => {
-    await pauseRecord()
-    setIsPaused(true)
+    console.info('[Recording] pauseRecording')
+    try {
+      await pauseRecord()
+      setIsPaused(true)
+    } catch (err: any) {
+      console.error('[Recording] pauseRecording failed:', err)
+      logError(
+        new Error('Error pausing recording'),
+        { additionalInfo: 'pauseRecording failed', error: err.message },
+        true,
+      )
+    }
   }
 
   return (

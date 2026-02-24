@@ -3,8 +3,11 @@ import {
   ChannelStatus,
   getWhatsAppStatus,
   getIMessageStatus,
+  getTelegramStatus,
   enableWhatsApp,
   enableIMessage,
+  enableTelegram,
+  configureTelegram,
   startWhatsAppLogin,
   setupIMessage,
   openFullDiskAccess,
@@ -13,17 +16,24 @@ import {
 export interface ChannelStates {
   whatsapp: ChannelStatus | null
   imessage: ChannelStatus | null
+  telegram: ChannelStatus | null
   loading: boolean
   error: string | null
+  /** Per-channel error messages for inline display. */
+  channelErrors: Record<string, string | null>
   /** Base64 data URL for the WhatsApp QR code, if login is in progress. */
   whatsappQrUrl: string | null
   /** True while the backend is waiting for the gateway to restart and
    *  generate a QR code (can take ~10 s due to retry backoff). */
   whatsappLinking: boolean
+  /** True while a health check is in progress. */
+  healthChecking: boolean
+  /** Result of the last gateway health check. */
+  gatewayHealthy: boolean | null
 }
 
 /**
- * Hook that polls WhatsApp and iMessage channel status from the backend.
+ * Hook that polls WhatsApp, iMessage, and Telegram channel status from the backend.
  *
  * @param enabled  Pass `false` to suppress polling (e.g. when the dialog is closed).
  * @param intervalMs  Polling interval in ms (default 10 s).
@@ -31,21 +41,40 @@ export interface ChannelStates {
 export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   const [whatsapp, setWhatsapp] = useState<ChannelStatus | null>(null)
   const [imessage, setImessage] = useState<ChannelStatus | null>(null)
+  const [telegram, setTelegram] = useState<ChannelStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [channelErrors, setChannelErrors] = useState<Record<string, string | null>>({})
   const [whatsappQrUrl, setWhatsappQrUrl] = useState<string | null>(null)
   const [whatsappLinking, setWhatsappLinking] = useState(false)
+  const [healthChecking, setHealthChecking] = useState(false)
+  const [gatewayHealthy, setGatewayHealthy] = useState<boolean | null>(null)
+
+  const setChannelError = (channel: string, msg: string | null) => {
+    setChannelErrors(prev => ({ ...prev, [channel]: msg }))
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [wa, im] = await Promise.all([
+      const [wa, im, tg] = await Promise.all([
         getWhatsAppStatus().catch(() => null),
         getIMessageStatus().catch(() => null),
+        getTelegramStatus().catch(() => null),
       ])
       setWhatsapp(wa)
       setImessage(im)
+      setTelegram(tg)
+
+      // Surface gateway-level errors per channel
+      if (wa && !wa.success && wa.message) setChannelError('whatsapp', wa.message)
+      else setChannelError('whatsapp', null)
+      if (im && !im.success && im.message) setChannelError('imessage', im.message)
+      else setChannelError('imessage', null)
+      if (tg && !tg.success && tg.message) setChannelError('telegram', tg.message)
+      else setChannelError('telegram', null)
+
       // Clear QR code if WhatsApp is now linked
       if (wa?.linked) {
         setWhatsappQrUrl(null)
@@ -65,21 +94,52 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     return () => clearInterval(id)
   }, [enabled, intervalMs, refresh])
 
+  // ── Health check ─────────────────────────────────────────
+
+  const checkHealth = useCallback(async () => {
+    setHealthChecking(true)
+    try {
+      const res = await fetch('http://localhost:8897/api/clawd/service/health')
+      if (res.ok) {
+        const data = await res.json()
+        setGatewayHealthy(!!data.gateway_ok)
+      } else {
+        setGatewayHealthy(false)
+      }
+    } catch {
+      setGatewayHealthy(false)
+    } finally {
+      setHealthChecking(false)
+    }
+  }, [])
+
+  // Run an initial health check when the hook is enabled
+  useEffect(() => {
+    if (enabled) checkHealth()
+  }, [enabled, checkHealth])
+
   // ── Actions ────────────────────────────────────────────
 
   const toggleWhatsApp = useCallback(async (on: boolean) => {
-    const res = await enableWhatsApp(on)
-    if (!res.success) throw new Error(res.message ?? 'Failed to toggle WhatsApp')
-    if (!on) {
-      setWhatsappQrUrl(null)
-      setWhatsappLinking(false)
+    setChannelError('whatsapp', null)
+    try {
+      const res = await enableWhatsApp(on)
+      if (!res.success) throw new Error(res.message ?? 'Failed to toggle WhatsApp')
+      if (!on) {
+        setWhatsappQrUrl(null)
+        setWhatsappLinking(false)
+      }
+      await refresh()
+    } catch (e: any) {
+      setChannelError('whatsapp', e.message)
+      throw e
     }
-    await refresh()
   }, [refresh])
 
   const connectWhatsApp = useCallback(async () => {
     setWhatsappQrUrl(null)
     setWhatsappLinking(true)
+    setChannelError('whatsapp', null)
     try {
       // Step 1: enable the WhatsApp channel in gateway config
       const enableRes = await enableWhatsApp(true)
@@ -90,6 +150,8 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
       if (loginRes.qrDataUrl) {
         setWhatsappQrUrl(loginRes.qrDataUrl)
       }
+    } catch (e: any) {
+      setChannelError('whatsapp', e.message)
     } finally {
       setWhatsappLinking(false)
     }
@@ -97,32 +159,74 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   }, [refresh])
 
   const toggleIMessage = useCallback(async (on: boolean) => {
-    const res = await enableIMessage(on)
-    if (!res.success) throw new Error(res.message ?? 'Failed to toggle iMessage')
-    await refresh()
+    setChannelError('imessage', null)
+    try {
+      const res = await enableIMessage(on)
+      if (!res.success) throw new Error(res.message ?? 'Failed to toggle iMessage')
+      await refresh()
+    } catch (e: any) {
+      setChannelError('imessage', e.message)
+      throw e
+    }
   }, [refresh])
 
   const connectIMessage = useCallback(async () => {
-    const enableRes = await enableIMessage(true)
-    if (!enableRes.success) throw new Error(enableRes.message ?? 'Failed to enable iMessage')
-    const result = await setupIMessage()
-    if (!result.configured) {
-      await openFullDiskAccess()
+    setChannelError('imessage', null)
+    try {
+      const enableRes = await enableIMessage(true)
+      if (!enableRes.success) throw new Error(enableRes.message ?? 'Failed to enable iMessage')
+      const result = await setupIMessage()
+      if (!result.configured) {
+        await openFullDiskAccess()
+      }
+      await refresh()
+    } catch (e: any) {
+      setChannelError('imessage', e.message)
     }
-    await refresh()
+  }, [refresh])
+
+  const toggleTelegram = useCallback(async (on: boolean) => {
+    setChannelError('telegram', null)
+    try {
+      const res = await enableTelegram(on)
+      if (!res.success) throw new Error(res.message ?? 'Failed to toggle Telegram')
+      await refresh()
+    } catch (e: any) {
+      setChannelError('telegram', e.message)
+      throw e
+    }
+  }, [refresh])
+
+  const connectTelegram = useCallback(async (botToken: string) => {
+    setChannelError('telegram', null)
+    try {
+      const res = await configureTelegram(botToken)
+      if (!res.success) throw new Error(res.message ?? 'Failed to configure Telegram')
+      await refresh()
+    } catch (e: any) {
+      setChannelError('telegram', e.message)
+      throw e
+    }
   }, [refresh])
 
   return {
     whatsapp,
     imessage,
+    telegram,
     loading,
     error,
+    channelErrors,
     whatsappQrUrl,
     whatsappLinking,
+    healthChecking,
+    gatewayHealthy,
     refresh,
+    checkHealth,
     toggleWhatsApp,
     connectWhatsApp,
     toggleIMessage,
     connectIMessage,
+    toggleTelegram,
+    connectTelegram,
   }
 }

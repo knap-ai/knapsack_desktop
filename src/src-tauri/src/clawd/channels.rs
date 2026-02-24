@@ -604,10 +604,10 @@ pub async fn send_channel_message(
     body: web::Json<SendMessageRequest>,
 ) -> impl Responder {
     let channel = body.channel.to_lowercase();
-    if channel != "whatsapp" && channel != "imessage" {
+    if channel != "whatsapp" && channel != "imessage" && channel != "telegram" {
         return HttpResponse::BadRequest().json(SendMessageResponse {
             success: false,
-            message: Some("Channel must be 'whatsapp' or 'imessage'".to_string()),
+            message: Some("Channel must be 'whatsapp', 'imessage', or 'telegram'".to_string()),
         });
     }
 
@@ -640,6 +640,168 @@ pub async fn send_channel_message(
             })
         }
     }
+}
+
+// ── Telegram ────────────────────────────────────────────────────────────
+
+/// Get Telegram channel status
+#[get("/api/clawd/channels/telegram/status")]
+pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+    match gateway_client::get_channel_status(None).await {
+        Ok(status) => {
+            let (enabled, _linked, configured) =
+                parse_channel_from_summary(&status, "Telegram");
+
+            HttpResponse::Ok().json(ChannelStatusResponse {
+                success: true,
+                enabled,
+                configured,
+                linked: Some(configured),
+                provider: None,
+                message: None,
+                account: parse_account_from_summary(&status, "Telegram"),
+            })
+        }
+        Err(e) => {
+            log::error!("[channels] telegram_status gateway error: {}", e);
+            HttpResponse::Ok().json(ChannelStatusResponse {
+                success: false,
+                enabled: false,
+                configured: false,
+                linked: Some(false),
+                provider: None,
+                message: Some(format!("Gateway error: {}", e)),
+                account: None,
+            })
+        }
+    }
+}
+
+/// Enable/disable Telegram channel via config.patch
+#[post("/api/clawd/channels/telegram/enable")]
+pub async fn telegram_enable(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    body: web::Json<EnableRequest>,
+) -> impl Responder {
+    let config_result = gateway_client::config_get(None).await;
+
+    match config_result {
+        Ok(config_snapshot) => {
+            let base_hash = extract_base_hash(&config_snapshot);
+
+            let patch = if body.enabled {
+                build_enable_patch(
+                    r#"{"channels": {"telegram": {"allowFrom": ["*"], "dmPolicy": "open"}}}"#,
+                    &config_snapshot,
+                )
+            } else {
+                r#"{"channels": {"telegram": null}}"#.to_string()
+            };
+
+            match gateway_client::config_patch(&patch, &base_hash, None).await {
+                Ok(_) => HttpResponse::Ok().json(GenericResponse {
+                    success: true,
+                    message: Some(if body.enabled {
+                        "Telegram enabled".to_string()
+                    } else {
+                        "Telegram disabled".to_string()
+                    }),
+                    configured: None,
+                    linked: None,
+                }),
+                Err(e) => {
+                    log::error!("[channels] telegram_enable config.patch failed: {}", e);
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: false,
+                        message: Some(format!("Failed to update config: {}", e)),
+                        configured: None,
+                        linked: None,
+                    })
+                }
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(GenericResponse {
+            success: false,
+            message: Some(format!("Failed to get config: {}", e)),
+            configured: None,
+            linked: None,
+        }),
+    }
+}
+
+/// Configure Telegram bot token.
+///
+/// The user provides their Telegram bot token (from @BotFather).
+/// This is persisted via config.patch so the gateway can connect.
+#[post("/api/clawd/channels/telegram/configure")]
+pub async fn telegram_configure(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    body: web::Json<TelegramConfigureRequest>,
+) -> impl Responder {
+    let token = body.bot_token.trim();
+    if token.is_empty() {
+        return HttpResponse::BadRequest().json(GenericResponse {
+            success: false,
+            message: Some("Bot token is required".to_string()),
+            configured: None,
+            linked: None,
+        });
+    }
+
+    let config_result = gateway_client::config_get(None).await;
+
+    match config_result {
+        Ok(config_snapshot) => {
+            let base_hash = extract_base_hash(&config_snapshot);
+
+            let patch_value = serde_json::json!({
+                "channels": {
+                    "telegram": {
+                        "botToken": token,
+                        "allowFrom": ["*"],
+                        "dmPolicy": "open"
+                    }
+                }
+            });
+            let patch = build_enable_patch(
+                &serde_json::to_string(&patch_value).unwrap(),
+                &config_snapshot,
+            );
+
+            match gateway_client::config_patch(&patch, &base_hash, None).await {
+                Ok(_) => {
+                    log::info!("[channels] Telegram bot token configured successfully");
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: true,
+                        message: Some("Telegram configured. The bot should connect shortly.".to_string()),
+                        configured: Some(true),
+                        linked: None,
+                    })
+                }
+                Err(e) => {
+                    log::error!("[channels] telegram_configure config.patch failed: {}", e);
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: false,
+                        message: Some(format!("Failed to configure: {}", e)),
+                        configured: None,
+                        linked: None,
+                    })
+                }
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(GenericResponse {
+            success: false,
+            message: Some(format!("Failed to get config: {}", e)),
+            configured: None,
+            linked: None,
+        }),
+    }
+}
+
+/// Request body for Telegram bot token configuration.
+#[derive(Deserialize)]
+struct TelegramConfigureRequest {
+    bot_token: String,
 }
 
 /// Open System Preferences to Full Disk Access pane

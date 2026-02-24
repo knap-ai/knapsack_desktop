@@ -474,6 +474,10 @@ interface TerminalSession {
   inputValue: string
   isExecuting: boolean
   streamingProcessId: string | null
+  /** When true this session is backed by a real PTY (interactive SSH works) */
+  isPty: boolean
+  /** Whether the PTY session has been spawned and is alive */
+  ptyAlive: boolean
 }
 
 const DEFAULT_SESSIONS: { id: string; label: string; initialCwd: string }[] = [
@@ -481,7 +485,7 @@ const DEFAULT_SESSIONS: { id: string; label: string; initialCwd: string }[] = [
   { id: 'clawdbot', label: 'Clawdbot', initialCwd: '~/knapsack_desktop/src/src-tauri/resources/clawdbot' },
 ]
 
-function makeSession(id: string, label: string, initialCwd: string): TerminalSession {
+function makeSession(id: string, label: string, initialCwd: string, isPty = true): TerminalSession {
   return {
     id,
     label,
@@ -493,6 +497,8 @@ function makeSession(id: string, label: string, initialCwd: string): TerminalSes
     inputValue: '',
     isExecuting: false,
     streamingProcessId: null,
+    isPty,
+    ptyAlive: false,
   }
 }
 
@@ -510,7 +516,7 @@ const TerminalView: React.FC = () => {
     setSessions(prev => prev.map(s => (s.id === id ? updater(s) : s)))
   }, [])
 
-  // Resolve initial cwd for each session
+  // Resolve initial cwd and spawn PTY for each session
   useEffect(() => {
     sessions.forEach(session => {
       if (session.cwd) return // already resolved
@@ -520,7 +526,24 @@ const TerminalView: React.FC = () => {
           const result: string = await invoke('kn_execute_command', {
             command: `eval cd ${expanded} 2>/dev/null && pwd || pwd`,
           })
-          updateSession(session.id, s => ({ ...s, cwd: result.trim() }))
+          const resolvedCwd = result.trim()
+          updateSession(session.id, s => ({ ...s, cwd: resolvedCwd }))
+
+          // Spawn PTY for sessions that want one
+          if (session.isPty && !session.ptyAlive) {
+            try {
+              await invoke('kn_pty_spawn', {
+                sessionId: session.id,
+                cwd: resolvedCwd,
+                cols: 120,
+                rows: 30,
+              })
+              updateSession(session.id, s => ({ ...s, ptyAlive: true }))
+            } catch (err) {
+              console.warn(`PTY spawn failed for ${session.id}, falling back to pipe mode:`, err)
+              updateSession(session.id, s => ({ ...s, isPty: false }))
+            }
+          }
         } catch {
           updateSession(session.id, s => ({ ...s, cwd: '~' }))
         }
@@ -528,6 +551,17 @@ const TerminalView: React.FC = () => {
       resolveDir()
     })
   }, [sessions.length])
+
+  // Cleanup: kill PTY sessions when component unmounts
+  useEffect(() => {
+    return () => {
+      sessions.forEach(session => {
+        if (session.isPty && session.ptyAlive) {
+          invoke('kn_pty_kill', { sessionId: session.id }).catch(() => {})
+        }
+      })
+    }
+  }, [])
 
   // Auto-scroll output
   useEffect(() => {
@@ -685,6 +719,43 @@ const TerminalView: React.FC = () => {
       ]
     })
     setActiveSessionId(sessionId)
+  }, [])
+
+  // ── PTY output event listeners ──
+  useEffect(() => {
+    const unlisteners: Promise<UnlistenFn>[] = []
+
+    unlisteners.push(
+      listen<{ sessionId: string; data: string }>('pty-output', event => {
+        const { sessionId, data } = event.payload
+        setSessions(prev => {
+          const exists = prev.find(s => s.id === sessionId)
+          if (!exists) return prev
+          return prev.map(s =>
+            s.id === sessionId
+              ? { ...s, lines: [...s.lines, { type: 'stdout' as const, text: data, timestamp: new Date() }] }
+              : s,
+          )
+        })
+      }),
+    )
+
+    unlisteners.push(
+      listen<{ sessionId: string }>('pty-exit', event => {
+        const { sessionId } = event.payload
+        setSessions(prev =>
+          prev.map(s =>
+            s.id === sessionId
+              ? { ...s, ptyAlive: false, lines: [...s.lines, { type: 'system' as const, text: 'PTY session ended.', timestamp: new Date() }] }
+              : s,
+          ),
+        )
+      }),
+    )
+
+    return () => {
+      unlisteners.forEach(p => p.then(unlisten => unlisten()))
+    }
   }, [])
 
   // ── Streaming process event listeners (for claude code CLI, etc.) ──
@@ -934,6 +1005,20 @@ const TerminalView: React.FC = () => {
         return
       }
 
+      // ── PTY-backed sessions: send the command directly to the PTY ──
+      if (session.isPty && session.ptyAlive) {
+        // For PTY sessions, write the command + newline to the PTY stdin.
+        // The PTY's shell handles cd, history, job control, etc. natively.
+        try {
+          await invoke('kn_pty_write', { sessionId, data: trimmed + '\n' })
+        } catch (err) {
+          addLine(sessionId, 'stderr', `PTY write failed: ${err}`)
+        }
+        return
+      }
+
+      // ── Legacy pipe-based execution (non-PTY fallback) ──
+
       if (trimmed.startsWith('cd ')) {
         const dir = trimmed.slice(3).trim()
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
@@ -1006,10 +1091,24 @@ const TerminalView: React.FC = () => {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const sid = activeSession.id
+
+    // PTY mode: forward Ctrl+C as ETX byte (0x03) to the PTY
+    if (activeSession.isPty && activeSession.ptyAlive && e.key === 'c' && e.ctrlKey) {
+      e.preventDefault()
+      invoke('kn_pty_write', { sessionId: sid, data: '\x03' }).catch(() => {})
+      return
+    }
+
     if (e.key === 'Enter' && !activeSession.isExecuting) {
       executeCommand(sid, activeSession.inputValue)
       updateSession(sid, s => ({ ...s, inputValue: '' }))
     } else if (e.key === 'ArrowUp') {
+      // In PTY mode, forward arrow keys to the PTY for shell history
+      if (activeSession.isPty && activeSession.ptyAlive) {
+        e.preventDefault()
+        invoke('kn_pty_write', { sessionId: sid, data: '\x1b[A' }).catch(() => {})
+        return
+      }
       e.preventDefault()
       if (activeSession.commandHistory.length > 0) {
         const newIndex = Math.min(activeSession.historyIndex + 1, activeSession.commandHistory.length - 1)
@@ -1020,6 +1119,11 @@ const TerminalView: React.FC = () => {
         }))
       }
     } else if (e.key === 'ArrowDown') {
+      if (activeSession.isPty && activeSession.ptyAlive) {
+        e.preventDefault()
+        invoke('kn_pty_write', { sessionId: sid, data: '\x1b[B' }).catch(() => {})
+        return
+      }
       e.preventDefault()
       if (activeSession.historyIndex > 0) {
         const newIndex = activeSession.historyIndex - 1
@@ -1033,7 +1137,16 @@ const TerminalView: React.FC = () => {
       }
     } else if (e.key === 'l' && e.ctrlKey) {
       e.preventDefault()
-      updateSession(sid, s => ({ ...s, lines: [] }))
+      if (activeSession.isPty && activeSession.ptyAlive) {
+        // Send Ctrl+L to the PTY (clears screen in most shells)
+        invoke('kn_pty_write', { sessionId: sid, data: '\x0c' }).catch(() => {})
+      } else {
+        updateSession(sid, s => ({ ...s, lines: [] }))
+      }
+    } else if (e.key === 'Tab' && activeSession.isPty && activeSession.ptyAlive) {
+      // Forward Tab to PTY for tab-completion
+      e.preventDefault()
+      invoke('kn_pty_write', { sessionId: sid, data: '\t' }).catch(() => {})
     }
   }
 
@@ -1099,9 +1212,14 @@ const TerminalView: React.FC = () => {
         tabIndex={0}
         onClick={() => inputRef.current?.focus()}
         onKeyDown={e => {
-          if (e.key === 'c' && e.ctrlKey && activeSession.streamingProcessId) {
-            e.preventDefault()
-            killStreamingProcess(activeSession.id)
+          if (e.key === 'c' && e.ctrlKey) {
+            if (activeSession.isPty && activeSession.ptyAlive) {
+              e.preventDefault()
+              invoke('kn_pty_write', { sessionId: activeSession.id, data: '\x03' }).catch(() => {})
+            } else if (activeSession.streamingProcessId) {
+              e.preventDefault()
+              killStreamingProcess(activeSession.id)
+            }
           }
         }}
       >
@@ -1120,8 +1238,24 @@ const TerminalView: React.FC = () => {
         </div>
 
         <div className="terminal__input-row">
-          <span className="terminal__prompt">{cwdDisplay} $</span>
-          {activeSession.streamingProcessId ? (
+          {/* PTY sessions don't need a local prompt — the shell renders its own */}
+          {!(activeSession.isPty && activeSession.ptyAlive) && (
+            <span className="terminal__prompt">{cwdDisplay} $</span>
+          )}
+          {activeSession.isPty && activeSession.ptyAlive ? (
+            <input
+              ref={inputRef}
+              type="text"
+              className="terminal__input"
+              value={activeSession.inputValue}
+              onChange={e =>
+                updateSession(activeSession.id, s => ({ ...s, inputValue: e.target.value }))
+              }
+              onKeyDown={handleKeyDown}
+              placeholder="Type here (interactive PTY)..."
+              autoFocus
+            />
+          ) : activeSession.streamingProcessId ? (
             <button
               className="terminal__stop-btn"
               onClick={() => killStreamingProcess(activeSession.id)}

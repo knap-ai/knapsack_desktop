@@ -1,0 +1,655 @@
+//! PTY-backed terminal sessions.
+//!
+//! On macOS/Linux the module uses POSIX `openpty` + `fork` to allocate a real
+//! pseudo-terminal, giving interactive programs (SSH, editors) full TTY
+//! semantics.  On Windows the module uses the ConPTY API (Windows 10 1809+).
+//!
+//! Each session is identified by a `session_id` string.  Output from the PTY
+//! is streamed to the frontend via the Tauri event `pty-output` and session
+//! termination is signalled with `pty-exit`.
+
+use log::{error, info, warn};
+use serde_json::json;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Manager, State};
+
+// ── Shared session state managed by Tauri ──────────────────────────────
+
+pub struct PtySessionState {
+    pub sessions: Arc<Mutex<HashMap<String, PtyHandle>>>,
+}
+
+/// Opaque handle kept for each live PTY session.
+pub struct PtyHandle {
+    alive: Arc<AtomicBool>,
+
+    #[cfg(unix)]
+    master_fd: i32,
+    #[cfg(unix)]
+    child_pid: i32,
+
+    #[cfg(windows)]
+    write_handle: *mut std::ffi::c_void,
+    #[cfg(windows)]
+    process_handle: *mut std::ffi::c_void,
+    #[cfg(windows)]
+    hpc: isize,
+}
+
+// PtyHandle contains raw pointers/fds that are not automatically Send, but
+// we only access them behind a Mutex so this is safe.
+unsafe impl Send for PtyHandle {}
+unsafe impl Sync for PtyHandle {}
+
+// ── Tauri commands ─────────────────────────────────────────────────────
+
+/// Spawn a new PTY session and start streaming its output.
+#[tauri::command]
+pub async fn kn_pty_spawn(
+    app: AppHandle,
+    session_id: String,
+    cwd: Option<String>,
+    cols: Option<u16>,
+    rows: Option<u16>,
+    state: State<'_, PtySessionState>,
+) -> Result<(), String> {
+    let cols = cols.unwrap_or(80);
+    let rows = rows.unwrap_or(24);
+
+    info!(
+        "[pty] spawn session={} cols={} rows={} cwd={:?}",
+        session_id, cols, rows, cwd
+    );
+
+    let handle = platform_spawn(&app, &session_id, cwd.as_deref(), cols, rows)?;
+
+    state
+        .sessions
+        .lock()
+        .unwrap()
+        .insert(session_id.clone(), handle);
+
+    Ok(())
+}
+
+/// Write data (keystrokes) into an existing PTY session.
+#[tauri::command]
+pub async fn kn_pty_write(
+    session_id: String,
+    data: String,
+    state: State<'_, PtySessionState>,
+) -> Result<(), String> {
+    let sessions = state.sessions.lock().unwrap();
+    let handle = sessions
+        .get(&session_id)
+        .ok_or_else(|| format!("PTY session {} not found", session_id))?;
+    platform_write(handle, data.as_bytes())
+}
+
+/// Resize a PTY session.
+#[tauri::command]
+pub async fn kn_pty_resize(
+    session_id: String,
+    cols: u16,
+    rows: u16,
+    state: State<'_, PtySessionState>,
+) -> Result<(), String> {
+    let sessions = state.sessions.lock().unwrap();
+    let handle = sessions
+        .get(&session_id)
+        .ok_or_else(|| format!("PTY session {} not found", session_id))?;
+    platform_resize(handle, cols, rows)
+}
+
+/// Kill a PTY session and clean up resources.
+#[tauri::command]
+pub async fn kn_pty_kill(
+    session_id: String,
+    state: State<'_, PtySessionState>,
+) -> Result<(), String> {
+    let handle = state.sessions.lock().unwrap().remove(&session_id);
+    if let Some(h) = handle {
+        info!("[pty] killing session={}", session_id);
+        platform_kill(&h);
+    }
+    Ok(())
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Unix (macOS / Linux) implementation using POSIX openpty + fork
+// ══════════════════════════════════════════════════════════════════════
+
+#[cfg(unix)]
+fn platform_spawn(
+    app: &AppHandle,
+    session_id: &str,
+    cwd: Option<&str>,
+    cols: u16,
+    rows: u16,
+) -> Result<PtyHandle, String> {
+    use std::ffi::CString;
+    use std::ptr;
+
+    unsafe {
+        let mut master: libc::c_int = 0;
+        let mut slave: libc::c_int = 0;
+        let ws = libc::winsize {
+            ws_row: rows,
+            ws_col: cols,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        };
+
+        if libc::openpty(
+            &mut master,
+            &mut slave,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            &ws,
+        ) != 0
+        {
+            return Err("openpty failed".into());
+        }
+
+        let pid = libc::fork();
+        if pid < 0 {
+            libc::close(master);
+            libc::close(slave);
+            return Err("fork failed".into());
+        }
+
+        if pid == 0 {
+            // ── child process ──────────────────────────────────────
+            libc::close(master);
+            libc::setsid();
+            // Set controlling terminal
+            libc::ioctl(slave, libc::TIOCSCTTY as libc::c_ulong, 0);
+
+            libc::dup2(slave, 0);
+            libc::dup2(slave, 1);
+            libc::dup2(slave, 2);
+            if slave > 2 {
+                libc::close(slave);
+            }
+
+            // Change directory
+            if let Some(dir) = cwd {
+                if let Ok(dir_c) = CString::new(dir) {
+                    libc::chdir(dir_c.as_ptr());
+                }
+            }
+
+            // Set TERM so curses programs work
+            let term = CString::new("TERM=xterm-256color").unwrap();
+            libc::putenv(term.as_ptr() as *mut _);
+
+            // Exec login shell
+            let shell_path = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
+            let shell_c = CString::new(shell_path.as_str()).unwrap();
+            // Use -l for login shell (loads profile/PATH)
+            let arg_login = CString::new("-l").unwrap();
+            let argv: [*const libc::c_char; 3] =
+                [shell_c.as_ptr(), arg_login.as_ptr(), ptr::null()];
+            libc::execvp(shell_c.as_ptr(), argv.as_ptr());
+            // If exec fails, exit child
+            libc::_exit(127);
+        }
+
+        // ── parent process ─────────────────────────────────────────
+        libc::close(slave);
+
+        let alive = Arc::new(AtomicBool::new(true));
+        let alive_reader = alive.clone();
+        let app_clone = app.clone();
+        let sid = session_id.to_string();
+        let fd = master;
+
+        // Background thread: read PTY output and emit events
+        std::thread::Builder::new()
+            .name(format!("pty-read-{}", session_id))
+            .spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    if !alive_reader.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let n = libc::read(fd, buf.as_mut_ptr() as *mut _, buf.len());
+                    if n <= 0 {
+                        break;
+                    }
+                    let text = String::from_utf8_lossy(&buf[..n as usize]).to_string();
+                    let _ = app_clone.emit_all(
+                        "pty-output",
+                        json!({
+                            "sessionId": sid,
+                            "data": text,
+                        }),
+                    );
+                }
+                alive_reader.store(false, Ordering::Relaxed);
+                let _ = app_clone.emit_all(
+                    "pty-exit",
+                    json!({
+                        "sessionId": sid,
+                    }),
+                );
+                // Reap the child
+                let mut status: libc::c_int = 0;
+                libc::waitpid(pid, &mut status, 0);
+                info!("[pty] session {} exited", sid);
+            })
+            .map_err(|e| format!("Failed to spawn reader thread: {}", e))?;
+
+        Ok(PtyHandle {
+            alive,
+            master_fd: master,
+            child_pid: pid,
+        })
+    }
+}
+
+#[cfg(unix)]
+fn platform_write(handle: &PtyHandle, data: &[u8]) -> Result<(), String> {
+    unsafe {
+        let n = libc::write(handle.master_fd, data.as_ptr() as *const _, data.len());
+        if n < 0 {
+            Err("PTY write failed".into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[cfg(unix)]
+fn platform_resize(handle: &PtyHandle, cols: u16, rows: u16) -> Result<(), String> {
+    let ws = libc::winsize {
+        ws_row: rows,
+        ws_col: cols,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    let ret = unsafe { libc::ioctl(handle.master_fd, libc::TIOCSWINSZ as libc::c_ulong, &ws) };
+    if ret < 0 {
+        Err("PTY resize failed".into())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(unix)]
+fn platform_kill(handle: &PtyHandle) {
+    handle.alive.store(false, Ordering::Relaxed);
+    unsafe {
+        libc::kill(handle.child_pid, libc::SIGTERM);
+        libc::close(handle.master_fd);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Windows implementation using ConPTY
+// ══════════════════════════════════════════════════════════════════════
+
+#[cfg(windows)]
+mod conpty {
+    //! Raw FFI declarations for the ConPTY API (Windows 10 1809+).
+    #![allow(non_snake_case, non_camel_case_types)]
+    use std::ffi::c_void;
+
+    pub type HANDLE = *mut c_void;
+    pub type HPCON = isize;
+    pub type HRESULT = i32;
+    pub type BOOL = i32;
+    pub type DWORD = u32;
+
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    pub struct COORD {
+        pub X: i16,
+        pub Y: i16,
+    }
+
+    #[repr(C)]
+    pub struct SECURITY_ATTRIBUTES {
+        pub nLength: DWORD,
+        pub lpSecurityDescriptor: *mut c_void,
+        pub bInheritHandle: BOOL,
+    }
+
+    #[repr(C)]
+    pub struct STARTUPINFOEXW {
+        pub StartupInfo: STARTUPINFOW,
+        pub lpAttributeList: *mut c_void,
+    }
+
+    #[repr(C)]
+    pub struct STARTUPINFOW {
+        pub cb: DWORD,
+        pub lpReserved: *mut u16,
+        pub lpDesktop: *mut u16,
+        pub lpTitle: *mut u16,
+        pub dwX: DWORD,
+        pub dwY: DWORD,
+        pub dwXSize: DWORD,
+        pub dwYSize: DWORD,
+        pub dwXCountChars: DWORD,
+        pub dwYCountChars: DWORD,
+        pub dwFillAttribute: DWORD,
+        pub dwFlags: DWORD,
+        pub wShowWindow: u16,
+        pub cbReserved2: u16,
+        pub lpReserved2: *mut u8,
+        pub hStdInput: HANDLE,
+        pub hStdOutput: HANDLE,
+        pub hStdError: HANDLE,
+    }
+
+    #[repr(C)]
+    pub struct PROCESS_INFORMATION {
+        pub hProcess: HANDLE,
+        pub hThread: HANDLE,
+        pub dwProcessId: DWORD,
+        pub dwThreadId: DWORD,
+    }
+
+    pub const EXTENDED_STARTUPINFO_PRESENT: DWORD = 0x00080000;
+    pub const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x00020016;
+    pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
+
+    extern "system" {
+        pub fn CreatePipe(
+            hReadPipe: *mut HANDLE,
+            hWritePipe: *mut HANDLE,
+            lpPipeAttributes: *const SECURITY_ATTRIBUTES,
+            nSize: DWORD,
+        ) -> BOOL;
+
+        pub fn CreatePseudoConsole(
+            size: COORD,
+            hInput: HANDLE,
+            hOutput: HANDLE,
+            dwFlags: DWORD,
+            phPC: *mut HPCON,
+        ) -> HRESULT;
+
+        pub fn ResizePseudoConsole(hPC: HPCON, size: COORD) -> HRESULT;
+
+        pub fn ClosePseudoConsole(hPC: HPCON);
+
+        pub fn InitializeProcThreadAttributeList(
+            lpAttributeList: *mut c_void,
+            dwAttributeCount: DWORD,
+            dwFlags: DWORD,
+            lpSize: *mut usize,
+        ) -> BOOL;
+
+        pub fn UpdateProcThreadAttribute(
+            lpAttributeList: *mut c_void,
+            dwFlags: DWORD,
+            Attribute: usize,
+            lpValue: *const c_void,
+            cbSize: usize,
+            lpPreviousValue: *mut c_void,
+            lpReturnSize: *mut usize,
+        ) -> BOOL;
+
+        pub fn CreateProcessW(
+            lpApplicationName: *const u16,
+            lpCommandLine: *mut u16,
+            lpProcessAttributes: *const c_void,
+            lpThreadAttributes: *const c_void,
+            bInheritHandles: BOOL,
+            dwCreationFlags: DWORD,
+            lpEnvironment: *const c_void,
+            lpCurrentDirectory: *const u16,
+            lpStartupInfo: *const STARTUPINFOW,
+            lpProcessInformation: *mut PROCESS_INFORMATION,
+        ) -> BOOL;
+
+        pub fn ReadFile(
+            hFile: HANDLE,
+            lpBuffer: *mut c_void,
+            nNumberOfBytesToRead: DWORD,
+            lpNumberOfBytesRead: *mut DWORD,
+            lpOverlapped: *mut c_void,
+        ) -> BOOL;
+
+        pub fn WriteFile(
+            hFile: HANDLE,
+            lpBuffer: *const c_void,
+            nNumberOfBytesToWrite: DWORD,
+            lpNumberOfBytesWritten: *mut DWORD,
+            lpOverlapped: *mut c_void,
+        ) -> BOOL;
+
+        pub fn CloseHandle(hObject: HANDLE) -> BOOL;
+
+        pub fn WaitForSingleObject(hHandle: HANDLE, dwMilliseconds: DWORD) -> DWORD;
+    }
+}
+
+#[cfg(windows)]
+fn platform_spawn(
+    app: &AppHandle,
+    session_id: &str,
+    cwd: Option<&str>,
+    cols: u16,
+    rows: u16,
+) -> Result<PtyHandle, String> {
+    use conpty::*;
+    use std::mem::{size_of, zeroed};
+    use std::ptr;
+
+    unsafe {
+        // Create pipes: pty_in_read  → PTY stdin,  app writes to pty_in_write
+        //               pty_out_read ← PTY stdout, app reads from pty_out_read
+        let mut pty_in_read: HANDLE = ptr::null_mut();
+        let mut pty_in_write: HANDLE = ptr::null_mut();
+        let mut pty_out_read: HANDLE = ptr::null_mut();
+        let mut pty_out_write: HANDLE = ptr::null_mut();
+
+        if CreatePipe(&mut pty_in_read, &mut pty_in_write, ptr::null(), 0) == 0 {
+            return Err("CreatePipe (stdin) failed".into());
+        }
+        if CreatePipe(&mut pty_out_read, &mut pty_out_write, ptr::null(), 0) == 0 {
+            CloseHandle(pty_in_read);
+            CloseHandle(pty_in_write);
+            return Err("CreatePipe (stdout) failed".into());
+        }
+
+        // Create pseudo console
+        let size = COORD {
+            X: cols as i16,
+            Y: rows as i16,
+        };
+        let mut hpc: HPCON = 0;
+        let hr = CreatePseudoConsole(size, pty_in_read, pty_out_write, 0, &mut hpc);
+        if hr != 0 {
+            CloseHandle(pty_in_read);
+            CloseHandle(pty_in_write);
+            CloseHandle(pty_out_read);
+            CloseHandle(pty_out_write);
+            return Err(format!("CreatePseudoConsole failed: 0x{:08x}", hr));
+        }
+
+        // Build attribute list for the process
+        let mut attr_size: usize = 0;
+        InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut attr_size);
+        let attr_list = vec![0u8; attr_size];
+        let attr_list_ptr = attr_list.as_ptr() as *mut std::ffi::c_void;
+        if InitializeProcThreadAttributeList(attr_list_ptr, 1, 0, &mut attr_size) == 0 {
+            ClosePseudoConsole(hpc);
+            CloseHandle(pty_in_read);
+            CloseHandle(pty_in_write);
+            CloseHandle(pty_out_read);
+            CloseHandle(pty_out_write);
+            return Err("InitializeProcThreadAttributeList failed".into());
+        }
+
+        if UpdateProcThreadAttribute(
+            attr_list_ptr,
+            0,
+            PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+            &hpc as *const _ as *const _,
+            size_of::<HPCON>(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+        ) == 0
+        {
+            ClosePseudoConsole(hpc);
+            CloseHandle(pty_in_read);
+            CloseHandle(pty_in_write);
+            CloseHandle(pty_out_read);
+            CloseHandle(pty_out_write);
+            return Err("UpdateProcThreadAttribute failed".into());
+        }
+
+        // Prepare STARTUPINFOEXW
+        let mut si: STARTUPINFOEXW = zeroed();
+        si.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as DWORD;
+        si.lpAttributeList = attr_list_ptr;
+
+        let mut pi: PROCESS_INFORMATION = zeroed();
+
+        // Command: cmd.exe
+        let cmd: Vec<u16> = "cmd.exe\0".encode_utf16().collect();
+        let mut cmd_mut = cmd;
+
+        let cwd_wide: Option<Vec<u16>> = cwd.map(|d| {
+            let mut v: Vec<u16> = d.encode_utf16().collect();
+            v.push(0);
+            v
+        });
+        let cwd_ptr = cwd_wide
+            .as_ref()
+            .map(|v| v.as_ptr())
+            .unwrap_or(ptr::null());
+
+        if CreateProcessW(
+            ptr::null(),
+            cmd_mut.as_mut_ptr(),
+            ptr::null(),
+            ptr::null(),
+            0,
+            EXTENDED_STARTUPINFO_PRESENT,
+            ptr::null(),
+            cwd_ptr,
+            &si.StartupInfo as *const _,
+            &mut pi,
+        ) == 0
+        {
+            ClosePseudoConsole(hpc);
+            CloseHandle(pty_in_read);
+            CloseHandle(pty_in_write);
+            CloseHandle(pty_out_read);
+            CloseHandle(pty_out_write);
+            return Err("CreateProcessW failed".into());
+        }
+
+        // Close handles we no longer need in the parent
+        CloseHandle(pty_in_read);
+        CloseHandle(pty_out_write);
+        CloseHandle(pi.hThread);
+
+        let alive = Arc::new(AtomicBool::new(true));
+        let alive_reader = alive.clone();
+        let app_clone = app.clone();
+        let sid = session_id.to_string();
+        let read_handle = pty_out_read;
+        let proc_handle = pi.hProcess;
+
+        // Background thread: read output from ConPTY
+        std::thread::Builder::new()
+            .name(format!("pty-read-{}", session_id))
+            .spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    if !alive_reader.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let mut bytes_read: DWORD = 0;
+                    let ok = ReadFile(
+                        read_handle,
+                        buf.as_mut_ptr() as *mut _,
+                        buf.len() as DWORD,
+                        &mut bytes_read,
+                        ptr::null_mut(),
+                    );
+                    if ok == 0 || bytes_read == 0 {
+                        break;
+                    }
+                    let text =
+                        String::from_utf8_lossy(&buf[..bytes_read as usize]).to_string();
+                    let _ = app_clone.emit_all(
+                        "pty-output",
+                        json!({
+                            "sessionId": sid,
+                            "data": text,
+                        }),
+                    );
+                }
+                alive_reader.store(false, Ordering::Relaxed);
+                let _ = app_clone.emit_all(
+                    "pty-exit",
+                    json!({
+                        "sessionId": sid,
+                    }),
+                );
+                CloseHandle(read_handle);
+                WaitForSingleObject(proc_handle, 5000);
+                CloseHandle(proc_handle);
+                info!("[pty] session {} exited", sid);
+            })
+            .map_err(|e| format!("Failed to spawn reader thread: {}", e))?;
+
+        Ok(PtyHandle {
+            alive,
+            write_handle: pty_in_write,
+            process_handle: pi.hProcess,
+            hpc,
+        })
+    }
+}
+
+#[cfg(windows)]
+fn platform_write(handle: &PtyHandle, data: &[u8]) -> Result<(), String> {
+    unsafe {
+        let mut written: conpty::DWORD = 0;
+        let ok = conpty::WriteFile(
+            handle.write_handle,
+            data.as_ptr() as *const _,
+            data.len() as conpty::DWORD,
+            &mut written,
+            std::ptr::null_mut(),
+        );
+        if ok == 0 {
+            Err("PTY write failed".into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[cfg(windows)]
+fn platform_resize(handle: &PtyHandle, cols: u16, rows: u16) -> Result<(), String> {
+    let size = conpty::COORD {
+        X: cols as i16,
+        Y: rows as i16,
+    };
+    let hr = unsafe { conpty::ResizePseudoConsole(handle.hpc, size) };
+    if hr != 0 {
+        Err(format!("ResizePseudoConsole failed: 0x{:08x}", hr))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+fn platform_kill(handle: &PtyHandle) {
+    handle.alive.store(false, Ordering::Relaxed);
+    unsafe {
+        conpty::ClosePseudoConsole(handle.hpc);
+        conpty::CloseHandle(handle.write_handle);
+    }
+}
