@@ -44,6 +44,7 @@ import { SigninButton } from './../../SigninButton'
 import TabBar, { TabChoices } from './../../TabBar'
 import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
+import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
 
 export interface ToastrState {
   message?: ReactElement
@@ -449,7 +450,7 @@ function Home({
               )}
 
               {currentTab === TabChoices.Moltbot && (
-                <div className="overflow-hidden w-full h-full flex flex-row">
+                <div className="overflow-hidden w-full h-full flex flex-row relative">
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat
                       showActivityPanel={showActivityPanel}
@@ -488,6 +489,15 @@ function Home({
                         <ActivityPanel onClose={() => setShowActivityPanel(false)} />
                       </div>
                     </>
+                  )}
+                  {feed.loggedEmailAutopilot && (
+                    <EmailNotificationDrawer
+                      feed={feed}
+                      onGoToEmail={() => {
+                        feed.selectEmailCategory()
+                        setCurrentTab(TabChoices.Email)
+                      }}
+                    />
                   )}
                 </div>
               )}
