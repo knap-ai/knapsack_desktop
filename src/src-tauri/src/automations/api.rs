@@ -785,8 +785,6 @@ fn schedule_data_source_future_run_google_calendar(
       Some(id) => id,
       None => {
         log::warn!("Skipping event with missing ID");
-        let err_msg = "Skipping event with missing ID".to_string();
-        knap_log_error(err_msg, None, None);
         continue;
       }
     };
@@ -795,8 +793,6 @@ fn schedule_data_source_future_run_google_calendar(
       Some(start) => start,
       None => {
         log::warn!("Event ID {} has no start time", event_id);
-        let err_msg = format!("Event ID {} has no start time", event_id);
-        knap_log_error(err_msg, None, None);
         continue;
       }
     };
@@ -805,8 +801,6 @@ fn schedule_data_source_future_run_google_calendar(
       Some(d) => d,
       None => {
         log::warn!("Invalid start time for event ID {}", event_id);
-        let err_msg = format!("Invalid start time for event ID {}", event_id);
-        knap_log_error(err_msg, None, None);
         continue;
       }
     };
