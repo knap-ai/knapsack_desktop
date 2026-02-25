@@ -281,8 +281,10 @@ const EmailNotificationDrawer = ({
       >
         {/* Header bar */}
         <div
-          className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-ks-red-50 to-white border-b border-ks-warm-grey-100 cursor-pointer shrink-0"
-          onClick={isExpanded ? handleCollapse : handleExpand}
+          className={`relative flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-ks-red-50 to-white border-b border-ks-warm-grey-100 shrink-0 ${
+            !isExpanded ? 'cursor-pointer' : ''
+          }`}
+          onClick={!isExpanded ? handleExpand : undefined}
         >
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-ks-red-500 animate-pulse" />
@@ -295,6 +297,18 @@ const EmailNotificationDrawer = ({
               </span>
             )}
           </div>
+          {/* Centered minimize arrow */}
+          {isExpanded && (
+            <button
+              onClick={handleCollapse}
+              className="absolute left-1/2 -translate-x-1/2 p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
+              title="Minimize"
+            >
+              <svg className="w-4 h-4 text-ks-warm-grey-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
           <div className="flex items-center gap-3">
             {isExpanded && (
               <SettingsButton
@@ -306,16 +320,16 @@ const EmailNotificationDrawer = ({
               />
             )}
             <span className="text-xs text-ks-warm-grey-600 font-InterTight">{date}</span>
-            <svg
-              className={`w-4 h-4 text-ks-warm-grey-500 transition-transform duration-200 ${
-                isExpanded ? 'rotate-180' : ''
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+            {/* Close button */}
+            <button
+              onClick={handleDismiss}
+              className="p-0.5 rounded hover:bg-ks-warm-grey-100 transition-colors"
+              title="Close"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-            </svg>
+              <svg className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
 
