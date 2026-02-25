@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import CircularProgress from '@mui/material/CircularProgress'
+import { listen } from '@tauri-apps/api/event'
 import { ConnectionKeys } from 'src/api/connections'
 import { AutopilotActions, EmailImportance } from 'src/hooks/dataSources/useEmailAutopilot'
 import { DisplayEmail, IFeed } from 'src/hooks/feed/useFeed'
@@ -52,6 +53,18 @@ const EmailNotificationDrawer = ({
       setPermanentlyDismissed(dismissed === true)
     }
     checkDismissed()
+  }, [])
+
+  // Listen for /autopilot slash command to force-open the drawer in expanded mode
+  useEffect(() => {
+    const unlisten = listen('kn_trigger_autopilot', () => {
+      setIsVisible(true)
+      setIsExpanded(true)
+      setIsAnimatingOut(false)
+    })
+    return () => {
+      unlisten.then(fn => fn())
+    }
   }, [])
 
   const selectedCategory = useMemo(
@@ -289,12 +302,15 @@ const EmailNotificationDrawer = ({
     return ''
   }
 
-  if (!isVisible || !pendingEmail) return null
+  // When expanded (e.g. via /autopilot), we don't need pendingEmail — the
+  // category view handles empty states.  Collapsed mode still needs it.
+  if (!isVisible) return null
+  if (!isExpanded && !pendingEmail) return null
 
-  const summary = pendingEmail.classification?.summary?.join(' ') || 'New email needs your response.'
-  const sender = pendingEmail.message.sender
-  const subject = pendingEmail.message.subject
-  const date = KNDateUtils.formatFriendlyDate(pendingEmail.message.date)
+  const summary = pendingEmail?.classification?.summary?.join(' ') || 'New email needs your response.'
+  const sender = pendingEmail?.message.sender ?? ''
+  const subject = pendingEmail?.message.subject ?? ''
+  const date = pendingEmail ? KNDateUtils.formatFriendlyDate(pendingEmail.message.date) : ''
 
   return (
     <div

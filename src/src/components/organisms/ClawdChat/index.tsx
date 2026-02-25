@@ -589,6 +589,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     '/prep': 'kn_trigger_meeting_prep',
     '/fu': 'kn_trigger_post_meeting',
     '/testnotif': 'kn_trigger_test_notification',
+    '/autopilot': 'kn_trigger_autopilot',
   }
 
   const handleSend = () => {
@@ -1961,6 +1962,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     '/prep': 'kn_trigger_meeting_prep',
     '/fu': 'kn_trigger_post_meeting',
     '/testnotif': 'kn_trigger_test_notification',
+    '/autopilot': 'kn_trigger_autopilot',
   }
 
   const doSend = async (text: string) => {
