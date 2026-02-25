@@ -439,6 +439,51 @@ fn activate_main_window_from_notification(window: tauri::Window) {
   }
 }
 
+/// Position the frontmost browser window to fill the screen space to the left
+/// of the main Knapsack window. macOS only (uses AppleScript).
+#[tauri::command]
+fn position_browser_beside_app(app: tauri::AppHandle) {
+  #[cfg(target_os = "macos")]
+  {
+    if let Some(main_window) = app.get_window("main") {
+      if let (Ok(main_pos), Ok(Some(monitor))) = (
+        main_window.outer_position(),
+        main_window.current_monitor(),
+      ) {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+
+        let browser_x = 0;
+        let browser_y = 0; // top of screen (below menu bar is handled by macOS)
+        let browser_width = main_pos.x;
+        let browser_height = screen_size.height as i32;
+
+        // Convert physical pixels to macOS points for AppleScript bounds
+        let x1 = (browser_x as f64 / scale_factor) as i32;
+        let y1 = (browser_y as f64 / scale_factor) as i32;
+        let x2 = (browser_width as f64 / scale_factor) as i32;
+        let y2 = (browser_height as f64 / scale_factor) as i32;
+
+        let script = format!(
+          r#"tell application "System Events"
+            set frontApp to name of first application process whose frontmost is true
+          end tell
+          tell application frontApp
+            set bounds of front window to {{{}, {}, {}, {}}}
+          end tell"#,
+          x1, y1, x2, y2
+        );
+
+        std::process::Command::new("osascript")
+          .arg("-e")
+          .arg(&script)
+          .spawn()
+          .ok();
+      }
+    }
+  }
+}
+
 #[tauri::command]
 async fn emit_event(window: tauri::Window, event: String, payload: Value) -> Result<(), String> {
   let main_window = window
@@ -882,6 +927,7 @@ async fn main() {
       start_meeting_recording,
       activate_main_window,
       activate_main_window_from_notification,
+      position_browser_beside_app,
       emit_event,
       open_screen_recording_settings,
       open_microphone_settings,

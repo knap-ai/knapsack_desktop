@@ -160,6 +160,10 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       setIsRecording(threadId, true)
       if (eventUrl && isStart) {
         await open(eventUrl)
+        // Give the browser a moment to open, then position it beside the app
+        setTimeout(() => {
+          invoke('position_browser_beside_app').catch(() => {})
+        }, 800)
       } else if (!isStart) {
         setIsPaused(false)
       }
