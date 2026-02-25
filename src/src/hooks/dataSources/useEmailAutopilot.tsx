@@ -36,6 +36,8 @@ export interface EmailClassification {
   actionRequired: string | null
 }
 
+export type DraftTone = 'default' | 'yes' | 'no'
+
 export interface IEmailAutopilot {
   classifyEmails: (
     emails: EmailDocument[],
@@ -45,7 +47,7 @@ export interface IEmailAutopilot {
     ) => void,
     handleFailMessagesClassified: (emails: EmailDocument[]) => void,
   ) => void
-  draftEmailReply: (email: EmailDocument, userEmail: string, userName?: string) => Promise<string> // TODO: this function signature is obviously wrong/will need to be changed after implementing
+  draftEmailReply: (email: EmailDocument, userEmail: string, userName?: string, tone?: DraftTone) => Promise<string>
 }
 
 export function useEmailAutopilot(
@@ -166,6 +168,7 @@ isStarred: ${email.isStarred}`,
     email: EmailDocument,
     userEmail: string,
     userName?: string,
+    tone?: DraftTone,
   ): Promise<string> => {
     return new Promise(async (resolve, reject) => {
       const formattedDate = new Date(email.date).toISOString()
@@ -183,11 +186,19 @@ ${email.body || 'No body content'}
       const customInstructions = await KNLocalStorage.getItem(EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS) || '';
       const schedulingLinks = await KNLocalStorage.getItem(EMAIL_AUTOPILOT_SCHEDULING_LINKS) || '';
       
+      let toneInstruction = ''
+      if (tone === 'yes') {
+        toneInstruction = `\n\nIMPORTANT TONE OVERRIDE: Write an enthusiastic, affirmative response. Say yes, express excitement and willingness. Be warm, positive, and eager. Accept the request/invitation/proposal wholeheartedly. Keep it short and energetic.`
+      } else if (tone === 'no') {
+        toneInstruction = `\n\nIMPORTANT TONE OVERRIDE: Write a polite, gracious decline. Say no in a kind and respectful way. Express appreciation for the offer/request, briefly explain you can't commit, and leave the door open for the future if appropriate. Keep it short and warm.`
+      }
+
       let fullPrompt = EMAIL_DRAFTER_PROMPT.replace('{email}', emailContexts)
         .replace('{userEmail}', userEmail || '')
         .replace('{userName}', userName || '')
         .replace('{customInstructions}', customInstructions ? `Custom Instructions:\n${customInstructions}` : '')
         .replace('{schedulingLinks}', schedulingLinks || '')
+        + toneInstruction
 
       const messageStreamCallback = () => null
       const messageFinishCallback = async (message: string) => {
