@@ -497,6 +497,9 @@ function Home({
                         feed.selectEmailCategory()
                         setCurrentTab(TabChoices.Email)
                       }}
+                      userEmail={userEmail}
+                      userName={userName}
+                      profileProvider={auth.profile?.provider}
                     />
                   )}
                 </div>
