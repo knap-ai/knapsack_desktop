@@ -58,12 +58,13 @@ html, body {
   font-family: "Inter";
   overflow: hidden;
   background: transparent;
+  height: 100%;
+  margin: 0;
 }
 
 #notification-root {
   width: 100%;
-  height: fit-content;
-  min-height: 80px;
+  height: 100%;
 }
 
 .titlebar {

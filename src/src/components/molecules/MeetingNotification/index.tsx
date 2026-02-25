@@ -1,11 +1,10 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
-import { getCurrent, LogicalSize } from '@tauri-apps/api/window'
 
 dayjs.extend(relativeTime)
 
@@ -23,11 +22,6 @@ function stripMarkdown(s: string): string {
     .replace(/\n+/g, ' ')                       // newlines → spaces
     .trim()
 }
-
-const NOTIF_WIDTH = 600 // Must match Rust NOTIF_WIDTH constant
-const MIN_HEIGHT = 80
-const MAX_HEIGHT = 520
-const PADDING = 4
 
 export interface ButtonConfig {
   buttonText: string
@@ -81,22 +75,6 @@ function NotificationWindow() {
     }
   }, [])
 
-  useLayoutEffect(() => {
-    const root = document.getElementById('notification-root')
-    if (!root) return
-
-    const resizeWindow = () => {
-      // Use rAF to let the browser finish layout before measuring
-      requestAnimationFrame(async () => {
-        const contentHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, root.scrollHeight + PADDING))
-
-        const appWindow = getCurrent()
-        await appWindow.setSize(new LogicalSize(NOTIF_WIDTH, contentHeight))
-      })
-    }
-
-    resizeWindow()
-  }, [title, time, buttonConfigs, isDropdownOpen])
 
   const handleJoinMeeting = async (meetingId: string | null, buttonHandler: string) => {
     if (isProcessing.current) return
@@ -120,8 +98,8 @@ function NotificationWindow() {
   }
 
   return (
-    <div className="flex w-full bg-white rounded-lg overflow-visible">
-      <div className="relative w-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-start gap-3 group overflow-visible">
+    <div className="flex w-full h-full bg-white rounded-lg overflow-visible">
+      <div className="relative w-full h-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-start gap-3 group overflow-visible">
         <button
           onClick={() => invoke('close_notification_window')}
           className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 p-1"
