@@ -5,7 +5,7 @@ import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { open } from '@tauri-apps/api/shell'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
-import { convertFileSrc, invoke } from '@tauri-apps/api/tauri'
+import { convertFileSrc } from '@tauri-apps/api/tauri'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
@@ -814,6 +814,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [showTelegramInput, setShowTelegramInput] = useState(false)
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null)
+  // Generic channel credential inputs
+  const [slackBotToken, setSlackBotToken] = useState('')
+  const [discordBotToken, setDiscordBotToken] = useState('')
+  const [signalPhoneNumber, setSignalPhoneNumber] = useState('')
+  const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
+  const [googleChatWebhook, setGoogleChatWebhook] = useState('')
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
@@ -3288,182 +3294,350 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               </div>
 
               {/* ── Slack ── */}
-              <div className={`ClawdAccordionItem ${expandedChannel === 'slack' ? 'ClawdAccordionItem--open' : ''}`}>
+              <div className={`ClawdAccordionItem ${expandedChannel === 'slack' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.slack?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
                 <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'slack' ? null : 'slack')}>
                   <div className="ClawdChannelCardIcon ClawdChannelCardIcon--slack">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
                   </div>
                   <div className="ClawdAccordionTitle">Slack</div>
+                  {channelStatus.genericChannels.slack?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
                   <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div className="ClawdAccordionBody">
                   <div className="ClawdAccordionActions">
-                    <div className="ClawdChannelCardStatus">Not connected</div>
-                    <button
-                      className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                      onClick={async () => {
-                        try {
-                          const cmd: string = await invoke('kn_openclaw_configure_channels_cmd')
-                          if (!externalActivityPanelRef.current && onToggleActivityRef.current) onToggleActivityRef.current()
-                          window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: cmd } }))
-                          setShowChannelsPanel(false)
-                        } catch (err: any) {
-                          setChannelError(`Failed to start channel setup: ${err?.message || err}`)
-                        }
-                      }}
-                    >
-                      Set up
-                    </button>
+                    {channelStatus.genericChannels.slack?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.slack?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'slack'}
+                        onClick={async () => {
+                          setChannelBusy('slack')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('slack') }
+                          catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'slack' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
                   </div>
-                  <div className="ClawdChannelGuide">
-                    <div className="ClawdChannelGuideNote">
-                      Requires interactive setup via the OpenClaw configuration wizard in the terminal.
+                  {!channelStatus.genericChannels.slack?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect Slack</div>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                        Enter your Slack Bot Token (starts with <code style={{ fontSize: 11, background: '#e2e8f0', padding: '1px 5px', borderRadius: 3 }}>xoxb-</code>):
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <button
+                          disabled={!slackBotToken.trim() || channelBusy === 'slack'}
+                          onClick={async () => {
+                            setChannelBusy('slack')
+                            setChannelError(null)
+                            try {
+                              await channelStatus.connectGenericChannel('slack', { botToken: slackBotToken.trim() })
+                              setSlackBotToken('')
+                            } catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
+                            finally { setChannelBusy(null) }
+                          }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !slackBotToken.trim() ? 0.5 : 1 }}
+                        >
+                          {channelBusy === 'slack' ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      <div className="ClawdChannelGuideNote">
+                        Create a Slack App at <strong>api.slack.com/apps</strong>, add bot scopes, install to workspace, then copy the Bot Token.
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
               {/* ── Discord ── */}
-              <div className={`ClawdAccordionItem ${expandedChannel === 'discord' ? 'ClawdAccordionItem--open' : ''}`}>
+              <div className={`ClawdAccordionItem ${expandedChannel === 'discord' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.discord?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
                 <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'discord' ? null : 'discord')}>
                   <div className="ClawdChannelCardIcon ClawdChannelCardIcon--discord">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
                   </div>
                   <div className="ClawdAccordionTitle">Discord</div>
+                  {channelStatus.genericChannels.discord?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
                   <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div className="ClawdAccordionBody">
                   <div className="ClawdAccordionActions">
-                    <div className="ClawdChannelCardStatus">Not connected</div>
-                    <button
-                      className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                      onClick={async () => {
-                        try {
-                          const cmd: string = await invoke('kn_openclaw_configure_channels_cmd')
-                          if (!externalActivityPanelRef.current && onToggleActivityRef.current) onToggleActivityRef.current()
-                          window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: cmd } }))
-                          setShowChannelsPanel(false)
-                        } catch (err: any) {
-                          setChannelError(`Failed to start channel setup: ${err?.message || err}`)
-                        }
-                      }}
-                    >
-                      Set up
-                    </button>
+                    {channelStatus.genericChannels.discord?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.discord?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'discord'}
+                        onClick={async () => {
+                          setChannelBusy('discord')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('discord') }
+                          catch (err: any) { setChannelError(`Discord: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'discord' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
                   </div>
-                  <div className="ClawdChannelGuide">
-                    <div className="ClawdChannelGuideNote">
-                      Requires interactive setup via the OpenClaw configuration wizard in the terminal.
+                  {!channelStatus.genericChannels.discord?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect Discord</div>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                        Enter your Discord Bot Token:
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input type="text" value={discordBotToken} onChange={e => setDiscordBotToken(e.target.value)} placeholder="MTIz..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <button
+                          disabled={!discordBotToken.trim() || channelBusy === 'discord'}
+                          onClick={async () => {
+                            setChannelBusy('discord')
+                            setChannelError(null)
+                            try {
+                              await channelStatus.connectGenericChannel('discord', { botToken: discordBotToken.trim() })
+                              setDiscordBotToken('')
+                            } catch (err: any) { setChannelError(`Discord: ${err?.message || err}`) }
+                            finally { setChannelBusy(null) }
+                          }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !discordBotToken.trim() ? 0.5 : 1 }}
+                        >
+                          {channelBusy === 'discord' ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      <div className="ClawdChannelGuideNote">
+                        Create a bot at <strong>discord.com/developers/applications</strong>, enable Message Content Intent, then copy the bot token.
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
               {/* ── Signal ── */}
-              <div className={`ClawdAccordionItem ${expandedChannel === 'signal' ? 'ClawdAccordionItem--open' : ''}`}>
+              <div className={`ClawdAccordionItem ${expandedChannel === 'signal' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.signal?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
                 <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'signal' ? null : 'signal')}>
                   <div className="ClawdChannelCardIcon ClawdChannelCardIcon--signal">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                   </div>
                   <div className="ClawdAccordionTitle">Signal</div>
+                  {channelStatus.genericChannels.signal?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
                   <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div className="ClawdAccordionBody">
                   <div className="ClawdAccordionActions">
-                    <div className="ClawdChannelCardStatus">Not connected</div>
-                    <button
-                      className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                      onClick={async () => {
-                        try {
-                          const cmd: string = await invoke('kn_openclaw_configure_channels_cmd')
-                          if (!externalActivityPanelRef.current && onToggleActivityRef.current) onToggleActivityRef.current()
-                          window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: cmd } }))
-                          setShowChannelsPanel(false)
-                        } catch (err: any) {
-                          setChannelError(`Failed to start channel setup: ${err?.message || err}`)
-                        }
-                      }}
-                    >
-                      Set up
-                    </button>
+                    {channelStatus.genericChannels.signal?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.signal?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'signal'}
+                        onClick={async () => {
+                          setChannelBusy('signal')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('signal') }
+                          catch (err: any) { setChannelError(`Signal: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'signal' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
                   </div>
-                  <div className="ClawdChannelGuide">
-                    <div className="ClawdChannelGuideNote">
-                      Requires interactive setup via the OpenClaw configuration wizard in the terminal.
+                  {!channelStatus.genericChannels.signal?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect Signal</div>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                        Enter the phone number registered with signal-cli:
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input type="text" value={signalPhoneNumber} onChange={e => setSignalPhoneNumber(e.target.value)} placeholder="+1234567890" style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <button
+                          disabled={!signalPhoneNumber.trim() || channelBusy === 'signal'}
+                          onClick={async () => {
+                            setChannelBusy('signal')
+                            setChannelError(null)
+                            try {
+                              await channelStatus.connectGenericChannel('signal', { phoneNumber: signalPhoneNumber.trim() })
+                              setSignalPhoneNumber('')
+                            } catch (err: any) { setChannelError(`Signal: ${err?.message || err}`) }
+                            finally { setChannelBusy(null) }
+                          }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalPhoneNumber.trim() ? 0.5 : 1 }}
+                        >
+                          {channelBusy === 'signal' ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      <div className="ClawdChannelGuideNote">
+                        Requires <strong>signal-cli</strong> installed and registered on this machine. See signal-cli docs for setup.
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
               {/* ── IRC ── */}
-              <div className={`ClawdAccordionItem ${expandedChannel === 'irc' ? 'ClawdAccordionItem--open' : ''}`}>
+              <div className={`ClawdAccordionItem ${expandedChannel === 'irc' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.irc?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
                 <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'irc' ? null : 'irc')}>
                   <div className="ClawdChannelCardIcon ClawdChannelCardIcon--irc">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-3 12H7c-.55 0-1-.45-1-1s.45-1 1-1h10c.55 0 1 .45 1 1s-.45 1-1 1zm0-3H7c-.55 0-1-.45-1-1s.45-1 1-1h10c.55 0 1 .45 1 1s-.45 1-1 1zm0-3H7c-.55 0-1-.45-1-1s.45-1 1-1h10c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>
                   </div>
                   <div className="ClawdAccordionTitle">IRC</div>
+                  {channelStatus.genericChannels.irc?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
                   <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div className="ClawdAccordionBody">
                   <div className="ClawdAccordionActions">
-                    <div className="ClawdChannelCardStatus">Not connected</div>
-                    <button
-                      className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                      onClick={async () => {
-                        try {
-                          const cmd: string = await invoke('kn_openclaw_configure_channels_cmd')
-                          if (!externalActivityPanelRef.current && onToggleActivityRef.current) onToggleActivityRef.current()
-                          window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: cmd } }))
-                          setShowChannelsPanel(false)
-                        } catch (err: any) {
-                          setChannelError(`Failed to start channel setup: ${err?.message || err}`)
-                        }
-                      }}
-                    >
-                      Set up
-                    </button>
+                    {channelStatus.genericChannels.irc?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.irc?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'irc'}
+                        onClick={async () => {
+                          setChannelBusy('irc')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('irc') }
+                          catch (err: any) { setChannelError(`IRC: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'irc' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
                   </div>
-                  <div className="ClawdChannelGuide">
-                    <div className="ClawdChannelGuideNote">
-                      Requires interactive setup via the OpenClaw configuration wizard in the terminal.
+                  {!channelStatus.genericChannels.irc?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect IRC</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                        <input type="text" value={ircConfig.server} onChange={e => setIrcConfig(c => ({ ...c, server: e.target.value }))} placeholder="Server (e.g. irc.libera.chat)" style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <input type="text" value={ircConfig.nick} onChange={e => setIrcConfig(c => ({ ...c, nick: e.target.value }))} placeholder="Nickname" style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <input type="text" value={ircConfig.channel} onChange={e => setIrcConfig(c => ({ ...c, channel: e.target.value }))} placeholder="Channel (e.g. #general)" style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                      </div>
+                      <button
+                        disabled={!ircConfig.server.trim() || !ircConfig.nick.trim() || channelBusy === 'irc'}
+                        onClick={async () => {
+                          setChannelBusy('irc')
+                          setChannelError(null)
+                          try {
+                            await channelStatus.connectGenericChannel('irc', {
+                              server: ircConfig.server.trim(),
+                              nick: ircConfig.nick.trim(),
+                              channels: ircConfig.channel.trim() ? [ircConfig.channel.trim()] : [],
+                            })
+                            setIrcConfig({ server: '', nick: '', channel: '' })
+                          } catch (err: any) { setChannelError(`IRC: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                        style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !ircConfig.server.trim() || !ircConfig.nick.trim() ? 0.5 : 1 }}
+                      >
+                        {channelBusy === 'irc' ? 'Saving...' : 'Save'}
+                      </button>
+                      <div className="ClawdChannelGuideNote">
+                        Connects to an IRC server. Your assistant will join the specified channel and respond to messages.
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
               {/* ── Google Chat ── */}
-              <div className={`ClawdAccordionItem ${expandedChannel === 'googlechat' ? 'ClawdAccordionItem--open' : ''}`}>
+              <div className={`ClawdAccordionItem ${expandedChannel === 'googlechat' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.googlechat?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
                 <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'googlechat' ? null : 'googlechat')}>
                   <div className="ClawdChannelCardIcon ClawdChannelCardIcon--googlechat">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.74.5 3.37 1.35 4.77L2 22l5.23-1.35C8.63 21.5 10.26 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
                   </div>
                   <div className="ClawdAccordionTitle">Google Chat</div>
+                  {channelStatus.genericChannels.googlechat?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
                   <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div className="ClawdAccordionBody">
                   <div className="ClawdAccordionActions">
-                    <div className="ClawdChannelCardStatus">Not connected</div>
-                    <button
-                      className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                      onClick={async () => {
-                        try {
-                          const cmd: string = await invoke('kn_openclaw_configure_channels_cmd')
-                          if (!externalActivityPanelRef.current && onToggleActivityRef.current) onToggleActivityRef.current()
-                          window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: cmd } }))
-                          setShowChannelsPanel(false)
-                        } catch (err: any) {
-                          setChannelError(`Failed to start channel setup: ${err?.message || err}`)
-                        }
-                      }}
-                    >
-                      Set up
-                    </button>
+                    {channelStatus.genericChannels.googlechat?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.googlechat?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'googlechat'}
+                        onClick={async () => {
+                          setChannelBusy('googlechat')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('googlechat') }
+                          catch (err: any) { setChannelError(`Google Chat: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'googlechat' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
                   </div>
-                  <div className="ClawdChannelGuide">
-                    <div className="ClawdChannelGuideNote">
-                      Requires interactive setup via the OpenClaw configuration wizard in the terminal.
+                  {!channelStatus.genericChannels.googlechat?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect Google Chat</div>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                        Enter your Google Chat webhook URL:
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input type="text" value={googleChatWebhook} onChange={e => setGoogleChatWebhook(e.target.value)} placeholder="https://chat.googleapis.com/v1/spaces/..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <button
+                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat'}
+                          onClick={async () => {
+                            setChannelBusy('googlechat')
+                            setChannelError(null)
+                            try {
+                              await channelStatus.connectGenericChannel('googlechat', { webhookUrl: googleChatWebhook.trim() })
+                              setGoogleChatWebhook('')
+                            } catch (err: any) { setChannelError(`Google Chat: ${err?.message || err}`) }
+                            finally { setChannelBusy(null) }
+                          }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !googleChatWebhook.trim() ? 0.5 : 1 }}
+                        >
+                          {channelBusy === 'googlechat' ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      <div className="ClawdChannelGuideNote">
+                        Create a webhook in Google Chat: open a Space, click the dropdown, select <strong>Manage webhooks</strong>.
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>

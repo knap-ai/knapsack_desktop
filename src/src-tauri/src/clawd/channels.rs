@@ -1019,6 +1019,220 @@ pub async fn imessage_disconnect(
     }
 }
 
+// ── Generic channel endpoints ────────────────────────────────────────────
+//
+// These work for any channel supported by the OpenClaw gateway (slack,
+// discord, signal, irc, googlechat, etc.) that follows the token/config
+// pattern.  They use the same config.patch mechanism as Telegram.
+
+/// Allowed generic channel names — prevents arbitrary config keys.
+const GENERIC_CHANNEL_NAMES: &[&str] = &["slack", "discord", "signal", "irc", "googlechat"];
+
+fn is_valid_generic_channel(name: &str) -> bool {
+    GENERIC_CHANNEL_NAMES.contains(&name)
+}
+
+/// Get status for a generic channel by parsing channelSummary.
+#[get("/api/clawd/channels/generic/{channel}/status")]
+pub async fn generic_channel_status(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    path: web::Path<String>,
+) -> impl Responder {
+    let channel = path.into_inner();
+    if !is_valid_generic_channel(&channel) {
+        return HttpResponse::BadRequest().json(ChannelStatusResponse {
+            success: false,
+            enabled: false,
+            configured: false,
+            linked: None,
+            provider: None,
+            message: Some(format!("Unknown channel: {}", channel)),
+            account: None,
+        });
+    }
+
+    // The gateway uses the display name in channelSummary (e.g. "Slack", "Discord")
+    let display_name = match channel.as_str() {
+        "slack" => "Slack",
+        "discord" => "Discord",
+        "signal" => "Signal",
+        "irc" => "IRC",
+        "googlechat" => "GoogleChat",
+        _ => &channel,
+    };
+
+    match gateway_client::get_channel_status(None).await {
+        Ok(status) => {
+            let (enabled, linked, configured) = parse_channel_from_summary(&status, display_name);
+            HttpResponse::Ok().json(ChannelStatusResponse {
+                success: true,
+                enabled,
+                configured: configured || linked,
+                linked: Some(linked),
+                provider: None,
+                message: None,
+                account: None,
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
+            success: false,
+            enabled: false,
+            configured: false,
+            linked: Some(false),
+            provider: None,
+            message: Some(format!("Gateway error: {}", e)),
+            account: None,
+        }),
+    }
+}
+
+/// Request body for generic channel configuration.
+/// Accepts arbitrary key-value pairs that get merged into the channel config.
+#[derive(Deserialize)]
+pub struct GenericChannelConfigRequest {
+    /// Channel-specific configuration (e.g. {"botToken": "xoxb-..."} for Slack)
+    config: serde_json::Value,
+}
+
+/// Configure a generic channel by patching gateway config.
+#[post("/api/clawd/channels/generic/{channel}/configure")]
+pub async fn generic_channel_configure(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    path: web::Path<String>,
+    body: web::Json<GenericChannelConfigRequest>,
+) -> impl Responder {
+    let channel = path.into_inner();
+    if !is_valid_generic_channel(&channel) {
+        return HttpResponse::BadRequest().json(GenericResponse {
+            success: false,
+            message: Some(format!("Unknown channel: {}", channel)),
+            configured: None,
+            linked: None,
+        });
+    }
+
+    // Merge the user-provided config with standard channel defaults
+    let mut channel_config = body.config.clone();
+    if let Some(obj) = channel_config.as_object_mut() {
+        if !obj.contains_key("allowFrom") {
+            obj.insert("allowFrom".to_string(), serde_json::json!(["*"]));
+        }
+        if !obj.contains_key("dmPolicy") {
+            obj.insert("dmPolicy".to_string(), serde_json::json!("open"));
+        }
+    }
+
+    let config_result = gateway_client::config_get(None).await;
+    match config_result {
+        Ok(config_snapshot) => {
+            let base_hash = extract_base_hash(&config_snapshot);
+            let patch_value = serde_json::json!({
+                "channels": {
+                    channel.clone(): channel_config
+                }
+            });
+            let patch = build_enable_patch(
+                &serde_json::to_string(&patch_value).unwrap(),
+                &config_snapshot,
+            );
+
+            match gateway_client::config_patch(&patch, &base_hash, None).await {
+                Ok(_) => {
+                    log::info!("[channels] {} configured successfully", channel);
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: true,
+                        message: Some(format!("{} configured. The channel should connect shortly.", channel)),
+                        configured: Some(true),
+                        linked: None,
+                    })
+                }
+                Err(e) => {
+                    log::error!("[channels] {} configure config.patch failed: {}", channel, e);
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: false,
+                        message: Some(format!("Failed to configure: {}", e)),
+                        configured: None,
+                        linked: None,
+                    })
+                }
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(GenericResponse {
+            success: false,
+            message: Some(format!("Failed to get config: {}", e)),
+            configured: None,
+            linked: None,
+        }),
+    }
+}
+
+/// Disconnect a generic channel: calls channel.logout then removes config.
+#[post("/api/clawd/channels/generic/{channel}/disconnect")]
+pub async fn generic_channel_disconnect(
+    _cfg: web::Data<SharedClawdbotConfig>,
+    path: web::Path<String>,
+) -> impl Responder {
+    let channel = path.into_inner();
+    if !is_valid_generic_channel(&channel) {
+        return HttpResponse::BadRequest().json(GenericResponse {
+            success: false,
+            message: Some(format!("Unknown channel: {}", channel)),
+            configured: None,
+            linked: None,
+        });
+    }
+
+    // Try channel.logout (best effort — some channels may not support it)
+    let logout_params = serde_json::json!({
+        "channel": channel,
+        "accountId": "default",
+    });
+    if let Err(e) = gateway_client::call_channel_method(
+        "channel.logout",
+        Some(logout_params),
+        None,
+    )
+    .await
+    {
+        log::warn!("[channels] channel.logout({}) failed (non-fatal): {}", channel, e);
+    }
+
+    // Remove from config
+    let config_result = gateway_client::config_get(None).await;
+    match config_result {
+        Ok(config_snapshot) => {
+            let base_hash = extract_base_hash(&config_snapshot);
+            let patch = serde_json::json!({ "channels": { channel.clone(): null } });
+            match gateway_client::config_patch(
+                &serde_json::to_string(&patch).unwrap(),
+                &base_hash,
+                None,
+            )
+            .await
+            {
+                Ok(_) => HttpResponse::Ok().json(GenericResponse {
+                    success: true,
+                    message: Some(format!("{} disconnected", channel)),
+                    configured: None,
+                    linked: None,
+                }),
+                Err(e) => HttpResponse::Ok().json(GenericResponse {
+                    success: false,
+                    message: Some(format!("Failed to remove config: {}", e)),
+                    configured: None,
+                    linked: None,
+                }),
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(GenericResponse {
+            success: false,
+            message: Some(format!("Failed to get config: {}", e)),
+            configured: None,
+            linked: None,
+        }),
+    }
+}
+
 /// Open System Preferences to Full Disk Access pane
 #[post("/api/clawd/channels/open-full-disk-access")]
 pub async fn open_full_disk_access() -> impl Responder {

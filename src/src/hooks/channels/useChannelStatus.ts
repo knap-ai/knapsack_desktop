@@ -4,22 +4,31 @@ import {
   getWhatsAppStatus,
   getIMessageStatus,
   getTelegramStatus,
+  getGenericChannelStatus,
   enableWhatsApp,
   enableIMessage,
   configureTelegram,
+  configureGenericChannel,
   startWhatsAppLogin,
   waitWhatsAppLogin,
   disconnectWhatsApp,
   disconnectIMessage,
   disconnectTelegram,
+  disconnectGenericChannel,
   setupIMessage,
   openFullDiskAccess,
 } from 'src/api/channels'
+
+/** Channel names supported via the generic endpoint. */
+export const GENERIC_CHANNELS = ['slack', 'discord', 'signal', 'irc', 'googlechat'] as const
+export type GenericChannelName = typeof GENERIC_CHANNELS[number]
 
 export interface ChannelStates {
   whatsapp: ChannelStatus | null
   imessage: ChannelStatus | null
   telegram: ChannelStatus | null
+  /** Status for generic channels (slack, discord, signal, irc, googlechat). */
+  genericChannels: Record<GenericChannelName, ChannelStatus | null>
   loading: boolean
   error: string | null
   /** Per-channel error messages for inline display. */
@@ -45,6 +54,9 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   const [whatsapp, setWhatsapp] = useState<ChannelStatus | null>(null)
   const [imessage, setImessage] = useState<ChannelStatus | null>(null)
   const [telegram, setTelegram] = useState<ChannelStatus | null>(null)
+  const [genericChannels, setGenericChannels] = useState<Record<GenericChannelName, ChannelStatus | null>>(
+    () => Object.fromEntries(GENERIC_CHANNELS.map(c => [c, null])) as Record<GenericChannelName, ChannelStatus | null>
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [channelErrors, setChannelErrors] = useState<Record<string, string | null>>({})
@@ -64,14 +76,22 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     setLoading(true)
     setError(null)
     try {
-      const [wa, im, tg] = await Promise.all([
+      const [wa, im, tg, ...genericResults] = await Promise.all([
         getWhatsAppStatus().catch(() => null),
         getIMessageStatus().catch(() => null),
         getTelegramStatus().catch(() => null),
+        ...GENERIC_CHANNELS.map(ch => getGenericChannelStatus(ch).catch(() => null)),
       ])
       setWhatsapp(wa)
       setImessage(im)
       setTelegram(tg)
+
+      // Update generic channel states
+      const newGeneric = { ...genericChannels }
+      GENERIC_CHANNELS.forEach((ch, i) => {
+        newGeneric[ch] = genericResults[i]
+      })
+      setGenericChannels(newGeneric)
 
       // Surface gateway-level errors per channel
       if (wa && !wa.success && wa.message) setChannelError('whatsapp', wa.message)
@@ -80,6 +100,11 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
       else setChannelError('imessage', null)
       if (tg && !tg.success && tg.message) setChannelError('telegram', tg.message)
       else setChannelError('telegram', null)
+      GENERIC_CHANNELS.forEach((ch, i) => {
+        const status = genericResults[i]
+        if (status && !status.success && status.message) setChannelError(ch, status.message)
+        else setChannelError(ch, null)
+      })
 
       // Clear QR code if WhatsApp is now linked
       if (wa?.linked) {
@@ -257,10 +282,37 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     }
   }, [refresh])
 
+  // ── Generic channel actions ────────────────────────────────
+
+  const connectGenericChannel = useCallback(async (channel: GenericChannelName, config: Record<string, unknown>) => {
+    setChannelError(channel, null)
+    try {
+      const res = await configureGenericChannel(channel, config)
+      if (!res.success) throw new Error(res.message ?? `Failed to configure ${channel}`)
+      await refresh()
+    } catch (e: any) {
+      setChannelError(channel, e.message)
+      throw e
+    }
+  }, [refresh])
+
+  const doDisconnectGenericChannel = useCallback(async (channel: GenericChannelName) => {
+    setChannelError(channel, null)
+    try {
+      const res = await disconnectGenericChannel(channel)
+      if (!res.success) throw new Error(res.message ?? `Failed to disconnect ${channel}`)
+      await refresh()
+    } catch (e: any) {
+      setChannelError(channel, e.message)
+      throw e
+    }
+  }, [refresh])
+
   return {
     whatsapp,
     imessage,
     telegram,
+    genericChannels,
     loading,
     error,
     channelErrors,
@@ -276,5 +328,7 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     disconnectIMessage: doDisconnectIMessage,
     connectTelegram,
     disconnectTelegram: doDisconnectTelegram,
+    connectGenericChannel,
+    disconnectGenericChannel: doDisconnectGenericChannel,
   }
 }

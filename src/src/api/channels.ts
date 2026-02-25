@@ -106,6 +106,20 @@ export const configureTelegram = (botToken: string) =>
 export const disconnectTelegram = () =>
   post<GenericResponse>('/api/clawd/channels/telegram/disconnect', {})
 
+// ── Generic Channels (Slack, Discord, Signal, IRC, Google Chat) ──
+
+/** Get status for a generic channel. */
+export const getGenericChannelStatus = (channel: string) =>
+  get<ChannelStatus>(`/api/clawd/channels/generic/${channel}/status`)
+
+/** Configure a generic channel with arbitrary config. */
+export const configureGenericChannel = (channel: string, config: Record<string, unknown>) =>
+  post<GenericResponse>(`/api/clawd/channels/generic/${channel}/configure`, { config })
+
+/** Disconnect a generic channel. */
+export const disconnectGenericChannel = (channel: string) =>
+  post<GenericResponse>(`/api/clawd/channels/generic/${channel}/disconnect`, {})
+
 // ── Send Message ────────────────────────────────────────────
 
 export interface SendMessageResponse {

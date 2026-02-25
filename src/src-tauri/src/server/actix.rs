@@ -217,6 +217,9 @@ pub async fn start_server<'a>(
       .service(clawd::channels::voice_status)
       .service(clawd::channels::voice_enable)
       .service(clawd::channels::open_full_disk_access)
+      .service(clawd::channels::generic_channel_status)
+      .service(clawd::channels::generic_channel_configure)
+      .service(clawd::channels::generic_channel_disconnect)
       // Token usage & cost management endpoints
       .service(usage_api::get_usage_summary)
       .service(usage_api::get_daily_usage)
