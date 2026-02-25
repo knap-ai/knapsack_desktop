@@ -24,8 +24,8 @@ function stripMarkdown(s: string): string {
     .trim()
 }
 
-const NOTIF_WIDTH = 600 // Must match Rust NOTIF_WIDTH constant
-const MIN_HEIGHT = 80
+const NOTIF_WIDTH = 720 // Must match Rust NOTIF_WIDTH constant
+const MIN_HEIGHT = 100
 const MAX_HEIGHT = 520
 const PADDING = 4
 
@@ -120,8 +120,8 @@ function NotificationWindow() {
   }
 
   return (
-    <div className="flex w-full bg-white rounded-lg overflow-visible">
-      <div className="relative w-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-start gap-3 group overflow-visible">
+    <div className="flex w-full bg-white rounded-xl overflow-visible" style={{ borderBottom: '1px solid #E3E2E2' }}>
+      <div className="relative w-full bg-gray-50 bg-opacity-80 backdrop-blur-lg rounded-xl p-4 flex items-start gap-3 group overflow-visible">
         <button
           onClick={() => invoke('close_notification_window')}
           className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 p-1"
@@ -169,12 +169,13 @@ function NotificationWindow() {
             )}
             {/* Primary action + dropdown for extras */}
             <div
-              className="relative flex h-8 bg-orange-800 hover:bg-red-900 rounded"
+              className="relative flex h-8 rounded-lg"
               ref={dropdownRef}
+              style={{ background: '#6474AC' }}
             >
               <button
                 onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
-                className="px-4 py-2 active:bg-bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-2 whitespace-nowrap"
+                className="px-4 py-2 text-white rounded-lg text-xs font-medium transition-opacity duration-200 hover:opacity-90 flex items-center gap-2 whitespace-nowrap"
               >
                 {buttonConfigs[0].buttonText}
               </button>
@@ -184,7 +185,7 @@ function NotificationWindow() {
 
                   <button
                     onClick={toggleDropdown}
-                    className="px-2 py-2 text-white rounded-r-lg text-xs font-medium transition-colors duration-200 border-l border-bg-red-main"
+                    className="px-2 py-2 text-white rounded-r-lg text-xs font-medium transition-opacity duration-200 hover:opacity-90"
                   >
                     <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
                       <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
@@ -198,7 +199,10 @@ function NotificationWindow() {
                     <div
                       key={index}
                       onClick={() => handleJoinMeeting(currentMeetingId, config.buttonHandler)}
-                      className="px-4 py-2 text-xs text-gray-700 hover:text-orange-800 cursor-pointer"
+                      className="px-4 py-2 text-xs text-gray-700 cursor-pointer"
+                      style={{ '--hover-color': '#6474AC' } as React.CSSProperties}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#6474AC')}
+                      onMouseLeave={e => (e.currentTarget.style.color = '')}
                     >
                       {config.buttonText}
                     </div>
