@@ -12,7 +12,6 @@ import {
   EMAIL_NOTIFICATION_DRAWER_DISMISSED,
 } from 'src/utils/KNLocalStorage'
 
-import EmailCategoryTabs from 'src/components/organisms/EmailCategoryTabs'
 import EmailDraftCard from 'src/components/molecules/EmailDraftCard'
 import EmailAutopilotSettings from 'src/components/molecules/EmailAutopilotSettings'
 import SettingsButton from 'src/components/atoms/settings-button'
@@ -81,77 +80,20 @@ const EmailNotificationDrawer = ({
     }
   }, [forceOpen, onForceOpenHandled])
 
-  const selectedCategory = useMemo(
-    () => feed.selectedEmailCategory || EmailImportance.IMPORTANT,
-    [feed.selectedEmailCategory],
-  ) as EmailImportance
-
-  // Email counts for category tabs
-  const emailCounts = useMemo(() => {
-    const counts: Record<EmailImportance, { total: number; active: number }> = {
-      [EmailImportance.IMPORTANT]: { total: 0, active: 0 },
-      [EmailImportance.IMPORTANT_NO_RESPONSE]: { total: 0, active: 0 },
-      [EmailImportance.INFORMATIONAL]: { total: 0, active: 0 },
-      [EmailImportance.MARKETING]: { total: 0, active: 0 },
-      [EmailImportance.UNIMPORTANT]: { total: 0, active: 0 },
-      [EmailImportance.UNCLASSIFIED]: { total: 0, active: 0 },
-    }
-
-    if (feed?.classifiedEmails) {
-      Object.entries(feed.classifiedEmails).forEach(([category, emails]) => {
-        const importanceValue = Object.values(EmailImportance).find(value => value === category)
-        if (importanceValue) {
-          const activeEmails =
-            emails?.filter(email => !email.wasIgnored && !email.wasReplySent) || []
-          counts[category as EmailImportance] = {
-            total: emails?.length || 0,
-            active: activeEmails.length,
-          }
-        }
-      })
-    }
-
-    return counts
-  }, [feed?.classifiedEmails])
-
-  // Get filtered emails for the selected category
+  // Get IMPORTANT emails that need a response (drawer only shows this category)
   const emailsForCategory = useMemo(() => {
-    const uniqueEmailIds = new Set()
+    const uniqueEmailIds = new Set<string>()
+    const emails = feed?.classifiedEmails?.[EmailImportance.IMPORTANT] || []
 
-    const filterUniqueEmails = (emails: DisplayEmail[] | undefined) => {
-      if (!emails) return []
-      return emails.filter(email => {
-        if (uniqueEmailIds.has(email.message.emailUid)) return false
-        if (!email.wasIgnored && !email.wasReplySent && email.message.body) {
-          uniqueEmailIds.add(email.message.emailUid)
-        }
-        return !email.wasIgnored && !email.wasReplySent && email.message.body
-      })
-    }
-
-    const primaryEmails = filterUniqueEmails(feed?.classifiedEmails?.[selectedCategory])
-
-    if (selectedCategory === EmailImportance.IMPORTANT_NO_RESPONSE) {
-      const informationalEmails = filterUniqueEmails(
-        feed?.classifiedEmails?.[EmailImportance.INFORMATIONAL],
-      )
-      return [...primaryEmails, ...informationalEmails]
-    }
-
-    if (selectedCategory === EmailImportance.MARKETING) {
-      const unimportantEmails = filterUniqueEmails(
-        feed?.classifiedEmails?.[EmailImportance.UNIMPORTANT],
-      )
-      return [...primaryEmails, ...unimportantEmails]
-    }
-
-    return primaryEmails
-  }, [feed.feedContent, feed.classifiedEmails, selectedCategory])
-
-  // Reset to first email when category changes
-  useEffect(() => {
-    setCurrentEmailIndex(0)
-  }, [selectedCategory])
+    return emails.filter(email => {
+      if (uniqueEmailIds.has(email.message.emailUid)) return false
+      if (!email.wasIgnored && !email.wasReplySent && email.message.body) {
+        uniqueEmailIds.add(email.message.emailUid)
+        return true
+      }
+      return false
+    })
+  }, [feed.feedContent, feed.classifiedEmails])
 
   // Clamp index if list shrinks (e.g. after action removes an email)
   useEffect(() => {
@@ -163,20 +105,20 @@ const EmailNotificationDrawer = ({
   const currentEmail = emailsForCategory[currentEmailIndex] || null
 
   const actions = useMemo(() => {
-    const categoryActions = feed.classificationActions[selectedCategory]
+    const categoryActions = feed.classificationActions[EmailImportance.IMPORTANT]
     return (
       categoryActions || {
         leftAction: AutopilotActions.MARK_AS_READ,
         rightAction: AutopilotActions.SEND_REPLY,
       }
     )
-  }, [feed.classificationActions, selectedCategory])
+  }, [feed.classificationActions])
 
   const updateAction = useCallback(
     (actionSide: 'LEFT' | 'RIGHT', action: AutopilotActions) => {
-      feed.updateClassificationActions(selectedCategory, actionSide, action)
+      feed.updateClassificationActions(EmailImportance.IMPORTANT, actionSide, action)
     },
-    [feed.updateClassificationActions, selectedCategory],
+    [feed.updateClassificationActions],
   )
 
   // Get IMPORTANT emails that need a response and haven't been dismissed (for collapsed notification)
@@ -328,27 +270,27 @@ const EmailNotificationDrawer = ({
 
   return (
     <div
-      className={`absolute bottom-0 right-0 z-40 w-full max-w-md transition-all duration-300 ease-out ${
+      className={`absolute bottom-0 right-0 z-40 w-full max-w-[540px] transition-all duration-300 ease-out ${
         isAnimatingOut ? 'translate-y-full' : 'translate-y-0'
       }`}
     >
       <div
         className={`mr-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
-          isExpanded ? 'max-h-[70vh]' : 'max-h-[200px]'
+          isExpanded ? 'max-h-[70vh]' : 'max-h-[220px]'
         }`}
       >
         {/* Header bar */}
         <div
-          className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-blue-50 to-white border-b border-ks-warm-grey-100 cursor-pointer shrink-0"
+          className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-ks-red-50 to-white border-b border-ks-warm-grey-100 cursor-pointer shrink-0"
           onClick={isExpanded ? handleCollapse : handleExpand}
         >
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-xs font-semibold font-InterTight text-blue-700 tracking-wide uppercase">
+            <div className="w-2 h-2 rounded-full bg-ks-red-500 animate-pulse" />
+            <span className="text-xs font-semibold font-InterTight text-ks-red-700 tracking-wide uppercase">
               Email Autopilot
             </span>
             {totalPendingCount > 0 && (
-              <span className="ml-1 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-xs font-Inter font-semibold">
+              <span className="ml-1 bg-ks-red-100 text-ks-red-700 px-1.5 py-0.5 rounded-full text-xs font-Inter font-semibold">
                 {totalPendingCount}
               </span>
             )}
@@ -383,7 +325,7 @@ const EmailNotificationDrawer = ({
             <div className="px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold font-Lora text-zinc-900 truncate">
+                  <div className="text-sm font-semibold font-Lora text-ks-warm-grey-950 truncate">
                     {subject}
                   </div>
                   <div className="text-xs text-ks-warm-grey-600 font-InterTight mt-0.5 truncate">
@@ -397,7 +339,7 @@ const EmailNotificationDrawer = ({
             </div>
 
             {/* Collapsed actions */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-ks-warm-grey-50 border-t border-ks-warm-grey-100 shrink-0">
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-ks-warm-grey-100 shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleDismiss}
@@ -408,7 +350,7 @@ const EmailNotificationDrawer = ({
                 <span className="text-ks-warm-grey-300">|</span>
                 <button
                   onClick={handleDismissForever}
-                  className="text-xs font-medium font-InterTight text-ks-warm-grey-500 hover:text-red-500 transition-colors"
+                  className="text-xs font-medium font-InterTight text-ks-warm-grey-500 hover:text-ks-red-500 transition-colors"
                 >
                   Don't show again
                 </button>
@@ -422,7 +364,7 @@ const EmailNotificationDrawer = ({
                 </button>
                 <button
                   onClick={handleGoToEmail}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold font-InterTight transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
                 >
                   <svg
                     width="12"
@@ -460,20 +402,7 @@ const EmailNotificationDrawer = ({
               </div>
             )}
 
-            {/* Category tabs */}
-            <div className="border-b border-ks-warm-grey-100 shrink-0">
-              <EmailCategoryTabs
-                selectedCategory={selectedCategory}
-                onSelectCategory={(category) => {
-                  if (feed.setSelectedEmailCategory) {
-                    feed.setSelectedEmailCategory(category)
-                  }
-                }}
-                emailCounts={emailCounts}
-              />
-            </div>
-
-            {/* Single email view */}
+            {/* Single email view — only IMPORTANT (needs response) emails */}
             <div className="flex-1 overflow-y-auto p-4">
               {isLoading && (!emailsForCategory || emailsForCategory.length === 0) ? (
                 <div className="flex flex-col items-center justify-center py-8">
@@ -547,7 +476,7 @@ const EmailNotificationDrawer = ({
             </div>
 
             {/* Expanded footer */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-ks-warm-grey-50 border-t border-ks-warm-grey-100 shrink-0">
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-ks-warm-grey-100 shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleDismiss}
@@ -558,14 +487,14 @@ const EmailNotificationDrawer = ({
                 <span className="text-ks-warm-grey-300">|</span>
                 <button
                   onClick={handleDismissForever}
-                  className="text-xs font-medium font-InterTight text-ks-warm-grey-500 hover:text-red-500 transition-colors"
+                  className="text-xs font-medium font-InterTight text-ks-warm-grey-500 hover:text-ks-red-500 transition-colors"
                 >
                   Don't show again
                 </button>
               </div>
               <button
                 onClick={handleGoToEmail}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold font-InterTight transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
               >
                 <svg
                   width="12"
