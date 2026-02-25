@@ -164,7 +164,7 @@ const SendEmailButton = ({
       <button
         onClick={handleSend}
         disabled={isSending}
-        className={`inline-flex items-center pl-2 pr-3 py-1.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-ks-red-800 hover:bg-ks-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 gap-2 ${
+        className={`inline-flex items-center pl-2 pr-3 py-1.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-ks-red-800 hover:bg-ks-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ks-red-500 gap-2 ${
           isSending ? 'opacity-50 cursor-not-allowed' : ''
         }`}
       >

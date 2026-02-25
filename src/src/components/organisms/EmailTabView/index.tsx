@@ -6,7 +6,6 @@ import { IFeed } from 'src/hooks/feed/useFeed'
 
 import { EmailAutopilot } from 'src/components/molecules/EmailAutopilot'
 import LoginWarningAutopilot from 'src/components/molecules/LoginWarningAutopilot'
-import EmailCategoryTabs from 'src/components/organisms/EmailCategoryTabs'
 import SettingsButton from 'src/components/atoms/settings-button'
 
 import './style.scss'
@@ -82,18 +81,15 @@ const EmailTabView = ({
 
       <div className="EmailTabView__content">
         <div className="relative w-full">
-          <div className="flex justify-center items-center">
-            <EmailCategoryTabs
-              selectedCategory={feed.selectedEmailCategory}
-              onSelectCategory={(category) => {
-                if (feed.setSelectedEmailCategory) {
-                  feed.setSelectedEmailCategory(category)
-                }
-              }}
-              emailCounts={emailCategories}
-            />
-          </div>
-          <div className="absolute right-6 top-1/2 transform -translate-y-1/2 flex items-center justify-center">
+          <div className="flex justify-between items-center px-6 py-3">
+            <span className="font-bold font-Lora tracking-wider text-xs text-ks-warm-grey-950">
+              NEEDS RESPONSE
+              {emailCategories[EmailImportance.IMPORTANT]?.active > 0 && (
+                <span className="ml-1.5 bg-ks-warm-grey-200 text-ks-warm-grey-950 px-2 py-0.5 rounded-full text-xs font-Inter font-semibold">
+                  {emailCategories[EmailImportance.IMPORTANT].active}
+                </span>
+              )}
+            </span>
             <SettingsButton
               onClick={() => setShowEmailSettings(true)}
               title="Email Autopilot Settings"

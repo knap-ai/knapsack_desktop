@@ -360,7 +360,7 @@ export const EmailAutopilot = ({
               className="bg-ks-warm-grey-200 bg-opacity-80 absolute inset-0"
               onClick={() => setShowSettings(false)}
             ></div>
-            <div className="relative z-10 w-80 h-full overflow-auto">
+            <div className="relative z-10 w-full max-w-sm h-full overflow-auto">
               <EmailAutopilotSettings onClose={() => setShowSettings(false)} />
             </div>
           </div>

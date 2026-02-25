@@ -107,7 +107,7 @@ const EmailDraftCard = ({
 
   return (
     <div
-      className={`TightShadow text-left w-full max-w-[45rem] mx-auto flex flex-col rounded-[10px] bg-white p-4 gap-y-4 mb-4 ${selected ? 'border-2 border-blue-300' : ''}`}
+      className={`TightShadow text-left w-full max-w-[45rem] mx-auto flex flex-col rounded-[10px] bg-white p-4 gap-y-4 mb-4 ${selected ? 'border-2 border-ks-red-300' : ''}`}
     >
       <div className="flex flex-col items-start justify-between">
         <div className="flex flex-row w-full justify-between">
@@ -126,7 +126,7 @@ const EmailDraftCard = ({
           <div className="text-ks-neutral-700 text-xs leading-relaxed my-0">
             {emailSummary && (
               <>
-                <div className="text-sm leading-5 text-black font-Inter">
+                <div className="text-sm leading-5 text-black font-Inter line-clamp-2">
                   {emailSummary.join(' ')}
                 </div>
               </>
