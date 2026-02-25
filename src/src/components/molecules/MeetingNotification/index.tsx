@@ -83,7 +83,7 @@ function NotificationWindow() {
   }
 
   return (
-    <div className="flex flex-col w-full h-full bg-white rounded-lg overflow-visible">
+    <div className="flex flex-col w-full overflow-visible">
       <div className="relative w-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 group overflow-visible">
         {/* Top row: logo, title, primary button, expand chevron */}
         <div className="flex items-center gap-3">
