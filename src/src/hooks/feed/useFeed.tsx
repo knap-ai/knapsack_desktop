@@ -716,6 +716,15 @@ export function useFeed(
         return
       }
 
+      // Before filtering to unread/starred, capture threads the user already
+      // replied to (sent messages are read, so the filter below would drop them).
+      const userRepliedThreadIds = new Set<string>()
+      allMessages.forEach(message => {
+        if (message.sender.includes(userEmail) && message.threadId) {
+          userRepliedThreadIds.add(message.threadId)
+        }
+      })
+
       allMessages = allMessages.filter(
         message => message.isStarred || (!message.isRead && !message.isArchived),
       )
@@ -754,19 +763,18 @@ export function useFeed(
 
       const allThreadMessages = Array.from(emailThreadsSet)
 
-      // Identify threads where the user has already sent a reply —
-      // these should not appear as "needing a response".
-      const repliedThreadIds = new Set<string>()
+      // Also check thread messages for user replies (now that the backend
+      // returns the full thread instead of only the latest message).
       allThreadMessages.forEach(message => {
         if (message.sender.includes(userEmail) && message.threadId) {
-          repliedThreadIds.add(message.threadId)
+          userRepliedThreadIds.add(message.threadId)
         }
       })
 
       let newMessages = allThreadMessages.filter(
         message =>
           !message.sender.includes(userEmail) &&
-          !(message.threadId && repliedThreadIds.has(message.threadId)),
+          !(message.threadId && userRepliedThreadIds.has(message.threadId)),
       )
 
       const uniqueUuids: Record<string, number> = {}
