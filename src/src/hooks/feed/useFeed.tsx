@@ -311,7 +311,7 @@ export function useFeed(
       while (!emailPriorityQueue.isEmpty()) {
         const email = emailPriorityQueue.dequeue()
         if (email) {
-          // Process the email here
+          // Process the email here — draft replies for IMPORTANT emails
           if (
             email.classification?.classification == 'IMPORTANT_NEEDS_RESPONSE' ||
             email.classification?.classification == 'IMPORTANT_NO_RESPONSE'
@@ -323,7 +323,8 @@ export function useFeed(
             )
 
             setClassifiedEmails(prevState => {
-              prevState['IMPORTANT_NEEDS_RESPONSE'] = prevState['IMPORTANT_NEEDS_RESPONSE']?.map(
+              const newState = { ...prevState }
+              newState['IMPORTANT_NEEDS_RESPONSE'] = newState['IMPORTANT_NEEDS_RESPONSE']?.map(
                 emailDisplay => {
                   if (emailDisplay.message.documentId === email.message.documentId) {
                     return { ...emailDisplay, draftedReply }
@@ -331,10 +332,7 @@ export function useFeed(
                   return emailDisplay
                 },
               )
-              return prevState
-            })
-            setClassifiedEmails(prevState => {
-              prevState['IMPORTANT_NO_RESPONSE'] = prevState['IMPORTANT_NO_RESPONSE']?.map(
+              newState['IMPORTANT_NO_RESPONSE'] = newState['IMPORTANT_NO_RESPONSE']?.map(
                 emailDisplay => {
                   if (emailDisplay.message.documentId === email.message.documentId) {
                     return { ...emailDisplay, draftedReply }
@@ -342,7 +340,7 @@ export function useFeed(
                   return emailDisplay
                 },
               )
-              return prevState
+              return newState
             })
           }
           // Add 50ms delay between processing items
@@ -592,14 +590,15 @@ export function useFeed(
     }))
 
     setClassifiedEmails(prevState => {
-      prevState['UNCLASSIFIED'] = [
-        ...(prevState['UNCLASSIFIED'] || []),
+      const newState = { ...prevState }
+      newState['UNCLASSIFIED'] = [
+        ...(newState['UNCLASSIFIED'] || []),
         ...emails.map(message => ({
           message: message,
           classification: null,
         })),
       ]
-      return prevState
+      return newState
     })
   }
 

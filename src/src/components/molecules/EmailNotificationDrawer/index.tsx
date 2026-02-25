@@ -45,9 +45,10 @@ const EmailNotificationDrawer = ({
   const [sendingReplyUid, setSendingReplyUid] = useState<string>('')
   const [removingEmailUid, setRemovingEmailUid] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
-  const [currentEmailIndex, setCurrentEmailIndex] = useState(0)
+  const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
   const prevEmailCountRef = useRef<number>(0)
   const initialLoadRef = useRef(true)
+  const frozenEmailRef = useRef<DisplayEmail | null>(null)
 
   // Check if user has permanently dismissed
   useEffect(() => {
@@ -95,14 +96,44 @@ const EmailNotificationDrawer = ({
     })
   }, [feed.feedContent, feed.classifiedEmails])
 
-  // Clamp index if list shrinks (e.g. after action removes an email)
-  useEffect(() => {
-    if (emailsForCategory.length > 0 && currentEmailIndex >= emailsForCategory.length) {
-      setCurrentEmailIndex(emailsForCategory.length - 1)
-    }
-  }, [emailsForCategory.length, currentEmailIndex])
+  // Resolve current email by UID (stable across list re-sorts)
+  const currentEmailIndex = useMemo(() => {
+    if (!currentEmailUid) return 0
+    const idx = emailsForCategory.findIndex(e => e.message.emailUid === currentEmailUid)
+    return idx >= 0 ? idx : 0
+  }, [emailsForCategory, currentEmailUid])
 
-  const currentEmail = emailsForCategory[currentEmailIndex] || null
+  // When the editor is active, freeze the displayed email so background updates
+  // don't yank it away mid-edit.
+  const currentEmail = useMemo(() => {
+    if (isEditorActive && frozenEmailRef.current) {
+      // Keep showing the frozen email while user is editing, but update draft if available
+      const fresh = emailsForCategory.find(
+        e => e.message.emailUid === frozenEmailRef.current!.message.emailUid,
+      )
+      if (fresh?.draftedReply && !frozenEmailRef.current.draftedReply) {
+        frozenEmailRef.current = { ...frozenEmailRef.current, draftedReply: fresh.draftedReply }
+      }
+      return frozenEmailRef.current
+    }
+    const email = emailsForCategory[currentEmailIndex] || null
+    frozenEmailRef.current = email
+    return email
+  }, [emailsForCategory, currentEmailIndex, isEditorActive])
+
+  // Auto-select first email UID when list populates and nothing is selected
+  useEffect(() => {
+    if (!currentEmailUid && emailsForCategory.length > 0) {
+      setCurrentEmailUid(emailsForCategory[0].message.emailUid)
+    }
+    // If the tracked UID is no longer in the list (e.g. after action), reset
+    if (currentEmailUid && !isEditorActive) {
+      const stillExists = emailsForCategory.some(e => e.message.emailUid === currentEmailUid)
+      if (!stillExists && emailsForCategory.length > 0) {
+        setCurrentEmailUid(emailsForCategory[0].message.emailUid)
+      }
+    }
+  }, [emailsForCategory, currentEmailUid, isEditorActive])
 
   const actions = useMemo(() => {
     const categoryActions = feed.classificationActions[EmailImportance.IMPORTANT]
@@ -435,7 +466,10 @@ const EmailNotificationDrawer = ({
                   {emailsForCategory.length > 1 && (
                     <div className="flex items-center justify-between mb-3">
                       <button
-                        onClick={() => setCurrentEmailIndex(i => Math.max(0, i - 1))}
+                        onClick={() => {
+                          const prevIdx = Math.max(0, currentEmailIndex - 1)
+                          setCurrentEmailUid(emailsForCategory[prevIdx].message.emailUid)
+                        }}
                         disabled={currentEmailIndex === 0}
                         className="flex items-center gap-1 text-xs font-medium font-InterTight text-ks-warm-grey-700 hover:text-black disabled:text-ks-warm-grey-300 disabled:cursor-default transition-colors"
                       >
@@ -448,7 +482,10 @@ const EmailNotificationDrawer = ({
                         {currentEmailIndex + 1} of {emailsForCategory.length}
                       </span>
                       <button
-                        onClick={() => setCurrentEmailIndex(i => Math.min(emailsForCategory.length - 1, i + 1))}
+                        onClick={() => {
+                          const nextIdx = Math.min(emailsForCategory.length - 1, currentEmailIndex + 1)
+                          setCurrentEmailUid(emailsForCategory[nextIdx].message.emailUid)
+                        }}
                         disabled={currentEmailIndex === emailsForCategory.length - 1}
                         className="flex items-center gap-1 text-xs font-medium font-InterTight text-ks-warm-grey-700 hover:text-black disabled:text-ks-warm-grey-300 disabled:cursor-default transition-colors"
                       >

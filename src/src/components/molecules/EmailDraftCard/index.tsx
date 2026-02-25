@@ -81,7 +81,7 @@ const EmailDraftCard = ({
   })
 
   useEffect(() => {
-    if (editor && emailDraftReply) {
+    if (editor && emailDraftReply && !isDraftEdited) {
       const newContent = emailDraftReply.replace(/\n/g, '<br>')
       if (editor.getText() !== emailDraftReply) {
         editor.commands.setContent(newContent)
