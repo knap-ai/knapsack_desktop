@@ -41,9 +41,9 @@ const EmailNotificationDrawer = ({
   const [sendingReplyUid, setSendingReplyUid] = useState<string>('')
   const [removingEmailUid, setRemovingEmailUid] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
+  const [currentEmailIndex, setCurrentEmailIndex] = useState(0)
   const prevEmailCountRef = useRef<number>(0)
   const initialLoadRef = useRef(true)
-  const emailListRef = useRef<HTMLDivElement>(null)
 
   // Check if user has permanently dismissed
   useEffect(() => {
@@ -120,6 +120,20 @@ const EmailNotificationDrawer = ({
 
     return primaryEmails
   }, [feed.feedContent, feed.classifiedEmails, selectedCategory])
+
+  // Reset to first email when category changes
+  useEffect(() => {
+    setCurrentEmailIndex(0)
+  }, [selectedCategory])
+
+  // Clamp index if list shrinks (e.g. after action removes an email)
+  useEffect(() => {
+    if (emailsForCategory.length > 0 && currentEmailIndex >= emailsForCategory.length) {
+      setCurrentEmailIndex(emailsForCategory.length - 1)
+    }
+  }, [emailsForCategory.length, currentEmailIndex])
+
+  const currentEmail = emailsForCategory[currentEmailIndex] || null
 
   const actions = useMemo(() => {
     const categoryActions = feed.classificationActions[selectedCategory]
@@ -429,8 +443,8 @@ const EmailNotificationDrawer = ({
               />
             </div>
 
-            {/* Email list */}
-            <div ref={emailListRef} className="flex-1 overflow-y-auto p-4">
+            {/* Single email view */}
+            <div className="flex-1 overflow-y-auto p-4">
               {isLoading && (!emailsForCategory || emailsForCategory.length === 0) ? (
                 <div className="flex flex-col items-center justify-center py-8">
                   <CircularProgress size="2.5rem" sx={{ color: '#C14841' }} />
@@ -438,39 +452,66 @@ const EmailNotificationDrawer = ({
                     {getLoadingText(feed.emailAutopilotStatus.status)}
                   </span>
                 </div>
-              ) : !emailsForCategory || emailsForCategory.length === 0 ? (
+              ) : !emailsForCategory || emailsForCategory.length === 0 || !currentEmail ? (
                 <div className="text-center text-gray-500 mt-4 font-Inter text-sm">
                   You're all caught up!
                 </div>
               ) : (
-                <div className="space-y-4 pb-4">
-                  {emailsForCategory.map((email, index) => (
-                    <div
-                      key={email.message.documentId + '-' + index}
-                      className={`transition-opacity duration-1000 ease-out ${
-                        removingEmailUid === email.message.emailUid ? 'opacity-0' : 'opacity-100'
-                      }`}
-                    >
-                      <EmailDraftCard
-                        emailAutopilot={feed.emailAutopilot}
-                        email={email}
-                        onActionCallback={(
-                          actionTaken: AutopilotActions,
-                          emailUid: string,
-                          draftReply?: string,
-                        ) => handleEmailActionTaken(actionTaken, emailUid, draftReply)}
-                        userEmail={userEmail}
-                        userName={userName}
-                        profileProvider={profileProvider ? profileProvider : ''}
-                        selected={false}
-                        generatingDraftUid={generatingDraftUid}
-                        sendingReplyUid={sendingReplyUid}
-                        actions={actions}
-                        updateAction={updateAction}
-                        setIsEditorActive={setIsEditorActive}
-                      />
+                <div>
+                  {/* Prev / Next navigation */}
+                  {emailsForCategory.length > 1 && (
+                    <div className="flex items-center justify-between mb-3">
+                      <button
+                        onClick={() => setCurrentEmailIndex(i => Math.max(0, i - 1))}
+                        disabled={currentEmailIndex === 0}
+                        className="flex items-center gap-1 text-xs font-medium font-InterTight text-ks-warm-grey-700 hover:text-black disabled:text-ks-warm-grey-300 disabled:cursor-default transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        Prev
+                      </button>
+                      <span className="text-xs font-Inter text-ks-warm-grey-600">
+                        {currentEmailIndex + 1} of {emailsForCategory.length}
+                      </span>
+                      <button
+                        onClick={() => setCurrentEmailIndex(i => Math.min(emailsForCategory.length - 1, i + 1))}
+                        disabled={currentEmailIndex === emailsForCategory.length - 1}
+                        className="flex items-center gap-1 text-xs font-medium font-InterTight text-ks-warm-grey-700 hover:text-black disabled:text-ks-warm-grey-300 disabled:cursor-default transition-colors"
+                      >
+                        Next
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
-                  ))}
+                  )}
+
+                  <div
+                    key={currentEmail.message.emailUid}
+                    className={`transition-opacity duration-300 ease-out ${
+                      removingEmailUid === currentEmail.message.emailUid ? 'opacity-0' : 'opacity-100'
+                    }`}
+                  >
+                    <EmailDraftCard
+                      emailAutopilot={feed.emailAutopilot}
+                      email={currentEmail}
+                      onActionCallback={(
+                        actionTaken: AutopilotActions,
+                        emailUid: string,
+                        draftReply?: string,
+                      ) => handleEmailActionTaken(actionTaken, emailUid, draftReply)}
+                      userEmail={userEmail}
+                      userName={userName}
+                      profileProvider={profileProvider ? profileProvider : ''}
+                      selected={true}
+                      generatingDraftUid={generatingDraftUid}
+                      sendingReplyUid={sendingReplyUid}
+                      actions={actions}
+                      updateAction={updateAction}
+                      setIsEditorActive={setIsEditorActive}
+                    />
+                  </div>
                 </div>
               )}
             </div>
