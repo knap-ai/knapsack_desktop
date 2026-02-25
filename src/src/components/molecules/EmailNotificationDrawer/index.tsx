@@ -203,6 +203,11 @@ const EmailNotificationDrawer = ({
     prevEmailCountRef.current = currentCount
   }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail])
 
+  const isLoading =
+    feed.emailAutopilotStatus.status === 'fetching-emails' ||
+    feed.emailAutopilotStatus.status === 'classifying-emails' ||
+    feed.emailAutopilotStatus.status === 'sync-email'
+
   // Graceful auto-dismiss when all emails are handled (caught up)
   useEffect(() => {
     if (
@@ -307,11 +312,6 @@ const EmailNotificationDrawer = ({
   const handleCollapse = useCallback(() => {
     setIsExpanded(false)
   }, [])
-
-  const isLoading =
-    feed.emailAutopilotStatus.status === 'fetching-emails' ||
-    feed.emailAutopilotStatus.status === 'classifying-emails' ||
-    feed.emailAutopilotStatus.status === 'sync-email'
 
   const getLoadingText = (status: string) => {
     if (status === 'fetching-emails') return 'Engaging autopilot...'
