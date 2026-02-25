@@ -12,6 +12,7 @@ import KNDateUtils from 'src/utils/KNDateUtils'
 import GenerateDraftButton from 'src/components/molecules/GenerateDraftButton'
 import IgnoreEmailButton from 'src/components/molecules/IgnoreEmailButton'
 import SendEmailButton from 'src/components/molecules/SendEmailButton'
+import { decodeEmailSubject } from 'src/utils/emails'
 
 interface EmailDraftCardProps {
   emailAutopilot: IEmailAutopilot
@@ -50,7 +51,7 @@ const EmailDraftCard = ({
   const [ccInput, setCcInput] = useState('')
   const [showCcInput, setShowCcInput] = useState(false)
   const ccInputRef = useRef<HTMLInputElement>(null)
-  const subtitle = email.message.subject
+  const subtitle = decodeEmailSubject(email.message.subject)
   const emailUid = email.message.emailUid
   const emailBody = email.message.body
   const emailSummary: string[] | undefined = email.classification?.summary

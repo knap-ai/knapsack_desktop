@@ -641,6 +641,14 @@ export function useFeed(
         return
       }
 
+      // Identify threads where the user has sent a message (i.e. already replied)
+      const repliedThreadIds = new Set<string>()
+      allMessages.forEach(message => {
+        if (message.sender.includes(userEmail) && message.threadId) {
+          repliedThreadIds.add(message.threadId)
+        }
+      })
+
       setClassifiedEmails(prevState => {
         const newState: Partial<Record<EmailImportance, DisplayEmail[]>> = { ...prevState }
 
@@ -653,14 +661,22 @@ export function useFeed(
                 message => message.documentId === displayEmail.message.documentId,
               )
               if (updatedMessage) {
+                // Mark as replied if the user has sent a message in the same thread,
+                // or fall back to the read/archived/deleted heuristic.
+                const userRepliedInThread =
+                  updatedMessage.threadId != null &&
+                  repliedThreadIds.has(updatedMessage.threadId)
+
                 return {
                   ...displayEmail,
                   message: updatedMessage,
-                  wasReplySent: !(
-                    (updatedMessage.isStarred || !updatedMessage.isRead) &&
-                    !updatedMessage.isArchived &&
-                    !updatedMessage.isDeleted
-                  ),
+                  wasReplySent:
+                    userRepliedInThread ||
+                    !(
+                      (updatedMessage.isStarred || !updatedMessage.isRead) &&
+                      !updatedMessage.isArchived &&
+                      !updatedMessage.isDeleted
+                    ),
                 }
               }
               return displayEmail
@@ -736,8 +752,21 @@ export function useFeed(
         }
       }
 
-      let newMessages = Array.from(emailThreadsSet).filter(
-        message => !message.sender.includes(userEmail),
+      const allThreadMessages = Array.from(emailThreadsSet)
+
+      // Identify threads where the user has already sent a reply —
+      // these should not appear as "needing a response".
+      const repliedThreadIds = new Set<string>()
+      allThreadMessages.forEach(message => {
+        if (message.sender.includes(userEmail) && message.threadId) {
+          repliedThreadIds.add(message.threadId)
+        }
+      })
+
+      let newMessages = allThreadMessages.filter(
+        message =>
+          !message.sender.includes(userEmail) &&
+          !(message.threadId && repliedThreadIds.has(message.threadId)),
       )
 
       const uniqueUuids: Record<string, number> = {}

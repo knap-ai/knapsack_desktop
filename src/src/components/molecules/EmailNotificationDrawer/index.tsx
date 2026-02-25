@@ -14,6 +14,7 @@ import {
 import EmailDraftCard from 'src/components/molecules/EmailDraftCard'
 import EmailAutopilotSettings from 'src/components/molecules/EmailAutopilotSettings'
 import SettingsButton from 'src/components/atoms/settings-button'
+import { decodeEmailSubject } from 'src/utils/emails'
 
 interface EmailNotificationDrawerProps {
   feed: IFeed
@@ -326,7 +327,7 @@ const EmailNotificationDrawer = ({
 
   const summary = pendingEmail?.classification?.summary?.join(' ') || 'New email needs your response.'
   const sender = pendingEmail?.message.sender ?? ''
-  const subject = pendingEmail?.message.subject ?? ''
+  const subject = decodeEmailSubject(pendingEmail?.message.subject ?? '')
 
   return (
     <div
