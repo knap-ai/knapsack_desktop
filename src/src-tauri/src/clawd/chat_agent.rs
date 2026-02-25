@@ -413,6 +413,25 @@ pub async fn openai_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
+  openai_compatible_chat(api_key, model, "https://api.openai.com/v1", messages, tools).await
+}
+
+pub async fn groq_chat(
+  api_key: &str,
+  model: &str,
+  messages: Vec<OaiMessage>,
+  tools: Vec<OaiToolSpec>,
+) -> anyhow::Result<OaiChatResp> {
+  openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", messages, tools).await
+}
+
+pub async fn openai_compatible_chat(
+  api_key: &str,
+  model: &str,
+  base_url: &str,
+  messages: Vec<OaiMessage>,
+  tools: Vec<OaiToolSpec>,
+) -> anyhow::Result<OaiChatResp> {
   let client = reqwest::Client::builder()
     .timeout(Duration::from_secs(60))
     .build()?;
@@ -484,7 +503,7 @@ pub async fn openai_chat(
 
   for attempt in 0..max_retries {
     let res = client
-      .post("https://api.openai.com/v1/chat/completions")
+      .post(format!("{}/chat/completions", base_url))
       .bearer_auth(api_key)
       .json(&body)
       .send()
@@ -509,16 +528,16 @@ pub async fn openai_chat(
         wait_secs
       );
       tokio::time::sleep(Duration::from_secs_f64(wait_secs)).await;
-      last_error = format!("OpenAI HTTP {}: {}", status, text);
+      last_error = format!("LLM HTTP {}: {}", status, text);
       continue;
     }
 
     // For other errors, fail immediately
-    anyhow::bail!("OpenAI HTTP {}: {}", status, text);
+    anyhow::bail!("LLM HTTP {}: {}", status, text);
   }
 
   // All retries exhausted
-  anyhow::bail!("OpenAI error after {} retries: {}", max_retries, last_error)
+  anyhow::bail!("LLM error after {} retries: {}", max_retries, last_error)
 }
 
 /// Parse the retry-after time from OpenAI rate limit error messages

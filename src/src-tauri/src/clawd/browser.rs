@@ -225,6 +225,20 @@ fn gemini_key(app_handle: &tauri::AppHandle) -> Option<String> {
     .filter(|s| !s.is_empty())
 }
 
+fn groq_key(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("GROQ_API_KEY") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
+  }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.groq_api_key)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
 fn active_provider(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
@@ -870,6 +884,15 @@ pub async fn chat(
         return HttpResponse::BadRequest().json(serde_json::json!({
           "ok": false,
           "message": "Gemini API key is not set. Add it in Settings and Save, then re-enable."
+        }))
+      }
+    },
+    "groq" => match groq_key(&app_handle) {
+      Some(k) => k,
+      None => {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+          "ok": false,
+          "message": "Groq API key is not set. Add it in Settings and Save, then re-enable."
         }))
       }
     },
@@ -2549,6 +2572,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
   let model = match provider.as_str() {
     "anthropic" => super::service::get_anthropic_model(&app_handle),
     "gemini" => super::service::get_gemini_model(&app_handle),
+    "groq" => super::service::get_groq_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
   };
   eprintln!("[clawd/chat] Using provider={} model={}", provider, model);
@@ -2583,6 +2607,15 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
           Err(e) => {
             return HttpResponse::InternalServerError()
               .json(serde_json::json!({"ok": false, "message": format!("Gemini error: {}", e)}));
+          }
+        }
+      }
+      "groq" => {
+        match chat_agent::groq_chat(&api_key, &model, messages.clone(), tools.clone()).await {
+          Ok(r) => r,
+          Err(e) => {
+            return HttpResponse::InternalServerError()
+              .json(serde_json::json!({"ok": false, "message": format!("Groq error: {}", e)}));
           }
         }
       }
