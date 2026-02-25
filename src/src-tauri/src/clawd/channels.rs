@@ -127,24 +127,53 @@ fn resolve_default_model() -> &'static str {
     "anthropic/claude-opus-4-6"
 }
 
+/// Check whether `browser.enabled` is already true in the config snapshot.
+fn has_browser_enabled(snapshot: &serde_json::Value) -> bool {
+    let config = snapshot.get("config").unwrap_or(snapshot);
+    config
+        .pointer("/browser/enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
 /// Build a config.patch JSON string for enabling a channel.
 ///
 /// If `agents.defaults.model` is not already set, the patch includes it so
 /// that the auto-reply agent can actually generate responses.
+///
+/// Also ensures `browser.enabled` is true so the auto-reply agent can use
+/// browser automation (e.g. "check my email" from Telegram).
 fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> String {
-    if has_default_model(snapshot) {
+    let needs_model = !has_default_model(snapshot);
+    let needs_browser = !has_browser_enabled(snapshot);
+
+    if !needs_model && !needs_browser {
         return channel_patch.to_string();
     }
-    // Merge channel config with agents.defaults.model
-    let model = resolve_default_model();
+
     let mut patch: serde_json::Value = serde_json::from_str(channel_patch).unwrap();
-    patch
-        .as_object_mut()
-        .unwrap()
-        .insert(
-            "agents".to_string(),
-            serde_json::json!({"defaults": {"model": model}}),
-        );
+
+    if needs_model {
+        let model = resolve_default_model();
+        patch
+            .as_object_mut()
+            .unwrap()
+            .insert(
+                "agents".to_string(),
+                serde_json::json!({"defaults": {"model": model}}),
+            );
+    }
+
+    if needs_browser {
+        patch
+            .as_object_mut()
+            .unwrap()
+            .insert(
+                "browser".to_string(),
+                serde_json::json!({"enabled": true}),
+            );
+    }
+
     serde_json::to_string(&patch).unwrap()
 }
 

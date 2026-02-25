@@ -1377,6 +1377,59 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
+            // Ensure the browser tool is explicitly allowed for the auto-reply
+            // agent so channel messages (Telegram, WhatsApp, etc.) can trigger
+            // browser automation (e.g. "check my email").  We add "browser" to
+            // the tools.allow array without clobbering existing entries.
+            let browser_tool_allowed = cfg
+              .pointer("/tools/allow")
+              .and_then(|v| v.as_array())
+              .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+              .unwrap_or(false);
+            // Also check if "group:ui" is already allowed (it includes browser)
+            let group_ui_allowed = cfg
+              .pointer("/tools/allow")
+              .and_then(|v| v.as_array())
+              .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:ui")))
+              .unwrap_or(false);
+            // Check tools.profile — "full" (or absent) means all tools are allowed
+            let tools_profile = cfg
+              .pointer("/tools/profile")
+              .and_then(|v| v.as_str())
+              .unwrap_or("");
+            let needs_browser_allow = !browser_tool_allowed
+              && !group_ui_allowed
+              && !tools_profile.is_empty()
+              && tools_profile != "full";
+            // Also check if browser is explicitly denied
+            let browser_denied = cfg
+              .pointer("/tools/deny")
+              .and_then(|v| v.as_array())
+              .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+              .unwrap_or(false);
+            if browser_denied {
+              // Remove "browser" from tools.deny
+              if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
+                deny_arr.retain(|item| item.as_str() != Some("browser"));
+                eprintln!("[clawd/service] Removed browser from tools.deny");
+                patched = true;
+              }
+            }
+            if needs_browser_allow {
+              // tools.allow exists but doesn't include browser — append it
+              if cfg.get("tools").is_none() {
+                cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+              }
+              let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
+              if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
+                allow.push(serde_json::json!("browser"));
+              } else {
+                tools.insert("allow".to_string(), serde_json::json!(["browser"]));
+              }
+              eprintln!("[clawd/service] Added browser to tools.allow");
+              patched = true;
+            }
+
             if patched {
               match fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
                 Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
@@ -1384,6 +1437,92 @@ pub async fn set_service_enabled(
               }
             }
           }
+        }
+      }
+
+      // Ensure the workspace has a TOOLS.md that tells the auto-reply agent
+      // about browser automation capabilities.  The workspace is at
+      // agents.defaults.workspace (default: ~/.openclaw/workspace).
+      // Read the workspace path from the config, falling back to default.
+      let workspace_path = {
+        let cfg_str = fs::read_to_string(&config_path).unwrap_or_default();
+        let cfg_val: serde_json::Value = serde_json::from_str(&cfg_str).unwrap_or(serde_json::json!({}));
+        cfg_val
+          .pointer("/agents/defaults/workspace")
+          .and_then(|v| v.as_str())
+          .map(|s| {
+            if s.starts_with("~/") {
+              let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+              home.join(&s[2..])
+            } else {
+              PathBuf::from(s)
+            }
+          })
+          .unwrap_or_else(|| {
+            let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+            home.join(".openclaw").join("workspace")
+          })
+      };
+
+      if let Err(e) = ensure_dir(&workspace_path) {
+        eprintln!("[clawd/service] WARNING: Failed to create workspace dir: {}", e);
+      }
+
+      let tools_md_path = workspace_path.join("TOOLS.md");
+      // Only write TOOLS.md if it doesn't exist (don't overwrite user edits)
+      if !tools_md_path.exists() {
+        let tools_md_content = r#"# Tools
+
+## Browser Automation
+
+You have full browser control. Use it proactively for any web-based task:
+
+- **Check email**: Navigate to https://mail.google.com (or Outlook, etc.) and read/summarize
+- **Search the web**: Navigate to Google, DuckDuckGo, etc.
+- **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
+- **Fill forms, click buttons, type text** on any website
+- **Read and summarize** web page content
+
+### When to use browser automation
+
+Use browser tools whenever the user asks you to:
+- Check, read, or summarize email
+- Look something up online
+- Interact with any web application
+- Access any online service or tool
+- Research a topic, person, or company
+- Check calendar, tasks, or project management tools
+
+### Quick access URLs
+
+- Gmail: https://mail.google.com
+- Google Calendar: https://calendar.google.com
+- Google Drive: https://drive.google.com
+- GitHub: https://github.com
+- LinkedIn: https://www.linkedin.com
+
+### Workflow
+
+1. Navigate to the relevant website
+2. Take a snapshot to see the page content
+3. Interact with elements (click, type) as needed
+4. Read and summarize the results for the user
+
+## File Operations
+
+You can read and write local files, list directories, and search for files.
+
+## Script Execution
+
+You can run Python scripts for calculations, data processing, and file transformations.
+
+## Scheduling
+
+You can create, list, and cancel scheduled tasks (cron jobs).
+"#;
+        match fs::write(&tools_md_path, tools_md_content) {
+          Ok(_) => eprintln!("[clawd/service] Created workspace TOOLS.md at {}", tools_md_path.display()),
+          Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
         }
       }
 
