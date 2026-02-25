@@ -7,7 +7,7 @@ import KNAnalytics from 'src/utils/KNAnalytics'
 
 import { emit } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
-import { open } from '@tauri-apps/api/shell'
+import { openBesideApp } from 'src/utils/openBesideApp'
 
 export interface RecordingContextProps {
   isRecording: (threadId: number) => boolean
@@ -159,11 +159,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       setFeedIsRecording(true)
       setIsRecording(threadId, true)
       if (eventUrl && isStart) {
-        await open(eventUrl)
-        // Give the browser a moment to open, then position it beside the app
-        setTimeout(() => {
-          invoke('position_browser_beside_app').catch(() => {})
-        }, 800)
+        await openBesideApp(eventUrl)
       } else if (!isStart) {
         setIsPaused(false)
       }

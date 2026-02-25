@@ -3,7 +3,7 @@ import './style.scss'
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { open } from '@tauri-apps/api/shell'
+import { openBesideApp } from 'src/utils/openBesideApp'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
@@ -1890,7 +1890,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       e.preventDefault()
       e.stopPropagation()
       if (href && href.startsWith('http')) {
-        open(href).catch(err => console.error('Failed to open link:', err))
+        openBesideApp(href).catch(err => console.error('Failed to open link:', err))
       }
     }
     return (

@@ -453,9 +453,17 @@ fn position_browser_beside_app(app: tauri::AppHandle) {
         let screen_size = monitor.size();
         let scale_factor = monitor.scale_factor();
 
+        let browser_width = main_pos.x;
+
+        // Only reposition if the main window leaves meaningful space on the left
+        // (i.e. the app is in narrow/notification mode, not full-screen).
+        let min_browser_width = (200.0 * scale_factor) as i32;
+        if browser_width < min_browser_width {
+          return;
+        }
+
         let browser_x = 0;
         let browser_y = 0; // top of screen (below menu bar is handled by macOS)
-        let browser_width = main_pos.x;
         let browser_height = screen_size.height as i32;
 
         // Convert physical pixels to macOS points for AppleScript bounds
