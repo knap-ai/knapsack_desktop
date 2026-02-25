@@ -328,12 +328,12 @@ const EmailNotificationDrawer = ({
 
   return (
     <div
-      className={`absolute bottom-0 left-0 right-0 z-40 transition-all duration-300 ease-out ${
+      className={`absolute bottom-0 right-0 z-40 w-full max-w-md transition-all duration-300 ease-out ${
         isAnimatingOut ? 'translate-y-full' : 'translate-y-0'
       }`}
     >
       <div
-        className={`mx-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
+        className={`mr-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
           isExpanded ? 'max-h-[70vh]' : 'max-h-[200px]'
         }`}
       >
