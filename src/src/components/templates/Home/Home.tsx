@@ -472,6 +472,8 @@ function Home({
                       showActivityPanel={showActivityPanel}
                       onToggleActivity={() => setShowActivityPanel(prev => !prev)}
                       onCloseActivity={() => setShowActivityPanel(false)}
+                      userEmail={userEmail}
+                      userName={userName}
                     />
                   </div>
                   {showActivityPanel && (

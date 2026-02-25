@@ -364,6 +364,27 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         }),
       },
     },
+    // Direct email sending tool (uses Gmail/Outlook API, no browser needed)
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
+        name: "send_email".to_string(),
+        description: "Send an email directly via Gmail or Outlook API. Works for both new emails and replies. Requires the user to be logged in with their email account. ALWAYS show the user the full email (to, cc, subject, body) and get explicit confirmation before calling this tool.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "to": { "type": "string", "description": "Comma-separated recipient email addresses" },
+            "cc": { "type": "string", "description": "Comma-separated CC email addresses (optional)" },
+            "subject": { "type": "string", "description": "Email subject line" },
+            "body": { "type": "string", "description": "Email body in HTML format. Use <p>, <br>, <b>, <i> tags for formatting." },
+            "reply_to_uid": { "type": "string", "description": "If replying to an existing email, the email_uid of the message being replied to. Omit for new emails." },
+            "thread_id": { "type": "string", "description": "Gmail thread ID for threading replies. Omit for new emails." }
+          },
+          "required": ["to", "subject", "body"],
+          "additionalProperties": false
+        }),
+      },
+    },
   ]
 }
 

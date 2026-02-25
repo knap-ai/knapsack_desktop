@@ -1,7 +1,12 @@
 use actix_web::{get, web, HttpResponse, Responder};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
+use crate::connections::google::auth::refresh_connection_token;
+use crate::connections::google::constants::GOOGLE_GMAIL_SCOPE;
 use crate::db::models::email::Email;
+use crate::db::models::user_connection::UserConnection;
 
 #[derive(Debug, Deserialize)]
 pub struct UnreadImportantParams {
@@ -70,4 +75,91 @@ pub async fn get_unread_important(query: web::Query<UnreadImportantParams>) -> i
     success: true,
     emails: mapped,
   })
+}
+
+/// Send an email via the Gmail API using the user's OAuth credentials.
+/// Supports both new emails and replies (when thread_id is provided).
+pub async fn send_gmail_email(
+  user_email: &str,
+  user_name: &str,
+  to: &str,
+  cc: Option<&str>,
+  subject: &str,
+  body: &str,
+  thread_id: Option<&str>,
+) -> Result<String, String> {
+  // 1. Get OAuth access token
+  let scope = GOOGLE_GMAIL_SCOPE.to_string();
+  let user_connection =
+    UserConnection::find_by_user_email_and_scope(user_email.to_string(), scope)
+      .map_err(|e| format!("Email account not connected: {}", e))?;
+
+  let access_token =
+    refresh_connection_token(user_email.to_string(), user_connection)
+      .await
+      .map_err(|e| format!("Failed to refresh auth token: {}", e))?;
+
+  // 2. Build the MIME message
+  let message_id = format!("<{}.knapsack@gmail.com>", Uuid::new_v4());
+  let full_sender = if user_name.is_empty() {
+    user_email.to_string()
+  } else {
+    format!("{} <{}>", user_name, user_email)
+  };
+
+  let mut headers = vec![
+    "MIME-Version: 1.0".to_string(),
+    "Content-Type: text/html; charset=utf-8".to_string(),
+    format!("Message-ID: {}", message_id),
+    format!("Subject: {}", subject),
+    format!("From: {}", full_sender),
+    format!("To: {}", to),
+  ];
+
+  if let Some(cc_val) = cc {
+    if !cc_val.is_empty() {
+      headers.push(format!("Cc: {}", cc_val));
+    }
+  }
+
+  let html_body = format!(
+    "<div dir=\"ltr\">{}</div>",
+    body
+  );
+
+  let raw_message = format!("{}\r\n\r\n{}", headers.join("\r\n"), html_body);
+  let encoded = URL_SAFE_NO_PAD.encode(raw_message.as_bytes());
+
+  // 3. Send via Gmail API
+  let mut payload = serde_json::json!({ "raw": encoded });
+  if let Some(tid) = thread_id {
+    if !tid.is_empty() {
+      payload["threadId"] = serde_json::json!(tid);
+    }
+  }
+
+  let client = reqwest::Client::new();
+  let resp = client
+    .post("https://gmail.googleapis.com/gmail/v1/users/me/messages/send")
+    .bearer_auth(&access_token)
+    .json(&payload)
+    .send()
+    .await
+    .map_err(|e| format!("Gmail API request failed: {}", e))?;
+
+  if resp.status().is_success() {
+    let resp_body: serde_json::Value = resp
+      .json()
+      .await
+      .map_err(|e| format!("Failed to parse Gmail response: {}", e))?;
+    let msg_id = resp_body["id"].as_str().unwrap_or("unknown").to_string();
+    Ok(format!("Email sent successfully (message ID: {})", msg_id))
+  } else {
+    let status = resp.status();
+    let error_text = resp
+      .text()
+      .await
+      .unwrap_or_else(|_| "unknown error".to_string());
+    Err(format!("Gmail API error ({}): {}", status, error_text))
+  }
 }

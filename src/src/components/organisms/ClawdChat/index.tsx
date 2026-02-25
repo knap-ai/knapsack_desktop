@@ -726,9 +726,11 @@ interface ClawdChatProps {
   showActivityPanel?: boolean
   onToggleActivity?: () => void
   onCloseActivity?: () => void
+  userEmail?: string
+  userName?: string
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -2312,6 +2314,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           voiceMode: voiceEnabled, // Signal backend to be more concise for voice output
           autonomyMode, // 'assist' or 'autonomous' - controls how independent the agent is
           advancedMode, // When true, enables run_command tool for shell execution
+          userEmail: userEmail || '', // For direct email sending via send_email tool
+          userName: userName || '', // Sender display name for emails
         }
 
         // Add attachments if present
