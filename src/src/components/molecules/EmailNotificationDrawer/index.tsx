@@ -23,6 +23,8 @@ interface EmailNotificationDrawerProps {
   userEmail: string
   userName: string
   profileProvider?: string
+  forceOpen?: boolean
+  onForceOpenHandled?: () => void
 }
 
 const EmailNotificationDrawer = ({
@@ -31,6 +33,8 @@ const EmailNotificationDrawer = ({
   userEmail,
   userName,
   profileProvider,
+  forceOpen,
+  onForceOpenHandled,
 }: EmailNotificationDrawerProps) => {
   const [permanentlyDismissed, setPermanentlyDismissed] = useState<boolean | null>(null)
   const [sessionDismissedIds, setSessionDismissedIds] = useState<Set<string>>(new Set())
@@ -66,6 +70,16 @@ const EmailNotificationDrawer = ({
       unlisten.then(fn => fn())
     }
   }, [])
+
+  // Handle forceOpen prop from parent (hotkey / event listener in Home)
+  useEffect(() => {
+    if (forceOpen) {
+      setIsVisible(true)
+      setIsExpanded(true)
+      setIsAnimatingOut(false)
+      onForceOpenHandled?.()
+    }
+  }, [forceOpen, onForceOpenHandled])
 
   const selectedCategory = useMemo(
     () => feed.selectedEmailCategory || EmailImportance.IMPORTANT,

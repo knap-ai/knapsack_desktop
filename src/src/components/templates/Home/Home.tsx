@@ -31,6 +31,7 @@ import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
 
 import { open } from '@tauri-apps/api/shell'
 import { invoke } from '@tauri-apps/api/tauri'
+import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
@@ -88,6 +89,7 @@ function Home({
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
   const [showActivityPanel, setShowActivityPanel] = useState(false)
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
+  const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -129,6 +131,9 @@ function Home({
         handleOpenToastr(<span>Dev tool: Reset onboarding.</span>, 'success', 5000)
       } else if (event.key === 's' && event.metaKey && event.ctrlKey) {
         setCurrentTab(TabChoices.NewAutomation)
+      } else if (event.key === 'e' && event.metaKey && event.ctrlKey) {
+        setAutopilotForceOpen(true)
+        setCurrentTab(TabChoices.Moltbot)
       }
     }
   }, [])
@@ -140,6 +145,17 @@ function Home({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
+
+  // Listen for /autopilot slash command to force-open the email drawer
+  useEffect(() => {
+    const unlisten = listen('kn_trigger_autopilot', () => {
+      setAutopilotForceOpen(true)
+      setCurrentTab(TabChoices.Moltbot)
+    })
+    return () => {
+      unlisten.then(fn => fn())
+    }
+  }, [])
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
@@ -490,7 +506,7 @@ function Home({
                       </div>
                     </>
                   )}
-                  {feed.loggedEmailAutopilot && (
+                  {(feed.loggedEmailAutopilot || autopilotForceOpen) && (
                     <EmailNotificationDrawer
                       feed={feed}
                       onGoToEmail={() => {
@@ -500,6 +516,8 @@ function Home({
                       userEmail={userEmail}
                       userName={userName}
                       profileProvider={auth.profile?.provider}
+                      forceOpen={autopilotForceOpen}
+                      onForceOpenHandled={() => setAutopilotForceOpen(false)}
                     />
                   )}
                 </div>
