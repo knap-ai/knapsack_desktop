@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -26,6 +26,7 @@ interface EmailDraftCardProps {
   actions: EmailAction
   updateAction: (actionSide: 'LEFT' | 'RIGHT', action: AutopilotActions) => void
   setIsEditorActive: (isActive: boolean) => void
+  onCcChange?: (cc: string[]) => void
 }
 
 const EmailDraftCard = ({
@@ -41,14 +42,58 @@ const EmailDraftCard = ({
   actions,
   updateAction,
   setIsEditorActive,
+  onCcChange,
 }: EmailDraftCardProps) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isDraftEdited, setIsDraftEdited] = useState(false)
+  const [ccList, setCcList] = useState<string[]>([])
+  const [ccInput, setCcInput] = useState('')
+  const [showCcInput, setShowCcInput] = useState(false)
+  const ccInputRef = useRef<HTMLInputElement>(null)
   const subtitle = email.message.subject
   const emailUid = email.message.emailUid
   const emailBody = email.message.body
   const emailSummary: string[] | undefined = email.classification?.summary
   const emailDraftReply = email.draftedReply ? email.draftedReply : ''
+
+  // Initialize ccList from email data
+  useEffect(() => {
+    const cc = email.message.cc?.filter(c => c.trim() !== '') || []
+    setCcList(cc)
+    setShowCcInput(cc.length > 0)
+    setCcInput('')
+  }, [email.message.emailUid])
+
+  const handleRemoveCc = useCallback((index: number) => {
+    setCcList(prev => {
+      const updated = prev.filter((_, i) => i !== index)
+      onCcChange?.(updated)
+      return updated
+    })
+  }, [onCcChange])
+
+  const handleAddCc = useCallback((value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    // Basic email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return
+    if (ccList.includes(trimmed)) return
+    setCcList(prev => {
+      const updated = [...prev, trimmed]
+      onCcChange?.(updated)
+      return updated
+    })
+    setCcInput('')
+  }, [ccList, onCcChange])
+
+  const handleCcKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === ',') {
+      e.preventDefault()
+      handleAddCc(ccInput)
+    } else if (e.key === 'Backspace' && ccInput === '' && ccList.length > 0) {
+      handleRemoveCc(ccList.length - 1)
+    }
+  }, [ccInput, ccList, handleAddCc, handleRemoveCc])
 
   const editor = useEditor({
     extensions: [
@@ -206,13 +251,58 @@ const EmailDraftCard = ({
             <div className="gap-1 py-2 w-full">
               <div className="gap-x-4 text-ks-warm-grey-800 text-xs mt-1">
                 <div>To:&nbsp;&nbsp; {recipients}</div>
-                {email.message.cc &&
-                  email.message.cc.length > 0 &&
-                  !(email.message.cc.length === 1 && email.message.cc[0] === '') && (
-                    <div className="text-ks-warm-grey-800 text-xs mt-2">
-                      CC:&nbsp;&nbsp; {email.message.cc.join(', ')}
+                {showCcInput && (
+                  <div className="flex items-start gap-1 mt-2">
+                    <span className="text-ks-warm-grey-800 text-xs pt-0.5 shrink-0">CC:</span>
+                    <div
+                      className="flex flex-wrap items-center gap-1 flex-1 min-h-[24px] cursor-text"
+                      onClick={() => ccInputRef.current?.focus()}
+                    >
+                      {ccList.map((cc, index) => (
+                        <span
+                          key={`${cc}-${index}`}
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-ks-warm-grey-100 text-ks-warm-grey-800 text-xs"
+                        >
+                          {cc}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRemoveCc(index)
+                            }}
+                            className="ml-0.5 text-ks-warm-grey-400 hover:text-ks-red-500 transition-colors"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        ref={ccInputRef}
+                        type="text"
+                        value={ccInput}
+                        onChange={(e) => setCcInput(e.target.value)}
+                        onKeyDown={handleCcKeyDown}
+                        onBlur={() => handleAddCc(ccInput)}
+                        placeholder={ccList.length === 0 ? 'Add CC...' : ''}
+                        className="outline-none border-none bg-transparent text-xs text-ks-warm-grey-800 min-w-[60px] flex-1 py-0.5"
+                      />
                     </div>
-                  )}
+                  </div>
+                )}
+                {!showCcInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCcInput(true)
+                      setTimeout(() => ccInputRef.current?.focus(), 0)
+                    }}
+                    className="text-ks-warm-grey-400 hover:text-ks-warm-grey-600 text-xs mt-1.5 transition-colors"
+                  >
+                    + Add CC
+                  </button>
+                )}
               </div>
             </div>
           </div>

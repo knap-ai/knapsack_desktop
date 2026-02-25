@@ -5,7 +5,6 @@ import { listen } from '@tauri-apps/api/event'
 import { ConnectionKeys } from 'src/api/connections'
 import { AutopilotActions, EmailImportance } from 'src/hooks/dataSources/useEmailAutopilot'
 import { DisplayEmail, IFeed } from 'src/hooks/feed/useFeed'
-import KNDateUtils from 'src/utils/KNDateUtils'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import {
   KNLocalStorage,
@@ -46,9 +45,11 @@ const EmailNotificationDrawer = ({
   const [removingEmailUid, setRemovingEmailUid] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
   const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
+  const [caughtUpDismissing, setCaughtUpDismissing] = useState(false)
   const prevEmailCountRef = useRef<number>(0)
   const initialLoadRef = useRef(true)
   const frozenEmailRef = useRef<DisplayEmail | null>(null)
+  const caughtUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Check if user has permanently dismissed
   useEffect(() => {
@@ -201,6 +202,35 @@ const EmailNotificationDrawer = ({
     prevEmailCountRef.current = currentCount
   }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail])
 
+  // Graceful auto-dismiss when all emails are handled (caught up)
+  useEffect(() => {
+    if (
+      isExpanded &&
+      isVisible &&
+      !isLoading &&
+      !initialLoadRef.current &&
+      emailsForCategory.length === 0
+    ) {
+      // Show "caught up" briefly, then slide out
+      setCaughtUpDismissing(true)
+      caughtUpTimerRef.current = setTimeout(() => {
+        setIsAnimatingOut(true)
+        setIsExpanded(false)
+        setTimeout(() => {
+          setIsVisible(false)
+          setIsAnimatingOut(false)
+          setCaughtUpDismissing(false)
+        }, 400)
+      }, 2000)
+    }
+    return () => {
+      if (caughtUpTimerRef.current) {
+        clearTimeout(caughtUpTimerRef.current)
+        caughtUpTimerRef.current = null
+      }
+    }
+  }, [emailsForCategory.length, isExpanded, isVisible, isLoading])
+
   const handleEmailActionTaken = useCallback((
     actionTaken: AutopilotActions,
     emailUid: string,
@@ -297,12 +327,13 @@ const EmailNotificationDrawer = ({
   const summary = pendingEmail?.classification?.summary?.join(' ') || 'New email needs your response.'
   const sender = pendingEmail?.message.sender ?? ''
   const subject = pendingEmail?.message.subject ?? ''
-  const date = pendingEmail ? KNDateUtils.formatFriendlyDate(pendingEmail.message.date) : ''
 
   return (
     <div
-      className={`absolute bottom-0 right-0 z-40 w-full max-w-[540px] transition-all duration-300 ease-out ${
-        isAnimatingOut ? 'translate-y-full' : 'translate-y-0'
+      className={`absolute bottom-0 right-0 z-40 w-full max-w-[540px] transition-all duration-400 ease-out ${
+        isAnimatingOut
+          ? 'translate-y-full opacity-0'
+          : 'translate-y-0 opacity-100'
       }`}
     >
       <div
@@ -340,7 +371,7 @@ const EmailNotificationDrawer = ({
               </svg>
             </button>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
             {isExpanded && (
               <SettingsButton
                 onClick={(e) => {
@@ -350,12 +381,42 @@ const EmailNotificationDrawer = ({
                 title="Email Autopilot Settings"
               />
             )}
-            <span className="text-xs text-ks-warm-grey-600 font-InterTight">{date}</span>
-            {/* Close button */}
+            {/* Open Full View icon */}
             <button
-              onClick={handleDismiss}
-              className="p-0.5 rounded hover:bg-ks-warm-grey-100 transition-colors"
-              title="Close"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleGoToEmail()
+              }}
+              className="p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
+              title="Open Full View"
+            >
+              <svg className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 3h6v6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14L21 3" />
+              </svg>
+            </button>
+            {/* Don't show again icon */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDismissForever()
+              }}
+              className="p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
+              title="Don't show again"
+            >
+              <svg className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l18 18" />
+              </svg>
+            </button>
+            {/* Close / Dismiss button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDismiss()
+              }}
+              className="p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
+              title="Dismiss"
             >
               <svg className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -383,50 +444,14 @@ const EmailNotificationDrawer = ({
               </div>
             </div>
 
-            {/* Collapsed actions */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-t border-ks-warm-grey-100 shrink-0">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleDismiss}
-                  className="text-xs font-medium font-InterTight text-ks-warm-grey-600 hover:text-ks-warm-grey-800 transition-colors"
-                >
-                  Dismiss
-                </button>
-                <span className="text-ks-warm-grey-300">|</span>
-                <button
-                  onClick={handleDismissForever}
-                  className="text-xs font-medium font-InterTight text-ks-warm-grey-500 hover:text-ks-red-500 transition-colors"
-                >
-                  Don't show again
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleExpand}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-ks-warm-grey-200 bg-white hover:bg-ks-warm-grey-50 text-xs font-semibold font-InterTight text-ks-warm-grey-800 transition-colors"
-                >
-                  Open Autopilot
-                </button>
-                <button
-                  onClick={handleGoToEmail}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
-                  Full View
-                </button>
-              </div>
+            {/* Collapsed footer — single expand CTA */}
+            <div className="flex items-center justify-end px-4 py-2 border-t border-ks-warm-grey-100 shrink-0">
+              <button
+                onClick={handleExpand}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
+              >
+                Open Autopilot
+              </button>
             </div>
           </>
         )}
@@ -457,8 +482,16 @@ const EmailNotificationDrawer = ({
                   </span>
                 </div>
               ) : !emailsForCategory || emailsForCategory.length === 0 || !currentEmail ? (
-                <div className="text-center text-gray-500 mt-4 font-Inter text-sm">
-                  You're all caught up!
+                <div className={`flex flex-col items-center justify-center py-8 transition-opacity duration-500 ${caughtUpDismissing ? 'opacity-60' : 'opacity-100'}`}>
+                  <svg className="w-10 h-10 text-green-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm font-semibold font-Inter text-ks-warm-grey-800">
+                    You're all caught up!
+                  </div>
+                  <div className="text-xs font-Inter text-ks-warm-grey-500 mt-1">
+                    No emails need your attention right now.
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -526,43 +559,6 @@ const EmailNotificationDrawer = ({
               )}
             </div>
 
-            {/* Expanded footer */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-t border-ks-warm-grey-100 shrink-0">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleDismiss}
-                  className="text-xs font-medium font-InterTight text-ks-warm-grey-600 hover:text-ks-warm-grey-800 transition-colors"
-                >
-                  Dismiss
-                </button>
-                <span className="text-ks-warm-grey-300">|</span>
-                <button
-                  onClick={handleDismissForever}
-                  className="text-xs font-medium font-InterTight text-ks-warm-grey-500 hover:text-ks-red-500 transition-colors"
-                >
-                  Don't show again
-                </button>
-              </div>
-              <button
-                onClick={handleGoToEmail}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                  <polyline points="22,6 12,13 2,6" />
-                </svg>
-                Open Full View
-              </button>
-            </div>
           </>
         )}
       </div>
