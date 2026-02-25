@@ -2792,6 +2792,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onStopGeneration={stableStopGeneration}
       />
       </div>
+      </div>{/* end ClawdChatContent */}
+
+      {/* ── Drawer panels (absolutely positioned within ClawdChatRoot) ── */}
 
       {showSkillsPanel && (
         <div className="ClawdSkillsPanel">
@@ -3447,7 +3450,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         </div>
       )}
 
-      </div>
     </div>
   )
 }

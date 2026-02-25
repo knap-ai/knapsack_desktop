@@ -793,14 +793,24 @@
 }
 
 // API Key Prompt Overlay
-.ClawdKeyPrompt {
-  width: 360px;
-  flex-shrink: 0;
+// Shared drawer mixin — full-height right-side panel
+%ClawdDrawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
   background: white;
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  border-left: 1px solid #E3E2E2;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.06);
+}
+
+.ClawdKeyPrompt {
+  @extend %ClawdDrawer;
+  width: 400px;
 }
 
 .ClawdKeyPromptHeader {
@@ -1787,15 +1797,10 @@
   }
 }
 
-// Skills Panel — flex sibling of main content, pushes chat left
+// Skills Panel — full-height right-side drawer
 .ClawdSkillsPanel {
-  width: 340px;
-  flex-shrink: 0;
-  background: white;
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  @extend %ClawdDrawer;
+  width: 400px;
 }
 
 .ClawdSkillsPanelHeader {
@@ -2173,15 +2178,10 @@
   }
 }
 
-// Channels Panel — flex sibling of main content, same pattern as Skills panel
+// Channels Panel — full-height right-side drawer
 .ClawdChannelsPanel {
-  width: 340px;
-  flex-shrink: 0;
-  background: white;
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  @extend %ClawdDrawer;
+  width: 400px;
 }
 
 .ClawdChannelsPanelHeader {
