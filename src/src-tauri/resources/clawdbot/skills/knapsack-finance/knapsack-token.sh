@@ -7,10 +7,13 @@ set -euo pipefail
 #   ./knapsack-token.sh discover          — list connected services
 #   ./knapsack-token.sh token <scope>     — get a fresh access token for a scope
 #
-# Scopes:
+# Scopes (local connections):
 #   google_drive_read, google_gmail_modify, google_calendar_read,
 #   google_profile_read, microsoft_profile_read, microsoft_outlook_read,
 #   microsoft_onedrive_read, microsoft_calendar_read
+#
+# Scopes (backend-managed connections):
+#   wealthbox_crm, redtail_crm, precisefp_data, emoney_advisor, orion_portfolio
 
 KNAPSACK_API="http://127.0.0.1:8897"
 
@@ -29,19 +32,8 @@ get_token() {
     exit 1
   fi
 
-  local provider
-  provider=$(echo "$scope" | cut -d'_' -f1)
-
-  if [ "$provider" = "google" ]; then
-    curl -sf "${KNAPSACK_API}/api/knapsack/connections/google/auth_token?email=${email}&scope=${scope}" | jq -r '.access_token // empty'
-  elif [ "$provider" = "microsoft" ]; then
-    # Microsoft tokens are stored directly in the connection
-    curl -sf "${KNAPSACK_API}/api/knapsack/connections?email=${email}" \
-      | jq -r --arg scope "$scope" '.connections[] | select(.connection.scope == $scope) | .token // empty'
-  else
-    echo '{"error": "Unknown provider. Supported: google, microsoft"}' >&2
-    exit 1
-  fi
+  # Use the unified token endpoint for all providers
+  curl -sf "${KNAPSACK_API}/api/knapsack/connections/token?email=${email}&scope=${scope}" | jq -r '.access_token // empty'
 }
 
 case "${1:-help}" in

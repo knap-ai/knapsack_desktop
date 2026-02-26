@@ -52,7 +52,7 @@
   {"name":"goplaces","emoji":"📍","description":"Google Places search and discovery","source":"OpenClaw","eligible":false},
   {"name":"gifgrep","emoji":"🎞️","description":"GIF search and download","source":"OpenClaw","eligible":false},
 
-  {"name":"knapsack-finance","emoji":"💰","description":"Financial services via Knapsack OAuth (Sheets, Excel, Gmail, Outlook)","source":"built-in","eligible":true,"enabled":true},
+  {"name":"knapsack-finance","emoji":"💰","description":"Financial services via Knapsack OAuth (Wealthbox CRM, Sheets, Excel, Gmail, Outlook)","source":"built-in","eligible":true,"enabled":true},
 
   {"name":"skill-creator","emoji":"🛠️","description":"Create custom skills","source":"OpenClaw","eligible":false},
   {"name":"clawhub","emoji":"🏪","description":"Discover and install skills from ClawHub","source":"OpenClaw","eligible":false},

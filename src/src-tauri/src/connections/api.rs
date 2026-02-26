@@ -298,3 +298,146 @@ fn get_first_user_email() -> Option<String> {
         .ok()?;
     stmt.query_row([], |row| row.get::<_, String>(0)).ok()
 }
+
+// --- Unified token endpoint for skills (supports both local and backend connections) ---
+
+#[derive(Debug, Deserialize)]
+pub struct TokenRequestParams {
+    email: String,
+    scope: String,
+}
+
+/// Retrieve a fresh access token for any connected service by scope.
+///
+/// For local connections (google_*, microsoft_*) this refreshes locally.
+/// For backend-managed connections (wealthbox_crm, redtail_crm, etc.)
+/// this proxies through the Knapsack API server.
+#[get("/api/knapsack/connections/token")]
+pub async fn get_connection_token(req: HttpRequest) -> impl Responder {
+    let params = match actix_web::web::Query::<TokenRequestParams>::from_query(req.query_string()) {
+        Ok(p) => p.into_inner(),
+        Err(e) => {
+            return HttpResponse::BadRequest().json(json!({
+                "success": false,
+                "error": format!("Missing required params (email, scope): {}", e)
+            }));
+        }
+    };
+
+    let provider = params.scope.split('_').next().unwrap_or("");
+
+    match provider {
+        "google" => {
+            // Delegate to the existing Google token refresh
+            let uc = match UserConnection::find_by_user_email_and_scope(
+                params.email.clone(),
+                params.scope.clone(),
+            ) {
+                Ok(uc) => uc,
+                Err(_) => {
+                    return HttpResponse::BadRequest().json(json!({
+                        "success": false,
+                        "error": format!("No {} connection found. Connect it in Knapsack Settings.", params.scope)
+                    }));
+                }
+            };
+
+            match crate::connections::google::auth::refresh_connection_token(
+                params.email, uc,
+            ).await {
+                Ok(access_token) => HttpResponse::Ok().json(json!({
+                    "success": true,
+                    "access_token": access_token
+                })),
+                Err(_) => HttpResponse::BadRequest().json(json!({
+                    "success": false,
+                    "error": "Failed to refresh Google token. Try reconnecting in Settings."
+                })),
+            }
+        }
+        "microsoft" => {
+            // Microsoft tokens are refreshed via the backend
+            let uc = match UserConnection::find_by_user_email_and_scope(
+                params.email.clone(),
+                params.scope.clone(),
+            ) {
+                Ok(uc) => uc,
+                Err(_) => {
+                    return HttpResponse::BadRequest().json(json!({
+                        "success": false,
+                        "error": format!("No {} connection found. Connect it in Knapsack Settings.", params.scope)
+                    }));
+                }
+            };
+
+            match crate::connections::microsoft::auth::refresh_user_connection(
+                uc, params.email,
+            ).await {
+                Ok(refreshed) => HttpResponse::Ok().json(json!({
+                    "success": true,
+                    "access_token": refreshed.token
+                })),
+                Err(_) => HttpResponse::BadRequest().json(json!({
+                    "success": false,
+                    "error": "Failed to refresh Microsoft token. Try reconnecting in Settings."
+                })),
+            }
+        }
+        // Backend-managed connections (Wealthbox, Redtail, PreciseFP, etc.)
+        // These are proxied through the Knapsack API server
+        "wealthbox" | "redtail" | "precisefp" | "emoney" | "orion" => {
+            let api_access_token = match crate::connections::utils::get_api_access_token(
+                &params.email, None,
+            ).await {
+                Ok(t) => t,
+                Err(e) => {
+                    return HttpResponse::BadRequest().json(json!({
+                        "success": false,
+                        "error": format!("Failed to get API access token: {}", e)
+                    }));
+                }
+            };
+
+            let api_server: &str = option_env!("VITE_KN_API_SERVER")
+                .unwrap_or("https://api.knapsack.ai");
+
+            let client = reqwest::Client::new();
+            match client
+                .get(format!("{}/api/connections/token", api_server))
+                .bearer_auth(&api_access_token)
+                .query(&[("scope", &params.scope)])
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => {
+                    match resp.json::<serde_json::Value>().await {
+                        Ok(body) => HttpResponse::Ok().json(body),
+                        Err(_) => HttpResponse::BadGateway().json(json!({
+                            "success": false,
+                            "error": "Invalid response from Knapsack API server"
+                        })),
+                    }
+                }
+                Ok(resp) => {
+                    let status = resp.status().as_u16();
+                    HttpResponse::BadGateway().json(json!({
+                        "success": false,
+                        "error": format!("Knapsack API returned status {}", status)
+                    }))
+                }
+                Err(e) => {
+                    HttpResponse::BadGateway().json(json!({
+                        "success": false,
+                        "error": format!("Failed to reach Knapsack API server: {}", e)
+                    }))
+                }
+            }
+        }
+        _ => {
+            HttpResponse::BadRequest().json(json!({
+                "success": false,
+                "error": format!("Unknown provider for scope '{}'. Supported: google, microsoft, wealthbox, redtail, precisefp, emoney, orion", params.scope)
+            }))
+        }
+    }
+}
