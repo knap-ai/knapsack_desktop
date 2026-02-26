@@ -1934,17 +1934,63 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         app_version, os_info, LAUNCH_AGENT_LABEL
       );
 
+      // Startup health probe: wait briefly then check if the gateway is responsive.
+      // This lets us report actual startup errors instead of fire-and-forget.
       let is_bundled_node = node_path == bundled_node_path;
+      let gateway_token = tokens.gateway_token.clone();
+      let mut gateway_started = false;
+      for attempt in 1..=4u32 {
+        tokio::time::sleep(std::time::Duration::from_millis(match attempt {
+          1 => 1000,
+          2 => 1500,
+          3 => 2000,
+          _ => 2500,
+        })).await;
+        let probe = reqwest::Client::builder()
+          .timeout(std::time::Duration::from_millis(800))
+          .build()
+          .ok()
+          .map(|c| c.get("http://127.0.0.1:18789/health")
+            .bearer_auth(&gateway_token)
+            .send());
+        if let Some(fut) = probe {
+          if let Ok(resp) = fut.await {
+            if resp.status().is_success() || resp.status().as_u16() == 404 {
+              gateway_started = true;
+              eprintln!("[clawd/service] Gateway health probe OK on attempt {}", attempt);
+              break;
+            }
+          }
+        }
+        eprintln!("[clawd/service] Gateway health probe attempt {} — not ready yet", attempt);
+      }
+
+      let mut msg = format!(
+        "Enabled background service ({}) using {} Node.js — Knapsack v{} on {}",
+        LAUNCH_AGENT_LABEL,
+        if is_bundled_node { "bundled" } else { "system" },
+        app_version,
+        os_info
+      );
+      if !gateway_started {
+        msg.push_str("\n\nWARNING: Gateway did not respond after startup.");
+        // Append last lines of stderr so the UI can show what went wrong
+        let err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+        if let Ok(content) = fs::read_to_string(&err_path) {
+          let tail: Vec<&str> = content.lines().rev().take(15).collect();
+          if !tail.is_empty() {
+            let mut tail_lines: Vec<&str> = tail.into_iter().collect();
+            tail_lines.reverse();
+            msg.push_str("\n--- stderr (last 15 lines) ---\n");
+            msg.push_str(&tail_lines.join("\n"));
+          }
+        }
+      }
+
       HttpResponse::Ok().json(EnableServiceResponse {
         success: true,
         enabled,
-        message: format!(
-          "Enabled background service ({}) using {} Node.js — Knapsack v{} on {}",
-          LAUNCH_AGENT_LABEL,
-          if is_bundled_node { "bundled" } else { "system" },
-          app_version,
-          os_info
-        ),
+        message: msg,
       })
     } else {
       // Disable

@@ -1972,9 +1972,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const enableAssistant = async (enabled: boolean) => {
     setBusy(true)
     try {
-      await apiPost('/api/clawd/service/enable', { enabled })
+      const res = await apiPost<{ success: boolean; message?: string }>('/api/clawd/service/enable', { enabled })
       await refreshStatus()
-      pushAssistant(enabled ? 'Browser assistant enabled.' : 'Browser assistant disabled.')
+      if (enabled && res.message && res.message.includes('WARNING')) {
+        // Gateway didn't come up — show the diagnostic info
+        pushAssistant(`Browser assistant enabled but gateway failed to start:\n\`\`\`\n${res.message}\n\`\`\``)
+      } else {
+        pushAssistant(enabled ? 'Browser assistant enabled.' : 'Browser assistant disabled.')
+      }
     } catch (e: any) {
       pushAssistant(`Couldn't update browser assistant: ${e?.message || String(e)}`)
     } finally {
@@ -2608,7 +2613,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     if (health) {
       parts.push(
-        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'}>
+        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'} title={health.message || ''}>
           {health.gateway_ok ? 'Gateway: OK' : 'Gateway: down'}
         </span>,
       )
