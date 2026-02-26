@@ -53,6 +53,33 @@ struct GenericResponse {
     linked: Option<bool>,
 }
 
+/// Translate gateway config validation errors into user-friendly messages.
+fn humanize_config_error(channel: &str, raw_error: &str) -> String {
+    let lower = raw_error.to_lowercase();
+
+    if lower.contains("unrecognized key") {
+        return format!(
+            "Configuration rejected — the gateway does not accept one or more fields. \
+             Please check that you're providing the correct credentials for {}.",
+            channel
+        );
+    }
+
+    // Slack-specific: missing appToken
+    if channel == "slack" && (lower.contains("apptoken") || lower.contains("app_token") || lower.contains("app-level")) {
+        return "Slack requires both a Bot Token (xoxb-…) and an App-Level Token (xapp-…). \
+                Please provide both.".to_string();
+    }
+
+    // Discord-specific: missing token
+    if channel == "discord" && lower.contains("token") {
+        return "Discord requires a bot token. Create one at discord.com/developers/applications.".to_string();
+    }
+
+    // Fallback: include the raw error but with a friendlier prefix
+    format!("Failed to configure {}: {}", channel, raw_error)
+}
+
 /// Extract baseHash from a config.get snapshot response.
 /// The gateway returns the snapshot with a "hash" field at the top level,
 /// computed from the raw config file contents.
@@ -935,12 +962,17 @@ pub async fn whatsapp_disconnect(
             let base_hash = extract_base_hash(&config_snapshot);
             let patch = r#"{"channels": {"whatsapp": null}}"#;
             match gateway_client::config_patch(patch, &base_hash, None).await {
-                Ok(_) => HttpResponse::Ok().json(GenericResponse {
-                    success: true,
-                    message: Some("WhatsApp disconnected".to_string()),
-                    configured: None,
-                    linked: None,
-                }),
+                Ok(_) => {
+                    // Invalidate pooled connection — the gateway may restart
+                    // after config.patch, so next request needs a fresh conn.
+                    gateway_client::invalidate();
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: true,
+                        message: Some("WhatsApp disconnected".to_string()),
+                        configured: None,
+                        linked: None,
+                    })
+                }
                 Err(e) => HttpResponse::Ok().json(GenericResponse {
                     success: false,
                     message: Some(format!("Failed to remove config: {}", e)),
@@ -990,12 +1022,15 @@ pub async fn telegram_disconnect(
             let base_hash = extract_base_hash(&config_snapshot);
             let patch = r#"{"channels": {"telegram": null}}"#;
             match gateway_client::config_patch(patch, &base_hash, None).await {
-                Ok(_) => HttpResponse::Ok().json(GenericResponse {
-                    success: true,
-                    message: Some("Telegram disconnected".to_string()),
-                    configured: None,
-                    linked: None,
-                }),
+                Ok(_) => {
+                    gateway_client::invalidate();
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: true,
+                        message: Some("Telegram disconnected".to_string()),
+                        configured: None,
+                        linked: None,
+                    })
+                }
                 Err(e) => HttpResponse::Ok().json(GenericResponse {
                     success: false,
                     message: Some(format!("Failed to remove config: {}", e)),
@@ -1025,12 +1060,15 @@ pub async fn imessage_disconnect(
             let base_hash = extract_base_hash(&config_snapshot);
             let patch = r#"{"channels": {"imessage": null}}"#;
             match gateway_client::config_patch(patch, &base_hash, None).await {
-                Ok(_) => HttpResponse::Ok().json(GenericResponse {
-                    success: true,
-                    message: Some("iMessage disconnected".to_string()),
-                    configured: None,
-                    linked: None,
-                }),
+                Ok(_) => {
+                    gateway_client::invalidate();
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: true,
+                        message: Some("iMessage disconnected".to_string()),
+                        configured: None,
+                        linked: None,
+                    })
+                }
                 Err(e) => HttpResponse::Ok().json(GenericResponse {
                     success: false,
                     message: Some(format!("Failed to remove config: {}", e)),
@@ -1140,14 +1178,33 @@ pub async fn generic_channel_configure(
         });
     }
 
-    // Merge the user-provided config with standard channel defaults
+    // Merge the user-provided config with standard channel defaults.
+    // Discord and Slack use nested dm.policy / dm.allowFrom;
+    // other channels (signal, irc, googlechat) use top-level dmPolicy / allowFrom.
     let mut channel_config = body.config.clone();
     if let Some(obj) = channel_config.as_object_mut() {
-        if !obj.contains_key("allowFrom") {
-            obj.insert("allowFrom".to_string(), serde_json::json!(["*"]));
+        // Always ensure the channel is enabled
+        if !obj.contains_key("enabled") {
+            obj.insert("enabled".to_string(), serde_json::json!(true));
         }
-        if !obj.contains_key("dmPolicy") {
-            obj.insert("dmPolicy".to_string(), serde_json::json!("open"));
+
+        match channel.as_str() {
+            "discord" | "slack" => {
+                if !obj.contains_key("dm") {
+                    obj.insert("dm".to_string(), serde_json::json!({
+                        "policy": "open",
+                        "allowFrom": ["*"]
+                    }));
+                }
+            }
+            _ => {
+                if !obj.contains_key("allowFrom") {
+                    obj.insert("allowFrom".to_string(), serde_json::json!(["*"]));
+                }
+                if !obj.contains_key("dmPolicy") {
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("open"));
+                }
+            }
         }
     }
 
@@ -1177,9 +1234,11 @@ pub async fn generic_channel_configure(
                 }
                 Err(e) => {
                     log::error!("[channels] {} configure config.patch failed: {}", channel, e);
+                    // Translate common gateway validation errors into user-friendly messages
+                    let user_msg = humanize_config_error(&channel, &e);
                     HttpResponse::Ok().json(GenericResponse {
                         success: false,
-                        message: Some(format!("Failed to configure: {}", e)),
+                        message: Some(user_msg),
                         configured: None,
                         linked: None,
                     })
@@ -1239,12 +1298,15 @@ pub async fn generic_channel_disconnect(
             )
             .await
             {
-                Ok(_) => HttpResponse::Ok().json(GenericResponse {
-                    success: true,
-                    message: Some(format!("{} disconnected", channel)),
-                    configured: None,
-                    linked: None,
-                }),
+                Ok(_) => {
+                    gateway_client::invalidate();
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: true,
+                        message: Some(format!("{} disconnected", channel)),
+                        configured: None,
+                        linked: None,
+                    })
+                }
                 Err(e) => HttpResponse::Ok().json(GenericResponse {
                     success: false,
                     message: Some(format!("Failed to remove config: {}", e)),

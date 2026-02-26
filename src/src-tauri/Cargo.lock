@@ -3915,7 +3915,7 @@ dependencies = [
 
 [[package]]
 name = "knapsack"
-version = "0.9.51"
+version = "0.9.53"
 dependencies = [
  "actix-cors",
  "actix-multipart",

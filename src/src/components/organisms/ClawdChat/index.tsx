@@ -816,6 +816,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null)
   // Generic channel credential inputs
   const [slackBotToken, setSlackBotToken] = useState('')
+  const [slackAppToken, setSlackAppToken] = useState('')
   const [discordBotToken, setDiscordBotToken] = useState('')
   const [signalPhoneNumber, setSignalPhoneNumber] = useState('')
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
@@ -3334,28 +3335,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">Connect Slack</div>
                       <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
-                        Enter your Slack Bot Token (starts with <code style={{ fontSize: 11, background: '#e2e8f0', padding: '1px 5px', borderRadius: 3 }}>xoxb-</code>):
+                        Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
                       </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label style={{ fontSize: 11, color: '#888', width: 70, flexShrink: 0 }}>Bot Token</label>
+                          <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label style={{ fontSize: 11, color: '#888', width: 70, flexShrink: 0 }}>App Token</label>
+                          <input type="text" value={slackAppToken} onChange={e => setSlackAppToken(e.target.value)} placeholder="xapp-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        </div>
                         <button
-                          disabled={!slackBotToken.trim() || channelBusy === 'slack'}
+                          disabled={!slackBotToken.trim() || !slackAppToken.trim() || channelBusy === 'slack'}
                           onClick={async () => {
                             setChannelBusy('slack')
                             setChannelError(null)
                             try {
-                              await channelStatus.connectGenericChannel('slack', { botToken: slackBotToken.trim() })
+                              await channelStatus.connectGenericChannel('slack', { botToken: slackBotToken.trim(), appToken: slackAppToken.trim() })
                               setSlackBotToken('')
+                              setSlackAppToken('')
                             } catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }
                           }}
-                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !slackBotToken.trim() ? 0.5 : 1 }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', alignSelf: 'flex-end', opacity: (!slackBotToken.trim() || !slackAppToken.trim()) ? 0.5 : 1 }}
                         >
                           {channelBusy === 'slack' ? 'Saving...' : 'Save'}
                         </button>
                       </div>
                       <div className="ClawdChannelGuideNote">
-                        Create a Slack App at <strong>api.slack.com/apps</strong>, add bot scopes, install to workspace, then copy the Bot Token.
+                        Create a Slack App at <strong>api.slack.com/apps</strong>. Under <em>OAuth &amp; Permissions</em>, add bot scopes and install to get the Bot Token (<code style={{ fontSize: 11 }}>xoxb-</code>). Under <em>Basic Information &gt; App-Level Tokens</em>, create a token with <code style={{ fontSize: 11 }}>connections:write</code> scope to get the App Token (<code style={{ fontSize: 11 }}>xapp-</code>).
                       </div>
                     </div>
                   )}
@@ -3413,7 +3422,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             setChannelBusy('discord')
                             setChannelError(null)
                             try {
-                              await channelStatus.connectGenericChannel('discord', { botToken: discordBotToken.trim() })
+                              await channelStatus.connectGenericChannel('discord', { token: discordBotToken.trim() })
                               setDiscordBotToken('')
                             } catch (err: any) { setChannelError(`Discord: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }

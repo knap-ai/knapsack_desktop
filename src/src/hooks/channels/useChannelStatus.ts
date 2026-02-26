@@ -224,6 +224,10 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
       if (!res.success) throw new Error(res.message ?? 'Failed to disconnect WhatsApp')
       setWhatsappQrUrl(null)
       setWhatsappLinking(false)
+      // Optimistically clear local state immediately
+      setWhatsapp(null)
+      // Wait a moment for the gateway to restart after config.patch
+      await new Promise(r => setTimeout(r, 2000))
       await refresh()
     } catch (e: any) {
       setChannelError('whatsapp', e.message)
@@ -251,6 +255,10 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     try {
       const res = await disconnectIMessage()
       if (!res.success) throw new Error(res.message ?? 'Failed to disconnect iMessage')
+      // Optimistically clear local state immediately
+      setImessage(null)
+      // Wait a moment for the gateway to restart after config.patch
+      await new Promise(r => setTimeout(r, 2000))
       await refresh()
     } catch (e: any) {
       setChannelError('imessage', e.message)
@@ -275,6 +283,8 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     try {
       const res = await disconnectTelegram()
       if (!res.success) throw new Error(res.message ?? 'Failed to disconnect Telegram')
+      setTelegram(null)
+      await new Promise(r => setTimeout(r, 2000))
       await refresh()
     } catch (e: any) {
       setChannelError('telegram', e.message)
@@ -301,6 +311,9 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     try {
       const res = await disconnectGenericChannel(channel)
       if (!res.success) throw new Error(res.message ?? `Failed to disconnect ${channel}`)
+      // Optimistically clear this channel's local state
+      setGenericChannels(prev => ({ ...prev, [channel]: null }))
+      await new Promise(r => setTimeout(r, 2000))
       await refresh()
     } catch (e: any) {
       setChannelError(channel, e.message)
