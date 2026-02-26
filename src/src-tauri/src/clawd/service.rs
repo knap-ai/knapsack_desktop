@@ -1398,7 +1398,8 @@ pub async fn set_service_enabled(
             let current_profile = cfg
               .pointer("/browser/defaultProfile")
               .and_then(|v| v.as_str())
-              .unwrap_or("chrome");
+              .unwrap_or("chrome")
+              .to_string();
             if current_profile == "chrome" || current_profile.is_empty() {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
                 .insert("defaultProfile".to_string(), serde_json::json!("openclaw"));
