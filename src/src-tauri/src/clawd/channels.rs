@@ -1131,7 +1131,7 @@ pub async fn generic_channel_status(
         "discord" => "Discord",
         "signal" => "Signal",
         "irc" => "IRC",
-        "googlechat" => "GoogleChat",
+        "googlechat" => "Google Chat",
         _ => &channel,
     };
 

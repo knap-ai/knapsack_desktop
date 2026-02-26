@@ -1377,6 +1377,32 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
+            // Ensure the browser uses headless mode so it works without a
+            // display (channel automations run in the background).
+            let browser_headless = cfg
+              .pointer("/browser/headless")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !browser_headless {
+              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                .insert("headless".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched browser.headless to true");
+              patched = true;
+            }
+
+            // Set default profile to "openclaw" (managed, isolated) so the
+            // browser tool has a profile to use for channel automations.
+            let has_default_profile = cfg
+              .pointer("/browser/defaultProfile")
+              .and_then(|v| v.as_str())
+              .is_some();
+            if !has_default_profile {
+              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                .insert("defaultProfile".to_string(), serde_json::json!("openclaw"));
+              eprintln!("[clawd/service] Patched browser.defaultProfile to openclaw");
+              patched = true;
+            }
+
             // Ensure the browser tool is explicitly allowed for the auto-reply
             // agent so channel messages (Telegram, WhatsApp, etc.) can trigger
             // browser automation (e.g. "check my email").  We add "browser" to
@@ -1478,23 +1504,48 @@ pub async fn set_service_enabled(
               }
             }
 
-            // ── Ensure browser is allowed in sandbox mode ──────────────────
+            // ── Ensure browser + web tools are allowed in sandbox mode ─────
             // Channel messages (Telegram, Signal, etc.) run in sandbox mode,
-            // which has a separate deny list that includes "browser" by default.
-            // Remove "browser" from tools.sandbox.tools.deny so the agent can
-            // use browser automation from any channel.
-            let sandbox_browser_denied = cfg
+            // which has a separate deny list that may include "browser",
+            // "web_fetch", "web_search", or "group:web" by default.
+            // Remove all of these so the agent can browse and fetch web
+            // content from any channel.
+            let sandbox_tools_to_unblock = ["browser", "web_fetch", "web_search", "group:web"];
+            if let Some(deny_arr) = cfg
               .pointer("/tools/sandbox/tools/deny")
               .and_then(|v| v.as_array())
-              .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
-              .unwrap_or(false);
-            if sandbox_browser_denied {
-              if let Some(deny_arr) = cfg.pointer_mut("/tools/sandbox/tools/deny")
-                .and_then(|v| v.as_array_mut())
-              {
-                deny_arr.retain(|item| item.as_str() != Some("browser"));
-                eprintln!("[clawd/service] Removed browser from tools.sandbox.tools.deny");
-                patched = true;
+            {
+              let has_blocked = deny_arr.iter().any(|item| {
+                item.as_str().map(|s| sandbox_tools_to_unblock.contains(&s)).unwrap_or(false)
+              });
+              if has_blocked {
+                if let Some(deny_arr_mut) = cfg.pointer_mut("/tools/sandbox/tools/deny")
+                  .and_then(|v| v.as_array_mut())
+                {
+                  deny_arr_mut.retain(|item| {
+                    item.as_str().map(|s| !sandbox_tools_to_unblock.contains(&s)).unwrap_or(true)
+                  });
+                  eprintln!("[clawd/service] Removed browser/web tools from tools.sandbox.tools.deny");
+                  patched = true;
+                }
+              }
+            }
+
+            // Also ensure these tools are in the sandbox allow list if one exists
+            if let Some(allow_arr) = cfg.pointer("/tools/sandbox/tools/allow").and_then(|v| v.as_array()) {
+              let has_browser = allow_arr.iter().any(|item| item.as_str() == Some("browser"));
+              let has_group_web = allow_arr.iter().any(|item| item.as_str() == Some("group:web"));
+              let mut needs_add = Vec::new();
+              if !has_browser { needs_add.push("browser"); }
+              if !has_group_web { needs_add.push("group:web"); }
+              if !needs_add.is_empty() {
+                if let Some(arr) = cfg.pointer_mut("/tools/sandbox/tools/allow").and_then(|v| v.as_array_mut()) {
+                  for tool in &needs_add {
+                    arr.push(serde_json::json!(tool));
+                  }
+                  eprintln!("[clawd/service] Added {:?} to tools.sandbox.tools.allow", needs_add);
+                  patched = true;
+                }
               }
             }
 

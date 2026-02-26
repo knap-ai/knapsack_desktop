@@ -2398,11 +2398,11 @@
   }
 
   &--disconnect {
-    background: white;
-    color: #64748b;
-    border-color: #e2e8f0;
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
 
-    &:hover { background: #f1f5f9; }
+    &:hover { background: #fee2e2; }
   }
 
   &:disabled {

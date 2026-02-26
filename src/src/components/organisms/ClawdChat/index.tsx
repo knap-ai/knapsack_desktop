@@ -3032,8 +3032,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   </div>
                   {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && (
                     <div className="ClawdChannelGuide" style={{ textAlign: 'center', padding: '20px 16px' }}>
-                      <div style={{ fontSize: 14, color: '#888' }}>Starting WhatsApp service and generating QR code...</div>
-                      <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>This can take up to 10 seconds while the gateway restarts.</div>
+                      <div style={{ fontSize: 14, color: '#64748b' }}>Starting WhatsApp service and generating QR code...</div>
+                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>This can take up to 10 seconds while the gateway restarts.</div>
                     </div>
                   )}
                   {channelStatus.whatsapp?.linked ? (
@@ -3255,7 +3255,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         const tokenValid = !tokenTrimmed || /^\d+:[A-Za-z0-9_-]+$/.test(tokenTrimmed)
                         return (
                         <div style={{ padding: '12px 0' }}>
-                          <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                             Enter your Telegram bot token from @BotFather:
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
@@ -3283,7 +3283,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                   setChannelError(`Telegram: ${msg}`)
                                 } finally { setChannelBusy(null) }
                               }}
-                              style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !tokenTrimmed || !tokenValid ? 0.5 : 1 }}
+                              style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !tokenTrimmed || !tokenValid ? 0.5 : 1 }}
                             >
                               {channelBusy === 'telegram' ? 'Saving...' : 'Save'}
                             </button>
@@ -3359,7 +3359,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   {!channelStatus.genericChannels.slack?.configured && (
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">Connect Slack</div>
-                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                         Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
                       </div>
                       {(() => {
@@ -3371,14 +3371,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <label style={{ fontSize: 11, color: '#888', width: 70, flexShrink: 0 }}>Bot Token</label>
+                          <label style={{ fontSize: 11, color: '#64748b', width: 70, flexShrink: 0 }}>Bot Token</label>
                           <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: botTrimmed && !botValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
                         </div>
                         {botTrimmed && !botValid && (
                           <div style={{ fontSize: 11, color: '#ef4444', marginLeft: 78 }}>Bot token must start with <code>xoxb-</code></div>
                         )}
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <label style={{ fontSize: 11, color: '#888', width: 70, flexShrink: 0 }}>App Token</label>
+                          <label style={{ fontSize: 11, color: '#64748b', width: 70, flexShrink: 0 }}>App Token</label>
                           <input type="text" value={slackAppToken} onChange={e => setSlackAppToken(e.target.value)} placeholder="xapp-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: appTrimmed && !appValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
                         </div>
                         {appTrimmed && !appValid && (
@@ -3396,7 +3396,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             } catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }
                           }}
-                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', alignSelf: 'flex-end', opacity: !canSave ? 0.5 : 1 }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', alignSelf: 'flex-end', opacity: !canSave ? 0.5 : 1 }}
                         >
                           {channelBusy === 'slack' ? 'Saving...' : 'Save'}
                         </button>
@@ -3455,7 +3455,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     return (
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">Connect Discord</div>
-                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                         Enter your Discord Bot Token:
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -3471,7 +3471,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             } catch (err: any) { setChannelError(`Discord: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }
                           }}
-                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !discordTrimmed || !discordValid ? 0.5 : 1 }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !discordTrimmed || !discordValid ? 0.5 : 1 }}
                         >
                           {channelBusy === 'discord' ? 'Saving...' : 'Save'}
                         </button>
@@ -3533,10 +3533,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
                       {/* Step 1: Check / Install signal-cli */}
                       <div style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', marginBottom: 4 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
                           Step 1: Install signal-cli
                         </div>
-                        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
                           signal-cli is a tool that lets Knapsack send and receive Signal messages.
                         </div>
 
@@ -3566,7 +3566,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                     setSignalCliChecking(false)
                                   }
                                 }}
-                                style={{ padding: '4px 12px', fontSize: 12, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                style={{ padding: '4px 12px', fontSize: 12, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
                               >
                                 {signalCliChecking ? 'Checking...' : 'Check if already installed'}
                               </button>
@@ -3602,13 +3602,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       {/* Step 2: Register / Link signal-cli with a Signal account */}
                       {signalCliStatus?.installed && !signalRegDone && (
                         <div style={{ marginBottom: 12 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', marginBottom: 4 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
                             Step 2: Connect to a Signal account
                           </div>
 
                           {signalRegMode === 'choose' && (
                             <div>
-                              <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
+                              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
                                 Choose how to connect signal-cli to a Signal account:
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -3623,7 +3623,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                 </button>
                                 <button
                                   onClick={() => setSignalRegMode('sms')}
-                                  style={{ padding: '8px 12px', fontSize: 12, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                                  style={{ padding: '8px 12px', fontSize: 12, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
                                 >
                                   <strong>Register a new number (SMS)</strong>
                                   <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
@@ -3632,7 +3632,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                 </button>
                                 <button
                                   onClick={() => setSignalRegDone(true)}
-                                  style={{ padding: '6px 12px', fontSize: 11, background: 'transparent', color: '#888', border: '1px solid #555', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                                  style={{ padding: '6px 12px', fontSize: 11, background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
                                 >
                                   Skip — I already registered signal-cli
                                 </button>
@@ -3645,7 +3645,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             <div>
                               {!signalLinkUri ? (
                                 <div>
-                                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
                                     This will generate a QR code link. You will scan it with Signal on your phone
                                     (Settings &gt; Linked Devices &gt; Link New Device).
                                   </div>
@@ -3674,7 +3674,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                     </button>
                                     <button
                                       onClick={() => setSignalRegMode('choose')}
-                                      style={{ padding: '4px 12px', fontSize: 12, background: 'transparent', color: '#888', border: '1px solid #555', borderRadius: 4, cursor: 'pointer' }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer' }}
                                     >
                                       Back
                                     </button>
@@ -3682,10 +3682,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                 </div>
                               ) : (
                                 <div>
-                                  <div style={{ fontSize: 12, color: '#4caf50', marginBottom: 6 }}>
+                                  <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 6 }}>
                                     Link generated! Open Signal on your phone:
                                   </div>
-                                  <div style={{ fontSize: 11, color: '#ccc', marginBottom: 8, lineHeight: 1.5 }}>
+                                  <div style={{ fontSize: 11, color: '#334155', marginBottom: 8, lineHeight: 1.5 }}>
                                     1. Go to <strong>Settings &gt; Linked Devices</strong><br />
                                     2. Tap <strong>Link New Device</strong><br />
                                     3. Copy the link below and open it on your phone, or scan it from another device
@@ -3705,7 +3705,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                         setSignalLinkUri(null)
                                         setSignalRegDone(true)
                                       }}
-                                      style={{ padding: '6px 16px', fontSize: 13, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
                                     >
                                       I linked it — continue
                                     </button>
@@ -3713,12 +3713,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                   <div
                                     style={{
                                       padding: 10,
-                                      background: '#1a1a1a',
+                                      background: '#f1f5f9',
                                       borderRadius: 4,
                                       marginBottom: 8,
                                       wordBreak: 'break-all',
                                       fontSize: 11,
-                                      color: '#ccc',
+                                      color: '#334155',
                                       fontFamily: 'monospace',
                                       lineHeight: 1.6,
                                       maxHeight: 120,
@@ -3727,7 +3727,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                       userSelect: 'all',
                                       WebkitUserSelect: 'all',
                                       cursor: 'text',
-                                      border: '1px solid #333',
+                                      border: '1px solid #e2e8f0',
                                     }}
                                     title="Click to select, or use the Copy button above"
                                   >
@@ -3746,7 +3746,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             <div>
                               {!signalVerifying ? (
                                 <div>
-                                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
                                     Enter the phone number to register. You will receive an SMS with a verification code.
                                     {signalNeedsCaptcha && (
                                       <span style={{ color: '#f59e0b' }}>
@@ -3765,8 +3765,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                   </div>
                                   {signalNeedsCaptcha && (
                                     <div style={{ marginBottom: 6 }}>
-                                      <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
-                                        1. Open <a href="https://signalcaptchas.org/registration/generate.html" target="_blank" rel="noopener" style={{ color: '#60a5fa' }}>signalcaptchas.org</a> in your browser<br />
+                                      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+                                        1. Open <a href="https://signalcaptchas.org/registration/generate.html" target="_blank" rel="noopener" style={{ color: '#2563eb' }}>signalcaptchas.org</a> in your browser<br />
                                         2. Complete the captcha<br />
                                         3. Right-click "Open Signal" and copy the link (starts with signalcaptcha://)
                                       </div>
@@ -3813,7 +3813,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                     </button>
                                     <button
                                       onClick={() => { setSignalRegMode('choose'); setSignalNeedsCaptcha(false); setSignalCaptchaToken('') }}
-                                      style={{ padding: '4px 12px', fontSize: 12, background: 'transparent', color: '#888', border: '1px solid #555', borderRadius: 4, cursor: 'pointer' }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer' }}
                                     >
                                       Back
                                     </button>
@@ -3873,10 +3873,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         const phoneValid = !phoneTrimmed || /^\+\d{7,15}$/.test(phoneTrimmed)
                         return (
                         <div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', marginBottom: 4 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
                             Step 3: Finish setup
                           </div>
-                          <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
                             Enter the phone number you registered or linked with signal-cli:
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
@@ -3977,7 +3977,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           } catch (err: any) { setChannelError(`IRC: ${err?.message || err}`) }
                           finally { setChannelBusy(null) }
                         }}
-                        style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !ircConfig.server.trim() || !ircConfig.nick.trim() ? 0.5 : 1 }}
+                        style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !ircConfig.server.trim() || !ircConfig.nick.trim() ? 0.5 : 1 }}
                       >
                         {channelBusy === 'irc' ? 'Saving...' : 'Save'}
                       </button>
@@ -4029,7 +4029,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   {!channelStatus.genericChannels.googlechat?.configured && (
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">Connect Google Chat</div>
-                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                         Enter your Google Chat webhook URL:
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -4055,7 +4055,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             } catch (err: any) { setChannelError(`Google Chat: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }
                           }}
-                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !googleChatWebhook.trim() || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')) ? 0.5 : 1 }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !googleChatWebhook.trim() || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')) ? 0.5 : 1 }}
                         >
                           {channelBusy === 'googlechat' ? 'Saving...' : 'Save'}
                         </button>
