@@ -222,6 +222,9 @@ pub async fn start_server<'a>(
       .service(clawd::channels::generic_channel_disconnect)
       .service(clawd::channels::signal_check_cli)
       .service(clawd::channels::signal_install_cli)
+      .service(clawd::channels::signal_link)
+      .service(clawd::channels::signal_register)
+      .service(clawd::channels::signal_verify)
       // Token usage & cost management endpoints
       .service(usage_api::get_usage_summary)
       .service(usage_api::get_daily_usage)

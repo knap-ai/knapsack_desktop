@@ -138,6 +138,40 @@ export const checkSignalCli = () =>
 export const installSignalCli = () =>
   post<SignalCliStatus>('/api/clawd/channels/signal/install-cli')
 
+export interface SignalRegResponse {
+  success: boolean
+  message?: string
+  /** Device link URI (tsdevice://...) for QR code generation. */
+  link_uri?: string
+  /** Whether captcha is required for SMS registration. */
+  captcha_required?: boolean
+  /** Account phone number (after successful link/verify). */
+  account?: string
+}
+
+/** Start the signal-cli link flow. Returns a device link URI for QR display. */
+export const signalLink = (cliPath: string, deviceName?: string) =>
+  post<SignalRegResponse>('/api/clawd/channels/signal/link', {
+    cli_path: cliPath,
+    device_name: deviceName,
+  })
+
+/** Register a phone number via SMS verification. */
+export const signalRegister = (cliPath: string, phoneNumber: string, captcha?: string) =>
+  post<SignalRegResponse>('/api/clawd/channels/signal/register', {
+    cli_path: cliPath,
+    phone_number: phoneNumber,
+    captcha,
+  })
+
+/** Verify a phone number with the SMS code. */
+export const signalVerify = (cliPath: string, phoneNumber: string, code: string) =>
+  post<SignalRegResponse>('/api/clawd/channels/signal/verify', {
+    cli_path: cliPath,
+    phone_number: phoneNumber,
+    code,
+  })
+
 // ── Send Message ────────────────────────────────────────────
 
 export interface SendMessageResponse {

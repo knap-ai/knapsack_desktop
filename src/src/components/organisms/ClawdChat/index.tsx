@@ -7,7 +7,7 @@ import { open } from '@tauri-apps/api/shell'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
-import { checkSignalCli, installSignalCli, type SignalCliStatus } from 'src/api/channels'
+import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, type SignalRegResponse } from 'src/api/channels'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -823,6 +823,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [signalCliStatus, setSignalCliStatus] = useState<SignalCliStatus | null>(null)
   const [signalCliChecking, setSignalCliChecking] = useState(false)
   const [signalCliInstalling, setSignalCliInstalling] = useState(false)
+  const [signalRegMode, setSignalRegMode] = useState<'choose' | 'link' | 'sms'>('choose')
+  const [signalLinkUri, setSignalLinkUri] = useState<string | null>(null)
+  const [signalLinking, setSignalLinking] = useState(false)
+  const [signalRegistering, setSignalRegistering] = useState(false)
+  const [signalVerifying, setSignalVerifying] = useState(false)
+  const [signalVerifyCode, setSignalVerifyCode] = useState('')
+  const [signalCaptchaToken, setSignalCaptchaToken] = useState('')
+  const [signalNeedsCaptcha, setSignalNeedsCaptcha] = useState(false)
+  const [signalRegDone, setSignalRegDone] = useState(false)
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
   const [googleChatWebhook, setGoogleChatWebhook] = useState('')
   const [skills, setSkills] = useState<SkillInfo[]>([])
@@ -3487,8 +3496,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
                       {/* Step 1: Check / Install signal-cli */}
                       <div style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
-                          Step 1: signal-cli is required to connect Signal.
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', marginBottom: 4 }}>
+                          Step 1: Install signal-cli
+                        </div>
+                        <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                          signal-cli is a tool that lets Knapsack send and receive Signal messages.
                         </div>
 
                         {signalCliStatus?.installed ? (
@@ -3502,7 +3514,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                 signal-cli is not installed on this machine.
                               </div>
                             )}
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                               <button
                                 disabled={signalCliChecking || signalCliInstalling}
                                 onClick={async () => {
@@ -3511,9 +3523,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                   try {
                                     const status = await checkSignalCli()
                                     setSignalCliStatus(status)
-                                    if (!status.installed) {
-                                      setChannelError(null) // Don't show error, just the "not found" state
-                                    }
                                   } catch (err: any) {
                                     setChannelError(`Signal: ${err?.message || err}`)
                                   } finally {
@@ -3522,7 +3531,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                 }}
                                 style={{ padding: '4px 12px', fontSize: 12, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
                               >
-                                {signalCliChecking ? 'Checking...' : 'Check if installed'}
+                                {signalCliChecking ? 'Checking...' : 'Check if already installed'}
                               </button>
 
                               {signalCliStatus && !signalCliStatus.installed && (
@@ -3545,7 +3554,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                   }}
                                   style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
                                 >
-                                  {signalCliInstalling ? 'Installing... (this may take a minute)' : 'Install signal-cli'}
+                                  {signalCliInstalling ? 'Installing... (this may take a minute)' : 'Install signal-cli for me'}
                                 </button>
                               )}
                             </div>
@@ -3553,11 +3562,259 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         )}
                       </div>
 
-                      {/* Step 2: Phone number (only shown after signal-cli is confirmed) */}
-                      {signalCliStatus?.installed && (
+                      {/* Step 2: Register / Link signal-cli with a Signal account */}
+                      {signalCliStatus?.installed && !signalRegDone && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', marginBottom: 4 }}>
+                            Step 2: Connect to a Signal account
+                          </div>
+
+                          {signalRegMode === 'choose' && (
+                            <div>
+                              <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
+                                Choose how to connect signal-cli to a Signal account:
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <button
+                                  onClick={() => setSignalRegMode('link')}
+                                  style={{ padding: '8px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                                >
+                                  <strong>Link to existing Signal account</strong>
+                                  <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
+                                    Scan a QR code with your phone. Best if you already have a Signal account.
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={() => setSignalRegMode('sms')}
+                                  style={{ padding: '8px 12px', fontSize: 12, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                                >
+                                  <strong>Register a new number (SMS)</strong>
+                                  <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
+                                    Use a dedicated phone number for the bot. Requires receiving an SMS.
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={() => setSignalRegDone(true)}
+                                  style={{ padding: '6px 12px', fontSize: 11, background: 'transparent', color: '#888', border: '1px solid #555', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                                >
+                                  Skip — I already registered signal-cli
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── Link flow (QR code) ── */}
+                          {signalRegMode === 'link' && (
+                            <div>
+                              {!signalLinkUri ? (
+                                <div>
+                                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                                    This will generate a QR code link. You will scan it with Signal on your phone
+                                    (Settings &gt; Linked Devices &gt; Link New Device).
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <button
+                                      disabled={signalLinking}
+                                      onClick={async () => {
+                                        setSignalLinking(true)
+                                        setChannelError(null)
+                                        try {
+                                          const result = await signalLink(signalCliStatus!.cli_path || 'signal-cli')
+                                          if (result.success && result.link_uri) {
+                                            setSignalLinkUri(result.link_uri)
+                                          } else {
+                                            setChannelError(`Signal: ${result.message || 'Failed to start link flow'}`)
+                                          }
+                                        } catch (err: any) {
+                                          setChannelError(`Signal: ${err?.message || err}`)
+                                        } finally {
+                                          setSignalLinking(false)
+                                        }
+                                      }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      {signalLinking ? 'Generating link...' : 'Generate QR Link'}
+                                    </button>
+                                    <button
+                                      onClick={() => setSignalRegMode('choose')}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: 'transparent', color: '#888', border: '1px solid #555', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      Back
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div style={{ fontSize: 12, color: '#4caf50', marginBottom: 6 }}>
+                                    Link generated! Open Signal on your phone:
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#ccc', marginBottom: 8, lineHeight: 1.5 }}>
+                                    1. Go to <strong>Settings &gt; Linked Devices</strong><br />
+                                    2. Tap <strong>Link New Device</strong><br />
+                                    3. Scan this QR code or copy the link below
+                                  </div>
+                                  <div style={{ padding: 8, background: '#1a1a1a', borderRadius: 4, marginBottom: 8, wordBreak: 'break-all', fontSize: 10, color: '#aaa', fontFamily: 'monospace', maxHeight: 60, overflow: 'auto' }}>
+                                    {signalLinkUri}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <button
+                                      onClick={() => { navigator.clipboard.writeText(signalLinkUri!) }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      Copy Link
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setSignalLinkUri(null)
+                                        setSignalRegDone(true)
+                                      }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      I scanned it — continue
+                                    </button>
+                                  </div>
+                                  <div className="ClawdChannelGuideNote" style={{ marginTop: 6 }}>
+                                    After scanning, signal-cli will finish linking in the background. This may take a moment.
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ── SMS Registration flow ── */}
+                          {signalRegMode === 'sms' && (
+                            <div>
+                              {!signalVerifying ? (
+                                <div>
+                                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                                    Enter the phone number to register. You will receive an SMS with a verification code.
+                                    {signalNeedsCaptcha && (
+                                      <span style={{ color: '#f59e0b' }}>
+                                        {' '}Captcha required — complete the captcha and paste the token below.
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                    <input
+                                      type="text"
+                                      value={signalPhoneNumber}
+                                      onChange={e => setSignalPhoneNumber(e.target.value)}
+                                      placeholder="+1234567890"
+                                      style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }}
+                                    />
+                                  </div>
+                                  {signalNeedsCaptcha && (
+                                    <div style={{ marginBottom: 6 }}>
+                                      <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
+                                        1. Open <a href="https://signalcaptchas.org/registration/generate.html" target="_blank" rel="noopener" style={{ color: '#60a5fa' }}>signalcaptchas.org</a> in your browser<br />
+                                        2. Complete the captcha<br />
+                                        3. Right-click "Open Signal" and copy the link (starts with signalcaptcha://)
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={signalCaptchaToken}
+                                        onChange={e => setSignalCaptchaToken(e.target.value)}
+                                        placeholder="signalcaptcha://..."
+                                        style={{ width: '100%', padding: '4px 8px', fontSize: 11, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'monospace' }}
+                                      />
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <button
+                                      disabled={!signalPhoneNumber.trim() || signalRegistering || (signalNeedsCaptcha && !signalCaptchaToken.trim())}
+                                      onClick={async () => {
+                                        setSignalRegistering(true)
+                                        setChannelError(null)
+                                        try {
+                                          const result = await signalRegister(
+                                            signalCliStatus!.cli_path || 'signal-cli',
+                                            signalPhoneNumber.trim(),
+                                            signalNeedsCaptcha ? signalCaptchaToken.trim() : undefined,
+                                          )
+                                          if (result.success) {
+                                            if (result.captcha_required) {
+                                              setSignalNeedsCaptcha(true)
+                                            } else {
+                                              setSignalVerifying(true)
+                                              setSignalNeedsCaptcha(false)
+                                            }
+                                          } else {
+                                            setChannelError(`Signal: ${result.message || 'Registration failed'}`)
+                                          }
+                                        } catch (err: any) {
+                                          setChannelError(`Signal: ${err?.message || err}`)
+                                        } finally {
+                                          setSignalRegistering(false)
+                                        }
+                                      }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalPhoneNumber.trim() ? 0.5 : 1 }}
+                                    >
+                                      {signalRegistering ? 'Sending SMS...' : 'Send verification SMS'}
+                                    </button>
+                                    <button
+                                      onClick={() => { setSignalRegMode('choose'); setSignalNeedsCaptcha(false); setSignalCaptchaToken('') }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: 'transparent', color: '#888', border: '1px solid #555', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      Back
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div style={{ fontSize: 11, color: '#4caf50', marginBottom: 6 }}>
+                                    SMS sent to {signalPhoneNumber}. Enter the verification code:
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                    <input
+                                      type="text"
+                                      value={signalVerifyCode}
+                                      onChange={e => setSignalVerifyCode(e.target.value)}
+                                      placeholder="123-456"
+                                      style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'monospace', letterSpacing: 2 }}
+                                    />
+                                    <button
+                                      disabled={!signalVerifyCode.trim() || channelBusy === 'signal'}
+                                      onClick={async () => {
+                                        setChannelBusy('signal')
+                                        setChannelError(null)
+                                        try {
+                                          const result = await signalVerify(
+                                            signalCliStatus!.cli_path || 'signal-cli',
+                                            signalPhoneNumber.trim(),
+                                            signalVerifyCode.trim().replace(/-/g, ''),
+                                          )
+                                          if (result.success) {
+                                            setSignalRegDone(true)
+                                            setSignalVerifyCode('')
+                                          } else {
+                                            setChannelError(`Signal: ${result.message || 'Verification failed'}`)
+                                          }
+                                        } catch (err: any) {
+                                          setChannelError(`Signal: ${err?.message || err}`)
+                                        } finally {
+                                          setChannelBusy(null)
+                                        }
+                                      }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalVerifyCode.trim() ? 0.5 : 1 }}
+                                    >
+                                      {channelBusy === 'signal' ? 'Verifying...' : 'Verify'}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Step 3: Save phone number and finish (only after registration) */}
+                      {signalCliStatus?.installed && signalRegDone && (
                         <div>
-                          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
-                            Step 2: Enter the phone number to use with Signal (E.164 format):
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', marginBottom: 4 }}>
+                            Step 3: Finish setup
+                          </div>
+                          <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                            Enter the phone number you registered or linked with signal-cli:
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
                             <input type="text" value={signalPhoneNumber} onChange={e => setSignalPhoneNumber(e.target.value)} placeholder="+1234567890" style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
@@ -3569,19 +3826,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                 try {
                                   await channelStatus.connectGenericChannel('signal', {
                                     phoneNumber: signalPhoneNumber.trim(),
-                                    cliPath: signalCliStatus.cli_path || 'signal-cli',
+                                    cliPath: signalCliStatus!.cli_path || 'signal-cli',
                                   })
                                   setSignalPhoneNumber('')
+                                  // Reset registration state
+                                  setSignalRegMode('choose')
+                                  setSignalRegDone(false)
+                                  setSignalLinkUri(null)
                                 } catch (err: any) { setChannelError(`Signal: ${err?.message || err}`) }
                                 finally { setChannelBusy(null) }
                               }}
-                              style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalPhoneNumber.trim() ? 0.5 : 1 }}
+                              style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalPhoneNumber.trim() ? 0.5 : 1 }}
                             >
-                              {channelBusy === 'signal' ? 'Saving...' : 'Connect'}
+                              {channelBusy === 'signal' ? 'Connecting...' : 'Connect Signal'}
                             </button>
-                          </div>
-                          <div className="ClawdChannelGuideNote" style={{ marginTop: 6 }}>
-                            Use a separate phone number for the bot. The number needs to be registered with signal-cli first.
                           </div>
                         </div>
                       )}

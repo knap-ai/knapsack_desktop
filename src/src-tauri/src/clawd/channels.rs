@@ -1747,6 +1747,266 @@ fn find_signal_cli_binary(dir: &str) -> Option<String> {
     None
 }
 
+// ── Signal CLI registration endpoints ────────────────────────────────────
+
+/// Generic response for signal-cli registration operations.
+#[derive(Serialize)]
+struct SignalRegResponse {
+    success: bool,
+    message: Option<String>,
+    /// The device link URI (tsdevice://...) for QR code generation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    link_uri: Option<String>,
+    /// Whether captcha is required for SMS registration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    captcha_required: Option<bool>,
+    /// The account phone number (returned after successful link).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    account: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SignalLinkRequest {
+    /// Path to signal-cli binary.
+    cli_path: String,
+    /// Device name shown in Signal (defaults to "Knapsack").
+    device_name: Option<String>,
+}
+
+/// Start the signal-cli link flow. Returns a device link URI for QR code display.
+///
+/// The `signal-cli link` command prints a `tsdevice:/?uuid=...&pub_key=...` URI
+/// to stdout, then blocks waiting for the user to scan it. We capture the URI
+/// and return it, while the process continues in the background.
+#[post("/api/clawd/channels/signal/link")]
+pub async fn signal_link(body: web::Json<SignalLinkRequest>) -> impl Responder {
+    let cli_path = body.cli_path.clone();
+    let device_name = body.device_name.clone().unwrap_or_else(|| "Knapsack".to_string());
+
+    // Run signal-cli link and capture the link URI from stdout.
+    // The command outputs the URI on the first line, then waits for scan.
+    // We use a timeout to avoid blocking forever.
+    let result = tokio::task::spawn_blocking(move || {
+        use std::io::BufRead;
+        use std::process::Stdio;
+
+        let mut child = match Command::new(&cli_path)
+            .args(["link", "-n", &device_name])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                return Err(format!("Failed to start signal-cli: {}", e));
+            }
+        };
+
+        let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+        let reader = std::io::BufReader::new(stdout);
+
+        // Read lines looking for the device link URI
+        let mut link_uri = None;
+        for line in reader.lines() {
+            match line {
+                Ok(l) => {
+                    let trimmed = l.trim().to_string();
+                    if trimmed.starts_with("tsdevice:") || trimmed.starts_with("sgnl:") {
+                        link_uri = Some(trimmed);
+                        break;
+                    }
+                    // Some versions prefix with text before the URI
+                    if let Some(pos) = trimmed.find("tsdevice:") {
+                        link_uri = Some(trimmed[pos..].to_string());
+                        break;
+                    }
+                    if let Some(pos) = trimmed.find("sgnl:") {
+                        link_uri = Some(trimmed[pos..].to_string());
+                        break;
+                    }
+                }
+                Err(e) => {
+                    return Err(format!("Error reading signal-cli output: {}", e));
+                }
+            }
+        }
+
+        // Don't kill the child - it needs to keep running to complete the link
+        // after the user scans the QR code. It will exit on its own.
+        std::mem::forget(child);
+
+        match link_uri {
+            Some(uri) => Ok(uri),
+            None => Err("signal-cli did not output a link URI. It may need to be updated.".to_string()),
+        }
+    })
+    .await;
+
+    match result {
+        Ok(Ok(uri)) => HttpResponse::Ok().json(SignalRegResponse {
+            success: true,
+            message: Some("Scan this QR code with Signal (Settings > Linked Devices > Link New Device)".to_string()),
+            link_uri: Some(uri),
+            captcha_required: None,
+            account: None,
+        }),
+        Ok(Err(e)) => HttpResponse::Ok().json(SignalRegResponse {
+            success: false,
+            message: Some(e),
+            link_uri: None,
+            captcha_required: None,
+            account: None,
+        }),
+        Err(e) => HttpResponse::Ok().json(SignalRegResponse {
+            success: false,
+            message: Some(format!("Internal error: {}", e)),
+            link_uri: None,
+            captcha_required: None,
+            account: None,
+        }),
+    }
+}
+
+#[derive(Deserialize)]
+struct SignalRegisterRequest {
+    /// Path to signal-cli binary.
+    cli_path: String,
+    /// Phone number in E.164 format (e.g. +15551234567).
+    phone_number: String,
+    /// Optional captcha token (signalcaptcha://...) if captcha was required.
+    captcha: Option<String>,
+}
+
+/// Register a phone number with signal-cli (SMS verification path).
+///
+/// After calling this, the user will receive an SMS with a verification code
+/// that must be submitted via the verify endpoint.
+#[post("/api/clawd/channels/signal/register")]
+pub async fn signal_register(body: web::Json<SignalRegisterRequest>) -> impl Responder {
+    let cli_path = body.cli_path.clone();
+    let phone_number = body.phone_number.clone();
+    let captcha = body.captcha.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let mut args = vec![
+            "-a".to_string(),
+            phone_number.clone(),
+            "register".to_string(),
+        ];
+
+        if let Some(captcha_token) = &captcha {
+            args.push("--captcha".to_string());
+            args.push(captcha_token.clone());
+        }
+
+        let output = Command::new(&cli_path)
+            .args(&args)
+            .output()
+            .map_err(|e| format!("Failed to run signal-cli: {}", e))?;
+
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+
+        if output.status.success() {
+            Ok((false, "Verification SMS sent. Enter the code you receive.".to_string()))
+        } else if stderr.contains("captcha") || stderr.contains("CAPTCHA") || stderr.contains("rate limit") {
+            Ok((true, "Captcha required. Please complete the captcha and try again.".to_string()))
+        } else {
+            Err(format!(
+                "Registration failed: {}",
+                if !stderr.is_empty() { stderr } else { stdout }
+            ))
+        }
+    })
+    .await;
+
+    match result {
+        Ok(Ok((captcha_required, msg))) => HttpResponse::Ok().json(SignalRegResponse {
+            success: true,
+            message: Some(msg),
+            link_uri: None,
+            captcha_required: Some(captcha_required),
+            account: None,
+        }),
+        Ok(Err(e)) => HttpResponse::Ok().json(SignalRegResponse {
+            success: false,
+            message: Some(e),
+            link_uri: None,
+            captcha_required: None,
+            account: None,
+        }),
+        Err(e) => HttpResponse::Ok().json(SignalRegResponse {
+            success: false,
+            message: Some(format!("Internal error: {}", e)),
+            link_uri: None,
+            captcha_required: None,
+            account: None,
+        }),
+    }
+}
+
+#[derive(Deserialize)]
+struct SignalVerifyRequest {
+    /// Path to signal-cli binary.
+    cli_path: String,
+    /// Phone number in E.164 format.
+    phone_number: String,
+    /// Verification code from SMS.
+    code: String,
+}
+
+/// Verify a phone number with signal-cli using the SMS code.
+#[post("/api/clawd/channels/signal/verify")]
+pub async fn signal_verify(body: web::Json<SignalVerifyRequest>) -> impl Responder {
+    let cli_path = body.cli_path.clone();
+    let phone_number = body.phone_number.clone();
+    let code = body.code.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        let output = Command::new(&cli_path)
+            .args(["-a", &phone_number, "verify", &code])
+            .output()
+            .map_err(|e| format!("Failed to run signal-cli: {}", e))?;
+
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+
+        if output.status.success() {
+            Ok(phone_number)
+        } else {
+            Err(format!(
+                "Verification failed: {}",
+                if !stderr.is_empty() { stderr } else { stdout }
+            ))
+        }
+    })
+    .await;
+
+    match result {
+        Ok(Ok(account)) => HttpResponse::Ok().json(SignalRegResponse {
+            success: true,
+            message: Some("Phone number verified successfully.".to_string()),
+            link_uri: None,
+            captcha_required: None,
+            account: Some(account),
+        }),
+        Ok(Err(e)) => HttpResponse::Ok().json(SignalRegResponse {
+            success: false,
+            message: Some(e),
+            link_uri: None,
+            captcha_required: None,
+            account: None,
+        }),
+        Err(e) => HttpResponse::Ok().json(SignalRegResponse {
+            success: false,
+            message: Some(format!("Internal error: {}", e)),
+            link_uri: None,
+            captcha_required: None,
+            account: None,
+        }),
+    }
+}
+
 /// Open System Preferences to Full Disk Access pane
 #[post("/api/clawd/channels/open-full-disk-access")]
 pub async fn open_full_disk_access() -> impl Responder {
