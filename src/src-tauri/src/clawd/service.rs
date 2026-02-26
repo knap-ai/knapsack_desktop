@@ -1377,6 +1377,242 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
+            // Ensure the browser uses headless mode so it works without a
+            // display (channel automations run in the background).
+            let browser_headless = cfg
+              .pointer("/browser/headless")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !browser_headless {
+              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                .insert("headless".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched browser.headless to true");
+              patched = true;
+            }
+
+            // Set default profile to "openclaw" (managed, isolated) so the
+            // browser tool works for channel automations.  The "chrome"
+            // profile is an extension-relay that requires a human to manually
+            // attach the OpenClaw Chrome extension to a tab — it will never
+            // work from a background channel context (Telegram/Signal/etc.).
+            let current_profile = cfg
+              .pointer("/browser/defaultProfile")
+              .and_then(|v| v.as_str())
+              .unwrap_or("chrome")
+              .to_string();
+            if current_profile == "chrome" || current_profile.is_empty() {
+              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                .insert("defaultProfile".to_string(), serde_json::json!("openclaw"));
+              eprintln!("[clawd/service] Patched browser.defaultProfile from {:?} to openclaw", current_profile);
+              patched = true;
+            }
+
+            // On Linux, Chrome/Chromium requires --no-sandbox when running
+            // headless (no display server).  Set browser.noSandbox = true.
+            let no_sandbox = cfg
+              .pointer("/browser/noSandbox")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !no_sandbox {
+              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                .insert("noSandbox".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched browser.noSandbox to true");
+              patched = true;
+            }
+
+            // Ensure the browser tool is explicitly allowed for the auto-reply
+            // agent so channel messages (Telegram, WhatsApp, etc.) can trigger
+            // browser automation (e.g. "check my email").  We add "browser" to
+            // the tools.allow array without clobbering existing entries.
+            let browser_tool_allowed = cfg
+              .pointer("/tools/allow")
+              .and_then(|v| v.as_array())
+              .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+              .unwrap_or(false);
+            // Also check if "group:ui" is already allowed (it includes browser)
+            let group_ui_allowed = cfg
+              .pointer("/tools/allow")
+              .and_then(|v| v.as_array())
+              .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:ui")))
+              .unwrap_or(false);
+            // Check tools.profile — "full" (or absent) means all tools are allowed
+            let tools_profile = cfg
+              .pointer("/tools/profile")
+              .and_then(|v| v.as_str())
+              .unwrap_or("");
+            let needs_browser_allow = !browser_tool_allowed
+              && !group_ui_allowed
+              && !tools_profile.is_empty()
+              && tools_profile != "full";
+            // Also check if browser is explicitly denied
+            let browser_denied = cfg
+              .pointer("/tools/deny")
+              .and_then(|v| v.as_array())
+              .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+              .unwrap_or(false);
+            if browser_denied {
+              // Remove "browser" from tools.deny
+              if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
+                deny_arr.retain(|item| item.as_str() != Some("browser"));
+                eprintln!("[clawd/service] Removed browser from tools.deny");
+                patched = true;
+              }
+            }
+            if needs_browser_allow {
+              // tools.allow exists but doesn't include browser — append it
+              if cfg.get("tools").is_none() {
+                cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+              }
+              let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
+              if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
+                allow.push(serde_json::json!("browser"));
+              } else {
+                tools.insert("allow".to_string(), serde_json::json!(["browser"]));
+              }
+              eprintln!("[clawd/service] Added browser to tools.allow");
+              patched = true;
+            }
+
+            // ── Enable image understanding (tools.media.image) ──────────
+            // When the primary model doesn't support vision, the gateway can
+            // describe images using a separate vision model.  Without this,
+            // photo attachments from Telegram/Signal are passed as file paths
+            // and the model can't see them.
+            let image_understanding_enabled = cfg
+              .pointer("/tools/media/image/enabled")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !image_understanding_enabled {
+              // Ensure tools.media.image exists
+              if cfg.get("tools").is_none() {
+                cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+              }
+              let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
+              if !tools.contains_key("media") {
+                tools.insert("media".to_string(), serde_json::json!({}));
+              }
+              let media = cfg.pointer_mut("/tools/media").unwrap().as_object_mut().unwrap();
+              if !media.contains_key("image") {
+                media.insert("image".to_string(), serde_json::json!({}));
+              }
+              cfg.pointer_mut("/tools/media/image").unwrap().as_object_mut().unwrap()
+                .insert("enabled".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Enabled tools.media.image for photo understanding");
+              patched = true;
+            }
+
+            // ── Ensure web_fetch and web_search are allowed ──────────────
+            // These tools let the bot fetch web pages and search the internet.
+            // The full profile allows them by default, but if tools.allow is
+            // set (e.g. by the browser patch above), we need to add them.
+            if let Some(allow_arr) = cfg.pointer("/tools/allow").and_then(|v| v.as_array()) {
+              let has_web_fetch = allow_arr.iter().any(|item| item.as_str() == Some("web_fetch"));
+              let has_web_search = allow_arr.iter().any(|item| item.as_str() == Some("web_search"));
+              let has_group_web = allow_arr.iter().any(|item| item.as_str() == Some("group:web"));
+              if !has_web_fetch || !has_web_search {
+                if !has_group_web {
+                  // Add group:web which includes both web_fetch and web_search
+                  if let Some(arr) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+                    arr.push(serde_json::json!("group:web"));
+                  }
+                  eprintln!("[clawd/service] Added group:web to tools.allow");
+                  patched = true;
+                }
+              }
+            }
+
+            // ── Ensure browser + web tools are allowed in sandbox mode ─────
+            // Channel messages (Telegram, Signal, etc.) run in sandbox mode,
+            // which has a separate tools policy.  The gateway's built-in
+            // DEFAULT_TOOL_ALLOW does NOT include web_fetch, web_search, or
+            // browser — and DEFAULT_TOOL_DENY explicitly blocks browser.
+            // We must create/patch both lists so channel messages can trigger
+            // web retrieval and browser automation.
+
+            // Ensure the tools.sandbox.tools path exists in the config
+            if cfg.get("tools").is_none() {
+              cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+            }
+            if cfg.pointer("/tools/sandbox").is_none() {
+              cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+                .insert("sandbox".to_string(), serde_json::json!({}));
+            }
+            if cfg.pointer("/tools/sandbox/tools").is_none() {
+              cfg.pointer_mut("/tools/sandbox").unwrap().as_object_mut().unwrap()
+                .insert("tools".to_string(), serde_json::json!({}));
+            }
+
+            // --- sandbox deny list ---
+            // Remove browser/web tools from deny if present; create the deny
+            // list from gateway defaults (minus browser) if it doesn't exist.
+            let sandbox_tools_to_unblock = ["browser", "web_fetch", "web_search", "group:web"];
+            if let Some(deny_arr) = cfg
+              .pointer("/tools/sandbox/tools/deny")
+              .and_then(|v| v.as_array())
+            {
+              let has_blocked = deny_arr.iter().any(|item| {
+                item.as_str().map(|s| sandbox_tools_to_unblock.contains(&s)).unwrap_or(false)
+              });
+              if has_blocked {
+                if let Some(deny_arr_mut) = cfg.pointer_mut("/tools/sandbox/tools/deny")
+                  .and_then(|v| v.as_array_mut())
+                {
+                  deny_arr_mut.retain(|item| {
+                    item.as_str().map(|s| !sandbox_tools_to_unblock.contains(&s)).unwrap_or(true)
+                  });
+                  eprintln!("[clawd/service] Removed browser/web tools from tools.sandbox.tools.deny");
+                  patched = true;
+                }
+              }
+            } else {
+              // Deny list doesn't exist — create it from gateway defaults but
+              // WITHOUT "browser" so the agent can use browser from channels.
+              // Gateway defaults: ["browser","canvas","nodes","cron","gateway",...channelIds]
+              cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+                .insert("deny".to_string(), serde_json::json!([
+                  "canvas", "nodes", "cron", "gateway"
+                ]));
+              eprintln!("[clawd/service] Created tools.sandbox.tools.deny (without browser)");
+              patched = true;
+            }
+
+            // --- sandbox allow list ---
+            // Add browser + group:web to the allow list.  If the allow list
+            // doesn't exist yet, create it from the gateway's defaults plus
+            // browser and group:web so that web_fetch/web_search work from
+            // channel messages (Telegram, WhatsApp, Signal, etc.).
+            if let Some(allow_arr) = cfg.pointer("/tools/sandbox/tools/allow").and_then(|v| v.as_array()) {
+              let has_browser = allow_arr.iter().any(|item| item.as_str() == Some("browser"));
+              let has_group_web = allow_arr.iter().any(|item| item.as_str() == Some("group:web"));
+              let mut needs_add = Vec::new();
+              if !has_browser { needs_add.push("browser"); }
+              if !has_group_web { needs_add.push("group:web"); }
+              if !needs_add.is_empty() {
+                if let Some(arr) = cfg.pointer_mut("/tools/sandbox/tools/allow").and_then(|v| v.as_array_mut()) {
+                  for tool in &needs_add {
+                    arr.push(serde_json::json!(tool));
+                  }
+                  eprintln!("[clawd/service] Added {:?} to tools.sandbox.tools.allow", needs_add);
+                  patched = true;
+                }
+              }
+            } else {
+              // Allow list doesn't exist — create it from gateway defaults
+              // plus browser and group:web.
+              // Gateway DEFAULT_TOOL_ALLOW: exec, process, read, write, edit,
+              //   apply_patch, image, sessions_list, sessions_history,
+              //   sessions_send, sessions_spawn, session_status
+              cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+                .insert("allow".to_string(), serde_json::json!([
+                  "exec", "process", "read", "write", "edit", "apply_patch",
+                  "image", "sessions_list", "sessions_history",
+                  "sessions_send", "sessions_spawn", "session_status",
+                  "browser", "group:web"
+                ]));
+              eprintln!("[clawd/service] Created tools.sandbox.tools.allow (with browser + group:web)");
+              patched = true;
+            }
+
             if patched {
               match fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
                 Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
@@ -1384,6 +1620,115 @@ pub async fn set_service_enabled(
               }
             }
           }
+        }
+      }
+
+      // Ensure the workspace has a TOOLS.md that tells the auto-reply agent
+      // about browser automation capabilities.  The workspace is at
+      // agents.defaults.workspace (default: ~/.openclaw/workspace).
+      // Read the workspace path from the config, falling back to default.
+      let workspace_path = {
+        let cfg_str = fs::read_to_string(&config_path).unwrap_or_default();
+        let cfg_val: serde_json::Value = serde_json::from_str(&cfg_str).unwrap_or(serde_json::json!({}));
+        cfg_val
+          .pointer("/agents/defaults/workspace")
+          .and_then(|v| v.as_str())
+          .map(|s| {
+            if s.starts_with("~/") {
+              let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+              home.join(&s[2..])
+            } else {
+              PathBuf::from(s)
+            }
+          })
+          .unwrap_or_else(|| {
+            let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+            home.join(".openclaw").join("workspace")
+          })
+      };
+
+      if let Err(e) = ensure_dir(&workspace_path) {
+        eprintln!("[clawd/service] WARNING: Failed to create workspace dir: {}", e);
+      }
+
+      let tools_md_path = workspace_path.join("TOOLS.md");
+      // Write TOOLS.md if it doesn't exist or if it's missing the web_fetch
+      // section (indicating it has the old version without web/image guidance).
+      let should_write_tools_md = if tools_md_path.exists() {
+        fs::read_to_string(&tools_md_path)
+          .map(|content| !content.contains("## Web Fetch") || !content.contains("## Images"))
+          .unwrap_or(true)
+      } else {
+        true
+      };
+      if should_write_tools_md {
+        let tools_md_content = r#"# Tools
+
+## Images & Photos
+
+When a user sends you a photo or image, you can see it. The image is automatically loaded and visible to you. Describe what you see, answer questions about it, or use it in context.
+
+## Web Fetch
+
+You have a `web_fetch` tool that can fetch and read the content of any URL. Use it when the user asks you to:
+- Look up information on a website
+- Read an article, blog post, or documentation page
+- Check a specific URL for content
+- Get data from a public API
+
+Just call the tool with the URL and you'll get the page content back as markdown.
+
+## Web Search
+
+You have a `web_search` tool for searching the internet. Use it when the user asks you to:
+- Research a topic
+- Find current information, news, or events
+- Look up facts, prices, or availability
+- Find answers to questions you're unsure about
+
+## Browser Automation
+
+You have full browser control. Use it proactively for any web-based task that requires interaction:
+
+- **Check email**: Navigate to https://mail.google.com (or Outlook, etc.) and read/summarize
+- **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
+- **Fill forms, click buttons, type text** on any website
+
+### When to use browser vs web_fetch
+
+- Use **web_fetch** for simple page reads (articles, docs, public pages)
+- Use **browser** for interactive tasks requiring login, forms, JavaScript-heavy pages, or multi-step flows
+
+### Quick access URLs
+
+- Gmail: https://mail.google.com
+- Google Calendar: https://calendar.google.com
+- Google Drive: https://drive.google.com
+- GitHub: https://github.com
+- LinkedIn: https://www.linkedin.com
+
+### Workflow
+
+1. Navigate to the relevant website
+2. Take a snapshot to see the page content
+3. Interact with elements (click, type) as needed
+4. Read and summarize the results for the user
+
+## File Operations
+
+You can read and write local files, list directories, and search for files.
+
+## Script Execution
+
+You can run Python scripts for calculations, data processing, and file transformations.
+
+## Scheduling
+
+You can create, list, and cancel scheduled tasks (cron jobs).
+"#;
+        match fs::write(&tools_md_path, tools_md_content) {
+          Ok(_) => eprintln!("[clawd/service] Created workspace TOOLS.md at {}", tools_md_path.display()),
+          Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
         }
       }
 

@@ -394,8 +394,8 @@ export function useBackgroundNotifications({
           context +
           '\n\n' +
           promptTemplate
-            .replace('{userName}', userName)
-            .replace('{userEmail}', userEmail)
+            .split('{userName}').join(userName)
+            .split('{userEmail}').join(userEmail)
 
         addToLLMQueue({
           prompt: fullPrompt,
@@ -669,8 +669,7 @@ export function useBackgroundNotifications({
 
         const prompt =
           contextPrefix +
-          POST_MEETING_FOLLOWUP_PROMPT.replace('{userName}', userName).replace(
-            '{userEmail}',
+          POST_MEETING_FOLLOWUP_PROMPT.split('{userName}').join(userName).split('{userEmail}').join(
             userEmail,
           )
 
@@ -839,8 +838,7 @@ export function useBackgroundNotifications({
         const fullPrompt =
           context +
           '\n\n' +
-          MORNING_BRIEFING_PROMPT.replace('{userName}', userName).replace(
-            '{userEmail}',
+          MORNING_BRIEFING_PROMPT.split('{userName}').join(userName).split('{userEmail}').join(
             userEmail,
           )
 

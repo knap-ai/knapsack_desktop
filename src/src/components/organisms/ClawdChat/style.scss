@@ -793,14 +793,24 @@
 }
 
 // API Key Prompt Overlay
-.ClawdKeyPrompt {
-  width: 360px;
-  flex-shrink: 0;
+// Shared drawer mixin — full-height right-side panel
+%ClawdDrawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
   background: white;
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  border-left: 1px solid #E3E2E2;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.06);
+}
+
+.ClawdKeyPrompt {
+  @extend %ClawdDrawer;
+  width: 340px;
 }
 
 .ClawdKeyPromptHeader {
@@ -1787,15 +1797,10 @@
   }
 }
 
-// Skills Panel — flex sibling of main content, pushes chat left
+// Skills Panel — full-height right-side drawer
 .ClawdSkillsPanel {
-  width: 340px;
-  flex-shrink: 0;
-  background: white;
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  @extend %ClawdDrawer;
+  width: 400px;
 }
 
 .ClawdSkillsPanelHeader {
@@ -2173,15 +2178,10 @@
   }
 }
 
-// Channels Panel — flex sibling of main content, same pattern as Skills panel
+// Channels Panel — full-height right-side drawer
 .ClawdChannelsPanel {
-  width: 340px;
-  flex-shrink: 0;
-  background: white;
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  @extend %ClawdDrawer;
+  width: 400px;
 }
 
 .ClawdChannelsPanelHeader {
@@ -2230,26 +2230,101 @@
   margin: 0 0 4px;
 }
 
-.ClawdChannelCard {
+// ── Accordion layout for channels ──
+.ClawdChannelAccordion {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 10px;
+  flex-direction: column;
   border: 1px solid #e2e8f0;
-  background: #fafafa;
-  transition: border-color 0.15s, background 0.15s;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ClawdAccordionItem {
+  border-bottom: 1px solid #e2e8f0;
+
+  &:last-child { border-bottom: none; }
 
   &--connected {
-    border-color: #bbf7d0;
-    background: #f0fdf4;
+    .ClawdAccordionHeader {
+      background: #f0fdf4;
+    }
+  }
+
+  &--open {
+    .ClawdAccordionHeader {
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .ClawdAccordionChevron {
+      transform: rotate(180deg);
+    }
+
+    .ClawdAccordionBody {
+      max-height: 800px;
+      opacity: 1;
+      padding: 14px 16px;
+    }
   }
 }
 
+.ClawdAccordionHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: #fafafa;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+}
+
+.ClawdAccordionTitle {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  min-width: 0;
+}
+
+.ClawdAccordionCheck {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.ClawdAccordionChevron {
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.ClawdAccordionBody {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0 16px;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+}
+
+.ClawdAccordionActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
 .ClawdChannelCardIcon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2264,26 +2339,44 @@
     background: #dbeafe;
     color: #1e40af;
   }
-}
 
-.ClawdChannelCardInfo {
-  flex: 1;
-  min-width: 0;
-}
+  &--telegram {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
 
-.ClawdChannelCardName {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1e293b;
+  &--slack {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  &--discord {
+    background: #ede9fe;
+    color: #5b21b6;
+  }
+
+  &--signal {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+
+  &--irc {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  &--googlechat {
+    background: #dcfce7;
+    color: #15803d;
+  }
 }
 
 .ClawdChannelCardStatus {
   font-size: 12px;
   color: #94a3b8;
-  margin-top: 2px;
 }
 
-.ClawdChannelCard--connected .ClawdChannelCardStatus {
+.ClawdChannelCardStatus--ok {
   color: #16a34a;
 }
 
@@ -2305,11 +2398,11 @@
   }
 
   &--disconnect {
-    background: white;
-    color: #64748b;
-    border-color: #e2e8f0;
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
 
-    &:hover { background: #f1f5f9; }
+    &:hover { background: #fee2e2; }
   }
 
   &:disabled {
@@ -2318,11 +2411,7 @@
   }
 }
 
-.ClawdChannelCardStatus--ok {
-  color: #16a34a;
-}
-
-// Step-by-step setup guide shown below each disconnected channel card
+// Step-by-step setup guide shown below each channel accordion body
 .ClawdChannelGuide {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

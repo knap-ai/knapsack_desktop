@@ -24,6 +24,7 @@ mod file_upload;
 mod llm;
 mod local_fs;
 mod memory;
+mod pty;
 mod search;
 mod server;
 mod spotlight;
@@ -71,8 +72,8 @@ use console_subscriber;
 pub const KNAPSACK_DATA_DIR: &str = ".knapsack";
 pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
-const NOTIF_HEIGHT: f64 = 80.0;
-const NOTIF_WIDTH: f64 = 600.0;
+const NOTIF_HEIGHT: f64 = 100.0;
+const NOTIF_WIDTH: f64 = 720.0;
 //const NOTIF_Y_POSITION: i32 = 40 + (NOTIF_HEIGHT as i32);
 const NOTIF_START_X_OFFSET: i32 = 500;
 const NOTIF_END_X_OFFSET: i32 = 20;
@@ -537,6 +538,73 @@ async fn kn_get_log_path(app: AppHandle) -> Result<String, String> {
     Ok(log_dir.to_string_lossy().to_string())
 }
 
+/// Return a shell command that launches the bundled OpenClaw channel-configure
+/// wizard.  The frontend dispatches this into a PTY session so the user gets
+/// the full interactive setup flow.
+#[tauri::command]
+async fn kn_openclaw_configure_channels_cmd(app: AppHandle) -> Result<String, String> {
+    use std::path::PathBuf;
+
+    fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
+        paths.iter().find(|p| p.exists()).cloned()
+    }
+
+    let resolve = |rel: &str| -> PathBuf {
+        app.path_resolver()
+            .resolve_resource(rel)
+            .unwrap_or_else(|| PathBuf::from(rel))
+    };
+
+    // Resolve node binary (same logic as service.rs)
+    let bundled_node = resolve("resources/node/node");
+    let node_candidates: Vec<PathBuf> = if cfg!(debug_assertions) {
+        vec![
+            PathBuf::from("/opt/homebrew/bin/node"),
+            PathBuf::from("/usr/local/bin/node"),
+            PathBuf::from("/usr/bin/node"),
+            bundled_node,
+        ]
+    } else {
+        vec![
+            bundled_node,
+            PathBuf::from("/opt/homebrew/bin/node"),
+            PathBuf::from("/usr/local/bin/node"),
+            PathBuf::from("/usr/bin/node"),
+        ]
+    };
+
+    let node_path = first_existing(&node_candidates)
+        .ok_or("Node.js not found. Please reinstall Knapsack.")?;
+
+    // Resolve OpenClaw entry
+    let entry_path = if cfg!(debug_assertions) {
+        let sys = PathBuf::from("/opt/homebrew/lib/node_modules/clawdbot/dist/entry.js");
+        let ws = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources/clawdbot/dist/entry.js");
+        if sys.exists() { sys } else { ws }
+    } else {
+        resolve("resources/clawdbot/dist/entry.js")
+    };
+
+    if !entry_path.exists() {
+        return Err(format!("OpenClaw not found at {}", entry_path.display()));
+    }
+
+    let home_path = app
+        .path_resolver()
+        .app_data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("clawdbot");
+
+    // Build a shell command with OPENCLAW_HOME set
+    Ok(format!(
+        "OPENCLAW_HOME=\"{}\" \"{}\" \"{}\" configure --section channels",
+        home_path.display(),
+        node_path.display(),
+        entry_path.display()
+    ))
+}
+
 #[tauri::command]
 async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<String, String> {
     use std::process::Command;
@@ -945,8 +1013,13 @@ async fn main() {
       kn_read_logs,
       kn_get_log_path,
       kn_execute_command,
+      kn_openclaw_configure_channels_cmd,
       kn_spawn_streaming_command,
-      kn_kill_streaming_process
+      kn_kill_streaming_process,
+      pty::kn_pty_spawn,
+      pty::kn_pty_write,
+      pty::kn_pty_resize,
+      pty::kn_pty_kill
     ])
     .manage(UUIDState {
       uuid: StdMutex::new(None),
@@ -954,6 +1027,9 @@ async fn main() {
     .manage(progress_state)
     .manage(StreamingProcessState {
       pids: Arc::new(StdMutex::new(std::collections::HashMap::new())),
+    })
+    .manage(pty::PtySessionState {
+      sessions: Arc::new(StdMutex::new(std::collections::HashMap::new())),
     })
     .on_window_event(|event| match event.event() {
       tauri::WindowEvent::Focused(true) => {

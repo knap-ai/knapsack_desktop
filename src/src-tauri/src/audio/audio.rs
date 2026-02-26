@@ -280,12 +280,21 @@ pub async fn start_recording(
   handle: Data<Arc<Handle>>,
   app_handle: Data<tauri::AppHandle>,
 ) -> Result<HttpResponse> {
-  //TODO Error Handling
+  log::info!(
+    "[recording] start_recording: thread_id={} feed_item_id={} event_id={} save_transcript={}",
+    data.thread_id,
+    data.feed_item_id,
+    data.event_id,
+    data.save_transcript
+  );
+
   if recording_state.is_recording.load(Ordering::Relaxed) {
     if recording_state.is_paused.load(Ordering::Relaxed) {
+      log::info!("[recording] Resuming paused recording for thread_id={}", data.thread_id);
       recording_state.is_paused.store(false, Ordering::Relaxed);
       return Ok(HttpResponse::Ok().body("Recording resumed"));
     }
+    log::warn!("[recording] Already recording, rejecting start for thread_id={}", data.thread_id);
     return Ok(HttpResponse::InternalServerError().body("Recording is already in progress"));
   }
 
@@ -303,9 +312,11 @@ pub async fn start_recording(
 
   recording_state.is_recording.store(true, Ordering::Relaxed);
   recording_state.is_paused.store(false, Ordering::Relaxed);
+  log::info!("[recording] Recording state set: is_recording=true, is_paused=false");
 
   let opt = Opt::parse();
   let host = cpal::default_host();
+  log::info!("[recording] Audio host: {:?}, device setting: {}", host.id(), opt.device);
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack");
 
@@ -500,11 +511,19 @@ pub async fn stop_recording(
   recording_state: Data<RecordingState>,
   _handle: Data<Arc<Handle>>,
 ) -> HttpResponse {
+  log::info!(
+    "[recording] stop_recording: thread_id={} save_transcript={}",
+    data.thread_id,
+    data.save_transcript
+  );
+
   if !recording_state.is_recording.load(Ordering::Relaxed) {
+    log::warn!("[recording] stop_recording called but no recording in progress");
     return HttpResponse::BadRequest().body("No recording in progress");
   }
 
   recording_state.is_recording.store(false, Ordering::Relaxed);
+  log::info!("[recording] is_recording set to false, waiting for threads to finish");
 
   let input_filename = {
     let input_filename_guard = recording_state.input_filename.lock().unwrap();
@@ -1195,14 +1214,17 @@ async fn get_mic_usage() -> impl Responder {
   HttpResponse::Ok().json(users)
 }
 
-//TODO Error Handling
 #[post("/api/knapsack/pause_recording")]
 pub async fn pause_recording(recording_state: Data<RecordingState>) -> HttpResponse {
+  log::info!("[recording] pause_recording called");
+
   if !recording_state.is_recording.load(Ordering::Relaxed) {
+    log::warn!("[recording] pause_recording called but no recording in progress");
     return HttpResponse::BadRequest().body("No recording in progress");
   }
 
   recording_state.is_paused.store(true, Ordering::Relaxed);
+  log::info!("[recording] Recording paused successfully");
   HttpResponse::Ok().body("Recording paused")
 }
 

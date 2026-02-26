@@ -94,6 +94,8 @@ export const SettingsDialog = ({
   const settingsContainerRef = useRef<HTMLDivElement>(null)
   const channels = useChannelStatus(isOpen)
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
+  const [telegramBotToken, setTelegramBotToken] = useState('')
+  const [showTelegramInput, setShowTelegramInput] = useState(false)
 
   useEffect(() => {
     if(profile && profile.provider){
@@ -314,31 +316,60 @@ export const SettingsDialog = ({
         </div>
         <hr className="border-zinc-200" />
         <div className="p-6 flex flex-col gap-4">
-          <Typography weight={TypographyWeight.medium}>Messaging Channels</Typography>
+          <div className="flex items-center justify-between">
+            <Typography weight={TypographyWeight.medium}>Messaging Channels</Typography>
+            {/* Gateway health indicator */}
+            <div className="flex items-center gap-1.5">
+              {channels.healthChecking ? (
+                <span className="text-[10px] text-gray-400 animate-pulse">checking...</span>
+              ) : channels.gatewayHealthy === true ? (
+                <span className="text-[10px] text-green-600 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                  Gateway OK
+                </span>
+              ) : channels.gatewayHealthy === false ? (
+                <span className="text-[10px] text-red-500 flex items-center gap-1 cursor-pointer" onClick={() => channels.checkHealth()}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                  Gateway down — retry
+                </span>
+              ) : null}
+            </div>
+          </div>
+          {channels.loading && !channels.whatsapp && !channels.imessage && (
+            <div className="text-xs text-gray-400 animate-pulse">Loading channel status...</div>
+          )}
           <div className="flex flex-col gap-2">
             {/* WhatsApp */}
             <div className="flex justify-between h-[36px] items-center">
               <div className="flex items-center gap-2">
                 <Typography>WhatsApp</Typography>
-                {channels.whatsapp?.linked && (
+                {channels.whatsapp?.linked && channels.whatsapp?.account && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                    {channels.whatsapp.account}
+                  </span>
+                )}
+                {channels.whatsapp?.linked && !channels.whatsapp?.account && (
                   <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
                     Connected
                   </span>
                 )}
-                {channels.whatsapp && channels.whatsapp.enabled && !channels.whatsapp.linked && (
+                {channels.whatsapp && channels.whatsapp.enabled && !channels.whatsapp.linked && !channels.whatsappLinking && !channels.whatsappQrUrl && (
                   <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
                     Not linked
                   </span>
                 )}
+                {channels.whatsappLinking && (
+                  <span className="text-xs text-gray-400 animate-pulse">Generating QR...</span>
+                )}
               </div>
               <Typography
-                className={`cursor-pointer ${styles.link}`}
+                className={`cursor-pointer ${styles.link} ${channelBusy === 'whatsapp' ? 'opacity-50 pointer-events-none' : ''}`}
                 onClick={async () => {
                   if (channelBusy) return
                   setChannelBusy('whatsapp')
                   try {
-                    if (channels.whatsapp?.linked) {
-                      await channels.toggleWhatsApp(false)
+                    if (channels.whatsapp?.linked || (channels.whatsapp?.enabled && !channels.whatsappLinking && !channels.whatsappQrUrl)) {
+                      await channels.disconnectWhatsApp()
                     } else {
                       await channels.connectWhatsApp()
                     }
@@ -349,11 +380,23 @@ export const SettingsDialog = ({
               >
                 {channelBusy === 'whatsapp'
                   ? 'Working...'
-                  : channels.whatsapp?.linked
+                  : (channels.whatsapp?.linked || (channels.whatsapp?.enabled && !channels.whatsappLinking && !channels.whatsappQrUrl))
                     ? 'Disconnect'
                     : 'Connect'}
               </Typography>
             </div>
+            {channels.channelErrors?.whatsapp && (
+              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">{channels.channelErrors.whatsapp}</Typography>
+            )}
+            {/* WhatsApp QR code */}
+            {channels.whatsappQrUrl && (
+              <div className="flex flex-col items-center gap-2 py-2">
+                <img src={channels.whatsappQrUrl} alt="WhatsApp QR" className="w-[180px] h-[180px] rounded" />
+                <Typography className="text-xs text-gray-500">Scan with WhatsApp on your phone</Typography>
+                <Typography className="text-[10px] text-gray-400 animate-pulse">Waiting for scan...</Typography>
+              </div>
+            )}
+
             {/* iMessage */}
             <div className="flex justify-between h-[36px] items-center">
               <div className="flex items-center gap-2">
@@ -370,13 +413,13 @@ export const SettingsDialog = ({
                 )}
               </div>
               <Typography
-                className={`cursor-pointer ${styles.link}`}
+                className={`cursor-pointer ${styles.link} ${channelBusy === 'imessage' ? 'opacity-50 pointer-events-none' : ''}`}
                 onClick={async () => {
                   if (channelBusy) return
                   setChannelBusy('imessage')
                   try {
                     if (channels.imessage?.configured) {
-                      await channels.toggleIMessage(false)
+                      await channels.disconnectIMessage()
                     } else {
                       await channels.connectIMessage()
                     }
@@ -392,7 +435,99 @@ export const SettingsDialog = ({
                     : 'Connect'}
               </Typography>
             </div>
+            {channels.channelErrors?.imessage && (
+              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">{channels.channelErrors.imessage}</Typography>
+            )}
+
+            {/* Telegram */}
+            <div className="flex justify-between h-[36px] items-center">
+              <div className="flex items-center gap-2">
+                <Typography>Telegram</Typography>
+                {channels.telegram?.configured && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                    Connected
+                  </span>
+                )}
+                {channels.telegram && channels.telegram.enabled && !channels.telegram.configured && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                    Not configured
+                  </span>
+                )}
+              </div>
+              <Typography
+                className={`cursor-pointer ${styles.link} ${channelBusy === 'telegram' ? 'opacity-50 pointer-events-none' : ''}`}
+                onClick={async () => {
+                  if (channelBusy) return
+                  if (channels.telegram?.configured) {
+                    setChannelBusy('telegram')
+                    try {
+                      await channels.disconnectTelegram()
+                    } finally {
+                      setChannelBusy(null)
+                    }
+                  } else {
+                    setShowTelegramInput(prev => !prev)
+                  }
+                }}
+              >
+                {channelBusy === 'telegram'
+                  ? 'Working...'
+                  : channels.telegram?.configured
+                    ? 'Disconnect'
+                    : showTelegramInput
+                      ? 'Cancel'
+                      : 'Connect'}
+              </Typography>
+            </div>
+            {channels.channelErrors?.telegram && (
+              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">{channels.channelErrors.telegram}</Typography>
+            )}
+            {/* Telegram bot token input */}
+            {showTelegramInput && !channels.telegram?.configured && (
+              <div className="flex flex-col gap-2 py-1 pl-0.5">
+                <Typography className="text-xs text-gray-500">
+                  Enter your Telegram bot token from @BotFather:
+                </Typography>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={telegramBotToken}
+                    onChange={e => setTelegramBotToken(e.target.value)}
+                    placeholder="123456:ABC-DEF..."
+                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-gray-500"
+                  />
+                  <button
+                    className="px-3 py-1 text-xs bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                    disabled={!telegramBotToken.trim() || channelBusy === 'telegram'}
+                    onClick={async () => {
+                      setChannelBusy('telegram')
+                      try {
+                        await channels.connectTelegram(telegramBotToken.trim())
+                        setShowTelegramInput(false)
+                        setTelegramBotToken('')
+                      } catch {
+                        // error is displayed via channelErrors
+                      } finally {
+                        setChannelBusy(null)
+                      }
+                    }}
+                  >
+                    {channelBusy === 'telegram' ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+          {/* More channels hint */}
+          <div className="flex justify-between h-[36px] items-center">
+            <div className="flex items-center gap-2">
+              <Typography className="text-gray-500">More (Slack, Discord, IRC, Signal, ...)</Typography>
+            </div>
+            <Typography className={`text-xs text-gray-400`}>
+              Use Channels panel in chat
+            </Typography>
+          </div>
+
           {channels.error && (
             <Typography className="text-xs text-red-500">{channels.error}</Typography>
           )}

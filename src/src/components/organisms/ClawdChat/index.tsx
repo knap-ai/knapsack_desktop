@@ -8,6 +8,7 @@ import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
+import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, type SignalRegResponse } from 'src/api/channels'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 
@@ -697,12 +698,19 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     }
   }
 
-  // Auto-resize textarea to fit content
+  // Auto-resize textarea to fit content.
+  // Deferred to next animation frame to avoid synchronous layout reflow
+  // during the keystroke event handler (reduces input latency).
+  const resizeRaf = useRef(0)
   const autoResize = useCallback(() => {
-    const ta = textareaRef.current
-    if (!ta) return
-    ta.style.height = 'auto'
-    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
+    cancelAnimationFrame(resizeRaf.current)
+    resizeRaf.current = requestAnimationFrame(() => {
+      const ta = textareaRef.current
+      if (!ta) return
+      ta.style.height = 'auto'
+      const next = Math.min(ta.scrollHeight, 160) + 'px'
+      if (ta.style.height !== next) ta.style.height = next
+    })
   }, [])
 
   // Allow parent to trigger send with specific text (for prompt actions, voice, etc.)
@@ -898,6 +906,28 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [showChannelsPanel, setShowChannelsPanel] = useState(false)
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
   const [channelError, setChannelError] = useState<string | null>(null)
+  const [telegramBotToken, setTelegramBotToken] = useState('')
+  const [showTelegramInput, setShowTelegramInput] = useState(false)
+  const [expandedChannel, setExpandedChannel] = useState<string | null>(null)
+  // Generic channel credential inputs
+  const [slackBotToken, setSlackBotToken] = useState('')
+  const [slackAppToken, setSlackAppToken] = useState('')
+  const [discordBotToken, setDiscordBotToken] = useState('')
+  const [signalPhoneNumber, setSignalPhoneNumber] = useState('')
+  const [signalCliStatus, setSignalCliStatus] = useState<SignalCliStatus | null>(null)
+  const [signalCliChecking, setSignalCliChecking] = useState(false)
+  const [signalCliInstalling, setSignalCliInstalling] = useState(false)
+  const [signalRegMode, setSignalRegMode] = useState<'choose' | 'link' | 'sms'>('choose')
+  const [signalLinkUri, setSignalLinkUri] = useState<string | null>(null)
+  const [signalLinking, setSignalLinking] = useState(false)
+  const [signalRegistering, setSignalRegistering] = useState(false)
+  const [signalVerifying, setSignalVerifying] = useState(false)
+  const [signalVerifyCode, setSignalVerifyCode] = useState('')
+  const [signalCaptchaToken, setSignalCaptchaToken] = useState('')
+  const [signalNeedsCaptcha, setSignalNeedsCaptcha] = useState(false)
+  const [signalRegDone, setSignalRegDone] = useState(false)
+  const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
+  const [googleChatWebhook, setGoogleChatWebhook] = useState('')
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
@@ -941,7 +971,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
-  const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured)
+  const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
   const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel
 
   const welcomeMessages = useMemo(
@@ -2054,6 +2084,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     )
   }, []) as Components['pre']
 
+  // Stable references for ReactMarkdown props — avoids re-parsing all messages
+  // on parent re-renders (e.g. during health polling).
+  const mdPlugins = useMemo(() => [remarkGfm], [])
+  const mdComponents = useMemo(() => ({ a: ChatLink, pre: ChatCodeBlock }), [ChatLink, ChatCodeBlock])
+
   // Toggle voice mode - stop audio when disabling
   const toggleVoiceOutput = useCallback(() => {
     const newValue = !voiceEnabled
@@ -2611,7 +2646,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <button
             onClick={() => { setShowChannelsPanel(prev => !prev); setShowSkillsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity() }}
             className={`${showChannelsPanel ? 'toggle-on' : ''} ${hasAnyChannel ? 'channels-connected' : 'channels-disconnected'}`}
-            title="Connect WhatsApp or iMessage"
+            title="Connect WhatsApp, iMessage, or Telegram"
           >
             {hasAnyChannel ? '💬 Channels' : '💬 Channels'}
           </button>
@@ -2799,7 +2834,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 {m.isClickable ? (
                   <p>{m.text}</p>
                 ) : (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ChatLink, pre: ChatCodeBlock }}>{cleaned}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
                 )}
                 {actions.length > 0 && (
                   <div className="ClawdPromptActions">
@@ -2848,7 +2883,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <div className="ClawdBubble ClawdChannelBanner">
               <p className="ClawdChannelBannerTitle">Connect a messaging channel</p>
               <p className="ClawdChannelBannerDesc">
-                Link your WhatsApp or iMessage so your AI assistant can send and receive messages on your behalf.
+                Link your WhatsApp, iMessage, or Telegram so your AI assistant can send and receive messages on your behalf.
               </p>
               <div className="ClawdChannelBannerButtons">
                 <button
@@ -2876,7 +2911,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         {thinkingMessage && (
           <div className="ClawdMsg ClawdMsg-assistant ClawdMsg-thinking">
             <div className="ClawdBubble">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ChatLink }}>{thinkingMessage}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{thinkingMessage}</ReactMarkdown>
             </div>
           </div>
         )}
@@ -2918,6 +2953,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onStopGeneration={stableStopGeneration}
       />
       </div>
+      </div>{/* end ClawdChatContent */}
+
+      {/* ── Drawer panels (absolutely positioned within ClawdChatRoot) ── */}
 
       {showSkillsPanel && (
         <div className="ClawdSkillsPanel">
@@ -3082,181 +3120,1099 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               Connect a messaging app so your AI assistant can send and receive messages on your behalf.
             </p>
 
-            {/* ── WhatsApp ── */}
-            <div className={`ClawdChannelCard ${channelStatus.whatsapp?.linked ? 'ClawdChannelCard--connected' : ''}`}>
-              <div className="ClawdChannelCardIcon ClawdChannelCardIcon--whatsapp">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              </div>
-              <div className="ClawdChannelCardInfo">
-                <div className="ClawdChannelCardName">WhatsApp</div>
-                {channelStatus.whatsapp?.linked ? (
-                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
-                ) : channelStatus.whatsapp?.enabled ? (
-                  <div className="ClawdChannelCardStatus">Enabled — scan QR code to link</div>
-                ) : (
-                  <div className="ClawdChannelCardStatus">Not connected</div>
-                )}
-              </div>
-              <button
-                className={`ClawdChannelCardAction ${channelStatus.whatsapp?.linked ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                disabled={channelBusy === 'whatsapp'}
-                onClick={async () => {
-                  setChannelBusy('whatsapp')
-                  setChannelError(null)
-                  try {
-                    if (channelStatus.whatsapp?.linked) {
-                      await channelStatus.toggleWhatsApp(false)
-                    } else {
-                      await channelStatus.connectWhatsApp()
-                    }
-                  } catch (err: any) {
-                    const msg = err?.message || String(err)
-                    console.error('[Channels] WhatsApp error:', msg)
-                    setChannelError(`WhatsApp: ${msg}`)
-                  } finally { setChannelBusy(null) }
-                }}
-              >
-                {channelBusy === 'whatsapp'
-                  ? (channelStatus.whatsappLinking ? 'Starting WhatsApp...' : 'Working...')
-                  : channelStatus.whatsapp?.linked ? 'Disconnect' : 'Connect'}
-              </button>
-            </div>
-            {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && (
-              <div className="ClawdChannelGuide" style={{ textAlign: 'center', padding: '20px 16px' }}>
-                <div style={{ fontSize: 14, color: '#888' }}>Starting WhatsApp service and generating QR code...</div>
-                <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>This can take up to 10 seconds while the gateway restarts.</div>
-              </div>
-            )}
-            {channelStatus.whatsapp?.linked ? (
-              <div className="ClawdChannelGuide">
-                <div className="ClawdChannelGuideTitle">How to use WhatsApp</div>
-                <ol className="ClawdChannelGuideSteps">
-                  <li>
-                    <span className="ClawdChannelGuideNum">1</span>
-                    <span>Open <strong>WhatsApp</strong> on your phone and send a message to your own number (or have someone message you).</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">2</span>
-                    <span>Your Knapsack AI assistant will automatically read incoming messages and reply on your behalf.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">3</span>
-                    <span>You can also ask your assistant in this chat: <em>"Send a WhatsApp message to [name/number]"</em>.</span>
-                  </li>
-                </ol>
-                <div className="ClawdChannelGuideNote">
-                  Messages are processed locally. Your assistant uses the linked WhatsApp session — just like WhatsApp Web.
-                </div>
-              </div>
-            ) : (
-              <div className="ClawdChannelGuide">
-                {channelStatus.whatsappQrUrl && (
-                  <div style={{ textAlign: 'center', margin: '12px 0' }}>
-                    <img src={channelStatus.whatsappQrUrl} alt="WhatsApp QR Code" style={{ width: 200, height: 200, imageRendering: 'pixelated', borderRadius: 8 }} />
+            <div className="ClawdChannelAccordion">
+              {/* ── WhatsApp ── */}
+              <div className={`ClawdAccordionItem ${expandedChannel === 'whatsapp' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.whatsapp?.linked ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'whatsapp' ? null : 'whatsapp')}>
+                  <div className="ClawdChannelCardIcon ClawdChannelCardIcon--whatsapp">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                   </div>
-                )}
-                <div className="ClawdChannelGuideTitle">How to connect WhatsApp</div>
-                <ol className="ClawdChannelGuideSteps">
-                  <li>
-                    <span className="ClawdChannelGuideNum">1</span>
-                    <span>Click <strong>Connect</strong> above. Knapsack will enable the WhatsApp channel and start the login flow.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">2</span>
-                    <span>{channelStatus.whatsappQrUrl ? 'Scan the QR code above.' : 'A QR code will appear above.'} On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">3</span>
-                    <span>Scan the QR code with your phone camera. Once linked, this panel will update automatically.</span>
-                  </li>
-                </ol>
-                <div className="ClawdChannelGuideNote">
-                  Knapsack doesn't need your phone number — it links as a companion device, just like WhatsApp Web.
-                  Your phone stays the primary device.
+                  <div className="ClawdAccordionTitle">WhatsApp</div>
+                  {channelStatus.whatsapp?.linked && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdAccordionActions">
+                    {channelStatus.whatsapp?.linked ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : channelStatus.whatsapp?.enabled ? (
+                      <div className="ClawdChannelCardStatus">Enabled — scan QR code to link</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    <button
+                      className={`ClawdChannelCardAction ${(channelStatus.whatsapp?.linked || channelStatus.whatsapp?.enabled) ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
+                      disabled={channelBusy === 'whatsapp'}
+                      onClick={async () => {
+                        setChannelBusy('whatsapp')
+                        setChannelError(null)
+                        try {
+                          if (channelStatus.whatsapp?.linked || (channelStatus.whatsapp?.enabled && !channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl)) {
+                            await channelStatus.disconnectWhatsApp()
+                          } else {
+                            await channelStatus.connectWhatsApp()
+                          }
+                        } catch (err: any) {
+                          const msg = err?.message || String(err)
+                          console.error('[Channels] WhatsApp error:', msg)
+                          setChannelError(`WhatsApp: ${msg}`)
+                        } finally { setChannelBusy(null) }
+                      }}
+                    >
+                      {channelBusy === 'whatsapp'
+                        ? (channelStatus.whatsappLinking ? 'Starting WhatsApp...' : 'Working...')
+                        : (channelStatus.whatsapp?.linked || (channelStatus.whatsapp?.enabled && !channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl))
+                          ? 'Disconnect'
+                          : 'Connect'}
+                    </button>
+                  </div>
+                  {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && (
+                    <div className="ClawdChannelGuide" style={{ textAlign: 'center', padding: '20px 16px' }}>
+                      <div style={{ fontSize: 14, color: '#64748b' }}>Starting WhatsApp service and generating QR code...</div>
+                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>This can take up to 10 seconds while the gateway restarts.</div>
+                    </div>
+                  )}
+                  {channelStatus.whatsapp?.linked ? (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">How to use WhatsApp</div>
+                      <ol className="ClawdChannelGuideSteps">
+                        <li>
+                          <span className="ClawdChannelGuideNum">1</span>
+                          <span>Open <strong>WhatsApp</strong> on your phone and send a message to your own number (or have someone message you).</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">2</span>
+                          <span>Your Knapsack AI assistant will automatically read incoming messages and reply on your behalf.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">3</span>
+                          <span>You can also ask your assistant in this chat: <em>"Send a WhatsApp message to [name/number]"</em>.</span>
+                        </li>
+                      </ol>
+                      <div className="ClawdChannelGuideNote">
+                        Messages are processed locally. Your assistant uses the linked WhatsApp session — just like WhatsApp Web.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="ClawdChannelGuide">
+                      {channelStatus.whatsappQrUrl && (
+                        <div style={{ textAlign: 'center', margin: '12px 0' }}>
+                          <img src={channelStatus.whatsappQrUrl} alt="WhatsApp QR Code" style={{ width: 200, height: 200, imageRendering: 'pixelated', borderRadius: 8 }} />
+                        </div>
+                      )}
+                      <div className="ClawdChannelGuideTitle">How to connect WhatsApp</div>
+                      <ol className="ClawdChannelGuideSteps">
+                        <li>
+                          <span className="ClawdChannelGuideNum">1</span>
+                          <span>Click <strong>Connect</strong> above. Knapsack will enable the WhatsApp channel and start the login flow.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">2</span>
+                          <span>{channelStatus.whatsappQrUrl ? 'Scan the QR code above.' : 'A QR code will appear above.'} On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">3</span>
+                          <span>Scan the QR code with your phone camera. Once linked, this panel will update automatically.</span>
+                        </li>
+                      </ol>
+                      <div className="ClawdChannelGuideNote">
+                        Knapsack doesn't need your phone number — it links as a companion device, just like WhatsApp Web.
+                        Your phone stays the primary device.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* ── iMessage ── */}
-            <div className={`ClawdChannelCard ${channelStatus.imessage?.configured ? 'ClawdChannelCard--connected' : ''}`}>
-              <div className="ClawdChannelCardIcon ClawdChannelCardIcon--imessage">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+              {/* ── iMessage ── */}
+              <div className={`ClawdAccordionItem ${expandedChannel === 'imessage' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.imessage?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'imessage' ? null : 'imessage')}>
+                  <div className="ClawdChannelCardIcon ClawdChannelCardIcon--imessage">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+                  </div>
+                  <div className="ClawdAccordionTitle">iMessage</div>
+                  {channelStatus.imessage?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdAccordionActions">
+                    {channelStatus.imessage?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : channelStatus.imessage?.enabled ? (
+                      <div className="ClawdChannelCardStatus">Enabled — needs Full Disk Access</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected (macOS only)</div>
+                    )}
+                    <button
+                      className={`ClawdChannelCardAction ${channelStatus.imessage?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
+                      disabled={channelBusy === 'imessage'}
+                      onClick={async () => {
+                        setChannelBusy('imessage')
+                        setChannelError(null)
+                        try {
+                          if (channelStatus.imessage?.configured) {
+                            await channelStatus.disconnectIMessage()
+                          } else {
+                            await channelStatus.connectIMessage()
+                          }
+                        } catch (err: any) {
+                          const msg = err?.message || String(err)
+                          console.error('[Channels] iMessage error:', msg)
+                          setChannelError(`iMessage: ${msg}`)
+                        } finally { setChannelBusy(null) }
+                      }}
+                    >
+                      {channelBusy === 'imessage' ? 'Working...' : channelStatus.imessage?.configured ? 'Disconnect' : 'Connect'}
+                    </button>
+                  </div>
+                  {channelStatus.imessage?.configured ? (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">How to use iMessage</div>
+                      <ol className="ClawdChannelGuideSteps">
+                        <li>
+                          <span className="ClawdChannelGuideNum">1</span>
+                          <span>Send an iMessage to this Mac from any Apple device. Your assistant will see incoming messages and reply automatically.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">2</span>
+                          <span>You can also ask your assistant in this chat: <em>"Send an iMessage to [name/number]"</em>.</span>
+                        </li>
+                      </ol>
+                      <div className="ClawdChannelGuideNote">
+                        iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">How to connect iMessage</div>
+                      <ol className="ClawdChannelGuideSteps">
+                        <li>
+                          <span className="ClawdChannelGuideNum">1</span>
+                          <span>Click <strong>Connect</strong> above. If Full Disk Access hasn't been granted yet, System Settings will open automatically.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">2</span>
+                          <span>In System Settings, find <strong>Knapsack</strong> in the Full Disk Access list and toggle it <strong>ON</strong>. If Knapsack isn't listed, click the <strong>+</strong> button to add it.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">3</span>
+                          <span><strong>Quit and reopen Knapsack</strong> — macOS requires a restart for the new permission to take effect.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">4</span>
+                          <span>Open this panel again and click <strong>Connect</strong>. It should now show <strong>Connected</strong>.</span>
+                        </li>
+                      </ol>
+                      <div className="ClawdChannelGuideNote">
+                        iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="ClawdChannelCardInfo">
-                <div className="ClawdChannelCardName">iMessage</div>
-                {channelStatus.imessage?.configured ? (
-                  <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
-                ) : channelStatus.imessage?.enabled ? (
-                  <div className="ClawdChannelCardStatus">Enabled — needs Full Disk Access</div>
-                ) : (
-                  <div className="ClawdChannelCardStatus">Not connected (macOS only)</div>
-                )}
+
+              {/* ── Telegram ── */}
+              <div className={`ClawdAccordionItem ${expandedChannel === 'telegram' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.telegram?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'telegram' ? null : 'telegram')}>
+                  <div className="ClawdChannelCardIcon ClawdChannelCardIcon--telegram">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                  </div>
+                  <div className="ClawdAccordionTitle">Telegram</div>
+                  {channelStatus.telegram?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdAccordionActions">
+                    {channelStatus.telegram?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : channelStatus.telegram?.enabled ? (
+                      <div className="ClawdChannelCardStatus">Enabled — needs bot token</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    <button
+                      className={`ClawdChannelCardAction ${channelStatus.telegram?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
+                      disabled={channelBusy === 'telegram'}
+                      onClick={async () => {
+                        if (channelBusy) return
+                        if (channelStatus.telegram?.configured) {
+                          setChannelBusy('telegram')
+                          setChannelError(null)
+                          try {
+                            await channelStatus.disconnectTelegram()
+                          } catch (err: any) {
+                            const msg = err?.message || String(err)
+                            console.error('[Channels] Telegram error:', msg)
+                            setChannelError(`Telegram: ${msg}`)
+                          } finally { setChannelBusy(null) }
+                        } else {
+                          setShowTelegramInput(prev => !prev)
+                        }
+                      }}
+                    >
+                      {channelBusy === 'telegram'
+                        ? 'Working...'
+                        : channelStatus.telegram?.configured
+                          ? 'Disconnect'
+                          : showTelegramInput
+                            ? 'Cancel'
+                            : 'Connect'}
+                    </button>
+                  </div>
+                  {channelStatus.telegram?.configured ? (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">How to use Telegram</div>
+                      <ol className="ClawdChannelGuideSteps">
+                        <li>
+                          <span className="ClawdChannelGuideNum">1</span>
+                          <span>Open <strong>Telegram</strong> and send a message to your bot. Your Knapsack AI assistant will automatically read and reply.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">2</span>
+                          <span>You can also ask your assistant in this chat: <em>"Send a Telegram message to [username]"</em>.</span>
+                        </li>
+                      </ol>
+                      <div className="ClawdChannelGuideNote">
+                        Messages are routed through your Telegram bot. Your assistant processes everything locally.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="ClawdChannelGuide">
+                      {showTelegramInput && (() => {
+                        const tokenTrimmed = telegramBotToken.trim()
+                        const tokenValid = !tokenTrimmed || /^\d+:[A-Za-z0-9_-]+$/.test(tokenTrimmed)
+                        return (
+                        <div style={{ padding: '12px 0' }}>
+                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                            Enter your Telegram bot token from @BotFather:
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <input
+                              type="text"
+                              value={telegramBotToken}
+                              onChange={e => setTelegramBotToken(e.target.value)}
+                              placeholder="123456:ABC-DEF..."
+                              style={{
+                                flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4,
+                                border: tokenTrimmed && !tokenValid ? '1px solid #ef4444' : '1px solid #ccc',
+                              }}
+                            />
+                            <button
+                              disabled={!tokenTrimmed || !tokenValid || channelBusy === 'telegram'}
+                              onClick={async () => {
+                                setChannelBusy('telegram')
+                                setChannelError(null)
+                                try {
+                                  await channelStatus.connectTelegram(tokenTrimmed)
+                                  setShowTelegramInput(false)
+                                  setTelegramBotToken('')
+                                } catch (err: any) {
+                                  const msg = err?.message || String(err)
+                                  setChannelError(`Telegram: ${msg}`)
+                                } finally { setChannelBusy(null) }
+                              }}
+                              style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !tokenTrimmed || !tokenValid ? 0.5 : 1 }}
+                            >
+                              {channelBusy === 'telegram' ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                          {tokenTrimmed && !tokenValid && (
+                            <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                              Token format should be <code>123456789:ABCdefGHI...</code> (number, colon, alphanumeric string)
+                            </div>
+                          )}
+                        </div>
+                        )
+                      })()}
+                      <div className="ClawdChannelGuideTitle">How to connect Telegram</div>
+                      <ol className="ClawdChannelGuideSteps">
+                        <li>
+                          <span className="ClawdChannelGuideNum">1</span>
+                          <span>Open Telegram and message <strong>@BotFather</strong>. Send <code>/newbot</code> and follow the prompts to create a bot.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">2</span>
+                          <span>Copy the <strong>bot token</strong> BotFather gives you (e.g. <code>123456:ABC-DEF...</code>).</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">3</span>
+                          <span>Click <strong>Connect</strong> above and paste the token. Once saved, the bot will be active.</span>
+                        </li>
+                      </ol>
+                      <div className="ClawdChannelGuideNote">
+                        Knapsack connects as your Telegram bot. Messages are processed locally on your machine.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <button
-                className={`ClawdChannelCardAction ${channelStatus.imessage?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                disabled={channelBusy === 'imessage'}
-                onClick={async () => {
-                  setChannelBusy('imessage')
-                  setChannelError(null)
-                  try {
-                    if (channelStatus.imessage?.configured) {
-                      await channelStatus.toggleIMessage(false)
-                    } else {
-                      await channelStatus.connectIMessage()
-                    }
-                  } catch (err: any) {
-                    const msg = err?.message || String(err)
-                    console.error('[Channels] iMessage error:', msg)
-                    setChannelError(`iMessage: ${msg}`)
-                  } finally { setChannelBusy(null) }
-                }}
-              >
-                {channelBusy === 'imessage' ? 'Working...' : channelStatus.imessage?.configured ? 'Disconnect' : 'Connect'}
-              </button>
+
+              {/* ── Slack ── */}
+              <div className={`ClawdAccordionItem ${expandedChannel === 'slack' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.slack?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'slack' ? null : 'slack')}>
+                  <div className="ClawdChannelCardIcon ClawdChannelCardIcon--slack">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+                  </div>
+                  <div className="ClawdAccordionTitle">Slack</div>
+                  {channelStatus.genericChannels.slack?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdAccordionActions">
+                    {channelStatus.genericChannels.slack?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.slack?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'slack'}
+                        onClick={async () => {
+                          setChannelBusy('slack')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('slack') }
+                          catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'slack' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
+                  </div>
+                  {!channelStatus.genericChannels.slack?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect Slack</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                        Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
+                      </div>
+                      {(() => {
+                        const botTrimmed = slackBotToken.trim()
+                        const appTrimmed = slackAppToken.trim()
+                        const botValid = !botTrimmed || botTrimmed.startsWith('xoxb-')
+                        const appValid = !appTrimmed || appTrimmed.startsWith('xapp-')
+                        const canSave = botTrimmed && appTrimmed && botValid && appValid
+                        return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label style={{ fontSize: 11, color: '#64748b', width: 70, flexShrink: 0 }}>Bot Token</label>
+                          <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: botTrimmed && !botValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
+                        </div>
+                        {botTrimmed && !botValid && (
+                          <div style={{ fontSize: 11, color: '#ef4444', marginLeft: 78 }}>Bot token must start with <code>xoxb-</code></div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label style={{ fontSize: 11, color: '#64748b', width: 70, flexShrink: 0 }}>App Token</label>
+                          <input type="text" value={slackAppToken} onChange={e => setSlackAppToken(e.target.value)} placeholder="xapp-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: appTrimmed && !appValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
+                        </div>
+                        {appTrimmed && !appValid && (
+                          <div style={{ fontSize: 11, color: '#ef4444', marginLeft: 78 }}>App token must start with <code>xapp-</code></div>
+                        )}
+                        <button
+                          disabled={!canSave || channelBusy === 'slack'}
+                          onClick={async () => {
+                            setChannelBusy('slack')
+                            setChannelError(null)
+                            try {
+                              await channelStatus.connectGenericChannel('slack', { botToken: botTrimmed, appToken: appTrimmed })
+                              setSlackBotToken('')
+                              setSlackAppToken('')
+                            } catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
+                            finally { setChannelBusy(null) }
+                          }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', alignSelf: 'flex-end', opacity: !canSave ? 0.5 : 1 }}
+                        >
+                          {channelBusy === 'slack' ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                        )
+                      })()}
+                      <div className="ClawdChannelGuideNote">
+                        Create a Slack App at <strong>api.slack.com/apps</strong>. Under <em>OAuth &amp; Permissions</em>, add bot scopes and install to get the Bot Token (<code style={{ fontSize: 11 }}>xoxb-</code>). Under <em>Basic Information &gt; App-Level Tokens</em>, create a token with <code style={{ fontSize: 11 }}>connections:write</code> scope to get the App Token (<code style={{ fontSize: 11 }}>xapp-</code>).
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Discord ── */}
+              <div className={`ClawdAccordionItem ${expandedChannel === 'discord' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.discord?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'discord' ? null : 'discord')}>
+                  <div className="ClawdChannelCardIcon ClawdChannelCardIcon--discord">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                  </div>
+                  <div className="ClawdAccordionTitle">Discord</div>
+                  {channelStatus.genericChannels.discord?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdAccordionActions">
+                    {channelStatus.genericChannels.discord?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.discord?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'discord'}
+                        onClick={async () => {
+                          setChannelBusy('discord')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('discord') }
+                          catch (err: any) { setChannelError(`Discord: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'discord' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
+                  </div>
+                  {!channelStatus.genericChannels.discord?.configured && (() => {
+                    const discordTrimmed = discordBotToken.trim()
+                    // Discord tokens are 3 base64 segments separated by dots, typically 50+ chars
+                    const discordValid = !discordTrimmed || (discordTrimmed.length >= 50 && discordTrimmed.includes('.'))
+                    return (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect Discord</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                        Enter your Discord Bot Token:
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input type="text" value={discordBotToken} onChange={e => setDiscordBotToken(e.target.value)} placeholder="MTIz..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: discordTrimmed && !discordValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
+                        <button
+                          disabled={!discordTrimmed || !discordValid || channelBusy === 'discord'}
+                          onClick={async () => {
+                            setChannelBusy('discord')
+                            setChannelError(null)
+                            try {
+                              await channelStatus.connectGenericChannel('discord', { token: discordTrimmed })
+                              setDiscordBotToken('')
+                            } catch (err: any) { setChannelError(`Discord: ${err?.message || err}`) }
+                            finally { setChannelBusy(null) }
+                          }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !discordTrimmed || !discordValid ? 0.5 : 1 }}
+                        >
+                          {channelBusy === 'discord' ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      {discordTrimmed && !discordValid && (
+                        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                          This doesn't look like a Discord bot token. Tokens are long strings with dots (e.g. MTIz...abc.def.ghi).
+                        </div>
+                      )}
+                      <div className="ClawdChannelGuideNote">
+                        Create a bot at <strong>discord.com/developers/applications</strong>, enable Message Content Intent, then copy the bot token.
+                      </div>
+                    </div>
+                    )
+                  })()}
+                </div>
+              </div>
+
+              {/* ── Signal ── */}
+              <div className={`ClawdAccordionItem ${expandedChannel === 'signal' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.signal?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'signal' ? null : 'signal')}>
+                  <div className="ClawdChannelCardIcon ClawdChannelCardIcon--signal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                  </div>
+                  <div className="ClawdAccordionTitle">Signal</div>
+                  {channelStatus.genericChannels.signal?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdAccordionActions">
+                    {channelStatus.genericChannels.signal?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.signal?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'signal'}
+                        onClick={async () => {
+                          setChannelBusy('signal')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('signal') }
+                          catch (err: any) { setChannelError(`Signal: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'signal' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
+                  </div>
+                  {!channelStatus.genericChannels.signal?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect Signal</div>
+
+                      {/* Step 1: Check / Install signal-cli */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                          Step 1: Install signal-cli
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
+                          signal-cli is a tool that lets Knapsack send and receive Signal messages.
+                        </div>
+
+                        {signalCliStatus?.installed ? (
+                          <div style={{ fontSize: 12, color: '#4caf50', marginBottom: 4 }}>
+                            signal-cli is installed{signalCliStatus.version ? ` (${signalCliStatus.version})` : ''}.
+                          </div>
+                        ) : (
+                          <>
+                            {signalCliStatus && !signalCliStatus.installed && (
+                              <div style={{ fontSize: 12, color: '#f59e0b', marginBottom: 6 }}>
+                                signal-cli is not installed on this machine.
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                              <button
+                                disabled={signalCliChecking || signalCliInstalling}
+                                onClick={async () => {
+                                  setSignalCliChecking(true)
+                                  setChannelError(null)
+                                  try {
+                                    const status = await checkSignalCli()
+                                    setSignalCliStatus(status)
+                                  } catch (err: any) {
+                                    setChannelError(`Signal: ${err?.message || err}`)
+                                  } finally {
+                                    setSignalCliChecking(false)
+                                  }
+                                }}
+                                style={{ padding: '4px 12px', fontSize: 12, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                              >
+                                {signalCliChecking ? 'Checking...' : 'Check if already installed'}
+                              </button>
+
+                              {signalCliStatus && !signalCliStatus.installed && (
+                                <button
+                                  disabled={signalCliInstalling}
+                                  onClick={async () => {
+                                    setSignalCliInstalling(true)
+                                    setChannelError(null)
+                                    try {
+                                      const result = await installSignalCli()
+                                      setSignalCliStatus(result)
+                                      if (!result.success || !result.installed) {
+                                        setChannelError(`Signal: ${result.message || 'Installation failed'}`)
+                                      }
+                                    } catch (err: any) {
+                                      setChannelError(`Signal: ${err?.message || err}`)
+                                    } finally {
+                                      setSignalCliInstalling(false)
+                                    }
+                                  }}
+                                  style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                >
+                                  {signalCliInstalling ? 'Installing... (this may take a minute)' : 'Install signal-cli for me'}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Step 2: Register / Link signal-cli with a Signal account */}
+                      {signalCliStatus?.installed && !signalRegDone && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                            Step 2: Connect to a Signal account
+                          </div>
+
+                          {signalRegMode === 'choose' && (
+                            <div>
+                              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
+                                Choose how to connect signal-cli to a Signal account:
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <button
+                                  onClick={() => setSignalRegMode('link')}
+                                  style={{ padding: '8px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                                >
+                                  <strong>Link to existing Signal account</strong>
+                                  <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
+                                    Scan a QR code with your phone. Best if you already have a Signal account.
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={() => setSignalRegMode('sms')}
+                                  style={{ padding: '8px 12px', fontSize: 12, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                                >
+                                  <strong>Register a new number (SMS)</strong>
+                                  <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>
+                                    Use a dedicated phone number for the bot. Requires receiving an SMS.
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={() => setSignalRegDone(true)}
+                                  style={{ padding: '6px 12px', fontSize: 11, background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}
+                                >
+                                  Skip — I already registered signal-cli
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── Link flow (QR code) ── */}
+                          {signalRegMode === 'link' && (
+                            <div>
+                              {!signalLinkUri ? (
+                                <div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
+                                    This will generate a QR code link. You will scan it with Signal on your phone
+                                    (Settings &gt; Linked Devices &gt; Link New Device).
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <button
+                                      disabled={signalLinking}
+                                      onClick={async () => {
+                                        setSignalLinking(true)
+                                        setChannelError(null)
+                                        try {
+                                          const result = await signalLink(signalCliStatus!.cli_path || 'signal-cli')
+                                          if (result.success && result.link_uri) {
+                                            setSignalLinkUri(result.link_uri)
+                                          } else {
+                                            setChannelError(`Signal: ${result.message || 'Failed to start link flow'}`)
+                                          }
+                                        } catch (err: any) {
+                                          setChannelError(`Signal: ${err?.message || err}`)
+                                        } finally {
+                                          setSignalLinking(false)
+                                        }
+                                      }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      {signalLinking ? 'Generating link...' : 'Generate QR Link'}
+                                    </button>
+                                    <button
+                                      onClick={() => setSignalRegMode('choose')}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      Back
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 6 }}>
+                                    Link generated! Open Signal on your phone:
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#334155', marginBottom: 8, lineHeight: 1.5 }}>
+                                    1. Go to <strong>Settings &gt; Linked Devices</strong><br />
+                                    2. Tap <strong>Link New Device</strong><br />
+                                    3. Copy the link below and open it on your phone, or scan it from another device
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(signalLinkUri!)
+                                        setChannelError(null)
+                                      }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 500 }}
+                                    >
+                                      Copy Link to Clipboard
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setSignalLinkUri(null)
+                                        setSignalRegDone(true)
+                                      }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      I linked it — continue
+                                    </button>
+                                  </div>
+                                  <div
+                                    style={{
+                                      padding: 10,
+                                      background: '#f1f5f9',
+                                      borderRadius: 4,
+                                      marginBottom: 8,
+                                      wordBreak: 'break-all',
+                                      fontSize: 11,
+                                      color: '#334155',
+                                      fontFamily: 'monospace',
+                                      lineHeight: 1.6,
+                                      maxHeight: 120,
+                                      overflowY: 'auto',
+                                      overflowX: 'hidden',
+                                      userSelect: 'all',
+                                      WebkitUserSelect: 'all',
+                                      cursor: 'text',
+                                      border: '1px solid #e2e8f0',
+                                    }}
+                                    title="Click to select, or use the Copy button above"
+                                  >
+                                    {signalLinkUri}
+                                  </div>
+                                  <div className="ClawdChannelGuideNote" style={{ marginTop: 6 }}>
+                                    After linking, signal-cli will finish in the background. This may take a moment.
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ── SMS Registration flow ── */}
+                          {signalRegMode === 'sms' && (
+                            <div>
+                              {!signalVerifying ? (
+                                <div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
+                                    Enter the phone number to register. You will receive an SMS with a verification code.
+                                    {signalNeedsCaptcha && (
+                                      <span style={{ color: '#f59e0b' }}>
+                                        {' '}Captcha required — complete the captcha and paste the token below.
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                    <input
+                                      type="text"
+                                      value={signalPhoneNumber}
+                                      onChange={e => setSignalPhoneNumber(e.target.value)}
+                                      placeholder="+1234567890"
+                                      style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }}
+                                    />
+                                  </div>
+                                  {signalNeedsCaptcha && (
+                                    <div style={{ marginBottom: 6 }}>
+                                      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+                                        1. Open <a href="https://signalcaptchas.org/registration/generate.html" target="_blank" rel="noopener" style={{ color: '#2563eb' }}>signalcaptchas.org</a> in your browser<br />
+                                        2. Complete the captcha<br />
+                                        3. Right-click "Open Signal" and copy the link (starts with signalcaptcha://)
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={signalCaptchaToken}
+                                        onChange={e => setSignalCaptchaToken(e.target.value)}
+                                        placeholder="signalcaptcha://..."
+                                        style={{ width: '100%', padding: '4px 8px', fontSize: 11, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'monospace' }}
+                                      />
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <button
+                                      disabled={!signalPhoneNumber.trim() || signalRegistering || (signalNeedsCaptcha && !signalCaptchaToken.trim())}
+                                      onClick={async () => {
+                                        setSignalRegistering(true)
+                                        setChannelError(null)
+                                        try {
+                                          const result = await signalRegister(
+                                            signalCliStatus!.cli_path || 'signal-cli',
+                                            signalPhoneNumber.trim(),
+                                            signalNeedsCaptcha ? signalCaptchaToken.trim() : undefined,
+                                          )
+                                          if (result.success) {
+                                            if (result.captcha_required) {
+                                              setSignalNeedsCaptcha(true)
+                                            } else {
+                                              setSignalVerifying(true)
+                                              setSignalNeedsCaptcha(false)
+                                            }
+                                          } else {
+                                            setChannelError(`Signal: ${result.message || 'Registration failed'}`)
+                                          }
+                                        } catch (err: any) {
+                                          setChannelError(`Signal: ${err?.message || err}`)
+                                        } finally {
+                                          setSignalRegistering(false)
+                                        }
+                                      }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalPhoneNumber.trim() ? 0.5 : 1 }}
+                                    >
+                                      {signalRegistering ? 'Sending SMS...' : 'Send verification SMS'}
+                                    </button>
+                                    <button
+                                      onClick={() => { setSignalRegMode('choose'); setSignalNeedsCaptcha(false); setSignalCaptchaToken('') }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: 'transparent', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      Back
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div style={{ fontSize: 11, color: '#4caf50', marginBottom: 6 }}>
+                                    SMS sent to {signalPhoneNumber}. Enter the verification code:
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                                    <input
+                                      type="text"
+                                      value={signalVerifyCode}
+                                      onChange={e => setSignalVerifyCode(e.target.value)}
+                                      placeholder="123-456"
+                                      style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'monospace', letterSpacing: 2 }}
+                                    />
+                                    <button
+                                      disabled={!signalVerifyCode.trim() || channelBusy === 'signal'}
+                                      onClick={async () => {
+                                        setChannelBusy('signal')
+                                        setChannelError(null)
+                                        try {
+                                          const result = await signalVerify(
+                                            signalCliStatus!.cli_path || 'signal-cli',
+                                            signalPhoneNumber.trim(),
+                                            signalVerifyCode.trim().replace(/-/g, ''),
+                                          )
+                                          if (result.success) {
+                                            setSignalRegDone(true)
+                                            setSignalVerifyCode('')
+                                          } else {
+                                            setChannelError(`Signal: ${result.message || 'Verification failed'}`)
+                                          }
+                                        } catch (err: any) {
+                                          setChannelError(`Signal: ${err?.message || err}`)
+                                        } finally {
+                                          setChannelBusy(null)
+                                        }
+                                      }}
+                                      style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalVerifyCode.trim() ? 0.5 : 1 }}
+                                    >
+                                      {channelBusy === 'signal' ? 'Verifying...' : 'Verify'}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Step 3: Save phone number and finish (only after registration) */}
+                      {signalCliStatus?.installed && signalRegDone && (() => {
+                        const phoneTrimmed = signalPhoneNumber.trim()
+                        const phoneValid = !phoneTrimmed || /^\+\d{7,15}$/.test(phoneTrimmed)
+                        return (
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                            Step 3: Finish setup
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
+                            Enter the phone number you registered or linked with signal-cli:
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <input type="text" value={signalPhoneNumber} onChange={e => setSignalPhoneNumber(e.target.value)} placeholder="+1234567890" style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: phoneTrimmed && !phoneValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
+                            <button
+                              disabled={!phoneTrimmed || !phoneValid || channelBusy === 'signal'}
+                              onClick={async () => {
+                                setChannelBusy('signal')
+                                setChannelError(null)
+                                try {
+                                  await channelStatus.connectGenericChannel('signal', {
+                                    phoneNumber: phoneTrimmed,
+                                    cliPath: signalCliStatus!.cli_path || 'signal-cli',
+                                  })
+                                  setSignalPhoneNumber('')
+                                  // Reset registration state
+                                  setSignalRegMode('choose')
+                                  setSignalRegDone(false)
+                                  setSignalLinkUri(null)
+                                } catch (err: any) { setChannelError(`Signal: ${err?.message || err}`) }
+                                finally { setChannelBusy(null) }
+                              }}
+                              style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !phoneTrimmed || !phoneValid ? 0.5 : 1 }}
+                            >
+                              {channelBusy === 'signal' ? 'Connecting...' : 'Connect Signal'}
+                            </button>
+                          </div>
+                          {phoneTrimmed && !phoneValid && (
+                            <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                              Phone number must be in E.164 format: <code>+</code> followed by country code and number (e.g. <code>+15551234567</code>)
+                            </div>
+                          )}
+                        </div>
+                        )
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── IRC ── */}
+              <div className={`ClawdAccordionItem ${expandedChannel === 'irc' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.irc?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'irc' ? null : 'irc')}>
+                  <div className="ClawdChannelCardIcon ClawdChannelCardIcon--irc">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-3 12H7c-.55 0-1-.45-1-1s.45-1 1-1h10c.55 0 1 .45 1 1s-.45 1-1 1zm0-3H7c-.55 0-1-.45-1-1s.45-1 1-1h10c.55 0 1 .45 1 1s-.45 1-1 1zm0-3H7c-.55 0-1-.45-1-1s.45-1 1-1h10c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>
+                  </div>
+                  <div className="ClawdAccordionTitle">IRC</div>
+                  {channelStatus.genericChannels.irc?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdAccordionActions">
+                    {channelStatus.genericChannels.irc?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.irc?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'irc'}
+                        onClick={async () => {
+                          setChannelBusy('irc')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('irc') }
+                          catch (err: any) { setChannelError(`IRC: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'irc' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
+                  </div>
+                  {!channelStatus.genericChannels.irc?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect IRC</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                        <input type="text" value={ircConfig.server} onChange={e => setIrcConfig(c => ({ ...c, server: e.target.value }))} placeholder="Server (e.g. irc.libera.chat)" style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <input type="text" value={ircConfig.nick} onChange={e => setIrcConfig(c => ({ ...c, nick: e.target.value }))} placeholder="Nickname" style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <input type="text" value={ircConfig.channel} onChange={e => setIrcConfig(c => ({ ...c, channel: e.target.value }))} placeholder="Channel (e.g. #general)" style={{ padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                      </div>
+                      <button
+                        disabled={!ircConfig.server.trim() || !ircConfig.nick.trim() || channelBusy === 'irc'}
+                        onClick={async () => {
+                          setChannelBusy('irc')
+                          setChannelError(null)
+                          try {
+                            await channelStatus.connectGenericChannel('irc', {
+                              server: ircConfig.server.trim(),
+                              nick: ircConfig.nick.trim(),
+                              channels: ircConfig.channel.trim() ? [ircConfig.channel.trim()] : [],
+                            })
+                            setIrcConfig({ server: '', nick: '', channel: '' })
+                          } catch (err: any) { setChannelError(`IRC: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                        style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !ircConfig.server.trim() || !ircConfig.nick.trim() ? 0.5 : 1 }}
+                      >
+                        {channelBusy === 'irc' ? 'Saving...' : 'Save'}
+                      </button>
+                      <div className="ClawdChannelGuideNote">
+                        Connects to an IRC server. Your assistant will join the specified channel and respond to messages.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Google Chat ── */}
+              <div className={`ClawdAccordionItem ${expandedChannel === 'googlechat' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.googlechat?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'googlechat' ? null : 'googlechat')}>
+                  <div className="ClawdChannelCardIcon ClawdChannelCardIcon--googlechat">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.74.5 3.37 1.35 4.77L2 22l5.23-1.35C8.63 21.5 10.26 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+                  </div>
+                  <div className="ClawdAccordionTitle">Google Chat</div>
+                  {channelStatus.genericChannels.googlechat?.configured && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdAccordionActions">
+                    {channelStatus.genericChannels.googlechat?.configured ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : (
+                      <div className="ClawdChannelCardStatus">Not connected</div>
+                    )}
+                    {channelStatus.genericChannels.googlechat?.configured && (
+                      <button
+                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        disabled={channelBusy === 'googlechat'}
+                        onClick={async () => {
+                          setChannelBusy('googlechat')
+                          setChannelError(null)
+                          try { await channelStatus.disconnectGenericChannel('googlechat') }
+                          catch (err: any) { setChannelError(`Google Chat: ${err?.message || err}`) }
+                          finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'googlechat' ? 'Working...' : 'Disconnect'}
+                      </button>
+                    )}
+                  </div>
+                  {!channelStatus.genericChannels.googlechat?.configured && (
+                    <div className="ClawdChannelGuide">
+                      <div className="ClawdChannelGuideTitle">Connect Google Chat</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                        Enter your Google Chat webhook URL:
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          type="text"
+                          value={googleChatWebhook}
+                          onChange={e => setGoogleChatWebhook(e.target.value)}
+                          placeholder="https://chat.googleapis.com/v1/spaces/..."
+                          style={{
+                            flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4,
+                            border: googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')
+                              ? '1px solid #ef4444' : '1px solid #ccc',
+                          }}
+                        />
+                        <button
+                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/'))}
+                          onClick={async () => {
+                            setChannelBusy('googlechat')
+                            setChannelError(null)
+                            try {
+                              await channelStatus.connectGenericChannel('googlechat', { webhookUrl: googleChatWebhook.trim() })
+                              setGoogleChatWebhook('')
+                            } catch (err: any) { setChannelError(`Google Chat: ${err?.message || err}`) }
+                            finally { setChannelBusy(null) }
+                          }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !googleChatWebhook.trim() || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')) ? 0.5 : 1 }}
+                        >
+                          {channelBusy === 'googlechat' ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      {googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/') && (
+                        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                          URL must start with https://chat.googleapis.com/
+                        </div>
+                      )}
+                      <div className="ClawdChannelGuideNote">
+                        Create a webhook in Google Chat: open a Space, click the dropdown arrow, select <strong>Manage webhooks</strong>, then copy the webhook URL.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            {channelStatus.imessage?.configured ? (
-              <div className="ClawdChannelGuide">
-                <div className="ClawdChannelGuideTitle">How to use iMessage</div>
-                <ol className="ClawdChannelGuideSteps">
-                  <li>
-                    <span className="ClawdChannelGuideNum">1</span>
-                    <span>Send an iMessage to this Mac from any Apple device. Your assistant will see incoming messages and reply automatically.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">2</span>
-                    <span>You can also ask your assistant in this chat: <em>"Send an iMessage to [name/number]"</em>.</span>
-                  </li>
-                </ol>
-                <div className="ClawdChannelGuideNote">
-                  iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
-                </div>
-              </div>
-            ) : (
-              <div className="ClawdChannelGuide">
-                <div className="ClawdChannelGuideTitle">How to connect iMessage</div>
-                <ol className="ClawdChannelGuideSteps">
-                  <li>
-                    <span className="ClawdChannelGuideNum">1</span>
-                    <span>Click <strong>Connect</strong> above. If Full Disk Access hasn't been granted yet, System Settings will open automatically.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">2</span>
-                    <span>In System Settings, find <strong>Knapsack</strong> in the Full Disk Access list and toggle it <strong>ON</strong>. If Knapsack isn't listed, click the <strong>+</strong> button to add it.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">3</span>
-                    <span><strong>Quit and reopen Knapsack</strong> — macOS requires a restart for the new permission to take effect.</span>
-                  </li>
-                  <li>
-                    <span className="ClawdChannelGuideNum">4</span>
-                    <span>Open this panel again and click <strong>Connect</strong>. It should now show <strong>Connected</strong>.</span>
-                  </li>
-                </ol>
-                <div className="ClawdChannelGuideNote">
-                  iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
-                </div>
-              </div>
-            )}
 
             {channelError && (
               <div className="ClawdChannelsPanelError">
@@ -3416,7 +4372,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         </div>
       )}
 
-      </div>
     </div>
   )
 }
