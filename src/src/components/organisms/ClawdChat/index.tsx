@@ -3250,7 +3250,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     </div>
                   ) : (
                     <div className="ClawdChannelGuide">
-                      {showTelegramInput && (
+                      {showTelegramInput && (() => {
+                        const tokenTrimmed = telegramBotToken.trim()
+                        const tokenValid = !tokenTrimmed || /^\d+:[A-Za-z0-9_-]+$/.test(tokenTrimmed)
+                        return (
                         <div style={{ padding: '12px 0' }}>
                           <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
                             Enter your Telegram bot token from @BotFather:
@@ -3261,15 +3264,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               value={telegramBotToken}
                               onChange={e => setTelegramBotToken(e.target.value)}
                               placeholder="123456:ABC-DEF..."
-                              style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }}
+                              style={{
+                                flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4,
+                                border: tokenTrimmed && !tokenValid ? '1px solid #ef4444' : '1px solid #ccc',
+                              }}
                             />
                             <button
-                              disabled={!telegramBotToken.trim() || channelBusy === 'telegram'}
+                              disabled={!tokenTrimmed || !tokenValid || channelBusy === 'telegram'}
                               onClick={async () => {
                                 setChannelBusy('telegram')
                                 setChannelError(null)
                                 try {
-                                  await channelStatus.connectTelegram(telegramBotToken.trim())
+                                  await channelStatus.connectTelegram(tokenTrimmed)
                                   setShowTelegramInput(false)
                                   setTelegramBotToken('')
                                 } catch (err: any) {
@@ -3277,13 +3283,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                   setChannelError(`Telegram: ${msg}`)
                                 } finally { setChannelBusy(null) }
                               }}
-                              style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !telegramBotToken.trim() ? 0.5 : 1 }}
+                              style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !tokenTrimmed || !tokenValid ? 0.5 : 1 }}
                             >
                               {channelBusy === 'telegram' ? 'Saving...' : 'Save'}
                             </button>
                           </div>
+                          {tokenTrimmed && !tokenValid && (
+                            <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                              Token format should be <code>123456789:ABCdefGHI...</code> (number, colon, alphanumeric string)
+                            </div>
+                          )}
                         </div>
-                      )}
+                        )
+                      })()}
                       <div className="ClawdChannelGuideTitle">How to connect Telegram</div>
                       <ol className="ClawdChannelGuideSteps">
                         <li>
@@ -3350,32 +3362,47 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
                         Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
                       </div>
+                      {(() => {
+                        const botTrimmed = slackBotToken.trim()
+                        const appTrimmed = slackAppToken.trim()
+                        const botValid = !botTrimmed || botTrimmed.startsWith('xoxb-')
+                        const appValid = !appTrimmed || appTrimmed.startsWith('xapp-')
+                        const canSave = botTrimmed && appTrimmed && botValid && appValid
+                        return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <label style={{ fontSize: 11, color: '#888', width: 70, flexShrink: 0 }}>Bot Token</label>
-                          <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                          <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: botTrimmed && !botValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
                         </div>
+                        {botTrimmed && !botValid && (
+                          <div style={{ fontSize: 11, color: '#ef4444', marginLeft: 78 }}>Bot token must start with <code>xoxb-</code></div>
+                        )}
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <label style={{ fontSize: 11, color: '#888', width: 70, flexShrink: 0 }}>App Token</label>
-                          <input type="text" value={slackAppToken} onChange={e => setSlackAppToken(e.target.value)} placeholder="xapp-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                          <input type="text" value={slackAppToken} onChange={e => setSlackAppToken(e.target.value)} placeholder="xapp-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: appTrimmed && !appValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
                         </div>
+                        {appTrimmed && !appValid && (
+                          <div style={{ fontSize: 11, color: '#ef4444', marginLeft: 78 }}>App token must start with <code>xapp-</code></div>
+                        )}
                         <button
-                          disabled={!slackBotToken.trim() || !slackAppToken.trim() || channelBusy === 'slack'}
+                          disabled={!canSave || channelBusy === 'slack'}
                           onClick={async () => {
                             setChannelBusy('slack')
                             setChannelError(null)
                             try {
-                              await channelStatus.connectGenericChannel('slack', { botToken: slackBotToken.trim(), appToken: slackAppToken.trim() })
+                              await channelStatus.connectGenericChannel('slack', { botToken: botTrimmed, appToken: appTrimmed })
                               setSlackBotToken('')
                               setSlackAppToken('')
                             } catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }
                           }}
-                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', alignSelf: 'flex-end', opacity: (!slackBotToken.trim() || !slackAppToken.trim()) ? 0.5 : 1 }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', alignSelf: 'flex-end', opacity: !canSave ? 0.5 : 1 }}
                         >
                           {channelBusy === 'slack' ? 'Saving...' : 'Save'}
                         </button>
                       </div>
+                        )
+                      })()}
                       <div className="ClawdChannelGuideNote">
                         Create a Slack App at <strong>api.slack.com/apps</strong>. Under <em>OAuth &amp; Permissions</em>, add bot scopes and install to get the Bot Token (<code style={{ fontSize: 11 }}>xoxb-</code>). Under <em>Basic Information &gt; App-Level Tokens</em>, create a token with <code style={{ fontSize: 11 }}>connections:write</code> scope to get the App Token (<code style={{ fontSize: 11 }}>xapp-</code>).
                       </div>
@@ -3421,35 +3448,45 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       </button>
                     )}
                   </div>
-                  {!channelStatus.genericChannels.discord?.configured && (
+                  {!channelStatus.genericChannels.discord?.configured && (() => {
+                    const discordTrimmed = discordBotToken.trim()
+                    // Discord tokens are 3 base64 segments separated by dots, typically 50+ chars
+                    const discordValid = !discordTrimmed || (discordTrimmed.length >= 50 && discordTrimmed.includes('.'))
+                    return (
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">Connect Discord</div>
                       <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
                         Enter your Discord Bot Token:
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <input type="text" value={discordBotToken} onChange={e => setDiscordBotToken(e.target.value)} placeholder="MTIz..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <input type="text" value={discordBotToken} onChange={e => setDiscordBotToken(e.target.value)} placeholder="MTIz..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: discordTrimmed && !discordValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
                         <button
-                          disabled={!discordBotToken.trim() || channelBusy === 'discord'}
+                          disabled={!discordTrimmed || !discordValid || channelBusy === 'discord'}
                           onClick={async () => {
                             setChannelBusy('discord')
                             setChannelError(null)
                             try {
-                              await channelStatus.connectGenericChannel('discord', { token: discordBotToken.trim() })
+                              await channelStatus.connectGenericChannel('discord', { token: discordTrimmed })
                               setDiscordBotToken('')
                             } catch (err: any) { setChannelError(`Discord: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }
                           }}
-                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !discordBotToken.trim() ? 0.5 : 1 }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !discordTrimmed || !discordValid ? 0.5 : 1 }}
                         >
                           {channelBusy === 'discord' ? 'Saving...' : 'Save'}
                         </button>
                       </div>
+                      {discordTrimmed && !discordValid && (
+                        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                          This doesn't look like a Discord bot token. Tokens are long strings with dots (e.g. MTIz...abc.def.ghi).
+                        </div>
+                      )}
                       <div className="ClawdChannelGuideNote">
                         Create a bot at <strong>discord.com/developers/applications</strong>, enable Message Content Intent, then copy the bot token.
                       </div>
                     </div>
-                  )}
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -3651,30 +3688,53 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                   <div style={{ fontSize: 11, color: '#ccc', marginBottom: 8, lineHeight: 1.5 }}>
                                     1. Go to <strong>Settings &gt; Linked Devices</strong><br />
                                     2. Tap <strong>Link New Device</strong><br />
-                                    3. Scan this QR code or copy the link below
+                                    3. Copy the link below and open it on your phone, or scan it from another device
                                   </div>
-                                  <div style={{ padding: 8, background: '#1a1a1a', borderRadius: 4, marginBottom: 8, wordBreak: 'break-all', fontSize: 10, color: '#aaa', fontFamily: 'monospace', maxHeight: 60, overflow: 'auto' }}>
-                                    {signalLinkUri}
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
                                     <button
-                                      onClick={() => { navigator.clipboard.writeText(signalLinkUri!) }}
-                                      style={{ padding: '4px 12px', fontSize: 12, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(signalLinkUri!)
+                                        setChannelError(null)
+                                      }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 500 }}
                                     >
-                                      Copy Link
+                                      Copy Link to Clipboard
                                     </button>
                                     <button
                                       onClick={() => {
                                         setSignalLinkUri(null)
                                         setSignalRegDone(true)
                                       }}
-                                      style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
                                     >
-                                      I scanned it — continue
+                                      I linked it — continue
                                     </button>
                                   </div>
+                                  <div
+                                    style={{
+                                      padding: 10,
+                                      background: '#1a1a1a',
+                                      borderRadius: 4,
+                                      marginBottom: 8,
+                                      wordBreak: 'break-all',
+                                      fontSize: 11,
+                                      color: '#ccc',
+                                      fontFamily: 'monospace',
+                                      lineHeight: 1.6,
+                                      maxHeight: 120,
+                                      overflowY: 'auto',
+                                      overflowX: 'hidden',
+                                      userSelect: 'all',
+                                      WebkitUserSelect: 'all',
+                                      cursor: 'text',
+                                      border: '1px solid #333',
+                                    }}
+                                    title="Click to select, or use the Copy button above"
+                                  >
+                                    {signalLinkUri}
+                                  </div>
                                   <div className="ClawdChannelGuideNote" style={{ marginTop: 6 }}>
-                                    After scanning, signal-cli will finish linking in the background. This may take a moment.
+                                    After linking, signal-cli will finish in the background. This may take a moment.
                                   </div>
                                 </div>
                               )}
@@ -3808,7 +3868,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       )}
 
                       {/* Step 3: Save phone number and finish (only after registration) */}
-                      {signalCliStatus?.installed && signalRegDone && (
+                      {signalCliStatus?.installed && signalRegDone && (() => {
+                        const phoneTrimmed = signalPhoneNumber.trim()
+                        const phoneValid = !phoneTrimmed || /^\+\d{7,15}$/.test(phoneTrimmed)
+                        return (
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', marginBottom: 4 }}>
                             Step 3: Finish setup
@@ -3817,15 +3880,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             Enter the phone number you registered or linked with signal-cli:
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <input type="text" value={signalPhoneNumber} onChange={e => setSignalPhoneNumber(e.target.value)} placeholder="+1234567890" style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                            <input type="text" value={signalPhoneNumber} onChange={e => setSignalPhoneNumber(e.target.value)} placeholder="+1234567890" style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: phoneTrimmed && !phoneValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
                             <button
-                              disabled={!signalPhoneNumber.trim() || channelBusy === 'signal'}
+                              disabled={!phoneTrimmed || !phoneValid || channelBusy === 'signal'}
                               onClick={async () => {
                                 setChannelBusy('signal')
                                 setChannelError(null)
                                 try {
                                   await channelStatus.connectGenericChannel('signal', {
-                                    phoneNumber: signalPhoneNumber.trim(),
+                                    phoneNumber: phoneTrimmed,
                                     cliPath: signalCliStatus!.cli_path || 'signal-cli',
                                   })
                                   setSignalPhoneNumber('')
@@ -3836,13 +3899,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                                 } catch (err: any) { setChannelError(`Signal: ${err?.message || err}`) }
                                 finally { setChannelBusy(null) }
                               }}
-                              style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalPhoneNumber.trim() ? 0.5 : 1 }}
+                              style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !phoneTrimmed || !phoneValid ? 0.5 : 1 }}
                             >
                               {channelBusy === 'signal' ? 'Connecting...' : 'Connect Signal'}
                             </button>
                           </div>
+                          {phoneTrimmed && !phoneValid && (
+                            <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                              Phone number must be in E.164 format: <code>+</code> followed by country code and number (e.g. <code>+15551234567</code>)
+                            </div>
+                          )}
                         </div>
-                      )}
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
@@ -3964,9 +4033,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         Enter your Google Chat webhook URL:
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <input type="text" value={googleChatWebhook} onChange={e => setGoogleChatWebhook(e.target.value)} placeholder="https://chat.googleapis.com/v1/spaces/..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                        <input
+                          type="text"
+                          value={googleChatWebhook}
+                          onChange={e => setGoogleChatWebhook(e.target.value)}
+                          placeholder="https://chat.googleapis.com/v1/spaces/..."
+                          style={{
+                            flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4,
+                            border: googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')
+                              ? '1px solid #ef4444' : '1px solid #ccc',
+                          }}
+                        />
                         <button
-                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat'}
+                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/'))}
                           onClick={async () => {
                             setChannelBusy('googlechat')
                             setChannelError(null)
@@ -3976,13 +4055,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             } catch (err: any) { setChannelError(`Google Chat: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }
                           }}
-                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !googleChatWebhook.trim() ? 0.5 : 1 }}
+                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !googleChatWebhook.trim() || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')) ? 0.5 : 1 }}
                         >
                           {channelBusy === 'googlechat' ? 'Saving...' : 'Save'}
                         </button>
                       </div>
+                      {googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/') && (
+                        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                          URL must start with https://chat.googleapis.com/
+                        </div>
+                      )}
                       <div className="ClawdChannelGuideNote">
-                        Create a webhook in Google Chat: open a Space, click the dropdown, select <strong>Manage webhooks</strong>.
+                        Create a webhook in Google Chat: open a Space, click the dropdown arrow, select <strong>Manage webhooks</strong>, then copy the webhook URL.
                       </div>
                     </div>
                   )}

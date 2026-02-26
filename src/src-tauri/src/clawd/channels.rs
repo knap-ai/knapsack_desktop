@@ -76,6 +76,13 @@ fn humanize_config_error(channel: &str, raw_error: &str) -> String {
         return "Discord requires a bot token. Create one at discord.com/developers/applications.".to_string();
     }
 
+    // Google Chat-specific: requires a service account, not just a webhook URL
+    if channel == "googlechat" {
+        return "Google Chat requires a service account JSON key (not just a webhook URL). \
+                Use the CLI: openclaw channels setup googlechat --token-file <service-account.json>. \
+                See the Google Chat docs for setup instructions.".to_string();
+    }
+
     // Fallback: include the raw error but with a friendlier prefix
     format!("Failed to configure {}: {}", channel, raw_error)
 }
@@ -1189,7 +1196,9 @@ pub async fn generic_channel_configure(
         }
 
         match channel.as_str() {
-            "discord" | "slack" => {
+            // Channels whose schema uses a nested `dm` object (strict zod schema
+            // rejects top-level dmPolicy / allowFrom).
+            "discord" | "slack" | "googlechat" => {
                 if !obj.contains_key("dm") {
                     obj.insert("dm".to_string(), serde_json::json!({
                         "policy": "open",
