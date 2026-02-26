@@ -1439,16 +1439,19 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Ensure the browser uses headless mode so it works without a
-            // display (channel automations run in the background).
+            // In desktop mode, run the browser with a visible window so the
+            // user can see pages the AI is browsing.  Only force headless when
+            // there is no display (e.g. headless server / channel-only mode).
+            // Previously this always forced headless=true, which made the
+            // browser invisible even in the desktop app.
             let browser_headless = cfg
               .pointer("/browser/headless")
               .and_then(|v| v.as_bool())
               .unwrap_or(false);
-            if !browser_headless {
+            if browser_headless {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("headless".to_string(), serde_json::json!(true));
-              eprintln!("[clawd/service] Patched browser.headless to true");
+                .insert("headless".to_string(), serde_json::json!(false));
+              eprintln!("[clawd/service] Patched browser.headless to false (desktop mode)");
               patched = true;
             }
 
