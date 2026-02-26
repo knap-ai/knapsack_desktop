@@ -1430,6 +1430,54 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
+            // ── Enable image understanding (tools.media.image) ──────────
+            // When the primary model doesn't support vision, the gateway can
+            // describe images using a separate vision model.  Without this,
+            // photo attachments from Telegram/Signal are passed as file paths
+            // and the model can't see them.
+            let image_understanding_enabled = cfg
+              .pointer("/tools/media/image/enabled")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !image_understanding_enabled {
+              // Ensure tools.media.image exists
+              if cfg.get("tools").is_none() {
+                cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+              }
+              let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
+              if !tools.contains_key("media") {
+                tools.insert("media".to_string(), serde_json::json!({}));
+              }
+              let media = cfg.pointer_mut("/tools/media").unwrap().as_object_mut().unwrap();
+              if !media.contains_key("image") {
+                media.insert("image".to_string(), serde_json::json!({}));
+              }
+              cfg.pointer_mut("/tools/media/image").unwrap().as_object_mut().unwrap()
+                .insert("enabled".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Enabled tools.media.image for photo understanding");
+              patched = true;
+            }
+
+            // ── Ensure web_fetch and web_search are allowed ──────────────
+            // These tools let the bot fetch web pages and search the internet.
+            // The full profile allows them by default, but if tools.allow is
+            // set (e.g. by the browser patch above), we need to add them.
+            if let Some(allow_arr) = cfg.pointer("/tools/allow").and_then(|v| v.as_array()) {
+              let has_web_fetch = allow_arr.iter().any(|item| item.as_str() == Some("web_fetch"));
+              let has_web_search = allow_arr.iter().any(|item| item.as_str() == Some("web_search"));
+              let has_group_web = allow_arr.iter().any(|item| item.as_str() == Some("group:web"));
+              if !has_web_fetch || !has_web_search {
+                if !has_group_web {
+                  // Add group:web which includes both web_fetch and web_search
+                  if let Some(arr) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+                    arr.push(serde_json::json!("group:web"));
+                  }
+                  eprintln!("[clawd/service] Added group:web to tools.allow");
+                  patched = true;
+                }
+              }
+            }
+
             if patched {
               match fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
                 Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
@@ -1469,29 +1517,52 @@ pub async fn set_service_enabled(
       }
 
       let tools_md_path = workspace_path.join("TOOLS.md");
-      // Only write TOOLS.md if it doesn't exist (don't overwrite user edits)
-      if !tools_md_path.exists() {
+      // Write TOOLS.md if it doesn't exist or if it's missing the web_fetch
+      // section (indicating it has the old version without web/image guidance).
+      let should_write_tools_md = if tools_md_path.exists() {
+        fs::read_to_string(&tools_md_path)
+          .map(|content| !content.contains("## Web Fetch") || !content.contains("## Images"))
+          .unwrap_or(true)
+      } else {
+        true
+      };
+      if should_write_tools_md {
         let tools_md_content = r#"# Tools
+
+## Images & Photos
+
+When a user sends you a photo or image, you can see it. The image is automatically loaded and visible to you. Describe what you see, answer questions about it, or use it in context.
+
+## Web Fetch
+
+You have a `web_fetch` tool that can fetch and read the content of any URL. Use it when the user asks you to:
+- Look up information on a website
+- Read an article, blog post, or documentation page
+- Check a specific URL for content
+- Get data from a public API
+
+Just call the tool with the URL and you'll get the page content back as markdown.
+
+## Web Search
+
+You have a `web_search` tool for searching the internet. Use it when the user asks you to:
+- Research a topic
+- Find current information, news, or events
+- Look up facts, prices, or availability
+- Find answers to questions you're unsure about
 
 ## Browser Automation
 
-You have full browser control. Use it proactively for any web-based task:
+You have full browser control. Use it proactively for any web-based task that requires interaction:
 
 - **Check email**: Navigate to https://mail.google.com (or Outlook, etc.) and read/summarize
-- **Search the web**: Navigate to Google, DuckDuckGo, etc.
 - **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
 - **Fill forms, click buttons, type text** on any website
-- **Read and summarize** web page content
 
-### When to use browser automation
+### When to use browser vs web_fetch
 
-Use browser tools whenever the user asks you to:
-- Check, read, or summarize email
-- Look something up online
-- Interact with any web application
-- Access any online service or tool
-- Research a topic, person, or company
-- Check calendar, tasks, or project management tools
+- Use **web_fetch** for simple page reads (articles, docs, public pages)
+- Use **browser** for interactive tasks requiring login, forms, JavaScript-heavy pages, or multi-step flows
 
 ### Quick access URLs
 
