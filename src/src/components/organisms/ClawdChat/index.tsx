@@ -1917,6 +1917,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('clawd-send-user', handler)
   }, [])
 
+  // Listen for /briefing trigger from keyboard shortcut (Cmd+Ctrl+B)
+  useEffect(() => {
+    let cancelled = false
+    const unsub = tauriListen('kn_trigger_briefing', () => {
+      if (!cancelled) handleSendWithTextRef.current?.(SMART_PROMPT)
+    })
+    return () => { cancelled = true; unsub.then(fn => fn()) }
+  }, [])
+
   const pushUser = (text: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
   }
@@ -2122,6 +2131,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       return
     }
 
+    // /briefing and /catchup: trigger the email+calendar briefing in chat.
+    // Replace the slash command with the smart prompt so the normal flow
+    // pre-fetches email/calendar data and generates an in-chat briefing.
+    const cmdLower = text.trim().toLowerCase()
+    const isBriefingCmd = cmdLower === '/briefing' || cmdLower === '/catchup'
+    if (isBriefingCmd) {
+      text = SMART_PROMPT
+    }
+
     // Check if we need to prompt for API key first
     if (!hasCompletedOnboarding) {
       const hasKey = await checkAndPromptForKey()
@@ -2140,7 +2158,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const attachmentSummary = currentAttachments.length > 0
       ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
       : ''
-    pushUser(text + attachmentSummary)
+    pushUser(isBriefingCmd ? 'Catch me up on my email and calendar' : text + attachmentSummary)
 
     // Parse "command args..." form
     const [rawCmd, ...rest] = text.split(/\s+/)

@@ -31,7 +31,7 @@ import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
 
 import { open } from '@tauri-apps/api/shell'
 import { invoke } from '@tauri-apps/api/tauri'
-import { listen } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
@@ -134,6 +134,10 @@ function Home({
       } else if (event.key === 'e' && event.metaKey && event.ctrlKey) {
         setAutopilotForceOpen(true)
         setCurrentTab(TabChoices.Moltbot)
+      } else if (event.key === 'b' && event.metaKey && event.ctrlKey) {
+        // Cmd+Ctrl+B: trigger email/calendar briefing in chat
+        setCurrentTab(TabChoices.Moltbot)
+        emit('kn_trigger_briefing', {})
       }
     }
   }, [])
