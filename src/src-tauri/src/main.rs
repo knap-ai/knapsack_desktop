@@ -322,10 +322,11 @@ async fn show_notification_window(
         let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
         let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
-        let y_position = 0;
+        // Position below the macOS menu bar (~25 logical px)
+        let y_position = (30.0 * scale_factor) as i32;
 
-        // Resize notification window to full screen height
-        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        // Resize notification window to full screen height minus offset
+        let screen_height_logical = (screen_size.height as f64 / scale_factor) - 30.0;
         window
           .set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: NOTIF_WIDTH,
