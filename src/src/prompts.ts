@@ -301,11 +301,12 @@ Rules for classification:
   * Auto-generated reports you don't need
 
 Rules for "summary" field:
-  * Use 1-2 VERY SHORT sentences returned as an array of strings to describe the most important points of the most recent email
-  * The first sentence should be a SHORT summary so that the user doesn't need to read the email if they've read this first sentence.
+  * Use exactly 2 SHORT sentences returned as an array of strings.
+  * The first sentence should summarize WHO is asking and WHAT they want — lead with the specific ask, request, or call to action. Examples: "Sarah needs your sign-off on the Q4 budget by Friday.", "Tom is proposing a partnership call next week and wants your availability."
+  * The second sentence should provide the key context or detail that helps decide how to respond — e.g. numbers, deadlines, stakes, or what's at risk.
   * Don't include HTML.
-  * The second sentence in the array is optional. Include it if there are important details that should be mentioned, like metrics or numbers that substantiate the first sentence.
-  * Don't restate anything between bullet points
+  * Don't be vague or generic. Never write "Someone wants to discuss something." — always use real names, real asks, and real details from the email.
+  * Don't restate anything between sentences
 
 Example input:
 Subject: Urgent: Q4 Report Draft Review Needed
@@ -463,6 +464,27 @@ Rules:
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate - only reference what's in the transcript
 - Output ONLY the JSON object, no other text
+`
+
+export const INITIAL_BRIEFING_INSTRUCTIONS = `I've already retrieved my recent emails and calendar events for you using Knapsack's direct API access. All the data you need is provided below — do NOT navigate to Gmail, Google Calendar, Outlook, or any other website. Analyze this data directly.
+
+Based on the emails and calendar events below, give me a concise morning briefing:
+
+1. **Today's priorities**: What should I focus on today based on my calendar and urgent emails?
+2. **Emails needing attention**: Which emails need a response or action, and why?
+3. **Meeting prep**: Any upcoming meetings I should prepare for?
+
+Then recommend exactly 5 specific follow-up tasks I can do right now. Format each as a clickable action link like this:
+[Short Action Label](knapsack://prompt/Detailed instruction for what to do)
+
+For example:
+[Reply to Sarah's Budget Request](knapsack://prompt/Draft a reply to Sarah's email about the Q3 budget request, confirming the timeline and asking for the revised numbers)
+[Prep for Team Standup](knapsack://prompt/Help me prepare talking points for the 9 AM team standup based on recent project updates in my email)
+
+Make the 5 recommendations specific and actionable based on the actual email and calendar data provided. Each action label should be 3-6 words. Each detailed instruction should be a full sentence explaining exactly what to do.
+
+Here is my data:
+
 `
 
 export const BACKGROUND_INSIGHTS_NOTIFICATION_TITLE = 'Knapsack Insight'

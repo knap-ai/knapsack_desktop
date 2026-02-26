@@ -65,3 +65,47 @@ export function extractExternalEmails(myEmail: string, emailList: string[]): str
     return domain !== myDomain
   })
 }
+
+/**
+ * Decode common encoding issues in email subject lines.
+ * Handles HTML entities and RFC 2047 MIME encoded-words that the backend
+ * may not have fully decoded.
+ */
+export function decodeEmailSubject(subject: string): string {
+  if (!subject) return subject
+
+  let decoded = subject
+
+  // 1. Decode RFC 2047 MIME encoded-words: =?charset?encoding?text?=
+  //    Supports Base64 (B) and Quoted-Printable (Q) encodings
+  decoded = decoded.replace(
+    /=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g,
+    (_match, _charset: string, encoding: string, text: string) => {
+      try {
+        if (encoding.toUpperCase() === 'B') {
+          return atob(text)
+        } else if (encoding.toUpperCase() === 'Q') {
+          return text
+            .replace(/_/g, ' ')
+            .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) =>
+              String.fromCharCode(parseInt(hex, 16)),
+            )
+        }
+      } catch {
+        // If decoding fails, return original text
+      }
+      return text
+    },
+  )
+
+  // 2. Decode HTML entities (numeric and named)
+  if (/&[#a-zA-Z]/.test(decoded)) {
+    const textarea = typeof document !== 'undefined' ? document.createElement('textarea') : null
+    if (textarea) {
+      textarea.innerHTML = decoded
+      decoded = textarea.value
+    }
+  }
+
+  return decoded
+}

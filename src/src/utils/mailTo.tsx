@@ -1,4 +1,4 @@
-import { open } from '@tauri-apps/api/shell'
+import { openBesideApp } from 'src/utils/openBesideApp'
 import { ConnectionKeys } from 'src/api/connections'
 
 export const mailTo = async (provider?: string) => {
@@ -15,8 +15,8 @@ export const mailTo = async (provider?: string) => {
     `&subject=${encodeURIComponent(subject)}` +
     `&body=${encodeURIComponent(body)}`
 
-    // Open the URL in the user’s default browser
-    await open(outlookURL)
+    // Open the URL in the user's default browser
+    await openBesideApp(outlookURL)
   } else {
   // Construct the Gmail compose URL
     const url =
@@ -25,7 +25,7 @@ export const mailTo = async (provider?: string) => {
       `&su=${encodeURIComponent(subject)}` +
       `&body=${encodeURIComponent(body)}`
 
-    // Open the URL in the user’s default browser
-    await open(url)
+    // Open the URL in the user's default browser
+    await openBesideApp(url)
   }
 }

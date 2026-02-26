@@ -395,19 +395,19 @@ impl Email {
     ])
   }
 
-  pub fn get_last_email_by_thread_id(thread_id: &str) -> Result<Option<Email>, Error> {
+  pub fn get_last_email_by_thread_id(thread_id: &str) -> Result<Vec<Email>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails WHERE thread_id = ?1 ORDER BY date DESC LIMIT 1")
+        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails WHERE thread_id = ?1 ORDER BY date DESC")
         .expect("could not prepare query emails by thread_id");
 
-    let email_result = stmt.query_row([thread_id], |row| Email::build_struct_from_row(row));
+    let emails = stmt
+      .query_map([thread_id], |row| Email::build_struct_from_row(row))
+      .map_err(Error::from)?
+      .filter_map(|r| r.ok())
+      .collect();
 
-    match email_result {
-      Ok(email) => Ok(Some(email)),
-      Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-      Err(e) => Err(Error::from(e)),
-    }
+    Ok(emails)
   }
 
   pub async fn mark_deleted_emails(fetched_uuids: &[String], days: i64) -> Result<(), Error> {

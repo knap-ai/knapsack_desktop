@@ -168,10 +168,18 @@ pub async fn upsert_email_by_uid(email_uid: &str, access_token: &str, flag_updat
     body: content,
     email_uid: email_uid.to_string(),
     thread_id: Some(thread_id),
-    subject: hashed_headers
-      .get("subject")
-      .unwrap_or(&String::from(""))
-      .clone(),
+    subject: {
+      let raw_subject = hashed_headers
+        .get("subject")
+        .unwrap_or(&String::from(""))
+        .clone();
+      // Decode RFC 2047 MIME encoded-words (e.g. =?UTF-8?B?...?=)
+      let header_line = format!("Subject: {}", raw_subject);
+      match mailparse::parse_header(header_line.as_bytes()) {
+        Ok((parsed, _)) => parsed.get_value(),
+        Err(_) => raw_subject,
+      }
+    },
     date: dateparse(hashed_headers.get("date").unwrap().as_str()).unwrap() as u64,
     sender: hashed_headers
       .get("from")

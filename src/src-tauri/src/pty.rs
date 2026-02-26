@@ -147,7 +147,7 @@ fn platform_spawn(
       &mut slave,
       ptr::null_mut(),
       ptr::null_mut(),
-      &mut ws,
+      &mut ws as *mut libc::winsize,
     ) != 0
     {
       return Err("openpty failed".into());
@@ -263,13 +263,13 @@ fn platform_write(handle: &PtyHandle, data: &[u8]) -> Result<(), String> {
 
 #[cfg(unix)]
 fn platform_resize(handle: &PtyHandle, cols: u16, rows: u16) -> Result<(), String> {
-  let ws = libc::winsize {
+  let mut ws = libc::winsize {
     ws_row: rows,
     ws_col: cols,
     ws_xpixel: 0,
     ws_ypixel: 0,
   };
-  let ret = unsafe { libc::ioctl(handle.master_fd, libc::TIOCSWINSZ as libc::c_ulong, &ws) };
+  let ret = unsafe { libc::ioctl(handle.master_fd, libc::TIOCSWINSZ as libc::c_ulong, &mut ws) };
   if ret < 0 {
     Err("PTY resize failed".into())
   } else {

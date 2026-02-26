@@ -322,8 +322,16 @@ async fn show_notification_window(
         let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
         let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
-        let top_margin_percentage = 0.05;
-        let y_position = (screen_size.height as f64 * top_margin_percentage) as i32;
+        let y_position = 0;
+
+        // Resize notification window to full screen height
+        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        window
+          .set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: NOTIF_WIDTH,
+            height: screen_height_logical,
+          }))
+          .unwrap();
 
         let start_x = screen_size.width as i32 + physical_start_offset;
 
@@ -390,6 +398,98 @@ fn activate_main_window(window: tauri::Window) {
   if let Some(main_window) = window.app_handle().get_window("main") {
     main_window.unminimize().unwrap();
     main_window.set_focus().unwrap();
+  }
+}
+
+#[tauri::command]
+fn activate_main_window_from_notification(window: tauri::Window) {
+  let app = window.app_handle();
+
+  if let Some(main_window) = app.get_window("main") {
+    // Determine position and size from the notification window so the main
+    // window appears to "expand" from it.
+    if let Some(notification_window) = app.get_window("notification") {
+      if let (Ok(notif_pos), Ok(Some(monitor))) = (
+        notification_window.outer_position(),
+        notification_window.current_monitor(),
+      ) {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+
+        // Use the same width as the notification and ~70% of screen height
+        let logical_height = (screen_size.height as f64 / scale_factor) * 0.7;
+
+        let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+          width: NOTIF_WIDTH,
+          height: logical_height,
+        }));
+
+        // Align the main window with the notification's position
+        let _ = main_window.set_position(tauri::Position::Physical(
+          tauri::PhysicalPosition {
+            x: notif_pos.x,
+            y: notif_pos.y,
+          },
+        ));
+      }
+    }
+
+    let _ = main_window.unminimize();
+    let _ = main_window.show();
+    let _ = main_window.set_focus();
+  }
+}
+
+/// Position the frontmost browser window to fill the screen space to the left
+/// of the main Knapsack window. macOS only (uses AppleScript).
+#[tauri::command]
+fn position_browser_beside_app(app: tauri::AppHandle) {
+  #[cfg(target_os = "macos")]
+  {
+    if let Some(main_window) = app.get_window("main") {
+      if let (Ok(main_pos), Ok(Some(monitor))) = (
+        main_window.outer_position(),
+        main_window.current_monitor(),
+      ) {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+
+        let browser_width = main_pos.x;
+
+        // Only reposition if the main window leaves meaningful space on the left
+        // (i.e. the app is in narrow/notification mode, not full-screen).
+        let min_browser_width = (200.0 * scale_factor) as i32;
+        if browser_width < min_browser_width {
+          return;
+        }
+
+        let browser_x = 0;
+        let browser_y = 0; // top of screen (below menu bar is handled by macOS)
+        let browser_height = screen_size.height as i32;
+
+        // Convert physical pixels to macOS points for AppleScript bounds
+        let x1 = (browser_x as f64 / scale_factor) as i32;
+        let y1 = (browser_y as f64 / scale_factor) as i32;
+        let x2 = (browser_width as f64 / scale_factor) as i32;
+        let y2 = (browser_height as f64 / scale_factor) as i32;
+
+        let script = format!(
+          r#"tell application "System Events"
+            set frontApp to name of first application process whose frontmost is true
+          end tell
+          tell application frontApp
+            set bounds of front window to {{{}, {}, {}, {}}}
+          end tell"#,
+          x1, y1, x2, y2
+        );
+
+        std::process::Command::new("osascript")
+          .arg("-e")
+          .arg(&script)
+          .spawn()
+          .ok();
+      }
+    }
   }
 }
 
@@ -807,6 +907,19 @@ async fn main() {
 
       let main_window = window_builder.build()?;
 
+      // Resize main window to full screen height
+      if let Ok(Some(monitor)) = main_window.current_monitor() {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        main_window
+          .set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: 1440.0,
+            height: screen_height_logical,
+          }))
+          .unwrap();
+      }
+
       main_window.center()?;
 
       #[cfg(target_os = "macos")]
@@ -889,6 +1002,8 @@ async fn main() {
       close_notification_window,
       start_meeting_recording,
       activate_main_window,
+      activate_main_window_from_notification,
+      position_browser_beside_app,
       emit_event,
       open_screen_recording_settings,
       open_microphone_settings,

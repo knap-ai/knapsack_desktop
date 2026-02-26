@@ -31,6 +31,7 @@ import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
 
 import { open } from '@tauri-apps/api/shell'
 import { invoke } from '@tauri-apps/api/tauri'
+import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
@@ -44,6 +45,7 @@ import { SigninButton } from './../../SigninButton'
 import TabBar, { TabChoices } from './../../TabBar'
 import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
+import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
 
 export interface ToastrState {
   message?: ReactElement
@@ -87,6 +89,7 @@ function Home({
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
   const [showActivityPanel, setShowActivityPanel] = useState(false)
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
+  const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -128,6 +131,9 @@ function Home({
         handleOpenToastr(<span>Dev tool: Reset onboarding.</span>, 'success', 5000)
       } else if (event.key === 's' && event.metaKey && event.ctrlKey) {
         setCurrentTab(TabChoices.NewAutomation)
+      } else if (event.key === 'e' && event.metaKey && event.ctrlKey) {
+        setAutopilotForceOpen(true)
+        setCurrentTab(TabChoices.Moltbot)
       }
     }
   }, [])
@@ -139,6 +145,17 @@ function Home({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
+
+  // Listen for /autopilot slash command to force-open the email drawer
+  useEffect(() => {
+    const unlisten = listen('kn_trigger_autopilot', () => {
+      setAutopilotForceOpen(true)
+      setCurrentTab(TabChoices.Moltbot)
+    })
+    return () => {
+      unlisten.then(fn => fn())
+    }
+  }, [])
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
@@ -449,12 +466,14 @@ function Home({
               )}
 
               {currentTab === TabChoices.Moltbot && (
-                <div className="overflow-hidden w-full h-full flex flex-row">
+                <div className="overflow-hidden w-full h-full flex flex-row relative">
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat
                       showActivityPanel={showActivityPanel}
                       onToggleActivity={() => setShowActivityPanel(prev => !prev)}
                       onCloseActivity={() => setShowActivityPanel(false)}
+                      userEmail={userEmail}
+                      userName={userName}
                     />
                   </div>
                   {showActivityPanel && (
@@ -488,6 +507,20 @@ function Home({
                         <ActivityPanel onClose={() => setShowActivityPanel(false)} />
                       </div>
                     </>
+                  )}
+                  {(feed.loggedEmailAutopilot || autopilotForceOpen) && (
+                    <EmailNotificationDrawer
+                      feed={feed}
+                      onGoToEmail={() => {
+                        feed.selectEmailCategory()
+                        setCurrentTab(TabChoices.Email)
+                      }}
+                      userEmail={userEmail}
+                      userName={userName}
+                      profileProvider={auth.profile?.provider}
+                      forceOpen={autopilotForceOpen}
+                      onForceOpenHandled={() => setAutopilotForceOpen(false)}
+                    />
                   )}
                 </div>
               )}

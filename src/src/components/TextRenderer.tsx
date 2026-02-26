@@ -2,7 +2,7 @@ import './TextRenderer.scss'
 
 import React from 'react'
 
-import { open } from '@tauri-apps/api/shell'
+import { openBesideApp } from 'src/utils/openBesideApp'
 
 interface TextRendererProps {
   text: string
@@ -134,7 +134,7 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text }) => {
   }
 
   const onForwardToUrl = (url: string) => {
-    open(url)
+    openBesideApp(url)
   }
 
   // Function to parse and render links
