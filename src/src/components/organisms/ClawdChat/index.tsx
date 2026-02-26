@@ -8,7 +8,7 @@ import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
-import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, type SignalRegResponse } from 'src/api/channels'
+import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus } from 'src/api/channels'
 import { QRCodeSVG } from 'qrcode.react'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
@@ -4194,7 +4194,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           }}
                         />
                         <button
-                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/'))}
+                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')}
                           onClick={async () => {
                             setChannelBusy('googlechat')
                             setChannelError(null)

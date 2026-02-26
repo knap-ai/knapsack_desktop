@@ -41,8 +41,8 @@ const EmailNotificationDrawer = ({
   const [isAnimatingOut, setIsAnimatingOut] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [generatingDraftUid, setGeneratingDraftUid] = useState<string>('')
-  const [sendingReplyUid, setSendingReplyUid] = useState<string>('')
+  const [generatingDraftUid] = useState<string>('')
+  const [sendingReplyUid] = useState<string>('')
   const [removingEmailUid, setRemovingEmailUid] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
   const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
@@ -406,8 +406,7 @@ const EmailNotificationDrawer = ({
           <div className="flex items-center gap-1.5">
             {isExpanded && (
               <SettingsButton
-                onClick={(e) => {
-                  e.stopPropagation()
+                onClick={() => {
                   setShowSettings(true)
                 }}
                 title="Email Autopilot Settings"
