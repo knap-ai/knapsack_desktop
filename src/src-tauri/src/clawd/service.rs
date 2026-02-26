@@ -1523,10 +1523,28 @@ pub async fn set_service_enabled(
 
             // ── Ensure browser + web tools are allowed in sandbox mode ─────
             // Channel messages (Telegram, Signal, etc.) run in sandbox mode,
-            // which has a separate deny list that may include "browser",
-            // "web_fetch", "web_search", or "group:web" by default.
-            // Remove all of these so the agent can browse and fetch web
-            // content from any channel.
+            // which has a separate tools policy.  The gateway's built-in
+            // DEFAULT_TOOL_ALLOW does NOT include web_fetch, web_search, or
+            // browser — and DEFAULT_TOOL_DENY explicitly blocks browser.
+            // We must create/patch both lists so channel messages can trigger
+            // web retrieval and browser automation.
+
+            // Ensure the tools.sandbox.tools path exists in the config
+            if cfg.get("tools").is_none() {
+              cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+            }
+            if cfg.pointer("/tools/sandbox").is_none() {
+              cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+                .insert("sandbox".to_string(), serde_json::json!({}));
+            }
+            if cfg.pointer("/tools/sandbox/tools").is_none() {
+              cfg.pointer_mut("/tools/sandbox").unwrap().as_object_mut().unwrap()
+                .insert("tools".to_string(), serde_json::json!({}));
+            }
+
+            // --- sandbox deny list ---
+            // Remove browser/web tools from deny if present; create the deny
+            // list from gateway defaults (minus browser) if it doesn't exist.
             let sandbox_tools_to_unblock = ["browser", "web_fetch", "web_search", "group:web"];
             if let Some(deny_arr) = cfg
               .pointer("/tools/sandbox/tools/deny")
@@ -1546,9 +1564,23 @@ pub async fn set_service_enabled(
                   patched = true;
                 }
               }
+            } else {
+              // Deny list doesn't exist — create it from gateway defaults but
+              // WITHOUT "browser" so the agent can use browser from channels.
+              // Gateway defaults: ["browser","canvas","nodes","cron","gateway",...channelIds]
+              cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+                .insert("deny".to_string(), serde_json::json!([
+                  "canvas", "nodes", "cron", "gateway"
+                ]));
+              eprintln!("[clawd/service] Created tools.sandbox.tools.deny (without browser)");
+              patched = true;
             }
 
-            // Also ensure these tools are in the sandbox allow list if one exists
+            // --- sandbox allow list ---
+            // Add browser + group:web to the allow list.  If the allow list
+            // doesn't exist yet, create it from the gateway's defaults plus
+            // browser and group:web so that web_fetch/web_search work from
+            // channel messages (Telegram, WhatsApp, Signal, etc.).
             if let Some(allow_arr) = cfg.pointer("/tools/sandbox/tools/allow").and_then(|v| v.as_array()) {
               let has_browser = allow_arr.iter().any(|item| item.as_str() == Some("browser"));
               let has_group_web = allow_arr.iter().any(|item| item.as_str() == Some("group:web"));
@@ -1564,6 +1596,21 @@ pub async fn set_service_enabled(
                   patched = true;
                 }
               }
+            } else {
+              // Allow list doesn't exist — create it from gateway defaults
+              // plus browser and group:web.
+              // Gateway DEFAULT_TOOL_ALLOW: exec, process, read, write, edit,
+              //   apply_patch, image, sessions_list, sessions_history,
+              //   sessions_send, sessions_spawn, session_status
+              cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+                .insert("allow".to_string(), serde_json::json!([
+                  "exec", "process", "read", "write", "edit", "apply_patch",
+                  "image", "sessions_list", "sessions_history",
+                  "sessions_send", "sessions_spawn", "session_status",
+                  "browser", "group:web"
+                ]));
+              eprintln!("[clawd/service] Created tools.sandbox.tools.allow (with browser + group:web)");
+              patched = true;
             }
 
             if patched {
