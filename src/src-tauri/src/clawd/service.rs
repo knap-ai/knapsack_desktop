@@ -1478,6 +1478,26 @@ pub async fn set_service_enabled(
               }
             }
 
+            // ── Ensure browser is allowed in sandbox mode ──────────────────
+            // Channel messages (Telegram, Signal, etc.) run in sandbox mode,
+            // which has a separate deny list that includes "browser" by default.
+            // Remove "browser" from tools.sandbox.tools.deny so the agent can
+            // use browser automation from any channel.
+            let sandbox_browser_denied = cfg
+              .pointer("/tools/sandbox/tools/deny")
+              .and_then(|v| v.as_array())
+              .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+              .unwrap_or(false);
+            if sandbox_browser_denied {
+              if let Some(deny_arr) = cfg.pointer_mut("/tools/sandbox/tools/deny")
+                .and_then(|v| v.as_array_mut())
+              {
+                deny_arr.retain(|item| item.as_str() != Some("browser"));
+                eprintln!("[clawd/service] Removed browser from tools.sandbox.tools.deny");
+                patched = true;
+              }
+            }
+
             if patched {
               match fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
                 Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
