@@ -1186,8 +1186,9 @@ pub async fn generic_channel_configure(
     }
 
     // Merge the user-provided config with standard channel defaults.
-    // Discord and Slack use nested dm.policy / dm.allowFrom;
-    // other channels (signal, irc, googlechat) use top-level dmPolicy / allowFrom.
+    // Discord, Slack, and GoogleChat use nested dm: { policy, allowFrom };
+    // Telegram and Signal use top-level dmPolicy / allowFrom.
+    // All schemas are .strict() so unrecognized keys cause validation errors.
     let mut channel_config = body.config.clone();
     if let Some(obj) = channel_config.as_object_mut() {
         // Always ensure the channel is enabled
@@ -1199,11 +1200,40 @@ pub async fn generic_channel_configure(
             // Channels whose schema uses a nested `dm` object (strict zod schema
             // rejects top-level dmPolicy / allowFrom).
             "discord" | "slack" | "googlechat" => {
+                // Strip top-level allowFrom/dmPolicy — these are invalid for
+                // strict schemas that use nested dm: { policy, allowFrom }.
+                obj.remove("allowFrom");
+                obj.remove("dmPolicy");
+
                 if !obj.contains_key("dm") {
                     obj.insert("dm".to_string(), serde_json::json!({
                         "policy": "open",
                         "allowFrom": ["*"]
                     }));
+                }
+
+                // Discord uses "token" (not "botToken") at top level.
+                if channel == "discord" {
+                    if let Some(bot_token) = obj.remove("botToken") {
+                        if !obj.contains_key("token") {
+                            obj.insert("token".to_string(), bot_token);
+                        }
+                    }
+                }
+            }
+            // Signal uses "account" (not "phoneNumber") and has top-level
+            // dmPolicy / allowFrom.
+            "signal" => {
+                if let Some(phone) = obj.remove("phoneNumber") {
+                    if !obj.contains_key("account") {
+                        obj.insert("account".to_string(), phone);
+                    }
+                }
+                if !obj.contains_key("allowFrom") {
+                    obj.insert("allowFrom".to_string(), serde_json::json!(["*"]));
+                }
+                if !obj.contains_key("dmPolicy") {
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("open"));
                 }
             }
             _ => {
