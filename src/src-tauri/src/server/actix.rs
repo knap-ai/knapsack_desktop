@@ -220,6 +220,8 @@ pub async fn start_server<'a>(
       .service(clawd::channels::generic_channel_status)
       .service(clawd::channels::generic_channel_configure)
       .service(clawd::channels::generic_channel_disconnect)
+      .service(clawd::channels::signal_check_cli)
+      .service(clawd::channels::signal_install_cli)
       // Token usage & cost management endpoints
       .service(usage_api::get_usage_summary)
       .service(usage_api::get_daily_usage)

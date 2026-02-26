@@ -1324,6 +1324,429 @@ pub async fn generic_channel_disconnect(
     }
 }
 
+// ── Signal CLI install endpoints ──────────────────────────────────────────
+
+/// Response for signal-cli status/install.
+#[derive(Serialize)]
+struct SignalCliResponse {
+    success: bool,
+    installed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cli_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// Check if signal-cli is available on this machine.
+#[get("/api/clawd/channels/signal/check-cli")]
+pub async fn signal_check_cli() -> impl Responder {
+    // Try common locations: PATH, Homebrew, /opt, ~/.config/openclaw/tools
+    let candidates: Vec<&str> = vec![
+        "signal-cli",
+        "/usr/local/bin/signal-cli",
+        "/opt/signal-cli/bin/signal-cli",
+        "/opt/homebrew/bin/signal-cli",
+    ];
+
+    // Also check the openclaw tools directory
+    let home = std::env::var("HOME").unwrap_or_default();
+    let openclaw_tools_path = format!("{}/.config/openclaw/tools/signal-cli", home);
+
+    for candidate in &candidates {
+        if let Ok(output) = Command::new(candidate).arg("--version").output() {
+            if output.status.success() {
+                let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                return HttpResponse::Ok().json(SignalCliResponse {
+                    success: true,
+                    installed: true,
+                    cli_path: Some(candidate.to_string()),
+                    version: if version.is_empty() { None } else { Some(version) },
+                    message: None,
+                });
+            }
+        }
+    }
+
+    // Check openclaw tools directory (recursive search for signal-cli binary)
+    if let Ok(entries) = std::fs::read_dir(&openclaw_tools_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            // Look for signal-cli binary in version subdirectories
+            let bin_candidates = vec![
+                path.join("bin").join("signal-cli"),
+                path.join("signal-cli"),
+                path.join("signal-cli-native").join("bin").join("signal-cli"),
+            ];
+            for bin_path in bin_candidates {
+                if bin_path.exists() {
+                    if let Ok(output) = Command::new(&bin_path).arg("--version").output() {
+                        if output.status.success() {
+                            let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                            return HttpResponse::Ok().json(SignalCliResponse {
+                                success: true,
+                                installed: true,
+                                cli_path: Some(bin_path.to_string_lossy().to_string()),
+                                version: if version.is_empty() { None } else { Some(version) },
+                                message: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    HttpResponse::Ok().json(SignalCliResponse {
+        success: true,
+        installed: false,
+        cli_path: None,
+        version: None,
+        message: Some("signal-cli not found on this machine".to_string()),
+    })
+}
+
+/// Install signal-cli automatically.
+///
+/// On Linux x64: downloads the native GraalVM binary from GitHub releases.
+/// On macOS / other: installs via Homebrew.
+#[post("/api/clawd/channels/signal/install-cli")]
+pub async fn signal_install_cli() -> impl Responder {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+
+    if os == "windows" {
+        return HttpResponse::Ok().json(SignalCliResponse {
+            success: false,
+            installed: false,
+            cli_path: None,
+            version: None,
+            message: Some("Automatic signal-cli installation is not supported on Windows yet.".to_string()),
+        });
+    }
+
+    // On Linux x64, download the native binary from GitHub releases
+    if os == "linux" && arch == "x86_64" {
+        return signal_install_from_release().await;
+    }
+
+    // On macOS or other platforms, try Homebrew
+    signal_install_via_brew().await
+}
+
+/// Download and install signal-cli from the official GitHub releases (native binary).
+async fn signal_install_from_release() -> HttpResponse {
+    // Fetch latest release info
+    let client = reqwest::Client::builder()
+        .user_agent("knapsack-desktop")
+        .timeout(Duration::from_secs(30))
+        .build();
+
+    let client = match client {
+        Ok(c) => c,
+        Err(e) => {
+            return HttpResponse::Ok().json(SignalCliResponse {
+                success: false,
+                installed: false,
+                cli_path: None,
+                version: None,
+                message: Some(format!("Failed to create HTTP client: {}", e)),
+            });
+        }
+    };
+
+    let release_resp = client
+        .get("https://api.github.com/repos/AsamK/signal-cli/releases/latest")
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await;
+
+    let release_resp = match release_resp {
+        Ok(r) => r,
+        Err(e) => {
+            return HttpResponse::Ok().json(SignalCliResponse {
+                success: false,
+                installed: false,
+                cli_path: None,
+                version: None,
+                message: Some(format!("Failed to fetch release info: {}", e)),
+            });
+        }
+    };
+
+    if !release_resp.status().is_success() {
+        return HttpResponse::Ok().json(SignalCliResponse {
+            success: false,
+            installed: false,
+            cli_path: None,
+            version: None,
+            message: Some(format!("GitHub API returned {}", release_resp.status())),
+        });
+    }
+
+    let release: serde_json::Value = match release_resp.json().await {
+        Ok(v) => v,
+        Err(e) => {
+            return HttpResponse::Ok().json(SignalCliResponse {
+                success: false,
+                installed: false,
+                cli_path: None,
+                version: None,
+                message: Some(format!("Failed to parse release JSON: {}", e)),
+            });
+        }
+    };
+
+    let version = release["tag_name"]
+        .as_str()
+        .unwrap_or("unknown")
+        .trim_start_matches('v')
+        .to_string();
+
+    // Find the Linux native asset
+    let assets = release["assets"].as_array();
+    let asset = assets.and_then(|a| {
+        a.iter().find(|asset| {
+            let name = asset["name"].as_str().unwrap_or("");
+            name.contains("Linux") && name.contains("native") && name.ends_with(".tar.gz")
+        })
+    });
+
+    let asset = match asset {
+        Some(a) => a,
+        None => {
+            return HttpResponse::Ok().json(SignalCliResponse {
+                success: false,
+                installed: false,
+                cli_path: None,
+                version: None,
+                message: Some("No compatible Linux native release asset found.".to_string()),
+            });
+        }
+    };
+
+    let download_url = match asset["browser_download_url"].as_str() {
+        Some(u) => u.to_string(),
+        None => {
+            return HttpResponse::Ok().json(SignalCliResponse {
+                success: false,
+                installed: false,
+                cli_path: None,
+                version: None,
+                message: Some("Release asset missing download URL.".to_string()),
+            });
+        }
+    };
+
+    let asset_name = asset["name"].as_str().unwrap_or("signal-cli.tar.gz");
+
+    // Download to temp directory
+    let tmp_dir = std::env::temp_dir().join("knapsack-signal-install");
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let archive_path = tmp_dir.join(asset_name);
+
+    let download_resp = match client.get(&download_url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            return HttpResponse::Ok().json(SignalCliResponse {
+                success: false,
+                installed: false,
+                cli_path: None,
+                version: None,
+                message: Some(format!("Failed to download signal-cli: {}", e)),
+            });
+        }
+    };
+
+    let bytes = match download_resp.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            return HttpResponse::Ok().json(SignalCliResponse {
+                success: false,
+                installed: false,
+                cli_path: None,
+                version: None,
+                message: Some(format!("Failed to read download: {}", e)),
+            });
+        }
+    };
+
+    if let Err(e) = std::fs::write(&archive_path, &bytes) {
+        return HttpResponse::Ok().json(SignalCliResponse {
+            success: false,
+            installed: false,
+            cli_path: None,
+            version: None,
+            message: Some(format!("Failed to save archive: {}", e)),
+        });
+    }
+
+    // Extract to ~/.config/openclaw/tools/signal-cli/<version>
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let install_dir = format!("{}/.config/openclaw/tools/signal-cli/{}", home, version);
+    let _ = std::fs::create_dir_all(&install_dir);
+
+    let extract = Command::new("tar")
+        .args(["-xzf", &archive_path.to_string_lossy(), "-C", &install_dir])
+        .output();
+
+    // Clean up archive
+    let _ = std::fs::remove_file(&archive_path);
+
+    match extract {
+        Ok(output) if output.status.success() => {
+            // Find the signal-cli binary in the extracted directory
+            if let Some(cli_path) = find_signal_cli_binary(&install_dir) {
+                // Make it executable
+                let _ = Command::new("chmod").args(["+x", &cli_path]).output();
+
+                HttpResponse::Ok().json(SignalCliResponse {
+                    success: true,
+                    installed: true,
+                    cli_path: Some(cli_path),
+                    version: Some(version),
+                    message: Some("signal-cli installed successfully".to_string()),
+                })
+            } else {
+                HttpResponse::Ok().json(SignalCliResponse {
+                    success: false,
+                    installed: false,
+                    cli_path: None,
+                    version: None,
+                    message: Some("signal-cli binary not found after extraction".to_string()),
+                })
+            }
+        }
+        Ok(output) => HttpResponse::Ok().json(SignalCliResponse {
+            success: false,
+            installed: false,
+            cli_path: None,
+            version: None,
+            message: Some(format!(
+                "Extraction failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )),
+        }),
+        Err(e) => HttpResponse::Ok().json(SignalCliResponse {
+            success: false,
+            installed: false,
+            cli_path: None,
+            version: None,
+            message: Some(format!("Failed to run tar: {}", e)),
+        }),
+    }
+}
+
+/// Install signal-cli via Homebrew (macOS / Linux with Homebrew).
+async fn signal_install_via_brew() -> HttpResponse {
+    // Find Homebrew
+    let brew_path = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+        .iter()
+        .find(|p| std::path::Path::new(p).exists())
+        .map(|s| s.to_string());
+
+    let brew_path = match brew_path {
+        Some(p) => p,
+        None => {
+            return HttpResponse::Ok().json(SignalCliResponse {
+                success: false,
+                installed: false,
+                cli_path: None,
+                version: None,
+                message: Some(
+                    "Homebrew not found. Install Homebrew (https://brew.sh) first, or install signal-cli manually."
+                        .to_string(),
+                ),
+            });
+        }
+    };
+
+    let install = Command::new(&brew_path)
+        .args(["install", "signal-cli"])
+        .output();
+
+    match install {
+        Ok(output) if output.status.success() => {
+            // Find the installed binary
+            let which = Command::new("which").arg("signal-cli").output();
+            let cli_path = which
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+            let version = Command::new(cli_path.as_deref().unwrap_or("signal-cli"))
+                .arg("--version")
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+            HttpResponse::Ok().json(SignalCliResponse {
+                success: true,
+                installed: true,
+                cli_path,
+                version,
+                message: Some("signal-cli installed via Homebrew".to_string()),
+            })
+        }
+        Ok(output) => HttpResponse::Ok().json(SignalCliResponse {
+            success: false,
+            installed: false,
+            cli_path: None,
+            version: None,
+            message: Some(format!(
+                "Homebrew install failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )),
+        }),
+        Err(e) => HttpResponse::Ok().json(SignalCliResponse {
+            success: false,
+            installed: false,
+            cli_path: None,
+            version: None,
+            message: Some(format!("Failed to run Homebrew: {}", e)),
+        }),
+    }
+}
+
+/// Recursively find the signal-cli binary in an extracted directory.
+fn find_signal_cli_binary(dir: &str) -> Option<String> {
+    let path = std::path::Path::new(dir);
+    if !path.is_dir() {
+        return None;
+    }
+    // Check common locations
+    let candidates = vec![
+        path.join("bin").join("signal-cli"),
+        path.join("signal-cli"),
+        path.join("signal-cli-native").join("bin").join("signal-cli"),
+    ];
+    for candidate in &candidates {
+        if candidate.exists() {
+            return Some(candidate.to_string_lossy().to_string());
+        }
+    }
+    // Walk one level of subdirectories
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let sub = entry.path();
+            if sub.is_dir() {
+                let sub_candidates = vec![
+                    sub.join("bin").join("signal-cli"),
+                    sub.join("signal-cli"),
+                ];
+                for candidate in sub_candidates {
+                    if candidate.exists() {
+                        return Some(candidate.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Open System Preferences to Full Disk Access pane
 #[post("/api/clawd/channels/open-full-disk-access")]
 pub async fn open_full_disk_access() -> impl Responder {

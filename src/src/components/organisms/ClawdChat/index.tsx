@@ -7,6 +7,7 @@ import { open } from '@tauri-apps/api/shell'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
+import { checkSignalCli, installSignalCli, type SignalCliStatus } from 'src/api/channels'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -819,6 +820,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [slackAppToken, setSlackAppToken] = useState('')
   const [discordBotToken, setDiscordBotToken] = useState('')
   const [signalPhoneNumber, setSignalPhoneNumber] = useState('')
+  const [signalCliStatus, setSignalCliStatus] = useState<SignalCliStatus | null>(null)
+  const [signalCliChecking, setSignalCliChecking] = useState(false)
+  const [signalCliInstalling, setSignalCliInstalling] = useState(false)
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
   const [googleChatWebhook, setGoogleChatWebhook] = useState('')
   const [skills, setSkills] = useState<SkillInfo[]>([])
@@ -3480,30 +3484,107 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   {!channelStatus.genericChannels.signal?.configured && (
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">Connect Signal</div>
-                      <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
-                        Enter the phone number registered with signal-cli:
+
+                      {/* Step 1: Check / Install signal-cli */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
+                          Step 1: signal-cli is required to connect Signal.
+                        </div>
+
+                        {signalCliStatus?.installed ? (
+                          <div style={{ fontSize: 12, color: '#4caf50', marginBottom: 4 }}>
+                            signal-cli is installed{signalCliStatus.version ? ` (${signalCliStatus.version})` : ''}.
+                          </div>
+                        ) : (
+                          <>
+                            {signalCliStatus && !signalCliStatus.installed && (
+                              <div style={{ fontSize: 12, color: '#f59e0b', marginBottom: 6 }}>
+                                signal-cli is not installed on this machine.
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <button
+                                disabled={signalCliChecking || signalCliInstalling}
+                                onClick={async () => {
+                                  setSignalCliChecking(true)
+                                  setChannelError(null)
+                                  try {
+                                    const status = await checkSignalCli()
+                                    setSignalCliStatus(status)
+                                    if (!status.installed) {
+                                      setChannelError(null) // Don't show error, just the "not found" state
+                                    }
+                                  } catch (err: any) {
+                                    setChannelError(`Signal: ${err?.message || err}`)
+                                  } finally {
+                                    setSignalCliChecking(false)
+                                  }
+                                }}
+                                style={{ padding: '4px 12px', fontSize: 12, background: '#555', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                              >
+                                {signalCliChecking ? 'Checking...' : 'Check if installed'}
+                              </button>
+
+                              {signalCliStatus && !signalCliStatus.installed && (
+                                <button
+                                  disabled={signalCliInstalling}
+                                  onClick={async () => {
+                                    setSignalCliInstalling(true)
+                                    setChannelError(null)
+                                    try {
+                                      const result = await installSignalCli()
+                                      setSignalCliStatus(result)
+                                      if (!result.success || !result.installed) {
+                                        setChannelError(`Signal: ${result.message || 'Installation failed'}`)
+                                      }
+                                    } catch (err: any) {
+                                      setChannelError(`Signal: ${err?.message || err}`)
+                                    } finally {
+                                      setSignalCliInstalling(false)
+                                    }
+                                  }}
+                                  style={{ padding: '4px 12px', fontSize: 12, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                >
+                                  {signalCliInstalling ? 'Installing... (this may take a minute)' : 'Install signal-cli'}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input type="text" value={signalPhoneNumber} onChange={e => setSignalPhoneNumber(e.target.value)} placeholder="+1234567890" style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
-                        <button
-                          disabled={!signalPhoneNumber.trim() || channelBusy === 'signal'}
-                          onClick={async () => {
-                            setChannelBusy('signal')
-                            setChannelError(null)
-                            try {
-                              await channelStatus.connectGenericChannel('signal', { phoneNumber: signalPhoneNumber.trim() })
-                              setSignalPhoneNumber('')
-                            } catch (err: any) { setChannelError(`Signal: ${err?.message || err}`) }
-                            finally { setChannelBusy(null) }
-                          }}
-                          style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalPhoneNumber.trim() ? 0.5 : 1 }}
-                        >
-                          {channelBusy === 'signal' ? 'Saving...' : 'Save'}
-                        </button>
-                      </div>
-                      <div className="ClawdChannelGuideNote">
-                        Requires <strong>signal-cli</strong> installed and registered on this machine. See signal-cli docs for setup.
-                      </div>
+
+                      {/* Step 2: Phone number (only shown after signal-cli is confirmed) */}
+                      {signalCliStatus?.installed && (
+                        <div>
+                          <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
+                            Step 2: Enter the phone number to use with Signal (E.164 format):
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <input type="text" value={signalPhoneNumber} onChange={e => setSignalPhoneNumber(e.target.value)} placeholder="+1234567890" style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }} />
+                            <button
+                              disabled={!signalPhoneNumber.trim() || channelBusy === 'signal'}
+                              onClick={async () => {
+                                setChannelBusy('signal')
+                                setChannelError(null)
+                                try {
+                                  await channelStatus.connectGenericChannel('signal', {
+                                    phoneNumber: signalPhoneNumber.trim(),
+                                    cliPath: signalCliStatus.cli_path || 'signal-cli',
+                                  })
+                                  setSignalPhoneNumber('')
+                                } catch (err: any) { setChannelError(`Signal: ${err?.message || err}`) }
+                                finally { setChannelBusy(null) }
+                              }}
+                              style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !signalPhoneNumber.trim() ? 0.5 : 1 }}
+                            >
+                              {channelBusy === 'signal' ? 'Saving...' : 'Connect'}
+                            </button>
+                          </div>
+                          <div className="ClawdChannelGuideNote" style={{ marginTop: 6 }}>
+                            Use a separate phone number for the bot. The number needs to be registered with signal-cli first.
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

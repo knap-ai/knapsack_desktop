@@ -120,6 +120,24 @@ export const configureGenericChannel = (channel: string, config: Record<string, 
 export const disconnectGenericChannel = (channel: string) =>
   post<GenericResponse>(`/api/clawd/channels/generic/${channel}/disconnect`, {})
 
+// ── Signal CLI ──────────────────────────────────────────────
+
+export interface SignalCliStatus {
+  success: boolean
+  installed: boolean
+  cli_path?: string
+  version?: string
+  message?: string
+}
+
+/** Check if signal-cli is installed on this machine. */
+export const checkSignalCli = () =>
+  get<SignalCliStatus>('/api/clawd/channels/signal/check-cli')
+
+/** Install signal-cli automatically (downloads binary or uses Homebrew). */
+export const installSignalCli = () =>
+  post<SignalCliStatus>('/api/clawd/channels/signal/install-cli')
+
 // ── Send Message ────────────────────────────────────────────
 
 export interface SendMessageResponse {
