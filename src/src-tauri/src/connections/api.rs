@@ -213,7 +213,7 @@ async fn delete_connection(path: web::Path<String>) -> impl Responder {
 #[get("/api/knapsack/connections/refresh_token_api/{user_email}")]
 async fn refresh_knapsack_api_token(path: web::Path<String>) -> impl Responder {
     let user_email = path.into_inner();
-    
+
     match get_knapsack_api_connection(user_email) {
         Ok(user_connection) => {
             match user_connection.refresh_token {
@@ -235,4 +235,66 @@ async fn refresh_knapsack_api_token(path: web::Path<String>) -> impl Responder {
             }))
         }
     }
+}
+
+// --- Unified OAuth service discovery for skills (e.g. knapsack-finance) ---
+
+/// Returns connected service scopes and the user email for the current
+/// (single-user) desktop app.  Skills call this first to discover what
+/// OAuth services are available, then request tokens for specific scopes.
+#[get("/api/knapsack/connections/services")]
+pub async fn list_connected_services() -> impl Responder {
+    // Knapsack Desktop is single-user: pick the first user who has connections.
+    let email = match get_first_user_email() {
+        Some(e) => e,
+        None => {
+            return HttpResponse::Ok().json(json!({
+                "success": true,
+                "email": null,
+                "services": []
+            }));
+        }
+    };
+
+    match UserConnection::find_by_user_email(email.clone()) {
+        Ok(connections) => {
+            let services: Vec<serde_json::Value> = connections
+                .iter()
+                .filter_map(|uc| {
+                    uc.connection.as_ref().map(|conn| {
+                        json!({
+                            "scope": conn.scope,
+                            "provider": conn.provider
+                        })
+                    })
+                })
+                .collect();
+
+            HttpResponse::Ok().json(json!({
+                "success": true,
+                "email": email,
+                "services": services
+            }))
+        }
+        Err(_) => {
+            HttpResponse::Ok().json(json!({
+                "success": true,
+                "email": email,
+                "services": []
+            }))
+        }
+    }
+}
+
+/// Look up the first user email from the database.
+fn get_first_user_email() -> Option<String> {
+    let conn = crate::db::db::get_db_conn();
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT users.email FROM users \
+             INNER JOIN user_connections ON users.id = user_connections.user_id \
+             LIMIT 1",
+        )
+        .ok()?;
+    stmt.query_row([], |row| row.get::<_, String>(0)).ok()
 }

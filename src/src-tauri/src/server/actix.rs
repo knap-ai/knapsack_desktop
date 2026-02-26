@@ -174,6 +174,7 @@ pub async fn start_server<'a>(
       .service(connections::api::delete_connection)
       .service(connections::api::signout)
       .service(connections::api::refresh_knapsack_api_token)
+      .service(connections::api::list_connected_services)
       // Clawd integration endpoints
       .service(clawd::browser::open_browser)
       .service(clawd::browser::list_tabs)
