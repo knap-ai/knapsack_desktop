@@ -4238,7 +4238,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 <button
                   key={p.id}
                   className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
-                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
+                  onClick={() => {
+                    setSelectedProvider(p.id); setApiKey('')
+                    // If the user already has a key for this provider, immediately
+                    // switch the backend's active_provider so chat uses it right away.
+                    if (keyHints[p.id]) {
+                      apiPost('/api/clawd/service/set-active-provider', { provider: p.id }).catch(() => {})
+                    }
+                  }}
                   disabled={savingKey}
                 >
                   {p.name}

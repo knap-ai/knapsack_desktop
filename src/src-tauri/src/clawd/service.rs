@@ -986,6 +986,68 @@ pub async fn set_api_key(
   })
 }
 
+/// Switch the active provider without re-entering an API key.
+#[derive(Debug, Deserialize)]
+pub struct SetActiveProviderRequest {
+  pub provider: String,
+}
+
+#[post("/api/clawd/service/set-active-provider")]
+pub async fn set_active_provider(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<SetActiveProviderRequest>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+        success: false,
+        message: e,
+      })
+    }
+  };
+
+  let provider = payload.provider.trim().to_lowercase();
+
+  // Verify the user actually has a key for this provider
+  let has_key = match provider.as_str() {
+    "openai" => tokens.openai_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false),
+    "anthropic" => tokens.anthropic_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false),
+    "gemini" => tokens.gemini_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false),
+    "groq" => tokens.groq_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false),
+    _ => {
+      return HttpResponse::BadRequest().json(SetApiKeyResponse {
+        success: false,
+        message: format!("Unknown provider: {}", provider),
+      })
+    }
+  };
+
+  if !has_key {
+    return HttpResponse::BadRequest().json(SetApiKeyResponse {
+      success: false,
+      message: format!("No API key saved for {}", provider),
+    });
+  }
+
+  tokens.active_provider = Some(provider.clone());
+
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+      success: false,
+      message: e,
+    });
+  }
+
+  // Propagate to env so in-process consumers (notes, transcription) pick it up immediately
+  std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", &provider);
+
+  HttpResponse::Ok().json(SetApiKeyResponse {
+    success: true,
+    message: format!("Switched to {}", provider),
+  })
+}
+
 /// Remove an extra provider key.
 #[derive(Debug, Deserialize)]
 pub struct DeleteExtraProviderKeyRequest {
