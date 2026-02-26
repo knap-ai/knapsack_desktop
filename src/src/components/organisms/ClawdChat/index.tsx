@@ -613,12 +613,19 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     }
   }
 
-  // Auto-resize textarea to fit content
+  // Auto-resize textarea to fit content.
+  // Deferred to next animation frame to avoid synchronous layout reflow
+  // during the keystroke event handler (reduces input latency).
+  const resizeRaf = useRef(0)
   const autoResize = useCallback(() => {
-    const ta = textareaRef.current
-    if (!ta) return
-    ta.style.height = 'auto'
-    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
+    cancelAnimationFrame(resizeRaf.current)
+    resizeRaf.current = requestAnimationFrame(() => {
+      const ta = textareaRef.current
+      if (!ta) return
+      ta.style.height = 'auto'
+      const next = Math.min(ta.scrollHeight, 160) + 'px'
+      if (ta.style.height !== next) ta.style.height = next
+    })
   }, [])
 
   // Allow parent to trigger send with specific text (for prompt actions, voice, etc.)
@@ -1965,6 +1972,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     )
   }, []) as Components['pre']
 
+  // Stable references for ReactMarkdown props — avoids re-parsing all messages
+  // on parent re-renders (e.g. during health polling).
+  const mdPlugins = useMemo(() => [remarkGfm], [])
+  const mdComponents = useMemo(() => ({ a: ChatLink, pre: ChatCodeBlock }), [ChatLink, ChatCodeBlock])
+
   // Toggle voice mode - stop audio when disabling
   const toggleVoiceOutput = useCallback(() => {
     const newValue = !voiceEnabled
@@ -2694,7 +2706,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 {m.isClickable ? (
                   <p>{m.text}</p>
                 ) : (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ChatLink, pre: ChatCodeBlock }}>{cleaned}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
                 )}
                 {actions.length > 0 && (
                   <div className="ClawdPromptActions">
@@ -2771,7 +2783,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         {thinkingMessage && (
           <div className="ClawdMsg ClawdMsg-assistant ClawdMsg-thinking">
             <div className="ClawdBubble">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ChatLink }}>{thinkingMessage}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{thinkingMessage}</ReactMarkdown>
             </div>
           </div>
         )}
