@@ -9,6 +9,7 @@ import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, type SignalRegResponse } from 'src/api/channels'
+import { QRCodeSVG } from 'qrcode.react'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 
@@ -3823,55 +3824,40 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               ) : (
                                 <div>
                                   <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 6 }}>
-                                    Link generated! Open Signal on your phone:
+                                    Link generated! Scan this QR code with Signal on your phone:
                                   </div>
                                   <div style={{ fontSize: 11, color: '#334155', marginBottom: 8, lineHeight: 1.5 }}>
                                     1. Go to <strong>Settings &gt; Linked Devices</strong><br />
                                     2. Tap <strong>Link New Device</strong><br />
-                                    3. Copy the link below and open it on your phone, or scan it from another device
+                                    3. Scan the QR code below with your phone camera
+                                  </div>
+                                  <div style={{ textAlign: 'center', margin: '12px 0' }}>
+                                    <QRCodeSVG
+                                      value={signalLinkUri!}
+                                      size={200}
+                                      level="M"
+                                      style={{ borderRadius: 8 }}
+                                    />
                                   </div>
                                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(signalLinkUri!)
-                                        setChannelError(null)
-                                      }}
-                                      style={{ padding: '6px 16px', fontSize: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 500 }}
-                                    >
-                                      Copy Link to Clipboard
-                                    </button>
                                     <button
                                       onClick={() => {
                                         setSignalLinkUri(null)
                                         setSignalRegDone(true)
                                       }}
-                                      style={{ padding: '6px 16px', fontSize: 13, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 500 }}
                                     >
                                       I linked it — continue
                                     </button>
-                                  </div>
-                                  <div
-                                    style={{
-                                      padding: 10,
-                                      background: '#f1f5f9',
-                                      borderRadius: 4,
-                                      marginBottom: 8,
-                                      wordBreak: 'break-all',
-                                      fontSize: 11,
-                                      color: '#334155',
-                                      fontFamily: 'monospace',
-                                      lineHeight: 1.6,
-                                      maxHeight: 120,
-                                      overflowY: 'auto',
-                                      overflowX: 'hidden',
-                                      userSelect: 'all',
-                                      WebkitUserSelect: 'all',
-                                      cursor: 'text',
-                                      border: '1px solid #e2e8f0',
-                                    }}
-                                    title="Click to select, or use the Copy button above"
-                                  >
-                                    {signalLinkUri}
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(signalLinkUri!)
+                                        setChannelError(null)
+                                      }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      Copy Link
+                                    </button>
                                   </div>
                                   <div className="ClawdChannelGuideNote" style={{ marginTop: 6 }}>
                                     After linking, signal-cli will finish in the background. This may take a moment.
