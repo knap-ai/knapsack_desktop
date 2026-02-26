@@ -6,7 +6,10 @@ import remarkGfm from 'remark-gfm'
 import { open } from '@tauri-apps/api/shell'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
+import dayjs from 'dayjs'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
+import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
+import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -512,6 +515,87 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 
+/**
+ * Pre-fetch recent emails and today's calendar events from Knapsack's backend APIs.
+ * Returns a formatted context string, or empty string if no data is available.
+ * This avoids browser emulation — data is fetched directly via authenticated APIs.
+ */
+async function fetchEmailCalendarContext(): Promise<string> {
+  const dataFetcher = new DataFetcher()
+  const contextParts: string[] = []
+
+  // Fetch recent emails (last 2 days, up to 15)
+  try {
+    const emails = await dataFetcher.getRecentGmailMessages(2, 15)
+    if (emails?.length) {
+      contextParts.push('## Recent Emails\n')
+      for (const email of emails.slice(0, 10)) {
+        const dateStr = new Date(email.date * 1000).toLocaleString()
+        const preview = (email.summary || email.body || '').slice(0, 200)
+        contextParts.push(
+          `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
+        )
+      }
+    }
+  } catch (err) {
+    console.warn('[ClawdChat] Failed to pre-fetch emails:', err)
+  }
+
+  // Fetch today's calendar events
+  try {
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    const todayEnd = new Date()
+    todayEnd.setHours(23, 59, 59, 999)
+
+    const todayEvents = await getCalendarEvents(
+      Math.floor(todayStart.getTime() / 1000),
+      Math.floor(todayEnd.getTime() / 1000),
+    )
+
+    if (todayEvents?.length) {
+      contextParts.push('\n## Today\'s Calendar\n')
+      for (const event of todayEvents) {
+        const startTime = event.start
+          ? dayjs(event.start * 1000).format('h:mm A')
+          : 'TBD'
+        const endTime = event.end
+          ? dayjs(event.end * 1000).format('h:mm A')
+          : 'TBD'
+        const attendees = event.attendees_json
+          ? JSON.parse(event.attendees_json)
+              .map((a: any) => a.name || a.email || a)
+              .join(', ')
+          : 'N/A'
+        contextParts.push(
+          `- **${event.title || 'Untitled'}** (${startTime} - ${endTime}) | Attendees: ${attendees}\n`,
+        )
+      }
+    }
+  } catch (err) {
+    console.warn('[ClawdChat] Failed to pre-fetch calendar:', err)
+  }
+
+  // Fetch upcoming meetings (next 3)
+  try {
+    const upcomingMeetings = await dataFetcher.getRecentCalendarEvents()
+    if (upcomingMeetings?.length) {
+      contextParts.push('\n## Upcoming Meetings\n')
+      for (const meeting of upcomingMeetings) {
+        const startStr = dayjs(meeting.start).format('ddd MMM D, h:mm A')
+        const participants = meeting.participants?.map((p: any) => p.name || p.email || p).join(', ') || 'N/A'
+        contextParts.push(
+          `- **${meeting.title}** at ${startStr} | Participants: ${participants}\n`,
+        )
+      }
+    }
+  } catch (err) {
+    console.warn('[ClawdChat] Failed to pre-fetch upcoming meetings:', err)
+  }
+
+  return contextParts.join('\n')
+}
+
 // Static skills catalog — used as fallback when gateway/backend is unreachable
 const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"Web Search",emoji:"🔍",description:"Search the web",source:"built-in",eligible:true,enabled:true},
@@ -849,6 +933,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const pushAssistantRef = useRef<((text: string) => void) | null>(null)
   const handleSendWithTextRef = useRef<((text: string) => Promise<void>) | null>(null)
 
+  // Auto-briefing: track whether we've already triggered the initial briefing this session
+  const autoTriggeredBriefingRef = useRef(false)
+
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
   const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured)
@@ -865,7 +952,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       {
         id: 'welcome-2',
         role: 'assistant' as Role,
-        text: "For your privacy and security: I always open a fresh browser instance. This means you'll need to sign in to any accounts you want me to access (Gmail, LinkedIn, etc). Your credentials are never stored or shared.",
+        text: "I have access to your connected email and calendar. Let me check what you should focus on today — or pick an option below.",
         ts: Date.now() + 1,
         promptActions: [
           { label: 'Check my email & calendar to get started', prompt: SMART_PROMPT },
@@ -1815,7 +1902,29 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const clearHistory = useCallback(() => {
     localStorage.removeItem(CHAT_HISTORY_STORAGE)
     setMsgs(welcomeMessages)
+    autoTriggeredBriefingRef.current = false
   }, [welcomeMessages])
+
+  // Auto-trigger initial briefing for onboarded users with email/calendar connected.
+  // Fires once per session when: onboarding is complete, gateway is healthy,
+  // and only welcome messages are showing (no prior chat history).
+  useEffect(() => {
+    if (
+      hasCompletedOnboarding &&
+      health?.gateway_ok &&
+      !autoTriggeredBriefingRef.current &&
+      !busy &&
+      msgs.length > 0 &&
+      msgs.every(m => m.id.startsWith('welcome-'))
+    ) {
+      autoTriggeredBriefingRef.current = true
+      // Short delay to let the UI settle after initialization
+      const timer = setTimeout(() => {
+        handleSendWithTextRef.current?.(SMART_PROMPT)
+      }, 800)
+      return () => clearTimeout(timer)
+    }
+  }, [hasCompletedOnboarding, health?.gateway_ok, busy, msgs])
 
   const enableAssistant = async (enabled: boolean) => {
     setBusy(true)
@@ -2295,11 +2404,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const currentTone = TONE_OPTIONS.find(t => t.id === selectedTone)
         const tonePrompt = currentTone?.systemPromptAddition || ''
 
-        // For the smart prompt, add a nudge to recommend specific actions
+        // For the smart prompt, pre-fetch email/calendar data from Knapsack's APIs
+        // so the agent can analyze it directly without browser emulation.
         const isSmartPrompt = text === SMART_PROMPT
-        const actualText = isSmartPrompt
-          ? `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
-          : text
+        let actualText = text
+        if (isSmartPrompt) {
+          try {
+            const context = await fetchEmailCalendarContext()
+            if (context) {
+              actualText = INITIAL_BRIEFING_INSTRUCTIONS + context
+            } else {
+              // No data available — fall back to letting the agent browse
+              actualText = `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
+            }
+          } catch {
+            // If pre-fetch fails, fall back to original behavior
+            actualText = `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
+          }
+        }
 
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
