@@ -65,49 +65,49 @@ const GenerateDraftButton = ({
     )
   }
 
-  // When a draft already exists, show Yes pls / No thx / Rewrite
+  // After a draft exists, show only Rewrite
   if (isRegenerate) {
     return (
-      <div className="inline-flex items-center gap-3">
-        <button
-          onClick={() => handleGenerateDraft('yes')}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-50 text-green-700 hover:bg-green-100 text-sm font-semibold font-InterTight transition-colors focus:outline-none"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Yes pls
-        </button>
-        <button
-          onClick={() => handleGenerateDraft('no')}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-ks-warm-grey-50 text-ks-warm-grey-700 hover:bg-ks-warm-grey-100 text-sm font-semibold font-InterTight transition-colors focus:outline-none"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          No thx
-        </button>
-        <span className="text-ks-warm-grey-300">|</span>
-        <button
-          onClick={() => handleGenerateDraft('default')}
-          className="inline-flex items-center text-ks-red-800 hover:text-red-900 text-sm font-medium transition-colors focus:outline-none"
-        >
-          Rewrite
-        </button>
-      </div>
+      <button
+        onClick={() => handleGenerateDraft('default')}
+        className="inline-flex items-center text-ks-red-800 hover:text-red-900 text-sm font-medium transition-colors focus:outline-none"
+      >
+        Rewrite
+      </button>
     )
   }
 
-  // No draft yet — show Write Draft
+  // No draft yet — show three tone options: Neutral, Yes pls, No thx
   return (
-    <button
-      onClick={() => handleGenerateDraft()}
-      className="inline-flex items-center text-ks-red-800 hover:text-red-900 text-sm font-medium transition-colors focus:outline-none gap-1"
-    >
-      <div className="text-sm font-medium my-0">
+    <div className="inline-flex items-center gap-3">
+      <button
+        onClick={() => handleGenerateDraft('default')}
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-ks-warm-grey-50 text-ks-warm-grey-800 hover:bg-ks-warm-grey-100 text-sm font-semibold font-InterTight transition-colors focus:outline-none"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        </svg>
         Write Draft
-      </div>
-    </button>
+      </button>
+      <button
+        onClick={() => handleGenerateDraft('yes')}
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-50 text-green-700 hover:bg-green-100 text-sm font-semibold font-InterTight transition-colors focus:outline-none"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+        Yes pls
+      </button>
+      <button
+        onClick={() => handleGenerateDraft('no')}
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-ks-warm-grey-50 text-ks-warm-grey-700 hover:bg-ks-warm-grey-100 text-sm font-semibold font-InterTight transition-colors focus:outline-none"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        No thx
+      </button>
+    </div>
   );
 };
 

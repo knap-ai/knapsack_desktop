@@ -309,15 +309,11 @@ const EmailDraftCard = ({
           </div>
         </div>
 
-        <div className="text-left text-black text-sm text-wrap px-3 pt-2 pb-2 min-h-[25px]">
+        <div className="text-left text-black text-sm text-wrap px-3 pt-2 pb-2 min-h-[25px] max-h-[300px] overflow-y-auto">
           <EditorContent
             editor={editor}
             className="max-w-none [&_*]:focus:outline-none focus:ring-0 [&_.ProseMirror]:text-black"
           />
-        </div>
-
-        <div className="absolute bottom-2.5 right-3 text-xs text-ks-warm-grey-800 font-Inter">
-          Checked against SEC/FINRA rules
         </div>
 
         <div className="ml-3 py-2">

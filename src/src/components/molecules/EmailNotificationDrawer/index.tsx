@@ -47,6 +47,10 @@ const EmailNotificationDrawer = ({
   const [isEditorActive, setIsEditorActive] = useState(false)
   const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
   const [caughtUpDismissing, setCaughtUpDismissing] = useState(false)
+  const [drawerWidth, setDrawerWidth] = useState(540)
+  const [drawerHeight, setDrawerHeight] = useState(Math.round(window.innerHeight * 0.85))
+  const resizingRef = useRef(false)
+  const resizeStartRef = useRef({ x: 0, y: 0, w: 0, h: 0 })
   const prevEmailCountRef = useRef<number>(0)
   const initialLoadRef = useRef(true)
   const frozenEmailRef = useRef<DisplayEmail | null>(null)
@@ -313,6 +317,31 @@ const EmailNotificationDrawer = ({
     setIsExpanded(false)
   }, [])
 
+  // Resize drag handler — user drags the top-left corner to grow/shrink the drawer
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    resizingRef.current = true
+    resizeStartRef.current = { x: e.clientX, y: e.clientY, w: drawerWidth, h: drawerHeight }
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return
+      const dx = resizeStartRef.current.x - ev.clientX // dragging left = increase width
+      const dy = resizeStartRef.current.y - ev.clientY // dragging up = increase height
+      setDrawerWidth(Math.max(400, Math.min(window.innerWidth * 0.9, resizeStartRef.current.w + dx)))
+      setDrawerHeight(Math.max(300, Math.min(window.innerHeight - 32, resizeStartRef.current.h + dy)))
+    }
+
+    const onMouseUp = () => {
+      resizingRef.current = false
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [drawerWidth, drawerHeight])
+
   const getLoadingText = (status: string) => {
     if (status === 'fetching-emails') return 'Engaging autopilot...'
     if (status === 'classifying-emails') return 'Analyzing emails...'
@@ -331,23 +360,37 @@ const EmailNotificationDrawer = ({
 
   return (
     <div
-      className={`absolute bottom-0 right-0 z-40 w-full max-w-[540px] transition-all duration-400 ease-out ${
+      className={`absolute bottom-0 right-0 z-40 transition-all duration-400 ease-out ${
         isAnimatingOut
           ? 'translate-y-full opacity-0'
           : 'translate-y-0 opacity-100'
       }`}
+      style={isExpanded ? { width: `${drawerWidth}px`, maxWidth: '90vw' } : { width: '540px', maxWidth: '540px' }}
     >
       <div
         className={`mr-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
-          isExpanded ? 'max-h-[70vh]' : 'max-h-[220px]'
+          isExpanded ? '' : 'max-h-[220px]'
         }`}
+        style={isExpanded ? { height: `${drawerHeight}px`, maxHeight: 'calc(100vh - 32px)' } : {}}
       >
+        {/* Resize handle — top-left corner drag */}
+        {isExpanded && (
+          <div
+            className="absolute top-0 left-0 w-4 h-4 cursor-nw-resize z-50 group"
+            onMouseDown={handleResizeStart}
+            title="Drag to resize"
+          >
+            <svg className="w-3 h-3 m-0.5 text-ks-warm-grey-300 group-hover:text-ks-warm-grey-500 transition-colors" viewBox="0 0 10 10" fill="currentColor">
+              <circle cx="2" cy="2" r="1.2" />
+              <circle cx="2" cy="6" r="1.2" />
+              <circle cx="6" cy="2" r="1.2" />
+            </svg>
+          </div>
+        )}
         {/* Header bar */}
         <div
-          className={`relative flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-ks-red-50 to-white border-b border-ks-warm-grey-100 shrink-0 ${
-            !isExpanded ? 'cursor-pointer' : ''
-          }`}
-          onClick={!isExpanded ? handleExpand : undefined}
+          className="relative flex items-center justify-between px-4 py-2.5 bg-white border-b border-ks-warm-grey-100 shrink-0 cursor-pointer"
+          onClick={isExpanded ? handleCollapse : handleExpand}
         >
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-ks-red-500 animate-pulse" />
@@ -360,18 +403,6 @@ const EmailNotificationDrawer = ({
               </span>
             )}
           </div>
-          {/* Centered minimize arrow */}
-          {isExpanded && (
-            <button
-              onClick={handleCollapse}
-              className="absolute left-1/2 -translate-x-1/2 p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
-              title="Minimize"
-            >
-              <svg className="w-4 h-4 text-ks-warm-grey-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          )}
           <div className="flex items-center gap-1.5">
             {isExpanded && (
               <SettingsButton
