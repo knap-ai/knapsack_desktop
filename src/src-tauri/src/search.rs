@@ -443,8 +443,8 @@ pub async fn get_email_thread(path: web::Path<u64>) -> Result<HttpResponse> {
   };
 
   let display_docs: Vec<GmailSearchResponseDoc> = thread_emails
-    .into_iter()
-    .filter_map(build_gmail_response_doc_from_email_row)
+    .iter()
+    .filter_map(|email| build_gmail_response_doc_from_email_row(email.clone()))
     .collect();
 
   Ok(HttpResponse::Ok().json(GmailSearchResponse {

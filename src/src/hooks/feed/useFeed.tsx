@@ -311,7 +311,7 @@ export function useFeed(
       while (!emailPriorityQueue.isEmpty()) {
         const email = emailPriorityQueue.dequeue()
         if (email) {
-          // Process the email here
+          // Process the email here — draft replies for IMPORTANT emails
           if (
             email.classification?.classification == 'IMPORTANT_NEEDS_RESPONSE' ||
             email.classification?.classification == 'IMPORTANT_NO_RESPONSE'
@@ -323,7 +323,8 @@ export function useFeed(
             )
 
             setClassifiedEmails(prevState => {
-              prevState['IMPORTANT_NEEDS_RESPONSE'] = prevState['IMPORTANT_NEEDS_RESPONSE']?.map(
+              const newState = { ...prevState }
+              newState['IMPORTANT_NEEDS_RESPONSE'] = newState['IMPORTANT_NEEDS_RESPONSE']?.map(
                 emailDisplay => {
                   if (emailDisplay.message.documentId === email.message.documentId) {
                     return { ...emailDisplay, draftedReply }
@@ -331,10 +332,7 @@ export function useFeed(
                   return emailDisplay
                 },
               )
-              return prevState
-            })
-            setClassifiedEmails(prevState => {
-              prevState['IMPORTANT_NO_RESPONSE'] = prevState['IMPORTANT_NO_RESPONSE']?.map(
+              newState['IMPORTANT_NO_RESPONSE'] = newState['IMPORTANT_NO_RESPONSE']?.map(
                 emailDisplay => {
                   if (emailDisplay.message.documentId === email.message.documentId) {
                     return { ...emailDisplay, draftedReply }
@@ -342,7 +340,7 @@ export function useFeed(
                   return emailDisplay
                 },
               )
-              return prevState
+              return newState
             })
           }
           // Add 50ms delay between processing items
@@ -592,14 +590,15 @@ export function useFeed(
     }))
 
     setClassifiedEmails(prevState => {
-      prevState['UNCLASSIFIED'] = [
-        ...(prevState['UNCLASSIFIED'] || []),
+      const newState = { ...prevState }
+      newState['UNCLASSIFIED'] = [
+        ...(newState['UNCLASSIFIED'] || []),
         ...emails.map(message => ({
           message: message,
           classification: null,
         })),
       ]
-      return prevState
+      return newState
     })
   }
 
@@ -642,6 +641,14 @@ export function useFeed(
         return
       }
 
+      // Identify threads where the user has sent a message (i.e. already replied)
+      const repliedThreadIds = new Set<string>()
+      allMessages.forEach(message => {
+        if (message.sender.includes(userEmail) && message.threadId) {
+          repliedThreadIds.add(message.threadId)
+        }
+      })
+
       setClassifiedEmails(prevState => {
         const newState: Partial<Record<EmailImportance, DisplayEmail[]>> = { ...prevState }
 
@@ -654,14 +661,22 @@ export function useFeed(
                 message => message.documentId === displayEmail.message.documentId,
               )
               if (updatedMessage) {
+                // Mark as replied if the user has sent a message in the same thread,
+                // or fall back to the read/archived/deleted heuristic.
+                const userRepliedInThread =
+                  updatedMessage.threadId != null &&
+                  repliedThreadIds.has(updatedMessage.threadId)
+
                 return {
                   ...displayEmail,
                   message: updatedMessage,
-                  wasReplySent: !(
-                    (updatedMessage.isStarred || !updatedMessage.isRead) &&
-                    !updatedMessage.isArchived &&
-                    !updatedMessage.isDeleted
-                  ),
+                  wasReplySent:
+                    userRepliedInThread ||
+                    !(
+                      (updatedMessage.isStarred || !updatedMessage.isRead) &&
+                      !updatedMessage.isArchived &&
+                      !updatedMessage.isDeleted
+                    ),
                 }
               }
               return displayEmail
@@ -701,6 +716,15 @@ export function useFeed(
         return
       }
 
+      // Before filtering to unread/starred, capture threads the user already
+      // replied to (sent messages are read, so the filter below would drop them).
+      const userRepliedThreadIds = new Set<string>()
+      allMessages.forEach(message => {
+        if (message.sender.includes(userEmail) && message.threadId) {
+          userRepliedThreadIds.add(message.threadId)
+        }
+      })
+
       allMessages = allMessages.filter(
         message => message.isStarred || (!message.isRead && !message.isArchived),
       )
@@ -737,8 +761,20 @@ export function useFeed(
         }
       }
 
-      let newMessages = Array.from(emailThreadsSet).filter(
-        message => !message.sender.includes(userEmail),
+      const allThreadMessages = Array.from(emailThreadsSet)
+
+      // Also check thread messages for user replies (now that the backend
+      // returns the full thread instead of only the latest message).
+      allThreadMessages.forEach(message => {
+        if (message.sender.includes(userEmail) && message.threadId) {
+          userRepliedThreadIds.add(message.threadId)
+        }
+      })
+
+      let newMessages = allThreadMessages.filter(
+        message =>
+          !message.sender.includes(userEmail) &&
+          !(message.threadId && userRepliedThreadIds.has(message.threadId)),
       )
 
       const uniqueUuids: Record<string, number> = {}

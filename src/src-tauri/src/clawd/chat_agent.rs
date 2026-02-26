@@ -364,6 +364,27 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         }),
       },
     },
+    // Direct email sending tool (uses Gmail/Outlook API, no browser needed)
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
+        name: "send_email".to_string(),
+        description: "Send an email directly via Gmail or Outlook API. Works for both new emails and replies. Requires the user to be logged in with their email account. ALWAYS show the user the full email (to, cc, subject, body) and get explicit confirmation before calling this tool.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "to": { "type": "string", "description": "Comma-separated recipient email addresses" },
+            "cc": { "type": "string", "description": "Comma-separated CC email addresses (optional)" },
+            "subject": { "type": "string", "description": "Email subject line" },
+            "body": { "type": "string", "description": "Email body in HTML format. Use <p>, <br>, <b>, <i> tags for formatting." },
+            "reply_to_uid": { "type": "string", "description": "If replying to an existing email, the email_uid of the message being replied to. Omit for new emails." },
+            "thread_id": { "type": "string", "description": "Gmail thread ID for threading replies. Omit for new emails." }
+          },
+          "required": ["to", "subject", "body"],
+          "additionalProperties": false
+        }),
+      },
+    },
   ]
 }
 
@@ -410,6 +431,25 @@ pub fn advanced_tools() -> Vec<OaiToolSpec> {
 pub async fn openai_chat(
   api_key: &str,
   model: &str,
+  messages: Vec<OaiMessage>,
+  tools: Vec<OaiToolSpec>,
+) -> anyhow::Result<OaiChatResp> {
+  openai_compatible_chat(api_key, model, "https://api.openai.com/v1", messages, tools).await
+}
+
+pub async fn groq_chat(
+  api_key: &str,
+  model: &str,
+  messages: Vec<OaiMessage>,
+  tools: Vec<OaiToolSpec>,
+) -> anyhow::Result<OaiChatResp> {
+  openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", messages, tools).await
+}
+
+pub async fn openai_compatible_chat(
+  api_key: &str,
+  model: &str,
+  base_url: &str,
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
@@ -484,7 +524,7 @@ pub async fn openai_chat(
 
   for attempt in 0..max_retries {
     let res = client
-      .post("https://api.openai.com/v1/chat/completions")
+      .post(format!("{}/chat/completions", base_url))
       .bearer_auth(api_key)
       .json(&body)
       .send()
@@ -509,16 +549,16 @@ pub async fn openai_chat(
         wait_secs
       );
       tokio::time::sleep(Duration::from_secs_f64(wait_secs)).await;
-      last_error = format!("OpenAI HTTP {}: {}", status, text);
+      last_error = format!("LLM HTTP {}: {}", status, text);
       continue;
     }
 
     // For other errors, fail immediately
-    anyhow::bail!("OpenAI HTTP {}: {}", status, text);
+    anyhow::bail!("LLM HTTP {}: {}", status, text);
   }
 
   // All retries exhausted
-  anyhow::bail!("OpenAI error after {} retries: {}", max_retries, last_error)
+  anyhow::bail!("LLM error after {} retries: {}", max_retries, last_error)
 }
 
 /// Parse the retry-after time from OpenAI rate limit error messages

@@ -225,6 +225,20 @@ fn gemini_key(app_handle: &tauri::AppHandle) -> Option<String> {
     .filter(|s| !s.is_empty())
 }
 
+fn groq_key(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("GROQ_API_KEY") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
+  }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.groq_api_key)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
 fn active_provider(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
@@ -849,6 +863,20 @@ pub async fn chat(
     .to_string();
   let is_autonomous = autonomy_mode == "autonomous";
 
+  // User email and name for direct email sending (passed from frontend when user is auth'd)
+  let user_email = body
+    .get("userEmail")
+    .and_then(|v| v.as_str())
+    .unwrap_or("")
+    .trim()
+    .to_string();
+  let user_name = body
+    .get("userName")
+    .and_then(|v| v.as_str())
+    .unwrap_or("")
+    .trim()
+    .to_string();
+
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
   let profile = clawd_profile(chrome);
 
@@ -870,6 +898,15 @@ pub async fn chat(
         return HttpResponse::BadRequest().json(serde_json::json!({
           "ok": false,
           "message": "Gemini API key is not set. Add it in Settings and Save, then re-enable."
+        }))
+      }
+    },
+    "groq" => match groq_key(&app_handle) {
+      Some(k) => k,
+      None => {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+          "ok": false,
+          "message": "Groq API key is not set. Add it in Settings and Save, then re-enable."
         }))
       }
     },
@@ -895,6 +932,8 @@ pub async fn chat(
     args: &str,
     app_handle: &tauri::AppHandle,
     profile: &str,
+    user_email: &str,
+    user_name: &str,
   ) -> anyhow::Result<JsonValue> {
     let args_map = chat_agent::parse_args_map(args);
     let query = json!({"profile": profile});
@@ -1937,6 +1976,41 @@ pub async fn chat(
       }
     }
 
+    // Direct email sending via Gmail API (no browser automation needed)
+    if name == "send_email" {
+      if user_email.is_empty() {
+        return Ok(json!({
+          "ok": false,
+          "error": "No email account connected. The user needs to connect their Gmail or Outlook account in Knapsack settings first."
+        }));
+      }
+
+      let to = args_map.get("to").and_then(|v| v.as_str()).unwrap_or("").trim();
+      let cc = args_map.get("cc").and_then(|v| v.as_str()).map(|s| s.trim());
+      let subject = args_map.get("subject").and_then(|v| v.as_str()).unwrap_or("").trim();
+      let body_html = args_map.get("body").and_then(|v| v.as_str()).unwrap_or("").trim();
+      let thread_id = args_map.get("thread_id").and_then(|v| v.as_str()).map(|s| s.trim());
+
+      if to.is_empty() || subject.is_empty() || body_html.is_empty() {
+        anyhow::bail!("to, subject, and body are all required");
+      }
+
+      match crate::clawd::gmail::send_gmail_email(
+        user_email,
+        user_name,
+        to,
+        cc,
+        subject,
+        body_html,
+        thread_id,
+      )
+      .await
+      {
+        Ok(msg) => return Ok(json!({"ok": true, "message": msg})),
+        Err(e) => return Ok(json!({"ok": false, "error": e})),
+      }
+    }
+
     anyhow::bail!("unknown tool: {}", name)
   }
 
@@ -2317,7 +2391,7 @@ When the user asks you to find tasks, action items, or follow-ups:
 
 ## Proactive Actions You Should Take
 - **Create docs**: Draft Google Docs for plans, summaries, or proposals
-- **Draft messages**: Compose emails/Slack messages (but DON'T send - just draft)
+- **Draft messages**: Compose emails (use the send_email tool after user confirms) and Slack messages
 - **Update CRMs**: Update HubSpot, Salesforce with notes, tasks, deal updates
 - **Create calendar events**: Navigate to calendar and create event drafts
 - **Organize information**: Create structured lists, tables, or summaries
@@ -2393,12 +2467,24 @@ Before you send ANY message to the user, mentally review it and ask yourself the
 # SAFETY CONSTRAINTS
 
 ## NEVER Do These Without Permission
-- **Send** emails or messages (only DRAFT them - leave in compose box)
+- **Send** emails or messages without the user confirming the final content
 - **Make purchases** or financial transactions
 - **Delete data** without explicit confirmation
 - **Share sensitive information** externally
 - **Click "Send", "Submit", "Purchase", "Delete"** buttons without asking
 - **Change passwords or credentials** — NEVER change, set, reset, or fill in password fields on behalf of the user. This includes system passwords, application passwords, web service "change password" forms, API key rotations, SSH key generation (overwriting existing keys), and any credential/authentication changes. If the user requests a password change, explain they must do it themselves for security and provide the steps.
+
+## EMAIL SENDING
+You have a **send_email** tool that sends emails directly via the Gmail API (no browser needed). This is the PREFERRED way to send emails — do NOT use browser automation to compose/send emails.
+
+### How to Send Emails
+1. **Draft the email** and show the user the full details (To, CC, Subject, Body) in your response
+2. **Ask for confirmation** — e.g. "Ready to send this email. Say **SEND** to confirm, or let me know what to change."
+3. **Only call send_email** after the user explicitly confirms (says "send", "send it", "yes", "confirmed", "go ahead", etc.)
+4. For **replies**, include the thread_id if available to maintain threading
+
+### When the User Says "Send"
+When the user says "send it", "yes send", "confirmed", or similar — immediately call the send_email tool. Do NOT ask for additional confirmation or re-show the email. One confirmation is enough.
 
 ## Always Ask Before
 - Any irreversible action
@@ -2549,6 +2635,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
   let model = match provider.as_str() {
     "anthropic" => super::service::get_anthropic_model(&app_handle),
     "gemini" => super::service::get_gemini_model(&app_handle),
+    "groq" => super::service::get_groq_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
   };
   eprintln!("[clawd/chat] Using provider={} model={}", provider, model);
@@ -2583,6 +2670,15 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
           Err(e) => {
             return HttpResponse::InternalServerError()
               .json(serde_json::json!({"ok": false, "message": format!("Gemini error: {}", e)}));
+          }
+        }
+      }
+      "groq" => {
+        match chat_agent::groq_chat(&api_key, &model, messages.clone(), tools.clone()).await {
+          Ok(r) => r,
+          Err(e) => {
+            return HttpResponse::InternalServerError()
+              .json(serde_json::json!({"ok": false, "message": format!("Groq error: {}", e)}));
           }
         }
       }
@@ -2631,7 +2727,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
       let name = &tc.function.name;
       let args = &tc.function.arguments;
       eprintln!("[clawd/chat] tool call: {} args={}", name, args);
-      let mut result = match run_tool(name, args, &app_handle, &profile).await {
+      let mut result = match run_tool(name, args, &app_handle, &profile, &user_email, &user_name).await {
         Ok(v) => {
           eprintln!("[clawd/chat] tool {} succeeded", name);
           v

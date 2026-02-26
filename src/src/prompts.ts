@@ -301,11 +301,12 @@ Rules for classification:
   * Auto-generated reports you don't need
 
 Rules for "summary" field:
-  * Use 1-2 VERY SHORT sentences returned as an array of strings to describe the most important points of the most recent email
-  * The first sentence should be a SHORT summary so that the user doesn't need to read the email if they've read this first sentence.
+  * Use exactly 2 SHORT sentences returned as an array of strings.
+  * The first sentence should summarize WHO is asking and WHAT they want — lead with the specific ask, request, or call to action. Examples: "Sarah needs your sign-off on the Q4 budget by Friday.", "Tom is proposing a partnership call next week and wants your availability."
+  * The second sentence should provide the key context or detail that helps decide how to respond — e.g. numbers, deadlines, stakes, or what's at risk.
   * Don't include HTML.
-  * The second sentence in the array is optional. Include it if there are important details that should be mentioned, like metrics or numbers that substantiate the first sentence.
-  * Don't restate anything between bullet points
+  * Don't be vague or generic. Never write "Someone wants to discuss something." — always use real names, real asks, and real details from the email.
+  * Don't restate anything between sentences
 
 Example input:
 Subject: Urgent: Q4 Report Draft Review Needed
