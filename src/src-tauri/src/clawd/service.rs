@@ -1391,15 +1391,31 @@ pub async fn set_service_enabled(
             }
 
             // Set default profile to "openclaw" (managed, isolated) so the
-            // browser tool has a profile to use for channel automations.
-            let has_default_profile = cfg
+            // browser tool works for channel automations.  The "chrome"
+            // profile is an extension-relay that requires a human to manually
+            // attach the OpenClaw Chrome extension to a tab — it will never
+            // work from a background channel context (Telegram/Signal/etc.).
+            let current_profile = cfg
               .pointer("/browser/defaultProfile")
               .and_then(|v| v.as_str())
-              .is_some();
-            if !has_default_profile {
+              .unwrap_or("chrome");
+            if current_profile == "chrome" || current_profile.is_empty() {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
                 .insert("defaultProfile".to_string(), serde_json::json!("openclaw"));
-              eprintln!("[clawd/service] Patched browser.defaultProfile to openclaw");
+              eprintln!("[clawd/service] Patched browser.defaultProfile from {:?} to openclaw", current_profile);
+              patched = true;
+            }
+
+            // On Linux, Chrome/Chromium requires --no-sandbox when running
+            // headless (no display server).  Set browser.noSandbox = true.
+            let no_sandbox = cfg
+              .pointer("/browser/noSandbox")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !no_sandbox {
+              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                .insert("noSandbox".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched browser.noSandbox to true");
               patched = true;
             }
 
