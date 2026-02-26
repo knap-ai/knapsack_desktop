@@ -923,8 +923,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounter = useRef(0)
 
-  // Chat auto-scroll ref
+  // Chat auto-scroll ref and state
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
+  const isNearBottomRef = useRef(true)
+  const [showScrollButton, setShowScrollButton] = useState(false)
 
   // Voice silence detection refs
   const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1767,12 +1769,45 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     init()
   }, [])
 
-  // Auto-scroll to bottom when messages change
+  // Track whether user is near the bottom of the chat
+  const handleChatScroll = useCallback(() => {
+    const el = chatBodyRef.current
+    if (!el) return
+    const threshold = 100 // px from bottom
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+    isNearBottomRef.current = atBottom
+    if (atBottom) setShowScrollButton(false)
+  }, [])
+
+  // Attach scroll listener to chat body
+  useEffect(() => {
+    const el = chatBodyRef.current
+    if (!el) return
+    el.addEventListener('scroll', handleChatScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleChatScroll)
+  }, [handleChatScroll])
+
+  // Auto-scroll to bottom when messages change, but only if user is near the bottom
   useEffect(() => {
     if (chatBodyRef.current) {
-      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight
+      if (isNearBottomRef.current) {
+        requestAnimationFrame(() => {
+          if (chatBodyRef.current) {
+            chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight
+          }
+        })
+      } else {
+        setShowScrollButton(true)
+      }
     }
   }, [msgs, thinkingMessage])
+
+  const scrollToBottom = useCallback(() => {
+    if (chatBodyRef.current) {
+      chatBodyRef.current.scrollTo({ top: chatBodyRef.current.scrollHeight, behavior: 'smooth' })
+    }
+    setShowScrollButton(false)
+  }, [])
 
   // Save chat history to localStorage whenever msgs change (excluding welcome messages)
   useEffect(() => {
@@ -2902,6 +2937,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </div>
         )}
       </div>
+
+      {showScrollButton && (
+        <button className="ClawdScrollToBottom" onClick={scrollToBottom}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+          New messages
+        </button>
+      )}
 
       <ChatInputBar
         busy={busy}
