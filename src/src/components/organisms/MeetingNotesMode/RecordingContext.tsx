@@ -7,7 +7,7 @@ import KNAnalytics from 'src/utils/KNAnalytics'
 
 import { emit } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
-import { open } from '@tauri-apps/api/shell'
+import { openBesideApp } from 'src/utils/openBesideApp'
 
 export interface RecordingContextProps {
   isRecording: (threadId: number) => boolean
@@ -159,7 +159,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       setFeedIsRecording(true)
       setIsRecording(threadId, true)
       if (eventUrl && isStart) {
-        await open(eventUrl)
+        await openBesideApp(eventUrl)
       } else if (!isStart) {
         setIsPaused(false)
       }
