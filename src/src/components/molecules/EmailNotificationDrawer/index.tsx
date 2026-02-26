@@ -48,7 +48,7 @@ const EmailNotificationDrawer = ({
   const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
   const [caughtUpDismissing, setCaughtUpDismissing] = useState(false)
   const [drawerWidth, setDrawerWidth] = useState(540)
-  const [drawerHeight, setDrawerHeight] = useState(Math.round(window.innerHeight * 0.85))
+  const [drawerHeight, setDrawerHeight] = useState(Math.round(window.innerHeight * 0.55))
   const resizingRef = useRef(false)
   const resizeStartRef = useRef({ x: 0, y: 0, w: 0, h: 0 })
   const prevEmailCountRef = useRef<number>(0)
@@ -469,7 +469,7 @@ const EmailNotificationDrawer = ({
                   <div className="text-xs text-ks-warm-grey-600 font-InterTight mt-0.5 truncate">
                     From: {sender}
                   </div>
-                  <div className="text-sm text-black font-Inter mt-2 leading-relaxed line-clamp-2">
+                  <div className="text-sm text-black font-Inter mt-2 leading-relaxed">
                     {summary}
                   </div>
                 </div>

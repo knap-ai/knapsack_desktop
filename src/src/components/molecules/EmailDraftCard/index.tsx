@@ -172,7 +172,7 @@ const EmailDraftCard = ({
           <div className="text-ks-neutral-700 text-xs leading-relaxed my-0">
             {emailSummary && (
               <>
-                <div className="text-sm leading-5 text-black font-Inter line-clamp-2">
+                <div className="text-sm leading-5 text-black font-Inter">
                   {emailSummary.join(' ')}
                 </div>
               </>
