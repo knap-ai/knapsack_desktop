@@ -933,7 +933,16 @@ pub async fn chat(
         format!("https://{}", url_raw)
       };
 
-      let out = do_post("/tabs/open", serde_json::json!({"url": url}), &query).await?;
+      // Retry once on transient errors (browser may still be launching)
+      let out = match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
+        Ok(v) => v,
+        Err(e) => {
+          let msg = e.to_string();
+          eprintln!("[clawd/chat] open_url first attempt failed ({}), retrying...", msg);
+          tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+          do_post("/tabs/open", serde_json::json!({"url": url}), &query).await?
+        }
+      };
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -962,11 +971,23 @@ pub async fn chat(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-      let mut payload = serde_json::json!({"url": url});
-      if let Some(tid) = target_id {
-        payload["targetId"] = serde_json::json!(tid);
-      }
-      let out = do_post("/navigate", payload, &query).await?;
+      let mk_payload = || {
+        let mut p = serde_json::json!({"url": url});
+        if let Some(ref tid) = target_id {
+          p["targetId"] = serde_json::json!(tid);
+        }
+        p
+      };
+      // Retry once on transient errors (browser may still be launching)
+      let out = match do_post("/navigate", mk_payload(), &query).await {
+        Ok(v) => v,
+        Err(e) => {
+          let msg = e.to_string();
+          eprintln!("[clawd/chat] navigate first attempt failed ({}), retrying...", msg);
+          tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+          do_post("/navigate", mk_payload(), &query).await?
+        }
+      };
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -986,8 +1007,25 @@ pub async fn chat(
     }
 
     if name == "list_tabs" {
-      let out = do_get("/tabs", &query).await?;
-      return Ok(json!({"ok": true, "result": out}));
+      // Auto-retry on transient browser errors
+      for attempt in 0..2u32 {
+        match do_get("/tabs", &query).await {
+          Ok(out) => return Ok(json!({"ok": true, "result": out})),
+          Err(e) => {
+            let msg = e.to_string();
+            let is_transient = msg.contains("onnection refused")
+              || msg.contains("extension not connected")
+              || msg.contains("Extension not connected");
+            if is_transient && attempt < 1 {
+              eprintln!("[clawd/chat] list_tabs attempt {} failed ({}), retrying...", attempt + 1, msg);
+              tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+              continue;
+            }
+            anyhow::bail!("{}", msg);
+          }
+        }
+      }
+      anyhow::bail!("list_tabs failed after retries");
     }
 
     if name == "snapshot" {
@@ -1002,8 +1040,29 @@ pub async fn chat(
       if let Some(tid) = target_id {
         snap_query["targetId"] = json!(tid);
       }
-      let out = do_get("/snapshot", &snap_query).await?;
-      return Ok(json!({"ok": true, "result": out}));
+      // Auto-retry snapshot on transient browser errors (browser may still be starting)
+      let mut last_err = String::new();
+      for attempt in 0..3u32 {
+        match do_get("/snapshot", &snap_query).await {
+          Ok(out) => return Ok(json!({"ok": true, "result": out})),
+          Err(e) => {
+            last_err = e.to_string();
+            let is_transient = last_err.contains("onnection refused")
+              || last_err.contains("extension not connected")
+              || last_err.contains("Extension not connected")
+              || last_err.contains("No pages available")
+              || last_err.contains("no tab is connected")
+              || last_err.contains("tab not found");
+            if is_transient && attempt < 2 {
+              eprintln!("[clawd/chat] snapshot attempt {} failed ({}), retrying...", attempt + 1, last_err);
+              tokio::time::sleep(std::time::Duration::from_millis(1500 * (attempt as u64 + 1))).await;
+              continue;
+            }
+            anyhow::bail!("{}", last_err);
+          }
+        }
+      }
+      anyhow::bail!("{}", last_err);
     }
 
     if name == "click" {
@@ -2657,14 +2716,19 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
           let is_connection_err = err_str.contains("onnection refused")
             || err_str.contains("No pages available")
             || err_str.contains("tcp connect error")
-            || err_str.contains("error sending request");
+            || err_str.contains("error sending request")
+            || err_str.contains("extension not connected")
+            || err_str.contains("Extension not connected")
+            || err_str.contains("extension disconnected")
+            || err_str.contains("no tab is connected")
+            || err_str.contains("relay") && err_str.contains("not reachable");
           if is_connection_err {
             // Report the error — do NOT cycle the service.
             // Cycling (SIGTERM → restart) kills the entire gateway including
             // the browser control server, creating a restart loop. The
             // LaunchAgent has KeepAlive=true so macOS handles crash recovery.
             eprintln!("[clawd/chat] tool {} connection error: {}", name, err_str);
-            json!({"ok": false, "error": format!("Browser not ready: {}. Try again in a moment.", err_str)})
+            json!({"ok": false, "error": "Browser not ready yet. Retry the same action."})
           } else {
             eprintln!("[clawd/chat] tool {} failed: {}", name, e);
             json!({"ok": false, "error": String::from(err_str)})
