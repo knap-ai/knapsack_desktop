@@ -50,5 +50,9 @@ src-tauri/.qdrant-initialized
 src-tauri/storage/*
 src-tauri/snapshots/*
 
+# Bundled Node.js binary (downloaded by scripts/prepare-node.sh)
+src-tauri/resources/node/node
+src-tauri/resources/node/node.exe
+
 # Sentry Config File
 .env.sentry-build-plugin
