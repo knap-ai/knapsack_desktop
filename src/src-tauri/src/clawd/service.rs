@@ -411,6 +411,34 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
   Ok(t)
 }
 
+/// Patch the openclaw.json config at app startup and cycle the running
+/// service so it picks up the changes (e.g. headless=false).  This ensures
+/// the config is correct even when the user upgrades the app without
+/// toggling the service off/on.
+pub fn patch_config_and_cycle_service(app_handle: &tauri::AppHandle) {
+  let clawdbot_home = app_clawdbot_home(app_handle);
+  let config_path = clawdbot_home.join("openclaw.json");
+  if !config_path.exists() {
+    return;
+  }
+
+  // Read the config before patching to detect if anything changed
+  let before = std::fs::read_to_string(&config_path).unwrap_or_default();
+
+  patch_openclaw_config(&clawdbot_home);
+
+  // If the config was modified, cycle the service so the running
+  // clawdbot process picks up the new settings.
+  let after = std::fs::read_to_string(&config_path).unwrap_or_default();
+  if before != after {
+    eprintln!("[clawd/service] Config was patched at startup, cycling service…");
+    let handle = app_handle.clone();
+    tokio::spawn(async move {
+      cycle_service(&handle).await;
+    });
+  }
+}
+
 /// Load saved LLM API keys from tokens.json and set them as environment
 /// variables so they are available to the actix server (llm_complete, transcribe, etc.)
 /// from the moment the process starts — not just after clawdbot service enable.

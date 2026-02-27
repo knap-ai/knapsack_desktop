@@ -151,6 +151,10 @@ fn setup_handler(
   // starts, so that llm_complete (meeting notes) and transcribe can use them.
   clawd::service::propagate_llm_keys_to_env(&app_handle);
 
+  // Patch openclaw.json config on every startup (e.g. force headless=false)
+  // and cycle the running service if anything changed.
+  clawd::service::patch_config_and_cycle_service(&app_handle);
+
   let actix_app_handle = app.handle();
 
   // Start the server
