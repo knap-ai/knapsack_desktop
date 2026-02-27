@@ -480,14 +480,15 @@ const MeetingsTabView = ({
               </div>
             ) : (
               <div className={`MeetingsTabView__meeting-content ${showPermissionsOverlay ? 'pointer-events-none' : ''}`}>
-                {selectedMeeting.threads
-                  ?.filter(thread => thread.threadType === ThreadType.MEETING_NOTES)
-                  .map((thread: IThread) => (
+                {(() => {
+                  const notesThread = selectedMeeting.threads
+                    ?.find(thread => thread.threadType === ThreadType.MEETING_NOTES)
+                  return notesThread ? (
                     <MeetingNotesMode
-                      key={thread.id}
+                      key={notesThread.id}
                       feedItemId={selectedMeeting.id}
                       item={selectedMeeting}
-                      thread={thread}
+                      thread={notesThread}
                       timestamp={selectedMeeting.timestamp}
                       runParam={selectedMeeting.run ? (selectedMeeting.run?.runParams as string) : undefined}
                       meeting={selectedMeeting.getCalendarEvent()}
@@ -507,7 +508,8 @@ const MeetingsTabView = ({
                       recordingHandlers={recordingHandlers}
                       handleOpenTasks={handleOpenTasks}
                     />
-                  ))}
+                  ) : null
+                })()}
               </div>
             )}
           </div>
