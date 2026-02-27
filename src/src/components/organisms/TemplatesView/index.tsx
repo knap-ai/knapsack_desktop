@@ -1,5 +1,6 @@
 import cn from 'classnames'
-import { useState } from "react"
+import debounce from 'lodash/debounce'
+import { useCallback, useMemo, useState } from "react"
 import { MeetingTemplatePrompt, INTERNAL_MEETING, CLIENT_DISCOVERY_MEETING, ONBOARDING_DATA_GATHERING, FINANCIAL_PLAN_PRESENTATION, FINANCIAL_PLAN_IMPLEMENTATION } from 'src/utils/template_prompts'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 import { IThread } from 'src/api/threads'
@@ -43,13 +44,23 @@ const TemplatesView: React.FC<TemplatesViewProps> = ({
     return additionalInstructionsMap[key] || "";
   }
 
-  const setAdditionalInstructions = (key: string, instructions: string) => {
-    KNLocalStorage.setItem(key, instructions);
+  // Debounce the disk write so we don't call writeTextFile on every keystroke
+  const debouncedSaveToStorage = useMemo(
+    () => debounce((key: string, value: string) => {
+      KNLocalStorage.setItem(key, value)
+    }, 600),
+    [],
+  )
+
+  const setAdditionalInstructions = useCallback((key: string, instructions: string) => {
+    // Update local state immediately for responsive typing
     setAdditionalInstructionsMap(prev => ({
       ...prev,
       [key]: instructions
     }));
-  }
+    // Debounce the expensive disk write
+    debouncedSaveToStorage(key, instructions);
+  }, [debouncedSaveToStorage])
 
   return (
     <div className="text-ks-warm-grey-900 w-[18em] mt-3 mr-0 ml-1 ">

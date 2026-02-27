@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import React, { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -381,4 +381,4 @@ const EmailDraftCard = ({
   )
 }
 
-export default EmailDraftCard
+export default React.memo(EmailDraftCard)

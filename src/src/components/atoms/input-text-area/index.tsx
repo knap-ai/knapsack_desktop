@@ -26,9 +26,12 @@ const InputTextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
     const adjustHeight = () => {
       const textarea = textAreaRef.current;
       if (textarea) {
-        textarea.style.height = 'inherit';
-        const newHeight = Math.min(textarea.scrollHeight, 200);
-        textarea.style.height = `${Math.max(44, newHeight)}px`;
+        // Use 'auto' and read scrollHeight in a single reflow via requestAnimationFrame
+        requestAnimationFrame(() => {
+          textarea.style.height = 'auto';
+          const newHeight = Math.min(textarea.scrollHeight, 200);
+          textarea.style.height = `${Math.max(44, newHeight)}px`;
+        });
       }
     };
 
