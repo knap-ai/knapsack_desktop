@@ -805,6 +805,30 @@
   }
 }
 
+.ClawdBusyActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ClawdQueuedBtn {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(59, 130, 246, 0.22);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+}
+
 // API Key Prompt Overlay
 // Shared drawer mixin — full-height right-side panel
 %ClawdDrawer {

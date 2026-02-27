@@ -664,9 +664,21 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
   } = props
   const [input, setInput] = useState('')
+  const [queuedMessage, setQueuedMessage] = useState<string | null>(null)
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // When the assistant finishes (busy → false), auto-send the queued message
+  const prevBusyRef = useRef(busy)
+  useEffect(() => {
+    if (prevBusyRef.current && !busy && queuedMessage) {
+      const msg = queuedMessage
+      setQueuedMessage(null)
+      onSend(msg)
+    }
+    prevBusyRef.current = busy
+  }, [busy, queuedMessage, onSend])
 
   // Easter egg commands supported in chat input
   const CHAT_COMMANDS: Record<string, string> = {
@@ -691,7 +703,12 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
       return
     }
 
-    onSend(text)
+    if (busy) {
+      // Queue the message — it'll auto-send when the current generation completes
+      setQueuedMessage(text)
+    } else {
+      onSend(text)
+    }
     setInput('')
     // Reset textarea height after send
     if (textareaRef.current) {
@@ -755,7 +772,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         <button
           className="ClawdFileBtn"
           onClick={() => fileInputRef.current?.click()}
-          disabled={busy}
+          disabled={isRecording}
           title="Attach files or images"
         >
           📎
@@ -779,8 +796,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 handleSend()
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : 'Ask anything...'}
-            disabled={busy || isRecording}
+            placeholder={isRecording ? '🎤 Listening...' : queuedMessage ? `Queued: "${queuedMessage}"` : busy ? 'Type your next message...' : 'Ask anything...'}
+            disabled={isRecording}
             rows={1}
           />
           {/* Voice mode toggle - always visible inside input like ChatGPT */}
@@ -802,9 +819,24 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           </button>
         </div>
         {busy ? (
-          <button className="ClawdStopBtn" onClick={onStopGeneration}>
-            ⏹️ Stop
-          </button>
+          <div className="ClawdBusyActions">
+            {queuedMessage ? (
+              <button
+                className="ClawdQueuedBtn"
+                onClick={() => setQueuedMessage(null)}
+                title="Cancel queued message"
+              >
+                ✕ Queued
+              </button>
+            ) : input.trim() ? (
+              <button onClick={handleSend}>
+                Queue
+              </button>
+            ) : null}
+            <button className="ClawdStopBtn" onClick={onStopGeneration}>
+              ⏹️ Stop
+            </button>
+          </div>
         ) : (
           <button disabled={!input.trim() && attachedFiles.length === 0} onClick={handleSend}>
             Send
