@@ -184,7 +184,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         description: "Type text into an element by ref from snapshot".to_string(),
         parameters: json!({
           "type": "object",
-          "properties": { "targetId": { "type": "string" }, "ref": { "type": "string" }, "text": { "type": "string" }, "submit": { "type": "boolean" } },
+          "properties": { "targetId": { "type": "string" }, "ref": { "type": "string" }, "text": { "type": "string" }, "submit": { "type": ["boolean", "string"], "description": "Press Enter after typing. true or false." } },
           "required": ["ref", "text"],
           "additionalProperties": false
         }),
@@ -231,7 +231,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
           "properties": {
             "path": { "type": "string", "description": "Directory to search in" },
             "pattern": { "type": "string", "description": "File name pattern to match (e.g., '*.pdf', 'report*', '*.txt')" },
-            "recursive": { "type": "boolean", "description": "Whether to search subdirectories (default: true)" }
+            "recursive": { "type": ["boolean", "string"], "description": "Whether to search subdirectories (default: true). true or false." }
           },
           "required": ["path", "pattern"],
           "additionalProperties": false

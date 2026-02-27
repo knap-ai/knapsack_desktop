@@ -186,7 +186,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
   // Wait for connect.challenge (skip ping/pong control frames)
   let challenge_text = loop {
-    let challenge_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
+    let challenge_msg = tokio::time::timeout(Duration::from_secs(3), read.next())
       .await
       .map_err(|_| "Timeout waiting for challenge")?
       .ok_or("Connection closed before challenge")?
@@ -237,7 +237,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
   // Wait for connect response (skip ping/pong control frames)
   let connect_resp_text = loop {
-    let connect_resp_msg = tokio::time::timeout(Duration::from_secs(10), read.next())
+    let connect_resp_msg = tokio::time::timeout(Duration::from_secs(3), read.next())
       .await
       .map_err(|_| "Timeout waiting for connect response")?
       .ok_or("Connection closed before connect response")?

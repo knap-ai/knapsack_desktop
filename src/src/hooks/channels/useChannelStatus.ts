@@ -76,6 +76,28 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     setLoading(true)
     setError(null)
     try {
+      // Quick gateway health check first — if gateway is down, skip the
+      // expensive per-channel status polls which each timeout after 10-20s.
+      let gwOk = false
+      try {
+        const hRes = await fetch('http://localhost:8897/api/clawd/service/health')
+        if (hRes.ok) {
+          const hData = await hRes.json()
+          gwOk = !!hData.gateway_ok
+          setGatewayHealthy(gwOk)
+        }
+      } catch {
+        // Rust backend itself is unreachable — gateway definitely not ok
+        setGatewayHealthy(false)
+      }
+
+      if (!gwOk) {
+        // Gateway is down — don't waste 10+ seconds per channel waiting for
+        // connection timeouts.  Return immediately with null states.
+        setLoading(false)
+        return
+      }
+
       const [wa, im, tg, ...genericResults] = await Promise.all([
         getWhatsAppStatus().catch(() => null),
         getIMessageStatus().catch(() => null),

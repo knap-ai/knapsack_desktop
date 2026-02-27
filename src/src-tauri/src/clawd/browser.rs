@@ -1134,7 +1134,7 @@ pub async fn chat(
       }
       let submit = args_map
         .get("submit")
-        .and_then(|v| v.as_bool())
+        .map(|v| v.as_bool().unwrap_or_else(|| v.as_str() == Some("true")))
         .unwrap_or(false);
       let target_id = args_map
         .get("targetId")
@@ -1228,7 +1228,7 @@ pub async fn chat(
         .trim();
       let recursive = args_map
         .get("recursive")
-        .and_then(|v| v.as_bool())
+        .map(|v| v.as_bool().unwrap_or_else(|| v.as_str() != Some("false")))
         .unwrap_or(true);
       if path_raw.is_empty() || pattern.is_empty() {
         anyhow::bail!("path and pattern are required");
