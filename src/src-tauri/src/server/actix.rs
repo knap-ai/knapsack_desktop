@@ -187,6 +187,7 @@ pub async fn start_server<'a>(
       .service(clawd::sidecar::set_config)
       .service(clawd::service::service_status)
       .service(clawd::service::service_health)
+      .service(clawd::service::service_kickstart)
       .service(clawd::service::service_logs)
       .service(clawd::service::set_llm_keys)
       .service(clawd::service::set_service_enabled)

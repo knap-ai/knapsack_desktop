@@ -1766,6 +1766,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           await apiPost('/api/clawd/service/enable', { enabled: true })
           // Wait for service to start (browser Chrome process needs extra time)
           await new Promise(resolve => setTimeout(resolve, 4000))
+        } else {
+          // Service is "running" (LaunchAgent loaded) — verify gateway is actually
+          // reachable.  The LaunchAgent can be loaded in launchctl while the actual
+          // Node.js process crashed or never started.  In that case, kickstart it.
+          try {
+            const h = await apiGet<ServiceHealth>('/api/clawd/service/health')
+            setHealth(h)
+            if (!h.gateway_ok) {
+              console.warn('[ClawdChat] Service loaded but gateway down — triggering kickstart')
+              await apiPost('/api/clawd/service/kickstart', {})
+              // Give the gateway extra time after kickstart before polling
+              await new Promise(resolve => setTimeout(resolve, 3000))
+            }
+          } catch {
+            // Health check itself failed — try kickstart anyway
+            console.warn('[ClawdChat] Health check failed — triggering kickstart')
+            await apiPost('/api/clawd/service/kickstart', {})
+            await new Promise(resolve => setTimeout(resolve, 3000))
+          }
         }
 
         // Refresh status after enabling

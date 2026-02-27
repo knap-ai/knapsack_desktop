@@ -5,6 +5,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::clawd::gateway_client;
+use crate::clawd::gateway_supervisor;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
@@ -2328,6 +2329,98 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
 #[cfg(not(target_os = "macos"))]
 pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
   // No-op on non-macOS platforms
+}
+
+/// Lightweight gateway restart: kickstart the LaunchAgent without a full
+/// disable+enable cycle.  Called by the frontend when the service is "loaded"
+/// but the gateway process isn't responding on port 18789.
+#[post("/api/clawd/service/kickstart")]
+pub async fn service_kickstart(
+  app_handle: web::Data<tauri::AppHandle>,
+) -> impl Responder {
+  #[cfg(not(target_os = "macos"))]
+  {
+    return HttpResponse::NotImplemented().json(serde_json::json!({
+      "success": false,
+      "message": "Service management is only implemented for macOS right now"
+    }));
+  }
+
+  #[cfg(target_os = "macos")]
+  {
+    let tokens = match load_or_create_tokens(&app_handle) {
+      Ok(t) => t,
+      Err(e) => {
+        return HttpResponse::InternalServerError().json(serde_json::json!({
+          "success": false, "message": e
+        }))
+      }
+    };
+
+    // Re-patch config before restarting
+    let clawdbot_home = app_clawdbot_home(&app_handle);
+    let _ = patch_openclaw_config(&clawdbot_home);
+
+    eprintln!("[clawd/service] Frontend-triggered kickstart — gateway was down at init");
+
+    let uid = unsafe { libc::getuid() };
+    let service = format!("gui/{}/{}", uid, LAUNCH_AGENT_LABEL);
+    let _ = std::process::Command::new("launchctl")
+      .args(["kickstart", "-k", &service])
+      .status();
+
+    // Give the gateway a moment, then probe health
+    let mut started = false;
+    for attempt in 1..=5u32 {
+      tokio::time::sleep(std::time::Duration::from_millis(match attempt {
+        1 => 1000,
+        2 => 1500,
+        3 => 2000,
+        _ => 2500,
+      })).await;
+
+      if gateway_supervisor::is_gateway_healthy(&tokens.gateway_token).await {
+        started = true;
+        eprintln!("[clawd/service] Gateway healthy after kickstart (attempt {})", attempt);
+        break;
+      }
+    }
+
+    if !started {
+      // Kickstart didn't work — try a full cycle (bootout + bootstrap + kickstart)
+      eprintln!("[clawd/service] Kickstart alone didn't help — trying full cycle");
+      cycle_service(&app_handle).await;
+
+      // One more health probe
+      tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+      started = gateway_supervisor::is_gateway_healthy(&tokens.gateway_token).await;
+    }
+
+    let mut message = if started {
+      "Gateway restarted successfully".to_string()
+    } else {
+      "Gateway still not responding after restart".to_string()
+    };
+
+    if !started {
+      let err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+      if let Ok(content) = std::fs::read_to_string(&err_path) {
+        let tail: Vec<&str> = content.lines().rev().take(10).collect();
+        if !tail.is_empty() {
+          let mut tail_lines: Vec<&str> = tail.into_iter().collect();
+          tail_lines.reverse();
+          message.push_str("\n--- stderr ---\n");
+          message.push_str(&tail_lines.join("\n"));
+        }
+      }
+    }
+
+    HttpResponse::Ok().json(serde_json::json!({
+      "success": started,
+      "gateway_ok": started,
+      "message": message
+    }))
+  }
 }
 
 // --- Skills API endpoint (static catalog) ---
