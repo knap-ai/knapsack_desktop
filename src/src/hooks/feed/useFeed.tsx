@@ -1193,11 +1193,12 @@ export function useFeed(
             if (rp?.event_id) {
               existingEventIds.add(String(rp.event_id))
             }
-            // Also key by title + start timestamp so the same meeting from a
-            // different calendar account (different event_id) is still matched.
+            // Also key by title + start-minute so the same meeting from a
+            // different calendar account (different event_id) is still matched
+            // even if timestamps differ by a few seconds.
             if (item.title && item.timestamp) {
-              const startSec = Math.floor(item.timestamp.getTime() / 1000)
-              existingMeetingKeys.add(`${item.title}_${startSec}`)
+              const startMin = Math.floor(item.timestamp.getTime() / 60000)
+              existingMeetingKeys.add(`${item.title}_${startMin}`)
             }
           })
         })
@@ -1211,7 +1212,7 @@ export function useFeed(
 
         const seenMeetingKeys = new Set<string>()
         Object.entries(meetings).forEach(([_id, meeting]) => {
-          const meetingKey = `${meeting.title}_${meeting.start}`
+          const meetingKey = `${meeting.title}_${Math.floor(meeting.start / 60)}`
           if (
             meeting.end > nowSeconds &&
             meeting.start < endOfTomorrowSeconds &&
