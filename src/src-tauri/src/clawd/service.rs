@@ -62,20 +62,24 @@ fn ensure_dir(p: &Path) -> Result<(), String> {
 /// Patch the on-disk openclaw.json config to ensure required fields for
 /// the desktop app (browser.enabled, headless=false, defaultProfile, etc.).
 /// This is idempotent — safe to call repeatedly.
-fn patch_openclaw_config(clawdbot_home: &Path) {
+///
+/// Returns a list of channel names that were auto-disabled because their
+/// configuration was broken (e.g. missing required tokens).
+fn patch_openclaw_config(clawdbot_home: &Path) -> Vec<String> {
   let config_path = clawdbot_home.join("openclaw.json");
   if !config_path.exists() {
-    return;
+    return Vec::new();
   }
   let existing = match fs::read_to_string(&config_path) {
     Ok(s) => s,
-    Err(_) => return,
+    Err(_) => return Vec::new(),
   };
   let mut cfg: serde_json::Value = match serde_json::from_str(&existing) {
     Ok(v) => v,
-    Err(_) => return,
+    Err(_) => return Vec::new(),
   };
   let mut patched = false;
+  let mut disabled_channels: Vec<String> = Vec::new();
 
   // Ensure plugins.slots.memory is set to "none".
   let current_memory = cfg
@@ -302,12 +306,94 @@ fn patch_openclaw_config(clawdbot_home: &Path) {
     patched = true;
   }
 
+  // ── Auto-disable broken channels ───────────────────────────
+  // Validate each configured channel.  If required credentials are missing
+  // or obviously invalid, remove the channel so the gateway can start cleanly.
+  if let Some(channels) = cfg.get("channels").cloned() {
+    if let Some(channels_obj) = channels.as_object() {
+      for (name, ch_cfg) in channels_obj {
+        // Skip channels that are already null / disabled
+        if ch_cfg.is_null() {
+          continue;
+        }
+        let obj = match ch_cfg.as_object() {
+          Some(o) => o,
+          None => continue, // non-object value, skip
+        };
+
+        // If explicitly disabled, skip validation
+        if obj.get("enabled").and_then(|v| v.as_bool()) == Some(false) {
+          continue;
+        }
+
+        let broken = match name.as_str() {
+          "slack" => {
+            let bot = obj.get("botToken").and_then(|v| v.as_str()).unwrap_or("");
+            let app = obj.get("appToken").and_then(|v| v.as_str()).unwrap_or("");
+            bot.is_empty() || app.is_empty()
+              || !bot.starts_with("xoxb-") || !app.starts_with("xapp-")
+          }
+          "discord" => {
+            let token = obj.get("token").and_then(|v| v.as_str()).unwrap_or("");
+            token.is_empty() || token.len() < 50
+          }
+          "signal" => {
+            let account = obj.get("account").and_then(|v| v.as_str()).unwrap_or("");
+            account.is_empty() || !account.starts_with('+')
+          }
+          "googlechat" => {
+            let webhook = obj.get("webhookUrl").and_then(|v| v.as_str()).unwrap_or("");
+            let token = obj.get("token").and_then(|v| v.as_str()).unwrap_or("");
+            // Google Chat can use either a webhook URL or a service-account token
+            webhook.is_empty() && token.is_empty()
+          }
+          "irc" => {
+            let server = obj.get("server").and_then(|v| v.as_str()).unwrap_or("");
+            let nick = obj.get("nick").and_then(|v| v.as_str()).unwrap_or("");
+            server.is_empty() || nick.is_empty()
+          }
+          "telegram" => {
+            let bot_token = obj.get("botToken").and_then(|v| v.as_str()).unwrap_or("");
+            bot_token.is_empty()
+          }
+          _ => false, // unknown channels — leave them alone
+        };
+
+        if broken {
+          // Remove the broken channel from config
+          if let Some(cfg_channels) = cfg.pointer_mut("/channels")
+            .and_then(|v| v.as_object_mut())
+          {
+            cfg_channels.insert(name.clone(), serde_json::Value::Null);
+            let display = match name.as_str() {
+              "slack" => "Slack",
+              "discord" => "Discord",
+              "signal" => "Signal",
+              "googlechat" => "Google Chat",
+              "irc" => "IRC",
+              "telegram" => "Telegram",
+              _ => name.as_str(),
+            };
+            eprintln!(
+              "[clawd/service] Auto-disabled broken channel '{}': missing or invalid credentials",
+              display
+            );
+            disabled_channels.push(display.to_string());
+            patched = true;
+          }
+        }
+      }
+    }
+  }
+
   if patched {
     match fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
       Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
       Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
     }
   }
+
+  disabled_channels
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -425,7 +511,16 @@ pub fn patch_config_and_cycle_service(app_handle: &tauri::AppHandle) {
   // Read the config before patching to detect if anything changed
   let before = std::fs::read_to_string(&config_path).unwrap_or_default();
 
-  patch_openclaw_config(&clawdbot_home);
+  let disabled_channels = patch_openclaw_config(&clawdbot_home);
+
+  // Notify the frontend about any channels that were auto-disabled
+  if !disabled_channels.is_empty() {
+    use tauri::Manager;
+    let _ = app_handle.emit_all(
+      "clawd-channels-auto-disabled",
+      serde_json::json!({ "channels": disabled_channels }),
+    );
+  }
 
   // If the config was modified, cycle the service so the running
   // clawdbot process picks up the new settings.
@@ -1676,7 +1771,7 @@ pub async fn set_service_enabled(
         }
       } else {
         // Patch existing configs to ensure required fields are present.
-        patch_openclaw_config(&clawdbot_home);
+        let _ = patch_openclaw_config(&clawdbot_home);
       }
 
       // Ensure the workspace has a TOOLS.md that tells the auto-reply agent
@@ -2051,7 +2146,7 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
   // Re-patch the config before restarting so any fixes (e.g. headless=false)
   // take effect without requiring the user to toggle the service manually.
   let clawdbot_home = app_clawdbot_home(_app_handle);
-  patch_openclaw_config(&clawdbot_home);
+  let _ = patch_openclaw_config(&clawdbot_home);
 
   let uid = unsafe { libc::getuid() };
   let domain = format!("gui/{}", uid);

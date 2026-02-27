@@ -1926,6 +1926,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => { cancelled = true; unsub.then(fn => fn()) }
   }, [])
 
+  // Listen for auto-disabled channels notification from the Rust backend.
+  // When broken channels are detected at startup, we show a system message
+  // so the user knows which channels were removed and can re-configure them.
+  useEffect(() => {
+    let cancelled = false
+    const unsub = tauriListen<{ channels: string[] }>('clawd-channels-auto-disabled', (event) => {
+      if (cancelled) return
+      const names = event.payload?.channels
+      if (!names || names.length === 0) return
+      const list = names.join(', ')
+      const text = `**Channels auto-disabled:** ${list}. These channels had missing or invalid credentials and were removed to prevent startup errors. You can re-connect them from the Channels panel.`
+      setMsgs(prev => [
+        ...prev,
+        { id: `auto-disabled-${Date.now()}`, role: 'system' as Role, text, ts: Date.now() },
+      ])
+    })
+    return () => { cancelled = true; unsub.then(fn => fn()) }
+  }, [])
+
   const pushUser = (text: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
   }

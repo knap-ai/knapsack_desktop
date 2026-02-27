@@ -251,6 +251,19 @@
   justify-content: flex-start;
 }
 
+.ClawdMsg-system {
+  justify-content: center;
+
+  .ClawdBubble {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #92400e;
+    font-size: 12px;
+    max-width: 90%;
+    text-align: center;
+  }
+}
+
 .ClawdMsg-clickable {
   cursor: pointer;
 
