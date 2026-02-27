@@ -2755,7 +2755,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <img src="/assets/images/knap-logo-medium.png" alt="Knapsack" className="ClawdChatLogo" />
           <div className="ClawdChatTitleGroup">
             <h1 className="ClawdChatTitle">Knapsack Chat</h1>
-            <p className="ClawdChatSubtitle">AI assistant powered by OpenClaw</p>
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
         </div>
