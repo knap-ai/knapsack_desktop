@@ -99,6 +99,7 @@ url = "2.3"
 urlencoding = "2.1.3"
 flacenc = "0.4"
 libc = "0.2"
+console = { version = "0.16", features = ["std"] }
 
 
 [dependencies.console-subscriber]
