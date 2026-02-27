@@ -635,7 +635,7 @@ export function useFeed(
     try {
       const dataFetcher = new DataFetcher()
 
-      const allMessages = await dataFetcher.getRecentGmailMessages(3, 5000)
+      const allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
 
       if (allMessages.length === 0) {
         return
@@ -704,7 +704,9 @@ export function useFeed(
 
     try {
       setEmailAutopilotStatus({ status: 'fetching-emails' })
-      let allMessages = await dataFetcher.getRecentGmailMessages(2, 5000)
+      // Fetch 7 days so starred / unread emails older than 24h are still
+      // picked up.  The unread+starred filter below keeps the set manageable.
+      let allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
 
       if (allMessages.length === emailAutopilotStatus.progress?.total) {
         setEmailAutopilotStatus({ status: 'complete' })
@@ -815,17 +817,6 @@ export function useFeed(
 
       setTimeout(() => {
         setEmailAutopilotStatus(prevState => ({ ...prevState, status: 'complete' }))
-        handleOpenToastr(
-          <span>Email Autopilot finished syncing - let's send some emails!</span>,
-          undefined,
-          3000,
-          false,
-          {
-            bgcolor: '#fdfdfd',
-            color: '#3F3F46',
-            'font-weight': '700',
-          },
-        )
       }, 300000)
     } catch (error) {
       setEmailAutopilotStatus({ status: 'error' })

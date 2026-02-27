@@ -55,6 +55,7 @@ const EmailNotificationDrawer = ({
   const initialLoadRef = useRef(true)
   const frozenEmailRef = useRef<DisplayEmail | null>(null)
   const caughtUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevAutopilotStatusRef = useRef<string | undefined>(undefined)
 
   // Check if user has permanently dismissed
   useEffect(() => {
@@ -182,7 +183,9 @@ const EmailNotificationDrawer = ({
     ).length
   }, [feed.classifiedEmails])
 
-  // Track when new classified emails arrive (don't show on initial load)
+  // Track when new classified emails arrive (don't show on initial load).
+  // Also auto-surface the drawer when autopilot finishes syncing — this
+  // replaces the old "finished syncing" toast.
   useEffect(() => {
     if (permanentlyDismissed || permanentlyDismissed === null) return
 
@@ -190,6 +193,9 @@ const EmailNotificationDrawer = ({
     const currentCount = importantEmails.filter(
       e => !e.wasIgnored && !e.wasReplySent && e.message.body,
     ).length
+
+    const prevStatus = prevAutopilotStatusRef.current
+    prevAutopilotStatusRef.current = feed.emailAutopilotStatus.status
 
     if (initialLoadRef.current) {
       prevEmailCountRef.current = currentCount
@@ -199,7 +205,16 @@ const EmailNotificationDrawer = ({
       return
     }
 
-    if (currentCount > prevEmailCountRef.current && pendingEmail) {
+    // Auto-surface when sync completes and there are pending emails
+    const justFinishedSyncing =
+      feed.emailAutopilotStatus.status === 'complete' &&
+      prevStatus !== 'complete' &&
+      prevStatus !== undefined
+
+    if (
+      (currentCount > prevEmailCountRef.current || justFinishedSyncing) &&
+      pendingEmail
+    ) {
       setIsVisible(true)
       setIsAnimatingOut(false)
     }
@@ -459,7 +474,7 @@ const EmailNotificationDrawer = ({
         {/* Collapsed content — single email preview */}
         {!isExpanded && (
           <>
-            <div className="px-4 py-3">
+            <div className="flex-1 overflow-hidden px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold font-Lora text-ks-warm-grey-950 truncate">
@@ -468,7 +483,7 @@ const EmailNotificationDrawer = ({
                   <div className="text-xs text-ks-warm-grey-600 font-InterTight mt-0.5 truncate">
                     From: {sender}
                   </div>
-                  <div className="text-sm text-black font-Inter mt-2 leading-relaxed">
+                  <div className="text-sm text-black font-Inter mt-2 leading-relaxed line-clamp-3">
                     {summary}
                   </div>
                 </div>
