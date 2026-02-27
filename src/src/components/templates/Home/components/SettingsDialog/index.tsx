@@ -23,6 +23,7 @@ import {
   TypographyWeight,
 } from 'src/components/atoms/typography'
 import { Dialog } from 'src/components/molecules/Dialog'
+import HeartbeatSettings from 'src/components/organisms/HeartbeatSettings'
 
 import styles from './styles.module.scss'
 import { Profile } from 'src/hooks/auth/useAuth'
@@ -640,6 +641,8 @@ export const SettingsDialog = ({
           </InputCheckbox>
         </div>
 
+        <hr className="border-zinc-200" />
+        <HeartbeatSettings />
         <hr className="border-zinc-200" />
         <div className="DocumentsContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Documents</Typography>

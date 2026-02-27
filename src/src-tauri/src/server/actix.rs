@@ -32,8 +32,11 @@ use crate::api;
 use crate::audio;
 use crate::automations::api as automation_api;
 use crate::connections;
+use crate::heartbeat::api as heartbeat_api;
+use crate::mcp::api as mcp_api;
 use crate::search;
 use crate::user::UserInfo;
+use crate::workspaces::api as workspace_api;
 use crate::ConnectionsData;
 use crate::RecordingState;
 
@@ -232,6 +235,30 @@ pub async fn start_server<'a>(
       .service(usage_api::get_budget_status)
       .service(usage_api::get_model_routing)
       .service(usage_api::set_model_routing)
+      // Workspace / Knowledge Base endpoints
+      .service(workspace_api::create_workspace)
+      .service(workspace_api::list_workspaces)
+      .service(workspace_api::get_workspace)
+      .service(workspace_api::update_workspace)
+      .service(workspace_api::delete_workspace)
+      .service(workspace_api::add_document)
+      .service(workspace_api::remove_document)
+      .service(workspace_api::workspace_search)
+      // MCP Marketplace endpoints
+      .service(mcp_api::list_servers)
+      .service(mcp_api::list_installed_servers)
+      .service(mcp_api::get_server)
+      .service(mcp_api::install_server)
+      .service(mcp_api::uninstall_server)
+      .service(mcp_api::enable_server)
+      .service(mcp_api::disable_server)
+      .service(mcp_api::update_server_config)
+      .service(mcp_api::add_custom_server)
+      // Heartbeat system endpoints
+      .service(heartbeat_api::get_heartbeat_config)
+      .service(heartbeat_api::update_heartbeat_config)
+      .service(heartbeat_api::get_heartbeat_logs)
+      .service(heartbeat_api::trigger_heartbeat)
   })
   .bind(("127.0.0.1", port))
   .unwrap()

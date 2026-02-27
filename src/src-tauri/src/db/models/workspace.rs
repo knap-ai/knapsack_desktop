@@ -1,0 +1,209 @@
+use rusqlite::{params, OptionalExtension, Result};
+use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
+
+use crate::db::db::get_db_conn;
+use crate::error::Error;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Workspace {
+    pub id: Option<u64>,
+    pub uuid: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub created_at: Option<i64>,
+    pub updated_at: Option<i64>,
+    pub documents: Option<Vec<WorkspaceDocument>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDocument {
+    pub id: Option<u64>,
+    pub workspace_uuid: String,
+    pub document_name: String,
+    pub document_path: Option<String>,
+    pub document_type: Option<String>,
+    pub content_hash: Option<String>,
+    pub embedded: Option<i32>,
+    pub created_at: Option<i64>,
+}
+
+impl Workspace {
+    pub fn create(name: String, description: Option<String>, icon: Option<String>) -> Result<Workspace, Error> {
+        let connection = get_db_conn();
+        let uuid = Uuid::new_v4().to_string();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        connection.execute(
+            "INSERT INTO workspaces (uuid, name, description, icon, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![uuid, name, description, icon, now, now],
+        )?;
+
+        let id = connection.last_insert_rowid() as u64;
+
+        Ok(Workspace {
+            id: Some(id),
+            uuid,
+            name,
+            description,
+            icon,
+            created_at: Some(now),
+            updated_at: Some(now),
+            documents: None,
+        })
+    }
+
+    pub fn find_all() -> Result<Vec<Workspace>, Error> {
+        let connection = get_db_conn();
+        let mut stmt = connection.prepare(
+            "SELECT id, uuid, name, description, icon, created_at, updated_at FROM workspaces ORDER BY created_at DESC",
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(Workspace {
+                id: Some(row.get(0)?),
+                uuid: row.get(1)?,
+                name: row.get(2)?,
+                description: row.get(3)?,
+                icon: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+                documents: None,
+            })
+        })?;
+
+        let mut workspaces = Vec::new();
+        for row in rows {
+            workspaces.push(row?);
+        }
+        Ok(workspaces)
+    }
+
+    pub fn find_by_uuid(uuid: String) -> Result<Option<Workspace>, Error> {
+        let connection = get_db_conn();
+        let mut stmt = connection.prepare(
+            "SELECT id, uuid, name, description, icon, created_at, updated_at FROM workspaces WHERE uuid = ?1",
+        )?;
+
+        let workspace = stmt
+            .query_row(params![uuid], |row| {
+                Ok(Workspace {
+                    id: Some(row.get(0)?),
+                    uuid: row.get(1)?,
+                    name: row.get(2)?,
+                    description: row.get(3)?,
+                    icon: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
+                    documents: None,
+                })
+            })
+            .optional()?;
+
+        Ok(workspace)
+    }
+
+    pub fn update(uuid: String, name: String, description: Option<String>, icon: Option<String>) -> Result<(), Error> {
+        let connection = get_db_conn();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        connection.execute(
+            "UPDATE workspaces SET name = ?1, description = ?2, icon = ?3, updated_at = ?4 WHERE uuid = ?5",
+            params![name, description, icon, now, uuid],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn delete(uuid: String) -> Result<(), Error> {
+        let connection = get_db_conn();
+        connection.execute(
+            "DELETE FROM workspace_documents WHERE workspace_uuid = ?1",
+            params![uuid],
+        )?;
+        connection.execute(
+            "DELETE FROM workspaces WHERE uuid = ?1",
+            params![uuid],
+        )?;
+        Ok(())
+    }
+}
+
+impl WorkspaceDocument {
+    pub fn create(
+        workspace_uuid: String,
+        document_name: String,
+        document_path: Option<String>,
+        document_type: Option<String>,
+        content_hash: Option<String>,
+    ) -> Result<WorkspaceDocument, Error> {
+        let connection = get_db_conn();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        connection.execute(
+            "INSERT INTO workspace_documents (workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6)",
+            params![workspace_uuid, document_name, document_path, document_type, content_hash, now],
+        )?;
+
+        let id = connection.last_insert_rowid() as u64;
+
+        Ok(WorkspaceDocument {
+            id: Some(id),
+            workspace_uuid,
+            document_name,
+            document_path,
+            document_type,
+            content_hash,
+            embedded: Some(0),
+            created_at: Some(now),
+        })
+    }
+
+    pub fn find_by_workspace(workspace_uuid: String) -> Result<Vec<WorkspaceDocument>, Error> {
+        let connection = get_db_conn();
+        let mut stmt = connection.prepare(
+            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at FROM workspace_documents WHERE workspace_uuid = ?1 ORDER BY created_at DESC",
+        )?;
+
+        let rows = stmt.query_map(params![workspace_uuid], |row| {
+            Ok(WorkspaceDocument {
+                id: Some(row.get(0)?),
+                workspace_uuid: row.get(1)?,
+                document_name: row.get(2)?,
+                document_path: row.get(3)?,
+                document_type: row.get(4)?,
+                content_hash: row.get(5)?,
+                embedded: row.get(6)?,
+                created_at: row.get(7)?,
+            })
+        })?;
+
+        let mut documents = Vec::new();
+        for row in rows {
+            documents.push(row?);
+        }
+        Ok(documents)
+    }
+
+    pub fn delete(id: u64) -> Result<(), Error> {
+        let connection = get_db_conn();
+        connection.execute(
+            "DELETE FROM workspace_documents WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+}

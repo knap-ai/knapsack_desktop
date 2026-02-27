@@ -1049,6 +1049,29 @@ function App() {
     }
   }, [handleOpenToastr])
 
+  // Heartbeat notification listener: shows a notification when the heartbeat
+  // engine decides something needs the user's attention.
+  useEffect(() => {
+    const unlistenHeartbeat = listen('heartbeat_notification', async (event: Event<{ message: string; timestamp: number }>) => {
+      const { message } = event.payload
+      if (!message) return
+      console.log('[heartbeat] Notification received:', message)
+      openNotificationWindow(
+        'heartbeat-' + Date.now(),
+        [
+          { buttonText: 'View', buttonHandler: 'dismiss_notification_handler' },
+          { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+        ],
+        'Heartbeat Alert',
+        message,
+      )
+    })
+
+    return () => {
+      unlistenHeartbeat.then(u => u())
+    }
+  }, [openNotificationWindow])
+
   // Refs for easter egg triggers to avoid stale closures
   const checkMorningBriefingRef = useRef(checkMorningBriefing)
   const handlePostMeetingFollowupRef = useRef(handlePostMeetingFollowup)

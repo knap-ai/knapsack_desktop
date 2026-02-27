@@ -101,6 +101,34 @@ diesel::table! {
 }
 
 diesel::table! {
+    heartbeat_config (id) {
+        id -> Nullable<Integer>,
+        enabled -> Integer,
+        interval_minutes -> Integer,
+        check_emails -> Integer,
+        check_calendar -> Integer,
+        check_documents -> Integer,
+        quiet_hours_start -> Nullable<Text>,
+        quiet_hours_end -> Nullable<Text>,
+        last_run_at -> Nullable<Integer>,
+        created_at -> Nullable<Integer>,
+        updated_at -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
+    heartbeat_logs (id) {
+        id -> Nullable<Integer>,
+        run_at -> Integer,
+        context_summary -> Nullable<Text>,
+        decision -> Text,
+        notification_sent -> Integer,
+        notification_content -> Nullable<Text>,
+        created_at -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
     drive_documents (id) {
         id -> Nullable<Integer>,
         drive_id -> Text,
@@ -168,6 +196,28 @@ diesel::table! {
 }
 
 diesel::table! {
+    mcp_servers (id) {
+        id -> Nullable<Integer>,
+        uuid -> Text,
+        name -> Text,
+        description -> Nullable<Text>,
+        category -> Nullable<Text>,
+        command -> Text,
+        args -> Nullable<Text>,
+        env_vars -> Nullable<Text>,
+        icon -> Nullable<Text>,
+        author -> Nullable<Text>,
+        version -> Nullable<Text>,
+        source_url -> Nullable<Text>,
+        is_installed -> Integer,
+        is_enabled -> Integer,
+        config_json -> Nullable<Text>,
+        installed_at -> Nullable<Integer>,
+        created_at -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
     messages (id) {
         id -> Nullable<Integer>,
         timestamp -> Nullable<Integer>,
@@ -224,6 +274,31 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    workspaces (id) {
+        id -> Nullable<Integer>,
+        uuid -> Text,
+        name -> Text,
+        description -> Nullable<Text>,
+        icon -> Nullable<Text>,
+        created_at -> Nullable<Integer>,
+        updated_at -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
+    workspace_documents (id) {
+        id -> Nullable<Integer>,
+        workspace_uuid -> Text,
+        document_name -> Text,
+        document_path -> Nullable<Text>,
+        document_type -> Nullable<Text>,
+        content_hash -> Nullable<Text>,
+        embedded -> Nullable<Integer>,
+        created_at -> Nullable<Integer>,
+    }
+}
+
 diesel::allow_tables_to_appear_in_same_query!(
     automation_runs,
     automation_steps,
@@ -237,11 +312,16 @@ diesel::allow_tables_to_appear_in_same_query!(
     drive_documents,
     emails,
     feed_items,
+    heartbeat_config,
+    heartbeat_logs,
     local_files,
+    mcp_servers,
     message_feedbacks,
     messages,
     threads,
     transcripts,
     user_connections,
     users,
+    workspace_documents,
+    workspaces,
 );
