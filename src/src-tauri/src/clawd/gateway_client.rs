@@ -29,8 +29,8 @@ const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 const MAX_IN_FLIGHT: usize = 64;
 
 // Circuit breaker: trip after N consecutive failures, cool down for a bit.
-const BREAKER_TRIP_AFTER: u32 = 5;
-const BREAKER_COOLDOWN: Duration = Duration::from_secs(20);
+const BREAKER_TRIP_AFTER: u32 = 2;
+const BREAKER_COOLDOWN: Duration = Duration::from_secs(15);
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 fn next_request_id() -> String {
@@ -178,8 +178,14 @@ async fn ensure_gateway_best_effort(token: &str) {
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
   ensure_gateway_best_effort(token).await;
 
-  let (ws_stream, _) = connect_async(GATEWAY_WS_URL)
+  // Wrap the TCP/WebSocket connection in a short timeout so we don't hang
+  // for 10-30 seconds when the gateway is down (system TCP timeout defaults).
+  let (ws_stream, _) = tokio::time::timeout(
+    Duration::from_secs(3),
+    connect_async(GATEWAY_WS_URL),
+  )
     .await
+    .map_err(|_| "Timeout connecting to gateway (3s)".to_string())?
     .map_err(|e| format!("Failed to connect to gateway: {}", e))?;
 
   let (mut write, mut read) = ws_stream.split();
@@ -330,6 +336,19 @@ fn invalidate_client() {
 /// WebSocket instead of sending into a dead socket.
 pub fn invalidate() {
   invalidate_client();
+}
+
+/// Quick TCP probe to check if the gateway port is listening.
+/// Returns true if the port accepts connections within 500ms.
+/// Channel status endpoints can call this to fail fast.
+pub async fn is_gateway_port_open() -> bool {
+  tokio::time::timeout(
+    Duration::from_millis(500),
+    tokio::net::TcpStream::connect("127.0.0.1:18789"),
+  )
+    .await
+    .map(|r| r.is_ok())
+    .unwrap_or(false)
 }
 
 /// Make a request using a persistent gateway connection.
