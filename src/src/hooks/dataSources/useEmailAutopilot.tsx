@@ -47,7 +47,7 @@ export interface IEmailAutopilot {
     ) => void,
     handleFailMessagesClassified: (emails: EmailDocument[]) => void,
   ) => void
-  draftEmailReply: (email: EmailDocument, userEmail: string, userName?: string, tone?: DraftTone) => Promise<string>
+  draftEmailReply: (email: EmailDocument, userEmail: string, userName?: string, tone?: DraftTone, toneLevel?: number) => Promise<string>
 }
 
 export function useEmailAutopilot(
@@ -169,6 +169,7 @@ isStarred: ${email.isStarred}`,
     userEmail: string,
     userName?: string,
     tone?: DraftTone,
+    toneLevel?: number,
   ): Promise<string> => {
     return new Promise(async (resolve, reject) => {
       const formattedDate = new Date(email.date).toISOString()
@@ -185,9 +186,29 @@ ${email.body || 'No body content'}
       // Get custom instructions and scheduling links from local storage
       const customInstructions = await KNLocalStorage.getItem(EMAIL_AUTOPILOT_CUSTOM_INSTRUCTIONS) || '';
       const schedulingLinks = await KNLocalStorage.getItem(EMAIL_AUTOPILOT_SCHEDULING_LINKS) || '';
-      
+
       let toneInstruction = ''
-      if (tone === 'yes') {
+      const level = toneLevel ?? 0
+      if (level > 0) {
+        const intensityDescriptors = [
+          '',
+          'Write a warm, positive, affirmative response. Say yes and express willingness.',
+          'Write an enthusiastic, eager response. Say yes wholeheartedly, express excitement and strong willingness to help.',
+          'Write an extremely enthusiastic, effusive response. Express maximum excitement, eagerness, and wholehearted commitment. Be very warm and energetic.',
+        ]
+        const desc = intensityDescriptors[Math.min(level, intensityDescriptors.length - 1)]
+        toneInstruction = `\n\nIMPORTANT TONE OVERRIDE: ${desc} Keep it short.`
+      } else if (level < 0) {
+        const absLevel = Math.abs(level)
+        const intensityDescriptors = [
+          '',
+          'Write a polite, gracious decline. Say no kindly, express appreciation, and leave the door open for the future.',
+          'Write a firm but respectful decline. Be clear that you cannot commit, while remaining courteous and appreciative.',
+          'Write a very clear and definitive decline. Be direct that this is not possible, while still being professional and respectful.',
+        ]
+        const desc = intensityDescriptors[Math.min(absLevel, intensityDescriptors.length - 1)]
+        toneInstruction = `\n\nIMPORTANT TONE OVERRIDE: ${desc} Keep it short.`
+      } else if (tone === 'yes') {
         toneInstruction = `\n\nIMPORTANT TONE OVERRIDE: Write an enthusiastic, affirmative response. Say yes, express excitement and willingness. Be warm, positive, and eager. Accept the request/invitation/proposal wholeheartedly. Keep it short and energetic.`
       } else if (tone === 'no') {
         toneInstruction = `\n\nIMPORTANT TONE OVERRIDE: Write a polite, gracious decline. Say no in a kind and respectful way. Express appreciation for the offer/request, briefly explain you can't commit, and leave the door open for the future if appropriate. Keep it short and warm.`

@@ -481,7 +481,7 @@ const EmailNotificationDrawer = ({
                 onClick={handleExpand}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
               >
-                Open Autopilot
+                View Response
               </button>
             </div>
           </>
