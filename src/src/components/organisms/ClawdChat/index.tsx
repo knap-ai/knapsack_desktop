@@ -956,6 +956,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Chat auto-scroll ref
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
+  const userScrolledUpRef = useRef(false)
 
   // Voice silence detection refs
   const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1798,12 +1799,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     init()
   }, [])
 
-  // Auto-scroll to bottom when messages change
+  // Track whether user has scrolled away from the bottom
+  const handleChatBodyScroll = useCallback(() => {
+    const el = chatBodyRef.current
+    if (!el) return
+    // Consider "at bottom" if within 80px of the bottom edge
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    userScrolledUpRef.current = !atBottom
+  }, [])
+
+  // Auto-scroll to bottom when messages change, but only if user hasn't scrolled up
   useEffect(() => {
-    if (chatBodyRef.current) {
+    if (chatBodyRef.current && !userScrolledUpRef.current) {
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight
     }
   }, [msgs, thinkingMessage])
+
+  // Always scroll to bottom when a new user message is added (they just sent it)
+  const prevMsgCountRef = useRef(msgs.length)
+  useEffect(() => {
+    if (msgs.length > prevMsgCountRef.current) {
+      const lastMsg = msgs[msgs.length - 1]
+      if (lastMsg?.role === 'user' || lastMsg?.role === 'assistant') {
+        userScrolledUpRef.current = false
+        if (chatBodyRef.current) {
+          chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight
+        }
+      }
+    }
+    prevMsgCountRef.current = msgs.length
+  }, [msgs])
 
   // Save chat history to localStorage whenever msgs change (excluding welcome messages)
   useEffect(() => {
@@ -2866,7 +2891,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
-      <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
+      <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }} onScroll={handleChatBodyScroll}>
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
             <div
               key={m.id}
