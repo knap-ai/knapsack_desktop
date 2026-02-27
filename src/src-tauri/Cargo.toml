@@ -38,6 +38,7 @@ dotenv = "0.15.0"
 rayon = "=1.10.0"
 actix-cors = "=0.7.0"
 tokio = {version = "=1.37.0", features = ["full", "tracing"] }
+tokio-stream = "=0.1.17"
 tokio-tungstenite = "0.21"
 futures-util = "0.3"
 glob = "0.3"
