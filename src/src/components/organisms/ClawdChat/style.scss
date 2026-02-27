@@ -2236,6 +2236,40 @@
   gap: 12px;
 }
 
+.ClawdGatewayError {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #991b1b;
+  line-height: 1.4;
+
+  strong { display: block; margin-bottom: 4px; }
+
+  details {
+    margin-top: 8px;
+    summary {
+      cursor: pointer;
+      font-size: 11px;
+      color: #b91c1c;
+      &:hover { text-decoration: underline; }
+    }
+    pre {
+      margin: 6px 0 0;
+      padding: 8px;
+      background: #fff5f5;
+      border-radius: 4px;
+      font-size: 10px;
+      color: #7f1d1d;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+  }
+}
+
 .ClawdChannelsPanelIntro {
   font-size: 13px;
   color: #64748b;

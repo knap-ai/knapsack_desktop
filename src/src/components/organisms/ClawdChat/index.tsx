@@ -3159,6 +3159,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <button onClick={() => setShowChannelsPanel(false)}>×</button>
           </div>
           <div className="ClawdChannelsPanelBody">
+            {health && !health.gateway_ok && (
+              <div className="ClawdGatewayError">
+                <strong>Gateway is not running.</strong> Channels cannot connect until the gateway starts.
+                {health.message && health.message.includes('stderr') && (
+                  <details>
+                    <summary>Show error log</summary>
+                    <pre>{health.message.split('--- last stderr ---\n')[1] || health.message}</pre>
+                  </details>
+                )}
+              </div>
+            )}
             <p className="ClawdChannelsPanelIntro">
               Connect a messaging app so your AI assistant can send and receive messages on your behalf.
             </p>
@@ -3189,7 +3200,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${(channelStatus.whatsapp?.linked || channelStatus.whatsapp?.enabled) ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'whatsapp'}
+                      disabled={channelBusy === 'whatsapp' || (health != null && !health.gateway_ok)}
                       onClick={async () => {
                         setChannelBusy('whatsapp')
                         setChannelError(null)
@@ -3296,7 +3307,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${channelStatus.imessage?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'imessage'}
+                      disabled={channelBusy === 'imessage' || (health != null && !health.gateway_ok)}
                       onClick={async () => {
                         setChannelBusy('imessage')
                         setChannelError(null)
@@ -3387,7 +3398,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${channelStatus.telegram?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'telegram'}
+                      disabled={channelBusy === 'telegram' || (health != null && !health.gateway_ok)}
                       onClick={async () => {
                         if (channelBusy) return
                         if (channelStatus.telegram?.configured) {
@@ -3526,7 +3537,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.slack?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'slack'}
+                        disabled={channelBusy === 'slack' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('slack')
                           setChannelError(null)
@@ -3618,7 +3629,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.discord?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'discord'}
+                        disabled={channelBusy === 'discord' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('discord')
                           setChannelError(null)
@@ -3697,7 +3708,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.signal?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'signal'}
+                        disabled={channelBusy === 'signal' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('signal')
                           setChannelError(null)
@@ -4109,7 +4120,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.irc?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'irc'}
+                        disabled={channelBusy === 'irc' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('irc')
                           setChannelError(null)
@@ -4181,7 +4192,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.googlechat?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'googlechat'}
+                        disabled={channelBusy === 'googlechat' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('googlechat')
                           setChannelError(null)
