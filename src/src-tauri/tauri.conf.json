@@ -67,7 +67,8 @@
           "https://www.googleapis.com/**",
           "https://accounts.google.com/**",
           "https://login.microsoftonline.com/**",
-          "https://data.amplitude.com/**"
+          "https://data.amplitude.com/**",
+          "https://api.github.com/**"
         ]
       },
       "notification": {
@@ -164,7 +165,7 @@
       }
     },
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.cdnfonts.com https://www.nerdfonts.com; font-src 'self' https://fonts.cdnfonts.com https://www.nerdfonts.com data:; img-src 'self' asset: https: data: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://knap.ai https://api.knapsack.ai https://api.openai.com https://gmail.googleapis.com https://www.googleapis.com https://accounts.google.com https://login.microsoftonline.com https://data.amplitude.com https://*.loom.com; media-src 'self' blob: data:; frame-src 'self' https://*.loom.com; worker-src 'self' blob:"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.cdnfonts.com https://www.nerdfonts.com; font-src 'self' https://fonts.cdnfonts.com https://www.nerdfonts.com data:; img-src 'self' asset: https: data: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://knap.ai https://api.knapsack.ai https://api.openai.com https://gmail.googleapis.com https://www.googleapis.com https://accounts.google.com https://login.microsoftonline.com https://data.amplitude.com https://api.github.com https://*.loom.com; media-src 'self' blob: data:; frame-src 'self' https://*.loom.com; worker-src 'self' blob:"
     },
     "updater": {
       "active": true,
