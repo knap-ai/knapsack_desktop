@@ -4,6 +4,21 @@ use serde_json::json;
 
 use crate::db::models::mcp_server::{McpServer, NewMcpServer};
 
+/// Allowlist of executables that custom MCP servers may use.
+const ALLOWED_COMMANDS: &[&str] = &["npx", "node", "python", "python3", "uvx", "docker"];
+
+/// Validate that a package name is a valid npm-scoped or unscoped package.
+/// Accepts `@scope/name` or `name`, with alphanumeric, hyphens, dots, underscores.
+fn is_valid_npm_package(name: &str) -> bool {
+    let re = regex::Regex::new(r"^(@[a-zA-Z0-9_-]+/)?[a-zA-Z0-9][a-zA-Z0-9._-]*$").unwrap();
+    re.is_match(name)
+}
+
+/// Validate that a command is in the allowlist.
+fn is_allowed_command(command: &str) -> bool {
+    ALLOWED_COMMANDS.contains(&command)
+}
+
 #[derive(Deserialize)]
 pub struct ServersQuery {
     category: Option<String>,
@@ -91,14 +106,27 @@ pub async fn install_server(path: web::Path<String>) -> HttpResponse {
         }
     };
 
-    // Attempt to pre-install the npm package via npx
+    // Attempt to pre-install the npm package via npx (async, non-blocking)
     if server.command == "npx" {
         if let Some(ref args_json) = server.args {
             if let Ok(args) = serde_json::from_str::<Vec<String>>(args_json) {
                 if let Some(package_name) = args.first() {
-                    let install_result = std::process::Command::new("npm")
+                    // Validate package name before passing to npm
+                    if !is_valid_npm_package(package_name) {
+                        return HttpResponse::BadRequest().json(json!({
+                            "success": false,
+                            "message": format!(
+                                "Invalid npm package name: '{}'. Must match @scope/name or name pattern.",
+                                package_name
+                            ),
+                        }));
+                    }
+
+                    // Use tokio::process::Command to avoid blocking the actix thread
+                    let install_result = tokio::process::Command::new("npm")
                         .args(&["install", "-g", package_name])
-                        .output();
+                        .output()
+                        .await;
 
                     match install_result {
                         Ok(output) => {
@@ -213,6 +241,14 @@ pub async fn update_server_config(
 ) -> HttpResponse {
     let uuid = path.into_inner();
 
+    // Validate that the config_json is actually valid JSON before storing
+    if serde_json::from_str::<serde_json::Value>(&body.config_json).is_err() {
+        return HttpResponse::BadRequest().json(json!({
+            "success": false,
+            "message": "config_json must be valid JSON",
+        }));
+    }
+
     match McpServer::update_server_config(&uuid, &body.config_json) {
         Ok(()) => {
             let updated = McpServer::get_server_by_uuid(&uuid).ok().flatten();
@@ -233,6 +269,28 @@ pub async fn update_server_config(
 #[post("/api/knapsack/mcp/servers/custom")]
 pub async fn add_custom_server(body: web::Json<NewMcpServer>) -> HttpResponse {
     let server = body.into_inner();
+
+    // Validate that the command is in the allowlist
+    if !is_allowed_command(&server.command) {
+        return HttpResponse::BadRequest().json(json!({
+            "success": false,
+            "message": format!(
+                "Command '{}' is not allowed. Allowed commands: {}",
+                server.command,
+                ALLOWED_COMMANDS.join(", ")
+            ),
+        }));
+    }
+
+    // Validate config_json if provided
+    if let Some(ref config) = server.config_json {
+        if serde_json::from_str::<serde_json::Value>(config).is_err() {
+            return HttpResponse::BadRequest().json(json!({
+                "success": false,
+                "message": "config_json must be valid JSON",
+            }));
+        }
+    }
 
     match McpServer::add_custom_server(&server) {
         Ok(created) => HttpResponse::Ok().json(json!({

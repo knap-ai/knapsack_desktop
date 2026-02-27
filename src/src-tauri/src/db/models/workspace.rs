@@ -60,6 +60,68 @@ impl Workspace {
         })
     }
 
+    /// Fetch all workspaces with their documents in 2 queries (avoids N+1).
+    pub fn find_all_with_documents() -> Result<Vec<Workspace>, Error> {
+        let connection = get_db_conn();
+
+        // Query 1: all workspaces
+        let mut ws_stmt = connection.prepare(
+            "SELECT id, uuid, name, description, icon, created_at, updated_at FROM workspaces ORDER BY created_at DESC",
+        )?;
+        let ws_rows = ws_stmt.query_map([], |row| {
+            Ok(Workspace {
+                id: Some(row.get(0)?),
+                uuid: row.get(1)?,
+                name: row.get(2)?,
+                description: row.get(3)?,
+                icon: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+                documents: Some(Vec::new()),
+            })
+        })?;
+
+        let mut workspaces: Vec<Workspace> = Vec::new();
+        let mut uuid_to_index: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for row in ws_rows {
+            let ws = row?;
+            uuid_to_index.insert(ws.uuid.clone(), workspaces.len());
+            workspaces.push(ws);
+        }
+
+        if workspaces.is_empty() {
+            return Ok(workspaces);
+        }
+
+        // Query 2: all documents, grouped by workspace
+        let mut doc_stmt = connection.prepare(
+            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at FROM workspace_documents ORDER BY created_at DESC",
+        )?;
+        let doc_rows = doc_stmt.query_map([], |row| {
+            Ok(WorkspaceDocument {
+                id: Some(row.get(0)?),
+                workspace_uuid: row.get(1)?,
+                document_name: row.get(2)?,
+                document_path: row.get(3)?,
+                document_type: row.get(4)?,
+                content_hash: row.get(5)?,
+                embedded: row.get(6)?,
+                created_at: row.get(7)?,
+            })
+        })?;
+
+        for row in doc_rows {
+            let doc = row?;
+            if let Some(&idx) = uuid_to_index.get(&doc.workspace_uuid) {
+                if let Some(ref mut docs) = workspaces[idx].documents {
+                    docs.push(doc);
+                }
+            }
+        }
+
+        Ok(workspaces)
+    }
+
     pub fn find_all() -> Result<Vec<Workspace>, Error> {
         let connection = get_db_conn();
         let mut stmt = connection.prepare(
@@ -125,17 +187,31 @@ impl Workspace {
         Ok(())
     }
 
+    /// Delete a workspace and all its documents atomically.
     pub fn delete(uuid: String) -> Result<(), Error> {
         let connection = get_db_conn();
-        connection.execute(
-            "DELETE FROM workspace_documents WHERE workspace_uuid = ?1",
-            params![uuid],
-        )?;
-        connection.execute(
-            "DELETE FROM workspaces WHERE uuid = ?1",
-            params![uuid],
-        )?;
-        Ok(())
+        connection.execute_batch("BEGIN")?;
+        let result = (|| -> Result<(), rusqlite::Error> {
+            connection.execute(
+                "DELETE FROM workspace_documents WHERE workspace_uuid = ?1",
+                params![uuid],
+            )?;
+            connection.execute(
+                "DELETE FROM workspaces WHERE uuid = ?1",
+                params![uuid],
+            )?;
+            Ok(())
+        })();
+        match result {
+            Ok(()) => {
+                connection.execute_batch("COMMIT")?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = connection.execute_batch("ROLLBACK");
+                Err(e.into())
+            }
+        }
     }
 }
 
@@ -196,6 +272,16 @@ impl WorkspaceDocument {
             documents.push(row?);
         }
         Ok(documents)
+    }
+
+    /// Delete a document, but only if it belongs to the given workspace (authorization check).
+    pub fn delete_scoped(id: u64, workspace_uuid: &str) -> Result<bool, Error> {
+        let connection = get_db_conn();
+        let affected = connection.execute(
+            "DELETE FROM workspace_documents WHERE id = ?1 AND workspace_uuid = ?2",
+            params![id, workspace_uuid],
+        )?;
+        Ok(affected > 0)
     }
 
     pub fn delete(id: u64) -> Result<(), Error> {

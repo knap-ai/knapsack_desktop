@@ -19,3 +19,6 @@ CREATE TABLE IF NOT EXISTS workspace_documents (
     created_at INTEGER,
     FOREIGN KEY (workspace_uuid) REFERENCES workspaces(uuid)
 );
+
+CREATE INDEX IF NOT EXISTS idx_workspace_documents_workspace_uuid
+    ON workspace_documents(workspace_uuid);

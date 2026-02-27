@@ -33,12 +33,6 @@ const INTERVAL_OPTIONS = [
   { value: '120', label: '2 hours' },
 ]
 
-function formatTimestamp(ts: number | null): string {
-  if (!ts) return 'Never'
-  const date = new Date(ts * 1000)
-  return date.toLocaleString()
-}
-
 function formatRelativeTime(ts: number | null): string {
   if (!ts) return 'never'
   const now = Math.floor(Date.now() / 1000)

@@ -102,14 +102,8 @@ pub async fn create_workspace(payload: Json<CreateWorkspaceRequest>) -> impl Res
 
 #[get("/api/knapsack/workspaces")]
 pub async fn list_workspaces() -> impl Responder {
-    match Workspace::find_all() {
-        Ok(mut workspaces) => {
-            // Attach document count for each workspace
-            for ws in workspaces.iter_mut() {
-                if let Ok(docs) = WorkspaceDocument::find_by_workspace(ws.uuid.clone()) {
-                    ws.documents = Some(docs);
-                }
-            }
+    match Workspace::find_all_with_documents() {
+        Ok(workspaces) => {
             HttpResponse::Ok().json(WorkspacesListResponse {
                 success: true,
                 data: workspaces,
@@ -256,10 +250,14 @@ pub struct DocumentPath {
 #[delete("/api/knapsack/workspaces/{uuid}/documents/{doc_id}")]
 pub async fn remove_document(path: web::Path<DocumentPath>) -> impl Responder {
     let params = path.into_inner();
-    match WorkspaceDocument::delete(params.doc_id) {
-        Ok(()) => HttpResponse::Ok().json(GenericResponse {
+    match WorkspaceDocument::delete_scoped(params.doc_id, &params.uuid) {
+        Ok(true) => HttpResponse::Ok().json(GenericResponse {
             success: true,
             error: None,
+        }),
+        Ok(false) => HttpResponse::NotFound().json(GenericResponse {
+            success: false,
+            error: Some("Document not found in this workspace".to_string()),
         }),
         Err(e) => HttpResponse::InternalServerError().json(GenericResponse {
             success: false,
