@@ -2189,6 +2189,58 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         eprintln!("[clawd/service] Gateway health probe attempt {} — not ready yet", attempt);
       }
 
+      // If the gateway didn't start, try crash-loop recovery: scan the error
+      // log for known channel crash patterns (e.g. Slack "Socket Mode is not
+      // turned on"), disable those channels, and restart once more.
+      if !gateway_started {
+        let recovered = disable_crash_loop_channels(&clawdbot_home);
+        if !recovered.is_empty() {
+          eprintln!(
+            "[clawd/service] Disabled crash-looping channel(s): {:?} — restarting gateway",
+            recovered
+          );
+
+          // Cycle the service with the fixed config
+          let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+          let _ = std::process::Command::new("launchctl")
+            .args(["kickstart", "-k", &service])
+            .status();
+
+          // Give the gateway more time to start now that the bad channel is gone
+          for attempt in 1..=6u32 {
+            tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+            let probe = reqwest::Client::builder()
+              .timeout(std::time::Duration::from_millis(800))
+              .build()
+              .ok()
+              .map(|c| c.get("http://127.0.0.1:18789/health")
+                .bearer_auth(&gateway_token)
+                .send());
+            if let Some(fut) = probe {
+              if let Ok(resp) = fut.await {
+                if resp.status().is_success() || resp.status().as_u16() == 404 {
+                  gateway_started = true;
+                  eprintln!(
+                    "[clawd/service] Gateway started after disabling {:?} (attempt {})",
+                    recovered, attempt
+                  );
+                  break;
+                }
+              }
+            }
+          }
+
+          // Notify the frontend about the auto-disabled channels
+          {
+            use tauri::Manager;
+            let _ = app_handle.emit_all(
+              "clawd-channels-auto-disabled",
+              serde_json::json!({ "channels": recovered }),
+            );
+          }
+        }
+      }
+
       let mut msg = format!(
         "Enabled background service ({}) using {} Node.js — Knapsack v{} on {}",
         LAUNCH_AGENT_LABEL,
