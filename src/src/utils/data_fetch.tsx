@@ -39,6 +39,54 @@ import KNDateUtils from './KNDateUtils'
 import { HttpError, retryFetch } from './retryUtils'
 
 export default class DataFetcher {
+  /**
+   * Calls the LLM endpoint and reads the full streamed response, returning
+   * the complete text.  Unlike getChatCompletionStream this does NOT return
+   * a reader — it awaits the full result, which is ideal for background
+   * tasks like email draft generation that don't need incremental UI updates.
+   */
+  public async getChatCompletion(
+    userEmail: string,
+    userName: string,
+    userPrompt: string,
+    semanticSearchQuery: string | undefined,
+    documents: number[],
+    additionalDocuments?: { title: string; content: string }[],
+    threadId?: number,
+  ): Promise<string> {
+    const reader = await this.getChatCompletionStream(
+      userEmail,
+      userName,
+      userPrompt,
+      semanticSearchQuery,
+      documents,
+      false,
+      additionalDocuments,
+      threadId,
+    )
+
+    if (!reader) {
+      throw new Error('No response from LLM endpoint')
+    }
+
+    const decoder = new TextDecoder('utf-8')
+    let messageText = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const strData = decoder.decode(value)
+      for (const strLine of strData.split('\n')) {
+        if (!strLine.startsWith('data: ')) continue
+        if (strLine === 'data: [DONE]') return messageText
+        messageText += JSON.parse(strLine.slice(6)).choices[0].text
+      }
+    }
+
+    return messageText
+  }
+
   public async getChatCompletionStream(
     userEmail: string,
     userName: string,
