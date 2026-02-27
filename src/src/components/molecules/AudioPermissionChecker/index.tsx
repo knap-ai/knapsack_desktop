@@ -10,10 +10,12 @@ interface AudioPermissions {
 
 interface AudioPermissionCheckerProps {
   onBothPermissionsGranted: () => void;
+  onClose?: () => void;
 }
 
 const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
-  onBothPermissionsGranted
+  onBothPermissionsGranted,
+  onClose,
 }) => {
   const [micPermission, setMicPermission] = useState(false);
   const [systemAudioPermission, setSystemAudioPermission] = useState(false);
@@ -180,7 +182,19 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
 
   return (
     <div className="fixed inset-0 bg-ks-warm-grey-200 bg-opacity-75 z-50 flex flex-col items-center justify-center p-4">
-      <div className="bg-white rounded-2xl flex TightShadow flex-col items-center max-w-[650px] w-full p-10">
+      <div className="bg-white rounded-2xl flex TightShadow flex-col items-center max-w-[650px] w-full p-10 relative">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1 rounded-full text-ks-warm-grey-500 hover:text-ks-warm-grey-800 hover:bg-ks-warm-grey-100 transition-colors"
+            aria-label="Close"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        )}
         <div className="w-full max-w-[300px] bg-[#2D2D2D] rounded-xl TightShadow overflow-hidden mb-8">
           <div className="py-4 px-6 flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -253,6 +267,11 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
               </button>
             )}
           </div>
+          {(!systemAudioPermission || !micPermission) && (
+            <p className="text-xs text-ks-warm-grey-500 mt-6 max-w-[400px] mx-auto text-center leading-5">
+              Already enabled in System Settings? You may need to quit and reopen Knapsack for the change to take effect.
+            </p>
+          )}
         </div>
       </div>
     </div>

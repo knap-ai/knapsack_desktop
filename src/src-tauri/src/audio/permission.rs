@@ -83,22 +83,11 @@ return status as integer"#,
 
 #[cfg(target_os = "macos")]
 fn check_screen_recording_permission_macos() -> bool {
-    use std::process::Command;
-    // CGPreflightScreenCaptureAccess returns true if the app has screen recording permission.
-    // We use a small Swift snippet via `swift -e` to call this CoreGraphics API.
-    let result = Command::new("swift")
-        .arg("-e")
-        .arg("import CoreGraphics; print(CGPreflightScreenCaptureAccess())")
-        .output();
-
-    match result {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            stdout == "true"
-        }
-        Err(e) => {
-            log::warn!("Failed to check screen recording permission: {}", e);
-            false
-        }
+    // Call CGPreflightScreenCaptureAccess directly from the app process via FFI.
+    // Using `swift -e` runs in a subprocess which macOS treats as a different app,
+    // so it always returns false even when Knapsack has the permission.
+    extern "C" {
+        fn CGPreflightScreenCaptureAccess() -> bool;
     }
+    unsafe { CGPreflightScreenCaptureAccess() }
 }
