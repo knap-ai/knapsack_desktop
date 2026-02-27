@@ -497,6 +497,101 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
   Ok(t)
 }
 
+/// Scan the gateway error log for known crash patterns that indicate a
+/// specific channel is bringing down the entire gateway.  Returns a list
+/// of channel keys (e.g. "slack") that should be removed from the config.
+fn detect_crash_loop_channels() -> Vec<String> {
+  let err_log = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+  let content = match std::fs::read_to_string(&err_log) {
+    Ok(c) => c,
+    Err(_) => return Vec::new(),
+  };
+
+  // Only look at the last ~4 KB to avoid scanning huge logs
+  let tail = if content.len() > 4096 {
+    &content[content.len() - 4096..]
+  } else {
+    &content
+  };
+
+  let mut bad = Vec::new();
+
+  // Slack: "bolt-app Socket Mode is not turned on" crashes the gateway
+  if tail.contains("Socket Mode is not turned on") {
+    bad.push("slack".to_string());
+  }
+
+  // Discord: "TOKEN_INVALID" or "An invalid token was provided"
+  if tail.contains("TOKEN_INVALID") || tail.contains("An invalid token was provided") {
+    bad.push("discord".to_string());
+  }
+
+  // Signal: "signal-cli" errors or "not registered"
+  if tail.contains("signal-cli") && tail.contains("not registered") {
+    bad.push("signal".to_string());
+  }
+
+  bad
+}
+
+/// Disable channels that are crash-looping the gateway by setting their
+/// config to null in openclaw.json.  Returns display names of disabled channels.
+fn disable_crash_loop_channels(clawdbot_home: &Path) -> Vec<String> {
+  let crash_channels = detect_crash_loop_channels();
+  if crash_channels.is_empty() {
+    return Vec::new();
+  }
+
+  let config_path = clawdbot_home.join("openclaw.json");
+  let content = match std::fs::read_to_string(&config_path) {
+    Ok(c) => c,
+    Err(_) => return Vec::new(),
+  };
+  let mut cfg: serde_json::Value = match serde_json::from_str(&content) {
+    Ok(v) => v,
+    Err(_) => return Vec::new(),
+  };
+
+  let mut disabled = Vec::new();
+
+  if let Some(channels) = cfg.pointer_mut("/channels").and_then(|v| v.as_object_mut()) {
+    for key in &crash_channels {
+      // Only disable if the channel is actually configured (not already null)
+      if let Some(val) = channels.get(key.as_str()) {
+        if !val.is_null() {
+          let display = match key.as_str() {
+            "slack" => "Slack",
+            "discord" => "Discord",
+            "signal" => "Signal",
+            "googlechat" => "Google Chat",
+            "irc" => "IRC",
+            "telegram" => "Telegram",
+            _ => key.as_str(),
+          };
+          eprintln!(
+            "[clawd/service] Auto-disabled crash-looping channel '{}' (detected from error log)",
+            display
+          );
+          channels.insert(key.clone(), serde_json::Value::Null);
+          disabled.push(display.to_string());
+        }
+      }
+    }
+  }
+
+  if !disabled.is_empty() {
+    match std::fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
+      Ok(_) => eprintln!("[clawd/service] Config updated after disabling crash-loop channels"),
+      Err(e) => eprintln!("[clawd/service] WARNING: Failed to write config: {}", e),
+    }
+    // Clear the error log so we don't keep detecting the same pattern on
+    // subsequent startups after the channel has been removed.
+    let _ = std::fs::write("/tmp/knapsack-clawdbot.err.log", "");
+  }
+
+  disabled
+}
+
 /// Patch the openclaw.json config at app startup and cycle the running
 /// service so it picks up the changes (e.g. headless=false).  This ensures
 /// the config is correct even when the user upgrades the app without
@@ -511,7 +606,13 @@ pub fn patch_config_and_cycle_service(app_handle: &tauri::AppHandle) {
   // Read the config before patching to detect if anything changed
   let before = std::fs::read_to_string(&config_path).unwrap_or_default();
 
-  let disabled_channels = patch_openclaw_config(&clawdbot_home);
+  let mut disabled_channels = patch_openclaw_config(&clawdbot_home);
+
+  // Also check the error log for channels that are crash-looping the gateway
+  // (e.g. Slack with "Socket Mode is not turned on").  These have valid-looking
+  // tokens but cause the gateway to crash on every startup.
+  let crash_disabled = disable_crash_loop_channels(&clawdbot_home);
+  disabled_channels.extend(crash_disabled);
 
   // Notify the frontend about any channels that were auto-disabled
   if !disabled_channels.is_empty() {
