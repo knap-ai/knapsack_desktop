@@ -111,7 +111,7 @@ function NotificationWindow() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 pr-2">
+        <div className="flex-1 min-w-0 pr-1">
           <h3 className="text-[14px] font-semibold text-gray-900 line-clamp-2">
             {stripMarkdown(title)}
           </h3>
@@ -121,10 +121,10 @@ function NotificationWindow() {
         </div>
 
         {buttonConfigs.length > 0 && (
-          <div className="flex flex-shrink-0 items-center gap-2">
+          <div className="flex flex-col flex-shrink-0 items-stretch gap-1.5">
             <button
               onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
-              className="h-8 px-4 py-2 bg-orange-800 hover:bg-red-900 active:bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
+              className="h-7 px-3 py-1 bg-orange-800 hover:bg-red-900 active:bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
             >
               {buttonConfigs[0].buttonText}
             </button>
@@ -132,7 +132,7 @@ function NotificationWindow() {
               <button
                 key={index}
                 onClick={() => handleJoinMeeting(currentMeetingId, config.buttonHandler)}
-                className="h-8 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
+                className="h-7 px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
               >
                 {config.buttonText}
               </button>

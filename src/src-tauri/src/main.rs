@@ -421,8 +421,8 @@ fn activate_main_window_from_notification(window: tauri::Window) {
         let screen_size = monitor.size();
         let scale_factor = monitor.scale_factor();
 
-        // Use the same width as the notification and ~70% of screen height
-        let logical_height = (screen_size.height as f64 / scale_factor) * 0.7;
+        // Use the same width as the notification and full screen height (minus menu-bar offset)
+        let logical_height = (screen_size.height as f64 / scale_factor) - 30.0;
 
         let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
           width: NOTIF_WIDTH,

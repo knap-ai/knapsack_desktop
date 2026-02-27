@@ -779,7 +779,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 handleSend()
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            placeholder={isRecording ? '🎤 Listening...' : 'Ask anything...'}
             disabled={busy || isRecording}
             rows={1}
           />
