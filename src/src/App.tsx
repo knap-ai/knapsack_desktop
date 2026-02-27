@@ -36,6 +36,9 @@ import { Event, listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
 import { onUpdaterEvent } from '@tauri-apps/api/updater'
 
+import UpdateDialog from './components/UpdateDialog'
+import { useAutoUpdater } from './hooks/useAutoUpdater'
+
 import { KNChatMessage } from './api/threads'
 import { Automation, AutomationRun, Cadence } from './automations/automation'
 import BaseStep from './automations/steps/Base'
@@ -196,6 +199,7 @@ const dataFetcher = new DataFetcher()
 function App() {
   const [uuid, setUuid] = useState<string>('')
   const auth: IAuth = useAuth()
+  const { updateAvailable, dismissUpdate } = useAutoUpdater()
 
   const [toastrState, setToastrState] = useState<ToastrState>({})
   const [LLMQueue, setLLMQueue] = useState<LLMQueueProps>({ isProcessing: false, items: [] })
@@ -1298,6 +1302,10 @@ function App() {
           {toastrState.message}
         </Alert>
       </Snackbar>
+
+      {updateAvailable && (
+        <UpdateDialog update={updateAvailable} onDismiss={dismissUpdate} />
+      )}
 
       <Routes>
         <Route path="/onboard" element={<Onboarding updateProfile={auth.updateProfile} />} />
