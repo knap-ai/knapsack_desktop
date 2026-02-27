@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "bash scripts/prepare-node.sh",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "source .env && tauri",
