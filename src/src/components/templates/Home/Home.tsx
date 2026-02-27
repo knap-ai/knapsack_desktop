@@ -166,10 +166,14 @@ function Home({
 
   // When ClawdChat drafts an email reply, find the matching classified email,
   // attach the draft body, and open the autopilot drawer to that email.
+  // Only works when the user has authenticated email — otherwise the draft
+  // stays visible in the chat (the original approach).
   useEffect(() => {
     const unlisten = listen<{ subject: string; draftBody: string }>(
       'kn_email_draft_from_chat',
       (event) => {
+        if (!feed.loggedEmailAutopilot) return // no email auth — keep draft in chat
+
         const { subject, draftBody } = event.payload
         if (!subject || !draftBody) return
 
@@ -199,7 +203,7 @@ function Home({
           setAutopilotForceEmailUid(match.message.emailUid)
           setAutopilotForceOpen(true)
         } else {
-          // No match — just open the drawer
+          // No match — just open the drawer generically
           setAutopilotForceOpen(true)
         }
       },
@@ -207,7 +211,7 @@ function Home({
     return () => {
       unlisten.then(fn => fn())
     }
-  }, [feed.classifiedEmails, auth.profile?.provider])
+  }, [feed.classifiedEmails, feed.loggedEmailAutopilot, auth.profile?.provider])
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
