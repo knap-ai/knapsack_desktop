@@ -986,9 +986,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounter = useRef(0)
 
-  // Chat auto-scroll ref
+  // Chat auto-scroll ref and state
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
-  const userScrolledUpRef = useRef(false)
+  const isNearBottomRef = useRef(true)
+  const [showScrollButton, setShowScrollButton] = useState(false)
 
   // Voice silence detection refs
   const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1850,36 +1851,45 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     init()
   }, [])
 
-  // Track whether user has scrolled away from the bottom
-  const handleChatBodyScroll = useCallback(() => {
+  // Track whether user is near the bottom of the chat
+  const handleChatScroll = useCallback(() => {
     const el = chatBodyRef.current
     if (!el) return
-    // Consider "at bottom" if within 80px of the bottom edge
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-    userScrolledUpRef.current = !atBottom
+    const threshold = 100 // px from bottom
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+    isNearBottomRef.current = atBottom
+    if (atBottom) setShowScrollButton(false)
   }, [])
 
-  // Auto-scroll to bottom when messages change, but only if user hasn't scrolled up
+  // Attach scroll listener to chat body
   useEffect(() => {
-    if (chatBodyRef.current && !userScrolledUpRef.current) {
-      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight
+    const el = chatBodyRef.current
+    if (!el) return
+    el.addEventListener('scroll', handleChatScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleChatScroll)
+  }, [handleChatScroll])
+
+  // Auto-scroll to bottom when messages change, but only if user is near the bottom
+  useEffect(() => {
+    if (chatBodyRef.current) {
+      if (isNearBottomRef.current) {
+        requestAnimationFrame(() => {
+          if (chatBodyRef.current) {
+            chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight
+          }
+        })
+      } else {
+        setShowScrollButton(true)
+      }
     }
   }, [msgs, thinkingMessage])
 
-  // Always scroll to bottom when a new user message is added (they just sent it)
-  const prevMsgCountRef = useRef(msgs.length)
-  useEffect(() => {
-    if (msgs.length > prevMsgCountRef.current) {
-      const lastMsg = msgs[msgs.length - 1]
-      if (lastMsg?.role === 'user' || lastMsg?.role === 'assistant') {
-        userScrolledUpRef.current = false
-        if (chatBodyRef.current) {
-          chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight
-        }
-      }
+  const scrollToBottom = useCallback(() => {
+    if (chatBodyRef.current) {
+      chatBodyRef.current.scrollTo({ top: chatBodyRef.current.scrollHeight, behavior: 'smooth' })
     }
-    prevMsgCountRef.current = msgs.length
-  }, [msgs])
+    setShowScrollButton(false)
+  }, [])
 
   // Save chat history to localStorage whenever msgs change (excluding welcome messages)
   useEffect(() => {
@@ -2965,7 +2975,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
-      <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }} onScroll={handleChatBodyScroll}>
+      <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
             <div
               key={m.id}
@@ -3079,6 +3089,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </div>
         )}
       </div>
+
+      {showScrollButton && (
+        <button className="ClawdScrollToBottom" onClick={scrollToBottom}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+          New messages
+        </button>
+      )}
 
       <ChatInputBar
         busy={busy}
