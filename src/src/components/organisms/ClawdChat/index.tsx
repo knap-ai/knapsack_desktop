@@ -1102,9 +1102,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     localStorage.setItem(PROACTIVE_MODE_STORAGE, String(pendingProactiveState))
     setShowProactiveModal(false)
     pushAssistant(pendingProactiveState
-      ? "🔔 **Proactive mode enabled.** I'll send you background notifications — morning briefings, email alerts, meeting prep, and post-meeting follow-ups."
-      : "🔕 **Reactive mode enabled.** Background notifications are off. I'll only respond when you ask. You can still trigger notifications manually with /morning, /emails, /prep, or /fu."
+      ? "🔔 **Proactive mode enabled.** I'll send you background notifications — morning briefings, email alerts, meeting prep, and post-meeting follow-ups. Heartbeat monitoring is now active."
+      : "🔕 **Reactive mode enabled.** Background notifications and heartbeat monitoring are off. I'll only respond when you ask. You can still trigger notifications manually with /morning, /emails, /prep, or /fu."
     )
+
+    // Sync heartbeat config with proactive mode
+    fetch('http://localhost:8897/api/knapsack/heartbeat/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: pendingProactiveState }),
+    }).catch(e => console.warn('[proactive] Failed to sync heartbeat config:', e))
 
     // Fire a welcome notification so the user can see it works immediately
     if (pendingProactiveState) {

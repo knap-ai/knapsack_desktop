@@ -166,8 +166,11 @@ export const HeartbeatSettings = () => {
       {error && <div className="text-xs text-red-500">{error}</div>}
 
       {/* Enable/Disable toggle */}
-      <div className="flex items-center justify-between h-[36px]">
-        <span className="text-sm text-black">Enable heartbeat monitoring</span>
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col">
+          <span className="text-sm text-black">Enable heartbeat monitoring</span>
+          <span className="text-[10px] text-gray-400">Linked to proactive mode in chat</span>
+        </div>
         <button
           onClick={() => updateConfig({ enabled: !config.enabled } as any)}
           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${

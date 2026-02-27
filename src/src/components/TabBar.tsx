@@ -69,7 +69,7 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
     {
       id: TabChoices.MCPMarketplace,
       svg: '/assets/images/tabBar/automateTab.svg',
-      label: 'MCP',
+      label: 'Skills',
       isActive: true,
     },
   ]

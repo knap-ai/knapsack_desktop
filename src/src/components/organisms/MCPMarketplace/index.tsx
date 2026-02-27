@@ -14,15 +14,89 @@ import MCPServerCard from '../../molecules/MCPServerCard'
 import MCPConfigModal from '../../molecules/MCPConfigModal'
 import { Dialog } from '../../molecules/Dialog'
 
-const CATEGORIES = ['All', 'Productivity', 'Developer', 'Database', 'Search', 'Communication', 'AI']
+// ── Types ──
 
-const MCPMarketplace: React.FC = () => {
+interface Skill {
+  name: string
+  emoji: string
+  description: string
+  source: string
+  eligible: boolean
+  enabled?: boolean
+  externalApi?: boolean
+}
+
+type ViewMode = 'all' | 'skills' | 'mcp'
+
+const MCP_CATEGORIES = ['All', 'Productivity', 'Developer', 'Database', 'Search', 'Communication', 'AI']
+
+// ── Skill card ──
+
+const SkillCard: React.FC<{
+  skill: Skill
+  onInstall: (name: string) => void
+  installing: boolean
+}> = ({ skill, onInstall, installing }) => {
+  const isBuiltIn = skill.source === 'built-in'
+  const isAvailable = skill.eligible
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 flex flex-col gap-3 bg-white hover:border-gray-300 transition-colors">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{skill.emoji}</span>
+          <div>
+            <div className="font-medium text-sm text-gray-900">{skill.name}</div>
+            <div className="text-xs text-gray-400">
+              {isBuiltIn ? 'Built-in' : `OpenClaw`}
+              {skill.externalApi && ' \u00b7 Requires API key'}
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 line-clamp-2 flex-1">{skill.description}</p>
+      <div className="flex items-center justify-between pt-1">
+        {isBuiltIn && skill.enabled ? (
+          <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+            Active
+          </span>
+        ) : isAvailable ? (
+          <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+            Installed
+          </span>
+        ) : (
+          <button
+            onClick={() => onInstall(skill.name)}
+            disabled={installing}
+            className="text-xs font-medium px-3 py-1 rounded-md bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {installing ? 'Installing...' : 'Install'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ──
+
+const ExtensionsView: React.FC = () => {
+  // Skills state
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(true)
+  const [installingSkill, setInstallingSkill] = useState<string | null>(null)
+
+  // MCP state
   const [servers, setServers] = useState<McpServer[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState('All')
+  const [mcpLoading, setMcpLoading] = useState(true)
   const [loadingUuid, setLoadingUuid] = useState<string | null>(null)
   const [configServer, setConfigServer] = useState<McpServer | null>(null)
   const [showAddCustom, setShowAddCustom] = useState(false)
+
+  // Shared state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('all')
+  const [mcpCategory, setMcpCategory] = useState('All')
   const [error, setError] = useState<string | null>(null)
 
   // Custom server form state
@@ -32,6 +106,22 @@ const MCPMarketplace: React.FC = () => {
   const [customDescription, setCustomDescription] = useState('')
   const [customCategory, setCustomCategory] = useState('')
 
+  // ── Fetch data ──
+
+  const fetchSkills = useCallback(async () => {
+    try {
+      const resp = await fetch('http://localhost:8897/api/clawd/service/skills/status')
+      const data = await resp.json()
+      if (data.catalog) {
+        setSkills(data.catalog)
+      }
+    } catch (err) {
+      console.error('Failed to fetch skills:', err)
+    } finally {
+      setSkillsLoading(false)
+    }
+  }, [])
+
   const fetchServers = useCallback(async () => {
     try {
       const data = await getMcpServers()
@@ -39,35 +129,70 @@ const MCPMarketplace: React.FC = () => {
       setError(null)
     } catch (err) {
       console.error('Failed to fetch MCP servers:', err)
-      setError('Failed to load MCP servers. Please try again.')
+      setError('Failed to load MCP servers.')
+    } finally {
+      setMcpLoading(false)
     }
   }, [])
 
   useEffect(() => {
+    fetchSkills()
     fetchServers()
-  }, [fetchServers])
+  }, [fetchSkills, fetchServers])
+
+  // ── Filtering ──
+
+  const filteredSkills = useMemo(() => {
+    if (viewMode === 'mcp') return []
+    if (!searchQuery.trim()) return skills
+    const q = searchQuery.toLowerCase()
+    return skills.filter(
+      s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q),
+    )
+  }, [skills, searchQuery, viewMode])
 
   const filteredServers = useMemo(() => {
+    if (viewMode === 'skills') return []
     let result = servers
-
-    if (activeCategory !== 'All') {
-      result = result.filter(s => s.category === activeCategory)
+    if (mcpCategory !== 'All') {
+      result = result.filter(s => s.category === mcpCategory)
     }
-
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
+      const q = searchQuery.toLowerCase()
       result = result.filter(
         s =>
-          s.name.toLowerCase().includes(query) ||
-          (s.description && s.description.toLowerCase().includes(query)) ||
-          (s.author && s.author.toLowerCase().includes(query)),
+          s.name.toLowerCase().includes(q) ||
+          (s.description && s.description.toLowerCase().includes(q)),
       )
     }
-
     return result
-  }, [servers, activeCategory, searchQuery])
+  }, [servers, mcpCategory, searchQuery, viewMode])
 
-  const installedCount = useMemo(() => servers.filter(s => s.isInstalled).length, [servers])
+  const installedCount = useMemo(() => {
+    const skillsInstalled = skills.filter(s => s.eligible || s.enabled).length
+    const mcpInstalled = servers.filter(s => s.isInstalled).length
+    return skillsInstalled + mcpInstalled
+  }, [skills, servers])
+
+  // ── Skill actions ──
+
+  const handleInstallSkill = async (name: string) => {
+    setInstallingSkill(name)
+    try {
+      await fetch('http://localhost:8897/api/clawd/service/skills/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill: name }),
+      })
+      await fetchSkills()
+    } catch (err) {
+      console.error('Failed to install skill:', err)
+    } finally {
+      setInstallingSkill(null)
+    }
+  }
+
+  // ── MCP actions ──
 
   const handleInstall = async (uuid: string) => {
     setLoadingUuid(uuid)
@@ -128,9 +253,8 @@ const MCPMarketplace: React.FC = () => {
 
   const handleAddCustomServer = async () => {
     if (!customName.trim() || !customCommand.trim()) return
-
     const newServer: NewMcpServer = {
-      uuid: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      uuid: `custom-${crypto.randomUUID()}`,
       name: customName.trim(),
       command: customCommand.trim(),
       args: customArgs.trim() || undefined,
@@ -140,7 +264,6 @@ const MCPMarketplace: React.FC = () => {
       version: '1.0.0',
       icon: 'tool',
     }
-
     try {
       await addCustomMcpServer(newServer)
       await fetchServers()
@@ -155,26 +278,31 @@ const MCPMarketplace: React.FC = () => {
     }
   }
 
+  // ── Render ──
+
+  const loading = skillsLoading || mcpLoading
+
   return (
     <div className="flex flex-col p-6 pl-10 h-full overflow-y-auto">
+      {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h1 className="font-semibold text-2xl text-gray-900">MCP Marketplace</h1>
+          <h1 className="font-semibold text-2xl text-gray-900">Skills & MCPs</h1>
           <p className="font-medium text-sm text-gray-400 mt-1">
-            Discover and install MCP servers to extend your AI agent's capabilities.
+            Everything that extends what your AI agent can do.
           </p>
         </div>
         <div className="flex items-center gap-3">
           {installedCount > 0 && (
             <span className="text-xs font-medium bg-green-50 text-green-700 px-2.5 py-1 rounded-full border border-green-200">
-              {installedCount} installed
+              {installedCount} active
             </span>
           )}
           <button
             onClick={() => setShowAddCustom(true)}
             className="text-sm font-medium px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors"
           >
-            + Add Custom Server
+            + Add Custom
           </button>
         </div>
       </div>
@@ -201,55 +329,111 @@ const MCPMarketplace: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search MCP servers..."
+            placeholder="Search extensions..."
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white"
           />
         </div>
       </div>
 
-      {/* Category filter tabs */}
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {CATEGORIES.map(cat => (
+      {/* View mode tabs */}
+      <div className="flex gap-2 mb-4">
+        {(['all', 'skills', 'mcp'] as ViewMode[]).map(mode => (
           <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
+            key={mode}
+            onClick={() => setViewMode(mode)}
             className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-              activeCategory === cat
+              viewMode === mode
                 ? 'bg-gray-900 text-white border-gray-900'
                 : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
             }`}
           >
-            {cat}
+            {mode === 'all' ? `All (${skills.length + servers.length})` : mode === 'skills' ? `Skills (${skills.length})` : `MCP Servers (${servers.length})`}
           </button>
         ))}
       </div>
 
-      {/* Error message */}
+      {/* MCP category filters (only when viewing MCP or all) */}
+      {viewMode !== 'skills' && (
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {MCP_CATEGORIES.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setMcpCategory(cat)}
+              className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                mcpCategory === cat
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Error */}
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
           {error}
         </div>
       )}
 
-      {/* Server cards grid */}
-      {filteredServers.length === 0 ? (
+      {loading && (
+        <div className="text-sm text-gray-400 animate-pulse py-8 text-center">Loading extensions...</div>
+      )}
+
+      {/* Skills section */}
+      {!loading && viewMode !== 'mcp' && filteredSkills.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+            Skills
+          </h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Built-in capabilities that run inside Knapsack. They work immediately with no setup.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredSkills.map(skill => (
+              <SkillCard
+                key={skill.name}
+                skill={skill}
+                onInstall={handleInstallSkill}
+                installing={installingSkill === skill.name}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MCP Servers section */}
+      {!loading && viewMode !== 'skills' && filteredServers.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+            MCP Servers
+          </h2>
+          <p className="text-xs text-gray-400 mb-3">
+            External plugins that connect to third-party services (GitHub, Slack, databases, etc.) via the Model Context Protocol. Each one runs as a separate process and may need configuration.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredServers.map(server => (
+              <MCPServerCard
+                key={server.uuid}
+                server={server}
+                onInstall={handleInstall}
+                onUninstall={handleUninstall}
+                onEnable={handleEnable}
+                onDisable={handleDisable}
+                onConfigure={setConfigServer}
+                loading={loadingUuid === server.uuid}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && filteredSkills.length === 0 && filteredServers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mb-4 opacity-50"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <p className="text-sm">No MCP servers found.</p>
+          <p className="text-sm">No extensions found.</p>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
@@ -258,21 +442,6 @@ const MCPMarketplace: React.FC = () => {
               Clear search
             </button>
           )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredServers.map(server => (
-            <MCPServerCard
-              key={server.uuid}
-              server={server}
-              onInstall={handleInstall}
-              onUninstall={handleUninstall}
-              onEnable={handleEnable}
-              onDisable={handleDisable}
-              onConfigure={setConfigServer}
-              loading={loadingUuid === server.uuid}
-            />
-          ))}
         </div>
       )}
 
@@ -318,6 +487,7 @@ const MCPMarketplace: React.FC = () => {
                 placeholder="npx, node, python, etc."
                 className="mt-1 w-full px-3 py-2 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
               />
+              <p className="mt-1 text-xs text-gray-400">Allowed: npx, node, python, python3, uvx, docker</p>
             </div>
 
             <div>
@@ -331,7 +501,7 @@ const MCPMarketplace: React.FC = () => {
                 placeholder='["@your/mcp-server"]'
                 className="mt-1 w-full px-3 py-2 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
               />
-              <p className="mt-1 text-xs text-gray-400">JSON array format, e.g. ["arg1", "arg2"]</p>
+              <p className="mt-1 text-xs text-gray-400">JSON array format</p>
             </div>
 
             <div>
@@ -341,7 +511,7 @@ const MCPMarketplace: React.FC = () => {
               <textarea
                 value={customDescription}
                 onChange={e => setCustomDescription(e.target.value)}
-                placeholder="What does this MCP server do?"
+                placeholder="What does this server do?"
                 rows={2}
                 className="mt-1 w-full px-3 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none"
               />
@@ -357,10 +527,8 @@ const MCPMarketplace: React.FC = () => {
                 className="mt-1 w-full px-3 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white"
               >
                 <option value="">Select a category</option>
-                {CATEGORIES.filter(c => c !== 'All').map(cat => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
+                {MCP_CATEGORIES.filter(c => c !== 'All').map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
                 ))}
                 <option value="Custom">Custom</option>
               </select>
@@ -388,4 +556,4 @@ const MCPMarketplace: React.FC = () => {
   )
 }
 
-export default MCPMarketplace
+export default ExtensionsView
