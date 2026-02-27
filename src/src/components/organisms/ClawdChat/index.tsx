@@ -1,5 +1,6 @@
 import './style.scss'
 
+import LobsterLoader from './LobsterLoader'
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -2859,6 +2860,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
+        {thinkingMessage && <LobsterLoader />}
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
             <div
               key={m.id}
