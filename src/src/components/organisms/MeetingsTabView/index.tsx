@@ -86,6 +86,8 @@ const MeetingsTabView = ({
   // Build date-grouped meeting items (same pattern as FeedSidebar)
   const groupedMeetings = useMemo(() => {
     const groups: Record<string, { key: string; item: FeedItem }[]> = {}
+    // Deduplicate across all date groups by title + start-second
+    const seenMeetingKeys = new Set<string>()
 
     if (feed.feedContent) {
       Object.entries(feed.feedContent).forEach(([key, feedItems]) => {
@@ -95,6 +97,11 @@ const MeetingsTabView = ({
           const hasMeetingNotes = item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
           const isUpcomingCalendarEvent = item.calendarEvent && !item.id
           if (hasMeetingNotes || isUpcomingCalendarEvent) {
+            const startSec = Math.floor(item.timestamp.getTime() / 1000)
+            const meetingKey = `${item.title}_${startSec}`
+            if (seenMeetingKeys.has(meetingKey)) return
+            seenMeetingKeys.add(meetingKey)
+
             const dateKey = key
             if (!groups[dateKey]) {
               groups[dateKey] = []
