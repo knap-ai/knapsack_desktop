@@ -2585,6 +2585,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
+
+              // If the reply looks like an email draft, hand it off to the
+              // Email Autopilot drawer so the user can edit inline and send.
+              const subjectMatch = out.reply!.match(/^[ \t]*Subject:\s*(?:Re:\s*)?(.+)/im)
+              if (subjectMatch) {
+                const subjectLine = subjectMatch[1].trim()
+                // Extract the body: everything after the subject line, skip
+                // blank lines / salutation headers, up to a trailing separator.
+                const afterSubject = out.reply!.slice(
+                  out.reply!.indexOf(subjectMatch[0]) + subjectMatch[0].length,
+                )
+                // Strip leading whitespace / blank lines, then take until
+                // a markdown horizontal rule or end-of-string.
+                const bodyText = afterSubject
+                  .replace(/^\s*\n/, '')
+                  .replace(/\n---+\s*$/, '')
+                  .trim()
+                if (bodyText.length > 10) {
+                  emit('kn_email_draft_from_chat', {
+                    subject: subjectLine,
+                    draftBody: bodyText,
+                  })
+                }
+              }
             } else {
               pushAssistant(friendlyError(out.message || out.error || 'No reply'))
             }

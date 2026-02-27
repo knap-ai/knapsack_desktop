@@ -35,6 +35,8 @@ import { emit, listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
+import { AutopilotActions } from 'src/hooks/dataSources/useEmailAutopilot'
+import { DisplayEmail } from 'src/hooks/feed/useFeed'
 import { getFeedbacks } from '../../../api/threads'
 import { setHasOnboarded } from '../../../pages/onboarding'
 import { openGoogleAuthScreen } from '../../../utils/permissions/google'
@@ -90,6 +92,7 @@ function Home({
   const [showActivityPanel, setShowActivityPanel] = useState(false)
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
+  const [autopilotForceEmailUid, setAutopilotForceEmailUid] = useState<string | undefined>(undefined)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -160,6 +163,51 @@ function Home({
       unlisten.then(fn => fn())
     }
   }, [])
+
+  // When ClawdChat drafts an email reply, find the matching classified email,
+  // attach the draft body, and open the autopilot drawer to that email.
+  useEffect(() => {
+    const unlisten = listen<{ subject: string; draftBody: string }>(
+      'kn_email_draft_from_chat',
+      (event) => {
+        const { subject, draftBody } = event.payload
+        if (!subject || !draftBody) return
+
+        const normalise = (s: string) =>
+          s.toLowerCase().replace(/^re:\s*/i, '').replace(/[^a-z0-9]/g, '')
+
+        const normSubject = normalise(subject)
+
+        // Search all classified email categories for a subject match
+        const allEmails = (Object.values(feed.classifiedEmails ?? {}) as DisplayEmail[][]).flat()
+        const match = allEmails.find(
+          e => e && normalise(e.message.subject ?? '').includes(normSubject),
+        ) ?? allEmails.find(
+          e => e && normSubject.includes(normalise(e.message.subject ?? '')),
+        )
+
+        if (match) {
+          // Set the draft on the matched email
+          feed.takeEmailAction(
+            match.message.emailUid,
+            AutopilotActions.GENERATE_DRAFT_REPLY,
+            (auth.profile?.provider ?? ConnectionKeys.GOOGLE_PROFILE) as
+              ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+            draftBody,
+          )
+          // Open drawer to this specific email
+          setAutopilotForceEmailUid(match.message.emailUid)
+          setAutopilotForceOpen(true)
+        } else {
+          // No match — just open the drawer
+          setAutopilotForceOpen(true)
+        }
+      },
+    )
+    return () => {
+      unlisten.then(fn => fn())
+    }
+  }, [feed.classifiedEmails, auth.profile?.provider])
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
@@ -523,7 +571,11 @@ function Home({
                       userName={userName}
                       profileProvider={auth.profile?.provider}
                       forceOpen={autopilotForceOpen}
-                      onForceOpenHandled={() => setAutopilotForceOpen(false)}
+                      forceEmailUid={autopilotForceEmailUid}
+                      onForceOpenHandled={() => {
+                        setAutopilotForceOpen(false)
+                        setAutopilotForceEmailUid(undefined)
+                      }}
                     />
                   )}
                 </div>

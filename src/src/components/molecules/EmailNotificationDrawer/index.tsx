@@ -23,6 +23,7 @@ interface EmailNotificationDrawerProps {
   userName: string
   profileProvider?: string
   forceOpen?: boolean
+  forceEmailUid?: string
   onForceOpenHandled?: () => void
 }
 
@@ -33,6 +34,7 @@ const EmailNotificationDrawer = ({
   userName,
   profileProvider,
   forceOpen,
+  forceEmailUid,
   onForceOpenHandled,
 }: EmailNotificationDrawerProps) => {
   const [permanentlyDismissed, setPermanentlyDismissed] = useState<boolean | null>(null)
@@ -78,15 +80,20 @@ const EmailNotificationDrawer = ({
     }
   }, [])
 
-  // Handle forceOpen prop from parent (hotkey / event listener in Home)
+  // Handle forceOpen prop from parent (hotkey / event listener in Home).
+  // When forceEmailUid is provided, navigate the drawer to that specific email.
   useEffect(() => {
     if (forceOpen) {
+      if (forceEmailUid) {
+        setCurrentEmailUid(forceEmailUid)
+      }
+      setPermanentlyDismissed(false)
       setIsVisible(true)
       setIsExpanded(true)
       setIsAnimatingOut(false)
       onForceOpenHandled?.()
     }
-  }, [forceOpen, onForceOpenHandled])
+  }, [forceOpen, forceEmailUid, onForceOpenHandled])
 
   // Get IMPORTANT emails that need a response (drawer only shows this category)
   const emailsForCategory = useMemo(() => {
