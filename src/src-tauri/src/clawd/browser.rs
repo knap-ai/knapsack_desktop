@@ -254,16 +254,47 @@ static CHAT_HISTORY: Lazy<Mutex<HashMap<String, Vec<chat_agent::OaiMessage>>>> =
 ///
 /// Layout: `~/.openclaw/agents/main/sessions/<session_id>.jsonl`
 /// The desktop "ui" session maps to the gateway's default agent ("main").
+///
+/// Returns `None` if the session_id contains path-traversal characters.
 fn gateway_transcript_path(session_id: &str) -> Option<PathBuf> {
+  // Reject any session_id that could escape the sessions directory
+  if session_id.is_empty()
+    || session_id.contains('/')
+    || session_id.contains('\\')
+    || session_id.contains("..")
+    || session_id.contains('\0')
+  {
+    log::warn!("Rejected unsafe session_id for transcript: {:?}", session_id);
+    return None;
+  }
+
   let home = std::env::var("HOME").ok()?;
-  Some(
-    PathBuf::from(home)
-      .join(".openclaw")
-      .join("agents")
-      .join("main")
-      .join("sessions")
-      .join(format!("{}.jsonl", session_id)),
-  )
+  let sessions_dir = PathBuf::from(&home)
+    .join(".openclaw")
+    .join("agents")
+    .join("main")
+    .join("sessions");
+  let path = sessions_dir.join(format!("{}.jsonl", session_id));
+
+  // Belt-and-suspenders: verify the resolved path is still under sessions_dir
+  match path.canonicalize().or_else(|_| {
+    // File may not exist yet — canonicalize the parent instead
+    sessions_dir.canonicalize().map(|base| base.join(format!("{}.jsonl", session_id)))
+  }) {
+    Ok(resolved) => {
+      if let Ok(base) = sessions_dir.canonicalize() {
+        if !resolved.starts_with(&base) {
+          log::warn!("Path traversal blocked: {:?} escapes {:?}", resolved, base);
+          return None;
+        }
+      }
+    }
+    Err(_) => {
+      // Parent dir doesn't exist yet — the simple character check above is sufficient
+    }
+  }
+
+  Some(path)
 }
 
 /// Load conversation history from the gateway's JSONL transcript file.
