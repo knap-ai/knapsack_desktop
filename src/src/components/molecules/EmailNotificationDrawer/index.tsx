@@ -208,6 +208,11 @@ const EmailNotificationDrawer = ({
       prevEmailCountRef.current = currentCount
       if (feed.emailAutopilotStatus.status === 'complete') {
         initialLoadRef.current = false
+        // Show drawer on first sync completion if there are pending emails
+        if (currentCount > 0 && pendingEmail) {
+          setIsVisible(true)
+          setIsAnimatingOut(false)
+        }
       }
       return
     }

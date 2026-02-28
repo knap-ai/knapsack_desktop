@@ -275,7 +275,12 @@ function Home({
 
   const handleSigninGoogleButtonClick = () => {
     try {
-      openGoogleAuthScreen(googleConnections[ConnectionKeys.GOOGLE_PROFILE].scopes.join(' '))
+      const scopes = [
+        ...googleConnections[ConnectionKeys.GOOGLE_PROFILE].scopes,
+        ...googleConnections[ConnectionKeys.GOOGLE_GMAIL].scopes,
+        ...googleConnections[ConnectionKeys.GOOGLE_CALENDAR].scopes,
+      ].join(' ')
+      openGoogleAuthScreen(scopes)
     } catch (error) {
       setConnectionsDropdownOpened(false)
       logError(new Error('Error opening Google Auth screen'), {
@@ -289,9 +294,17 @@ function Home({
 
   const handleSigninMicrosoftButtonClick = () => {
     try {
-      const scopes = [...microsoftConnections[ConnectionKeys.MICROSOFT_PROFILE].scopes].join(' ')
+      const scopes = [
+        ...microsoftConnections[ConnectionKeys.MICROSOFT_PROFILE].scopes,
+        ...microsoftConnections[ConnectionKeys.MICROSOFT_OUTLOOK].scopes,
+        ...microsoftConnections[ConnectionKeys.MICROSOFT_CALENDAR].scopes,
+      ].join(' ')
 
-      openMicrosoftAuthScreen(scopes, [ConnectionKeys.MICROSOFT_PROFILE])
+      openMicrosoftAuthScreen(scopes, [
+        ConnectionKeys.MICROSOFT_PROFILE,
+        ConnectionKeys.MICROSOFT_OUTLOOK,
+        ConnectionKeys.MICROSOFT_CALENDAR,
+      ])
     } catch (error) {
       setConnectionsDropdownOpened(false)
       logError(new Error('Error opening Microsoft Auth screen'), {
@@ -564,7 +577,7 @@ function Home({
                       </div>
                     </>
                   )}
-                  {(feed.loggedEmailAutopilot || autopilotForceOpen) && (
+                  {(feed.loggedEmailAutopilot || autopilotForceOpen) ? (
                     <EmailNotificationDrawer
                       feed={feed}
                       onGoToEmail={() => {
@@ -581,6 +594,32 @@ function Home({
                         setAutopilotForceEmailUid(undefined)
                       }}
                     />
+                  ) : auth.profile && (
+                    <div className="absolute bottom-0 right-0 z-40">
+                      <div className="mr-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden p-4 max-w-[360px]">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-2 h-2 rounded-full bg-ks-red-500" />
+                          <span className="text-xs font-semibold font-InterTight text-ks-red-700 tracking-wide uppercase">
+                            Email Autopilot
+                          </span>
+                        </div>
+                        <p className="text-sm text-ks-warm-grey-700 font-Inter mb-3">
+                          Connect your email to enable smart email triage and draft replies.
+                        </p>
+                        <button
+                          onClick={() => onConnectAccountClick([
+                            auth.profile?.provider === ConnectionKeys.MICROSOFT_PROFILE
+                              ? ConnectionKeys.MICROSOFT_OUTLOOK
+                              : ConnectionKeys.GOOGLE_GMAIL,
+                          ])}
+                          className="px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
+                        >
+                          {auth.profile?.provider === ConnectionKeys.MICROSOFT_PROFILE
+                            ? 'Connect Outlook'
+                            : 'Connect Gmail'}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
