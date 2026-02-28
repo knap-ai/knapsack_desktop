@@ -43,7 +43,7 @@ const EmailNotificationDrawer = ({
   const [isAnimatingOut, setIsAnimatingOut] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [generatingDraftUid] = useState<string>('')
+  const [generatingDraftUid, setGeneratingDraftUid] = useState<string>('')
   const [sendingReplyUid] = useState<string>('')
   const [removingEmailUid, setRemovingEmailUid] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
@@ -148,6 +148,13 @@ const EmailNotificationDrawer = ({
       }
     }
   }, [emailsForCategory, currentEmailUid, isEditorActive])
+
+  // Auto-trigger draft generation when the current email has no draft
+  useEffect(() => {
+    if (currentEmail && !currentEmail.draftedReply && isExpanded) {
+      setGeneratingDraftUid(currentEmail.message.emailUid)
+    }
+  }, [currentEmail?.message.emailUid, currentEmail?.draftedReply, isExpanded])
 
   const actions = useMemo(() => {
     const categoryActions = feed.classificationActions[EmailImportance.IMPORTANT]

@@ -40,15 +40,15 @@ const GenerateDraftButton = ({
     } else {
       setGeneratingLabel('Rewriting...')
     }
-    const draftedReply = await emailAutopilot.draftEmailReply(
-      email,
-      userEmail,
-      userName,
-      'default',
-      newToneLevel,
-    )
 
     try {
+      const draftedReply = await emailAutopilot.draftEmailReply(
+        email,
+        userEmail,
+        userName,
+        'default',
+        newToneLevel,
+      )
       onSuccess?.(draftedReply)
     } catch (error) {
       onError?.(error as Error)
