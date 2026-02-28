@@ -75,9 +75,6 @@ const EmailTabView = ({
     <div className="EmailTabView w-full h-full overflow-hidden">
       <div className="EmailTabView__header">
         <h1 className="EmailTabView__title">Email Autopilot</h1>
-        <p className="EmailTabView__subtitle">
-          Use arrow keys to quickly send or dismiss emails
-        </p>
       </div>
 
       <div className="EmailTabView__content">
