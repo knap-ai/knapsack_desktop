@@ -560,10 +560,16 @@ pub async fn openai_compatible_chat(
       if let Ok(err_json) = serde_json::from_str::<JsonValue>(&text) {
         if err_json["error"]["code"].as_str() == Some("tool_use_failed") {
           if let Some(generation) = err_json["error"]["failed_generation"].as_str() {
+            // Clean up broken markdown links the model often leaves behind.
+            // These look like [label]( or [label]("  with truncated/empty URLs.
+            let cleaned = regex::Regex::new(r#"\[([^\]]*)\]\([^)]*$"#)
+              .map(|re| re.replace_all(generation, "$1").to_string())
+              .unwrap_or_else(|_| generation.to_string());
+
             return Ok(OaiChatResp {
               choices: vec![OaiChoice {
                 message: OaiChoiceMsg {
-                  content: Some(generation.to_string()),
+                  content: Some(cleaned),
                   tool_calls: vec![],
                 },
               }],
