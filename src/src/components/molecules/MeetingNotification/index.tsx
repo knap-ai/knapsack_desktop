@@ -34,7 +34,6 @@ function NotificationWindow() {
   const [title, setTitle] = useState<string>('')
   const [time, setTime] = useState<string>('')
   const isProcessing = React.useRef(false)
-  const [isExpanded, setIsExpanded] = useState(false)
 
   useEffect(() => {
     const unlistenPromise = listen(
@@ -47,7 +46,6 @@ function NotificationWindow() {
           button_configs: ButtonConfig[]
         }
       }) => {
-        setIsExpanded(false)
         setCurrentMeetingId(event.payload.event_id ? event.payload.event_id : null)
         setButtonConfigs(event.payload.button_configs)
         setTitle(event.payload.title)
@@ -83,85 +81,62 @@ function NotificationWindow() {
   }
 
   return (
-    <div className="flex flex-col w-full overflow-visible">
-      <div className="relative w-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 group overflow-visible">
-        {/* Top row: logo, title, primary button, expand chevron */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => invoke('close_notification_window')}
-            className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 p-1"
+    <div className="flex w-full bg-white rounded-lg overflow-visible">
+      <div className="relative w-full bg-gray-100 bg-opacity-65 backdrop-blur-lg rounded-lg p-3 flex items-start gap-3 group overflow-visible">
+        <button
+          onClick={() => invoke('close_notification_window')}
+          className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-700 p-1"
+        >
+          <svg
+            width="8"
+            height="8"
+            viewBox="0 0 14 14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
           >
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 14 14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M1 1L13 13M1 13L13 1"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-
-          <div className="w-8 h-8 ml-1 flex-shrink-0 flex items-center justify-center">
-            <img
-              src="/assets/images/icons/notification-logo.png"
-              alt="App Icon"
-              className="w-auto h-auto object-contain max-w-full max-h-full"
+            <path
+              d="M1 1L13 13M1 13L13 1"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
             />
-          </div>
+          </svg>
+        </button>
 
-          <h3 className="flex-1 min-w-0 text-[14px] font-semibold text-gray-900 truncate">
+        <div className="w-8 h-8 ml-1 flex-shrink-0 flex items-center justify-center">
+          <img
+            src="/assets/images/icons/notification-logo.png"
+            alt="App Icon"
+            className="w-auto h-auto object-contain max-w-full max-h-full"
+          />
+        </div>
+
+        <div className="flex-1 min-w-0 pr-1">
+          <h3 className="text-[14px] font-semibold text-gray-900 line-clamp-2">
             {stripMarkdown(title)}
           </h3>
-
-          {buttonConfigs.length > 0 && (
-            <button
-              onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
-              className="flex-shrink-0 h-8 px-4 py-2 bg-orange-800 hover:bg-red-900 active:bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
-            >
-              {buttonConfigs[0].buttonText}
-            </button>
-          )}
-
-          {(buttonConfigs.length > 1 || time) && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-transform duration-200"
-            >
-              <svg
-                className={`w-5 h-5 fill-current transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                viewBox="0 0 20 20"
-              >
-                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-              </svg>
-            </button>
+          {time && (
+            <p className="text-sm text-gray-600 line-clamp-4">{stripMarkdown(time)}</p>
           )}
         </div>
 
-        {/* Expanded section: time and additional buttons */}
-        {isExpanded && (
-          <div className="mt-3 pl-12 flex flex-col gap-2">
-            {time && (
-              <p className="text-sm text-gray-600">{stripMarkdown(time)}</p>
-            )}
-            {buttonConfigs.length > 1 && (
-              <div className="flex flex-wrap gap-2">
-                {buttonConfigs.slice(1).map((config, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleJoinMeeting(currentMeetingId, config.buttonHandler)}
-                    className="h-8 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
-                  >
-                    {config.buttonText}
-                  </button>
-                ))}
-              </div>
-            )}
+        {buttonConfigs.length > 0 && (
+          <div className="flex flex-col flex-shrink-0 items-stretch gap-1.5">
+            <button
+              onClick={() => handleJoinMeeting(currentMeetingId, buttonConfigs[0].buttonHandler)}
+              className="h-7 px-3 py-1 bg-orange-800 hover:bg-red-900 active:bg-red-400 text-white rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
+            >
+              {buttonConfigs[0].buttonText}
+            </button>
+            {buttonConfigs.slice(1).map((config, index) => (
+              <button
+                key={index}
+                onClick={() => handleJoinMeeting(currentMeetingId, config.buttonHandler)}
+                className="h-7 px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-medium transition-colors duration-200 whitespace-nowrap"
+              >
+                {config.buttonText}
+              </button>
+            ))}
           </div>
         )}
       </div>

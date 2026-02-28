@@ -83,21 +83,35 @@ return status as integer"#,
 
 #[cfg(target_os = "macos")]
 fn check_screen_recording_permission_macos() -> bool {
-    use std::process::Command;
-    // CGPreflightScreenCaptureAccess returns true if the app has screen recording permission.
-    // We use a small Swift snippet via `swift -e` to call this CoreGraphics API.
-    let result = Command::new("swift")
-        .arg("-e")
-        .arg("import CoreGraphics; print(CGPreflightScreenCaptureAccess())")
-        .output();
+    // Call CGPreflightScreenCaptureAccess directly from the app process via FFI.
+    // Using `swift -e` runs in a subprocess which macOS treats as a different app,
+    // so it always returns false even when Knapsack has the permission.
+    extern "C" {
+        fn CGPreflightScreenCaptureAccess() -> bool;
+    }
+    if unsafe { CGPreflightScreenCaptureAccess() } {
+        return true;
+    }
 
-    match result {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            stdout == "true"
-        }
-        Err(e) => {
-            log::warn!("Failed to check screen recording permission: {}", e);
+    // Fallback: On macOS Sequoia (15.x+), CGPreflightScreenCaptureAccess() can
+    // return false even when the permission IS granted in System Settings.
+    // Use SCShareableContent as a more reliable check — it returns content when
+    // permission is granted, or an error when denied.
+    use std::sync::mpsc::channel;
+    use std::time::Duration;
+    use screen_capture_kit::shareable_content::SCShareableContent;
+
+    let (tx, rx) = channel();
+    SCShareableContent::get_shareable_content_with_completion_closure(
+        move |shareable_content, _error| {
+            let _ = tx.send(shareable_content.is_some());
+        },
+    );
+
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(granted) => granted,
+        Err(_) => {
+            log::warn!("SCShareableContent permission check timed out, falling back to false");
             false
         }
     }

@@ -27,15 +27,16 @@ function KnapsackLMBar({ LLMBarUtils }: KnapsackLMBarProps) {
   const filesDropdownRef = useRef(null)
   const filesMenuRef = useRef(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  const dataFetcher = new DataFetcher()
+  const dataFetcherRef = useRef(new DataFetcher())
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
     if (textarea) {
-      textarea.style.height = '44px';
-      const newHeight = Math.min(textarea.scrollHeight, 200);
-      textarea.style.height = `${Math.max(44, newHeight)}px`;
+      requestAnimationFrame(() => {
+        textarea.style.height = 'auto';
+        const newHeight = Math.min(textarea.scrollHeight, 200);
+        textarea.style.height = `${Math.max(44, newHeight)}px`;
+      });
     }
   };
 
@@ -64,7 +65,7 @@ function KnapsackLMBar({ LLMBarUtils }: KnapsackLMBarProps) {
       AutomationDataSources.LOCAL_FILES,
       AutomationDataSources.WEB,
     ]
-    return await dataFetcher.semanticSearch(query, [], dataSources)
+    return await dataFetcherRef.current.semanticSearch(query, [], dataSources)
   }, [])
 
   // Easter egg commands: type these in the chat to trigger notifications manually

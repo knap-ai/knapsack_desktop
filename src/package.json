@@ -1,7 +1,7 @@
 {
   "name": "knapsack",
   "private": true,
-  "version": "0.9.53",
+  "version": "0.9.532",
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
@@ -47,6 +47,7 @@
     "marked-react": "^2.0.0",
     "postcss": "^8.4.49",
     "prismjs": "^1.29.0",
+    "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
     "react-audio-visualize": "^1.2.0",
     "react-audio-voice-recorder": "^2.2.0",

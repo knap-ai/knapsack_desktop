@@ -6,6 +6,24 @@ use std::time::Duration;
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
+/// Quick check: is the gateway port listening?  If not, return a fast error
+/// response instead of blocking for 10+ seconds on WebSocket connection attempts.
+async fn gateway_or_bail() -> Option<HttpResponse> {
+    if !gateway_client::is_gateway_port_open().await {
+        Some(HttpResponse::Ok().json(ChannelStatusResponse {
+            success: false,
+            enabled: false,
+            configured: false,
+            linked: Some(false),
+            provider: None,
+            message: Some("Gateway not reachable".to_string()),
+            account: None,
+        }))
+    } else {
+        None
+    }
+}
+
 /// Request body for sending a message through a channel.
 #[derive(Deserialize)]
 struct SendMessageRequest {
@@ -272,6 +290,7 @@ fn parse_account_from_summary(status: &serde_json::Value, channel_name: &str) ->
 /// Get WhatsApp channel status
 #[get("/api/clawd/channels/whatsapp/status")]
 pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+    if let Some(bail) = gateway_or_bail().await { return bail; }
     match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (enabled, linked, _configured) = parse_channel_from_summary(&status, "WhatsApp");
@@ -439,6 +458,7 @@ pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
 /// Get iMessage channel status
 #[get("/api/clawd/channels/imessage/status")]
 pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+    if let Some(bail) = gateway_or_bail().await { return bail; }
     match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (enabled, _linked, configured) = parse_channel_from_summary(&status, "iMessage");
@@ -556,6 +576,7 @@ pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
 /// Get voice channel status
 #[get("/api/clawd/channels/voice/status")]
 pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+    if let Some(bail) = gateway_or_bail().await { return bail; }
     match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             // Voice calls are handled by plugins, check channelSummary for Twilio/Telnyx/etc
@@ -710,6 +731,7 @@ pub async fn send_channel_message(
 /// Get Telegram channel status
 #[get("/api/clawd/channels/telegram/status")]
 pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+    if let Some(bail) = gateway_or_bail().await { return bail; }
     match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             let (enabled, _linked, configured) =
@@ -1112,6 +1134,7 @@ pub async fn generic_channel_status(
     _cfg: web::Data<SharedClawdbotConfig>,
     path: web::Path<String>,
 ) -> impl Responder {
+    if let Some(bail) = gateway_or_bail().await { return bail; }
     let channel = path.into_inner();
     if !is_valid_generic_channel(&channel) {
         return HttpResponse::BadRequest().json(ChannelStatusResponse {
@@ -1186,8 +1209,9 @@ pub async fn generic_channel_configure(
     }
 
     // Merge the user-provided config with standard channel defaults.
-    // Discord and Slack use nested dm.policy / dm.allowFrom;
-    // other channels (signal, irc, googlechat) use top-level dmPolicy / allowFrom.
+    // Discord, Slack, and GoogleChat use nested dm: { policy, allowFrom };
+    // Telegram and Signal use top-level dmPolicy / allowFrom.
+    // All schemas are .strict() so unrecognized keys cause validation errors.
     let mut channel_config = body.config.clone();
     if let Some(obj) = channel_config.as_object_mut() {
         // Always ensure the channel is enabled
@@ -1199,11 +1223,40 @@ pub async fn generic_channel_configure(
             // Channels whose schema uses a nested `dm` object (strict zod schema
             // rejects top-level dmPolicy / allowFrom).
             "discord" | "slack" | "googlechat" => {
+                // Strip top-level allowFrom/dmPolicy — these are invalid for
+                // strict schemas that use nested dm: { policy, allowFrom }.
+                obj.remove("allowFrom");
+                obj.remove("dmPolicy");
+
                 if !obj.contains_key("dm") {
                     obj.insert("dm".to_string(), serde_json::json!({
                         "policy": "open",
                         "allowFrom": ["*"]
                     }));
+                }
+
+                // Discord uses "token" (not "botToken") at top level.
+                if channel == "discord" {
+                    if let Some(bot_token) = obj.remove("botToken") {
+                        if !obj.contains_key("token") {
+                            obj.insert("token".to_string(), bot_token);
+                        }
+                    }
+                }
+            }
+            // Signal uses "account" (not "phoneNumber") and has top-level
+            // dmPolicy / allowFrom.
+            "signal" => {
+                if let Some(phone) = obj.remove("phoneNumber") {
+                    if !obj.contains_key("account") {
+                        obj.insert("account".to_string(), phone);
+                    }
+                }
+                if !obj.contains_key("allowFrom") {
+                    obj.insert("allowFrom".to_string(), serde_json::json!(["*"]));
+                }
+                if !obj.contains_key("dmPolicy") {
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("open"));
                 }
             }
             _ => {

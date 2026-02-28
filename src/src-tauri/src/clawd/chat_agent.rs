@@ -184,7 +184,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         description: "Type text into an element by ref from snapshot".to_string(),
         parameters: json!({
           "type": "object",
-          "properties": { "targetId": { "type": "string" }, "ref": { "type": "string" }, "text": { "type": "string" }, "submit": { "type": "boolean" } },
+          "properties": { "targetId": { "type": "string" }, "ref": { "type": "string" }, "text": { "type": "string" }, "submit": { "type": ["boolean", "string"], "description": "Press Enter after typing. true or false." } },
           "required": ["ref", "text"],
           "additionalProperties": false
         }),
@@ -231,7 +231,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
           "properties": {
             "path": { "type": "string", "description": "Directory to search in" },
             "pattern": { "type": "string", "description": "File name pattern to match (e.g., '*.pdf', 'report*', '*.txt')" },
-            "recursive": { "type": "boolean", "description": "Whether to search subdirectories (default: true)" }
+            "recursive": { "type": ["boolean", "string"], "description": "Whether to search subdirectories (default: true). true or false." }
           },
           "required": ["path", "pattern"],
           "additionalProperties": false
@@ -551,6 +551,34 @@ pub async fn openai_compatible_chat(
       tokio::time::sleep(Duration::from_secs_f64(wait_secs)).await;
       last_error = format!("LLM HTTP {}: {}", status, text);
       continue;
+    }
+
+    // Groq returns 400 with code "tool_use_failed" when the model generates a
+    // plain-text answer instead of a tool call.  The actual response is in the
+    // "failed_generation" field — extract it and return it as a normal reply.
+    if status.as_u16() == 400 {
+      if let Ok(err_json) = serde_json::from_str::<JsonValue>(&text) {
+        if err_json["error"]["code"].as_str() == Some("tool_use_failed") {
+          if let Some(generation) = err_json["error"]["failed_generation"].as_str() {
+            // Clean up broken markdown links the model often leaves behind.
+            // These look like [label]( or [label]("  with truncated/empty URLs.
+            // Use multiline mode so $ matches at each line ending, allowing
+            // replace_all to strip broken links on every line (not just the last).
+            let cleaned = regex::Regex::new(r#"(?m)\[([^\]]*)\]\([^)]*$"#)
+              .map(|re| re.replace_all(generation, "$1").to_string())
+              .unwrap_or_else(|_| generation.to_string());
+
+            return Ok(OaiChatResp {
+              choices: vec![OaiChoice {
+                message: OaiChoiceMsg {
+                  content: Some(cleaned),
+                  tool_calls: vec![],
+                },
+              }],
+            });
+          }
+        }
+      }
     }
 
     // For other errors, fail immediately

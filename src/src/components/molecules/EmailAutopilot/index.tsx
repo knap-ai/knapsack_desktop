@@ -402,11 +402,7 @@ export const EmailAutopilot = ({
                   <EmailDraftCard
                     emailAutopilot={feed.emailAutopilot}
                     email={email}
-                    onActionCallback={(
-                      actionTaken: AutopilotActions,
-                      emailUid: string,
-                      draftReply?: string,
-                    ) => handleEmailActionTaken(actionTaken, emailUid, draftReply)}
+                    onActionCallback={handleEmailActionTaken}
                     userEmail={userEmail}
                     userName={userName}
                     profileProvider={profileProvider ? profileProvider : ''}

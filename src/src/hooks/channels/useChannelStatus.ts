@@ -72,39 +72,89 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     setChannelErrors(prev => ({ ...prev, [channel]: msg }))
   }
 
+  // Track previous JSON snapshots so we only trigger re-renders when data
+  // actually changes.  This prevents the parent component (ClawdChat) from
+  // re-rendering on every poll cycle, which was causing typing input lag.
+  const prevJsonRef = useRef<Record<string, string>>({})
+
   const refresh = useCallback(async () => {
-    setLoading(true)
+    // Only show loading indicator on the very first fetch, not background polls.
+    // Toggling loading on every poll caused 2 extra parent re-renders per cycle.
+    const isFirstLoad = prevJsonRef.current._initialized !== 'true'
+    if (isFirstLoad) setLoading(true)
     setError(null)
     try {
+      // Quick gateway health check first — if gateway is down, skip the
+      // expensive per-channel status polls which each timeout after 10-20s.
+      let gwOk = false
+      try {
+        const hRes = await fetch('http://localhost:8897/api/clawd/service/health')
+        if (hRes.ok) {
+          const hData = await hRes.json()
+          gwOk = !!hData.gateway_ok
+          setGatewayHealthy(gwOk)
+        }
+      } catch {
+        // Rust backend itself is unreachable — gateway definitely not ok
+        setGatewayHealthy(false)
+      }
+
+      if (!gwOk) {
+        if (isFirstLoad) setLoading(false)
+        prevJsonRef.current._initialized = 'true'
+        return
+      }
+
       const [wa, im, tg, ...genericResults] = await Promise.all([
         getWhatsAppStatus().catch(() => null),
         getIMessageStatus().catch(() => null),
         getTelegramStatus().catch(() => null),
         ...GENERIC_CHANNELS.map(ch => getGenericChannelStatus(ch).catch(() => null)),
       ])
-      setWhatsapp(wa)
-      setImessage(im)
-      setTelegram(tg)
+
+      // Only update state when data actually changed (compare JSON snapshots).
+      // This avoids re-rendering the parent on every poll when nothing changed.
+      const waJson = JSON.stringify(wa)
+      if (waJson !== prevJsonRef.current.wa) {
+        prevJsonRef.current.wa = waJson
+        setWhatsapp(wa)
+      }
+      const imJson = JSON.stringify(im)
+      if (imJson !== prevJsonRef.current.im) {
+        prevJsonRef.current.im = imJson
+        setImessage(im)
+      }
+      const tgJson = JSON.stringify(tg)
+      if (tgJson !== prevJsonRef.current.tg) {
+        prevJsonRef.current.tg = tgJson
+        setTelegram(tg)
+      }
 
       // Update generic channel states
-      const newGeneric = { ...genericChannels }
+      const newGeneric: Record<string, ChannelStatus | null> = {}
       GENERIC_CHANNELS.forEach((ch, i) => {
         newGeneric[ch] = genericResults[i]
       })
-      setGenericChannels(newGeneric)
+      const genJson = JSON.stringify(newGeneric)
+      if (genJson !== prevJsonRef.current.gen) {
+        prevJsonRef.current.gen = genJson
+        setGenericChannels(newGeneric as Record<GenericChannelName, ChannelStatus | null>)
+      }
 
       // Surface gateway-level errors per channel
-      if (wa && !wa.success && wa.message) setChannelError('whatsapp', wa.message)
-      else setChannelError('whatsapp', null)
-      if (im && !im.success && im.message) setChannelError('imessage', im.message)
-      else setChannelError('imessage', null)
-      if (tg && !tg.success && tg.message) setChannelError('telegram', tg.message)
-      else setChannelError('telegram', null)
+      const newErrors: Record<string, string | null> = {}
+      newErrors.whatsapp = (wa && !wa.success && wa.message) ? wa.message : null
+      newErrors.imessage = (im && !im.success && im.message) ? im.message : null
+      newErrors.telegram = (tg && !tg.success && tg.message) ? tg.message : null
       GENERIC_CHANNELS.forEach((ch, i) => {
         const status = genericResults[i]
-        if (status && !status.success && status.message) setChannelError(ch, status.message)
-        else setChannelError(ch, null)
+        newErrors[ch] = (status && !status.success && status.message) ? status.message : null
       })
+      const errJson = JSON.stringify(newErrors)
+      if (errJson !== prevJsonRef.current.err) {
+        prevJsonRef.current.err = errJson
+        setChannelErrors(newErrors)
+      }
 
       // Clear QR code if WhatsApp is now linked
       if (wa?.linked) {
@@ -114,13 +164,23 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     } catch (e: any) {
       setError(e?.message ?? 'Failed to fetch channel status')
     } finally {
-      setLoading(false)
+      if (isFirstLoad) setLoading(false)
+      prevJsonRef.current._initialized = 'true'
     }
   }, [])
 
+  // Always do a single initial fetch so hasAnyChannel / showChannelBanner
+  // are populated on mount even when polling is disabled.
+  useEffect(() => {
+    refresh()
+  }, [])
+
+  // Only start the polling interval when explicitly enabled (e.g. channels
+  // panel is open).  This avoids background re-renders while the user is
+  // typing in the chat input.
   useEffect(() => {
     if (!enabled) return
-    refresh()
+    refresh() // refresh immediately when the panel opens
     const id = setInterval(refresh, intervalMs)
     return () => clearInterval(id)
   }, [enabled, intervalMs, refresh])

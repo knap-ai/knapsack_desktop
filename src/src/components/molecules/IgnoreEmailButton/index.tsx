@@ -132,14 +132,7 @@ const IgnoreEmailButton = ({
           isIgnoring ? 'opacity-50 cursor-not-allowed' : ''
         }`}
       >
-        <img
-          className="w-4 h-5 ml-1"
-          src="/assets/images/icons/LeftArrowKey.png"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleDropdown();
-          }}/>
-        <div className="text-sm text-[#000000] font-medium my-0">{labelByValue[localAction]}</div>
+        <div className="text-sm text-[#000000] font-medium my-0 ml-1">{labelByValue[localAction]}</div>
         <img
           className="w-6 h-6 ml-1"
           src="/assets/images/drop_down_black.svg"

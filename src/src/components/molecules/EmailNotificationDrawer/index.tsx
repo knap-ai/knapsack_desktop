@@ -23,7 +23,9 @@ interface EmailNotificationDrawerProps {
   userName: string
   profileProvider?: string
   forceOpen?: boolean
+  forceEmailUid?: string
   onForceOpenHandled?: () => void
+  isChatBusy?: boolean
 }
 
 const EmailNotificationDrawer = ({
@@ -33,7 +35,9 @@ const EmailNotificationDrawer = ({
   userName,
   profileProvider,
   forceOpen,
+  forceEmailUid,
   onForceOpenHandled,
+  isChatBusy,
 }: EmailNotificationDrawerProps) => {
   const [permanentlyDismissed, setPermanentlyDismissed] = useState<boolean | null>(null)
   const [sessionDismissedIds, setSessionDismissedIds] = useState<Set<string>>(new Set())
@@ -42,15 +46,20 @@ const EmailNotificationDrawer = ({
   const [isExpanded, setIsExpanded] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [generatingDraftUid, setGeneratingDraftUid] = useState<string>('')
-  const [sendingReplyUid, setSendingReplyUid] = useState<string>('')
+  const [sendingReplyUid] = useState<string>('')
   const [removingEmailUid, setRemovingEmailUid] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
   const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
   const [caughtUpDismissing, setCaughtUpDismissing] = useState(false)
+  const [drawerWidth, setDrawerWidth] = useState(540)
+  const [drawerHeight, setDrawerHeight] = useState(Math.round(window.innerHeight * 0.55))
+  const resizingRef = useRef(false)
+  const resizeStartRef = useRef({ x: 0, y: 0, w: 0, h: 0 })
   const prevEmailCountRef = useRef<number>(0)
   const initialLoadRef = useRef(true)
   const frozenEmailRef = useRef<DisplayEmail | null>(null)
   const caughtUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevAutopilotStatusRef = useRef<string | undefined>(undefined)
 
   // Check if user has permanently dismissed
   useEffect(() => {
@@ -73,15 +82,20 @@ const EmailNotificationDrawer = ({
     }
   }, [])
 
-  // Handle forceOpen prop from parent (hotkey / event listener in Home)
+  // Handle forceOpen prop from parent (hotkey / event listener in Home).
+  // When forceEmailUid is provided, navigate the drawer to that specific email.
   useEffect(() => {
     if (forceOpen) {
+      if (forceEmailUid) {
+        setCurrentEmailUid(forceEmailUid)
+      }
+      setPermanentlyDismissed(false)
       setIsVisible(true)
       setIsExpanded(true)
       setIsAnimatingOut(false)
       onForceOpenHandled?.()
     }
-  }, [forceOpen, onForceOpenHandled])
+  }, [forceOpen, forceEmailUid, onForceOpenHandled])
 
   // Get IMPORTANT emails that need a response (drawer only shows this category)
   const emailsForCategory = useMemo(() => {
@@ -137,6 +151,13 @@ const EmailNotificationDrawer = ({
     }
   }, [emailsForCategory, currentEmailUid, isEditorActive])
 
+  // Auto-trigger draft generation when the current email has no draft
+  useEffect(() => {
+    if (currentEmail && !currentEmail.draftedReply && isExpanded) {
+      setGeneratingDraftUid(currentEmail.message.emailUid)
+    }
+  }, [currentEmail?.message.emailUid, currentEmail?.draftedReply, isExpanded])
+
   const actions = useMemo(() => {
     const categoryActions = feed.classificationActions[EmailImportance.IMPORTANT]
     return (
@@ -178,7 +199,9 @@ const EmailNotificationDrawer = ({
     ).length
   }, [feed.classifiedEmails])
 
-  // Track when new classified emails arrive (don't show on initial load)
+  // Only auto-surface the drawer while the chat is busy (inference running)
+  // AND there are new pending emails.  Auto-dismiss when inference finishes.
+  const prevChatBusyRef = useRef(isChatBusy)
   useEffect(() => {
     if (permanentlyDismissed || permanentlyDismissed === null) return
 
@@ -186,6 +209,8 @@ const EmailNotificationDrawer = ({
     const currentCount = importantEmails.filter(
       e => !e.wasIgnored && !e.wasReplySent && e.message.body,
     ).length
+
+    prevAutopilotStatusRef.current = feed.emailAutopilotStatus.status
 
     if (initialLoadRef.current) {
       prevEmailCountRef.current = currentCount
@@ -195,13 +220,25 @@ const EmailNotificationDrawer = ({
       return
     }
 
-    if (currentCount > prevEmailCountRef.current && pendingEmail) {
+    // Show the drawer when chat becomes busy and there are pending emails
+    if (isChatBusy && pendingEmail && currentCount > 0) {
       setIsVisible(true)
       setIsAnimatingOut(false)
     }
 
+    // Auto-dismiss when chat finishes (busy → not busy) and drawer wasn't force-opened
+    if (prevChatBusyRef.current && !isChatBusy && isVisible && !forceOpen) {
+      setIsAnimatingOut(true)
+      setTimeout(() => {
+        setIsVisible(false)
+        setIsAnimatingOut(false)
+        setIsExpanded(false)
+      }, 300)
+    }
+
+    prevChatBusyRef.current = isChatBusy
     prevEmailCountRef.current = currentCount
-  }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail])
+  }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail, isChatBusy])
 
   const isLoading =
     feed.emailAutopilotStatus.status === 'fetching-emails' ||
@@ -313,6 +350,31 @@ const EmailNotificationDrawer = ({
     setIsExpanded(false)
   }, [])
 
+  // Resize drag handler — user drags the top-left corner to grow/shrink the drawer
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    resizingRef.current = true
+    resizeStartRef.current = { x: e.clientX, y: e.clientY, w: drawerWidth, h: drawerHeight }
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return
+      const dx = resizeStartRef.current.x - ev.clientX // dragging left = increase width
+      const dy = resizeStartRef.current.y - ev.clientY // dragging up = increase height
+      setDrawerWidth(Math.max(400, Math.min(window.innerWidth * 0.9, resizeStartRef.current.w + dx)))
+      setDrawerHeight(Math.max(300, Math.min(window.innerHeight - 32, resizeStartRef.current.h + dy)))
+    }
+
+    const onMouseUp = () => {
+      resizingRef.current = false
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [drawerWidth, drawerHeight])
+
   const getLoadingText = (status: string) => {
     if (status === 'fetching-emails') return 'Engaging autopilot...'
     if (status === 'classifying-emails') return 'Analyzing emails...'
@@ -331,23 +393,37 @@ const EmailNotificationDrawer = ({
 
   return (
     <div
-      className={`absolute bottom-0 right-0 z-40 w-full max-w-[540px] transition-all duration-400 ease-out ${
+      className={`absolute bottom-0 right-0 z-40 transition-all duration-400 ease-out ${
         isAnimatingOut
           ? 'translate-y-full opacity-0'
           : 'translate-y-0 opacity-100'
       }`}
+      style={isExpanded ? { width: `${drawerWidth}px`, maxWidth: '90vw' } : { width: '540px', maxWidth: '540px' }}
     >
       <div
         className={`mr-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
-          isExpanded ? 'max-h-[70vh]' : 'max-h-[220px]'
+          isExpanded ? '' : 'max-h-[220px]'
         }`}
+        style={isExpanded ? { height: `${drawerHeight}px`, maxHeight: 'calc(100vh - 32px)' } : {}}
       >
+        {/* Resize handle — top-left corner drag */}
+        {isExpanded && (
+          <div
+            className="absolute top-0 left-0 w-4 h-4 cursor-nw-resize z-50 group"
+            onMouseDown={handleResizeStart}
+            title="Drag to resize"
+          >
+            <svg className="w-3 h-3 m-0.5 text-ks-warm-grey-300 group-hover:text-ks-warm-grey-500 transition-colors" viewBox="0 0 10 10" fill="currentColor">
+              <circle cx="2" cy="2" r="1.2" />
+              <circle cx="2" cy="6" r="1.2" />
+              <circle cx="6" cy="2" r="1.2" />
+            </svg>
+          </div>
+        )}
         {/* Header bar */}
         <div
-          className={`relative flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-ks-red-50 to-white border-b border-ks-warm-grey-100 shrink-0 ${
-            !isExpanded ? 'cursor-pointer' : ''
-          }`}
-          onClick={!isExpanded ? handleExpand : undefined}
+          className="relative flex items-center justify-between px-4 py-2.5 bg-white border-b border-ks-warm-grey-100 shrink-0 cursor-pointer"
+          onClick={isExpanded ? handleCollapse : handleExpand}
         >
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-ks-red-500 animate-pulse" />
@@ -360,23 +436,10 @@ const EmailNotificationDrawer = ({
               </span>
             )}
           </div>
-          {/* Centered minimize arrow */}
-          {isExpanded && (
-            <button
-              onClick={handleCollapse}
-              className="absolute left-1/2 -translate-x-1/2 p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
-              title="Minimize"
-            >
-              <svg className="w-4 h-4 text-ks-warm-grey-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          )}
           <div className="flex items-center gap-1.5">
             {isExpanded && (
               <SettingsButton
-                onClick={(e) => {
-                  e.stopPropagation()
+                onClick={() => {
                   setShowSettings(true)
                 }}
                 title="Email Autopilot Settings"
@@ -429,7 +492,7 @@ const EmailNotificationDrawer = ({
         {/* Collapsed content — single email preview */}
         {!isExpanded && (
           <>
-            <div className="px-4 py-3">
+            <div className="flex-1 overflow-hidden px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold font-Lora text-ks-warm-grey-950 truncate">
@@ -438,7 +501,7 @@ const EmailNotificationDrawer = ({
                   <div className="text-xs text-ks-warm-grey-600 font-InterTight mt-0.5 truncate">
                     From: {sender}
                   </div>
-                  <div className="text-sm text-black font-Inter mt-2 leading-relaxed line-clamp-2">
+                  <div className="text-sm text-black font-Inter mt-2 leading-relaxed line-clamp-3">
                     {summary}
                   </div>
                 </div>
@@ -451,7 +514,7 @@ const EmailNotificationDrawer = ({
                 onClick={handleExpand}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
               >
-                Open Autopilot
+                View Response
               </button>
             </div>
           </>

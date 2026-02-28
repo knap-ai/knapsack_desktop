@@ -186,8 +186,6 @@ const SendEmailButton = ({
               toggleDropdown();
             }}/>
             {labelByValue[localAction]}
-            <img src="/assets/images/icons/RightArrowKey.png"
-              alt="Send" className="w-4 h-5" />
           </>
         )}
       </button>

@@ -151,6 +151,10 @@ fn setup_handler(
   // starts, so that llm_complete (meeting notes) and transcribe can use them.
   clawd::service::propagate_llm_keys_to_env(&app_handle);
 
+  // Patch openclaw.json config on every startup (e.g. force headless=false)
+  // and cycle the running service if anything changed.
+  clawd::service::patch_config_and_cycle_service(&app_handle);
+
   let actix_app_handle = app.handle();
 
   // Start the server
@@ -322,10 +326,11 @@ async fn show_notification_window(
         let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
         let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
-        let y_position = 0;
+        // Position below the macOS menu bar (~25 logical px)
+        let y_position = (30.0 * scale_factor) as i32;
 
-        // Resize notification window to full screen height
-        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        // Resize notification window to full screen height minus offset
+        let screen_height_logical = (screen_size.height as f64 / scale_factor) - 30.0;
         window
           .set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: NOTIF_WIDTH,
@@ -416,8 +421,8 @@ fn activate_main_window_from_notification(window: tauri::Window) {
         let screen_size = monitor.size();
         let scale_factor = monitor.scale_factor();
 
-        // Use the same width as the notification and ~70% of screen height
-        let logical_height = (screen_size.height as f64 / scale_factor) * 0.7;
+        // Use the same width as the notification and full screen height (minus menu-bar offset)
+        let logical_height = (screen_size.height as f64 / scale_factor) - 30.0;
 
         let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
           width: NOTIF_WIDTH,

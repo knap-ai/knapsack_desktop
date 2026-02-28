@@ -112,6 +112,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true');
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true');
   const [forceShowPermissions] = useState(false);
+  const [permissionsDismissed, setPermissionsDismissed] = useState(false);
 
   const onSynthesisFinish = () => setSynthesisState(prev => !prev)
 
@@ -297,9 +298,9 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
         thread => thread.threadType === ThreadType.MEETING_NOTES
       )
 
-      const showPermissionsOverlay = (hasMeetingNotesThread &&
+      const showPermissionsOverlay = ((hasMeetingNotesThread &&
                                  (!micPermission || !screenPermission)) ||
-                                 forceShowPermissions;
+                                 forceShowPermissions) && !permissionsDismissed;
 
       return (
         <Fragment>
@@ -310,6 +311,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                 setMicPermission(true)
                 setScreenPermission(true)
               }}
+              onClose={() => setPermissionsDismissed(true)}
             />
           )}
             {item.title !== 'Email Autopilot' &&

@@ -277,6 +277,19 @@
   justify-content: flex-start;
 }
 
+.ClawdMsg-system {
+  justify-content: center;
+
+  .ClawdBubble {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #92400e;
+    font-size: 12px;
+    max-width: 90%;
+    text-align: center;
+  }
+}
+
 .ClawdMsg-clickable {
   cursor: pointer;
 
@@ -851,6 +864,30 @@
   }
   50% {
     box-shadow: 0 0 0 4px rgba(220, 53, 69, 0);
+  }
+}
+
+.ClawdBusyActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ClawdQueuedBtn {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(59, 130, 246, 0.22);
+    border-color: rgba(59, 130, 246, 0.5);
   }
 }
 
@@ -2283,6 +2320,40 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.ClawdGatewayError {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #991b1b;
+  line-height: 1.4;
+
+  strong { display: block; margin-bottom: 4px; }
+
+  details {
+    margin-top: 8px;
+    summary {
+      cursor: pointer;
+      font-size: 11px;
+      color: #b91c1c;
+      &:hover { text-decoration: underline; }
+    }
+    pre {
+      margin: 6px 0 0;
+      padding: 8px;
+      background: #fff5f5;
+      border-radius: 4px;
+      font-size: 10px;
+      color: #7f1d1d;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+  }
 }
 
 .ClawdChannelsPanelIntro {

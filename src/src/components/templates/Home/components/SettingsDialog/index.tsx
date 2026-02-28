@@ -662,6 +662,21 @@ export const SettingsDialog = ({
             </div>
           </div>
         </div>
+
+        <hr className="border-zinc-200" />
+        <div className="p-6">
+          <Typography className="text-ks-warm-grey-500 text-xs">
+            AI assistant powered by{' '}
+            <a
+              href="https://openclawskills.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.link}
+            >
+              OpenClaw
+            </a>
+          </Typography>
+        </div>
       </div>
     </Dialog>
   )

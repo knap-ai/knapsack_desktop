@@ -1,6 +1,6 @@
 [package]
 name = "knapsack"
-version = "0.9.53"
+version = "0.9.532"
 description = "Knapsack"
 authors = ["you"]
 license = "AGPL-3.0"
@@ -38,6 +38,7 @@ dotenv = "0.15.0"
 rayon = "=1.10.0"
 actix-cors = "=0.7.0"
 tokio = {version = "=1.37.0", features = ["full", "tracing"] }
+tokio-stream = "=0.1.17"
 tokio-tungstenite = "0.21"
 futures-util = "0.3"
 glob = "0.3"
@@ -99,6 +100,7 @@ url = "2.3"
 urlencoding = "2.1.3"
 flacenc = "0.4"
 libc = "0.2"
+console = { version = "0.16", features = ["std"] }
 
 
 [dependencies.console-subscriber]

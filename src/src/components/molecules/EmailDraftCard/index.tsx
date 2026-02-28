@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import React, { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -172,7 +172,7 @@ const EmailDraftCard = ({
           <div className="text-ks-neutral-700 text-xs leading-relaxed my-0">
             {emailSummary && (
               <>
-                <div className="text-sm leading-5 text-black font-Inter line-clamp-2">
+                <div className="text-sm leading-5 text-black font-Inter">
                   {emailSummary.join(' ')}
                 </div>
               </>
@@ -309,15 +309,11 @@ const EmailDraftCard = ({
           </div>
         </div>
 
-        <div className="text-left text-black text-sm text-wrap px-3 pt-2 pb-2 min-h-[25px]">
+        <div className="text-left text-black text-sm text-wrap px-3 pt-2 pb-2 min-h-[25px] max-h-[300px] overflow-y-auto">
           <EditorContent
             editor={editor}
             className="max-w-none [&_*]:focus:outline-none focus:ring-0 [&_.ProseMirror]:text-black"
           />
-        </div>
-
-        <div className="absolute bottom-2.5 right-3 text-xs text-ks-warm-grey-800 font-Inter">
-          Checked against SEC/FINRA rules
         </div>
 
         <div className="ml-3 py-2">
@@ -385,4 +381,4 @@ const EmailDraftCard = ({
   )
 }
 
-export default EmailDraftCard
+export default React.memo(EmailDraftCard)

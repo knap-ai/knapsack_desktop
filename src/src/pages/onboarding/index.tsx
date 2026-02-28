@@ -70,11 +70,11 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
   const [googlePermissions, setGooglePermissions] = useState<Record<string, boolean>>({
     [ConnectionKeys.GOOGLE_CALENDAR]: true,
     // [ConnectionKeys.GOOGLE_DRIVE]: true,
-    // [ConnectionKeys.GOOGLE_GMAIL]: true,
+    [ConnectionKeys.GOOGLE_GMAIL]: true,
     [ConnectionKeys.GOOGLE_PROFILE]: true,
   })
   const [microsoftPermissions] = useState<Record<string, boolean>>({
-    // [ConnectionKeys.MICROSOFT_OUTLOOK]: true,
+    [ConnectionKeys.MICROSOFT_OUTLOOK]: true,
     [ConnectionKeys.MICROSOFT_PROFILE]: true,
     [ConnectionKeys.MICROSOFT_CALENDAR]: true,
     // [ConnectionKeys.MICROSOFT_ONEDRIVE]: true,

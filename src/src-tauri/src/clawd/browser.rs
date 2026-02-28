@@ -3,6 +3,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use std::fs;
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 
@@ -248,6 +249,171 @@ fn active_provider(app_handle: &tauri::AppHandle) -> String {
 
 static CHAT_HISTORY: Lazy<Mutex<HashMap<String, Vec<chat_agent::OaiMessage>>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// Resolve the gateway JSONL transcript path for a session.
+///
+/// Layout: `~/.openclaw/agents/main/sessions/<session_id>.jsonl`
+/// The desktop "ui" session maps to the gateway's default agent ("main").
+///
+/// Returns `None` if the session_id contains path-traversal characters.
+fn gateway_transcript_path(session_id: &str) -> Option<PathBuf> {
+  // Reject any session_id that could escape the sessions directory
+  if session_id.is_empty()
+    || session_id.contains('/')
+    || session_id.contains('\\')
+    || session_id.contains("..")
+    || session_id.contains('\0')
+  {
+    log::warn!("Rejected unsafe session_id for transcript: {:?}", session_id);
+    return None;
+  }
+
+  let home = std::env::var("HOME").ok()?;
+  let sessions_dir = PathBuf::from(&home)
+    .join(".openclaw")
+    .join("agents")
+    .join("main")
+    .join("sessions");
+  let path = sessions_dir.join(format!("{}.jsonl", session_id));
+
+  // Belt-and-suspenders: verify the resolved path is still under sessions_dir
+  match path.canonicalize().or_else(|_| {
+    // File may not exist yet — canonicalize the parent instead
+    sessions_dir.canonicalize().map(|base| base.join(format!("{}.jsonl", session_id)))
+  }) {
+    Ok(resolved) => {
+      if let Ok(base) = sessions_dir.canonicalize() {
+        if !resolved.starts_with(&base) {
+          log::warn!("Path traversal blocked: {:?} escapes {:?}", resolved, base);
+          return None;
+        }
+      }
+    }
+    Err(_) => {
+      // Parent dir doesn't exist yet — the simple character check above is sufficient
+    }
+  }
+
+  Some(path)
+}
+
+/// Load conversation history from the gateway's JSONL transcript file.
+/// Returns the last `max_messages` user/assistant messages (ignoring system/tool).
+fn load_history_from_transcript(session_id: &str, max_messages: usize) -> Vec<chat_agent::OaiMessage> {
+  let path = match gateway_transcript_path(session_id) {
+    Some(p) => p,
+    None => return Vec::new(),
+  };
+  let file = match fs::File::open(&path) {
+    Ok(f) => f,
+    Err(_) => return Vec::new(),
+  };
+  let reader = std::io::BufReader::new(file);
+  let mut messages: Vec<chat_agent::OaiMessage> = Vec::new();
+
+  for line in reader.lines() {
+    let line = match line {
+      Ok(l) => l,
+      Err(_) => continue,
+    };
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+      continue;
+    }
+    // Parse as OaiMessage — skip lines that don't match (tool calls, system, etc.)
+    if let Ok(msg) = serde_json::from_str::<chat_agent::OaiMessage>(trimmed) {
+      match &msg {
+        chat_agent::OaiMessage::User { .. } | chat_agent::OaiMessage::Assistant { .. } => {
+          messages.push(msg);
+        }
+        _ => {} // Skip system and tool messages
+      }
+    }
+  }
+
+  // Keep only the last N messages
+  if messages.len() > max_messages {
+    messages.drain(0..messages.len() - max_messages);
+  }
+  messages
+}
+
+/// Append user and assistant messages to the gateway's JSONL transcript.
+fn append_to_transcript(session_id: &str, messages: &[chat_agent::OaiMessage]) {
+  let path = match gateway_transcript_path(session_id) {
+    Some(p) => p,
+    None => return,
+  };
+
+  // Ensure the sessions directory exists
+  if let Some(parent) = path.parent() {
+    let _ = fs::create_dir_all(parent);
+  }
+
+  let mut file = match fs::OpenOptions::new().create(true).append(true).open(&path) {
+    Ok(f) => f,
+    Err(e) => {
+      log::warn!("Failed to open transcript file {:?}: {}", path, e);
+      return;
+    }
+  };
+
+  for msg in messages {
+    if let Ok(json_line) = serde_json::to_string(msg) {
+      let _ = writeln!(file, "{}", json_line);
+    }
+  }
+
+  // Also update sessions.json so the gateway knows about this session
+  update_sessions_json(session_id);
+}
+
+/// Update the gateway's sessions.json to register/refresh the desktop session.
+fn update_sessions_json(session_id: &str) {
+  let home = match std::env::var("HOME").ok() {
+    Some(h) => h,
+    None => return,
+  };
+  let store_path = PathBuf::from(&home)
+    .join(".openclaw")
+    .join("agents")
+    .join("main")
+    .join("sessions")
+    .join("sessions.json");
+
+  // Read existing store or create new one
+  let mut store: serde_json::Map<String, JsonValue> = if store_path.exists() {
+    match fs::read_to_string(&store_path) {
+      Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
+      Err(_) => serde_json::Map::new(),
+    }
+  } else {
+    serde_json::Map::new()
+  };
+
+  // The session key for the desktop UI maps to "agent:main:main"
+  let session_key = "agent:main:main";
+  let now = chrono::Utc::now().to_rfc3339();
+
+  let entry = store.entry(session_key.to_string()).or_insert_with(|| {
+    json!({
+      "sessionId": session_id,
+      "updatedAt": now,
+      "origin": { "label": "Knapsack Desktop" }
+    })
+  });
+
+  // Update the timestamp
+  if let Some(obj) = entry.as_object_mut() {
+    obj.insert("updatedAt".to_string(), json!(now));
+    // Ensure sessionId is set
+    obj.entry("sessionId".to_string()).or_insert(json!(session_id));
+  }
+
+  if let Ok(json_str) = serde_json::to_string_pretty(&store) {
+    let _ = fs::write(&store_path, json_str);
+  }
+}
 
 // --- existing open endpoint ---
 
@@ -1134,7 +1300,7 @@ pub async fn chat(
       }
       let submit = args_map
         .get("submit")
-        .and_then(|v| v.as_bool())
+        .map(|v| v.as_bool().unwrap_or_else(|| v.as_str() == Some("true")))
         .unwrap_or(false);
       let target_id = args_map
         .get("targetId")
@@ -1228,7 +1394,7 @@ pub async fn chat(
         .trim();
       let recursive = args_map
         .get("recursive")
-        .and_then(|v| v.as_bool())
+        .map(|v| v.as_bool().unwrap_or_else(|| v.as_str() != Some("false")))
         .unwrap_or(true);
       if path_raw.is_empty() || pattern.is_empty() {
         anyhow::bail!("path and pattern are required");
@@ -2073,11 +2239,11 @@ pub async fn chat(
     anyhow::bail!("unknown tool: {}", name)
   }
 
-  // Load history
+  // Load history — seed from gateway JSONL transcript if in-memory is empty
   let mut history_guard = CHAT_HISTORY.lock().unwrap();
   let history = history_guard
     .entry(session_id.clone())
-    .or_insert_with(Vec::new);
+    .or_insert_with(|| load_history_from_transcript(&session_id, 20));
 
   // System prompt - build with tone if provided
   let tone_section = if !tone_prompt.is_empty() {
@@ -2777,14 +2943,18 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
     if choice.message.tool_calls.is_empty() {
       let reply = choice.message.content.clone().unwrap_or_default();
       // persist history (keep last ~20 messages — omit images to avoid bloating)
-      history.push(chat_agent::OaiMessage::User {
+      let user_msg = chat_agent::OaiMessage::User {
         content: full_text.clone(),
         images: vec![],
-      });
-      history.push(chat_agent::OaiMessage::Assistant {
+      };
+      let assistant_msg = chat_agent::OaiMessage::Assistant {
         content: Some(reply.clone()),
         tool_calls: None,
-      });
+      };
+      // Sync to gateway JSONL transcript so channel bots can see desktop history
+      append_to_transcript(&session_id, &[user_msg.clone(), assistant_msg.clone()]);
+      history.push(user_msg);
+      history.push(assistant_msg);
       if history.len() > 20 {
         let drain = history.len() - 20;
         history.drain(0..drain);

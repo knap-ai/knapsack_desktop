@@ -9,7 +9,8 @@ import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
-import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, type SignalRegResponse } from 'src/api/channels'
+import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus } from 'src/api/channels'
+import { QRCodeSVG } from 'qrcode.react'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 
@@ -664,9 +665,21 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
   } = props
   const [input, setInput] = useState('')
+  const [queuedMessage, setQueuedMessage] = useState<string | null>(null)
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // When the assistant finishes (busy → false), auto-send the queued message
+  const prevBusyRef = useRef(busy)
+  useEffect(() => {
+    if (prevBusyRef.current && !busy && queuedMessage) {
+      const msg = queuedMessage
+      setQueuedMessage(null)
+      onSend(msg)
+    }
+    prevBusyRef.current = busy
+  }, [busy, queuedMessage, onSend])
 
   // Easter egg commands supported in chat input
   const CHAT_COMMANDS: Record<string, string> = {
@@ -691,7 +704,12 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
       return
     }
 
-    onSend(text)
+    if (busy) {
+      // Queue the message — it'll auto-send when the current generation completes
+      setQueuedMessage(text)
+    } else {
+      onSend(text)
+    }
     setInput('')
     // Reset textarea height after send
     if (textareaRef.current) {
@@ -755,7 +773,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         <button
           className="ClawdFileBtn"
           onClick={() => fileInputRef.current?.click()}
-          disabled={busy}
+          disabled={isRecording}
           title="Attach files or images"
         >
           📎
@@ -779,8 +797,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 handleSend()
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : 'Ask me to browse, search, read pages, or automate tasks...'}
-            disabled={busy || isRecording}
+            placeholder={isRecording ? '🎤 Listening...' : queuedMessage ? `Queued: "${queuedMessage}"` : busy ? 'Type your next message...' : 'Ask anything...'}
+            disabled={isRecording}
             rows={1}
           />
           {/* Voice mode toggle - always visible inside input like ChatGPT */}
@@ -802,9 +820,24 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           </button>
         </div>
         {busy ? (
-          <button className="ClawdStopBtn" onClick={onStopGeneration}>
-            ⏹️ Stop
-          </button>
+          <div className="ClawdBusyActions">
+            {queuedMessage ? (
+              <button
+                className="ClawdQueuedBtn"
+                onClick={() => setQueuedMessage(null)}
+                title="Cancel queued message"
+              >
+                ✕ Queued
+              </button>
+            ) : input.trim() ? (
+              <button onClick={handleSend}>
+                Queue
+              </button>
+            ) : null}
+            <button className="ClawdStopBtn" onClick={onStopGeneration}>
+              ⏹️ Stop
+            </button>
+          </div>
         ) : (
           <button disabled={!input.trim() && attachedFiles.length === 0} onClick={handleSend}>
             Send
@@ -821,9 +854,10 @@ interface ClawdChatProps {
   onCloseActivity?: () => void
   userEmail?: string
   userName?: string
+  onBusyChange?: (busy: boolean) => void
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -842,6 +876,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return []
   })
   const [busy, setBusy] = useState(false)
+
+  // Notify parent when busy state changes (used to show email drawer during inference)
+  const onBusyChangeRef = useRef(onBusyChange)
+  onBusyChangeRef.current = onBusyChange
+  useEffect(() => { onBusyChangeRef.current?.(busy) }, [busy])
 
   // Abort controller for stopping generation
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -972,8 +1011,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Auto-briefing: track whether we've already triggered the initial briefing this session
   const autoTriggeredBriefingRef = useRef(false)
 
-  // Gateway service state — channel connection status
-  const channelStatus = useChannelStatus(true, 15_000)
+  // Gateway service state — channel connection status.
+  // Only poll while the channels panel is open to avoid background
+  // re-renders that cause typing lag in the chat input.
+  const channelStatus = useChannelStatus(showChannelsPanel, 15_000)
   const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
   const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel
 
@@ -1735,6 +1776,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           await apiPost('/api/clawd/service/enable', { enabled: true })
           // Wait for service to start (browser Chrome process needs extra time)
           await new Promise(resolve => setTimeout(resolve, 4000))
+        } else {
+          // Service is "running" (LaunchAgent loaded) — verify gateway is actually
+          // reachable.  The LaunchAgent can be loaded in launchctl while the actual
+          // Node.js process crashed or never started.  In that case, kickstart it.
+          try {
+            const h = await apiGet<ServiceHealth>('/api/clawd/service/health')
+            setHealth(h)
+            if (!h.gateway_ok) {
+              console.warn('[ClawdChat] Service loaded but gateway down — triggering kickstart')
+              await apiPost('/api/clawd/service/kickstart', {})
+              // Give the gateway extra time after kickstart before polling
+              await new Promise(resolve => setTimeout(resolve, 3000))
+            }
+          } catch {
+            // Health check itself failed — try kickstart anyway
+            console.warn('[ClawdChat] Health check failed — triggering kickstart')
+            await apiPost('/api/clawd/service/kickstart', {})
+            await new Promise(resolve => setTimeout(resolve, 3000))
+          }
         }
 
         // Refresh status after enabling
@@ -1952,6 +2012,34 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('clawd-send-user', handler)
   }, [])
 
+  // Listen for /briefing trigger from keyboard shortcut (Cmd+Ctrl+B)
+  useEffect(() => {
+    let cancelled = false
+    const unsub = tauriListen('kn_trigger_briefing', () => {
+      if (!cancelled) handleSendWithTextRef.current?.(SMART_PROMPT)
+    })
+    return () => { cancelled = true; unsub.then(fn => fn()) }
+  }, [])
+
+  // Listen for auto-disabled channels notification from the Rust backend.
+  // When broken channels are detected at startup, we show a system message
+  // so the user knows which channels were removed and can re-configure them.
+  useEffect(() => {
+    let cancelled = false
+    const unsub = tauriListen<{ channels: string[] }>('clawd-channels-auto-disabled', (event) => {
+      if (cancelled) return
+      const names = event.payload?.channels
+      if (!names || names.length === 0) return
+      const list = names.join(', ')
+      const text = `**Channels auto-disabled:** ${list}. These channels had missing or invalid credentials and were removed to prevent startup errors. You can re-connect them from the Channels panel.`
+      setMsgs(prev => [
+        ...prev,
+        { id: `auto-disabled-${Date.now()}`, role: 'system' as Role, text, ts: Date.now() },
+      ])
+    })
+    return () => { cancelled = true; unsub.then(fn => fn()) }
+  }, [])
+
   const pushUser = (text: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
   }
@@ -1998,9 +2086,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const enableAssistant = async (enabled: boolean) => {
     setBusy(true)
     try {
-      await apiPost('/api/clawd/service/enable', { enabled })
+      const res = await apiPost<{ success: boolean; message?: string }>('/api/clawd/service/enable', { enabled })
       await refreshStatus()
-      pushAssistant(enabled ? 'Browser assistant enabled.' : 'Browser assistant disabled.')
+      if (enabled && res.message && res.message.includes('WARNING')) {
+        // Gateway didn't come up — show the diagnostic info
+        pushAssistant(`Browser assistant enabled but gateway failed to start:\n\`\`\`\n${res.message}\n\`\`\``)
+      } else {
+        pushAssistant(enabled ? 'Browser assistant enabled.' : 'Browser assistant disabled.')
+      }
     } catch (e: any) {
       pushAssistant(`Couldn't update browser assistant: ${e?.message || String(e)}`)
     } finally {
@@ -2157,6 +2250,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       return
     }
 
+    // /briefing and /catchup: trigger the email+calendar briefing in chat.
+    // Replace the slash command with the smart prompt so the normal flow
+    // pre-fetches email/calendar data and generates an in-chat briefing.
+    const cmdLower = text.trim().toLowerCase()
+    const isBriefingCmd = cmdLower === '/briefing' || cmdLower === '/catchup'
+    if (isBriefingCmd) {
+      text = SMART_PROMPT
+    }
+
     // Check if we need to prompt for API key first
     if (!hasCompletedOnboarding) {
       const hasKey = await checkAndPromptForKey()
@@ -2175,7 +2277,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const attachmentSummary = currentAttachments.length > 0
       ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
       : ''
-    pushUser(text + attachmentSummary)
+    pushUser(isBriefingCmd ? 'Catch me up on my email and calendar' : text + attachmentSummary)
 
     // Parse "command args..." form
     const [rawCmd, ...rest] = text.split(/\s+/)
@@ -2553,6 +2655,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
+
+              // If the reply looks like an email draft, hand it off to the
+              // Email Autopilot drawer so the user can edit inline and send.
+              const subjectMatch = out.reply!.match(/^[ \t]*Subject:\s*(?:Re:\s*)?(.+)/im)
+              if (subjectMatch) {
+                const subjectLine = subjectMatch[1].trim()
+                // Extract the body: everything after the subject line, skip
+                // blank lines / salutation headers, up to a trailing separator.
+                const afterSubject = out.reply!.slice(
+                  out.reply!.indexOf(subjectMatch[0]) + subjectMatch[0].length,
+                )
+                // Strip leading whitespace / blank lines, then take until
+                // a markdown horizontal rule or end-of-string.
+                const bodyText = afterSubject
+                  .replace(/^\s*\n/, '')
+                  .replace(/\n---+\s*$/, '')
+                  .trim()
+                if (bodyText.length > 10) {
+                  emit('kn_email_draft_from_chat', {
+                    subject: subjectLine,
+                    draftBody: bodyText,
+                  })
+                }
+              }
             } else {
               pushAssistant(friendlyError(out.message || out.error || 'No reply'))
             }
@@ -2613,6 +2739,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   toggleVoiceOutputRef.current = toggleVoiceOutput
   const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
 
+  // Stabilize startRecording/stopRecording — their useCallback deps
+  // (selectedInputDevice, mediaRecorder) change occasionally, which would
+  // break ChatInputBar's React.memo and cause input lag.
+  const startRecordingRef = useRef(startRecording)
+  startRecordingRef.current = startRecording
+  const stableStartRecording = useCallback(async () => { await startRecordingRef.current() }, [])
+
+  const stopRecordingRef = useRef(stopRecording)
+  stopRecordingRef.current = stopRecording
+  const stableStopRecording = useCallback(() => { stopRecordingRef.current() }, [])
+
   const statusLine = useMemo(() => {
     if (!status && !health) return <span>Checking Moltbot...</span>
     const parts: ReactNode[] = []
@@ -2625,7 +2762,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     if (health) {
       parts.push(
-        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'}>
+        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'} title={health.message || ''}>
           {health.gateway_ok ? 'Gateway: OK' : 'Gateway: down'}
         </span>,
       )
@@ -2667,7 +2804,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <img src="/assets/images/knap-logo-medium.png" alt="Knapsack" className="ClawdChatLogo" />
           <div className="ClawdChatTitleGroup">
             <h1 className="ClawdChatTitle">Knapsack Chat</h1>
-            <p className="ClawdChatSubtitle">AI assistant powered by OpenClaw</p>
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
         </div>
@@ -2993,8 +3129,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onSend={stableDoSend}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
-        onStartRecording={startRecording}
-        onStopRecording={stopRecording}
+        onStartRecording={stableStartRecording}
+        onStopRecording={stableStopRecording}
         onToggleVoice={stableToggleVoiceOutput}
         onStopGeneration={stableStopGeneration}
       />
@@ -3162,6 +3298,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <button onClick={() => setShowChannelsPanel(false)}>×</button>
           </div>
           <div className="ClawdChannelsPanelBody">
+            {health && !health.gateway_ok && (
+              <div className="ClawdGatewayError">
+                <strong>Gateway is not running.</strong> Channels cannot connect until the gateway starts.
+                {health.message && health.message.includes('stderr') && (
+                  <details>
+                    <summary>Show error log</summary>
+                    <pre>{health.message.split('--- last stderr ---\n')[1] || health.message}</pre>
+                  </details>
+                )}
+              </div>
+            )}
             <p className="ClawdChannelsPanelIntro">
               Connect a messaging app so your AI assistant can send and receive messages on your behalf.
             </p>
@@ -3192,7 +3339,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${(channelStatus.whatsapp?.linked || channelStatus.whatsapp?.enabled) ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'whatsapp'}
+                      disabled={channelBusy === 'whatsapp' || (health != null && !health.gateway_ok)}
                       onClick={async () => {
                         setChannelBusy('whatsapp')
                         setChannelError(null)
@@ -3299,7 +3446,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${channelStatus.imessage?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'imessage'}
+                      disabled={channelBusy === 'imessage' || (health != null && !health.gateway_ok)}
                       onClick={async () => {
                         setChannelBusy('imessage')
                         setChannelError(null)
@@ -3390,7 +3537,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${channelStatus.telegram?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'telegram'}
+                      disabled={channelBusy === 'telegram' || (health != null && !health.gateway_ok)}
                       onClick={async () => {
                         if (channelBusy) return
                         if (channelStatus.telegram?.configured) {
@@ -3529,7 +3676,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.slack?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'slack'}
+                        disabled={channelBusy === 'slack' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('slack')
                           setChannelError(null)
@@ -3621,7 +3768,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.discord?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'discord'}
+                        disabled={channelBusy === 'discord' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('discord')
                           setChannelError(null)
@@ -3700,7 +3847,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.signal?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'signal'}
+                        disabled={channelBusy === 'signal' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('signal')
                           setChannelError(null)
@@ -3869,55 +4016,40 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               ) : (
                                 <div>
                                   <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 6 }}>
-                                    Link generated! Open Signal on your phone:
+                                    Link generated! Scan this QR code with Signal on your phone:
                                   </div>
                                   <div style={{ fontSize: 11, color: '#334155', marginBottom: 8, lineHeight: 1.5 }}>
                                     1. Go to <strong>Settings &gt; Linked Devices</strong><br />
                                     2. Tap <strong>Link New Device</strong><br />
-                                    3. Copy the link below and open it on your phone, or scan it from another device
+                                    3. Scan the QR code below with your phone camera
+                                  </div>
+                                  <div style={{ textAlign: 'center', margin: '12px 0' }}>
+                                    <QRCodeSVG
+                                      value={signalLinkUri!}
+                                      size={200}
+                                      level="M"
+                                      style={{ borderRadius: 8 }}
+                                    />
                                   </div>
                                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(signalLinkUri!)
-                                        setChannelError(null)
-                                      }}
-                                      style={{ padding: '6px 16px', fontSize: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 500 }}
-                                    >
-                                      Copy Link to Clipboard
-                                    </button>
                                     <button
                                       onClick={() => {
                                         setSignalLinkUri(null)
                                         setSignalRegDone(true)
                                       }}
-                                      style={{ padding: '6px 16px', fontSize: 13, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 500 }}
                                     >
                                       I linked it — continue
                                     </button>
-                                  </div>
-                                  <div
-                                    style={{
-                                      padding: 10,
-                                      background: '#f1f5f9',
-                                      borderRadius: 4,
-                                      marginBottom: 8,
-                                      wordBreak: 'break-all',
-                                      fontSize: 11,
-                                      color: '#334155',
-                                      fontFamily: 'monospace',
-                                      lineHeight: 1.6,
-                                      maxHeight: 120,
-                                      overflowY: 'auto',
-                                      overflowX: 'hidden',
-                                      userSelect: 'all',
-                                      WebkitUserSelect: 'all',
-                                      cursor: 'text',
-                                      border: '1px solid #e2e8f0',
-                                    }}
-                                    title="Click to select, or use the Copy button above"
-                                  >
-                                    {signalLinkUri}
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(signalLinkUri!)
+                                        setChannelError(null)
+                                      }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >
+                                      Copy Link
+                                    </button>
                                   </div>
                                   <div className="ClawdChannelGuideNote" style={{ marginTop: 6 }}>
                                     After linking, signal-cli will finish in the background. This may take a moment.
@@ -4127,7 +4259,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.irc?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'irc'}
+                        disabled={channelBusy === 'irc' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('irc')
                           setChannelError(null)
@@ -4199,7 +4331,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.googlechat?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'googlechat'}
+                        disabled={channelBusy === 'googlechat' || (health != null && !health.gateway_ok)}
                         onClick={async () => {
                           setChannelBusy('googlechat')
                           setChannelError(null)
@@ -4231,7 +4363,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           }}
                         />
                         <button
-                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/'))}
+                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')}
                           onClick={async () => {
                             setChannelBusy('googlechat')
                             setChannelError(null)
@@ -4298,7 +4430,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 <button
                   key={p.id}
                   className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
-                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
+                  onClick={() => {
+                    setSelectedProvider(p.id); setApiKey('')
+                    // If the user already has a key for this provider, immediately
+                    // switch the backend's active_provider so chat uses it right away.
+                    if (keyHints[p.id]) {
+                      apiPost('/api/clawd/service/set-active-provider', { provider: p.id }).catch(() => {})
+                    }
+                  }}
                   disabled={savingKey}
                 >
                   {p.name}

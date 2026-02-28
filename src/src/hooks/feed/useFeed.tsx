@@ -635,7 +635,7 @@ export function useFeed(
     try {
       const dataFetcher = new DataFetcher()
 
-      const allMessages = await dataFetcher.getRecentGmailMessages(3, 5000)
+      const allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
 
       if (allMessages.length === 0) {
         return
@@ -704,7 +704,9 @@ export function useFeed(
 
     try {
       setEmailAutopilotStatus({ status: 'fetching-emails' })
-      let allMessages = await dataFetcher.getRecentGmailMessages(2, 5000)
+      // Fetch 7 days so starred / unread emails older than 24h are still
+      // picked up.  The unread+starred filter below keeps the set manageable.
+      let allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
 
       if (allMessages.length === emailAutopilotStatus.progress?.total) {
         setEmailAutopilotStatus({ status: 'complete' })
@@ -815,17 +817,6 @@ export function useFeed(
 
       setTimeout(() => {
         setEmailAutopilotStatus(prevState => ({ ...prevState, status: 'complete' }))
-        handleOpenToastr(
-          <span>Email Autopilot finished syncing - let's send some emails!</span>,
-          undefined,
-          3000,
-          false,
-          {
-            bgcolor: '#fdfdfd',
-            color: '#3F3F46',
-            'font-weight': '700',
-          },
-        )
       }, 300000)
     } catch (error) {
       setEmailAutopilotStatus({ status: 'error' })
@@ -1158,7 +1149,11 @@ export function useFeed(
               item.id === recordingFeedItems.feedItemId
                 ? true
                 : false
-            item.calendarEvent = runParams?.event_id ? meetings?.[runParams.event_id] : undefined
+            // Look up the calendar event by event_id (meetings is keyed by title_start,
+            // so we need to search by value).
+            if (runParams?.event_id && meetings) {
+              item.calendarEvent = Object.values(meetings).find(m => m.event_id === runParams.event_id)
+            }
 
             const timelineKey = KNDateUtils.timelineKeyFromTimestamp(item.timestamp)
             acc[timelineKey] = acc[timelineKey] || []
@@ -1175,7 +1170,11 @@ export function useFeed(
 
       // Inject upcoming calendar events that don't already have feed items
       if (meetings) {
-        const existingEventIds = new Set<string>();
+        // Collect event_ids AND title_start keys from existing DB feed items so
+        // we can skip calendar events that already have a corresponding feed item
+        // (handles multi-account calendars where event_ids differ).
+        const existingEventIds = new Set<string>()
+        const existingMeetingKeys = new Set<string>();
         (Object.values(groupedFeedItems) as any[][]).forEach((items) => {
           items.forEach((item: any) => {
             const rp =
@@ -1184,6 +1183,13 @@ export function useFeed(
                 : item.run?.runParams
             if (rp?.event_id) {
               existingEventIds.add(String(rp.event_id))
+            }
+            // Also key by title + start-minute so the same meeting from a
+            // different calendar account (different event_id) is still matched
+            // even if timestamps differ by a few seconds.
+            if (item.title && item.timestamp) {
+              const startMin = Math.floor(item.timestamp.getTime() / 60000)
+              existingMeetingKeys.add(`${item.title}_${startMin}`)
             }
           })
         })
@@ -1197,8 +1203,14 @@ export function useFeed(
 
         const seenMeetingKeys = new Set<string>()
         Object.entries(meetings).forEach(([_id, meeting]) => {
-          const meetingKey = `${meeting.title}_${meeting.start}`
-          if (meeting.end > nowSeconds && meeting.start < endOfTomorrowSeconds && !existingEventIds.has(meeting.event_id) && !seenMeetingKeys.has(meetingKey)) {
+          const meetingKey = `${meeting.title}_${Math.floor(meeting.start / 60)}`
+          if (
+            meeting.end > nowSeconds &&
+            meeting.start < endOfTomorrowSeconds &&
+            !existingEventIds.has(meeting.event_id) &&
+            !existingMeetingKeys.has(meetingKey) &&
+            !seenMeetingKeys.has(meetingKey)
+          ) {
             seenMeetingKeys.add(meetingKey)
             const feedItem = new FeedItem({
               timestamp: new Date(meeting.start * 1000),
