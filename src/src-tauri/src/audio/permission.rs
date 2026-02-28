@@ -89,5 +89,30 @@ fn check_screen_recording_permission_macos() -> bool {
     extern "C" {
         fn CGPreflightScreenCaptureAccess() -> bool;
     }
-    unsafe { CGPreflightScreenCaptureAccess() }
+    if unsafe { CGPreflightScreenCaptureAccess() } {
+        return true;
+    }
+
+    // Fallback: On macOS Sequoia (15.x+), CGPreflightScreenCaptureAccess() can
+    // return false even when the permission IS granted in System Settings.
+    // Use SCShareableContent as a more reliable check — it returns content when
+    // permission is granted, or an error when denied.
+    use std::sync::mpsc::channel;
+    use std::time::Duration;
+    use screen_capture_kit::shareable_content::SCShareableContent;
+
+    let (tx, rx) = channel();
+    SCShareableContent::get_shareable_content_with_completion_closure(
+        move |shareable_content, _error| {
+            let _ = tx.send(shareable_content.is_some());
+        },
+    );
+
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(granted) => granted,
+        Err(_) => {
+            log::warn!("SCShareableContent permission check timed out, falling back to false");
+            false
+        }
+    }
 }
