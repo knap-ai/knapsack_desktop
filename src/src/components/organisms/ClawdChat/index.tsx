@@ -1004,8 +1004,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Auto-briefing: track whether we've already triggered the initial briefing this session
   const autoTriggeredBriefingRef = useRef(false)
 
-  // Gateway service state — channel connection status
-  const channelStatus = useChannelStatus(true, 15_000)
+  // Gateway service state — channel connection status.
+  // Only poll while the channels panel is open to avoid background
+  // re-renders that cause typing lag in the chat input.
+  const channelStatus = useChannelStatus(showChannelsPanel, 15_000)
   const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
   const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel
 

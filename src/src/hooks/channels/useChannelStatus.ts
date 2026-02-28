@@ -169,9 +169,18 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     }
   }, [])
 
+  // Always do a single initial fetch so hasAnyChannel / showChannelBanner
+  // are populated on mount even when polling is disabled.
+  useEffect(() => {
+    refresh()
+  }, [])
+
+  // Only start the polling interval when explicitly enabled (e.g. channels
+  // panel is open).  This avoids background re-renders while the user is
+  // typing in the chat input.
   useEffect(() => {
     if (!enabled) return
-    refresh()
+    refresh() // refresh immediately when the panel opens
     const id = setInterval(refresh, intervalMs)
     return () => clearInterval(id)
   }, [enabled, intervalMs, refresh])
