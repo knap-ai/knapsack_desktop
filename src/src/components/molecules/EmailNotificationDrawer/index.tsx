@@ -25,6 +25,7 @@ interface EmailNotificationDrawerProps {
   forceOpen?: boolean
   forceEmailUid?: string
   onForceOpenHandled?: () => void
+  isChatBusy?: boolean
 }
 
 const EmailNotificationDrawer = ({
@@ -36,6 +37,7 @@ const EmailNotificationDrawer = ({
   forceOpen,
   forceEmailUid,
   onForceOpenHandled,
+  isChatBusy,
 }: EmailNotificationDrawerProps) => {
   const [permanentlyDismissed, setPermanentlyDismissed] = useState<boolean | null>(null)
   const [sessionDismissedIds, setSessionDismissedIds] = useState<Set<string>>(new Set())
@@ -197,9 +199,9 @@ const EmailNotificationDrawer = ({
     ).length
   }, [feed.classifiedEmails])
 
-  // Track when new classified emails arrive (don't show on initial load).
-  // Also auto-surface the drawer when autopilot finishes syncing — this
-  // replaces the old "finished syncing" toast.
+  // Only auto-surface the drawer while the chat is busy (inference running)
+  // AND there are new pending emails.  Auto-dismiss when inference finishes.
+  const prevChatBusyRef = useRef(isChatBusy)
   useEffect(() => {
     if (permanentlyDismissed || permanentlyDismissed === null) return
 
@@ -208,38 +210,35 @@ const EmailNotificationDrawer = ({
       e => !e.wasIgnored && !e.wasReplySent && e.message.body,
     ).length
 
-    const prevStatus = prevAutopilotStatusRef.current
     prevAutopilotStatusRef.current = feed.emailAutopilotStatus.status
 
     if (initialLoadRef.current) {
       prevEmailCountRef.current = currentCount
       if (feed.emailAutopilotStatus.status === 'complete') {
         initialLoadRef.current = false
-        // Show drawer on first sync completion if there are pending emails
-        if (currentCount > 0 && pendingEmail) {
-          setIsVisible(true)
-          setIsAnimatingOut(false)
-        }
       }
       return
     }
 
-    // Auto-surface when sync completes and there are pending emails
-    const justFinishedSyncing =
-      feed.emailAutopilotStatus.status === 'complete' &&
-      prevStatus !== 'complete' &&
-      prevStatus !== undefined
-
-    if (
-      (currentCount > prevEmailCountRef.current || justFinishedSyncing) &&
-      pendingEmail
-    ) {
+    // Show the drawer when chat becomes busy and there are pending emails
+    if (isChatBusy && pendingEmail && currentCount > 0) {
       setIsVisible(true)
       setIsAnimatingOut(false)
     }
 
+    // Auto-dismiss when chat finishes (busy → not busy) and drawer wasn't force-opened
+    if (prevChatBusyRef.current && !isChatBusy && isVisible && !forceOpen) {
+      setIsAnimatingOut(true)
+      setTimeout(() => {
+        setIsVisible(false)
+        setIsAnimatingOut(false)
+        setIsExpanded(false)
+      }, 300)
+    }
+
+    prevChatBusyRef.current = isChatBusy
     prevEmailCountRef.current = currentCount
-  }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail])
+  }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail, isChatBusy])
 
   const isLoading =
     feed.emailAutopilotStatus.status === 'fetching-emails' ||

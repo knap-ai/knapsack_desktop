@@ -93,6 +93,7 @@ function Home({
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [autopilotForceEmailUid, setAutopilotForceEmailUid] = useState<string | undefined>(undefined)
+  const [isChatBusy, setIsChatBusy] = useState(false)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -543,6 +544,7 @@ function Home({
                       onCloseActivity={() => setShowActivityPanel(false)}
                       userEmail={userEmail}
                       userName={userName}
+                      onBusyChange={setIsChatBusy}
                     />
                   </div>
                   {showActivityPanel && (
@@ -593,6 +595,7 @@ function Home({
                         setAutopilotForceOpen(false)
                         setAutopilotForceEmailUid(undefined)
                       }}
+                      isChatBusy={isChatBusy}
                     />
                   ) : auth.profile && (
                     <div className="absolute bottom-0 right-0 z-40">

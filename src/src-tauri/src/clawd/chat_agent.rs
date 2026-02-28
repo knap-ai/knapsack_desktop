@@ -562,7 +562,9 @@ pub async fn openai_compatible_chat(
           if let Some(generation) = err_json["error"]["failed_generation"].as_str() {
             // Clean up broken markdown links the model often leaves behind.
             // These look like [label]( or [label]("  with truncated/empty URLs.
-            let cleaned = regex::Regex::new(r#"\[([^\]]*)\]\([^)]*$"#)
+            // Use multiline mode so $ matches at each line ending, allowing
+            // replace_all to strip broken links on every line (not just the last).
+            let cleaned = regex::Regex::new(r#"(?m)\[([^\]]*)\]\([^)]*$"#)
               .map(|re| re.replace_all(generation, "$1").to_string())
               .unwrap_or_else(|_| generation.to_string());
 
