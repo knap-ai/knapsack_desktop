@@ -553,6 +553,26 @@ pub async fn openai_compatible_chat(
       continue;
     }
 
+    // Groq returns 400 with code "tool_use_failed" when the model generates a
+    // plain-text answer instead of a tool call.  The actual response is in the
+    // "failed_generation" field — extract it and return it as a normal reply.
+    if status.as_u16() == 400 {
+      if let Ok(err_json) = serde_json::from_str::<JsonValue>(&text) {
+        if err_json["error"]["code"].as_str() == Some("tool_use_failed") {
+          if let Some(generation) = err_json["error"]["failed_generation"].as_str() {
+            return Ok(OaiChatResp {
+              choices: vec![OaiChoice {
+                message: OaiChoiceMsg {
+                  content: Some(generation.to_string()),
+                  tool_calls: vec![],
+                },
+              }],
+            });
+          }
+        }
+      }
+    }
+
     // For other errors, fail immediately
     anyhow::bail!("LLM HTTP {}: {}", status, text);
   }
