@@ -2730,6 +2730,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   toggleVoiceOutputRef.current = toggleVoiceOutput
   const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
 
+  // Stabilize startRecording/stopRecording — their useCallback deps
+  // (selectedInputDevice, mediaRecorder) change occasionally, which would
+  // break ChatInputBar's React.memo and cause input lag.
+  const startRecordingRef = useRef(startRecording)
+  startRecordingRef.current = startRecording
+  const stableStartRecording = useCallback(async () => { await startRecordingRef.current() }, [])
+
+  const stopRecordingRef = useRef(stopRecording)
+  stopRecordingRef.current = stopRecording
+  const stableStopRecording = useCallback(() => { stopRecordingRef.current() }, [])
+
   const statusLine = useMemo(() => {
     if (!status && !health) return <span>Checking Moltbot...</span>
     const parts: ReactNode[] = []
@@ -3108,8 +3119,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onSend={stableDoSend}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
-        onStartRecording={startRecording}
-        onStopRecording={stopRecording}
+        onStartRecording={stableStartRecording}
+        onStopRecording={stableStopRecording}
         onToggleVoice={stableToggleVoiceOutput}
         onStopGeneration={stableStopGeneration}
       />
