@@ -48,6 +48,10 @@ import TabBar, { TabChoices } from './../../TabBar'
 import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
+import WorkspacesList from 'src/components/organisms/WorkspacesList'
+import WorkspaceView from 'src/components/organisms/WorkspaceView'
+import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
+import { Workspace } from 'src/api/workspaces'
 
 export interface ToastrState {
   message?: ReactElement
@@ -94,6 +98,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [autopilotForceEmailUid, setAutopilotForceEmailUid] = useState<string | undefined>(undefined)
   const [isChatBusy, setIsChatBusy] = useState(false)
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -647,6 +652,27 @@ function Home({
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
                 />
+              )}
+
+              {currentTab === TabChoices.Workspaces && (
+                <div className="overflow-auto w-full h-full">
+                  {selectedWorkspace ? (
+                    <WorkspaceView
+                      workspace={selectedWorkspace}
+                      onBack={() => setSelectedWorkspace(null)}
+                    />
+                  ) : (
+                    <WorkspacesList
+                      onWorkspaceOpen={(ws) => setSelectedWorkspace(ws)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {currentTab === TabChoices.MCPMarketplace && (
+                <div className="overflow-auto w-full h-full p-6">
+                  <MCPMarketplace />
+                </div>
               )}
 
             </div>

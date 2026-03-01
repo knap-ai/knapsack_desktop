@@ -158,6 +158,28 @@ diesel::table! {
 }
 
 diesel::table! {
+    mcp_servers (id) {
+        id -> Nullable<Integer>,
+        uuid -> Text,
+        name -> Text,
+        description -> Nullable<Text>,
+        category -> Nullable<Text>,
+        command -> Text,
+        args -> Nullable<Text>,
+        env_vars -> Nullable<Text>,
+        icon -> Nullable<Text>,
+        author -> Nullable<Text>,
+        version -> Nullable<Text>,
+        source_url -> Nullable<Text>,
+        is_installed -> Integer,
+        is_enabled -> Integer,
+        config_json -> Nullable<Text>,
+        installed_at -> Nullable<Integer>,
+        created_at -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
     message_feedbacks (id) {
         id -> Nullable<Integer>,
         message_id -> Integer,
@@ -224,6 +246,31 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    workspaces (id) {
+        id -> Nullable<Integer>,
+        uuid -> Text,
+        name -> Text,
+        description -> Nullable<Text>,
+        icon -> Nullable<Text>,
+        created_at -> Nullable<Integer>,
+        updated_at -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
+    workspace_documents (id) {
+        id -> Nullable<Integer>,
+        workspace_uuid -> Text,
+        document_name -> Text,
+        document_path -> Nullable<Text>,
+        document_type -> Nullable<Text>,
+        content_hash -> Nullable<Text>,
+        embedded -> Nullable<Integer>,
+        created_at -> Nullable<Integer>,
+    }
+}
+
 diesel::allow_tables_to_appear_in_same_query!(
     automation_runs,
     automation_steps,
@@ -238,10 +285,13 @@ diesel::allow_tables_to_appear_in_same_query!(
     emails,
     feed_items,
     local_files,
+    mcp_servers,
     message_feedbacks,
     messages,
     threads,
     transcripts,
     user_connections,
     users,
+    workspace_documents,
+    workspaces,
 );

@@ -103,6 +103,11 @@ export const KN_API_GET_DRIVE_DOC_IDS =
 export const KN_API_CLASSIFY_EMAIL = KN_SERVER_HOST + '/api/knapsack/classify_email'
 export const KN_API_GET_API_TOKEN = KN_SERVER_HOST + '/api/knapsack/connections/refresh_token_api'
 
+// MCP Marketplace
+export const KN_API_MCP_SERVERS = KN_SERVER_HOST + '/api/knapsack/mcp/servers'
+export const KN_API_MCP_SERVERS_INSTALLED = KN_SERVER_HOST + '/api/knapsack/mcp/servers/installed'
+export const KN_API_MCP_SERVERS_CUSTOM = KN_SERVER_HOST + '/api/knapsack/mcp/servers/custom'
+
 // Token usage & cost management
 export const KN_API_TOKEN_USAGE_SUMMARY = KN_SERVER_HOST + '/api/knapsack/token_usage/summary'
 export const KN_API_TOKEN_USAGE_DAILY = KN_SERVER_HOST + '/api/knapsack/token_usage/daily'
