@@ -198,6 +198,10 @@ pub async fn start_server<'a>(
       .service(clawd::service::set_api_key)
       .service(clawd::service::delete_extra_provider_key)
       .service(clawd::service::get_api_key)
+      // Ollama (local LLM) endpoints
+      .service(clawd::service::ollama_status)
+      .service(clawd::service::ollama_models)
+      .service(clawd::service::ollama_configure)
       // Skills management endpoints
       .service(clawd::service::skills_status)
       .service(clawd::service::skills_install)

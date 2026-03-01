@@ -80,9 +80,17 @@ struct StoredTokens {
   gemini_model: Option<String>,
   #[serde(default)]
   groq_model: Option<String>,
-  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq"
+  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq", "ollama"
   #[serde(default)]
   active_provider: Option<String>,
+
+  // Ollama (local LLM) support
+  #[serde(default)]
+  ollama_enabled: Option<bool>,
+  #[serde(default)]
+  ollama_model: Option<String>,
+  #[serde(default)]
+  ollama_base_url: Option<String>,
 
   /// Additional provider API keys (env_var_name -> key).
   /// These are passed as environment variables to the OpenClaw subprocess.
@@ -150,6 +158,9 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     gemini_model: None,    // Defaults to gemini-2.5-flash
     groq_model: None,      // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
     active_provider: None, // Defaults to openai
+    ollama_enabled: None,
+    ollama_model: None,
+    ollama_base_url: None,
     extra_provider_keys: None,
   };
 
@@ -208,6 +219,18 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   if let Some(m) = &tokens.groq_model {
     let m = m.trim();
     if !m.is_empty() { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
+  }
+  // Propagate Ollama settings so OpenClaw subprocess picks them up
+  if tokens.ollama_enabled.unwrap_or(false) {
+    std::env::set_var("OLLAMA_API_KEY", "ollama-local");
+    if let Some(m) = &tokens.ollama_model {
+      let m = m.trim();
+      if !m.is_empty() { std::env::set_var("KNAPSACK_OLLAMA_MODEL", m); }
+    }
+    if let Some(u) = &tokens.ollama_base_url {
+      let u = u.trim();
+      if !u.is_empty() { std::env::set_var("OLLAMA_HOST", u); }
+    }
   }
   // Propagate extra provider keys (MiniMax, ZAI/GLM, HuggingFace, etc.)
   if let Some(extra) = &tokens.extra_provider_keys {
@@ -627,6 +650,10 @@ pub struct ApiKeyStatusResponse {
   pub anthropic_key_hint: Option<String>,
   pub gemini_key_hint: Option<String>,
   pub groq_key_hint: Option<String>,
+  // Ollama (local LLM) status
+  pub ollama_enabled: bool,
+  pub ollama_model: Option<String>,
+  pub ollama_base_url: Option<String>,
   /// Extra providers: list of {id, env_var, has_key, key_hint}
   #[serde(skip_serializing_if = "Vec::is_empty")]
   pub extra_providers: Vec<ExtraProviderStatus>,
@@ -659,6 +686,9 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         anthropic_key_hint: None,
         gemini_key_hint: None,
         groq_key_hint: None,
+        ollama_enabled: false,
+        ollama_model: None,
+        ollama_base_url: None,
         extra_providers: vec![],
       })
     }
@@ -668,7 +698,8 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let has_anthropic = tokens.anthropic_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
   let has_gemini = tokens.gemini_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
   let has_groq = tokens.groq_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
-  let has_key = has_openai || has_anthropic || has_gemini || has_groq;
+  let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
+  let has_key = has_openai || has_anthropic || has_gemini || has_groq || ollama_enabled;
 
   let model = tokens.openai_model.clone();
   let active_provider = tokens.active_provider.clone();
@@ -719,6 +750,9 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     anthropic_key_hint: anthropic_hint,
     gemini_key_hint: gemini_hint,
     groq_key_hint: groq_hint,
+    ollama_enabled,
+    ollama_model: tokens.ollama_model.clone(),
+    ollama_base_url: tokens.ollama_base_url.clone(),
     extra_providers,
   })
 }
@@ -917,6 +951,15 @@ pub async fn set_api_key(
       }
       "Groq"
     }
+    "ollama" => {
+      // Ollama doesn't need a real API key — just enable it and store settings
+      tokens.ollama_enabled = Some(true);
+      tokens.active_provider = Some("ollama".to_string());
+      if let Some(model) = &payload.model {
+        tokens.ollama_model = Some(model.trim().to_string());
+      }
+      "Ollama"
+    }
     "minimax" | "zai" | "huggingface" => {
       // Extra providers: store key in extra_provider_keys map.
       // Determine the env var name from the request or derive from provider.
@@ -972,6 +1015,14 @@ pub async fn set_api_key(
   if let Some(m) = &tokens.anthropic_model { std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", m); }
   if let Some(m) = &tokens.gemini_model { std::env::set_var("KNAPSACK_GEMINI_MODEL", m); }
   if let Some(m) = &tokens.groq_model { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
+  // Propagate Ollama settings
+  if tokens.ollama_enabled.unwrap_or(false) {
+    std::env::set_var("OLLAMA_API_KEY", "ollama-local");
+    if let Some(m) = &tokens.ollama_model { std::env::set_var("KNAPSACK_OLLAMA_MODEL", m); }
+    if let Some(u) = &tokens.ollama_base_url { std::env::set_var("OLLAMA_HOST", u); }
+  } else {
+    std::env::remove_var("OLLAMA_API_KEY");
+  }
   if let Some(extra) = &tokens.extra_provider_keys {
     for (env_var, key) in extra {
       if is_allowed_extra_env_var(env_var) && !key.trim().is_empty() {
@@ -1030,6 +1081,188 @@ pub async fn delete_extra_provider_key(
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
     message: format!("Removed {}", env_var),
+  })
+}
+
+// ── Ollama (local LLM) endpoints ───────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct OllamaStatusResponse {
+  pub running: bool,
+  pub base_url: String,
+}
+
+/// Check whether Ollama is running on the local machine.
+#[get("/api/knapsack/ollama/status")]
+pub async fn ollama_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let tokens = load_or_create_tokens(&app_handle).ok();
+  let base_url = tokens
+    .as_ref()
+    .and_then(|t| t.ollama_base_url.clone())
+    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(3))
+    .build()
+    .unwrap_or_default();
+
+  let running = client
+    .get(format!("{}/api/tags", &base_url))
+    .send()
+    .await
+    .map(|r| r.status().is_success())
+    .unwrap_or(false);
+
+  HttpResponse::Ok().json(OllamaStatusResponse { running, base_url })
+}
+
+#[derive(Debug, Serialize)]
+pub struct OllamaModel {
+  pub name: String,
+  pub size: Option<u64>,
+  pub parameter_size: Option<String>,
+  pub family: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OllamaModelsResponse {
+  pub success: bool,
+  pub models: Vec<OllamaModel>,
+  pub message: String,
+}
+
+/// List models available in the local Ollama instance.
+#[get("/api/knapsack/ollama/models")]
+pub async fn ollama_models(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let tokens = load_or_create_tokens(&app_handle).ok();
+  let base_url = tokens
+    .as_ref()
+    .and_then(|t| t.ollama_base_url.clone())
+    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(5))
+    .build()
+    .unwrap_or_default();
+
+  let resp = match client.get(format!("{}/api/tags", &base_url)).send().await {
+    Ok(r) => r,
+    Err(e) => {
+      return HttpResponse::Ok().json(OllamaModelsResponse {
+        success: false,
+        models: vec![],
+        message: format!("Cannot reach Ollama at {}: {}", base_url, e),
+      })
+    }
+  };
+
+  if !resp.status().is_success() {
+    return HttpResponse::Ok().json(OllamaModelsResponse {
+      success: false,
+      models: vec![],
+      message: format!("Ollama returned status {}", resp.status()),
+    });
+  }
+
+  let body: serde_json::Value = match resp.json().await {
+    Ok(v) => v,
+    Err(e) => {
+      return HttpResponse::Ok().json(OllamaModelsResponse {
+        success: false,
+        models: vec![],
+        message: format!("Failed to parse Ollama response: {}", e),
+      })
+    }
+  };
+
+  let models: Vec<OllamaModel> = body["models"]
+    .as_array()
+    .unwrap_or(&vec![])
+    .iter()
+    .map(|m| OllamaModel {
+      name: m["name"].as_str().unwrap_or("").to_string(),
+      size: m["size"].as_u64(),
+      parameter_size: m["details"]["parameter_size"].as_str().map(|s| s.to_string()),
+      family: m["details"]["family"].as_str().map(|s| s.to_string()),
+    })
+    .collect();
+
+  HttpResponse::Ok().json(OllamaModelsResponse {
+    success: true,
+    message: format!("Found {} models", models.len()),
+    models,
+  })
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OllamaConfigRequest {
+  pub enabled: bool,
+  pub model: Option<String>,
+  pub base_url: Option<String>,
+}
+
+/// Enable/disable Ollama and update its configuration.
+#[post("/api/knapsack/ollama/configure")]
+pub async fn ollama_configure(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<OllamaConfigRequest>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+        success: false,
+        message: e,
+      })
+    }
+  };
+
+  tokens.ollama_enabled = Some(payload.enabled);
+  if let Some(model) = &payload.model {
+    let m = model.trim().to_string();
+    tokens.ollama_model = if m.is_empty() { None } else { Some(m) };
+  }
+  if let Some(url) = &payload.base_url {
+    let u = url.trim().to_string();
+    tokens.ollama_base_url = if u.is_empty() { None } else { Some(u) };
+  }
+
+  if payload.enabled {
+    tokens.active_provider = Some("ollama".to_string());
+  } else if tokens.active_provider.as_deref() == Some("ollama") {
+    // If disabling Ollama and it was the active provider, clear it
+    tokens.active_provider = None;
+  }
+
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+      success: false,
+      message: e,
+    });
+  }
+
+  // Propagate env vars
+  if payload.enabled {
+    std::env::set_var("OLLAMA_API_KEY", "ollama-local");
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "ollama");
+    if let Some(m) = &tokens.ollama_model { std::env::set_var("KNAPSACK_OLLAMA_MODEL", m); }
+    if let Some(u) = &tokens.ollama_base_url { std::env::set_var("OLLAMA_HOST", u); }
+  } else {
+    std::env::remove_var("OLLAMA_API_KEY");
+    std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
+    std::env::remove_var("OLLAMA_HOST");
+    if tokens.active_provider.as_deref() == Some("ollama") {
+      std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+    }
+  }
+
+  HttpResponse::Ok().json(SetApiKeyResponse {
+    success: true,
+    message: if payload.enabled {
+      "Ollama enabled".to_string()
+    } else {
+      "Ollama disabled".to_string()
+    },
   })
 }
 
@@ -1829,6 +2062,26 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         if !k.is_empty() {
           std::env::set_var("GEMINI_API_KEY", &k);
           env.push(("GEMINI_API_KEY".to_string(), k));
+        }
+      }
+
+      // Propagate Ollama settings to clawdbot subprocess
+      if tokens.ollama_enabled.unwrap_or(false) {
+        std::env::set_var("OLLAMA_API_KEY", "ollama-local");
+        env.push(("OLLAMA_API_KEY".to_string(), "ollama-local".to_string()));
+        if let Some(m) = tokens.ollama_model.clone() {
+          let m = m.trim().to_string();
+          if !m.is_empty() {
+            std::env::set_var("KNAPSACK_OLLAMA_MODEL", &m);
+            env.push(("KNAPSACK_OLLAMA_MODEL".to_string(), m));
+          }
+        }
+        if let Some(u) = tokens.ollama_base_url.clone() {
+          let u = u.trim().to_string();
+          if !u.is_empty() {
+            std::env::set_var("OLLAMA_HOST", &u);
+            env.push(("OLLAMA_HOST".to_string(), u));
+          }
         }
       }
 
