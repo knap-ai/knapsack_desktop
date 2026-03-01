@@ -1,6 +1,5 @@
 import './style.scss'
 
-import LobsterLoader from './LobsterLoader'
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -9,8 +8,7 @@ import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
-import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus } from 'src/api/channels'
-import { QRCodeSVG } from 'qrcode.react'
+import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, type SignalRegResponse } from 'src/api/channels'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 
@@ -263,7 +261,7 @@ type SkillInfo = {
   homepage?: string // URL for skill detail page (from gateway)
 }
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq' | 'ollama'
 
 type ProviderOption = {
   id: Provider
@@ -278,6 +276,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.5, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google', description: 'Gemini 3 Pro, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'Llama 4, Kimi K2, DeepSeek R1 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
+  { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
 ]
 
 type AnthropicModelOption = {
@@ -325,6 +324,17 @@ const GROQ_MODELS: GroqModelOption[] = [
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', description: 'Ultra-fast, lightweight' },
 ]
 
+// Recommended models to offer for download when Ollama has none installed
+type OllamaModelSuggestion = { id: string; name: string; description: string; size: string }
+const OLLAMA_SUGGESTED_MODELS: OllamaModelSuggestion[] = [
+  { id: 'llama3.1:8b', name: 'Llama 3.1 8B', description: 'Great all-rounder, fast on most hardware', size: '~4.7 GB' },
+  { id: 'gemma3:4b', name: 'Gemma 3 4B', description: 'Google model, compact and capable', size: '~3.3 GB' },
+  { id: 'mistral:7b', name: 'Mistral 7B', description: 'Excellent reasoning, low resource usage', size: '~4.1 GB' },
+  { id: 'qwen3:8b', name: 'Qwen 3 8B', description: 'Strong multilingual, thinking capabilities', size: '~4.9 GB' },
+  { id: 'phi4-mini:3.8b', name: 'Phi-4 Mini 3.8B', description: 'Microsoft, tiny but surprisingly smart', size: '~2.2 GB' },
+  { id: 'deepseek-r1:8b', name: 'DeepSeek R1 8B', description: 'Reasoning model with chain-of-thought', size: '~4.9 GB' },
+]
+
 // In Tauri dev, the UI runs on Vite (1420) while the Rust server listens on 8897.
 // In production, the UI is loaded from file:// but the Rust server is still 8897.
 const API_BASE = 'http://localhost:8897'
@@ -358,6 +368,7 @@ const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
 const ANTHROPIC_MODEL_STORAGE = 'moltbot_anthropic_model'
 const GEMINI_MODEL_STORAGE = 'moltbot_gemini_model'
 const GROQ_MODEL_STORAGE = 'moltbot_groq_model'
+const OLLAMA_MODEL_STORAGE = 'moltbot_ollama_model'
 const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
 const CHAT_HISTORY_STORAGE = 'moltbot_chat_history'
@@ -665,21 +676,9 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
   } = props
   const [input, setInput] = useState('')
-  const [queuedMessage, setQueuedMessage] = useState<string | null>(null)
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-
-  // When the assistant finishes (busy → false), auto-send the queued message
-  const prevBusyRef = useRef(busy)
-  useEffect(() => {
-    if (prevBusyRef.current && !busy && queuedMessage) {
-      const msg = queuedMessage
-      setQueuedMessage(null)
-      onSend(msg)
-    }
-    prevBusyRef.current = busy
-  }, [busy, queuedMessage, onSend])
 
   // Easter egg commands supported in chat input
   const CHAT_COMMANDS: Record<string, string> = {
@@ -704,12 +703,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
       return
     }
 
-    if (busy) {
-      // Queue the message — it'll auto-send when the current generation completes
-      setQueuedMessage(text)
-    } else {
-      onSend(text)
-    }
+    onSend(text)
     setInput('')
     // Reset textarea height after send
     if (textareaRef.current) {
@@ -773,7 +767,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         <button
           className="ClawdFileBtn"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isRecording}
+          disabled={busy}
           title="Attach files or images"
         >
           📎
@@ -797,8 +791,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 handleSend()
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : queuedMessage ? `Queued: "${queuedMessage}"` : busy ? 'Type your next message...' : 'Ask anything...'}
-            disabled={isRecording}
+            placeholder={isRecording ? '🎤 Listening...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            disabled={busy || isRecording}
             rows={1}
           />
           {/* Voice mode toggle - always visible inside input like ChatGPT */}
@@ -820,24 +814,9 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           </button>
         </div>
         {busy ? (
-          <div className="ClawdBusyActions">
-            {queuedMessage ? (
-              <button
-                className="ClawdQueuedBtn"
-                onClick={() => setQueuedMessage(null)}
-                title="Cancel queued message"
-              >
-                ✕ Queued
-              </button>
-            ) : input.trim() ? (
-              <button onClick={handleSend}>
-                Queue
-              </button>
-            ) : null}
-            <button className="ClawdStopBtn" onClick={onStopGeneration}>
-              ⏹️ Stop
-            </button>
-          </div>
+          <button className="ClawdStopBtn" onClick={onStopGeneration}>
+            ⏹️ Stop
+          </button>
         ) : (
           <button disabled={!input.trim() && attachedFiles.length === 0} onClick={handleSend}>
             Send
@@ -854,10 +833,9 @@ interface ClawdChatProps {
   onCloseActivity?: () => void
   userEmail?: string
   userName?: string
-  onBusyChange?: (busy: boolean) => void
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -876,11 +854,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return []
   })
   const [busy, setBusy] = useState(false)
-
-  // Notify parent when busy state changes (used to show email drawer during inference)
-  const onBusyChangeRef = useRef(onBusyChange)
-  onBusyChangeRef.current = onBusyChange
-  useEffect(() => { onBusyChangeRef.current?.(busy) }, [busy])
 
   // Abort controller for stopping generation
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -903,8 +876,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedGroqModel, setSelectedGroqModel] = useState<string>(() => {
     return localStorage.getItem(GROQ_MODEL_STORAGE) || 'meta-llama/llama-4-scout-17b-16e-instruct'
   })
+  const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
+    return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
+  })
   const [selectedProvider, setSelectedProvider] = useState<Provider>('openai')
   const [savingKey, setSavingKey] = useState(false)
+
+  // Ollama state
+  const [ollamaRunning, setOllamaRunning] = useState<boolean | null>(null)
+  const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; parameter_size?: string }>>([])
+  const [ollamaPulling, setOllamaPulling] = useState(false)
+  const [ollamaPullProgress, setOllamaPullProgress] = useState('')
+  const [ollamaPullPercent, setOllamaPullPercent] = useState<number | null>(null)
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
   const [keyHints, setKeyHints] = useState<Record<string, string | undefined>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
@@ -1011,10 +994,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Auto-briefing: track whether we've already triggered the initial briefing this session
   const autoTriggeredBriefingRef = useRef(false)
 
-  // Gateway service state — channel connection status.
-  // Only poll while the channels panel is open to avoid background
-  // re-renders that cause typing lag in the chat input.
-  const channelStatus = useChannelStatus(showChannelsPanel, 15_000)
+  // Gateway service state — channel connection status
+  const channelStatus = useChannelStatus(true, 15_000)
   const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
   const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel
 
@@ -1144,9 +1125,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     localStorage.setItem(PROACTIVE_MODE_STORAGE, String(pendingProactiveState))
     setShowProactiveModal(false)
     pushAssistant(pendingProactiveState
-      ? "🔔 **Proactive mode enabled.** I'll send you background notifications — morning briefings, email alerts, meeting prep, and post-meeting follow-ups."
-      : "🔕 **Reactive mode enabled.** Background notifications are off. I'll only respond when you ask. You can still trigger notifications manually with /morning, /emails, /prep, or /fu."
+      ? "🔔 **Proactive mode enabled.** I'll send you background notifications — morning briefings, email alerts, meeting prep, and post-meeting follow-ups. Heartbeat monitoring is now active."
+      : "🔕 **Reactive mode enabled.** Background notifications and heartbeat monitoring are off. I'll only respond when you ask. You can still trigger notifications manually with /morning, /emails, /prep, or /fu."
     )
+
+    // Sync heartbeat config with proactive mode
+    fetch('http://localhost:8897/api/knapsack/heartbeat/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: pendingProactiveState }),
+    }).catch(e => console.warn('[proactive] Failed to sync heartbeat config:', e))
 
     // Fire a welcome notification so the user can see it works immediately
     if (pendingProactiveState) {
@@ -1700,7 +1688,115 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Gateway service handler removed - channels UI removed in this version
 
+  // ── Ollama auto-detect ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (selectedProvider !== 'ollama' || !showKeyPrompt) return
+    setOllamaRunning(null)
+    const checkOllama = async () => {
+      try {
+        const s = await apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
+        setOllamaRunning(s.running)
+        if (s.running) {
+          const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+          if (m.success) {
+            setOllamaModels(m.models)
+            if (m.models.length > 0 && !selectedOllamaModel) {
+              setSelectedOllamaModel(m.models[0].name)
+            }
+          }
+        }
+      } catch {
+        setOllamaRunning(false)
+      }
+    }
+    checkOllama()
+  }, [selectedProvider, showKeyPrompt])
+
+  const pullOllamaModel = useCallback(async (modelId: string) => {
+    setOllamaPulling(true)
+    setOllamaPullProgress('Starting download...')
+    setOllamaPullPercent(null)
+    try {
+      const resp = await fetch(apiUrl('/api/knapsack/ollama/pull'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: modelId }),
+      })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ message: 'Pull failed' }))
+        setOllamaPullProgress(`Error: ${err.message}`)
+        return
+      }
+      const reader = resp.body?.getReader()
+      if (!reader) { setOllamaPullProgress('Error: no response stream'); return }
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        // Parse newline-delimited JSON
+        const lines = buf.split('\n')
+        buf = lines.pop() || '' // keep incomplete line in buffer
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const msg = JSON.parse(line)
+            if (msg.status) {
+              setOllamaPullProgress(msg.status)
+            }
+            if (msg.total && msg.completed) {
+              setOllamaPullPercent(Math.round((msg.completed / msg.total) * 100))
+            }
+          } catch { /* ignore malformed lines */ }
+        }
+      }
+      // Pull complete — refresh model list
+      setOllamaPullProgress('Download complete!')
+      setOllamaPullPercent(100)
+      const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+      if (m.success) {
+        setOllamaModels(m.models)
+        // Auto-select the model we just pulled
+        const pulled = m.models.find(mod => mod.name.startsWith(modelId.split(':')[0]))
+        if (pulled) setSelectedOllamaModel(pulled.name)
+      }
+    } catch (e: any) {
+      setOllamaPullProgress(`Error: ${e?.message || String(e)}`)
+    } finally {
+      setOllamaPulling(false)
+    }
+  }, [])
+
+  // Ollama uses a separate save flow (ollama/configure endpoint, no API key)
+  const saveOllamaProvider = useCallback(async () => {
+    if (!selectedOllamaModel) return
+    setSavingKey(true)
+    try {
+      await apiPost('/api/knapsack/ollama/configure', {
+        enabled: true,
+        model: selectedOllamaModel,
+      })
+      localStorage.setItem(OLLAMA_MODEL_STORAGE, selectedOllamaModel)
+      setShowKeyPrompt(false)
+      setHasCompletedOnboarding(true)
+      localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
+      try {
+        await apiPost('/api/clawd/service/enable', { enabled: true })
+        await refreshStatus()
+        pushAssistant(`Great! I'm all set up with Ollama (${selectedOllamaModel}) running locally. No API costs! Try asking me to browse a website!`)
+      } catch {
+        pushAssistant('Ollama enabled! You can now use local AI models.')
+      }
+    } catch (e: any) {
+      pushAssistant(`Failed to enable Ollama: ${e?.message || String(e)}. Please try again.`)
+    } finally {
+      setSavingKey(false)
+    }
+  }, [selectedOllamaModel])
+
   const saveApiKey = useCallback(async () => {
+    if (selectedProvider === 'ollama') { saveOllamaProvider(); return }
     if (!apiKey.trim()) return
 
     setSavingKey(true)
@@ -1755,7 +1851,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedProvider])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
 
   useEffect(() => {
     const init = async () => {
@@ -1776,25 +1872,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           await apiPost('/api/clawd/service/enable', { enabled: true })
           // Wait for service to start (browser Chrome process needs extra time)
           await new Promise(resolve => setTimeout(resolve, 4000))
-        } else {
-          // Service is "running" (LaunchAgent loaded) — verify gateway is actually
-          // reachable.  The LaunchAgent can be loaded in launchctl while the actual
-          // Node.js process crashed or never started.  In that case, kickstart it.
-          try {
-            const h = await apiGet<ServiceHealth>('/api/clawd/service/health')
-            setHealth(h)
-            if (!h.gateway_ok) {
-              console.warn('[ClawdChat] Service loaded but gateway down — triggering kickstart')
-              await apiPost('/api/clawd/service/kickstart', {})
-              // Give the gateway extra time after kickstart before polling
-              await new Promise(resolve => setTimeout(resolve, 3000))
-            }
-          } catch {
-            // Health check itself failed — try kickstart anyway
-            console.warn('[ClawdChat] Health check failed — triggering kickstart')
-            await apiPost('/api/clawd/service/kickstart', {})
-            await new Promise(resolve => setTimeout(resolve, 3000))
-          }
         }
 
         // Refresh status after enabling
@@ -2012,34 +2089,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('clawd-send-user', handler)
   }, [])
 
-  // Listen for /briefing trigger from keyboard shortcut (Cmd+Ctrl+B)
-  useEffect(() => {
-    let cancelled = false
-    const unsub = tauriListen('kn_trigger_briefing', () => {
-      if (!cancelled) handleSendWithTextRef.current?.(SMART_PROMPT)
-    })
-    return () => { cancelled = true; unsub.then(fn => fn()) }
-  }, [])
-
-  // Listen for auto-disabled channels notification from the Rust backend.
-  // When broken channels are detected at startup, we show a system message
-  // so the user knows which channels were removed and can re-configure them.
-  useEffect(() => {
-    let cancelled = false
-    const unsub = tauriListen<{ channels: string[] }>('clawd-channels-auto-disabled', (event) => {
-      if (cancelled) return
-      const names = event.payload?.channels
-      if (!names || names.length === 0) return
-      const list = names.join(', ')
-      const text = `**Channels auto-disabled:** ${list}. These channels had missing or invalid credentials and were removed to prevent startup errors. You can re-connect them from the Channels panel.`
-      setMsgs(prev => [
-        ...prev,
-        { id: `auto-disabled-${Date.now()}`, role: 'system' as Role, text, ts: Date.now() },
-      ])
-    })
-    return () => { cancelled = true; unsub.then(fn => fn()) }
-  }, [])
-
   const pushUser = (text: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
   }
@@ -2086,14 +2135,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const enableAssistant = async (enabled: boolean) => {
     setBusy(true)
     try {
-      const res = await apiPost<{ success: boolean; message?: string }>('/api/clawd/service/enable', { enabled })
+      await apiPost('/api/clawd/service/enable', { enabled })
       await refreshStatus()
-      if (enabled && res.message && res.message.includes('WARNING')) {
-        // Gateway didn't come up — show the diagnostic info
-        pushAssistant(`Browser assistant enabled but gateway failed to start:\n\`\`\`\n${res.message}\n\`\`\``)
-      } else {
-        pushAssistant(enabled ? 'Browser assistant enabled.' : 'Browser assistant disabled.')
-      }
+      pushAssistant(enabled ? 'Browser assistant enabled.' : 'Browser assistant disabled.')
     } catch (e: any) {
       pushAssistant(`Couldn't update browser assistant: ${e?.message || String(e)}`)
     } finally {
@@ -2250,15 +2294,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       return
     }
 
-    // /briefing and /catchup: trigger the email+calendar briefing in chat.
-    // Replace the slash command with the smart prompt so the normal flow
-    // pre-fetches email/calendar data and generates an in-chat briefing.
-    const cmdLower = text.trim().toLowerCase()
-    const isBriefingCmd = cmdLower === '/briefing' || cmdLower === '/catchup'
-    if (isBriefingCmd) {
-      text = SMART_PROMPT
-    }
-
     // Check if we need to prompt for API key first
     if (!hasCompletedOnboarding) {
       const hasKey = await checkAndPromptForKey()
@@ -2277,7 +2312,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const attachmentSummary = currentAttachments.length > 0
       ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
       : ''
-    pushUser(isBriefingCmd ? 'Catch me up on my email and calendar' : text + attachmentSummary)
+    pushUser(text + attachmentSummary)
 
     // Parse "command args..." form
     const [rawCmd, ...rest] = text.split(/\s+/)
@@ -2655,30 +2690,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
-
-              // If the reply looks like an email draft, hand it off to the
-              // Email Autopilot drawer so the user can edit inline and send.
-              const subjectMatch = out.reply!.match(/^[ \t]*Subject:\s*(?:Re:\s*)?(.+)/im)
-              if (subjectMatch) {
-                const subjectLine = subjectMatch[1].trim()
-                // Extract the body: everything after the subject line, skip
-                // blank lines / salutation headers, up to a trailing separator.
-                const afterSubject = out.reply!.slice(
-                  out.reply!.indexOf(subjectMatch[0]) + subjectMatch[0].length,
-                )
-                // Strip leading whitespace / blank lines, then take until
-                // a markdown horizontal rule or end-of-string.
-                const bodyText = afterSubject
-                  .replace(/^\s*\n/, '')
-                  .replace(/\n---+\s*$/, '')
-                  .trim()
-                if (bodyText.length > 10) {
-                  emit('kn_email_draft_from_chat', {
-                    subject: subjectLine,
-                    draftBody: bodyText,
-                  })
-                }
-              }
             } else {
               pushAssistant(friendlyError(out.message || out.error || 'No reply'))
             }
@@ -2739,17 +2750,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   toggleVoiceOutputRef.current = toggleVoiceOutput
   const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
 
-  // Stabilize startRecording/stopRecording — their useCallback deps
-  // (selectedInputDevice, mediaRecorder) change occasionally, which would
-  // break ChatInputBar's React.memo and cause input lag.
-  const startRecordingRef = useRef(startRecording)
-  startRecordingRef.current = startRecording
-  const stableStartRecording = useCallback(async () => { await startRecordingRef.current() }, [])
-
-  const stopRecordingRef = useRef(stopRecording)
-  stopRecordingRef.current = stopRecording
-  const stableStopRecording = useCallback(() => { stopRecordingRef.current() }, [])
-
   const statusLine = useMemo(() => {
     if (!status && !health) return <span>Checking Moltbot...</span>
     const parts: ReactNode[] = []
@@ -2762,7 +2762,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     if (health) {
       parts.push(
-        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'} title={health.message || ''}>
+        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'}>
           {health.gateway_ok ? 'Gateway: OK' : 'Gateway: down'}
         </span>,
       )
@@ -2804,6 +2804,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <img src="/assets/images/knap-logo-medium.png" alt="Knapsack" className="ClawdChatLogo" />
           <div className="ClawdChatTitleGroup">
             <h1 className="ClawdChatTitle">Knapsack Chat</h1>
+            <p className="ClawdChatSubtitle">AI assistant powered by OpenClaw</p>
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
         </div>
@@ -2846,6 +2847,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || 'Anthropic')
               : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || 'Gemini')
               : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || 'Groq')
+              : selectedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
               : OPENAI_MODELS.find(m => m.id === selectedModel)?.name || 'OpenAI'}
           </button>
           <button disabled={busy} onClick={() => setShowToneSelector(true)}>
@@ -2996,7 +2998,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
-        {thinkingMessage && <LobsterLoader />}
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
             <div
               key={m.id}
@@ -3129,8 +3130,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onSend={stableDoSend}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
-        onStartRecording={stableStartRecording}
-        onStopRecording={stableStopRecording}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
         onToggleVoice={stableToggleVoiceOutput}
         onStopGeneration={stableStopGeneration}
       />
@@ -3298,17 +3299,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <button onClick={() => setShowChannelsPanel(false)}>×</button>
           </div>
           <div className="ClawdChannelsPanelBody">
-            {health && !health.gateway_ok && (
-              <div className="ClawdGatewayError">
-                <strong>Gateway is not running.</strong> Channels cannot connect until the gateway starts.
-                {health.message && health.message.includes('stderr') && (
-                  <details>
-                    <summary>Show error log</summary>
-                    <pre>{health.message.split('--- last stderr ---\n')[1] || health.message}</pre>
-                  </details>
-                )}
-              </div>
-            )}
             <p className="ClawdChannelsPanelIntro">
               Connect a messaging app so your AI assistant can send and receive messages on your behalf.
             </p>
@@ -3339,7 +3329,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${(channelStatus.whatsapp?.linked || channelStatus.whatsapp?.enabled) ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'whatsapp' || (health != null && !health.gateway_ok)}
+                      disabled={channelBusy === 'whatsapp'}
                       onClick={async () => {
                         setChannelBusy('whatsapp')
                         setChannelError(null)
@@ -3446,7 +3436,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${channelStatus.imessage?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'imessage' || (health != null && !health.gateway_ok)}
+                      disabled={channelBusy === 'imessage'}
                       onClick={async () => {
                         setChannelBusy('imessage')
                         setChannelError(null)
@@ -3537,7 +3527,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     )}
                     <button
                       className={`ClawdChannelCardAction ${channelStatus.telegram?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'telegram' || (health != null && !health.gateway_ok)}
+                      disabled={channelBusy === 'telegram'}
                       onClick={async () => {
                         if (channelBusy) return
                         if (channelStatus.telegram?.configured) {
@@ -3676,7 +3666,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.slack?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'slack' || (health != null && !health.gateway_ok)}
+                        disabled={channelBusy === 'slack'}
                         onClick={async () => {
                           setChannelBusy('slack')
                           setChannelError(null)
@@ -3768,7 +3758,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.discord?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'discord' || (health != null && !health.gateway_ok)}
+                        disabled={channelBusy === 'discord'}
                         onClick={async () => {
                           setChannelBusy('discord')
                           setChannelError(null)
@@ -3847,7 +3837,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.signal?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'signal' || (health != null && !health.gateway_ok)}
+                        disabled={channelBusy === 'signal'}
                         onClick={async () => {
                           setChannelBusy('signal')
                           setChannelError(null)
@@ -4016,40 +4006,55 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               ) : (
                                 <div>
                                   <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 6 }}>
-                                    Link generated! Scan this QR code with Signal on your phone:
+                                    Link generated! Open Signal on your phone:
                                   </div>
                                   <div style={{ fontSize: 11, color: '#334155', marginBottom: 8, lineHeight: 1.5 }}>
                                     1. Go to <strong>Settings &gt; Linked Devices</strong><br />
                                     2. Tap <strong>Link New Device</strong><br />
-                                    3. Scan the QR code below with your phone camera
-                                  </div>
-                                  <div style={{ textAlign: 'center', margin: '12px 0' }}>
-                                    <QRCodeSVG
-                                      value={signalLinkUri!}
-                                      size={200}
-                                      level="M"
-                                      style={{ borderRadius: 8 }}
-                                    />
+                                    3. Copy the link below and open it on your phone, or scan it from another device
                                   </div>
                                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                                    <button
-                                      onClick={() => {
-                                        setSignalLinkUri(null)
-                                        setSignalRegDone(true)
-                                      }}
-                                      style={{ padding: '6px 16px', fontSize: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 500 }}
-                                    >
-                                      I linked it — continue
-                                    </button>
                                     <button
                                       onClick={() => {
                                         navigator.clipboard.writeText(signalLinkUri!)
                                         setChannelError(null)
                                       }}
+                                      style={{ padding: '6px 16px', fontSize: 13, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 500 }}
+                                    >
+                                      Copy Link to Clipboard
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setSignalLinkUri(null)
+                                        setSignalRegDone(true)
+                                      }}
                                       style={{ padding: '6px 16px', fontSize: 13, background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 4, cursor: 'pointer' }}
                                     >
-                                      Copy Link
+                                      I linked it — continue
                                     </button>
+                                  </div>
+                                  <div
+                                    style={{
+                                      padding: 10,
+                                      background: '#f1f5f9',
+                                      borderRadius: 4,
+                                      marginBottom: 8,
+                                      wordBreak: 'break-all',
+                                      fontSize: 11,
+                                      color: '#334155',
+                                      fontFamily: 'monospace',
+                                      lineHeight: 1.6,
+                                      maxHeight: 120,
+                                      overflowY: 'auto',
+                                      overflowX: 'hidden',
+                                      userSelect: 'all',
+                                      WebkitUserSelect: 'all',
+                                      cursor: 'text',
+                                      border: '1px solid #e2e8f0',
+                                    }}
+                                    title="Click to select, or use the Copy button above"
+                                  >
+                                    {signalLinkUri}
                                   </div>
                                   <div className="ClawdChannelGuideNote" style={{ marginTop: 6 }}>
                                     After linking, signal-cli will finish in the background. This may take a moment.
@@ -4259,7 +4264,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.irc?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'irc' || (health != null && !health.gateway_ok)}
+                        disabled={channelBusy === 'irc'}
                         onClick={async () => {
                           setChannelBusy('irc')
                           setChannelError(null)
@@ -4331,7 +4336,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     {channelStatus.genericChannels.googlechat?.configured && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
-                        disabled={channelBusy === 'googlechat' || (health != null && !health.gateway_ok)}
+                        disabled={channelBusy === 'googlechat'}
                         onClick={async () => {
                           setChannelBusy('googlechat')
                           setChannelError(null)
@@ -4363,7 +4368,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           }}
                         />
                         <button
-                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/')}
+                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/'))}
                           onClick={async () => {
                             setChannelBusy('googlechat')
                             setChannelError(null)
@@ -4430,14 +4435,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 <button
                   key={p.id}
                   className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelectedProvider(p.id); setApiKey('')
-                    // If the user already has a key for this provider, immediately
-                    // switch the backend's active_provider so chat uses it right away.
-                    if (keyHints[p.id]) {
-                      apiPost('/api/clawd/service/set-active-provider', { provider: p.id }).catch(() => {})
-                    }
-                  }}
+                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
                   disabled={savingKey}
                 >
                   {p.name}
@@ -4445,19 +4443,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               ))}
             </div>
 
-            <label className="ClawdKeyPromptLabel">
-              {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder={keyHints[selectedProvider] || PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
-              disabled={savingKey}
-              onKeyDown={e => {
-                if (e.key === 'Enter') saveApiKey()
-              }}
-            />
+            {selectedProvider !== 'ollama' && (
+              <>
+                <label className="ClawdKeyPromptLabel">
+                  {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder={keyHints[selectedProvider] || PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
+                  disabled={savingKey}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') saveApiKey()
+                  }}
+                />
+              </>
+            )}
 
             {selectedProvider === 'openai' && (
               <>
@@ -4535,24 +4537,176 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               </>
             )}
 
+            {selectedProvider === 'ollama' && (
+              <div className="ClawdOllamaSection">
+                {/* Status indicator */}
+                <div className="ClawdOllamaStatus">
+                  {ollamaRunning === null ? (
+                    <span className="ClawdOllamaStatusChecking">Checking for Ollama...</span>
+                  ) : ollamaRunning ? (
+                    <span className="ClawdOllamaStatusOk">
+                      <span className="ClawdOllamaStatusDot ok" />
+                      Ollama is running
+                    </span>
+                  ) : (
+                    <span className="ClawdOllamaStatusErr">
+                      <span className="ClawdOllamaStatusDot err" />
+                      Ollama not detected
+                    </span>
+                  )}
+                </div>
+
+                {/* Install prompt when not running */}
+                {ollamaRunning === false && (
+                  <div className="ClawdOllamaInstall">
+                    <p>Ollama runs AI models locally on your machine — free, private, no API key needed.</p>
+                    <a
+                      href="https://ollama.com/download"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ClawdOllamaInstallBtn"
+                    >
+                      Download Ollama
+                    </a>
+                    <p className="ClawdOllamaInstallHint">
+                      After installing, launch Ollama and come back here.{' '}
+                      <button
+                        className="ClawdOllamaRetry"
+                        onClick={() => {
+                          setOllamaRunning(null)
+                          apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
+                            .then(s => {
+                              setOllamaRunning(s.running)
+                              if (s.running) {
+                                apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+                                  .then(m => { if (m.success) setOllamaModels(m.models) })
+                              }
+                            })
+                            .catch(() => setOllamaRunning(false))
+                        }}
+                      >
+                        Check again
+                      </button>
+                    </p>
+                  </div>
+                )}
+
+                {/* Models already installed — pick one */}
+                {ollamaRunning && ollamaModels.length > 0 && (
+                  <>
+                    <label className="ClawdKeyPromptLabel">Your Models</label>
+                    <div className="ClawdModelSelector">
+                      {ollamaModels.map(model => (
+                        <button
+                          key={model.name}
+                          className={`ClawdModelOption ${selectedOllamaModel === model.name ? 'selected' : ''}`}
+                          onClick={() => setSelectedOllamaModel(model.name)}
+                          disabled={savingKey}
+                        >
+                          <span className="ClawdModelName">{model.name}</span>
+                          <span className="ClawdModelDesc">{model.parameter_size || 'Local model'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* No models — show recommended downloads */}
+                {ollamaRunning && ollamaModels.length === 0 && !ollamaPulling && (
+                  <>
+                    <label className="ClawdKeyPromptLabel">Download a Model</label>
+                    <p style={{ fontSize: 13, color: '#666', margin: '0 0 8px' }}>
+                      No models installed yet. Pick one to download:
+                    </p>
+                    <div className="ClawdModelSelector">
+                      {OLLAMA_SUGGESTED_MODELS.map(model => (
+                        <button
+                          key={model.id}
+                          className="ClawdModelOption"
+                          onClick={() => pullOllamaModel(model.id)}
+                        >
+                          <span className="ClawdModelName">{model.name}</span>
+                          <span className="ClawdModelDesc">{model.description} ({model.size})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Download in progress */}
+                {ollamaPulling && (
+                  <div className="ClawdOllamaPullProgress">
+                    <label className="ClawdKeyPromptLabel">Downloading...</label>
+                    <div className="ClawdOllamaProgressBar">
+                      <div
+                        className="ClawdOllamaProgressFill"
+                        style={{ width: `${ollamaPullPercent ?? 0}%` }}
+                      />
+                    </div>
+                    <span className="ClawdOllamaProgressText">
+                      {ollamaPullPercent !== null ? `${ollamaPullPercent}% — ` : ''}{ollamaPullProgress}
+                    </span>
+                  </div>
+                )}
+
+                {/* Add more models button when models exist */}
+                {ollamaRunning && ollamaModels.length > 0 && !ollamaPulling && (
+                  <>
+                    <label className="ClawdKeyPromptLabel" style={{ marginTop: 8 }}>Download More Models</label>
+                    <div className="ClawdModelSelector">
+                      {OLLAMA_SUGGESTED_MODELS
+                        .filter(s => !ollamaModels.some(m => m.name.startsWith(s.id.split(':')[0])))
+                        .slice(0, 3)
+                        .map(model => (
+                        <button
+                          key={model.id}
+                          className="ClawdModelOption"
+                          onClick={() => pullOllamaModel(model.id)}
+                        >
+                          <span className="ClawdModelName">{model.name}</span>
+                          <span className="ClawdModelDesc">{model.description} ({model.size})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="ClawdKeyPromptActions">
-              <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
-                {savingKey ? 'Saving...' : 'Save & Enable'}
-              </button>
+              {selectedProvider === 'ollama' ? (
+                <button
+                  onClick={saveOllamaProvider}
+                  disabled={savingKey || !ollamaRunning || !selectedOllamaModel}
+                >
+                  {savingKey ? 'Saving...' : 'Enable Ollama'}
+                </button>
+              ) : (
+                <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
+                  {savingKey ? 'Saving...' : 'Save & Enable'}
+                </button>
+              )}
             </div>
-            <p className="ClawdKeyPromptHelp">
-              Get your API key at{' '}
-              <a
-                href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
-                {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
-                {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
-                {selectedProvider === 'groq' && 'console.groq.com/keys'}
-              </a>
-            </p>
+            {selectedProvider !== 'ollama' ? (
+              <p className="ClawdKeyPromptHelp">
+                Get your API key at{' '}
+                <a
+                  href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
+                  {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
+                  {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
+                  {selectedProvider === 'groq' && 'console.groq.com/keys'}
+                </a>
+              </p>
+            ) : (
+              <p className="ClawdKeyPromptHelp">
+                Runs locally on your machine — no API key or costs.{' '}
+                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Learn more</a>
+              </p>
+            )}
           </div>
         </div>
       )}

@@ -31,12 +31,10 @@ import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
 
 import { open } from '@tauri-apps/api/shell'
 import { invoke } from '@tauri-apps/api/tauri'
-import { emit, listen } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
-import { AutopilotActions } from 'src/hooks/dataSources/useEmailAutopilot'
-import { DisplayEmail } from 'src/hooks/feed/useFeed'
 import { getFeedbacks } from '../../../api/threads'
 import { setHasOnboarded } from '../../../pages/onboarding'
 import { openGoogleAuthScreen } from '../../../utils/permissions/google'
@@ -92,8 +90,6 @@ function Home({
   const [showActivityPanel, setShowActivityPanel] = useState(false)
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
-  const [autopilotForceEmailUid, setAutopilotForceEmailUid] = useState<string | undefined>(undefined)
-  const [isChatBusy, setIsChatBusy] = useState(false)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -138,10 +134,6 @@ function Home({
       } else if (event.key === 'e' && event.metaKey && event.ctrlKey) {
         setAutopilotForceOpen(true)
         setCurrentTab(TabChoices.Moltbot)
-      } else if (event.key === 'b' && event.metaKey && event.ctrlKey) {
-        // Cmd+Ctrl+B: trigger email/calendar briefing in chat
-        setCurrentTab(TabChoices.Moltbot)
-        emit('kn_trigger_briefing', {})
       }
     }
   }, [])
@@ -164,55 +156,6 @@ function Home({
       unlisten.then(fn => fn())
     }
   }, [])
-
-  // When ClawdChat drafts an email reply, find the matching classified email,
-  // attach the draft body, and open the autopilot drawer to that email.
-  // Only works when the user has authenticated email — otherwise the draft
-  // stays visible in the chat (the original approach).
-  useEffect(() => {
-    const unlisten = listen<{ subject: string; draftBody: string }>(
-      'kn_email_draft_from_chat',
-      (event) => {
-        if (!feed.loggedEmailAutopilot) return // no email auth — keep draft in chat
-
-        const { subject, draftBody } = event.payload
-        if (!subject || !draftBody) return
-
-        const normalise = (s: string) =>
-          s.toLowerCase().replace(/^re:\s*/i, '').replace(/[^a-z0-9]/g, '')
-
-        const normSubject = normalise(subject)
-
-        // Search all classified email categories for a subject match
-        const allEmails = (Object.values(feed.classifiedEmails ?? {}) as DisplayEmail[][]).flat()
-        const match = allEmails.find(
-          e => e && normalise(e.message.subject ?? '').includes(normSubject),
-        ) ?? allEmails.find(
-          e => e && normSubject.includes(normalise(e.message.subject ?? '')),
-        )
-
-        if (match) {
-          // Set the draft on the matched email
-          feed.takeEmailAction(
-            match.message.emailUid,
-            AutopilotActions.GENERATE_DRAFT_REPLY,
-            (auth.profile?.provider ?? ConnectionKeys.GOOGLE_PROFILE) as
-              ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
-            draftBody,
-          )
-          // Open drawer to this specific email
-          setAutopilotForceEmailUid(match.message.emailUid)
-          setAutopilotForceOpen(true)
-        } else {
-          // No match — just open the drawer generically
-          setAutopilotForceOpen(true)
-        }
-      },
-    )
-    return () => {
-      unlisten.then(fn => fn())
-    }
-  }, [feed.classifiedEmails, feed.loggedEmailAutopilot, auth.profile?.provider])
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
@@ -276,12 +219,7 @@ function Home({
 
   const handleSigninGoogleButtonClick = () => {
     try {
-      const scopes = [
-        ...googleConnections[ConnectionKeys.GOOGLE_PROFILE].scopes,
-        ...googleConnections[ConnectionKeys.GOOGLE_GMAIL].scopes,
-        ...googleConnections[ConnectionKeys.GOOGLE_CALENDAR].scopes,
-      ].join(' ')
-      openGoogleAuthScreen(scopes)
+      openGoogleAuthScreen(googleConnections[ConnectionKeys.GOOGLE_PROFILE].scopes.join(' '))
     } catch (error) {
       setConnectionsDropdownOpened(false)
       logError(new Error('Error opening Google Auth screen'), {
@@ -295,17 +233,9 @@ function Home({
 
   const handleSigninMicrosoftButtonClick = () => {
     try {
-      const scopes = [
-        ...microsoftConnections[ConnectionKeys.MICROSOFT_PROFILE].scopes,
-        ...microsoftConnections[ConnectionKeys.MICROSOFT_OUTLOOK].scopes,
-        ...microsoftConnections[ConnectionKeys.MICROSOFT_CALENDAR].scopes,
-      ].join(' ')
+      const scopes = [...microsoftConnections[ConnectionKeys.MICROSOFT_PROFILE].scopes].join(' ')
 
-      openMicrosoftAuthScreen(scopes, [
-        ConnectionKeys.MICROSOFT_PROFILE,
-        ConnectionKeys.MICROSOFT_OUTLOOK,
-        ConnectionKeys.MICROSOFT_CALENDAR,
-      ])
+      openMicrosoftAuthScreen(scopes, [ConnectionKeys.MICROSOFT_PROFILE])
     } catch (error) {
       setConnectionsDropdownOpened(false)
       logError(new Error('Error opening Microsoft Auth screen'), {
@@ -415,6 +345,17 @@ function Home({
               buttonVariant={ButtonVariant.inProgressMeeting}
             />
           )
+        }
+        middleRightComponent={
+          <button
+            onClick={() => invoke('toggle_overlay_window')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-ks-warm-grey-200 bg-white hover:bg-ks-warm-grey-50 text-ks-warm-grey-600 hover:text-ks-warm-grey-800 transition-colors cursor-pointer"
+            title="Open Quick Chat overlay"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+            <span className="text-[10px] font-medium">Quick Chat</span>
+            <kbd className="text-[9px] font-mono bg-ks-warm-grey-100 text-ks-warm-grey-500 px-1 py-0.5 rounded border border-ks-warm-grey-200 leading-none">{navigator.platform?.includes('Mac') ? '\u2325Space' : 'Alt+Space'}</kbd>
+          </button>
         }
         rightComponent={
           auth.profile ? (
@@ -544,7 +485,6 @@ function Home({
                       onCloseActivity={() => setShowActivityPanel(false)}
                       userEmail={userEmail}
                       userName={userName}
-                      onBusyChange={setIsChatBusy}
                     />
                   </div>
                   {showActivityPanel && (
@@ -579,7 +519,7 @@ function Home({
                       </div>
                     </>
                   )}
-                  {(feed.loggedEmailAutopilot || autopilotForceOpen) ? (
+                  {(feed.loggedEmailAutopilot || autopilotForceOpen) && (
                     <EmailNotificationDrawer
                       feed={feed}
                       onGoToEmail={() => {
@@ -590,39 +530,8 @@ function Home({
                       userName={userName}
                       profileProvider={auth.profile?.provider}
                       forceOpen={autopilotForceOpen}
-                      forceEmailUid={autopilotForceEmailUid}
-                      onForceOpenHandled={() => {
-                        setAutopilotForceOpen(false)
-                        setAutopilotForceEmailUid(undefined)
-                      }}
-                      isChatBusy={isChatBusy}
+                      onForceOpenHandled={() => setAutopilotForceOpen(false)}
                     />
-                  ) : auth.profile && (
-                    <div className="absolute bottom-0 right-0 z-40">
-                      <div className="mr-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden p-4 max-w-[360px]">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-2 h-2 rounded-full bg-ks-red-500" />
-                          <span className="text-xs font-semibold font-InterTight text-ks-red-700 tracking-wide uppercase">
-                            Email Autopilot
-                          </span>
-                        </div>
-                        <p className="text-sm text-ks-warm-grey-700 font-Inter mb-3">
-                          Connect your email to enable smart email triage and draft replies.
-                        </p>
-                        <button
-                          onClick={() => onConnectAccountClick([
-                            auth.profile?.provider === ConnectionKeys.MICROSOFT_PROFILE
-                              ? ConnectionKeys.MICROSOFT_OUTLOOK
-                              : ConnectionKeys.GOOGLE_GMAIL,
-                          ])}
-                          className="px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
-                        >
-                          {auth.profile?.provider === ConnectionKeys.MICROSOFT_PROFILE
-                            ? 'Connect Outlook'
-                            : 'Connect Gmail'}
-                        </button>
-                      </div>
-                    </div>
                   )}
                 </div>
               )}
@@ -648,6 +557,7 @@ function Home({
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
                 />
               )}
+
 
             </div>
           </div>

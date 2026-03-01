@@ -68,6 +68,60 @@ const PERMISSION_NAME_LIST = {
 
 const NOTIFICATION_LEAD_TIME = [{label: '1 minute before', value: '1'}, {label: '2 minutes before', value: '2'}, {label: '3 minutes before', value: '3'}]
 
+// ── Accordion primitive ──────────────────────────────────────────────────────
+
+type ProviderAccordionProps = {
+  title: string
+  badge?: React.ReactNode
+  expanded: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}
+
+const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
+  <svg
+    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2}
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+  </svg>
+)
+
+const ProviderAccordion = ({ title, badge, expanded, onToggle, children }: ProviderAccordionProps) => (
+  <div className="border border-zinc-200 rounded-md overflow-hidden">
+    <button
+      type="button"
+      className="w-full flex items-center justify-between px-3 py-2.5 bg-zinc-50 hover:bg-zinc-100 transition-colors cursor-pointer"
+      onClick={onToggle}
+    >
+      <div className="flex items-center gap-2">
+        <Typography weight={TypographyWeight.medium} className="text-sm">{title}</Typography>
+        {badge}
+      </div>
+      <ChevronIcon expanded={expanded} />
+    </button>
+    {expanded && (
+      <div className="px-3 py-2.5 flex flex-col gap-2 border-t border-zinc-100">
+        {children}
+      </div>
+    )}
+  </div>
+)
+
+// ── Ollama types ─────────────────────────────────────────────────────────────
+
+type OllamaModel = {
+  name: string
+  size?: number
+  parameter_size?: string
+  family?: string
+}
+
+// ── Main component ───────────────────────────────────────────────────────────
+
 export const SettingsDialog = ({
   handlePrivacyLinkClick,
   handleTermsOfUseClick,
@@ -89,6 +143,9 @@ export const SettingsDialog = ({
     active_provider?: string
     has_openai_key?: boolean
     has_anthropic_key?: boolean
+    ollama_enabled?: boolean
+    ollama_model?: string
+    ollama_base_url?: string
     extra_providers?: Array<{ id: string; env_var: string; has_key: boolean }>
   } | null>(null)
   const settingsContainerRef = useRef<HTMLDivElement>(null)
@@ -96,6 +153,15 @@ export const SettingsDialog = ({
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [showTelegramInput, setShowTelegramInput] = useState(false)
+
+  // Accordion state — which provider section is expanded
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
+
+  // Ollama state
+  const [ollamaRunning, setOllamaRunning] = useState<boolean | null>(null)
+  const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([])
+  const [ollamaBusy, setOllamaBusy] = useState(false)
+  const [selectedOllamaModel, setSelectedOllamaModel] = useState('')
 
   useEffect(() => {
     if(profile && profile.provider){
@@ -120,11 +186,34 @@ export const SettingsDialog = ({
           active_provider: data.active_provider,
           has_openai_key: data.has_openai_key,
           has_anthropic_key: data.has_anthropic_key,
+          ollama_enabled: data.ollama_enabled,
+          ollama_model: data.ollama_model,
+          ollama_base_url: data.ollama_base_url,
           extra_providers: data.extra_providers,
         })
+        if (data.ollama_model) {
+          setSelectedOllamaModel(data.ollama_model)
+        }
       })
       .catch(() => {})
   }, [isOpen])
+
+  // Check Ollama status + fetch models when the Ollama accordion is expanded
+  useEffect(() => {
+    if (expandedProvider !== 'ollama') return
+    setOllamaRunning(null)
+    fetch('http://localhost:8897/api/knapsack/ollama/status')
+      .then(r => r.json())
+      .then(data => setOllamaRunning(data.running))
+      .catch(() => setOllamaRunning(false))
+
+    fetch('http://localhost:8897/api/knapsack/ollama/models')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) setOllamaModels(data.models)
+      })
+      .catch(() => {})
+  }, [expandedProvider])
 
   useEffect(() => {
     shouldSaveTranscript().then(value => {
@@ -187,17 +276,68 @@ export const SettingsDialog = ({
     setSaveTranscriptStore(!saveTranscripts)
   }
 
-  // const handleLocalFilesAddClick = useCallback(async () => {
-  //   await getFilesPermissions()
-  //   if (!email) {
-  //     logError(new BaseException('The user email is missing'), {
-  //       additionalInfo: 'Attempted to add local files without a valid user email Test 2',
-  //     })
-  //     return
-  //   }
-  //   await fetchConnections(email)
-  // }, [email, fetchConnections])
-  
+  // ── Ollama enable/disable ────────────────────────────────────────────────
+
+  const handleOllamaToggle = async (enable: boolean) => {
+    setOllamaBusy(true)
+    try {
+      const resp = await fetch('http://localhost:8897/api/knapsack/ollama/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: enable,
+          model: selectedOllamaModel || null,
+        }),
+      })
+      const data = await resp.json()
+      if (data.success) {
+        setProviderStatus(prev => prev ? {
+          ...prev,
+          ollama_enabled: enable,
+          active_provider: enable ? 'ollama' : prev.active_provider === 'ollama' ? undefined : prev.active_provider,
+        } : prev)
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setOllamaBusy(false)
+    }
+  }
+
+  const handleOllamaModelChange = async (model: string) => {
+    setSelectedOllamaModel(model)
+    if (!providerStatus?.ollama_enabled) return
+    // Persist model selection
+    try {
+      await fetch('http://localhost:8897/api/knapsack/ollama/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: true,
+          model,
+        }),
+      })
+    } catch {
+      // silently fail
+    }
+  }
+
+  // ── Accordion toggle ─────────────────────────────────────────────────────
+
+  const toggleProvider = (id: string) => {
+    setExpandedProvider(prev => prev === id ? null : id)
+  }
+
+  // ── Status badge helper ──────────────────────────────────────────────────
+
+  const statusBadge = (isActive: boolean, isConnected: boolean) => {
+    if (!isConnected) return null
+    return (
+      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${isActive ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
+        {isActive ? 'Active' : 'Connected'}
+      </span>
+    )
+  }
 
   useEffect(() => {
     if (!isOpen) return
@@ -224,11 +364,11 @@ export const SettingsDialog = ({
       dismissable
       className="flex items-center justify-center my-[88px] h-[100vh]"
     >
-      <div 
+      <div
         ref={settingsContainerRef}
         className="SettingsContainer relative flex flex-col w-[420px] rounded-lg border border-solid border-zinc-200 bg-white flex-col max-h-[calc(100vh-166px)] overflow-auto"
       >
-        
+
         <div className="NotificationContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Notifications</Typography>
           <div className="NotificationContent flex flex-col gap-6">
@@ -251,69 +391,178 @@ export const SettingsDialog = ({
           </div>
         </div>
         <hr className="border-zinc-200" />
-        <div className="p-6 flex flex-col gap-4">
+
+        {/* ── AI Provider (accordion) ─────────────────────────────────── */}
+        <div className="p-6 flex flex-col gap-3">
           <Typography weight={TypographyWeight.medium}>AI Provider</Typography>
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between h-[36px] items-center">
-              <div className="flex items-center gap-2">
-                <Typography>OpenAI</Typography>
-                {providerStatus?.has_openai_key && (
-                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${providerStatus.active_provider === 'openai' ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
-                    {providerStatus.active_provider === 'openai' ? 'Active' : 'Connected'}
-                  </span>
-                )}
-              </div>
+
+          {/* Cloud providers */}
+          <ProviderAccordion
+            title="OpenAI"
+            badge={statusBadge(providerStatus?.active_provider === 'openai', !!providerStatus?.has_openai_key)}
+            expanded={expandedProvider === 'openai'}
+            onToggle={() => toggleProvider('openai')}
+          >
+            <div className="flex justify-between items-center">
+              <Typography className="text-sm text-gray-600">
+                {providerStatus?.has_openai_key ? 'API key configured' : 'No API key set'}
+              </Typography>
               <Typography
-                className={`cursor-pointer ${styles.link}`}
+                className={`cursor-pointer text-sm ${styles.link}`}
                 onClick={() => { handleClose(); onProviderSignInClick?.('openai') }}
               >
                 {providerStatus?.has_openai_key ? 'Change' : 'Sign in'}
               </Typography>
             </div>
-            <div className="flex justify-between h-[36px] items-center">
-              <div className="flex items-center gap-2">
-                <Typography>Anthropic</Typography>
-                {providerStatus?.has_anthropic_key && (
-                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${providerStatus.active_provider === 'anthropic' ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
-                    {providerStatus.active_provider === 'anthropic' ? 'Active' : 'Connected'}
-                  </span>
-                )}
-              </div>
+          </ProviderAccordion>
+
+          <ProviderAccordion
+            title="Anthropic"
+            badge={statusBadge(providerStatus?.active_provider === 'anthropic', !!providerStatus?.has_anthropic_key)}
+            expanded={expandedProvider === 'anthropic'}
+            onToggle={() => toggleProvider('anthropic')}
+          >
+            <div className="flex justify-between items-center">
+              <Typography className="text-sm text-gray-600">
+                {providerStatus?.has_anthropic_key ? 'API key configured' : 'No API key set'}
+              </Typography>
               <Typography
-                className={`cursor-pointer ${styles.link}`}
+                className={`cursor-pointer text-sm ${styles.link}`}
                 onClick={() => { handleClose(); onProviderSignInClick?.('anthropic') }}
               >
                 {providerStatus?.has_anthropic_key ? 'Change' : 'Sign in'}
               </Typography>
             </div>
-            {/* Extra providers (MiniMax, ZAI/GLM, HuggingFace) */}
-            {[
-              { id: 'minimax', envVar: 'MINIMAX_API_KEY', name: 'MiniMax' },
-              { id: 'zai', envVar: 'ZAI_API_KEY', name: 'ZAI (GLM)' },
-              { id: 'huggingface', envVar: 'HF_TOKEN', name: 'Hugging Face' },
-            ].map(ep => {
-              const status = providerStatus?.extra_providers?.find(p => p.env_var === ep.envVar)
-              return (
-                <div key={ep.id} className="flex justify-between h-[36px] items-center">
-                  <div className="flex items-center gap-2">
-                    <Typography>{ep.name}</Typography>
-                    {status?.has_key && (
-                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
-                        Connected
-                      </span>
-                    )}
-                  </div>
+          </ProviderAccordion>
+
+          {/* Extra providers */}
+          {[
+            { id: 'minimax', envVar: 'MINIMAX_API_KEY', name: 'MiniMax' },
+            { id: 'zai', envVar: 'ZAI_API_KEY', name: 'ZAI (GLM)' },
+            { id: 'huggingface', envVar: 'HF_TOKEN', name: 'Hugging Face' },
+          ].map(ep => {
+            const status = providerStatus?.extra_providers?.find(p => p.env_var === ep.envVar)
+            return (
+              <ProviderAccordion
+                key={ep.id}
+                title={ep.name}
+                badge={status?.has_key ? (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
+                    Connected
+                  </span>
+                ) : undefined}
+                expanded={expandedProvider === ep.id}
+                onToggle={() => toggleProvider(ep.id)}
+              >
+                <div className="flex justify-between items-center">
+                  <Typography className="text-sm text-gray-600">
+                    {status?.has_key ? 'API key configured' : 'No API key set'}
+                  </Typography>
                   <Typography
-                    className={`cursor-pointer ${styles.link}`}
+                    className={`cursor-pointer text-sm ${styles.link}`}
                     onClick={() => { handleClose(); onProviderSignInClick?.() }}
                   >
                     {status?.has_key ? 'Change' : 'Add key'}
                   </Typography>
                 </div>
-              )
-            })}
-          </div>
+              </ProviderAccordion>
+            )
+          })}
+
+          {/* Ollama (local LLM) */}
+          <ProviderAccordion
+            title="Ollama (Local)"
+            badge={
+              providerStatus?.ollama_enabled ? (
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${providerStatus.active_provider === 'ollama' ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
+                  {providerStatus.active_provider === 'ollama' ? 'Active' : 'Enabled'}
+                </span>
+              ) : undefined
+            }
+            expanded={expandedProvider === 'ollama'}
+            onToggle={() => toggleProvider('ollama')}
+          >
+            {/* Connection status */}
+            <div className="flex items-center gap-2 mb-1">
+              {ollamaRunning === null ? (
+                <span className="text-xs text-gray-400 animate-pulse">Checking Ollama...</span>
+              ) : ollamaRunning ? (
+                <span className="text-xs text-green-600 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                  Ollama running
+                </span>
+              ) : (
+                <span className="text-xs text-red-500 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                  Ollama not detected
+                </span>
+              )}
+            </div>
+
+            {!ollamaRunning && ollamaRunning !== null && (
+              <Typography className="text-xs text-gray-500">
+                Install Ollama from{' '}
+                <a
+                  href="https://ollama.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.link}
+                >
+                  ollama.com
+                </a>
+                {' '}and start it to use local models.
+              </Typography>
+            )}
+
+            {/* Model picker */}
+            {ollamaRunning && ollamaModels.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Typography className="text-xs text-gray-500">Model</Typography>
+                <InputSelect
+                  options={ollamaModels.map(m => ({
+                    label: `${m.name}${m.parameter_size ? ` (${m.parameter_size})` : ''}`,
+                    value: m.name,
+                  }))}
+                  value={selectedOllamaModel || ollamaModels[0]?.name || ''}
+                  onChange={handleOllamaModelChange}
+                />
+              </div>
+            )}
+
+            {ollamaRunning && ollamaModels.length === 0 && (
+              <Typography className="text-xs text-gray-500">
+                No models found. Run <code className="bg-zinc-100 px-1 rounded text-[11px]">ollama pull llama3.1</code> to download a model.
+              </Typography>
+            )}
+
+            {/* Enable / Disable toggle */}
+            {ollamaRunning && (
+              <div className="flex justify-between items-center pt-1">
+                <Typography className="text-sm">
+                  {providerStatus?.ollama_enabled ? 'Ollama is enabled' : 'Use Ollama for AI'}
+                </Typography>
+                <button
+                  className={`px-3 py-1 text-xs rounded transition-colors ${
+                    providerStatus?.ollama_enabled
+                      ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                      : 'bg-gray-800 text-white hover:bg-gray-700'
+                  } disabled:opacity-50`}
+                  disabled={ollamaBusy}
+                  onClick={() => handleOllamaToggle(!providerStatus?.ollama_enabled)}
+                >
+                  {ollamaBusy ? 'Saving...' : providerStatus?.ollama_enabled ? 'Disable' : 'Enable'}
+                </button>
+              </div>
+            )}
+
+            {providerStatus?.ollama_enabled && (
+              <Typography className="text-[11px] text-gray-400">
+                Free local execution — no API costs
+              </Typography>
+            )}
+          </ProviderAccordion>
         </div>
+
         <hr className="border-zinc-200" />
         <div className="p-6 flex flex-col gap-4">
           <div className="flex items-center justify-between">
@@ -583,50 +832,6 @@ export const SettingsDialog = ({
                   )
               })
             }
-            {/* <div className="flex justify-between h-[36px] items-center">
-              <Typography>Gmail</Typography>
-              <Typography
-                className={`cursor-pointer ${styles.link}`}
-                onClick={() => onConnectGoogleAccountClick(ConnectionKeys.GOOGLE_GMAIL)}
-              >
-                Add
-              </Typography>
-            </div>
-            <div className="flex justify-between h-[36px] items-center">
-              <Typography>Google Calendar</Typography>
-              <Typography
-                className={`cursor-pointer ${styles.link}`}
-                onClick={() => onConnectGoogleAccountClick(ConnectionKeys.GOOGLE_CALENDAR)}
-              >
-                Add
-              </Typography>
-            </div>
-            <div className="flex justify-between h-[36px] items-center">
-              <Typography>Google Drive</Typography>
-              <Typography
-                className={`cursor-pointer ${styles.link}`}
-                onClick={() => onConnectGoogleAccountClick(ConnectionKeys.GOOGLE_DRIVE)}
-              >
-                Add
-              </Typography>
-            </div> */}
-            {/* <div className="flex justify-between h-[36px] items-center">
-              <Typography>Local files</Typography>
-              <Typography
-                className={`cursor-pointer ${styles.link}`}
-                onClick={handleLocalFilesAddClick}
-              >
-                Add
-              </Typography>
-            </div> */}
-            {/* <div className="flex items-center h-[36px]">
-            <hr className="w-full" color="#D6D3D1" />
-          </div>
-          <div className="flex items-center h-[36px]">
-            <Typography className={`cursor-pointer ${styles.link}`}>
-              Delete and remove my data
-            </Typography>
-          </div> */}
           </div>
         </div>
         <hr className="border-zinc-200" />
@@ -661,21 +866,6 @@ export const SettingsDialog = ({
               </Typography>
             </div>
           </div>
-        </div>
-
-        <hr className="border-zinc-200" />
-        <div className="p-6">
-          <Typography className="text-ks-warm-grey-500 text-xs">
-            AI assistant powered by{' '}
-            <a
-              href="https://openclawskills.org/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.link}
-            >
-              OpenClaw
-            </a>
-          </Typography>
         </div>
       </div>
     </Dialog>
