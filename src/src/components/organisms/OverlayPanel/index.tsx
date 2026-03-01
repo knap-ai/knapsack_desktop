@@ -10,6 +10,16 @@ const INPUT_AREA_HEIGHT = 72
 const QUICK_ACTIONS_HEIGHT = 44
 const PADDING_BOTTOM = 16
 
+// Read user profile from localStorage (shared with the main app)
+const PROFILE_KEY = 'KN_PROFILE'
+function getUserProfile(): { email: string; name?: string } | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* corrupt data */ }
+  return null
+}
+
 interface QuickAction {
   label: string
   query: string
@@ -130,10 +140,15 @@ function OverlayPanel() {
       setIsStreaming(true)
 
       try {
+        // Get user profile for the required user_email/user_name fields
+        const profile = getUserProfile()
+
         const res = await fetch(KN_API_STREAM_LLM_COMPLETE, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            user_email: profile?.email || '',
+            user_name: profile?.name || '',
             prompt: submittedQuery,
             documents: [],
             is_local: false,
@@ -194,32 +209,35 @@ function OverlayPanel() {
   )
 
   return (
-    <div className="flex flex-col w-full h-full items-center">
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        background: 'transparent',
+      }}
+    >
       <div
-        className="w-full max-w-[680px] rounded-2xl overflow-hidden"
         style={{
-          background: 'rgba(30, 30, 30, 0.88)',
-          backdropFilter: 'blur(40px)',
-          WebkitBackdropFilter: 'blur(40px)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.45), 0 0 1px rgba(255,255,255,0.1)',
+          width: '100%',
+          maxWidth: 680,
+          borderRadius: 16,
+          overflow: 'hidden',
+          background: '#ffffff',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06)',
+          fontFamily: "var(--font-inter, 'Inter', -apple-system, BlinkMacSystemFont, sans-serif)",
         }}
       >
         {/* Input area */}
-        <div className="flex items-center px-4 h-[72px]">
-          {/* Search icon */}
-          <svg
-            className="w-5 h-5 text-gray-400 mr-3 flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px', height: 72 }}>
+          {/* Knapsack logo */}
+          <img
+            src="/assets/images/knap-logo-medium.png"
+            alt="Knapsack"
+            style={{ width: 24, height: 24, marginRight: 12, flexShrink: 0 }}
+          />
 
           <input
             ref={inputRef}
@@ -229,18 +247,36 @@ function OverlayPanel() {
             onKeyDown={handleKeyDown}
             placeholder="Ask Knapsack anything..."
             autoFocus
-            className="flex-1 bg-transparent text-white text-lg font-light outline-none placeholder-gray-500"
-            style={{ fontSize: '18px', fontFamily: 'var(--font-inter)' }}
+            style={{
+              flex: 1,
+              background: 'transparent',
+              color: '#1a1a1a',
+              fontSize: 18,
+              fontWeight: 300,
+              outline: 'none',
+              border: 'none',
+              fontFamily: 'inherit',
+            }}
           />
 
           {/* Stop / clear button when streaming or has response */}
           {(isStreaming || hasResponse) && (
             <button
               onClick={resetOverlay}
-              className="ml-2 text-gray-400 hover:text-white transition-colors flex-shrink-0"
               title={isStreaming ? 'Stop' : 'Clear'}
+              style={{
+                marginLeft: 8,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 4,
+                color: '#999',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+              }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -252,66 +288,87 @@ function OverlayPanel() {
           )}
         </div>
 
-        {/* Separator — always visible below the input */}
-        <div className="mx-4 border-t border-white/10" />
+        {/* Separator */}
+        <div style={{ margin: '0 16px', borderTop: '1px solid rgba(0,0,0,0.08)' }} />
 
         {/* Response area */}
         {hasResponse && (
           <div
             ref={responseRef}
-            className="px-4 pt-3 pb-4 text-gray-200 text-sm leading-relaxed overflow-y-auto"
             style={{
-              maxHeight: `${MAX_RESPONSE_HEIGHT}px`,
-              fontFamily: 'var(--font-inter)',
+              padding: '12px 16px 16px',
+              color: '#333',
+              fontSize: 14,
+              lineHeight: 1.6,
+              overflowY: 'auto',
+              maxHeight: MAX_RESPONSE_HEIGHT,
+              fontFamily: 'inherit',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
             }}
           >
             {response || (
-              <span className="text-gray-500 inline-flex items-center gap-2">
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+              <span style={{ color: '#999', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
                   <circle
-                    className="opacity-25"
                     cx="12"
                     cy="12"
                     r="10"
                     stroke="currentColor"
                     strokeWidth="4"
+                    opacity={0.25}
                   />
                   <path
-                    className="opacity-75"
                     fill="currentColor"
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    opacity={0.75}
                   />
                 </svg>
                 Thinking...
               </span>
             )}
             {isStreaming && (
-              <span className="inline-block w-1.5 h-4 bg-gray-400 ml-0.5 animate-pulse align-text-bottom" />
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 6,
+                  height: 16,
+                  background: '#c54841',
+                  marginLeft: 2,
+                  verticalAlign: 'text-bottom',
+                  animation: 'pulse 1s infinite',
+                }}
+              />
             )}
           </div>
         )}
 
         {/* Quick action buttons — shown only when there is no response */}
         {!hasResponse && (
-          <div className="flex items-center gap-2 px-4 py-2.5">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px 10px' }}>
             {QUICK_ACTIONS.map(action => (
               <button
                 key={action.label}
                 onClick={() => handleQuickAction(action)}
-                className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
                 style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  color: 'rgba(255,255,255,0.6)',
+                  padding: '6px 12px',
+                  borderRadius: 20,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  background: 'rgba(0,0,0,0.05)',
+                  color: '#666',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  fontFamily: 'inherit',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.15)'
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.9)'
+                  e.currentTarget.style.background = 'rgba(197,72,65,0.1)'
+                  e.currentTarget.style.color = '#c54841'
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.6)'
+                  e.currentTarget.style.background = 'rgba(0,0,0,0.05)'
+                  e.currentTarget.style.color = '#666'
                 }}
               >
                 {action.label}
@@ -319,8 +376,17 @@ function OverlayPanel() {
             ))}
 
             {/* Keyboard shortcut hint */}
-            <div className="ml-auto flex items-center gap-1 text-gray-600 text-xs">
-              <kbd className="px-1.5 py-0.5 rounded text-[10px] border border-gray-700 bg-gray-800/50">
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: '#bbb', fontSize: 11 }}>
+              <kbd
+                style={{
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  fontSize: 10,
+                  border: '1px solid #ddd',
+                  background: '#f5f5f5',
+                  fontFamily: 'inherit',
+                }}
+              >
                 Esc
               </kbd>
               <span>to close</span>
@@ -328,6 +394,22 @@ function OverlayPanel() {
           </div>
         )}
       </div>
+
+      {/* CSS animations */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+        /* Ensure placeholder color in light theme */
+        input::placeholder {
+          color: #aaa !important;
+        }
+      `}</style>
     </div>
   )
 }
