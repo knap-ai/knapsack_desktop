@@ -101,6 +101,34 @@ diesel::table! {
 }
 
 diesel::table! {
+    heartbeat_config (id) {
+        id -> Nullable<Integer>,
+        enabled -> Integer,
+        interval_minutes -> Integer,
+        check_emails -> Integer,
+        check_calendar -> Integer,
+        check_documents -> Integer,
+        quiet_hours_start -> Nullable<Text>,
+        quiet_hours_end -> Nullable<Text>,
+        last_run_at -> Nullable<Integer>,
+        created_at -> Nullable<Integer>,
+        updated_at -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
+    heartbeat_logs (id) {
+        id -> Nullable<Integer>,
+        run_at -> Integer,
+        context_summary -> Nullable<Text>,
+        decision -> Text,
+        notification_sent -> Integer,
+        notification_content -> Nullable<Text>,
+        created_at -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
     drive_documents (id) {
         id -> Nullable<Integer>,
         drive_id -> Text,
@@ -237,6 +265,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     drive_documents,
     emails,
     feed_items,
+    heartbeat_config,
+    heartbeat_logs,
     local_files,
     message_feedbacks,
     messages,

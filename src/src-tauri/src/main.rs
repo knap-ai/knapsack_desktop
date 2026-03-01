@@ -21,6 +21,7 @@ mod constants;
 mod db;
 mod error;
 mod file_upload;
+mod heartbeat;
 mod llm;
 mod local_fs;
 mod memory;
@@ -157,6 +158,10 @@ fn setup_handler(
 
   let actix_app_handle = app.handle();
 
+  // Clone is_chatting for the heartbeat loop (before it's moved into the server thread)
+  let heartbeat_is_chatting = is_chatting.clone();
+  let heartbeat_app_handle = app.handle();
+
   // Start the server
   let _handle = std::thread::spawn(|| {
     match server::actix::start_server(
@@ -177,6 +182,16 @@ fn setup_handler(
         std::process::exit(1);
       }
     }
+  });
+
+  // Start the heartbeat background loop
+  std::thread::spawn(move || {
+    tokio::runtime::Runtime::new()
+      .unwrap()
+      .block_on(heartbeat::engine::start_heartbeat_loop(
+        heartbeat_app_handle,
+        heartbeat_is_chatting,
+      ));
   });
 
   info!(

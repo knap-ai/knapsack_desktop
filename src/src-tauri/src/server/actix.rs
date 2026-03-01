@@ -32,6 +32,7 @@ use crate::api;
 use crate::audio;
 use crate::automations::api as automation_api;
 use crate::connections;
+use crate::heartbeat::api as heartbeat_api;
 use crate::search;
 use crate::user::UserInfo;
 use crate::ConnectionsData;
@@ -234,6 +235,11 @@ pub async fn start_server<'a>(
       .service(usage_api::get_budget_status)
       .service(usage_api::get_model_routing)
       .service(usage_api::set_model_routing)
+      // Heartbeat system endpoints
+      .service(heartbeat_api::get_heartbeat_config)
+      .service(heartbeat_api::update_heartbeat_config)
+      .service(heartbeat_api::get_heartbeat_logs)
+      .service(heartbeat_api::trigger_heartbeat)
   })
   .bind(("127.0.0.1", port))
   .unwrap()
