@@ -202,6 +202,7 @@ pub async fn start_server<'a>(
       .service(clawd::service::ollama_status)
       .service(clawd::service::ollama_models)
       .service(clawd::service::ollama_configure)
+      .service(clawd::service::ollama_pull)
       // Skills management endpoints
       .service(clawd::service::skills_status)
       .service(clawd::service::skills_install)

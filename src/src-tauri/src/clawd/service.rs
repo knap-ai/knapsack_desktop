@@ -1,4 +1,5 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Read;
@@ -1264,6 +1265,64 @@ pub async fn ollama_configure(
       "Ollama disabled".to_string()
     },
   })
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OllamaPullRequest {
+  pub model: String,
+}
+
+/// Pull (download) a model from the Ollama registry.
+/// Streams progress back as newline-delimited JSON lines.
+#[post("/api/knapsack/ollama/pull")]
+pub async fn ollama_pull(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<OllamaPullRequest>,
+) -> impl Responder {
+  let tokens = load_or_create_tokens(&app_handle).ok();
+  let base_url = tokens
+    .as_ref()
+    .and_then(|t| t.ollama_base_url.clone())
+    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(3600)) // large models may take a while
+    .build()
+    .unwrap_or_default();
+
+  let resp = match client
+    .post(format!("{}/api/pull", &base_url))
+    .json(&serde_json::json!({ "name": &payload.model, "stream": true }))
+    .send()
+    .await
+  {
+    Ok(r) => r,
+    Err(e) => {
+      return HttpResponse::BadGateway().json(serde_json::json!({
+        "success": false,
+        "message": format!("Cannot reach Ollama at {}: {}", base_url, e),
+      }))
+    }
+  };
+
+  if !resp.status().is_success() {
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    return HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": format!("Ollama pull error ({}): {}", status, body),
+    }));
+  }
+
+  // Stream the Ollama pull progress lines through to the frontend.
+  let stream = resp.bytes_stream().map(|chunk| {
+    chunk.map(|b| actix_web::web::Bytes::from(b.to_vec()))
+      .map_err(|e| actix_web::error::ErrorBadGateway(format!("Stream error: {}", e)))
+  });
+
+  HttpResponse::Ok()
+    .content_type("application/x-ndjson")
+    .streaming(stream)
 }
 
 /// Retrieve stored API keys for frontend use (voice/TTS, provider selection).

@@ -261,7 +261,7 @@ type SkillInfo = {
   homepage?: string // URL for skill detail page (from gateway)
 }
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq' | 'ollama'
 
 type ProviderOption = {
   id: Provider
@@ -276,6 +276,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.5, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google', description: 'Gemini 3 Pro, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'Llama 4, Kimi K2, DeepSeek R1 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
+  { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
 ]
 
 type AnthropicModelOption = {
@@ -323,6 +324,17 @@ const GROQ_MODELS: GroqModelOption[] = [
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', description: 'Ultra-fast, lightweight' },
 ]
 
+// Recommended models to offer for download when Ollama has none installed
+type OllamaModelSuggestion = { id: string; name: string; description: string; size: string }
+const OLLAMA_SUGGESTED_MODELS: OllamaModelSuggestion[] = [
+  { id: 'llama3.1:8b', name: 'Llama 3.1 8B', description: 'Great all-rounder, fast on most hardware', size: '~4.7 GB' },
+  { id: 'gemma3:4b', name: 'Gemma 3 4B', description: 'Google model, compact and capable', size: '~3.3 GB' },
+  { id: 'mistral:7b', name: 'Mistral 7B', description: 'Excellent reasoning, low resource usage', size: '~4.1 GB' },
+  { id: 'qwen3:8b', name: 'Qwen 3 8B', description: 'Strong multilingual, thinking capabilities', size: '~4.9 GB' },
+  { id: 'phi4-mini:3.8b', name: 'Phi-4 Mini 3.8B', description: 'Microsoft, tiny but surprisingly smart', size: '~2.2 GB' },
+  { id: 'deepseek-r1:8b', name: 'DeepSeek R1 8B', description: 'Reasoning model with chain-of-thought', size: '~4.9 GB' },
+]
+
 // In Tauri dev, the UI runs on Vite (1420) while the Rust server listens on 8897.
 // In production, the UI is loaded from file:// but the Rust server is still 8897.
 const API_BASE = 'http://localhost:8897'
@@ -356,6 +368,7 @@ const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
 const ANTHROPIC_MODEL_STORAGE = 'moltbot_anthropic_model'
 const GEMINI_MODEL_STORAGE = 'moltbot_gemini_model'
 const GROQ_MODEL_STORAGE = 'moltbot_groq_model'
+const OLLAMA_MODEL_STORAGE = 'moltbot_ollama_model'
 const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
 const CHAT_HISTORY_STORAGE = 'moltbot_chat_history'
@@ -863,8 +876,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedGroqModel, setSelectedGroqModel] = useState<string>(() => {
     return localStorage.getItem(GROQ_MODEL_STORAGE) || 'meta-llama/llama-4-scout-17b-16e-instruct'
   })
+  const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
+    return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
+  })
   const [selectedProvider, setSelectedProvider] = useState<Provider>('openai')
   const [savingKey, setSavingKey] = useState(false)
+
+  // Ollama state
+  const [ollamaRunning, setOllamaRunning] = useState<boolean | null>(null)
+  const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; parameter_size?: string }>>([])
+  const [ollamaPulling, setOllamaPulling] = useState(false)
+  const [ollamaPullProgress, setOllamaPullProgress] = useState('')
+  const [ollamaPullPercent, setOllamaPullPercent] = useState<number | null>(null)
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
   const [keyHints, setKeyHints] = useState<Record<string, string | undefined>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
@@ -1665,7 +1688,115 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Gateway service handler removed - channels UI removed in this version
 
+  // ── Ollama auto-detect ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (selectedProvider !== 'ollama' || !showKeyPrompt) return
+    setOllamaRunning(null)
+    const checkOllama = async () => {
+      try {
+        const s = await apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
+        setOllamaRunning(s.running)
+        if (s.running) {
+          const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+          if (m.success) {
+            setOllamaModels(m.models)
+            if (m.models.length > 0 && !selectedOllamaModel) {
+              setSelectedOllamaModel(m.models[0].name)
+            }
+          }
+        }
+      } catch {
+        setOllamaRunning(false)
+      }
+    }
+    checkOllama()
+  }, [selectedProvider, showKeyPrompt])
+
+  const pullOllamaModel = useCallback(async (modelId: string) => {
+    setOllamaPulling(true)
+    setOllamaPullProgress('Starting download...')
+    setOllamaPullPercent(null)
+    try {
+      const resp = await fetch(apiUrl('/api/knapsack/ollama/pull'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: modelId }),
+      })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ message: 'Pull failed' }))
+        setOllamaPullProgress(`Error: ${err.message}`)
+        return
+      }
+      const reader = resp.body?.getReader()
+      if (!reader) { setOllamaPullProgress('Error: no response stream'); return }
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        // Parse newline-delimited JSON
+        const lines = buf.split('\n')
+        buf = lines.pop() || '' // keep incomplete line in buffer
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const msg = JSON.parse(line)
+            if (msg.status) {
+              setOllamaPullProgress(msg.status)
+            }
+            if (msg.total && msg.completed) {
+              setOllamaPullPercent(Math.round((msg.completed / msg.total) * 100))
+            }
+          } catch { /* ignore malformed lines */ }
+        }
+      }
+      // Pull complete — refresh model list
+      setOllamaPullProgress('Download complete!')
+      setOllamaPullPercent(100)
+      const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+      if (m.success) {
+        setOllamaModels(m.models)
+        // Auto-select the model we just pulled
+        const pulled = m.models.find(mod => mod.name.startsWith(modelId.split(':')[0]))
+        if (pulled) setSelectedOllamaModel(pulled.name)
+      }
+    } catch (e: any) {
+      setOllamaPullProgress(`Error: ${e?.message || String(e)}`)
+    } finally {
+      setOllamaPulling(false)
+    }
+  }, [])
+
+  // Ollama uses a separate save flow (ollama/configure endpoint, no API key)
+  const saveOllamaProvider = useCallback(async () => {
+    if (!selectedOllamaModel) return
+    setSavingKey(true)
+    try {
+      await apiPost('/api/knapsack/ollama/configure', {
+        enabled: true,
+        model: selectedOllamaModel,
+      })
+      localStorage.setItem(OLLAMA_MODEL_STORAGE, selectedOllamaModel)
+      setShowKeyPrompt(false)
+      setHasCompletedOnboarding(true)
+      localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
+      try {
+        await apiPost('/api/clawd/service/enable', { enabled: true })
+        await refreshStatus()
+        pushAssistant(`Great! I'm all set up with Ollama (${selectedOllamaModel}) running locally. No API costs! Try asking me to browse a website!`)
+      } catch {
+        pushAssistant('Ollama enabled! You can now use local AI models.')
+      }
+    } catch (e: any) {
+      pushAssistant(`Failed to enable Ollama: ${e?.message || String(e)}. Please try again.`)
+    } finally {
+      setSavingKey(false)
+    }
+  }, [selectedOllamaModel])
+
   const saveApiKey = useCallback(async () => {
+    if (selectedProvider === 'ollama') { saveOllamaProvider(); return }
     if (!apiKey.trim()) return
 
     setSavingKey(true)
@@ -1720,7 +1851,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedProvider])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
 
   useEffect(() => {
     const init = async () => {
@@ -2716,6 +2847,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || 'Anthropic')
               : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || 'Gemini')
               : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || 'Groq')
+              : selectedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
               : OPENAI_MODELS.find(m => m.id === selectedModel)?.name || 'OpenAI'}
           </button>
           <button disabled={busy} onClick={() => setShowToneSelector(true)}>
@@ -4311,19 +4443,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               ))}
             </div>
 
-            <label className="ClawdKeyPromptLabel">
-              {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder={keyHints[selectedProvider] || PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
-              disabled={savingKey}
-              onKeyDown={e => {
-                if (e.key === 'Enter') saveApiKey()
-              }}
-            />
+            {selectedProvider !== 'ollama' && (
+              <>
+                <label className="ClawdKeyPromptLabel">
+                  {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder={keyHints[selectedProvider] || PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
+                  disabled={savingKey}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') saveApiKey()
+                  }}
+                />
+              </>
+            )}
 
             {selectedProvider === 'openai' && (
               <>
@@ -4401,24 +4537,176 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               </>
             )}
 
+            {selectedProvider === 'ollama' && (
+              <div className="ClawdOllamaSection">
+                {/* Status indicator */}
+                <div className="ClawdOllamaStatus">
+                  {ollamaRunning === null ? (
+                    <span className="ClawdOllamaStatusChecking">Checking for Ollama...</span>
+                  ) : ollamaRunning ? (
+                    <span className="ClawdOllamaStatusOk">
+                      <span className="ClawdOllamaStatusDot ok" />
+                      Ollama is running
+                    </span>
+                  ) : (
+                    <span className="ClawdOllamaStatusErr">
+                      <span className="ClawdOllamaStatusDot err" />
+                      Ollama not detected
+                    </span>
+                  )}
+                </div>
+
+                {/* Install prompt when not running */}
+                {ollamaRunning === false && (
+                  <div className="ClawdOllamaInstall">
+                    <p>Ollama runs AI models locally on your machine — free, private, no API key needed.</p>
+                    <a
+                      href="https://ollama.com/download"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ClawdOllamaInstallBtn"
+                    >
+                      Download Ollama
+                    </a>
+                    <p className="ClawdOllamaInstallHint">
+                      After installing, launch Ollama and come back here.{' '}
+                      <button
+                        className="ClawdOllamaRetry"
+                        onClick={() => {
+                          setOllamaRunning(null)
+                          apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
+                            .then(s => {
+                              setOllamaRunning(s.running)
+                              if (s.running) {
+                                apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+                                  .then(m => { if (m.success) setOllamaModels(m.models) })
+                              }
+                            })
+                            .catch(() => setOllamaRunning(false))
+                        }}
+                      >
+                        Check again
+                      </button>
+                    </p>
+                  </div>
+                )}
+
+                {/* Models already installed — pick one */}
+                {ollamaRunning && ollamaModels.length > 0 && (
+                  <>
+                    <label className="ClawdKeyPromptLabel">Your Models</label>
+                    <div className="ClawdModelSelector">
+                      {ollamaModels.map(model => (
+                        <button
+                          key={model.name}
+                          className={`ClawdModelOption ${selectedOllamaModel === model.name ? 'selected' : ''}`}
+                          onClick={() => setSelectedOllamaModel(model.name)}
+                          disabled={savingKey}
+                        >
+                          <span className="ClawdModelName">{model.name}</span>
+                          <span className="ClawdModelDesc">{model.parameter_size || 'Local model'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* No models — show recommended downloads */}
+                {ollamaRunning && ollamaModels.length === 0 && !ollamaPulling && (
+                  <>
+                    <label className="ClawdKeyPromptLabel">Download a Model</label>
+                    <p style={{ fontSize: 13, color: '#666', margin: '0 0 8px' }}>
+                      No models installed yet. Pick one to download:
+                    </p>
+                    <div className="ClawdModelSelector">
+                      {OLLAMA_SUGGESTED_MODELS.map(model => (
+                        <button
+                          key={model.id}
+                          className="ClawdModelOption"
+                          onClick={() => pullOllamaModel(model.id)}
+                        >
+                          <span className="ClawdModelName">{model.name}</span>
+                          <span className="ClawdModelDesc">{model.description} ({model.size})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Download in progress */}
+                {ollamaPulling && (
+                  <div className="ClawdOllamaPullProgress">
+                    <label className="ClawdKeyPromptLabel">Downloading...</label>
+                    <div className="ClawdOllamaProgressBar">
+                      <div
+                        className="ClawdOllamaProgressFill"
+                        style={{ width: `${ollamaPullPercent ?? 0}%` }}
+                      />
+                    </div>
+                    <span className="ClawdOllamaProgressText">
+                      {ollamaPullPercent !== null ? `${ollamaPullPercent}% — ` : ''}{ollamaPullProgress}
+                    </span>
+                  </div>
+                )}
+
+                {/* Add more models button when models exist */}
+                {ollamaRunning && ollamaModels.length > 0 && !ollamaPulling && (
+                  <>
+                    <label className="ClawdKeyPromptLabel" style={{ marginTop: 8 }}>Download More Models</label>
+                    <div className="ClawdModelSelector">
+                      {OLLAMA_SUGGESTED_MODELS
+                        .filter(s => !ollamaModels.some(m => m.name.startsWith(s.id.split(':')[0])))
+                        .slice(0, 3)
+                        .map(model => (
+                        <button
+                          key={model.id}
+                          className="ClawdModelOption"
+                          onClick={() => pullOllamaModel(model.id)}
+                        >
+                          <span className="ClawdModelName">{model.name}</span>
+                          <span className="ClawdModelDesc">{model.description} ({model.size})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="ClawdKeyPromptActions">
-              <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
-                {savingKey ? 'Saving...' : 'Save & Enable'}
-              </button>
+              {selectedProvider === 'ollama' ? (
+                <button
+                  onClick={saveOllamaProvider}
+                  disabled={savingKey || !ollamaRunning || !selectedOllamaModel}
+                >
+                  {savingKey ? 'Saving...' : 'Enable Ollama'}
+                </button>
+              ) : (
+                <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
+                  {savingKey ? 'Saving...' : 'Save & Enable'}
+                </button>
+              )}
             </div>
-            <p className="ClawdKeyPromptHelp">
-              Get your API key at{' '}
-              <a
-                href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
-                {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
-                {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
-                {selectedProvider === 'groq' && 'console.groq.com/keys'}
-              </a>
-            </p>
+            {selectedProvider !== 'ollama' ? (
+              <p className="ClawdKeyPromptHelp">
+                Get your API key at{' '}
+                <a
+                  href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
+                  {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
+                  {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
+                  {selectedProvider === 'groq' && 'console.groq.com/keys'}
+                </a>
+              </p>
+            ) : (
+              <p className="ClawdKeyPromptHelp">
+                Runs locally on your machine — no API key or costs.{' '}
+                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Learn more</a>
+              </p>
+            )}
           </div>
         </div>
       )}
