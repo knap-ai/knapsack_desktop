@@ -62,6 +62,21 @@ fn register_shortcut(app_handle: AppHandle<Wry>) {
       };
     })
   .unwrap();
+
+  // Register overlay (Quick Chat) shortcut: Option+Space (Alt+Space on Windows/Linux)
+  let overlay_handle = app_handle.clone();
+  shortcut_manager
+    .register("Option+Space", move || {
+      if let Some(overlay_window) = overlay_handle.get_window("overlay") {
+        if overlay_window.is_visible().unwrap_or(false) {
+          overlay_window.hide().expect("Failed to hide overlay window");
+        } else {
+          overlay_window.show().expect("Failed to show overlay window");
+          overlay_window.set_focus().expect("Failed to focus overlay window");
+        }
+      }
+    })
+  .unwrap();
 }
 
 #[tauri::command]
@@ -81,6 +96,35 @@ pub fn kn_hide_app(app_handle: AppHandle<Wry>) {
     // panel!(app_handle).order_out(None);
     window.hide().expect("Failed to hide window");
     println!("hide_spotlight: 2");
+  }
+}
+
+// ── Overlay (Quick Chat Panel) commands ──
+
+#[tauri::command]
+pub fn show_overlay_window(app_handle: AppHandle<Wry>) {
+  if let Some(window) = app_handle.get_window("overlay") {
+    window.show().expect("Failed to show overlay window");
+    window.set_focus().expect("Failed to focus overlay window");
+  }
+}
+
+#[tauri::command]
+pub fn hide_overlay_window(app_handle: AppHandle<Wry>) {
+  if let Some(window) = app_handle.get_window("overlay") {
+    window.hide().expect("Failed to hide overlay window");
+  }
+}
+
+#[tauri::command]
+pub fn toggle_overlay_window(app_handle: AppHandle<Wry>) {
+  if let Some(window) = app_handle.get_window("overlay") {
+    if window.is_visible().unwrap_or(false) {
+      window.hide().expect("Failed to hide overlay window");
+    } else {
+      window.show().expect("Failed to show overlay window");
+      window.set_focus().expect("Failed to focus overlay window");
+    }
   }
 }
 

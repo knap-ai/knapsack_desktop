@@ -51,6 +51,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
+  let ollama_key = std::env::var("OLLAMA_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.2".to_string());
 
   // Try the user's active provider first
@@ -76,6 +77,19 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
       is_anthropic: false,
     }),
+    "ollama" if ollama_key.is_some() => {
+      let ollama_base = std::env::var("OLLAMA_HOST")
+        .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
+      let ollama_model = std::env::var("KNAPSACK_OLLAMA_MODEL")
+        .unwrap_or_else(|_| "llama3.1".to_string());
+      return Ok(ResolvedProvider {
+        name: "ollama".into(),
+        api_key: "ollama-local".into(),
+        model: ollama_model,
+        base_url: format!("{}/v1", ollama_base),
+        is_anthropic: false,
+      });
+    }
     _ => {} // Fall through to priority-based resolution
   }
 
@@ -143,6 +157,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
             "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
             "gemini" => ("gemini-2.5-flash".to_string(), "Flash"), // already cheap
             "groq" => (provider.model.clone(), "Groq"),           // already cheap
+            "ollama" => (provider.model.clone(), "Ollama"),       // local, no cost
             _ => (provider.model.clone(), "unchanged"),
         };
 

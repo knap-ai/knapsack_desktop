@@ -152,10 +152,6 @@ fn setup_handler(
   // starts, so that llm_complete (meeting notes) and transcribe can use them.
   clawd::service::propagate_llm_keys_to_env(&app_handle);
 
-  // Patch openclaw.json config on every startup (e.g. force headless=false)
-  // and cycle the running service if anything changed.
-  clawd::service::patch_config_and_cycle_service(&app_handle);
-
   let actix_app_handle = app.handle();
 
   // Clone is_chatting for the heartbeat loop (before it's moved into the server thread)
@@ -341,11 +337,10 @@ async fn show_notification_window(
         let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
         let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
-        // Position below the macOS menu bar (~25 logical px)
-        let y_position = (30.0 * scale_factor) as i32;
+        let y_position = 0;
 
-        // Resize notification window to full screen height minus offset
-        let screen_height_logical = (screen_size.height as f64 / scale_factor) - 30.0;
+        // Resize notification window to full screen height
+        let screen_height_logical = screen_size.height as f64 / scale_factor;
         window
           .set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: NOTIF_WIDTH,
@@ -436,8 +431,8 @@ fn activate_main_window_from_notification(window: tauri::Window) {
         let screen_size = monitor.size();
         let scale_factor = monitor.scale_factor();
 
-        // Use the same width as the notification and full screen height (minus menu-bar offset)
-        let logical_height = (screen_size.height as f64 / scale_factor) - 30.0;
+        // Use the same width as the notification and ~70% of screen height
+        let logical_height = (screen_size.height as f64 / scale_factor) * 0.7;
 
         let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
           width: NOTIF_WIDTH,
@@ -980,6 +975,44 @@ async fn main() {
       let notification_window = notification_builder.build()?;
       app.manage(Arc::new(Mutex::new(notification_window)));
 
+      // overlay (Quick Chat Panel) window
+      let mut overlay_builder = WindowBuilder::new(
+        app,
+        "overlay",
+        WindowUrl::App("overlay.html".into()),
+      )
+      .title("Overlay")
+      .inner_size(680.0, 72.0)
+      .resizable(false)
+      .decorations(false)
+      .always_on_top(true)
+      .transparent(true)
+      .visible(false);
+
+      #[cfg(target_os = "macos")]
+      {
+        overlay_builder = overlay_builder.accept_first_mouse(true);
+      }
+
+      let overlay_window = overlay_builder.build()?;
+
+      // Center the overlay horizontally, position ~1/4 from the top of the screen
+      if let Ok(Some(monitor)) = overlay_window.current_monitor() {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+        let screen_width_logical = screen_size.width as f64 / scale_factor;
+        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        let overlay_width = 680.0_f64;
+        let overlay_x = ((screen_width_logical - overlay_width) / 2.0) * scale_factor;
+        let overlay_y = (screen_height_logical * 0.25) * scale_factor;
+        overlay_window
+          .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+            x: overlay_x as i32,
+            y: overlay_y as i32,
+          }))
+          .unwrap();
+      }
+
       let llm_path = app
         .path_resolver()
         .resolve_resource("resources/llm.gguf")
@@ -1030,6 +1063,9 @@ async fn main() {
       check_audio_permissions,
       audio::audio::emit_stop_events,
       spotlight::kn_init_app,
+      spotlight::show_overlay_window,
+      spotlight::hide_overlay_window,
+      spotlight::toggle_overlay_window,
       kn_read_logs,
       kn_get_log_path,
       kn_execute_command,
