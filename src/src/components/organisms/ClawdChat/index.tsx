@@ -2836,6 +2836,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   stopGenerationRef.current = stopGeneration
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
 
+  // Escape key stops generation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') stopGenerationRef.current()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput
   const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
