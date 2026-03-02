@@ -2657,42 +2657,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }))
         }
 
-        // Try gateway agent-chat first (shared session with Telegram/WhatsApp/iMessage),
-        // fall back to direct chat if gateway is unavailable.
-        let useDirectChat = false
-        try {
-          const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: requestBody.text }),
-            signal: controller.signal,
-          })
-          if (agentRes.ok) {
-            const agentOut = await agentRes.json() as { ok?: boolean; reply?: string; message?: string; fallback?: boolean; gateway?: boolean }
-            if (agentOut.ok && agentOut.reply && agentOut.gateway) {
-              setMsgs(prev => [
-                ...prev,
-                { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: 'gateway' },
-              ])
-            } else {
-              // Gateway returned fallback signal — use direct chat
-              useDirectChat = true
-            }
-          } else {
-            useDirectChat = true
-          }
-        } catch (agentErr: any) {
-          if (agentErr.name === 'AbortError') throw agentErr
-          console.warn('[chat] Gateway agent-chat failed, falling back to direct chat:', agentErr.message)
-          useDirectChat = true
-        }
-
-        // Fallback: direct LLM chat (no shared session with channels)
+        // Retry transient failures (429, 500, 502, 503, 504) up to 2 times
         const maxRetries = 3
         let lastError = ''
-        let succeeded = !useDirectChat // Already succeeded if gateway worked
+        let succeeded = false
 
-        if (useDirectChat) {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             const res = await fetch(apiUrl('/api/clawd/chat'), {
@@ -2743,7 +2712,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (!succeeded && lastError) {
           throw new Error(lastError)
         }
-        } // end if (useDirectChat)
       } catch (e: any) {
         if (e.name === 'AbortError') {
           // User cancelled - already handled in stopGeneration

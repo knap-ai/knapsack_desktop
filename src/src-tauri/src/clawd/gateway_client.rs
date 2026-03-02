@@ -115,10 +115,6 @@ struct AuthInfo {
 
 struct Pending {
   tx: oneshot::Sender<Result<Value, String>>,
-  /// How many more responses to skip before resolving.
-  /// For two-phase methods like `agent`, the first response is an ack
-  /// and the second is the actual result. Set to 1 to skip one response.
-  remaining_skips: u32,
 }
 
 #[derive(Default)]
@@ -286,22 +282,13 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
       if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&text) {
         let mut pending = client_clone.pending.lock().await;
-        if let Some(mut p) = pending.remove(&resp.id) {
-          if p.remaining_skips > 0 {
-            // This is an intermediate response (e.g. "accepted" ack for
-            // two-phase methods like `agent`).  Re-insert the pending
-            // entry and wait for the next response with the same ID.
-            p.remaining_skips -= 1;
-            pending.insert(resp.id, p);
+        if let Some(p) = pending.remove(&resp.id) {
+          let out = if resp.ok {
+            Ok(resp.result.or(resp.data).or(resp.payload).unwrap_or(Value::Null))
           } else {
-            // Final response — resolve the future.
-            let out = if resp.ok {
-              Ok(resp.result.or(resp.data).or(resp.payload).unwrap_or(Value::Null))
-            } else {
-              Err(format!("Request failed: {:?}", resp.error.unwrap_or(Value::Null)))
-            };
-            let _ = p.tx.send(out);
-          }
+            Err(format!("Request failed: {:?}", resp.error.unwrap_or(Value::Null)))
+          };
+          let _ = p.tx.send(out);
         }
       }
     }
@@ -405,7 +392,7 @@ pub async fn gateway_request_pooled(
   let (tx, rx) = oneshot::channel();
   {
     let mut pending = client.pending.lock().await;
-    pending.insert(id.clone(), Pending { tx, remaining_skips: 0 });
+    pending.insert(id.clone(), Pending { tx });
   }
 
   let send_res = {
@@ -446,94 +433,6 @@ pub async fn gateway_request_pooled(
     } else {
       breaker.on_failure();
       // Connection may be stale; drop it so we reconnect next time.
-      drop(breaker);
-      invalidate_client();
-    }
-  }
-
-  drop(permit);
-  out
-}
-
-/// Make a two-phase request (like `agent`) using the persistent gateway
-/// connection.  Two-phase methods send an initial "accepted" ack response
-/// followed by the actual result.  This function skips the ack and waits
-/// for the final result, with a longer timeout suitable for LLM processing.
-pub async fn gateway_request_agent(
-  method: &str,
-  params: Option<Value>,
-  token: &str,
-  timeout_secs: u64,
-) -> Result<Value, String> {
-  let client = get_or_connect(token).await?;
-
-  // Circuit breaker check
-  {
-    let breaker = client.breaker.lock().await;
-    if !breaker.allow() {
-      return Err(format!(
-        "Gateway circuit breaker is open ({})",
-        breaker.state_string()
-      ));
-    }
-  }
-
-  let permit = client
-    .in_flight
-    .acquire()
-    .await
-    .map_err(|_| "Gateway request queue closed".to_string())?;
-
-  let id = next_request_id();
-  let frame = RequestFrame {
-    frame_type: "req",
-    method: method.to_string(),
-    id: id.clone(),
-    params,
-  };
-
-  let (tx, rx) = oneshot::channel();
-  {
-    let mut pending = client.pending.lock().await;
-    // remaining_skips = 1: skip the first "accepted" ack, resolve on the second (final) response
-    pending.insert(id.clone(), Pending { tx, remaining_skips: 1 });
-  }
-
-  let send_res = {
-    let mut write = client.write.lock().await;
-    write
-      .send(Message::Text(serde_json::to_string(&frame).unwrap()))
-      .await
-      .map_err(|e| format!("Failed to send request: {}", e))
-  };
-
-  if let Err(e) = send_res {
-    {
-      let mut pending = client.pending.lock().await;
-      pending.remove(&id);
-    }
-    {
-      let mut breaker = client.breaker.lock().await;
-      breaker.on_failure();
-    }
-    invalidate_client();
-    drop(permit);
-    return Err(e);
-  }
-
-  // Longer timeout for agent requests (LLM processing can take a while)
-  let out = tokio::time::timeout(Duration::from_secs(timeout_secs), rx)
-    .await
-    .map_err(|_| format!("Agent request timed out after {}s", timeout_secs))
-    .and_then(|r| r.map_err(|_| "Gateway response channel closed".to_string()))
-    .and_then(|r| r);
-
-  {
-    let mut breaker = client.breaker.lock().await;
-    if out.is_ok() {
-      breaker.on_success();
-    } else {
-      breaker.on_failure();
       drop(breaker);
       invalidate_client();
     }
@@ -631,34 +530,6 @@ pub async fn browser_request(
     params["body"] = b;
   }
   gateway_request_pooled("browser.request", Some(params), &t).await
-}
-
-/// Send a chat message through the gateway's `agent` RPC method.
-///
-/// This routes the message through the same agent pipeline that handles
-/// Telegram/WhatsApp/iMessage messages, so they share the same session,
-/// conversation history, and system prompt.
-///
-/// The `agent` method is two-phase: it first responds with "accepted",
-/// then later with the actual result.  We use `gateway_request_agent`
-/// which waits for the second (final) response.
-pub async fn agent_chat(
-  message: &str,
-  token: Option<&str>,
-) -> Result<Value, String> {
-  let t = resolve_token(token)?;
-  let idem = format!("knapsack-ui-{}", std::time::SystemTime::now()
-    .duration_since(std::time::UNIX_EPOCH)
-    .unwrap_or_default()
-    .as_millis());
-  let params = serde_json::json!({
-    "message": message,
-    "idempotencyKey": idem,
-    "deliver": false,
-    "messageChannel": "webchat",
-  });
-  // 5 minute timeout — LLM tool loops can take a while
-  gateway_request_agent("agent", Some(params), &t, 300).await
 }
 
 /// Get current config from gateway (pooled).
