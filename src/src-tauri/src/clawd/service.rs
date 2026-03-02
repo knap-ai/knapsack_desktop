@@ -1948,13 +1948,28 @@ pub async fn set_service_enabled(
       // section (indicating it has the old version without web/image guidance).
       let should_write_tools_md = if tools_md_path.exists() {
         fs::read_to_string(&tools_md_path)
-          .map(|content| !content.contains("## Web Fetch") || !content.contains("## Images"))
+          .map(|content| !content.contains("## Cross-Channel Awareness"))
           .unwrap_or(true)
       } else {
         true
       };
       if should_write_tools_md {
         let tools_md_content = r#"# Tools
+
+## Cross-Channel Awareness
+
+You are running inside the **Knapsack desktop app** on the user's computer. You serve the same user across multiple channels — the desktop chat UI, Telegram, WhatsApp, and iMessage all share the same session and capabilities.
+
+**Key facts:**
+- Messages from **Telegram, WhatsApp, and iMessage** are handled by the same agent as the desktop chat
+- You have access to a **real desktop browser** on the user's machine — use it to check email, calendars, web apps, etc. regardless of which channel the message came from
+- When a user messages you from Telegram asking to "check my calendar" or "look up something online", **use the browser tool** — you CAN do it
+- The browser is logged into the user's accounts (Google, Microsoft, etc.), so you can access authenticated services
+- Never say "I can't browse the web" or "I don't have access to your calendar" — you DO have access via the browser tool
+
+**Channel-specific notes:**
+- **Desktop chat**: The user sees your response directly in the Knapsack app
+- **Telegram/WhatsApp/iMessage**: The user sees your response in their messaging app. Keep responses concise and mobile-friendly. You can still use the browser, run scripts, and access files — the user just won't see the browser directly
 
 ## Images & Photos
 
@@ -1980,9 +1995,10 @@ You have a `web_search` tool for searching the internet. Use it when the user as
 
 ## Browser Automation
 
-You have full browser control. Use it proactively for any web-based task that requires interaction:
+You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
 
 - **Check email**: Navigate to https://mail.google.com (or Outlook, etc.) and read/summarize
+- **Check calendar**: Navigate to https://calendar.google.com and read upcoming events
 - **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
 - **Fill forms, click buttons, type text** on any website
 
