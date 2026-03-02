@@ -537,8 +537,11 @@ export const ProviderSignInDialog = ({
                 onClick={() => setSelectedModel(model.id)}
                 disabled={saving}
               >
-                <span className={styles.modelName}>{model.name}</span>
-                <span className={styles.modelDesc}>{model.description}</span>
+                <span className={`${styles.modelRadio} ${selectedModel === model.id ? styles.modelRadioSelected : ''}`} />
+                <span className={styles.modelInfo}>
+                  <span className={styles.modelName}>{model.name}</span>
+                  <span className={styles.modelDesc}>{model.description}</span>
+                </span>
               </button>
             ))}
           </div>

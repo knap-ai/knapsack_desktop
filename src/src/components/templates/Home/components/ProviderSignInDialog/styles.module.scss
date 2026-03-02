@@ -5,50 +5,48 @@
   max-height: calc(100vh - 166px);
   overflow-y: auto;
   border-radius: 12px;
-  border: 1px solid #e4e4e7;
+  border: 1px solid #e2e8f0;
   background: white;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
 .providerSignInHeader {
   padding: 24px 24px 16px 24px;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .providerSignInSubtitle {
-  margin: 8px 0 0 0;
+  margin: 6px 0 0 0;
   font-size: 13px;
   line-height: 1.5;
-  color: #71717a;
+  color: #64748b;
 }
+
+/* ── Provider tabs (horizontal pill style) ─────────────────────────────── */
 
 .providerTabs {
   display: flex;
-  flex-direction: column;
   gap: 0;
-  padding: 16px 24px;
+  padding: 16px 24px 0;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .providerTab {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 2px solid #e4e4e7;
-  border-radius: 10px;
-  background: white;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: left;
-  margin-bottom: 8px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
+  margin-bottom: -1px;
 
   &:hover:not(:disabled) {
-    border-color: #a1a1aa;
-    background: #fafafa;
+    background: #f8fafc;
   }
 
   &:disabled {
@@ -58,15 +56,13 @@
 }
 
 .providerTabActive {
-  border-color: #c54841;
-  background: rgba(197, 72, 65, 0.04);
-
-  &:hover:not(:disabled) {
-    border-color: #c54841;
-    background: rgba(197, 72, 65, 0.06);
-  }
+  border-bottom-color: #c54841;
 
   .providerTabIcon {
+    color: #c54841;
+  }
+
+  .providerTabName {
     color: #c54841;
   }
 }
@@ -75,58 +71,57 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #f4f4f5;
   flex-shrink: 0;
-  color: #52525b;
+  color: #64748b;
   transition: color 0.15s ease;
 }
 
 .providerTabContent {
   display: flex;
   flex-direction: column;
-  flex: 1;
   min-width: 0;
 }
 
 .providerTabName {
   font-weight: 600;
-  font-size: 15px;
-  color: #18181b;
+  font-size: 14px;
+  color: #1e293b;
+  transition: color 0.15s ease;
 }
 
 .providerTabDesc {
-  font-size: 12px;
-  color: #71717a;
+  font-size: 11px;
+  color: #94a3b8;
   margin-top: 1px;
+  white-space: nowrap;
 }
 
 .providerTabBadge {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
   background: #f4f4f5;
   color: #71717a;
   flex-shrink: 0;
 }
 
 .providerTabBadgeActive {
-  background: rgba(22, 163, 74, 0.1);
+  background: #f0fdf4;
   color: #16a34a;
 }
 
+/* ── Form area ─────────────────────────────────────────────────────────── */
+
 .providerSignInForm {
-  padding: 0 24px 24px 24px;
+  padding: 20px 24px 24px 24px;
 }
 
 .formLabel {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #3f3f46;
+  color: #1e293b;
   margin-bottom: 6px;
   margin-top: 0;
 }
@@ -143,6 +138,7 @@
   border: 1px solid #d4d4d8;
   font-size: 14px;
   font-family: monospace;
+  color: #1e293b;
   box-sizing: border-box;
   transition: border-color 0.15s ease;
 
@@ -234,28 +230,36 @@
   line-height: 1.4;
 }
 
+/* ── Model selector (radio-style list) ─────────────────────────────────── */
+
 .modelSelector {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   margin-bottom: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .modelOption {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  gap: 10px;
   padding: 10px 14px;
-  border-radius: 8px;
-  border: 2px solid #e4e4e7;
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
   background: white;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.1s ease;
   text-align: left;
 
+  &:last-child {
+    border-bottom: none;
+  }
+
   &:hover:not(:disabled) {
-    border-color: rgba(197, 72, 65, 0.3);
-    background: rgba(197, 72, 65, 0.02);
+    background: #f8fafc;
   }
 
   &:disabled {
@@ -265,25 +269,60 @@
 }
 
 .modelOptionSelected {
+  background: rgba(197, 72, 65, 0.04);
+
+  &:hover:not(:disabled) {
+    background: rgba(197, 72, 65, 0.06);
+  }
+}
+
+.modelRadio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #d4d4d8;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease;
+}
+
+.modelRadioSelected {
   border-color: #c54841;
-  background: rgba(197, 72, 65, 0.06);
+
+  &::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #c54841;
+  }
+}
+
+.modelInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .modelName {
   font-weight: 600;
   font-size: 13px;
-  color: #18181b;
+  color: #1e293b;
 }
 
 .modelDesc {
   font-size: 12px;
-  color: #71717a;
+  color: #94a3b8;
   margin-top: 1px;
 }
 
+/* ── Save button ───────────────────────────────────────────────────────── */
+
 .saveButton {
   width: 100%;
-  padding: 12px 18px;
+  padding: 11px 18px;
   border-radius: 8px;
   border: 1px solid #c54841;
   background: #c54841;
@@ -330,7 +369,7 @@
 .helpText {
   margin: 0;
   font-size: 12px;
-  color: #a1a1aa;
+  color: #94a3b8;
   text-align: center;
 
   a {
@@ -343,10 +382,10 @@
   }
 }
 
-// --- More Providers section ---
+/* ── More Providers section ────────────────────────────────────────────── */
 
 .extraProvidersSection {
-  border-top: 1px solid #e4e4e7;
+  border-top: 1px solid #e2e8f0;
   padding-bottom: 16px;
 }
 
@@ -359,7 +398,7 @@
 
 .extraProvidersSubtitle {
   font-size: 11px;
-  color: #a1a1aa;
+  color: #94a3b8;
 }
 
 .extraProvidersList {
@@ -368,7 +407,7 @@
 }
 
 .extraProviderItem {
-  border-bottom: 1px solid #f4f4f5;
+  border-bottom: 1px solid #f1f5f9;
   padding: 0 24px;
 
   &:last-child {
@@ -393,12 +432,12 @@
 .extraProviderName {
   font-weight: 600;
   font-size: 13px;
-  color: #18181b;
+  color: #1e293b;
 }
 
 .extraProviderDesc {
   font-size: 11px;
-  color: #71717a;
+  color: #94a3b8;
   margin-top: 1px;
 }
 

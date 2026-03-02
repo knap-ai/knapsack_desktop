@@ -262,6 +262,8 @@ function Home({
   }
 
   const handleOpenProviderSignIn = useCallback((provider?: 'openai' | 'anthropic') => {
+    // Close settings dialog first so both drawers don't stack
+    setIsSettingsDialogOpened(false)
     setProviderSignInInitialProvider(provider)
     setIsProviderSignInDialogOpened(true)
   }, [])
