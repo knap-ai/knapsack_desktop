@@ -948,6 +948,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [ollamaPullPercent, setOllamaPullPercent] = useState<number | null>(null)
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
   const [keyHints, setKeyHints] = useState<Record<string, string | undefined>>({})
+  const [savedProviderKeys, setSavedProviderKeys] = useState<Record<string, boolean>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
   const thinkingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -1102,6 +1103,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           anthropic: keyStatus.anthropic_key_hint,
           gemini: keyStatus.gemini_key_hint,
           groq: keyStatus.groq_key_hint,
+        })
+        // Track which providers have saved keys
+        setSavedProviderKeys({
+          openai: !!keyStatus.has_openai_key,
+          anthropic: !!keyStatus.has_anthropic_key,
+          gemini: !!keyStatus.has_gemini_key,
+          groq: !!keyStatus.has_groq_key,
         })
         // Also sync provider-specific models from the backend
         try {
@@ -1883,6 +1891,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       setShowKeyPrompt(false)
       setHasCompletedOnboarding(true)
       localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
+      // Mark this provider as having a saved key
+      setSavedProviderKeys(prev => ({ ...prev, [selectedProvider]: true }))
+      setKeyHints(prev => ({ ...prev, [selectedProvider]: apiKey.trim().slice(0, 6) + '...' + apiKey.trim().slice(-4) }))
 
       // Auto-enable the service after key is saved
       try {
@@ -1911,6 +1922,53 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       setSavingKey(false)
     }
   }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
+
+  // Switch to a provider that already has a saved key (no new key needed)
+  const switchProviderModel = useCallback(async (providerId: Provider) => {
+    setSavingKey(true)
+    try {
+      const modelForProvider = providerId === 'openai' ? selectedModel
+        : providerId === 'anthropic' ? selectedAnthropicModel
+        : providerId === 'gemini' ? selectedGeminiModel
+        : providerId === 'groq' ? selectedGroqModel
+        : undefined
+      await apiPost('/api/clawd/service/set-api-key', {
+        provider: providerId,
+        model: modelForProvider,
+        // No key — backend keeps existing key for this provider
+      })
+      if (providerId === 'openai') {
+        localStorage.setItem(OPENAI_MODEL_STORAGE, selectedModel)
+      } else if (providerId === 'anthropic') {
+        localStorage.setItem(ANTHROPIC_MODEL_STORAGE, selectedAnthropicModel)
+      } else if (providerId === 'gemini') {
+        localStorage.setItem(GEMINI_MODEL_STORAGE, selectedGeminiModel)
+      } else if (providerId === 'groq') {
+        localStorage.setItem(GROQ_MODEL_STORAGE, selectedGroqModel)
+      }
+      setSelectedProvider(providerId)
+      setShowKeyPrompt(false)
+      try {
+        await apiPost('/api/clawd/service/enable', { enabled: true })
+        await refreshStatus()
+      } catch {}
+      const providerInfo = PROVIDERS.find(p => p.id === providerId)
+      const models = providerId === 'openai' ? OPENAI_MODELS
+        : providerId === 'anthropic' ? ANTHROPIC_MODELS
+        : providerId === 'gemini' ? GEMINI_MODELS
+        : GROQ_MODELS
+      const mv = providerId === 'openai' ? selectedModel
+        : providerId === 'anthropic' ? selectedAnthropicModel
+        : providerId === 'gemini' ? selectedGeminiModel
+        : selectedGroqModel
+      const modelName = models.find(m => m.id === mv)?.name || mv
+      pushAssistant(`Switched to ${providerInfo?.name || providerId} (${modelName}).`)
+    } catch (e: any) {
+      pushAssistant(`Failed to switch provider: ${e?.message || String(e)}`)
+    } finally {
+      setSavingKey(false)
+    }
+  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel])
 
   useEffect(() => {
     const init = async () => {
@@ -4558,44 +4616,102 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                     </button>
                     <div className="ClawdAccordionBody">
-                      <label className="ClawdKeyPromptLabel">{p.name} API Key</label>
-                      <input
-                        type="password"
-                        value={apiKey}
-                        onChange={e => setApiKey(e.target.value)}
-                        placeholder={keyHints[p.id] || p.keyPrefix + '...'}
-                        disabled={savingKey}
-                        className="ClawdAccordionInput"
-                        onKeyDown={e => { if (e.key === 'Enter') saveApiKey() }}
-                      />
-                      <label className="ClawdKeyPromptLabel">Model</label>
-                      <select
-                        className="ClawdModelSelect"
-                        value={modelValue}
-                        onChange={e => setModelValue(e.target.value)}
-                        disabled={savingKey}
-                      >
-                        {models.map(model => (
-                          <option key={model.id} value={model.id}>
-                            {model.name} — {model.description}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="ClawdAccordionActions">
-                        <button
-                          className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                          onClick={saveApiKey}
-                          disabled={savingKey || !apiKey.trim()}
-                        >
-                          {savingKey ? 'Saving...' : 'Save & Enable'}
-                        </button>
-                      </div>
-                      <p className="ClawdKeyPromptHelp">
-                        Get your API key at{' '}
-                        <a href={p.helpUrl} target="_blank" rel="noopener noreferrer">
-                          {p.helpUrl.replace('https://', '')}
-                        </a>
-                      </p>
+                      {savedProviderKeys[p.id] && !apiKey.trim() ? (
+                        <>
+                          <div className="ClawdKeySavedRow">
+                            <span className="ClawdKeySavedBadge">Key saved</span>
+                            <span className="ClawdKeySavedHint">{keyHints[p.id] || p.keyPrefix + '...'}</span>
+                          </div>
+                          <label className="ClawdKeyPromptLabel">Model</label>
+                          <select
+                            className="ClawdModelSelect"
+                            value={modelValue}
+                            onChange={e => setModelValue(e.target.value)}
+                            disabled={savingKey}
+                          >
+                            {models.map(model => (
+                              <option key={model.id} value={model.id}>
+                                {model.name} — {model.description}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="ClawdAccordionActions">
+                            {!isActive ? (
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                                onClick={() => switchProviderModel(p.id)}
+                                disabled={savingKey}
+                              >
+                                {savingKey ? 'Switching...' : 'Switch to ' + p.name}
+                              </button>
+                            ) : (
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                                onClick={() => switchProviderModel(p.id)}
+                                disabled={savingKey}
+                              >
+                                {savingKey ? 'Saving...' : 'Update Model'}
+                              </button>
+                            )}
+                            <button
+                              className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
+                              onClick={() => setApiKey(' ')}
+                            >
+                              Change Key
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <label className="ClawdKeyPromptLabel">{p.name} API Key</label>
+                          <input
+                            type="password"
+                            value={apiKey.trim()}
+                            onChange={e => setApiKey(e.target.value)}
+                            placeholder={keyHints[p.id] || p.keyPrefix + '...'}
+                            disabled={savingKey}
+                            className="ClawdAccordionInput"
+                            autoFocus
+                            onKeyDown={e => { if (e.key === 'Enter') saveApiKey() }}
+                          />
+                          <label className="ClawdKeyPromptLabel">Model</label>
+                          <select
+                            className="ClawdModelSelect"
+                            value={modelValue}
+                            onChange={e => setModelValue(e.target.value)}
+                            disabled={savingKey}
+                          >
+                            {models.map(model => (
+                              <option key={model.id} value={model.id}>
+                                {model.name} — {model.description}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="ClawdAccordionActions">
+                            <button
+                              className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                              onClick={saveApiKey}
+                              disabled={savingKey || !apiKey.trim()}
+                            >
+                              {savingKey ? 'Saving...' : 'Save & Enable'}
+                            </button>
+                            {savedProviderKeys[p.id] && (
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
+                                onClick={() => setApiKey('')}
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                          <p className="ClawdKeyPromptHelp">
+                            Get your API key at{' '}
+                            <a href={p.helpUrl} target="_blank" rel="noopener noreferrer">
+                              {p.helpUrl.replace('https://', '')}
+                            </a>
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 )

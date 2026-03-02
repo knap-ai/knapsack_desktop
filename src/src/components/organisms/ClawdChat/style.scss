@@ -2348,17 +2348,21 @@
 }
 
 .ClawdAccordionTitle {
-  flex: 1;
   font-size: 14px;
   font-weight: 600;
   color: #1e293b;
-  min-width: 0;
+  flex-shrink: 0;
 }
 
 .ClawdAccordionDesc {
+  flex: 1;
+  min-width: 0;
   font-size: 11px;
   color: #94a3b8;
-  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 
 .ClawdAccordionCheck {
@@ -2402,7 +2406,7 @@
 .ClawdAccordionActions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 10px;
 }
 
@@ -2490,10 +2494,45 @@
     &:hover { background: #fee2e2; }
   }
 
+  &--secondary {
+    background: #f1f5f9;
+    color: #475569;
+    border-color: #e2e8f0;
+
+    &:hover { background: #e2e8f0; }
+  }
+
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
+}
+
+.ClawdKeySavedRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+}
+
+.ClawdKeySavedBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.ClawdKeySavedHint {
+  font-size: 11px;
+  color: #64748b;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 // Step-by-step setup guide shown below each channel accordion body

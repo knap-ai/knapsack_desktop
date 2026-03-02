@@ -888,6 +888,7 @@ pub async fn validate_api_key(
 /// Set API key for any provider (OpenAI, Anthropic, Gemini, or extra providers)
 #[derive(Debug, Deserialize)]
 pub struct SetApiKeyRequest {
+  #[serde(default)]
   pub key: String,
   pub model: Option<String>,
   /// "openai" (default), "anthropic", "gemini", "groq", "minimax", "zai", "huggingface"
@@ -919,14 +920,59 @@ pub async fn set_api_key(
   };
 
   let key = payload.key.trim().to_string();
+  let provider = payload.provider.as_deref().unwrap_or("openai").to_lowercase();
+
+  // If no key provided, allow switching to a provider that already has a saved key
   if key.is_empty() {
-    return HttpResponse::BadRequest().json(SetApiKeyResponse {
-      success: false,
-      message: "API key cannot be empty".to_string(),
+    let has_existing = match provider.as_str() {
+      "anthropic" => tokens.anthropic_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+      "gemini" => tokens.gemini_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+      "groq" => tokens.groq_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+      "ollama" => true,
+      _ => tokens.openai_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+    };
+    if !has_existing {
+      return HttpResponse::BadRequest().json(SetApiKeyResponse {
+        success: false,
+        message: "API key cannot be empty".to_string(),
+      });
+    }
+    // Switch active provider and update model only
+    tokens.active_provider = Some(provider.clone());
+    if let Some(model) = &payload.model {
+      match provider.as_str() {
+        "anthropic" => { tokens.anthropic_model = Some(model.trim().to_string()); }
+        "gemini" => { tokens.gemini_model = Some(model.trim().to_string()); }
+        "groq" => { tokens.groq_model = Some(model.trim().to_string()); }
+        "ollama" => { tokens.ollama_model = Some(model.trim().to_string()); }
+        _ => { tokens.openai_model = Some(model.trim().to_string()); }
+      }
+    }
+    let provider_name = match provider.as_str() {
+      "anthropic" => "Anthropic",
+      "gemini" => "Gemini",
+      "groq" => "Groq",
+      "ollama" => "Ollama",
+      _ => "OpenAI",
+    };
+    if let Err(e) = save_tokens(&app_handle, &tokens) {
+      return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+        success: false,
+        message: e,
+      });
+    }
+    // Propagate env vars for the switched provider
+    if let Some(p) = &tokens.active_provider { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
+    if let Some(k) = &tokens.openai_api_key { std::env::set_var("OPENAI_API_KEY", k); }
+    if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
+    if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
+    if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
+    return HttpResponse::Ok().json(SetApiKeyResponse {
+      success: true,
+      message: format!("Switched to {}", provider_name),
     });
   }
 
-  let provider = payload.provider.as_deref().unwrap_or("openai").to_lowercase();
   let provider_name = match provider.as_str() {
     "anthropic" => {
       tokens.anthropic_api_key = Some(key);
