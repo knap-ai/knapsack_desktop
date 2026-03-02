@@ -916,6 +916,27 @@ fn parse_sse_payload_text(raw: &str) -> String {
   parts.join("")
 }
 
+/// Best-effort: open the first URL found in the agent's reply text using
+/// the system browser. This ensures users see a browser open even when the
+/// gateway's built-in browser control (Chrome extension) is unavailable.
+fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
+  // Simple regex-free URL extraction — look for http(s)://...
+  for word in reply.split_whitespace() {
+    // Strip common markdown/punctuation wrappers
+    let cleaned = word
+      .trim_matches(|c: char| c == '(' || c == ')' || c == '[' || c == ']' || c == '<' || c == '>' || c == '"' || c == '\'' || c == ',')
+      .trim_end_matches(|c: char| c == '.' || c == '!' || c == '?');
+    if (cleaned.starts_with("http://") || cleaned.starts_with("https://"))
+      && cleaned.len() > 10
+      && !cleaned.contains(char::is_whitespace)
+    {
+      eprintln!("[clawd/agent-chat] Opening URL from reply in system browser: {}", cleaned);
+      let _ = tauri::api::shell::open(&app_handle.shell_scope(), cleaned, None);
+      return; // Only open the first URL
+    }
+  }
+}
+
 /// Send a chat message through the gateway's agent pipeline.
 ///
 /// This shares the same session as Telegram/WhatsApp/iMessage channels,
@@ -923,6 +944,7 @@ fn parse_sse_payload_text(raw: &str) -> String {
 /// the direct `/api/clawd/chat` path if the gateway is not reachable.
 #[post("/api/clawd/agent-chat")]
 pub async fn agent_chat(
+  app_handle: web::Data<tauri::AppHandle>,
   body: web::Json<JsonValue>,
 ) -> impl Responder {
   let text = body
@@ -965,6 +987,10 @@ pub async fn agent_chat(
             .unwrap_or("No reply")
             .to_string()
         });
+
+      // Try to open any URLs the agent mentioned in the reply text using the
+      // system browser, in case the gateway's browser control couldn't open them.
+      open_first_url_in_reply(&app_handle, &reply);
 
       HttpResponse::Ok().json(serde_json::json!({
         "ok": true,
@@ -1260,24 +1286,15 @@ pub async fn chat(
         format!("https://{}", url_raw)
       };
 
-      // Try gateway RPC first, retry once, then fall back to system shell open
+      // Try gateway RPC first, fall back to system shell open immediately
       let out = match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
         Ok(v) => v,
         Err(e) => {
-          let msg = e.to_string();
-          eprintln!("[clawd/chat] open_url first attempt failed ({}), retrying...", msg);
-          tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-          match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
-            Ok(v) => v,
-            Err(e2) => {
-              // Gateway unavailable — fall back to system shell open
-              eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to shell open", e2);
-              match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
-                Ok(_) => format!("Opened in default browser: {}", url),
-                Err(shell_err) => {
-                  anyhow::bail!("Failed to open URL via gateway ({}) and shell ({})", e2, shell_err);
-                }
-              }
+          eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to shell open", e);
+          match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
+            Ok(_) => format!("Opened in default browser: {}", url),
+            Err(shell_err) => {
+              anyhow::bail!("Failed to open URL via gateway ({}) and shell ({})", e, shell_err);
             }
           }
         }
@@ -1317,23 +1334,15 @@ pub async fn chat(
         }
         p
       };
-      // Try gateway RPC, retry once, fall back to shell open
+      // Try gateway RPC, fall back to shell open immediately
       let out = match do_post("/navigate", mk_payload(), &query).await {
         Ok(v) => v,
         Err(e) => {
-          let msg = e.to_string();
-          eprintln!("[clawd/chat] navigate first attempt failed ({}), retrying...", msg);
-          tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-          match do_post("/navigate", mk_payload(), &query).await {
-            Ok(v) => v,
-            Err(e2) => {
-              eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to shell open", e2);
-              match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
-                Ok(_) => format!("Opened in default browser: {}", url),
-                Err(shell_err) => {
-                  anyhow::bail!("Failed to navigate via gateway ({}) and shell ({})", e2, shell_err);
-                }
-              }
+          eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to shell open", e);
+          match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
+            Ok(_) => format!("Opened in default browser: {}", url),
+            Err(shell_err) => {
+              anyhow::bail!("Failed to navigate via gateway ({}) and shell ({})", e, shell_err);
             }
           }
         }
