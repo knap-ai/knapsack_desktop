@@ -32,6 +32,8 @@ mod spotlight;
 mod transcribe;
 mod user;
 mod utils;
+mod workspaces;
+mod mcp;
 
 use connections::api::ConnectionsData;
 use log::info;

@@ -18,6 +18,8 @@ export enum TabChoices {
   Chat = 'Chat',
   NewAutomation = 'NewAutomation',
   Activity = 'Activity',
+  Workspaces = 'Workspaces',
+  MCPMarketplace = 'MCPMarketplace',
 }
 
 interface TabBarProps {
@@ -57,6 +59,18 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
       svg: '/assets/images/tabBar/chatTab.svg',
       label: 'Chat',
       isActive: fullRelease === true,
+    },
+    {
+      id: TabChoices.Workspaces,
+      svg: '/assets/images/tabBar/automateTab.svg',
+      label: 'RAG',
+      isActive: true,
+    },
+    {
+      id: TabChoices.MCPMarketplace,
+      svg: '/assets/images/tabBar/automateTab.svg',
+      label: 'Skills',
+      isActive: true,
     },
   ]
 
