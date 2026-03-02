@@ -861,6 +861,61 @@ fn extract_docx_text(content: &str) -> String {
   result
 }
 
+/// Parse gateway payload text that may be SSE-formatted.
+///
+/// The gateway sometimes wraps LLM output in SSE framing like:
+///   `data: {"choices":[{"text":"actual content"}]}`
+/// This helper extracts the actual content, handling multiple SSE lines
+/// and `[DONE]` sentinel.  If the text is already plain, returns it as-is.
+fn parse_sse_payload_text(raw: &str) -> String {
+  // If no SSE framing, return as-is
+  if !raw.contains("data: ") {
+    return raw.to_string();
+  }
+
+  let mut parts: Vec<String> = Vec::new();
+  for line in raw.lines() {
+    let line = line.trim();
+    if let Some(json_str) = line.strip_prefix("data: ") {
+      let json_str = json_str.trim();
+      if json_str == "[DONE]" {
+        continue;
+      }
+      // Try to parse as JSON and extract text from choices
+      if let Ok(parsed) = serde_json::from_str::<JsonValue>(json_str) {
+        if let Some(choices) = parsed.get("choices").and_then(|c| c.as_array()) {
+          for choice in choices {
+            // OpenAI-style: choices[].text or choices[].delta.content or choices[].message.content
+            if let Some(text) = choice
+              .get("text")
+              .and_then(|t| t.as_str())
+              .or_else(|| choice.pointer("/delta/content").and_then(|t| t.as_str()))
+              .or_else(|| choice.pointer("/message/content").and_then(|t| t.as_str()))
+            {
+              parts.push(text.to_string());
+            }
+          }
+        } else if let Some(text) = parsed.get("text").and_then(|t| t.as_str()) {
+          parts.push(text.to_string());
+        }
+      }
+      // If JSON parsing fails, include the raw data line as-is
+      else {
+        parts.push(json_str.to_string());
+      }
+    }
+    // Non-SSE lines (e.g. plain text mixed in) — include as-is
+    else if !line.is_empty() && !line.starts_with(':') {
+      parts.push(line.to_string());
+    }
+  }
+
+  if parts.is_empty() {
+    return raw.to_string();
+  }
+  parts.join("")
+}
+
 /// Send a chat message through the gateway's agent pipeline.
 ///
 /// This shares the same session as Telegram/WhatsApp/iMessage channels,
@@ -899,6 +954,7 @@ pub async fn agent_chat(
           payloads
             .iter()
             .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+            .map(|raw| parse_sse_payload_text(raw))
             .collect::<Vec<_>>()
             .join("\n\n")
         })
@@ -1204,14 +1260,26 @@ pub async fn chat(
         format!("https://{}", url_raw)
       };
 
-      // Retry once on transient errors (browser may still be launching)
+      // Try gateway RPC first, retry once, then fall back to system shell open
       let out = match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
         Ok(v) => v,
         Err(e) => {
           let msg = e.to_string();
           eprintln!("[clawd/chat] open_url first attempt failed ({}), retrying...", msg);
           tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-          do_post("/tabs/open", serde_json::json!({"url": url}), &query).await?
+          match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
+            Ok(v) => v,
+            Err(e2) => {
+              // Gateway unavailable — fall back to system shell open
+              eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to shell open", e2);
+              match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
+                Ok(_) => format!("Opened in default browser: {}", url),
+                Err(shell_err) => {
+                  anyhow::bail!("Failed to open URL via gateway ({}) and shell ({})", e2, shell_err);
+                }
+              }
+            }
+          }
         }
       };
       return Ok(json!({"ok": true, "result": out}));
@@ -1249,14 +1317,25 @@ pub async fn chat(
         }
         p
       };
-      // Retry once on transient errors (browser may still be launching)
+      // Try gateway RPC, retry once, fall back to shell open
       let out = match do_post("/navigate", mk_payload(), &query).await {
         Ok(v) => v,
         Err(e) => {
           let msg = e.to_string();
           eprintln!("[clawd/chat] navigate first attempt failed ({}), retrying...", msg);
           tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-          do_post("/navigate", mk_payload(), &query).await?
+          match do_post("/navigate", mk_payload(), &query).await {
+            Ok(v) => v,
+            Err(e2) => {
+              eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to shell open", e2);
+              match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
+                Ok(_) => format!("Opened in default browser: {}", url),
+                Err(shell_err) => {
+                  anyhow::bail!("Failed to navigate via gateway ({}) and shell ({})", e2, shell_err);
+                }
+              }
+            }
+          }
         }
       };
       return Ok(json!({"ok": true, "result": out}));
