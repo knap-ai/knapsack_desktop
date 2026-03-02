@@ -82,7 +82,8 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     // Toggling loading on every poll caused 2 extra parent re-renders per cycle.
     const isFirstLoad = prevJsonRef.current._initialized !== 'true'
     if (isFirstLoad) setLoading(true)
-    setError(null)
+    // Only clear error if there was one — avoid unnecessary re-renders on every poll
+    setError(prev => prev === null ? prev : null)
     try {
       // Quick gateway health check first — if gateway is down, skip the
       // expensive per-channel status polls which each timeout after 10-20s.

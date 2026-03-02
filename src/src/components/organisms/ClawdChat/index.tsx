@@ -669,6 +669,62 @@ type ChatInputBarProps = {
   onStopGeneration: () => void
 }
 
+// ── Memoized single-message renderer ──────────────────────────────────
+// Prevents ReactMarkdown from re-parsing unchanged messages on every
+// parent re-render (status polling, channel status, etc.).
+type ChatMessageProps = {
+  msg: Msg
+  cleaned: string
+  actions: PromptAction[]
+  mdPlugins: any[]
+  mdComponents: Components
+  onExampleClick?: (e: React.MouseEvent, text: string) => void
+  onAction?: (prompt: string) => void
+}
+
+const ChatMessage = memo(function ChatMessage({
+  msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction,
+}: ChatMessageProps) {
+  return (
+    <div
+      className={`ClawdMsg ClawdMsg-${m.role} ${m.isClickable ? 'ClawdMsg-clickable' : ''}`}
+      onClick={m.isClickable && onExampleClick ? (e) => onExampleClick(e, m.text) : undefined}
+    >
+      <div className="ClawdBubble">
+        {m.isClickable ? (
+          <p>{m.text}</p>
+        ) : (
+          <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
+        )}
+        {actions.length > 0 && (
+          <div className="ClawdPromptActions">
+            {actions.map((action, i) => (
+              <button
+                key={i}
+                className="ClawdPromptAction"
+                onClick={(e) => { e.stopPropagation(); onAction?.(action.prompt) }}
+              >
+                <span className="ClawdPromptActionNum">{i + 1}</span>
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {m.model && m.role === 'assistant' && (
+          <div className="ClawdMsgModel">via {m.model}</div>
+        )}
+      </div>
+    </div>
+  )
+}, (prev, next) =>
+  prev.msg.id === next.msg.id &&
+  prev.msg.text === next.msg.text &&
+  prev.cleaned === next.cleaned &&
+  prev.actions === next.actions &&
+  prev.mdPlugins === next.mdPlugins &&
+  prev.mdComponents === next.mdComponents
+)
+
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
     busy, isRecording, isTranscribing, voiceEnabled,
@@ -2657,11 +2713,42 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }))
         }
 
-        // Retry transient failures (429, 500, 502, 503, 504) up to 2 times
+        // Try gateway agent-chat first (shared session with Telegram/WhatsApp/iMessage),
+        // fall back to direct chat if gateway is unavailable.
+        let useDirectChat = false
+        try {
+          const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: requestBody.text }),
+            signal: controller.signal,
+          })
+          if (agentRes.ok) {
+            const agentOut = await agentRes.json() as { ok?: boolean; reply?: string; message?: string; fallback?: boolean; gateway?: boolean }
+            if (agentOut.ok && agentOut.reply && agentOut.gateway) {
+              setMsgs(prev => [
+                ...prev,
+                { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: 'gateway' },
+              ])
+            } else {
+              // Gateway returned fallback signal — use direct chat
+              useDirectChat = true
+            }
+          } else {
+            useDirectChat = true
+          }
+        } catch (agentErr: any) {
+          if (agentErr.name === 'AbortError') throw agentErr
+          console.warn('[chat] Gateway agent-chat unavailable, using direct chat:', agentErr.message)
+          useDirectChat = true
+        }
+
+        // Fallback: direct LLM chat (no shared session with channels)
         const maxRetries = 3
         let lastError = ''
-        let succeeded = false
+        let succeeded = !useDirectChat // Already succeeded if gateway worked
 
+        if (useDirectChat) {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             const res = await fetch(apiUrl('/api/clawd/chat'), {
@@ -2712,6 +2799,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (!succeeded && lastError) {
           throw new Error(lastError)
         }
+        } // end if (useDirectChat)
       } catch (e: any) {
         if (e.name === 'AbortError') {
           // User cancelled - already handled in stopGeneration
@@ -2999,36 +3087,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
-            <div
-              key={m.id}
-              className={`ClawdMsg ClawdMsg-${m.role} ${m.isClickable ? 'ClawdMsg-clickable' : ''}`}
-              onClick={m.isClickable ? (e) => handleExampleClick(e, m.text) : undefined}
-            >
-              <div className="ClawdBubble">
-                {m.isClickable ? (
-                  <p>{m.text}</p>
-                ) : (
-                  <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
-                )}
-                {actions.length > 0 && (
-                  <div className="ClawdPromptActions">
-                    {actions.map((action, i) => (
-                      <button
-                        key={i}
-                        className="ClawdPromptAction"
-                        onClick={(e) => { e.stopPropagation(); handleSendWithText(action.prompt) }}
-                      >
-                        <span className="ClawdPromptActionNum">{i + 1}</span>
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {m.model && m.role === 'assistant' && (
-                  <div className="ClawdMsgModel">via {m.model}</div>
-                )}
-              </div>
-            </div>
+          <ChatMessage
+            key={m.id}
+            msg={m}
+            cleaned={cleaned}
+            actions={actions}
+            mdPlugins={mdPlugins}
+            mdComponents={mdComponents}
+            onExampleClick={handleExampleClick}
+            onAction={handleSendWithText}
+          />
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
         {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
