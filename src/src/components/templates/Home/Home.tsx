@@ -367,14 +367,6 @@ function Home({
         rightComponent={
           auth.profile ? (
             <>
-              <a
-                className="text-ks-warm-grey-700 hover:text-ks-warm-grey-800 cursor-pointer font-bold !font-Lora text-xs flex items-center"
-                href="https://www.knapsack.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Learn more
-              </a>
               <ConnectionsDropdown
                 profile={auth.profile}
                 onSignoutClick={signout}

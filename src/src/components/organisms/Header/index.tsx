@@ -34,15 +34,8 @@ export const Header = ({
         { title ? title : "KNAPSACK IS PRIVATE"}
       </div>
 
-      <div className="flex items-center gap-8 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         {middleRightComponent && middleRightComponent}
-        <Typography
-            size={TypographySize.xxs}
-            weight={TypographyWeight.medium}
-            className="text-zinc-400"
-          >
-            v{appVersion}
-        </Typography>
         {rightComponent}
       </div>
     </div>

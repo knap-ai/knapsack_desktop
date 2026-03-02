@@ -949,6 +949,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
   const [keyHints, setKeyHints] = useState<Record<string, string | undefined>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
+  const thinkingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Claude Code activity tracking — shows indicator when Claude Code is running
   const [claudeCodeActive, setClaudeCodeActive] = useState(false)
@@ -2156,6 +2157,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     if (abortController) {
       abortController.abort()
       setAbortController(null)
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current)
+        thinkingIntervalRef.current = null
+      }
       setBusy(false)
       setThinkingMessage(null)
       pushAssistant('⏹️ Generation stopped.')
@@ -2671,7 +2676,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       let thinkingIndex = 0
       setThinkingMessage(shuffled[0])
 
-      const thinkingInterval = setInterval(() => {
+      thinkingIntervalRef.current = setInterval(() => {
         thinkingIndex = (thinkingIndex + 1) % shuffled.length
         setThinkingMessage(shuffled[thinkingIndex])
       }, 2500)
@@ -2820,7 +2825,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         }
         throw e
       } finally {
-        clearInterval(thinkingInterval)
+        if (thinkingIntervalRef.current) {
+          clearInterval(thinkingIntervalRef.current)
+          thinkingIntervalRef.current = null
+        }
         setThinkingMessage(null)
         setAbortController(null)
       }
