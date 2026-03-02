@@ -2405,7 +2405,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // round-trip (which may fail if the gateway can't control Chrome).
       // The message still goes to the LLM so the agent can summarize the page, etc.
       {
-        const openMatch = text.match(/^(?:open|go to|navigate to|visit)\s+(\S+)/i)
+        // Only match when the word after "open/go to/..." contains a dot (looks like a domain)
+        const openMatch = text.match(/^(?:open|go to|navigate to|visit)\s+(https?:\/\/\S+|\S+\.\S+)/i)
         const bareUrl = text.match(/^(https?:\/\/\S+)$/i) || text.match(/^([a-z0-9][-a-z0-9]*\.[a-z]{2,}(?:\/\S*)?)$/i)
         const urlToOpen = openMatch?.[1] || bareUrl?.[1]
         if (urlToOpen) {
