@@ -2400,9 +2400,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         return
       }
 
-      // NOTE: URLs are now passed through the LLM instead of being opened directly.
-      // The LLM has navigate() and open_url() tools to handle URLs intelligently.
-      // This allows users to say "go to google.com and search for X" and have it work.
+      // If the prompt is clearly "open <url>" or just a bare URL, open it in the
+      // system browser immediately so the user doesn't have to wait for the LLM
+      // round-trip (which may fail if the gateway can't control Chrome).
+      // The message still goes to the LLM so the agent can summarize the page, etc.
+      {
+        const openMatch = text.match(/^(?:open|go to|navigate to|visit)\s+(\S+)/i)
+        const bareUrl = text.match(/^(https?:\/\/\S+)$/i) || text.match(/^([a-z0-9][-a-z0-9]*\.[a-z]{2,}(?:\/\S*)?)$/i)
+        const urlToOpen = openMatch?.[1] || bareUrl?.[1]
+        if (urlToOpen) {
+          const fullUrl = urlToOpen.startsWith('http') ? urlToOpen : `https://${urlToOpen}`
+          openBesideApp(fullUrl).catch(err => console.error('[chat] Failed to open URL:', err))
+        }
+      }
 
       if (cmd === 'tabs') {
         const tabs = await getTabs()
