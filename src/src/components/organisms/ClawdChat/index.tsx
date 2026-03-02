@@ -100,11 +100,13 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
     const prompt = md.slice(parenStart + 1 + matchedMarker.length, parenEnd)
 
     actions.push({ label, prompt })
-    result += `**▶ ${actions.length}. ${label}**`
+    // Don't insert inline text — actions render as clickable buttons below the message
     i = parenEnd + 1
   }
 
-  return { cleaned: result, actions }
+  // Collapse runs of 3+ newlines left after stripping prompt links
+  const cleaned = result.replace(/\n{3,}/g, '\n\n').trim()
+  return { cleaned, actions }
 }
 
 // Convert raw API/JSON error messages into user-friendly text
