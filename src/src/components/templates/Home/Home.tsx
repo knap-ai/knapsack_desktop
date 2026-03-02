@@ -84,7 +84,7 @@ function Home({
   isAnyRecording,
 }: HomeProps) {
   const [fullRelease, setFullRelease] = useState<boolean | null>(null)
-  const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Moltbot)
+  const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Openclaw)
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
@@ -138,7 +138,7 @@ function Home({
         setCurrentTab(TabChoices.NewAutomation)
       } else if (event.key === 'e' && event.metaKey && event.ctrlKey) {
         setAutopilotForceOpen(true)
-        setCurrentTab(TabChoices.Moltbot)
+        setCurrentTab(TabChoices.Openclaw)
       }
     }
   }, [])
@@ -155,7 +155,7 @@ function Home({
   useEffect(() => {
     const unlisten = listen('kn_trigger_autopilot', () => {
       setAutopilotForceOpen(true)
-      setCurrentTab(TabChoices.Moltbot)
+      setCurrentTab(TabChoices.Openclaw)
     })
     return () => {
       unlisten.then(fn => fn())
@@ -481,7 +481,7 @@ function Home({
                 />
               )}
 
-              {currentTab === TabChoices.Moltbot && (
+              {currentTab === TabChoices.Openclaw && (
                 <div className="overflow-hidden w-full h-full flex flex-row relative">
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat

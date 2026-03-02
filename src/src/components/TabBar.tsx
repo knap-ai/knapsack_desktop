@@ -10,7 +10,7 @@ interface TabData {
 }
 
 export enum TabChoices {
-  Moltbot = 'Moltbot',
+  Openclaw = 'Openclaw',
   Work = 'Work',
   Email = 'Email',
   Meeting = 'Meeting',
@@ -31,7 +31,7 @@ interface TabBarProps {
 const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease }) => {
   const tabs: TabData[] = [
     {
-      id: TabChoices.Moltbot,
+      id: TabChoices.Openclaw,
       svg: '/assets/images/tabBar/chatTab.svg',
       label: 'Chat',
       isActive: true,

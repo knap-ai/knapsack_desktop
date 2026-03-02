@@ -77,7 +77,7 @@ pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
 const NOTIF_HEIGHT: f64 = 100.0;
 const NOTIF_WIDTH: f64 = 720.0;
-//const NOTIF_Y_POSITION: i32 = 40 + (NOTIF_HEIGHT as i32);
+const NOTIF_Y_OFFSET: f64 = 50.0; // Push below macOS menu bar / notch
 const NOTIF_START_X_OFFSET: i32 = 500;
 const NOTIF_END_X_OFFSET: i32 = 20;
 const NOTIF_ANIMATION_DURATION: u32 = 90;
@@ -339,7 +339,7 @@ async fn show_notification_window(
         let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
         let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
-        let y_position = 0;
+        let y_position = (NOTIF_Y_OFFSET * scale_factor) as i32;
 
         // Resize notification window to full screen height
         let screen_height_logical = screen_size.height as f64 / scale_factor;

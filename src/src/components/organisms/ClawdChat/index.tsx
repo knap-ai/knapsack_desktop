@@ -2839,7 +2839,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
 
   const statusLine = useMemo(() => {
-    if (!status && !health) return <span>Checking Moltbot...</span>
+    if (!status && !health) return <span>Checking Openclaw...</span>
     const parts: ReactNode[] = []
     if (status) {
       parts.push(
@@ -2984,7 +2984,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         <div className="ClawdToneSelector">
           <div className="ClawdToneSelectorContent">
             <h3>Choose Your Tone</h3>
-            <p>Select how Moltbot should communicate with you:</p>
+            <p>Select how Openclaw should communicate with you:</p>
             <div className="ClawdToneOptions">
               {TONE_OPTIONS.map(tone => (
                 <button
@@ -3008,7 +3008,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         <div className="ClawdAdvancedWarning">
           <div className="ClawdAdvancedWarningContent">
             <h3>Enable Advanced Mode?</h3>
-            <p>Advanced mode allows Moltbot to execute shell commands on your computer. This means it can:</p>
+            <p>Advanced mode allows Openclaw to execute shell commands on your computer. This means it can:</p>
             <ul>
               <li>Install software via brew, npm, pip, etc.</li>
               <li>Run scripts and CLI tools</li>
