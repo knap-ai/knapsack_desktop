@@ -1715,16 +1715,17 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Ensure the browser uses headless mode so it works without a
-            // display (channel automations run in the background).
+            // Ensure the browser is NOT headless — the user needs to see the
+            // managed Chrome window to log into services (OAuth, banking, etc.).
+            // Undo any previous headless=true that may have been written.
             let browser_headless = cfg
               .pointer("/browser/headless")
               .and_then(|v| v.as_bool())
               .unwrap_or(false);
-            if !browser_headless {
+            if browser_headless {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("headless".to_string(), serde_json::json!(true));
-              eprintln!("[clawd/service] Patched browser.headless to true");
+                .insert("headless".to_string(), serde_json::json!(false));
+              eprintln!("[clawd/service] Patched browser.headless to false (user needs visible Chrome for logins)");
               patched = true;
             }
 

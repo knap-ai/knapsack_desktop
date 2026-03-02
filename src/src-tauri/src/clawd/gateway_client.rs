@@ -650,6 +650,7 @@ pub async fn agent_chat(
     "idempotencyKey": idem,
     "deliver": false,
     "messageChannel": "webchat",
+    "agentId": "main",
   });
   // 5 minute timeout — LLM tool loops can take a while
   gateway_request_agent("agent", Some(params), &t, 300).await
