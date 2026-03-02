@@ -4493,161 +4493,131 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       )}
 
       {showKeyPrompt && (
-        <div className="ClawdKeyPrompt">
-          <div className="ClawdKeyPromptHeader">
+        <div className="ClawdChannelsPanel">
+          <div className="ClawdChannelsPanelHeader">
             <h3>{hasCompletedOnboarding ? 'AI Provider Settings' : 'Welcome to Knapsack'}</h3>
             <button onClick={() => {
               setShowKeyPrompt(false)
               localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
             }}>×</button>
           </div>
-          <div className="ClawdKeyPromptContent">
-            <p>
+          <div className="ClawdChannelsPanelBody">
+            <p className="ClawdChannelsPanelIntro">
               {hasCompletedOnboarding
                 ? 'Review or change your AI provider and API key.'
                 : 'Choose your AI provider and enter your API key to get started.'}
               {' '}Your key is stored locally and never shared.
             </p>
 
-            <div className="ClawdProviderTabs">
-              {PROVIDERS.map(p => (
-                <button
-                  key={p.id}
-                  className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
-                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
-                  disabled={savingKey}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
+            <div className="ClawdChannelAccordion">
+              {/* ── Cloud providers ── */}
+              {PROVIDERS.filter(p => p.id !== 'ollama').map(p => {
+                const isActive = selectedProvider === p.id
+                const models = p.id === 'openai' ? OPENAI_MODELS
+                  : p.id === 'anthropic' ? ANTHROPIC_MODELS
+                  : p.id === 'gemini' ? GEMINI_MODELS
+                  : GROQ_MODELS
+                const modelValue = p.id === 'openai' ? selectedModel
+                  : p.id === 'anthropic' ? selectedAnthropicModel
+                  : p.id === 'gemini' ? selectedGeminiModel
+                  : selectedGroqModel
+                const setModelValue = p.id === 'openai' ? setSelectedModel
+                  : p.id === 'anthropic' ? setSelectedAnthropicModel
+                  : p.id === 'gemini' ? setSelectedGeminiModel
+                  : setSelectedGroqModel
 
-            {selectedProvider !== 'ollama' && (
-              <>
-                <label className="ClawdKeyPromptLabel">
-                  {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
-                </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  placeholder={keyHints[selectedProvider] || PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
-                  disabled={savingKey}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') saveApiKey()
-                  }}
-                />
-              </>
-            )}
+                return (
+                  <div key={p.id} className={`ClawdAccordionItem ${selectedProvider === p.id ? 'ClawdAccordionItem--open' : ''} ${isActive ? 'ClawdAccordionItem--connected' : ''}`}>
+                    <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider(p.id); setApiKey('') }}>
+                      <div className="ClawdAccordionTitle">{p.name}</div>
+                      <span className="ClawdAccordionDesc">{p.description}</span>
+                      {isActive && (
+                        <span className="ClawdAccordionCheck">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </span>
+                      )}
+                      <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div className="ClawdAccordionBody">
+                      <label className="ClawdKeyPromptLabel">{p.name} API Key</label>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={e => setApiKey(e.target.value)}
+                        placeholder={keyHints[p.id] || p.keyPrefix + '...'}
+                        disabled={savingKey}
+                        className="ClawdAccordionInput"
+                        onKeyDown={e => { if (e.key === 'Enter') saveApiKey() }}
+                      />
+                      <label className="ClawdKeyPromptLabel">Model</label>
+                      <select
+                        className="ClawdModelSelect"
+                        value={modelValue}
+                        onChange={e => setModelValue(e.target.value)}
+                        disabled={savingKey}
+                      >
+                        {models.map(model => (
+                          <option key={model.id} value={model.id}>
+                            {model.name} — {model.description}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="ClawdAccordionActions">
+                        <button
+                          className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                          onClick={saveApiKey}
+                          disabled={savingKey || !apiKey.trim()}
+                        >
+                          {savingKey ? 'Saving...' : 'Save & Enable'}
+                        </button>
+                      </div>
+                      <p className="ClawdKeyPromptHelp">
+                        Get your API key at{' '}
+                        <a href={p.helpUrl} target="_blank" rel="noopener noreferrer">
+                          {p.helpUrl.replace('https://', '')}
+                        </a>
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
 
-            {selectedProvider === 'openai' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <select
-                  className="ClawdModelSelect"
-                  value={selectedModel}
-                  onChange={e => setSelectedModel(e.target.value)}
-                  disabled={savingKey}
-                >
-                  {OPENAI_MODELS.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} — {model.description}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-
-            {selectedProvider === 'anthropic' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <select
-                  className="ClawdModelSelect"
-                  value={selectedAnthropicModel}
-                  onChange={e => setSelectedAnthropicModel(e.target.value)}
-                  disabled={savingKey}
-                >
-                  {ANTHROPIC_MODELS.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} — {model.description}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-
-            {selectedProvider === 'gemini' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <select
-                  className="ClawdModelSelect"
-                  value={selectedGeminiModel}
-                  onChange={e => setSelectedGeminiModel(e.target.value)}
-                  disabled={savingKey}
-                >
-                  {GEMINI_MODELS.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} — {model.description}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-
-            {selectedProvider === 'groq' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <select
-                  className="ClawdModelSelect"
-                  value={selectedGroqModel}
-                  onChange={e => setSelectedGroqModel(e.target.value)}
-                  disabled={savingKey}
-                >
-                  {GROQ_MODELS.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} — {model.description}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-
-            {selectedProvider === 'ollama' && (
-              <div className="ClawdOllamaSection">
-                {/* Status indicator */}
-                <div className="ClawdOllamaStatus">
-                  {ollamaRunning === null ? (
-                    <span className="ClawdOllamaStatusChecking">Checking for Ollama...</span>
-                  ) : ollamaRunning ? (
-                    <span className="ClawdOllamaStatusOk">
-                      <span className="ClawdOllamaStatusDot ok" />
-                      Ollama is running
-                    </span>
-                  ) : (
-                    <span className="ClawdOllamaStatusErr">
-                      <span className="ClawdOllamaStatusDot err" />
-                      Ollama not detected
+              {/* ── Ollama (local) ── */}
+              <div className={`ClawdAccordionItem ${selectedProvider === 'ollama' ? 'ClawdAccordionItem--open' : ''} ${selectedProvider === 'ollama' ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider('ollama'); setApiKey('') }}>
+                  <div className="ClawdAccordionTitle">Ollama</div>
+                  <span className="ClawdAccordionDesc">Local models — free, private</span>
+                  {selectedProvider === 'ollama' && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </span>
                   )}
-                </div>
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdOllamaStatus">
+                    {ollamaRunning === null ? (
+                      <span className="ClawdOllamaStatusChecking">Checking for Ollama...</span>
+                    ) : ollamaRunning ? (
+                      <span className="ClawdOllamaStatusOk">
+                        <span className="ClawdOllamaStatusDot ok" />
+                        Ollama is running
+                      </span>
+                    ) : (
+                      <span className="ClawdOllamaStatusErr">
+                        <span className="ClawdOllamaStatusDot err" />
+                        Ollama not detected
+                      </span>
+                    )}
+                  </div>
 
-                {/* Install prompt when not running */}
-                {ollamaRunning === false && (
-                  <div className="ClawdOllamaInstall">
-                    <p>Ollama runs AI models locally on your machine — free, private, no API key needed.</p>
-                    <a
-                      href="https://ollama.com/download"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ClawdOllamaInstallBtn"
-                    >
-                      Download Ollama
-                    </a>
-                    <p className="ClawdOllamaInstallHint">
-                      After installing, launch Ollama and come back here.{' '}
-                      <button
-                        className="ClawdOllamaRetry"
-                        onClick={() => {
+                  {ollamaRunning === false && (
+                    <div className="ClawdOllamaInstall">
+                      <p>Ollama runs AI models locally on your machine — free, private, no API key needed.</p>
+                      <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="ClawdOllamaInstallBtn">Download Ollama</a>
+                      <p className="ClawdOllamaInstallHint">
+                        After installing, launch Ollama and come back here.{' '}
+                        <button className="ClawdOllamaRetry" onClick={() => {
                           setOllamaRunning(null)
                           apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
                             .then(s => {
@@ -4658,130 +4628,79 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               }
                             })
                             .catch(() => setOllamaRunning(false))
-                        }}
-                      >
-                        Check again
-                      </button>
-                    </p>
-                  </div>
-                )}
+                        }}>Check again</button>
+                      </p>
+                    </div>
+                  )}
 
-                {/* Models already installed — pick one */}
-                {ollamaRunning && ollamaModels.length > 0 && (
-                  <>
-                    <label className="ClawdKeyPromptLabel">Your Models</label>
-                    <select
-                      className="ClawdModelSelect"
-                      value={selectedOllamaModel}
-                      onChange={e => setSelectedOllamaModel(e.target.value)}
-                      disabled={savingKey}
+                  {ollamaRunning && ollamaModels.length > 0 && (
+                    <>
+                      <label className="ClawdKeyPromptLabel">Your Models</label>
+                      <select className="ClawdModelSelect" value={selectedOllamaModel} onChange={e => setSelectedOllamaModel(e.target.value)} disabled={savingKey}>
+                        <option value="">Select a model...</option>
+                        {ollamaModels.map(model => (
+                          <option key={model.name} value={model.name}>{model.name} — {model.parameter_size || 'Local model'}</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
+                  {ollamaRunning && ollamaModels.length === 0 && !ollamaPulling && (
+                    <>
+                      <label className="ClawdKeyPromptLabel">Download a Model</label>
+                      <p style={{ fontSize: 13, color: '#666', margin: '0 0 8px' }}>No models installed yet. Pick one to download:</p>
+                      <div className="ClawdModelSelector">
+                        {OLLAMA_SUGGESTED_MODELS.map(model => (
+                          <button key={model.id} className="ClawdModelOption" onClick={() => pullOllamaModel(model.id)}>
+                            <span className="ClawdModelName">{model.name}</span>
+                            <span className="ClawdModelDesc">{model.description} ({model.size})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {ollamaPulling && (
+                    <div className="ClawdOllamaPullProgress">
+                      <label className="ClawdKeyPromptLabel">Downloading...</label>
+                      <div className="ClawdOllamaProgressBar">
+                        <div className="ClawdOllamaProgressFill" style={{ width: `${ollamaPullPercent ?? 0}%` }} />
+                      </div>
+                      <span className="ClawdOllamaProgressText">
+                        {ollamaPullPercent !== null ? `${ollamaPullPercent}% — ` : ''}{ollamaPullProgress}
+                      </span>
+                    </div>
+                  )}
+
+                  {ollamaRunning && ollamaModels.length > 0 && !ollamaPulling && (
+                    <>
+                      <label className="ClawdKeyPromptLabel" style={{ marginTop: 8 }}>Download More Models</label>
+                      <div className="ClawdModelSelector">
+                        {OLLAMA_SUGGESTED_MODELS
+                          .filter(s => !ollamaModels.some(m => m.name.startsWith(s.id.split(':')[0])))
+                          .slice(0, 3)
+                          .map(model => (
+                          <button key={model.id} className="ClawdModelOption" onClick={() => pullOllamaModel(model.id)}>
+                            <span className="ClawdModelName">{model.name}</span>
+                            <span className="ClawdModelDesc">{model.description} ({model.size})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <div className="ClawdAccordionActions">
+                    <button
+                      className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                      onClick={saveOllamaProvider}
+                      disabled={savingKey || !ollamaRunning || !selectedOllamaModel}
                     >
-                      <option value="">Select a model...</option>
-                      {ollamaModels.map(model => (
-                        <option key={model.name} value={model.name}>
-                          {model.name} — {model.parameter_size || 'Local model'}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
-
-                {/* No models — show recommended downloads */}
-                {ollamaRunning && ollamaModels.length === 0 && !ollamaPulling && (
-                  <>
-                    <label className="ClawdKeyPromptLabel">Download a Model</label>
-                    <p style={{ fontSize: 13, color: '#666', margin: '0 0 8px' }}>
-                      No models installed yet. Pick one to download:
-                    </p>
-                    <div className="ClawdModelSelector">
-                      {OLLAMA_SUGGESTED_MODELS.map(model => (
-                        <button
-                          key={model.id}
-                          className="ClawdModelOption"
-                          onClick={() => pullOllamaModel(model.id)}
-                        >
-                          <span className="ClawdModelName">{model.name}</span>
-                          <span className="ClawdModelDesc">{model.description} ({model.size})</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {/* Download in progress */}
-                {ollamaPulling && (
-                  <div className="ClawdOllamaPullProgress">
-                    <label className="ClawdKeyPromptLabel">Downloading...</label>
-                    <div className="ClawdOllamaProgressBar">
-                      <div
-                        className="ClawdOllamaProgressFill"
-                        style={{ width: `${ollamaPullPercent ?? 0}%` }}
-                      />
-                    </div>
-                    <span className="ClawdOllamaProgressText">
-                      {ollamaPullPercent !== null ? `${ollamaPullPercent}% — ` : ''}{ollamaPullProgress}
-                    </span>
+                      {savingKey ? 'Saving...' : 'Enable Ollama'}
+                    </button>
                   </div>
-                )}
-
-                {/* Add more models button when models exist */}
-                {ollamaRunning && ollamaModels.length > 0 && !ollamaPulling && (
-                  <>
-                    <label className="ClawdKeyPromptLabel" style={{ marginTop: 8 }}>Download More Models</label>
-                    <div className="ClawdModelSelector">
-                      {OLLAMA_SUGGESTED_MODELS
-                        .filter(s => !ollamaModels.some(m => m.name.startsWith(s.id.split(':')[0])))
-                        .slice(0, 3)
-                        .map(model => (
-                        <button
-                          key={model.id}
-                          className="ClawdModelOption"
-                          onClick={() => pullOllamaModel(model.id)}
-                        >
-                          <span className="ClawdModelName">{model.name}</span>
-                          <span className="ClawdModelDesc">{model.description} ({model.size})</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                </div>
               </div>
-            )}
-
-            <div className="ClawdKeyPromptActions">
-              {selectedProvider === 'ollama' ? (
-                <button
-                  onClick={saveOllamaProvider}
-                  disabled={savingKey || !ollamaRunning || !selectedOllamaModel}
-                >
-                  {savingKey ? 'Saving...' : 'Enable Ollama'}
-                </button>
-              ) : (
-                <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
-                  {savingKey ? 'Saving...' : 'Save & Enable'}
-                </button>
-              )}
             </div>
-            {selectedProvider !== 'ollama' ? (
-              <p className="ClawdKeyPromptHelp">
-                Get your API key at{' '}
-                <a
-                  href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
-                  {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
-                  {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
-                  {selectedProvider === 'groq' && 'console.groq.com/keys'}
-                </a>
-              </p>
-            ) : (
-              <p className="ClawdKeyPromptHelp">
-                Runs locally on your machine — no API key or costs.{' '}
-                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Learn more</a>
-              </p>
-            )}
           </div>
         </div>
       )}

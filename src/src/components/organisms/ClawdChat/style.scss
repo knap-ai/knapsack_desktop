@@ -2355,12 +2355,34 @@
   min-width: 0;
 }
 
+.ClawdAccordionDesc {
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
 .ClawdAccordionCheck {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #16a34a;
   flex-shrink: 0;
+}
+
+.ClawdAccordionInput {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  font-family: monospace;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: rgba(197, 72, 65, 0.5);
+  }
 }
 
 .ClawdAccordionChevron {
