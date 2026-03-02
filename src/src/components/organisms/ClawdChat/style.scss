@@ -944,6 +944,35 @@
   margin-bottom: 16px;
 }
 
+.ClawdModelSelect {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  background: white;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1a1a;
+  cursor: pointer;
+  appearance: auto;
+  margin-bottom: 16px;
+  transition: border-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(197, 72, 65, 0.3);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #c54841;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
 .ClawdModelOption {
   display: flex;
   flex-direction: column;

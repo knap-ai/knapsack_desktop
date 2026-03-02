@@ -1004,7 +1004,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       {
         id: 'welcome-1',
         role: 'assistant' as Role,
-        text: "Hi! I'm your AI browser assistant, powered by OpenClaw. I can browse the web for you, read pages, click buttons, fill forms, and more — all through natural conversation.",
+        text: "Hi! I'm your AI browser assistant. I can browse the web for you, read pages, click buttons, fill forms, and more — all through natural conversation.",
         ts: Date.now(),
       },
       {
@@ -2804,7 +2804,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <img src="/assets/images/knap-logo-medium.png" alt="Knapsack" className="ClawdChatLogo" />
           <div className="ClawdChatTitleGroup">
             <h1 className="ClawdChatTitle">Knapsack Chat</h1>
-            <p className="ClawdChatSubtitle">AI assistant powered by OpenClaw</p>
+            {/* Attribution moved to Settings */}
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
         </div>
@@ -4464,76 +4464,72 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             {selectedProvider === 'openai' && (
               <>
                 <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
+                <select
+                  className="ClawdModelSelect"
+                  value={selectedModel}
+                  onChange={e => setSelectedModel(e.target.value)}
+                  disabled={savingKey}
+                >
                   {OPENAI_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
+                    <option key={model.id} value={model.id}>
+                      {model.name} — {model.description}
+                    </option>
                   ))}
-                </div>
+                </select>
               </>
             )}
 
             {selectedProvider === 'anthropic' && (
               <>
                 <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
+                <select
+                  className="ClawdModelSelect"
+                  value={selectedAnthropicModel}
+                  onChange={e => setSelectedAnthropicModel(e.target.value)}
+                  disabled={savingKey}
+                >
                   {ANTHROPIC_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedAnthropicModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedAnthropicModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
+                    <option key={model.id} value={model.id}>
+                      {model.name} — {model.description}
+                    </option>
                   ))}
-                </div>
+                </select>
               </>
             )}
 
             {selectedProvider === 'gemini' && (
               <>
                 <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
+                <select
+                  className="ClawdModelSelect"
+                  value={selectedGeminiModel}
+                  onChange={e => setSelectedGeminiModel(e.target.value)}
+                  disabled={savingKey}
+                >
                   {GEMINI_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedGeminiModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedGeminiModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
+                    <option key={model.id} value={model.id}>
+                      {model.name} — {model.description}
+                    </option>
                   ))}
-                </div>
+                </select>
               </>
             )}
 
             {selectedProvider === 'groq' && (
               <>
                 <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
+                <select
+                  className="ClawdModelSelect"
+                  value={selectedGroqModel}
+                  onChange={e => setSelectedGroqModel(e.target.value)}
+                  disabled={savingKey}
+                >
                   {GROQ_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedGroqModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedGroqModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
+                    <option key={model.id} value={model.id}>
+                      {model.name} — {model.description}
+                    </option>
                   ))}
-                </div>
+                </select>
               </>
             )}
 
@@ -4595,19 +4591,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 {ollamaRunning && ollamaModels.length > 0 && (
                   <>
                     <label className="ClawdKeyPromptLabel">Your Models</label>
-                    <div className="ClawdModelSelector">
+                    <select
+                      className="ClawdModelSelect"
+                      value={selectedOllamaModel}
+                      onChange={e => setSelectedOllamaModel(e.target.value)}
+                      disabled={savingKey}
+                    >
+                      <option value="">Select a model...</option>
                       {ollamaModels.map(model => (
-                        <button
-                          key={model.name}
-                          className={`ClawdModelOption ${selectedOllamaModel === model.name ? 'selected' : ''}`}
-                          onClick={() => setSelectedOllamaModel(model.name)}
-                          disabled={savingKey}
-                        >
-                          <span className="ClawdModelName">{model.name}</span>
-                          <span className="ClawdModelDesc">{model.parameter_size || 'Local model'}</span>
-                        </button>
+                        <option key={model.name} value={model.name}>
+                          {model.name} — {model.parameter_size || 'Local model'}
+                        </option>
                       ))}
-                    </div>
+                    </select>
                   </>
                 )}
 

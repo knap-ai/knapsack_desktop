@@ -64,13 +64,13 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
       id: TabChoices.Workspaces,
       svg: '/assets/images/tabBar/automateTab.svg',
       label: 'RAG',
-      isActive: true,
+      isActive: false, // hidden — product work in progress
     },
     {
       id: TabChoices.MCPMarketplace,
       svg: '/assets/images/tabBar/automateTab.svg',
       label: 'Skills',
-      isActive: true,
+      isActive: false, // hidden — product work in progress
     },
   ]
 
