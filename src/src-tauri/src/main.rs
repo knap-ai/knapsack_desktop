@@ -433,19 +433,19 @@ fn activate_main_window_from_notification(window: tauri::Window) {
         let screen_size = monitor.size();
         let scale_factor = monitor.scale_factor();
 
-        // Use the same width as the notification and ~70% of screen height
-        let logical_height = (screen_size.height as f64 / scale_factor) * 0.7;
+        // Use the same width as the notification and full screen height
+        let logical_height = screen_size.height as f64 / scale_factor;
 
         let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
           width: NOTIF_WIDTH,
           height: logical_height,
         }));
 
-        // Align the main window with the notification's position
+        // Align horizontally with the notification, pin to top of screen
         let _ = main_window.set_position(tauri::Position::Physical(
           tauri::PhysicalPosition {
             x: notif_pos.x,
-            y: notif_pos.y,
+            y: 0,
           },
         ));
       }
