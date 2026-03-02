@@ -861,6 +861,73 @@ fn extract_docx_text(content: &str) -> String {
   result
 }
 
+/// Send a chat message through the gateway's agent pipeline.
+///
+/// This shares the same session as Telegram/WhatsApp/iMessage channels,
+/// so conversation history carries across all surfaces.  Falls back to
+/// the direct `/api/clawd/chat` path if the gateway is not reachable.
+#[post("/api/clawd/agent-chat")]
+pub async fn agent_chat(
+  body: web::Json<JsonValue>,
+) -> impl Responder {
+  let text = body
+    .get("text")
+    .and_then(|v| v.as_str())
+    .unwrap_or("")
+    .trim()
+    .to_string();
+
+  if text.is_empty() {
+    return HttpResponse::BadRequest()
+      .json(serde_json::json!({"ok": false, "message": "text is required"}));
+  }
+
+  // Check gateway reachability first
+  if !gateway_client::is_gateway_port_open().await {
+    return HttpResponse::ServiceUnavailable()
+      .json(serde_json::json!({"ok": false, "message": "Gateway not reachable", "fallback": true}));
+  }
+
+  match gateway_client::agent_chat(&text, None).await {
+    Ok(result) => {
+      // Extract the reply text from the agent result.
+      // The result structure is: { runId, status, summary, result: { payloads: [{text}] } }
+      let reply = result
+        .pointer("/result/payloads")
+        .and_then(|p| p.as_array())
+        .map(|payloads| {
+          payloads
+            .iter()
+            .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+        })
+        .unwrap_or_else(|| {
+          // Fallback: try to extract from summary or return the raw result
+          result
+            .get("summary")
+            .and_then(|s| s.as_str())
+            .unwrap_or("No reply")
+            .to_string()
+        });
+
+      HttpResponse::Ok().json(serde_json::json!({
+        "ok": true,
+        "reply": reply,
+        "gateway": true,
+      }))
+    }
+    Err(e) => {
+      eprintln!("[clawd/agent-chat] Gateway agent request failed: {}", e);
+      HttpResponse::Ok().json(serde_json::json!({
+        "ok": false,
+        "message": format!("Gateway error: {}", e),
+        "fallback": true,
+      }))
+    }
+  }
+}
+
 #[post("/api/clawd/chat")]
 pub async fn chat(
   app_handle: web::Data<tauri::AppHandle>,
