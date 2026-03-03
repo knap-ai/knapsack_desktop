@@ -1,6 +1,42 @@
 @import "../main.css";
 
 .TabBarContainer {
+  transition: width 0.15s ease;
+  width: 80px;
+  min-width: 80px;
+
+  &--collapsed {
+    width: 20px;
+    min-width: 20px;
+  }
+}
+
+.TabBarToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 28px;
+  margin: 4px auto 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #9CA3AF;
+  cursor: pointer;
+  border-radius: 4px;
+
+  &:hover {
+    color: #6474AC;
+    background-color: #E4E7EC;
+  }
+
+  &--expand {
+    margin-left: 2px;
+  }
+
+  &--collapse {
+    margin-bottom: 4px;
+  }
 }
 
 .SelectedTabItem {

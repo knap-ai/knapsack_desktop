@@ -165,12 +165,29 @@ function OverlayPanel() {
 
         const decoder = new TextDecoder()
         let accumulated = ''
+        let buffer = ''
 
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          const chunk = decoder.decode(value, { stream: true })
-          accumulated += chunk
+          buffer += decoder.decode(value, { stream: true })
+
+          // Parse SSE lines: each is "data: {json}\n"
+          const lines = buffer.split('\n')
+          // Keep the last (possibly incomplete) line in the buffer
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            if (line === 'data: [DONE]') break
+            try {
+              const parsed = JSON.parse(line.slice(6))
+              const text = parsed?.choices?.[0]?.text ?? ''
+              accumulated += text
+            } catch {
+              // Malformed JSON chunk — skip
+            }
+          }
           setResponse(accumulated)
         }
       } catch (err: any) {

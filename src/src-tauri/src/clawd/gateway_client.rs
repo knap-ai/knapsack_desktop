@@ -197,10 +197,98 @@ fn ensure_browser_config() {
     if !legacy.exists() {
       return; // No config file yet; service.rs will create one when enabling.
     }
-    // Use legacy path
-    return ensure_browser_config_at(&legacy);
+    ensure_browser_config_at(&legacy);
+    ensure_tools_md(&legacy);
+    return;
   }
   ensure_browser_config_at(&config_path);
+  ensure_tools_md(&config_path);
+}
+
+/// Write TOOLS.md to the workspace if it's missing or outdated.
+/// This covers dev mode where set_service_enabled never runs.
+fn ensure_tools_md(config_path: &std::path::Path) {
+  let content = match std::fs::read_to_string(config_path) {
+    Ok(c) => c,
+    Err(_) => return,
+  };
+  let cfg: Value = match serde_json::from_str(&content) {
+    Ok(v) => v,
+    Err(_) => return,
+  };
+
+  let home = match std::env::var("HOME") {
+    Ok(h) => h,
+    Err(_) => return,
+  };
+
+  let workspace_path = cfg
+    .pointer("/agents/defaults/workspace")
+    .and_then(|v| v.as_str())
+    .map(|s| {
+      if s.starts_with("~/") {
+        std::path::PathBuf::from(&home).join(&s[2..])
+      } else {
+        std::path::PathBuf::from(s)
+      }
+    })
+    .unwrap_or_else(|| std::path::PathBuf::from(&home).join(".openclaw").join("workspace"));
+
+  let _ = std::fs::create_dir_all(&workspace_path);
+  let tools_md_path = workspace_path.join("TOOLS.md");
+
+  let should_write = if tools_md_path.exists() {
+    std::fs::read_to_string(&tools_md_path)
+      .map(|c| !c.contains("## Cross-Channel Awareness"))
+      .unwrap_or(true)
+  } else {
+    true
+  };
+
+  if !should_write {
+    return;
+  }
+
+  // Same content as service.rs writes; kept in sync manually.
+  let tools_md = r#"# Tools
+
+## Cross-Channel Awareness
+
+You are running inside the **Knapsack desktop app** on the user's computer. You serve the same user across multiple channels — the desktop chat UI, Telegram, WhatsApp, and iMessage all share the same session and capabilities.
+
+**Key facts:**
+- Messages from **Telegram, WhatsApp, and iMessage** are handled by the same agent as the desktop chat — they share history and session state
+- You have access to a **real desktop browser** on the user's machine — use it to check email, calendars, web apps, etc. regardless of which channel the message came from
+- When a user messages you from Telegram asking to "check my calendar" or "look up something online", **use the browser tool** — you CAN do it
+- The browser is logged into the user's accounts (Google, Microsoft, etc.), so you can access authenticated services
+- Never say "I can't browse the web" or "I don't have access to your calendar" — you DO have access via the browser tool
+
+**Reviewing past channel conversations:**
+- To check what you've been discussing on **Telegram, WhatsApp, iMessage**, or any channel: use `sessions_list` to find sessions from that channel, then `sessions_history` to read the conversation
+- Example: if the user asks "what have we been talking about on Telegram?", use `sessions_list` with a filter for Telegram sessions, then read the history — do NOT browse to web.telegram.org or the messaging app's website
+- You already have direct access to all channel conversation history through the sessions tools — no need to use the browser for this
+
+**Channel-specific notes:**
+- **Desktop chat**: The user sees your response directly in the Knapsack app
+- **Telegram/WhatsApp/iMessage**: The user sees your response in their messaging app. Keep responses concise and mobile-friendly. You can still use the browser, run scripts, and access files — the user just won't see the browser directly
+
+## Browser Automation
+
+You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
+
+- **Check email**: Navigate to Gmail/Outlook and read/summarize
+- **Check calendar**: Navigate to Google Calendar and read upcoming events
+- **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
+- **Fill forms, click buttons, type text** on any website
+
+## Web Fetch & Web Search
+
+Use `web_fetch` to read URLs directly. Use `web_search` to find information online. Use **browser** for interactive tasks requiring login, JavaScript-heavy pages, or multi-step flows.
+"#;
+  match std::fs::write(&tools_md_path, tools_md) {
+    Ok(_) => eprintln!("[gateway_client] Wrote TOOLS.md at {}", tools_md_path.display()),
+    Err(e) => eprintln!("[gateway_client] Failed to write TOOLS.md: {}", e),
+  }
 }
 
 fn ensure_browser_config_at(config_path: &std::path::Path) {
