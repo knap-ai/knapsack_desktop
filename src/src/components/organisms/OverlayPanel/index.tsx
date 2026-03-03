@@ -11,6 +11,7 @@ const QUICK_ACTIONS_HEIGHT = 44
 const PADDING_BOTTOM = 16
 
 const AGENT_CHAT_URL = KN_SERVER_HOST + '/api/clawd/agent-chat'
+const DIRECT_CHAT_URL = KN_SERVER_HOST + '/api/clawd/chat'
 
 interface QuickAction {
   label: string
@@ -134,21 +135,43 @@ function OverlayPanel() {
       setIsLoading(true)
 
       try {
-        const res = await fetch(AGENT_CHAT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: submittedQuery }),
-          signal: controller.signal,
-        })
+        // Try gateway agent-chat first (shared session with channels),
+        // fall back to direct LLM chat if gateway is unavailable.
+        let reply: string | null = null
 
-        const data = await res.json()
+        try {
+          const agentRes = await fetch(AGENT_CHAT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: submittedQuery }),
+            signal: controller.signal,
+          })
+          const agentData = await agentRes.json()
+          if (agentData.ok && agentData.reply) {
+            reply = agentData.reply
+          }
+          // If not ok or no reply, fall through to direct chat
+        } catch (agentErr: any) {
+          if (agentErr.name === 'AbortError' && controller.signal.aborted) throw agentErr
+          // Gateway unreachable — fall through to direct chat
+        }
 
-        if (data.ok && data.reply) {
-          setResponse(data.reply)
-        } else if (data.message) {
-          setResponse(data.message)
+        // Fallback: direct LLM chat (has browser tools with shell fallback)
+        if (!reply) {
+          const directRes = await fetch(DIRECT_CHAT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: submittedQuery }),
+            signal: controller.signal,
+          })
+          const directData = await directRes.json()
+          reply = directData.reply || directData.message || directData.error || null
+        }
+
+        if (reply) {
+          setResponse(reply)
         } else {
-          setResponse('No response received. Make sure the gateway is running.')
+          setResponse('No response received. Make sure an API key is configured in Settings.')
         }
       } catch (err: any) {
         if (err.name === 'AbortError') {

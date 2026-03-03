@@ -941,7 +941,8 @@ fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
 ///
 /// This shares the same session as Telegram/WhatsApp/iMessage channels,
 /// so conversation history carries across all surfaces.  Falls back to
-/// the direct `/api/clawd/chat` path if the gateway is not reachable.
+/// the direct `/api/clawd/chat` path if the gateway is not reachable or
+/// returns an error.
 #[post("/api/clawd/agent-chat")]
 pub async fn agent_chat(
   app_handle: web::Data<tauri::AppHandle>,
@@ -959,63 +960,124 @@ pub async fn agent_chat(
       .json(serde_json::json!({"ok": false, "message": "text is required"}));
   }
 
-  // Check gateway reachability first
-  if !gateway_client::is_gateway_port_open().await {
-    return HttpResponse::ServiceUnavailable()
-      .json(serde_json::json!({"ok": false, "message": "Gateway not reachable", "fallback": true}));
+  // Try gateway agent-chat if port is open
+  let gateway_reply = if gateway_client::is_gateway_port_open().await {
+    eprintln!("[clawd/agent-chat] Sending to gateway: {:?}", &text[..text.len().min(100)]);
+
+    match gateway_client::agent_chat(&text, None).await {
+      Ok(result) => {
+        eprintln!("[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
+          result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+        let status = result.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
+        eprintln!("[clawd/agent-chat] status={}, has result/payloads={}",
+          status,
+          result.pointer("/result/payloads").is_some());
+
+        let reply = result
+          .pointer("/result/payloads")
+          .and_then(|p| p.as_array())
+          .map(|payloads| {
+            payloads
+              .iter()
+              .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+              .map(|raw| parse_sse_payload_text(raw))
+              .collect::<Vec<_>>()
+              .join("\n\n")
+          })
+          .unwrap_or_else(|| {
+            result
+              .get("summary")
+              .and_then(|s| s.as_str())
+              .unwrap_or("")
+              .to_string()
+          });
+
+        if !reply.is_empty() {
+          eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
+          open_first_url_in_reply(&app_handle, &reply);
+          Some(reply)
+        } else {
+          eprintln!("[clawd/agent-chat] Gateway returned empty reply, falling back to direct chat");
+          None
+        }
+      }
+      Err(e) => {
+        eprintln!("[clawd/agent-chat] Gateway agent request FAILED: {}, falling back to direct chat", e);
+        None
+      }
+    }
+  } else {
+    eprintln!("[clawd/agent-chat] Gateway port not open, falling back to direct chat");
+    None
+  };
+
+  if let Some(reply) = gateway_reply {
+    return HttpResponse::Ok().json(serde_json::json!({
+      "ok": true,
+      "reply": reply,
+      "gateway": true,
+    }));
   }
 
-  eprintln!("[clawd/agent-chat] Sending to gateway: {:?}", &text[..text.len().min(100)]);
-
-  match gateway_client::agent_chat(&text, None).await {
-    Ok(result) => {
-      // Log the raw result keys for debugging
-      eprintln!("[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
-        result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
-      let status = result.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
-      eprintln!("[clawd/agent-chat] status={}, has result/payloads={}",
-        status,
-        result.pointer("/result/payloads").is_some());
-
-      // Extract the reply text from the agent result.
-      // Result structure: { runId, status, summary, result: { payloads: [{text}] } }
-      let reply = result
-        .pointer("/result/payloads")
-        .and_then(|p| p.as_array())
-        .map(|payloads| {
-          payloads
-            .iter()
-            .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
-            .map(|raw| parse_sse_payload_text(raw))
-            .collect::<Vec<_>>()
-            .join("\n\n")
-        })
-        .unwrap_or_else(|| {
-          result
-            .get("summary")
-            .and_then(|s| s.as_str())
-            .unwrap_or("No reply")
-            .to_string()
-        });
-
-      eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
-
-      // Try to open any URLs the agent mentioned in the reply text using the
-      // system browser, in case the gateway's browser control couldn't open them.
-      open_first_url_in_reply(&app_handle, &reply);
-
-      HttpResponse::Ok().json(serde_json::json!({
-        "ok": true,
-        "reply": reply,
-        "gateway": true,
-      }))
+  // Fallback: direct LLM chat via internal HTTP request to /api/clawd/chat.
+  // This path has browser tools with shell fallback, so URLs will still open.
+  eprintln!("[clawd/agent-chat] Falling back to direct /api/clawd/chat");
+  let fallback_body = serde_json::json!({ "text": text });
+  match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(120))
+    .build()
+  {
+    Ok(client) => {
+      match client
+        .post("http://127.0.0.1:8897/api/clawd/chat")
+        .json(&fallback_body)
+        .send()
+        .await
+      {
+        Ok(res) => {
+          match res.json::<JsonValue>().await {
+            Ok(data) => {
+              let reply = data.get("reply").and_then(|v| v.as_str()).unwrap_or("");
+              let model = data.get("model").and_then(|v| v.as_str());
+              if !reply.is_empty() {
+                eprintln!("[clawd/agent-chat] Direct chat fallback succeeded");
+                open_first_url_in_reply(&app_handle, reply);
+                HttpResponse::Ok().json(serde_json::json!({
+                  "ok": true,
+                  "reply": reply,
+                  "gateway": false,
+                  "model": model,
+                }))
+              } else {
+                let msg = data.get("message").or(data.get("error"))
+                  .and_then(|v| v.as_str())
+                  .unwrap_or("No reply from direct chat");
+                HttpResponse::Ok().json(serde_json::json!({
+                  "ok": false,
+                  "message": msg,
+                }))
+              }
+            }
+            Err(e) => {
+              HttpResponse::Ok().json(serde_json::json!({
+                "ok": false,
+                "message": format!("Failed to parse direct chat response: {}", e),
+              }))
+            }
+          }
+        }
+        Err(e) => {
+          HttpResponse::Ok().json(serde_json::json!({
+            "ok": false,
+            "message": format!("Direct chat request failed: {}", e),
+          }))
+        }
+      }
     }
     Err(e) => {
-      eprintln!("[clawd/agent-chat] Gateway agent request FAILED: {}", e);
       HttpResponse::Ok().json(serde_json::json!({
         "ok": false,
-        "message": format!("Gateway error: {}", e),
-        "fallback": true,
+        "message": format!("Failed to init HTTP client: {}", e),
       }))
     }
   }
