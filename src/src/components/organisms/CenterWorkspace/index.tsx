@@ -112,7 +112,9 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true');
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true');
   const [forceShowPermissions] = useState(false);
-  const [permissionsDismissed, setPermissionsDismissed] = useState(false);
+  const [permissionsDismissed, setPermissionsDismissed] = useState(
+    localStorage.getItem('permissionsDismissed') === 'true'
+  );
 
   const onSynthesisFinish = () => setSynthesisState(prev => !prev)
 
@@ -310,8 +312,13 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
               onBothPermissionsGranted={() => {
                 setMicPermission(true)
                 setScreenPermission(true)
+                localStorage.setItem('permissionsDismissed', 'true')
+                setPermissionsDismissed(true)
               }}
-              onClose={() => setPermissionsDismissed(true)}
+              onClose={() => {
+                localStorage.setItem('permissionsDismissed', 'true')
+                setPermissionsDismissed(true)
+              }}
             />
           )}
             {item.title !== 'Email Autopilot' &&

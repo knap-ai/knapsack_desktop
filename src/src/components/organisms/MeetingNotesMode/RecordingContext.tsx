@@ -134,6 +134,8 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
           // Clear stale localStorage so AudioPermissionChecker re-shows
           if (!permissions.microphone) localStorage.removeItem('micPermissionGranted')
           if (!permissions.screen_recording) localStorage.removeItem('screenPermissionGranted')
+          // Also clear the dismissal flag so the permission dialog re-appears
+          localStorage.removeItem('permissionsDismissed')
 
           logError(
             new Error('Missing recording permissions'),

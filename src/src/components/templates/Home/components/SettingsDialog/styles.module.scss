@@ -6,3 +6,255 @@
     color: color-mix(in srgb,var(--color-blue-600),black 30%);
   }
 }
+
+/* ── Provider Accordion (mirrors ClawdChat channel accordion) ─────────── */
+
+.providerAccordion {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.providerItem {
+  border-bottom: 1px solid #e2e8f0;
+
+  &:last-child { border-bottom: none; }
+}
+
+.providerItemConnected {
+  .providerHeader {
+    background: #f0fdf4;
+  }
+}
+
+.providerItemOpen {
+  .providerHeader {
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .providerChevron {
+    transform: rotate(180deg);
+  }
+
+  .providerBody {
+    max-height: 500px;
+    opacity: 1;
+    padding: 14px 16px;
+  }
+}
+
+.providerHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: #fafafa;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+}
+
+.providerTitle {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  min-width: 0;
+}
+
+.providerCheck {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.providerBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.providerBadgeActive {
+  composes: providerBadge;
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.providerBadgeEnabled {
+  composes: providerBadge;
+  background: #f4f4f5;
+  color: #71717a;
+}
+
+.providerChevron {
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.providerBody {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0 16px;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+}
+
+.providerActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.providerStatus {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.providerActionLink {
+  font-size: 13px;
+  color: var(--color-blue-600);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+
+  &:hover {
+    color: color-mix(in srgb, var(--color-blue-600), black 30%);
+  }
+}
+
+.ollamaStatusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ollamaStatusDotGreen {
+  composes: ollamaStatusDot;
+  background: #22c55e;
+}
+
+.ollamaStatusDotRed {
+  composes: ollamaStatusDot;
+  background: #ef4444;
+}
+
+.ollamaStatusText {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ollamaStatusGreen {
+  composes: ollamaStatusText;
+  color: #16a34a;
+}
+
+.ollamaStatusRed {
+  composes: ollamaStatusText;
+  color: #ef4444;
+}
+
+.ollamaStatusChecking {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.ollamaHint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.ollamaHintLink {
+  color: var(--color-blue-600);
+
+  &:hover {
+    color: color-mix(in srgb, var(--color-blue-600), black 30%);
+  }
+}
+
+.ollamaModelLabel {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.ollamaNoModels {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.ollamaNoModelsCode {
+  background: #f4f4f5;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.ollamaToggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 4px;
+}
+
+.ollamaToggleLabel {
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.ollamaToggleBtn {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.ollamaToggleBtnEnable {
+  composes: ollamaToggleBtn;
+  background: #1e293b;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: #334155;
+  }
+}
+
+.ollamaToggleBtnDisable {
+  composes: ollamaToggleBtn;
+  background: #fef2f2;
+  color: #dc2626;
+
+  &:hover:not(:disabled) {
+    background: #fee2e2;
+  }
+}
+
+.ollamaFreeHint {
+  font-size: 11px;
+  color: #9ca3af;
+}

@@ -888,6 +888,7 @@ pub async fn validate_api_key(
 /// Set API key for any provider (OpenAI, Anthropic, Gemini, or extra providers)
 #[derive(Debug, Deserialize)]
 pub struct SetApiKeyRequest {
+  #[serde(default)]
   pub key: String,
   pub model: Option<String>,
   /// "openai" (default), "anthropic", "gemini", "groq", "minimax", "zai", "huggingface"
@@ -919,14 +920,59 @@ pub async fn set_api_key(
   };
 
   let key = payload.key.trim().to_string();
+  let provider = payload.provider.as_deref().unwrap_or("openai").to_lowercase();
+
+  // If no key provided, allow switching to a provider that already has a saved key
   if key.is_empty() {
-    return HttpResponse::BadRequest().json(SetApiKeyResponse {
-      success: false,
-      message: "API key cannot be empty".to_string(),
+    let has_existing = match provider.as_str() {
+      "anthropic" => tokens.anthropic_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+      "gemini" => tokens.gemini_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+      "groq" => tokens.groq_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+      "ollama" => true,
+      _ => tokens.openai_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+    };
+    if !has_existing {
+      return HttpResponse::BadRequest().json(SetApiKeyResponse {
+        success: false,
+        message: "API key cannot be empty".to_string(),
+      });
+    }
+    // Switch active provider and update model only
+    tokens.active_provider = Some(provider.clone());
+    if let Some(model) = &payload.model {
+      match provider.as_str() {
+        "anthropic" => { tokens.anthropic_model = Some(model.trim().to_string()); }
+        "gemini" => { tokens.gemini_model = Some(model.trim().to_string()); }
+        "groq" => { tokens.groq_model = Some(model.trim().to_string()); }
+        "ollama" => { tokens.ollama_model = Some(model.trim().to_string()); }
+        _ => { tokens.openai_model = Some(model.trim().to_string()); }
+      }
+    }
+    let provider_name = match provider.as_str() {
+      "anthropic" => "Anthropic",
+      "gemini" => "Gemini",
+      "groq" => "Groq",
+      "ollama" => "Ollama",
+      _ => "OpenAI",
+    };
+    if let Err(e) = save_tokens(&app_handle, &tokens) {
+      return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+        success: false,
+        message: e,
+      });
+    }
+    // Propagate env vars for the switched provider
+    if let Some(p) = &tokens.active_provider { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
+    if let Some(k) = &tokens.openai_api_key { std::env::set_var("OPENAI_API_KEY", k); }
+    if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
+    if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
+    if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
+    return HttpResponse::Ok().json(SetApiKeyResponse {
+      success: true,
+      message: format!("Switched to {}", provider_name),
     });
   }
 
-  let provider = payload.provider.as_deref().unwrap_or("openai").to_lowercase();
   let provider_name = match provider.as_str() {
     "anthropic" => {
       tokens.anthropic_api_key = Some(key);
@@ -1669,16 +1715,16 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Ensure the browser uses headless mode so it works without a
-            // display (channel automations run in the background).
+            // Ensure the browser is NOT headless — the user needs to see the
+            // managed Chrome window to log into services (OAuth, banking, etc.).
+            // Always set explicitly — if absent, the gateway may default to headless=true.
             let browser_headless = cfg
               .pointer("/browser/headless")
-              .and_then(|v| v.as_bool())
-              .unwrap_or(false);
-            if !browser_headless {
+              .and_then(|v| v.as_bool());
+            if browser_headless != Some(false) {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("headless".to_string(), serde_json::json!(true));
-              eprintln!("[clawd/service] Patched browser.headless to true");
+                .insert("headless".to_string(), serde_json::json!(false));
+              eprintln!("[clawd/service] Patched browser.headless to false (user needs visible Chrome for logins)");
               patched = true;
             }
 
@@ -1712,49 +1758,51 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Ensure the browser tool is explicitly allowed for the auto-reply
-            // agent so channel messages (Telegram, WhatsApp, etc.) can trigger
-            // browser automation (e.g. "check my email").  We add "browser" to
-            // the tools.allow array without clobbering existing entries.
+            // ── Ensure browser tool is allowed in NORMAL mode (webchat/desktop) ──
+            //
+            // The gateway's internal DEFAULT_TOOL_DENY includes "browser".
+            // If tools.deny is ABSENT from the config, the gateway uses that
+            // default, which BLOCKS browser for normal-mode requests (desktop
+            // webchat).  We must explicitly set tools.deny WITHOUT "browser".
+
+            // Ensure tools object exists
+            if cfg.get("tools").is_none() {
+              cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+            }
+
+            let deny_exists = cfg.pointer("/tools/deny").and_then(|v| v.as_array()).is_some();
+            if deny_exists {
+              // Remove "browser" from existing deny list
+              let browser_denied = cfg
+                .pointer("/tools/deny")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+                .unwrap_or(false);
+              if browser_denied {
+                if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
+                  deny_arr.retain(|item| item.as_str() != Some("browser"));
+                  eprintln!("[clawd/service] Removed browser from tools.deny");
+                  patched = true;
+                }
+              }
+            } else {
+              // tools.deny is ABSENT — create it from gateway defaults WITHOUT "browser"
+              // Gateway defaults: ["browser","canvas","nodes","cron","gateway",...channelIds]
+              cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+                .insert("deny".to_string(), serde_json::json!(["canvas", "nodes", "cron", "gateway"]));
+              eprintln!("[clawd/service] Created tools.deny (without browser)");
+              patched = true;
+            }
+
+            // Ensure "browser" is in tools.allow — the gateway's DEFAULT_TOOL_ALLOW
+            // does NOT include "browser", so even with "full" profile the deny list
+            // takes precedence unless we explicitly allow it.
             let browser_tool_allowed = cfg
               .pointer("/tools/allow")
               .and_then(|v| v.as_array())
               .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
               .unwrap_or(false);
-            // Also check if "group:ui" is already allowed (it includes browser)
-            let group_ui_allowed = cfg
-              .pointer("/tools/allow")
-              .and_then(|v| v.as_array())
-              .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:ui")))
-              .unwrap_or(false);
-            // Check tools.profile — "full" (or absent) means all tools are allowed
-            let tools_profile = cfg
-              .pointer("/tools/profile")
-              .and_then(|v| v.as_str())
-              .unwrap_or("");
-            let needs_browser_allow = !browser_tool_allowed
-              && !group_ui_allowed
-              && !tools_profile.is_empty()
-              && tools_profile != "full";
-            // Also check if browser is explicitly denied
-            let browser_denied = cfg
-              .pointer("/tools/deny")
-              .and_then(|v| v.as_array())
-              .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
-              .unwrap_or(false);
-            if browser_denied {
-              // Remove "browser" from tools.deny
-              if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
-                deny_arr.retain(|item| item.as_str() != Some("browser"));
-                eprintln!("[clawd/service] Removed browser from tools.deny");
-                patched = true;
-              }
-            }
-            if needs_browser_allow {
-              // tools.allow exists but doesn't include browser — append it
-              if cfg.get("tools").is_none() {
-                cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
-              }
+            if !browser_tool_allowed {
               let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
               if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
                 allow.push(serde_json::json!("browser"));
@@ -1948,13 +1996,33 @@ pub async fn set_service_enabled(
       // section (indicating it has the old version without web/image guidance).
       let should_write_tools_md = if tools_md_path.exists() {
         fs::read_to_string(&tools_md_path)
-          .map(|content| !content.contains("## Web Fetch") || !content.contains("## Images"))
+          .map(|content| !content.contains("## Cross-Channel Awareness"))
           .unwrap_or(true)
       } else {
         true
       };
       if should_write_tools_md {
         let tools_md_content = r#"# Tools
+
+## Cross-Channel Awareness
+
+You are running inside the **Knapsack desktop app** on the user's computer. You serve the same user across multiple channels — the desktop chat UI, Telegram, WhatsApp, and iMessage all share the same session and capabilities.
+
+**Key facts:**
+- Messages from **Telegram, WhatsApp, and iMessage** are handled by the same agent as the desktop chat — they share history and session state
+- You have access to a **real desktop browser** on the user's machine — use it to check email, calendars, web apps, etc. regardless of which channel the message came from
+- When a user messages you from Telegram asking to "check my calendar" or "look up something online", **use the browser tool** — you CAN do it
+- The browser is logged into the user's accounts (Google, Microsoft, etc.), so you can access authenticated services
+- Never say "I can't browse the web" or "I don't have access to your calendar" — you DO have access via the browser tool
+
+**Reviewing past channel conversations:**
+- To check what you've been discussing on **Telegram, WhatsApp, iMessage**, or any channel: use `sessions_list` to find sessions from that channel, then `sessions_history` to read the conversation
+- Example: if the user asks "what have we been talking about on Telegram?", use `sessions_list` with a filter for Telegram sessions, then read the history — do NOT browse to web.telegram.org or the messaging app's website
+- You already have direct access to all channel conversation history through the sessions tools — no need to use the browser for this
+
+**Channel-specific notes:**
+- **Desktop chat**: The user sees your response directly in the Knapsack app
+- **Telegram/WhatsApp/iMessage**: The user sees your response in their messaging app. Keep responses concise and mobile-friendly. You can still use the browser, run scripts, and access files — the user just won't see the browser directly
 
 ## Images & Photos
 
@@ -1980,9 +2048,10 @@ You have a `web_search` tool for searching the internet. Use it when the user as
 
 ## Browser Automation
 
-You have full browser control. Use it proactively for any web-based task that requires interaction:
+You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
 
 - **Check email**: Navigate to https://mail.google.com (or Outlook, etc.) and read/summarize
+- **Check calendar**: Navigate to https://calendar.google.com and read upcoming events
 - **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
 - **Fill forms, click buttons, type text** on any website
 

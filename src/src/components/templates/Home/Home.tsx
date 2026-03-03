@@ -46,6 +46,10 @@ import TabBar, { TabChoices } from './../../TabBar'
 import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
+import WorkspacesList from 'src/components/organisms/WorkspacesList'
+import WorkspaceView from 'src/components/organisms/WorkspaceView'
+import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
+import { Workspace } from 'src/api/workspaces'
 
 export interface ToastrState {
   message?: ReactElement
@@ -80,7 +84,7 @@ function Home({
   isAnyRecording,
 }: HomeProps) {
   const [fullRelease, setFullRelease] = useState<boolean | null>(null)
-  const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Moltbot)
+  const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Openclaw)
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
@@ -90,6 +94,7 @@ function Home({
   const [showActivityPanel, setShowActivityPanel] = useState(false)
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -133,7 +138,7 @@ function Home({
         setCurrentTab(TabChoices.NewAutomation)
       } else if (event.key === 'e' && event.metaKey && event.ctrlKey) {
         setAutopilotForceOpen(true)
-        setCurrentTab(TabChoices.Moltbot)
+        setCurrentTab(TabChoices.Openclaw)
       }
     }
   }, [])
@@ -150,7 +155,7 @@ function Home({
   useEffect(() => {
     const unlisten = listen('kn_trigger_autopilot', () => {
       setAutopilotForceOpen(true)
-      setCurrentTab(TabChoices.Moltbot)
+      setCurrentTab(TabChoices.Openclaw)
     })
     return () => {
       unlisten.then(fn => fn())
@@ -257,6 +262,8 @@ function Home({
   }
 
   const handleOpenProviderSignIn = useCallback((provider?: 'openai' | 'anthropic') => {
+    // Close settings dialog first so both drawers don't stack
+    setIsSettingsDialogOpened(false)
     setProviderSignInInitialProvider(provider)
     setIsProviderSignInDialogOpened(true)
   }, [])
@@ -360,14 +367,6 @@ function Home({
         rightComponent={
           auth.profile ? (
             <>
-              <a
-                className="text-ks-warm-grey-700 hover:text-ks-warm-grey-800 cursor-pointer font-bold !font-Lora text-xs flex items-center"
-                href="https://www.knapsack.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Learn more
-              </a>
               <ConnectionsDropdown
                 profile={auth.profile}
                 onSignoutClick={signout}
@@ -476,7 +475,7 @@ function Home({
                 />
               )}
 
-              {currentTab === TabChoices.Moltbot && (
+              {currentTab === TabChoices.Openclaw && (
                 <div className="overflow-hidden w-full h-full flex flex-row relative">
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat
@@ -558,6 +557,26 @@ function Home({
                 />
               )}
 
+              {currentTab === TabChoices.Workspaces && (
+                <div className="overflow-auto w-full h-full">
+                  {selectedWorkspace ? (
+                    <WorkspaceView
+                      workspace={selectedWorkspace}
+                      onBack={() => setSelectedWorkspace(null)}
+                    />
+                  ) : (
+                    <WorkspacesList
+                      onWorkspaceOpen={(ws) => setSelectedWorkspace(ws)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {currentTab === TabChoices.MCPMarketplace && (
+                <div className="overflow-auto w-full h-full p-6">
+                  <MCPMarketplace />
+                </div>
+              )}
 
             </div>
           </div>

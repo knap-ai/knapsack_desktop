@@ -83,20 +83,9 @@ return status as integer"#,
 
 #[cfg(target_os = "macos")]
 fn check_screen_recording_permission_macos() -> bool {
-    // Call CGPreflightScreenCaptureAccess directly from the app process via FFI.
-    // Using `swift -e` runs in a subprocess which macOS treats as a different app,
-    // so it always returns false even when Knapsack has the permission.
-    extern "C" {
-        fn CGPreflightScreenCaptureAccess() -> bool;
-    }
-    if unsafe { CGPreflightScreenCaptureAccess() } {
-        return true;
-    }
-
-    // Fallback: On macOS Sequoia (15.x+), CGPreflightScreenCaptureAccess() can
-    // return false even when the permission IS granted in System Settings.
-    // Use SCShareableContent as a more reliable check — it returns content when
-    // permission is granted, or an error when denied.
+    // On macOS Sequoia (15.x+), CGPreflightScreenCaptureAccess() is unreliable —
+    // it can return false even when the permission IS granted in System Settings.
+    // So we try SCShareableContent FIRST (more reliable), then fall back to CGPreflight.
     use std::sync::mpsc::channel;
     use std::time::Duration;
     use screen_capture_kit::shareable_content::SCShareableContent;
@@ -108,11 +97,20 @@ fn check_screen_recording_permission_macos() -> bool {
         },
     );
 
-    match rx.recv_timeout(Duration::from_secs(2)) {
-        Ok(granted) => granted,
+    // Give SCShareableContent up to 5 seconds (system can be slow on first check
+    // after granting permission, especially right after restart).
+    match rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(true) => return true,
+        Ok(false) => { /* denied — fall through to CGPreflight as secondary check */ }
         Err(_) => {
-            log::warn!("SCShareableContent permission check timed out, falling back to false");
-            false
+            log::warn!("SCShareableContent permission check timed out, trying CGPreflight");
         }
     }
+
+    // Secondary check: CGPreflightScreenCaptureAccess (works on pre-Sequoia, may
+    // also work on Sequoia for some configurations).
+    extern "C" {
+        fn CGPreflightScreenCaptureAccess() -> bool;
+    }
+    unsafe { CGPreflightScreenCaptureAccess() }
 }

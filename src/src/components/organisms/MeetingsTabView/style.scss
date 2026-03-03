@@ -43,7 +43,7 @@
   }
 
   &__date-header {
-    font-family: 'Lora', serif;
+    font-family: var(--font-serif);
     display: flex;
     cursor: pointer;
     position: relative;
@@ -72,7 +72,7 @@
   }
 
   &__date-label {
-    font-family: 'Lora', serif;
+    font-family: var(--font-serif);
     font-size: 0.75rem;
     font-weight: 700;
     line-height: 1rem;
@@ -124,7 +124,7 @@
   }
 
   &__welcome-title {
-    font-family: 'Lora', serif;
+    font-family: var(--font-serif);
     font-size: 32px;
     font-weight: 500;
     color: var(--ks-warm-grey-950);

@@ -29,7 +29,7 @@ const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 const MAX_IN_FLIGHT: usize = 64;
 
 // Circuit breaker: trip after N consecutive failures, cool down for a bit.
-const BREAKER_TRIP_AFTER: u32 = 2;
+const BREAKER_TRIP_AFTER: u32 = 3;
 const BREAKER_COOLDOWN: Duration = Duration::from_secs(15);
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
@@ -115,6 +115,10 @@ struct AuthInfo {
 
 struct Pending {
   tx: oneshot::Sender<Result<Value, String>>,
+  /// How many more responses to skip before resolving.
+  /// For two-phase methods like `agent`, the first response is an ack
+  /// and the second is the actual result. Set to 1 to skip one response.
+  remaining_skips: u32,
 }
 
 #[derive(Default)]
@@ -175,7 +179,548 @@ async fn ensure_gateway_best_effort(token: &str) {
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
 }
 
+/// Ensure the OpenClaw config has browser settings suitable for the desktop app:
+///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "openclaw".
+///
+/// The `set_service_enabled` endpoint (macOS launchctl setup) also patches these,
+/// but that path is never hit in `npm run tauri dev` or on non-macOS.  Running this
+/// at first connection ensures the managed Chrome is visible and functional regardless
+/// of how the gateway was started.
+/// Returns `true` when the on-disk config was changed (browser settings patched).
+fn ensure_browser_config() -> bool {
+  let home = match std::env::var("HOME") {
+    Ok(h) => h,
+    Err(_) => return false,
+  };
+  let config_path = std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json");
+  if !config_path.exists() {
+    let legacy = std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json");
+    if !legacy.exists() {
+      return false; // No config file yet; service.rs will create one when enabling.
+    }
+    let changed = ensure_browser_config_at(&legacy);
+    ensure_tools_md(&legacy);
+    return changed;
+  }
+  let changed = ensure_browser_config_at(&config_path);
+  ensure_tools_md(&config_path);
+  changed
+}
+
+/// Write TOOLS.md to the workspace if it's missing or outdated.
+/// This covers dev mode where set_service_enabled never runs.
+fn ensure_tools_md(config_path: &std::path::Path) {
+  let content = match std::fs::read_to_string(config_path) {
+    Ok(c) => c,
+    Err(_) => return,
+  };
+  let cfg: Value = match serde_json::from_str(&content) {
+    Ok(v) => v,
+    Err(_) => return,
+  };
+
+  let home = match std::env::var("HOME") {
+    Ok(h) => h,
+    Err(_) => return,
+  };
+
+  let workspace_path = cfg
+    .pointer("/agents/defaults/workspace")
+    .and_then(|v| v.as_str())
+    .map(|s| {
+      if s.starts_with("~/") {
+        std::path::PathBuf::from(&home).join(&s[2..])
+      } else {
+        std::path::PathBuf::from(s)
+      }
+    })
+    .unwrap_or_else(|| std::path::PathBuf::from(&home).join(".openclaw").join("workspace"));
+
+  let _ = std::fs::create_dir_all(&workspace_path);
+  let tools_md_path = workspace_path.join("TOOLS.md");
+
+  let should_write = if tools_md_path.exists() {
+    std::fs::read_to_string(&tools_md_path)
+      .map(|c| !c.contains("## Cross-Channel Awareness"))
+      .unwrap_or(true)
+  } else {
+    true
+  };
+
+  if !should_write {
+    return;
+  }
+
+  // Same content as service.rs writes; kept in sync manually.
+  let tools_md = r#"# Tools
+
+## Cross-Channel Awareness
+
+You are running inside the **Knapsack desktop app** on the user's computer. You serve the same user across multiple channels — the desktop chat UI, Telegram, WhatsApp, and iMessage all share the same session and capabilities.
+
+**Key facts:**
+- Messages from **Telegram, WhatsApp, and iMessage** are handled by the same agent as the desktop chat — they share history and session state
+- You have access to a **real desktop browser** on the user's machine — use it to check email, calendars, web apps, etc. regardless of which channel the message came from
+- When a user messages you from Telegram asking to "check my calendar" or "look up something online", **use the browser tool** — you CAN do it
+- The browser is logged into the user's accounts (Google, Microsoft, etc.), so you can access authenticated services
+- Never say "I can't browse the web" or "I don't have access to your calendar" — you DO have access via the browser tool
+
+**Reviewing past channel conversations:**
+- To check what you've been discussing on **Telegram, WhatsApp, iMessage**, or any channel: use `sessions_list` to find sessions from that channel, then `sessions_history` to read the conversation
+- Example: if the user asks "what have we been talking about on Telegram?", use `sessions_list` with a filter for Telegram sessions, then read the history — do NOT browse to web.telegram.org or the messaging app's website
+- You already have direct access to all channel conversation history through the sessions tools — no need to use the browser for this
+
+**Channel-specific notes:**
+- **Desktop chat**: The user sees your response directly in the Knapsack app
+- **Telegram/WhatsApp/iMessage**: The user sees your response in their messaging app. Keep responses concise and mobile-friendly. You can still use the browser, run scripts, and access files — the user just won't see the browser directly
+
+## Browser Automation
+
+You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
+
+- **Check email**: Navigate to Gmail/Outlook and read/summarize
+- **Check calendar**: Navigate to Google Calendar and read upcoming events
+- **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
+- **Fill forms, click buttons, type text** on any website
+
+## Web Fetch & Web Search
+
+Use `web_fetch` to read URLs directly. Use `web_search` to find information online. Use **browser** for interactive tasks requiring login, JavaScript-heavy pages, or multi-step flows.
+"#;
+  match std::fs::write(&tools_md_path, tools_md) {
+    Ok(_) => eprintln!("[gateway_client] Wrote TOOLS.md at {}", tools_md_path.display()),
+    Err(e) => eprintln!("[gateway_client] Failed to write TOOLS.md: {}", e),
+  }
+}
+
+/// Patch browser config at a specific path.  Returns `true` when the file
+/// was modified so the caller knows whether a running gateway needs updating.
+fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
+  let content = match std::fs::read_to_string(config_path) {
+    Ok(c) => c,
+    Err(_) => return false,
+  };
+  let mut cfg: Value = match serde_json::from_str(&content) {
+    Ok(v) => v,
+    Err(_) => return false,
+  };
+
+  let mut patched = false;
+
+  // Ensure browser object exists.
+  if cfg.get("browser").is_none() {
+    cfg.as_object_mut().unwrap().insert("browser".into(), serde_json::json!({}));
+    patched = true;
+  }
+
+  // browser.enabled = true
+  let enabled = cfg.pointer("/browser/enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+  if !enabled {
+    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+      .insert("enabled".into(), serde_json::json!(true));
+    eprintln!("[gateway_client] Patched browser.enabled to true");
+    patched = true;
+  }
+
+  // browser.headless = false  (user needs visible Chrome for logins)
+  // Always set explicitly — if absent, the gateway may default to headless=true.
+  let headless = cfg.pointer("/browser/headless").and_then(|v| v.as_bool());
+  if headless != Some(false) {
+    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+      .insert("headless".into(), serde_json::json!(false));
+    eprintln!("[gateway_client] Patched browser.headless to false");
+    patched = true;
+  }
+
+  // browser.defaultProfile = "openclaw"  (managed, isolated)
+  let profile = cfg.pointer("/browser/defaultProfile").and_then(|v| v.as_str()).unwrap_or("chrome");
+  if profile == "chrome" || profile.is_empty() {
+    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+      .insert("defaultProfile".into(), serde_json::json!("openclaw"));
+    eprintln!("[gateway_client] Patched browser.defaultProfile to openclaw");
+    patched = true;
+  }
+
+  // browser.noSandbox = true  (needed on Linux for Chrome without a display server)
+  let no_sandbox = cfg.pointer("/browser/noSandbox").and_then(|v| v.as_bool()).unwrap_or(false);
+  if !no_sandbox {
+    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+      .insert("noSandbox".into(), serde_json::json!(true));
+    eprintln!("[gateway_client] Patched browser.noSandbox to true");
+    patched = true;
+  }
+
+  // ── Ensure browser tool is allowed in NORMAL mode (webchat/desktop) ────
+  //
+  // The gateway's internal DEFAULT_TOOL_DENY includes "browser".
+  // If tools.deny is ABSENT from the config, the gateway uses that default,
+  // which BLOCKS browser for normal-mode requests (desktop webchat).
+  // We must explicitly set tools.deny WITHOUT "browser" so the gateway
+  // doesn't fall back to its built-in default.
+
+  // Ensure tools object exists
+  if cfg.get("tools").is_none() {
+    cfg.as_object_mut().unwrap().insert("tools".into(), serde_json::json!({}));
+  }
+
+  let deny_exists = cfg.pointer("/tools/deny").and_then(|v| v.as_array()).is_some();
+  if deny_exists {
+    // Remove "browser" from existing deny list
+    let browser_denied = cfg
+      .pointer("/tools/deny")
+      .and_then(|v| v.as_array())
+      .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+      .unwrap_or(false);
+    if browser_denied {
+      if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
+        deny_arr.retain(|item| item.as_str() != Some("browser"));
+        eprintln!("[gateway_client] Removed browser from tools.deny");
+        patched = true;
+      }
+    }
+  } else {
+    // tools.deny is ABSENT — create it from gateway defaults WITHOUT "browser"
+    // so the gateway doesn't fall back to its internal default (which blocks browser).
+    // Gateway defaults: ["browser","canvas","nodes","cron","gateway",...channelIds]
+    cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+      .insert("deny".into(), serde_json::json!(["canvas", "nodes", "cron", "gateway"]));
+    eprintln!("[gateway_client] Created tools.deny (without browser)");
+    patched = true;
+  }
+
+  // Ensure "browser" and "group:web" are in tools.allow.
+  // The gateway's DEFAULT_TOOL_ALLOW does NOT include "browser" or web tools.
+  // Even with the "full" profile, the deny list takes precedence — so we must
+  // also add browser to the allow list to be safe.
+  let browser_tool_allowed = cfg
+    .pointer("/tools/allow")
+    .and_then(|v| v.as_array())
+    .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+    .unwrap_or(false);
+  if !browser_tool_allowed {
+    let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
+    if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
+      allow.push(serde_json::json!("browser"));
+    } else {
+      tools.insert("allow".into(), serde_json::json!(["browser"]));
+    }
+    eprintln!("[gateway_client] Added browser to tools.allow");
+    patched = true;
+  }
+
+  // Ensure "group:web" is in tools.allow (includes web_fetch + web_search)
+  let group_web_allowed = cfg
+    .pointer("/tools/allow")
+    .and_then(|v| v.as_array())
+    .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:web")))
+    .unwrap_or(false);
+  if !group_web_allowed {
+    if let Some(allow) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+      allow.push(serde_json::json!("group:web"));
+    }
+    eprintln!("[gateway_client] Added group:web to tools.allow");
+    patched = true;
+  }
+
+  // ── Ensure browser tool is allowed in SANDBOX mode (Telegram/WhatsApp/etc.) ─
+  //
+  // Channel messages run in sandbox mode with a separate tools policy.
+  // The gateway's DEFAULT_TOOL_DENY for sandbox also blocks "browser".
+  // Create/patch sandbox deny and allow lists to match what service.rs does.
+  if cfg.pointer("/tools/sandbox").is_none() {
+    cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+      .insert("sandbox".into(), serde_json::json!({}));
+  }
+  if cfg.pointer("/tools/sandbox/tools").is_none() {
+    cfg.pointer_mut("/tools/sandbox").unwrap().as_object_mut().unwrap()
+      .insert("tools".into(), serde_json::json!({}));
+  }
+
+  // sandbox deny list
+  let sandbox_deny_exists = cfg.pointer("/tools/sandbox/tools/deny").and_then(|v| v.as_array()).is_some();
+  if sandbox_deny_exists {
+    let has_browser = cfg.pointer("/tools/sandbox/tools/deny")
+      .and_then(|v| v.as_array())
+      .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+      .unwrap_or(false);
+    if has_browser {
+      if let Some(arr) = cfg.pointer_mut("/tools/sandbox/tools/deny").and_then(|v| v.as_array_mut()) {
+        arr.retain(|item| item.as_str() != Some("browser"));
+        eprintln!("[gateway_client] Removed browser from tools.sandbox.tools.deny");
+        patched = true;
+      }
+    }
+  } else {
+    cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+      .insert("deny".into(), serde_json::json!(["canvas", "nodes", "cron", "gateway"]));
+    eprintln!("[gateway_client] Created tools.sandbox.tools.deny (without browser)");
+    patched = true;
+  }
+
+  // sandbox allow list
+  let sandbox_allow_has_browser = cfg.pointer("/tools/sandbox/tools/allow")
+    .and_then(|v| v.as_array())
+    .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+    .unwrap_or(false);
+  if !sandbox_allow_has_browser {
+    if let Some(arr) = cfg.pointer_mut("/tools/sandbox/tools/allow").and_then(|v| v.as_array_mut()) {
+      arr.push(serde_json::json!("browser"));
+      arr.push(serde_json::json!("group:web"));
+    } else {
+      cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+        .insert("allow".into(), serde_json::json!([
+          "exec", "process", "read", "write", "edit", "apply_patch",
+          "image", "sessions_list", "sessions_history",
+          "sessions_send", "sessions_spawn", "session_status",
+          "browser", "group:web"
+        ]));
+    }
+    eprintln!("[gateway_client] Added browser + group:web to tools.sandbox.tools.allow");
+    patched = true;
+  }
+
+  if patched {
+    if let Ok(json) = serde_json::to_string_pretty(&cfg) {
+      let _ = std::fs::write(config_path, json);
+      eprintln!("[gateway_client] Wrote patched config to {}", config_path.display());
+    }
+  }
+  patched
+}
+
+/// Track whether we've already applied browser config to a running gateway
+/// so we don't repeatedly trigger restarts.
+static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
+
+/// Push browser config to a running gateway via a **temporary** WebSocket
+/// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
+/// we use a throwaway connection and wait for the gateway to come back.
+async fn apply_runtime_browser_config(token: &str) {
+  // Open a temporary WebSocket just for the config.patch exchange.
+  let tmp_ws = match tokio::time::timeout(
+    Duration::from_secs(3),
+    connect_async(GATEWAY_WS_URL),
+  ).await {
+    Ok(Ok((ws, _))) => ws,
+    _ => {
+      eprintln!("[gateway_client] Could not open temporary WS for config.patch");
+      return;
+    }
+  };
+
+  let (mut tmp_write, mut tmp_read) = tmp_ws.split();
+
+  // Complete the handshake on the temporary connection.
+  let challenge_text = match tokio::time::timeout(Duration::from_secs(3), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => break Ok(t),
+        Some(Ok(Message::Close(_))) | None => break Err("closed".to_string()),
+        _ => continue,
+      }
+    }
+  }).await {
+    Ok(Ok(t)) => t,
+    _ => {
+      eprintln!("[gateway_client] Timeout/error waiting for challenge on tmp WS");
+      return;
+    }
+  };
+
+  let event: EventFrame = match serde_json::from_str(&challenge_text) {
+    Ok(e) => e,
+    Err(_) => return,
+  };
+  if event.event != "connect.challenge" {
+    return;
+  }
+
+  let connect_params = ConnectParams {
+    min_protocol: PROTOCOL_VERSION,
+    max_protocol: PROTOCOL_VERSION,
+    client: ClientInfo {
+      id: "gateway-client-patch",
+      display_name: "Knapsack Desktop (config patch)",
+      version: env!("CARGO_PKG_VERSION"),
+      platform: std::env::consts::OS,
+      mode: "backend",
+    },
+    auth: Some(AuthInfo { token: token.to_string() }),
+    role: "operator",
+    scopes: vec!["operator.admin"],
+  };
+
+  let connect_frame = RequestFrame {
+    frame_type: "req",
+    method: "connect".to_string(),
+    id: next_request_id(),
+    params: Some(serde_json::to_value(&connect_params).unwrap()),
+  };
+
+  if tmp_write
+    .send(Message::Text(serde_json::to_string(&connect_frame).unwrap()))
+    .await
+    .is_err()
+  {
+    return;
+  }
+
+  // Wait for connect response.
+  let _connect_ok = match tokio::time::timeout(Duration::from_secs(3), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => {
+          if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
+            break resp.ok;
+          }
+        }
+        Some(Ok(Message::Close(_))) | None => break false,
+        _ => continue,
+      }
+    }
+  }).await {
+    Ok(ok) => ok,
+    Err(_) => false,
+  };
+
+  // Send config.get to get the baseHash.
+  let config_get_id = next_request_id();
+  let config_get_frame = RequestFrame {
+    frame_type: "req",
+    method: "config.get".to_string(),
+    id: config_get_id.clone(),
+    params: None,
+  };
+  if tmp_write
+    .send(Message::Text(serde_json::to_string(&config_get_frame).unwrap()))
+    .await
+    .is_err()
+  {
+    return;
+  }
+
+  // Read config.get response.
+  let cfg_val: Value = match tokio::time::timeout(Duration::from_secs(5), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => {
+          if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
+            if resp.id == config_get_id && resp.ok {
+              break Ok(resp.result.or(resp.data).or(resp.payload).unwrap_or(Value::Null));
+            } else if resp.id == config_get_id {
+              break Err("config.get failed");
+            }
+          }
+        }
+        Some(Ok(Message::Close(_))) | None => break Err("connection closed"),
+        _ => continue,
+      }
+    }
+  }).await {
+    Ok(Ok(v)) => v,
+    _ => {
+      eprintln!("[gateway_client] config.get failed or timed out on tmp WS, skipping patch");
+      return;
+    }
+  };
+
+  let base_hash = cfg_val.pointer("/hash")
+    .or_else(|| cfg_val.pointer("/baseHash"))
+    .and_then(|v| v.as_str())
+    .unwrap_or("");
+
+  if base_hash.is_empty() {
+    eprintln!("[gateway_client] config.get returned no hash, skipping runtime patch");
+    return;
+  }
+
+  // Send config.patch with browser + tools settings.
+  // This must include tools.deny (without browser) and tools.allow (with browser)
+  // because the gateway's internal defaults DENY browser.
+  let raw_patch = serde_json::json!({
+    "browser": {
+      "enabled": true,
+      "headless": false,
+      "defaultProfile": "openclaw",
+      "noSandbox": true
+    },
+    "tools": {
+      "deny": ["canvas", "nodes", "cron", "gateway"],
+      "allow": ["browser", "group:web"],
+      "sandbox": {
+        "tools": {
+          "deny": ["canvas", "nodes", "cron", "gateway"],
+          "allow": [
+            "exec", "process", "read", "write", "edit", "apply_patch",
+            "image", "sessions_list", "sessions_history",
+            "sessions_send", "sessions_spawn", "session_status",
+            "browser", "group:web"
+          ]
+        }
+      }
+    }
+  }).to_string();
+
+  let patch_frame = RequestFrame {
+    frame_type: "req",
+    method: "config.patch".to_string(),
+    id: next_request_id(),
+    params: Some(serde_json::json!({
+      "raw": raw_patch,
+      "baseHash": base_hash
+    })),
+  };
+  let _ = tmp_write
+    .send(Message::Text(serde_json::to_string(&patch_frame).unwrap()))
+    .await;
+  eprintln!("[gateway_client] Sent config.patch for browser settings on tmp WS — gateway will restart");
+
+  // Close the temporary connection (it'll die when the gateway restarts anyway).
+  let _ = tmp_write.send(Message::Close(None)).await;
+  drop(tmp_write);
+  drop(tmp_read);
+
+  // Wait for the gateway to restart.  Poll until the port is listening again
+  // (up to 8 seconds with exponential backoff).
+  eprintln!("[gateway_client] Waiting for gateway to restart after config.patch...");
+  tokio::time::sleep(Duration::from_secs(1)).await;
+  for wait_ms in [500, 1000, 1500, 2000, 3000] {
+    if is_gateway_port_open().await {
+      eprintln!("[gateway_client] Gateway is back up after config.patch");
+      // Give it a moment to fully initialize.
+      tokio::time::sleep(Duration::from_millis(500)).await;
+      return;
+    }
+    tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+  }
+  eprintln!("[gateway_client] Gateway did not come back after config.patch within timeout");
+}
+
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
+  // Patch browser config on disk before the gateway reads it.  This covers
+  // cold-start in dev mode (`npm run tauri dev`) where set_service_enabled
+  // never runs.
+  let disk_config_changed = ensure_browser_config();
+
+  // If we patched the config AND the gateway was already running, it has
+  // stale config.  We need to push the config to the running gateway via
+  // config.patch RPC.  We track this with BROWSER_CONFIG_APPLIED so we
+  // only do it once per process lifetime.
+  //
+  // IMPORTANT: We do this BEFORE establishing our main connection, using a
+  // temporary connection.  config.patch triggers a SIGUSR1 restart on the
+  // gateway, which would kill any in-flight requests on the same connection.
+  let need_runtime_patch = disk_config_changed
+    && !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
+    && is_gateway_port_open().await;
+
+  if need_runtime_patch {
+    BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
+    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
+    apply_runtime_browser_config(token).await;
+  }
+
   ensure_gateway_best_effort(token).await;
 
   // Wrap the TCP/WebSocket connection in a short timeout so we don't hang
@@ -282,13 +827,25 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
       if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&text) {
         let mut pending = client_clone.pending.lock().await;
-        if let Some(p) = pending.remove(&resp.id) {
-          let out = if resp.ok {
-            Ok(resp.result.or(resp.data).or(resp.payload).unwrap_or(Value::Null))
+        if let Some(mut p) = pending.remove(&resp.id) {
+          // Never skip error responses — if the gateway rejects the request
+          // (ok=false), resolve immediately so callers see the error instead
+          // of waiting for a second response that will never come.
+          if p.remaining_skips > 0 && resp.ok {
+            // Intermediate success response (e.g. "accepted" ack for
+            // two-phase methods like `agent`). Re-insert and wait for
+            // the final result.
+            p.remaining_skips -= 1;
+            pending.insert(resp.id, p);
           } else {
-            Err(format!("Request failed: {:?}", resp.error.unwrap_or(Value::Null)))
-          };
-          let _ = p.tx.send(out);
+            // Final response (or error) — resolve the future.
+            let out = if resp.ok {
+              Ok(resp.result.or(resp.data).or(resp.payload).unwrap_or(Value::Null))
+            } else {
+              Err(format!("Request failed: {:?}", resp.error.unwrap_or(Value::Null)))
+            };
+            let _ = p.tx.send(out);
+          }
         }
       }
     }
@@ -392,7 +949,7 @@ pub async fn gateway_request_pooled(
   let (tx, rx) = oneshot::channel();
   {
     let mut pending = client.pending.lock().await;
-    pending.insert(id.clone(), Pending { tx });
+    pending.insert(id.clone(), Pending { tx, remaining_skips: 0 });
   }
 
   let send_res = {
@@ -433,6 +990,93 @@ pub async fn gateway_request_pooled(
     } else {
       breaker.on_failure();
       // Connection may be stale; drop it so we reconnect next time.
+      drop(breaker);
+      invalidate_client();
+    }
+  }
+
+  drop(permit);
+  out
+}
+
+/// Make a two-phase request (like `agent`) using the persistent gateway
+/// connection.  Two-phase methods send an initial "accepted" ack response
+/// followed by the actual result.  This function skips the ack and waits
+/// for the final result, with a longer timeout suitable for LLM processing.
+pub async fn gateway_request_agent(
+  method: &str,
+  params: Option<Value>,
+  token: &str,
+  timeout_secs: u64,
+) -> Result<Value, String> {
+  let client = get_or_connect(token).await?;
+
+  // Circuit breaker check
+  {
+    let breaker = client.breaker.lock().await;
+    if !breaker.allow() {
+      return Err(format!(
+        "Gateway circuit breaker is open ({})",
+        breaker.state_string()
+      ));
+    }
+  }
+
+  let permit = client
+    .in_flight
+    .acquire()
+    .await
+    .map_err(|_| "Gateway request queue closed".to_string())?;
+
+  let id = next_request_id();
+  let frame = RequestFrame {
+    frame_type: "req",
+    method: method.to_string(),
+    id: id.clone(),
+    params,
+  };
+
+  let (tx, rx) = oneshot::channel();
+  {
+    let mut pending = client.pending.lock().await;
+    // remaining_skips = 1: skip the first "accepted" ack, resolve on the second (final) response
+    pending.insert(id.clone(), Pending { tx, remaining_skips: 1 });
+  }
+
+  let send_res = {
+    let mut write = client.write.lock().await;
+    write
+      .send(Message::Text(serde_json::to_string(&frame).unwrap()))
+      .await
+      .map_err(|e| format!("Failed to send request: {}", e))
+  };
+
+  if let Err(e) = send_res {
+    {
+      let mut pending = client.pending.lock().await;
+      pending.remove(&id);
+    }
+    {
+      let mut breaker = client.breaker.lock().await;
+      breaker.on_failure();
+    }
+    invalidate_client();
+    drop(permit);
+    return Err(e);
+  }
+
+  let out = tokio::time::timeout(Duration::from_secs(timeout_secs), rx)
+    .await
+    .map_err(|_| format!("Agent request timed out after {}s", timeout_secs))
+    .and_then(|r| r.map_err(|_| "Gateway response channel closed".to_string()))
+    .and_then(|r| r);
+
+  {
+    let mut breaker = client.breaker.lock().await;
+    if out.is_ok() {
+      breaker.on_success();
+    } else {
+      breaker.on_failure();
       drop(breaker);
       invalidate_client();
     }
@@ -530,6 +1174,31 @@ pub async fn browser_request(
     params["body"] = b;
   }
   gateway_request_pooled("browser.request", Some(params), &t).await
+}
+
+/// Send a chat message through the gateway's `agent` RPC method.
+///
+/// This routes the message through the same agent pipeline that handles
+/// Telegram/WhatsApp/iMessage messages, so they share the same session,
+/// conversation history, and system prompt.
+pub async fn agent_chat(
+  message: &str,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  let idem = format!("knapsack-ui-{}", std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_millis());
+  let params = serde_json::json!({
+    "message": message,
+    "idempotencyKey": idem,
+    "deliver": false,
+    "channel": "webchat",
+    "agentId": "main",
+  });
+  // 5 minute timeout — LLM tool loops can take a while
+  gateway_request_agent("agent", Some(params), &t, 300).await
 }
 
 /// Get current config from gateway (pooled).

@@ -29,20 +29,22 @@ export const Header = ({
       {leftComponent ? leftComponent : <div> </div>}
 
       <div
-        className="absolute left-1/2 transform -translate-x-1/2 font-InterTight text-[#B8B7B7] font-bold text-xxs leading-2"
+        className="flex-1 min-w-0 text-center font-InterTight text-[#B8B7B7] font-bold text-xxs leading-2 truncate px-2"
       >
         { title ? title : "KNAPSACK IS PRIVATE"}
       </div>
 
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-3 flex-shrink-0">
         {middleRightComponent && middleRightComponent}
-        <Typography
+        {appVersion && (
+          <Typography
             size={TypographySize.xxs}
             weight={TypographyWeight.medium}
-            className="text-zinc-400"
+            className="text-zinc-400 hidden min-[600px]:block whitespace-nowrap"
           >
             v{appVersion}
-        </Typography>
+          </Typography>
+        )}
         {rightComponent}
       </div>
     </div>

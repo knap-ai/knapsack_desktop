@@ -32,6 +32,8 @@ mod spotlight;
 mod transcribe;
 mod user;
 mod utils;
+mod workspaces;
+mod mcp;
 
 use connections::api::ConnectionsData;
 use log::info;
@@ -75,7 +77,7 @@ pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
 const NOTIF_HEIGHT: f64 = 100.0;
 const NOTIF_WIDTH: f64 = 720.0;
-//const NOTIF_Y_POSITION: i32 = 40 + (NOTIF_HEIGHT as i32);
+const NOTIF_Y_OFFSET: f64 = 50.0; // Push below macOS menu bar / notch
 const NOTIF_START_X_OFFSET: i32 = 500;
 const NOTIF_END_X_OFFSET: i32 = 20;
 const NOTIF_ANIMATION_DURATION: u32 = 90;
@@ -337,7 +339,7 @@ async fn show_notification_window(
         let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
         let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
-        let y_position = 0;
+        let y_position = (NOTIF_Y_OFFSET * scale_factor) as i32;
 
         // Resize notification window to full screen height
         let screen_height_logical = screen_size.height as f64 / scale_factor;
@@ -431,19 +433,19 @@ fn activate_main_window_from_notification(window: tauri::Window) {
         let screen_size = monitor.size();
         let scale_factor = monitor.scale_factor();
 
-        // Use the same width as the notification and ~70% of screen height
-        let logical_height = (screen_size.height as f64 / scale_factor) * 0.7;
+        // Use the same width as the notification and full screen height
+        let logical_height = screen_size.height as f64 / scale_factor;
 
         let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
           width: NOTIF_WIDTH,
           height: logical_height,
         }));
 
-        // Align the main window with the notification's position
+        // Align horizontally with the notification, pin to top of screen
         let _ = main_window.set_position(tauri::Position::Physical(
           tauri::PhysicalPosition {
             x: notif_pos.x,
-            y: notif_pos.y,
+            y: 0,
           },
         ));
       }
@@ -922,20 +924,45 @@ async fn main() {
 
       let main_window = window_builder.build()?;
 
-      // Resize main window to full screen height
+      // Position the window like Granola: right-aligned, below the menu bar,
+      // filling the usable screen height.  This avoids the window opening
+      // behind the macOS menu bar (y=0) where the drag region and chat input
+      // are inaccessible.
       if let Ok(Some(monitor)) = main_window.current_monitor() {
         let screen_size = monitor.size();
+        let monitor_pos = monitor.position();
         let scale_factor = monitor.scale_factor();
+        let screen_width_logical = screen_size.width as f64 / scale_factor;
         let screen_height_logical = screen_size.height as f64 / scale_factor;
+
+        // Reserve space for the macOS menu bar (~25px) and a small bottom
+        // margin so the window feels grounded rather than flush.
+        let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
+        let bottom_margin: f64 = 0.0;
+        let usable_height = screen_height_logical - menu_bar_height - bottom_margin;
+
+        // Cap width so the window doesn't exceed the screen
+        let window_width = 1440.0_f64.min(screen_width_logical);
+
         main_window
           .set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: 1440.0,
-            height: screen_height_logical,
+            width: window_width,
+            height: usable_height,
           }))
           .unwrap();
-      }
 
-      main_window.center()?;
+        // Right-align: x = screen_right_edge - window_width
+        let monitor_x_logical = monitor_pos.x as f64 / scale_factor;
+        let x = (monitor_x_logical + screen_width_logical - window_width).max(0.0);
+        let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
+
+        main_window
+          .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))
+          .unwrap();
+      } else {
+        // Fallback: just center if we can't detect the monitor
+        main_window.center()?;
+      }
 
       #[cfg(target_os = "macos")]
       {

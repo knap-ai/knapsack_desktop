@@ -8,7 +8,7 @@ import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
-import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, type SignalRegResponse } from 'src/api/channels'
+import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus } from 'src/api/channels'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 
@@ -100,11 +100,13 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
     const prompt = md.slice(parenStart + 1 + matchedMarker.length, parenEnd)
 
     actions.push({ label, prompt })
-    result += `**▶ ${actions.length}. ${label}**`
+    // Don't insert inline text — actions render as clickable buttons below the message
     i = parenEnd + 1
   }
 
-  return { cleaned: result, actions }
+  // Collapse runs of 3+ newlines left after stripping prompt links
+  const cleaned = result.replace(/\n{3,}/g, '\n\n').trim()
+  return { cleaned, actions }
 }
 
 // Convert raw API/JSON error messages into user-friendly text
@@ -669,6 +671,62 @@ type ChatInputBarProps = {
   onStopGeneration: () => void
 }
 
+// ── Memoized single-message renderer ──────────────────────────────────
+// Prevents ReactMarkdown from re-parsing unchanged messages on every
+// parent re-render (status polling, channel status, etc.).
+type ChatMessageProps = {
+  msg: Msg
+  cleaned: string
+  actions: PromptAction[]
+  mdPlugins: any[]
+  mdComponents: Components
+  onExampleClick?: (e: React.MouseEvent, text: string) => void
+  onAction?: (prompt: string) => void
+}
+
+const ChatMessage = memo(function ChatMessage({
+  msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction,
+}: ChatMessageProps) {
+  return (
+    <div
+      className={`ClawdMsg ClawdMsg-${m.role} ${m.isClickable ? 'ClawdMsg-clickable' : ''}`}
+      onClick={m.isClickable && onExampleClick ? (e) => onExampleClick(e, m.text) : undefined}
+    >
+      <div className="ClawdBubble">
+        {m.isClickable ? (
+          <p>{m.text}</p>
+        ) : (
+          <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
+        )}
+        {actions.length > 0 && (
+          <div className="ClawdPromptActions">
+            {actions.map((action, i) => (
+              <button
+                key={i}
+                className="ClawdPromptAction"
+                onClick={(e) => { e.stopPropagation(); onAction?.(action.prompt) }}
+              >
+                <span className="ClawdPromptActionNum">{i + 1}</span>
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {m.model && m.role === 'assistant' && (
+          <div className="ClawdMsgModel">via {m.model}</div>
+        )}
+      </div>
+    </div>
+  )
+}, (prev, next) =>
+  prev.msg.id === next.msg.id &&
+  prev.msg.text === next.msg.text &&
+  prev.cleaned === next.cleaned &&
+  prev.actions === next.actions &&
+  prev.mdPlugins === next.mdPlugins &&
+  prev.mdComponents === next.mdComponents
+)
+
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
     busy, isRecording, isTranscribing, voiceEnabled,
@@ -890,7 +948,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [ollamaPullPercent, setOllamaPullPercent] = useState<number | null>(null)
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
   const [keyHints, setKeyHints] = useState<Record<string, string | undefined>>({})
+  const [savedProviderKeys, setSavedProviderKeys] = useState<Record<string, boolean>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
+  const thinkingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Claude Code activity tracking — shows indicator when Claude Code is running
   const [claudeCodeActive, setClaudeCodeActive] = useState(false)
@@ -1004,7 +1064,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       {
         id: 'welcome-1',
         role: 'assistant' as Role,
-        text: "Hi! I'm your AI browser assistant, powered by OpenClaw. I can browse the web for you, read pages, click buttons, fill forms, and more — all through natural conversation.",
+        text: "Hi! I'm your AI browser assistant. I can browse the web for you, read pages, click buttons, fill forms, and more — all through natural conversation.",
         ts: Date.now(),
       },
       {
@@ -1043,6 +1103,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           anthropic: keyStatus.anthropic_key_hint,
           gemini: keyStatus.gemini_key_hint,
           groq: keyStatus.groq_key_hint,
+        })
+        // Track which providers have saved keys
+        setSavedProviderKeys({
+          openai: !!keyStatus.has_openai_key,
+          anthropic: !!keyStatus.has_anthropic_key,
+          gemini: !!keyStatus.has_gemini_key,
+          groq: !!keyStatus.has_groq_key,
         })
         // Also sync provider-specific models from the backend
         try {
@@ -1824,6 +1891,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       setShowKeyPrompt(false)
       setHasCompletedOnboarding(true)
       localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
+      // Mark this provider as having a saved key
+      setSavedProviderKeys(prev => ({ ...prev, [selectedProvider]: true }))
+      setKeyHints(prev => ({ ...prev, [selectedProvider]: apiKey.trim().slice(0, 6) + '...' + apiKey.trim().slice(-4) }))
 
       // Auto-enable the service after key is saved
       try {
@@ -1852,6 +1922,53 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       setSavingKey(false)
     }
   }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
+
+  // Switch to a provider that already has a saved key (no new key needed)
+  const switchProviderModel = useCallback(async (providerId: Provider) => {
+    setSavingKey(true)
+    try {
+      const modelForProvider = providerId === 'openai' ? selectedModel
+        : providerId === 'anthropic' ? selectedAnthropicModel
+        : providerId === 'gemini' ? selectedGeminiModel
+        : providerId === 'groq' ? selectedGroqModel
+        : undefined
+      await apiPost('/api/clawd/service/set-api-key', {
+        provider: providerId,
+        model: modelForProvider,
+        // No key — backend keeps existing key for this provider
+      })
+      if (providerId === 'openai') {
+        localStorage.setItem(OPENAI_MODEL_STORAGE, selectedModel)
+      } else if (providerId === 'anthropic') {
+        localStorage.setItem(ANTHROPIC_MODEL_STORAGE, selectedAnthropicModel)
+      } else if (providerId === 'gemini') {
+        localStorage.setItem(GEMINI_MODEL_STORAGE, selectedGeminiModel)
+      } else if (providerId === 'groq') {
+        localStorage.setItem(GROQ_MODEL_STORAGE, selectedGroqModel)
+      }
+      setSelectedProvider(providerId)
+      setShowKeyPrompt(false)
+      try {
+        await apiPost('/api/clawd/service/enable', { enabled: true })
+        await refreshStatus()
+      } catch {}
+      const providerInfo = PROVIDERS.find(p => p.id === providerId)
+      const models = providerId === 'openai' ? OPENAI_MODELS
+        : providerId === 'anthropic' ? ANTHROPIC_MODELS
+        : providerId === 'gemini' ? GEMINI_MODELS
+        : GROQ_MODELS
+      const mv = providerId === 'openai' ? selectedModel
+        : providerId === 'anthropic' ? selectedAnthropicModel
+        : providerId === 'gemini' ? selectedGeminiModel
+        : selectedGroqModel
+      const modelName = models.find(m => m.id === mv)?.name || mv
+      pushAssistant(`Switched to ${providerInfo?.name || providerId} (${modelName}).`)
+    } catch (e: any) {
+      pushAssistant(`Failed to switch provider: ${e?.message || String(e)}`)
+    } finally {
+      setSavingKey(false)
+    }
+  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel])
 
   useEffect(() => {
     const init = async () => {
@@ -2098,6 +2215,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     if (abortController) {
       abortController.abort()
       setAbortController(null)
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current)
+        thinkingIntervalRef.current = null
+      }
       setBusy(false)
       setThinkingMessage(null)
       pushAssistant('⏹️ Generation stopped.')
@@ -2342,9 +2463,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         return
       }
 
-      // NOTE: URLs are now passed through the LLM instead of being opened directly.
-      // The LLM has navigate() and open_url() tools to handle URLs intelligently.
-      // This allows users to say "go to google.com and search for X" and have it work.
+      // If the prompt is clearly "open <url>" or just a bare URL, open it in the
+      // system browser immediately so the user doesn't have to wait for the LLM
+      // round-trip (which may fail if the gateway can't control Chrome).
+      // The message still goes to the LLM so the agent can summarize the page, etc.
+      {
+        // Only match when the word after "open/go to/..." contains a dot (looks like a domain)
+        const openMatch = text.match(/^(?:open|go to|navigate to|visit)\s+(https?:\/\/\S+|\S+\.\S+)/i)
+        const bareUrl = text.match(/^(https?:\/\/\S+)$/i) || text.match(/^([a-z0-9][-a-z0-9]*\.[a-z]{2,}(?:\/\S*)?)$/i)
+        const urlToOpen = openMatch?.[1] || bareUrl?.[1]
+        if (urlToOpen) {
+          const fullUrl = urlToOpen.startsWith('http') ? urlToOpen : `https://${urlToOpen}`
+          openBesideApp(fullUrl).catch(err => console.error('[chat] Failed to open URL:', err))
+        }
+      }
 
       if (cmd === 'tabs') {
         const tabs = await getTabs()
@@ -2602,7 +2734,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       let thinkingIndex = 0
       setThinkingMessage(shuffled[0])
 
-      const thinkingInterval = setInterval(() => {
+      thinkingIntervalRef.current = setInterval(() => {
         thinkingIndex = (thinkingIndex + 1) % shuffled.length
         setThinkingMessage(shuffled[thinkingIndex])
       }, 2500)
@@ -2657,11 +2789,67 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }))
         }
 
-        // Retry transient failures (429, 500, 502, 503, 504) up to 2 times
+        // Try gateway agent-chat first (shared session with Telegram/WhatsApp/iMessage),
+        // fall back to direct chat if gateway is unavailable.
+        // Use a 90-second timeout so we don't hang forever if the gateway agent is stuck
+        // (e.g. browser tool blocked by deny list).  The user's abort controller also
+        // cancels the request if they navigate away.
+        let useDirectChat = false
+        const agentTimeout = AbortController.prototype ? new AbortController() : null
+        const agentTimerId = agentTimeout ? setTimeout(() => {
+          console.warn('[chat] agent-chat timed out after 90s, falling back to direct chat')
+          agentTimeout.abort()
+        }, 90_000) : null
+        // Combine user abort + timeout abort
+        const agentSignal = agentTimeout
+          ? (typeof AbortSignal !== 'undefined' && 'any' in AbortSignal
+              ? (AbortSignal as any).any([controller.signal, agentTimeout.signal])
+              : agentTimeout.signal)
+          : controller.signal
+        try {
+          const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: requestBody.text }),
+            signal: agentSignal,
+          })
+          if (agentTimerId) clearTimeout(agentTimerId)
+          if (agentRes.ok) {
+            const agentOut = await agentRes.json() as { ok?: boolean; reply?: string; message?: string; fallback?: boolean; gateway?: boolean; model?: string }
+            console.log('[chat] agent-chat response:', { ok: agentOut.ok, hasReply: !!agentOut.reply, gateway: agentOut.gateway, fallback: agentOut.fallback, message: agentOut.message })
+            if (agentOut.ok && agentOut.reply) {
+              // Accept replies from both gateway and direct-chat fallback.
+              // The backend already called open_first_url_in_reply, so the
+              // browser should have opened if the reply contained a URL.
+              console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
+              setMsgs(prev => [
+                ...prev,
+                { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct' },
+              ])
+            } else {
+              // No reply at all — fall back to direct chat from the frontend
+              console.warn('[chat] agent-chat returned no reply, using direct chat. Response:', agentOut)
+              useDirectChat = true
+            }
+          } else {
+            console.warn('[chat] agent-chat HTTP error:', agentRes.status)
+            useDirectChat = true
+          }
+        } catch (agentErr: any) {
+          if (agentTimerId) clearTimeout(agentTimerId)
+          // Only re-throw if this was the USER's abort (not our timeout)
+          if (agentErr.name === 'AbortError' && controller.signal.aborted) throw agentErr
+          // Timeout or other error — fall back to direct chat
+          console.warn('[chat] Gateway agent-chat unavailable, using direct chat:', agentErr.message)
+          useDirectChat = true
+        }
+
+        // Fallback: direct LLM chat (no shared session with channels)
         const maxRetries = 3
         let lastError = ''
-        let succeeded = false
+        let succeeded = !useDirectChat // Already succeeded if gateway worked
 
+        if (useDirectChat) {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             const res = await fetch(apiUrl('/api/clawd/chat'), {
@@ -2712,6 +2900,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (!succeeded && lastError) {
           throw new Error(lastError)
         }
+        } // end if (useDirectChat)
       } catch (e: any) {
         if (e.name === 'AbortError') {
           // User cancelled - already handled in stopGeneration
@@ -2719,7 +2908,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         }
         throw e
       } finally {
-        clearInterval(thinkingInterval)
+        if (thinkingIntervalRef.current) {
+          clearInterval(thinkingIntervalRef.current)
+          thinkingIntervalRef.current = null
+        }
         setThinkingMessage(null)
         setAbortController(null)
       }
@@ -2746,12 +2938,21 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   stopGenerationRef.current = stopGeneration
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
 
+  // Escape key stops generation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') stopGenerationRef.current()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput
   const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
 
   const statusLine = useMemo(() => {
-    if (!status && !health) return <span>Checking Moltbot...</span>
+    if (!status && !health) return <span>Checking Openclaw...</span>
     const parts: ReactNode[] = []
     if (status) {
       parts.push(
@@ -2804,7 +3005,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <img src="/assets/images/knap-logo-medium.png" alt="Knapsack" className="ClawdChatLogo" />
           <div className="ClawdChatTitleGroup">
             <h1 className="ClawdChatTitle">Knapsack Chat</h1>
-            <p className="ClawdChatSubtitle">AI assistant powered by OpenClaw</p>
+            {/* Attribution moved to Settings */}
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
         </div>
@@ -2843,7 +3044,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           >
             {proactiveMode ? '🔔 Proactive' : '🔕 Reactive'}
           </button>
-          <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
+          <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); setShowChannelsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
             {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || 'Anthropic')
               : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || 'Gemini')
               : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || 'Groq')
@@ -2896,7 +3097,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         <div className="ClawdToneSelector">
           <div className="ClawdToneSelectorContent">
             <h3>Choose Your Tone</h3>
-            <p>Select how Moltbot should communicate with you:</p>
+            <p>Select how Openclaw should communicate with you:</p>
             <div className="ClawdToneOptions">
               {TONE_OPTIONS.map(tone => (
                 <button
@@ -2920,7 +3121,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         <div className="ClawdAdvancedWarning">
           <div className="ClawdAdvancedWarningContent">
             <h3>Enable Advanced Mode?</h3>
-            <p>Advanced mode allows Moltbot to execute shell commands on your computer. This means it can:</p>
+            <p>Advanced mode allows Openclaw to execute shell commands on your computer. This means it can:</p>
             <ul>
               <li>Install software via brew, npm, pip, etc.</li>
               <li>Run scripts and CLI tools</li>
@@ -2999,36 +3200,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
-            <div
-              key={m.id}
-              className={`ClawdMsg ClawdMsg-${m.role} ${m.isClickable ? 'ClawdMsg-clickable' : ''}`}
-              onClick={m.isClickable ? (e) => handleExampleClick(e, m.text) : undefined}
-            >
-              <div className="ClawdBubble">
-                {m.isClickable ? (
-                  <p>{m.text}</p>
-                ) : (
-                  <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
-                )}
-                {actions.length > 0 && (
-                  <div className="ClawdPromptActions">
-                    {actions.map((action, i) => (
-                      <button
-                        key={i}
-                        className="ClawdPromptAction"
-                        onClick={(e) => { e.stopPropagation(); handleSendWithText(action.prompt) }}
-                      >
-                        <span className="ClawdPromptActionNum">{i + 1}</span>
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {m.model && m.role === 'assistant' && (
-                  <div className="ClawdMsgModel">via {m.model}</div>
-                )}
-              </div>
-            </div>
+          <ChatMessage
+            key={m.id}
+            msg={m}
+            cleaned={cleaned}
+            actions={actions}
+            mdPlugins={mdPlugins}
+            mdComponents={mdComponents}
+            onExampleClick={handleExampleClick}
+            onAction={handleSendWithText}
+          />
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
         {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
@@ -4368,7 +4549,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           }}
                         />
                         <button
-                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || (googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/'))}
+                          disabled={!googleChatWebhook.trim() || channelBusy === 'googlechat' || (!!googleChatWebhook.trim() && !googleChatWebhook.trim().startsWith('https://chat.googleapis.com/'))}
                           onClick={async () => {
                             setChannelBusy('googlechat')
                             setChannelError(null)
@@ -4414,165 +4595,189 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       )}
 
       {showKeyPrompt && (
-        <div className="ClawdKeyPrompt">
-          <div className="ClawdKeyPromptHeader">
+        <div className="ClawdChannelsPanel">
+          <div className="ClawdChannelsPanelHeader">
             <h3>{hasCompletedOnboarding ? 'AI Provider Settings' : 'Welcome to Knapsack'}</h3>
             <button onClick={() => {
               setShowKeyPrompt(false)
               localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
             }}>×</button>
           </div>
-          <div className="ClawdKeyPromptContent">
-            <p>
+          <div className="ClawdChannelsPanelBody">
+            <p className="ClawdChannelsPanelIntro">
               {hasCompletedOnboarding
                 ? 'Review or change your AI provider and API key.'
                 : 'Choose your AI provider and enter your API key to get started.'}
               {' '}Your key is stored locally and never shared.
             </p>
 
-            <div className="ClawdProviderTabs">
-              {PROVIDERS.map(p => (
-                <button
-                  key={p.id}
-                  className={`ClawdProviderTab ${selectedProvider === p.id ? 'active' : ''}`}
-                  onClick={() => { setSelectedProvider(p.id); setApiKey('') }}
-                  disabled={savingKey}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
+            <div className="ClawdChannelAccordion">
+              {/* ── Cloud providers ── */}
+              {PROVIDERS.filter(p => p.id !== 'ollama').map(p => {
+                const isActive = selectedProvider === p.id
+                const models = p.id === 'openai' ? OPENAI_MODELS
+                  : p.id === 'anthropic' ? ANTHROPIC_MODELS
+                  : p.id === 'gemini' ? GEMINI_MODELS
+                  : GROQ_MODELS
+                const modelValue = p.id === 'openai' ? selectedModel
+                  : p.id === 'anthropic' ? selectedAnthropicModel
+                  : p.id === 'gemini' ? selectedGeminiModel
+                  : selectedGroqModel
+                const setModelValue = p.id === 'openai' ? setSelectedModel
+                  : p.id === 'anthropic' ? setSelectedAnthropicModel
+                  : p.id === 'gemini' ? setSelectedGeminiModel
+                  : setSelectedGroqModel
 
-            {selectedProvider !== 'ollama' && (
-              <>
-                <label className="ClawdKeyPromptLabel">
-                  {PROVIDERS.find(p => p.id === selectedProvider)?.name} API Key
-                </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  placeholder={keyHints[selectedProvider] || PROVIDERS.find(p => p.id === selectedProvider)?.keyPrefix + '...'}
-                  disabled={savingKey}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') saveApiKey()
-                  }}
-                />
-              </>
-            )}
-
-            {selectedProvider === 'openai' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
-                  {OPENAI_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
+                return (
+                  <div key={p.id} className={`ClawdAccordionItem ${selectedProvider === p.id ? 'ClawdAccordionItem--open' : ''} ${isActive ? 'ClawdAccordionItem--connected' : ''}`}>
+                    <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider(p.id); setApiKey('') }}>
+                      <div className="ClawdAccordionTitle">{p.name}</div>
+                      <span className="ClawdAccordionDesc">{p.description}</span>
+                      {isActive && (
+                        <span className="ClawdAccordionCheck">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </span>
+                      )}
+                      <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                     </button>
-                  ))}
-                </div>
-              </>
-            )}
+                    <div className="ClawdAccordionBody">
+                      {savedProviderKeys[p.id] && !apiKey.trim() ? (
+                        <>
+                          <div className="ClawdKeySavedRow">
+                            <span className="ClawdKeySavedBadge">Key saved</span>
+                            <span className="ClawdKeySavedHint">{keyHints[p.id] || p.keyPrefix + '...'}</span>
+                          </div>
+                          <label className="ClawdKeyPromptLabel">Model</label>
+                          <select
+                            className="ClawdModelSelect"
+                            value={modelValue}
+                            onChange={e => setModelValue(e.target.value)}
+                            disabled={savingKey}
+                          >
+                            {models.map(model => (
+                              <option key={model.id} value={model.id}>
+                                {model.name} — {model.description}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="ClawdAccordionActions">
+                            {!isActive ? (
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                                onClick={() => switchProviderModel(p.id)}
+                                disabled={savingKey}
+                              >
+                                {savingKey ? 'Switching...' : 'Switch to ' + p.name}
+                              </button>
+                            ) : (
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                                onClick={() => switchProviderModel(p.id)}
+                                disabled={savingKey}
+                              >
+                                {savingKey ? 'Saving...' : 'Update Model'}
+                              </button>
+                            )}
+                            <button
+                              className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
+                              onClick={() => setApiKey(' ')}
+                            >
+                              Change Key
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <label className="ClawdKeyPromptLabel">{p.name} API Key</label>
+                          <input
+                            type="password"
+                            value={apiKey.trim()}
+                            onChange={e => setApiKey(e.target.value)}
+                            placeholder={keyHints[p.id] || p.keyPrefix + '...'}
+                            disabled={savingKey}
+                            className="ClawdAccordionInput"
+                            autoFocus
+                            onKeyDown={e => { if (e.key === 'Enter') saveApiKey() }}
+                          />
+                          <label className="ClawdKeyPromptLabel">Model</label>
+                          <select
+                            className="ClawdModelSelect"
+                            value={modelValue}
+                            onChange={e => setModelValue(e.target.value)}
+                            disabled={savingKey}
+                          >
+                            {models.map(model => (
+                              <option key={model.id} value={model.id}>
+                                {model.name} — {model.description}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="ClawdAccordionActions">
+                            <button
+                              className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                              onClick={saveApiKey}
+                              disabled={savingKey || !apiKey.trim()}
+                            >
+                              {savingKey ? 'Saving...' : 'Save & Enable'}
+                            </button>
+                            {savedProviderKeys[p.id] && (
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
+                                onClick={() => setApiKey('')}
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                          <p className="ClawdKeyPromptHelp">
+                            Get your API key at{' '}
+                            <a href={p.helpUrl} target="_blank" rel="noopener noreferrer">
+                              {p.helpUrl.replace('https://', '')}
+                            </a>
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
 
-            {selectedProvider === 'anthropic' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
-                  {ANTHROPIC_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedAnthropicModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedAnthropicModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {selectedProvider === 'gemini' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
-                  {GEMINI_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedGeminiModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedGeminiModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {selectedProvider === 'groq' && (
-              <>
-                <label className="ClawdKeyPromptLabel">Model</label>
-                <div className="ClawdModelSelector">
-                  {GROQ_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      className={`ClawdModelOption ${selectedGroqModel === model.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedGroqModel(model.id)}
-                      disabled={savingKey}
-                    >
-                      <span className="ClawdModelName">{model.name}</span>
-                      <span className="ClawdModelDesc">{model.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {selectedProvider === 'ollama' && (
-              <div className="ClawdOllamaSection">
-                {/* Status indicator */}
-                <div className="ClawdOllamaStatus">
-                  {ollamaRunning === null ? (
-                    <span className="ClawdOllamaStatusChecking">Checking for Ollama...</span>
-                  ) : ollamaRunning ? (
-                    <span className="ClawdOllamaStatusOk">
-                      <span className="ClawdOllamaStatusDot ok" />
-                      Ollama is running
-                    </span>
-                  ) : (
-                    <span className="ClawdOllamaStatusErr">
-                      <span className="ClawdOllamaStatusDot err" />
-                      Ollama not detected
+              {/* ── Ollama (local) ── */}
+              <div className={`ClawdAccordionItem ${selectedProvider === 'ollama' ? 'ClawdAccordionItem--open' : ''} ${selectedProvider === 'ollama' ? 'ClawdAccordionItem--connected' : ''}`}>
+                <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider('ollama'); setApiKey('') }}>
+                  <div className="ClawdAccordionTitle">Ollama</div>
+                  <span className="ClawdAccordionDesc">Local models — free, private</span>
+                  {selectedProvider === 'ollama' && (
+                    <span className="ClawdAccordionCheck">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </span>
                   )}
-                </div>
+                  <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div className="ClawdAccordionBody">
+                  <div className="ClawdOllamaStatus">
+                    {ollamaRunning === null ? (
+                      <span className="ClawdOllamaStatusChecking">Checking for Ollama...</span>
+                    ) : ollamaRunning ? (
+                      <span className="ClawdOllamaStatusOk">
+                        <span className="ClawdOllamaStatusDot ok" />
+                        Ollama is running
+                      </span>
+                    ) : (
+                      <span className="ClawdOllamaStatusErr">
+                        <span className="ClawdOllamaStatusDot err" />
+                        Ollama not detected
+                      </span>
+                    )}
+                  </div>
 
-                {/* Install prompt when not running */}
-                {ollamaRunning === false && (
-                  <div className="ClawdOllamaInstall">
-                    <p>Ollama runs AI models locally on your machine — free, private, no API key needed.</p>
-                    <a
-                      href="https://ollama.com/download"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ClawdOllamaInstallBtn"
-                    >
-                      Download Ollama
-                    </a>
-                    <p className="ClawdOllamaInstallHint">
-                      After installing, launch Ollama and come back here.{' '}
-                      <button
-                        className="ClawdOllamaRetry"
-                        onClick={() => {
+                  {ollamaRunning === false && (
+                    <div className="ClawdOllamaInstall">
+                      <p>Ollama runs AI models locally on your machine — free, private, no API key needed.</p>
+                      <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="ClawdOllamaInstallBtn">Download Ollama</a>
+                      <p className="ClawdOllamaInstallHint">
+                        After installing, launch Ollama and come back here.{' '}
+                        <button className="ClawdOllamaRetry" onClick={() => {
                           setOllamaRunning(null)
                           apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
                             .then(s => {
@@ -4583,130 +4788,79 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               }
                             })
                             .catch(() => setOllamaRunning(false))
-                        }}
-                      >
-                        Check again
-                      </button>
-                    </p>
+                        }}>Check again</button>
+                      </p>
+                    </div>
+                  )}
+
+                  {ollamaRunning && ollamaModels.length > 0 && (
+                    <>
+                      <label className="ClawdKeyPromptLabel">Your Models</label>
+                      <select className="ClawdModelSelect" value={selectedOllamaModel} onChange={e => setSelectedOllamaModel(e.target.value)} disabled={savingKey}>
+                        <option value="">Select a model...</option>
+                        {ollamaModels.map(model => (
+                          <option key={model.name} value={model.name}>{model.name} — {model.parameter_size || 'Local model'}</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
+                  {ollamaRunning && ollamaModels.length === 0 && !ollamaPulling && (
+                    <>
+                      <label className="ClawdKeyPromptLabel">Download a Model</label>
+                      <p style={{ fontSize: 13, color: '#666', margin: '0 0 8px' }}>No models installed yet. Pick one to download:</p>
+                      <div className="ClawdModelSelector">
+                        {OLLAMA_SUGGESTED_MODELS.map(model => (
+                          <button key={model.id} className="ClawdModelOption" onClick={() => pullOllamaModel(model.id)}>
+                            <span className="ClawdModelName">{model.name}</span>
+                            <span className="ClawdModelDesc">{model.description} ({model.size})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {ollamaPulling && (
+                    <div className="ClawdOllamaPullProgress">
+                      <label className="ClawdKeyPromptLabel">Downloading...</label>
+                      <div className="ClawdOllamaProgressBar">
+                        <div className="ClawdOllamaProgressFill" style={{ width: `${ollamaPullPercent ?? 0}%` }} />
+                      </div>
+                      <span className="ClawdOllamaProgressText">
+                        {ollamaPullPercent !== null ? `${ollamaPullPercent}% — ` : ''}{ollamaPullProgress}
+                      </span>
+                    </div>
+                  )}
+
+                  {ollamaRunning && ollamaModels.length > 0 && !ollamaPulling && (
+                    <>
+                      <label className="ClawdKeyPromptLabel" style={{ marginTop: 8 }}>Download More Models</label>
+                      <div className="ClawdModelSelector">
+                        {OLLAMA_SUGGESTED_MODELS
+                          .filter(s => !ollamaModels.some(m => m.name.startsWith(s.id.split(':')[0])))
+                          .slice(0, 3)
+                          .map(model => (
+                          <button key={model.id} className="ClawdModelOption" onClick={() => pullOllamaModel(model.id)}>
+                            <span className="ClawdModelName">{model.name}</span>
+                            <span className="ClawdModelDesc">{model.description} ({model.size})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <div className="ClawdAccordionActions">
+                    <button
+                      className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                      onClick={saveOllamaProvider}
+                      disabled={savingKey || !ollamaRunning || !selectedOllamaModel}
+                    >
+                      {savingKey ? 'Saving...' : 'Enable Ollama'}
+                    </button>
                   </div>
-                )}
-
-                {/* Models already installed — pick one */}
-                {ollamaRunning && ollamaModels.length > 0 && (
-                  <>
-                    <label className="ClawdKeyPromptLabel">Your Models</label>
-                    <div className="ClawdModelSelector">
-                      {ollamaModels.map(model => (
-                        <button
-                          key={model.name}
-                          className={`ClawdModelOption ${selectedOllamaModel === model.name ? 'selected' : ''}`}
-                          onClick={() => setSelectedOllamaModel(model.name)}
-                          disabled={savingKey}
-                        >
-                          <span className="ClawdModelName">{model.name}</span>
-                          <span className="ClawdModelDesc">{model.parameter_size || 'Local model'}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {/* No models — show recommended downloads */}
-                {ollamaRunning && ollamaModels.length === 0 && !ollamaPulling && (
-                  <>
-                    <label className="ClawdKeyPromptLabel">Download a Model</label>
-                    <p style={{ fontSize: 13, color: '#666', margin: '0 0 8px' }}>
-                      No models installed yet. Pick one to download:
-                    </p>
-                    <div className="ClawdModelSelector">
-                      {OLLAMA_SUGGESTED_MODELS.map(model => (
-                        <button
-                          key={model.id}
-                          className="ClawdModelOption"
-                          onClick={() => pullOllamaModel(model.id)}
-                        >
-                          <span className="ClawdModelName">{model.name}</span>
-                          <span className="ClawdModelDesc">{model.description} ({model.size})</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {/* Download in progress */}
-                {ollamaPulling && (
-                  <div className="ClawdOllamaPullProgress">
-                    <label className="ClawdKeyPromptLabel">Downloading...</label>
-                    <div className="ClawdOllamaProgressBar">
-                      <div
-                        className="ClawdOllamaProgressFill"
-                        style={{ width: `${ollamaPullPercent ?? 0}%` }}
-                      />
-                    </div>
-                    <span className="ClawdOllamaProgressText">
-                      {ollamaPullPercent !== null ? `${ollamaPullPercent}% — ` : ''}{ollamaPullProgress}
-                    </span>
-                  </div>
-                )}
-
-                {/* Add more models button when models exist */}
-                {ollamaRunning && ollamaModels.length > 0 && !ollamaPulling && (
-                  <>
-                    <label className="ClawdKeyPromptLabel" style={{ marginTop: 8 }}>Download More Models</label>
-                    <div className="ClawdModelSelector">
-                      {OLLAMA_SUGGESTED_MODELS
-                        .filter(s => !ollamaModels.some(m => m.name.startsWith(s.id.split(':')[0])))
-                        .slice(0, 3)
-                        .map(model => (
-                        <button
-                          key={model.id}
-                          className="ClawdModelOption"
-                          onClick={() => pullOllamaModel(model.id)}
-                        >
-                          <span className="ClawdModelName">{model.name}</span>
-                          <span className="ClawdModelDesc">{model.description} ({model.size})</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                </div>
               </div>
-            )}
-
-            <div className="ClawdKeyPromptActions">
-              {selectedProvider === 'ollama' ? (
-                <button
-                  onClick={saveOllamaProvider}
-                  disabled={savingKey || !ollamaRunning || !selectedOllamaModel}
-                >
-                  {savingKey ? 'Saving...' : 'Enable Ollama'}
-                </button>
-              ) : (
-                <button onClick={saveApiKey} disabled={savingKey || !apiKey.trim()}>
-                  {savingKey ? 'Saving...' : 'Save & Enable'}
-                </button>
-              )}
             </div>
-            {selectedProvider !== 'ollama' ? (
-              <p className="ClawdKeyPromptHelp">
-                Get your API key at{' '}
-                <a
-                  href={PROVIDERS.find(p => p.id === selectedProvider)?.helpUrl || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {selectedProvider === 'openai' && 'platform.openai.com/api-keys'}
-                  {selectedProvider === 'anthropic' && 'console.anthropic.com/settings/keys'}
-                  {selectedProvider === 'gemini' && 'aistudio.google.com/apikey'}
-                  {selectedProvider === 'groq' && 'console.groq.com/keys'}
-                </a>
-              </p>
-            ) : (
-              <p className="ClawdKeyPromptHelp">
-                Runs locally on your machine — no API key or costs.{' '}
-                <a href="https://ollama.com" target="_blank" rel="noopener noreferrer">Learn more</a>
-              </p>
-            )}
           </div>
         </div>
       )}

@@ -18,7 +18,7 @@ pub fn get_pricing(provider: &str, model: &str) -> ModelPricing {
         "anthropic" => anthropic_pricing(&model_lower),
         "gemini" => gemini_pricing(&model_lower),
         "groq" => groq_pricing(&model_lower),
-        "local" => ModelPricing { input_per_1k: 0.0, output_per_1k: 0.0 },
+        "local" | "ollama" => ModelPricing { input_per_1k: 0.0, output_per_1k: 0.0 },
         _ => ModelPricing { input_per_1k: 0.003, output_per_1k: 0.006 }, // conservative fallback
     }
 }

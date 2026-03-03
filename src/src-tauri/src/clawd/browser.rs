@@ -861,6 +861,242 @@ fn extract_docx_text(content: &str) -> String {
   result
 }
 
+/// Parse gateway payload text that may be SSE-formatted.
+///
+/// The gateway sometimes wraps LLM output in SSE framing like:
+///   `data: {"choices":[{"text":"actual content"}]}`
+/// This helper extracts the actual content, handling multiple SSE lines
+/// and `[DONE]` sentinel.  If the text is already plain, returns it as-is.
+fn parse_sse_payload_text(raw: &str) -> String {
+  // If no SSE framing, return as-is
+  if !raw.contains("data: ") {
+    return raw.to_string();
+  }
+
+  let mut parts: Vec<String> = Vec::new();
+  for line in raw.lines() {
+    let line = line.trim();
+    if let Some(json_str) = line.strip_prefix("data: ") {
+      let json_str = json_str.trim();
+      if json_str == "[DONE]" {
+        continue;
+      }
+      // Try to parse as JSON and extract text from choices
+      if let Ok(parsed) = serde_json::from_str::<JsonValue>(json_str) {
+        if let Some(choices) = parsed.get("choices").and_then(|c| c.as_array()) {
+          for choice in choices {
+            // OpenAI-style: choices[].text or choices[].delta.content or choices[].message.content
+            if let Some(text) = choice
+              .get("text")
+              .and_then(|t| t.as_str())
+              .or_else(|| choice.pointer("/delta/content").and_then(|t| t.as_str()))
+              .or_else(|| choice.pointer("/message/content").and_then(|t| t.as_str()))
+            {
+              parts.push(text.to_string());
+            }
+          }
+        } else if let Some(text) = parsed.get("text").and_then(|t| t.as_str()) {
+          parts.push(text.to_string());
+        }
+      }
+      // If JSON parsing fails, include the raw data line as-is
+      else {
+        parts.push(json_str.to_string());
+      }
+    }
+    // Non-SSE lines (e.g. plain text mixed in) — include as-is
+    else if !line.is_empty() && !line.starts_with(':') {
+      parts.push(line.to_string());
+    }
+  }
+
+  if parts.is_empty() {
+    return raw.to_string();
+  }
+  parts.join("")
+}
+
+/// Best-effort: open the first URL found in the agent's reply text using
+/// the system browser. This ensures users see a browser open even when the
+/// gateway's built-in browser control (Chrome extension) is unavailable.
+fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
+  // First try to extract a URL from markdown link syntax: [text](url)
+  // This handles the common case where the agent wraps URLs in markdown.
+  if let Some(start) = reply.find("](http") {
+    let url_start = start + 2; // skip "]("
+    if let Some(end) = reply[url_start..].find(')') {
+      let url = &reply[url_start..url_start + end];
+      if url.len() > 10 && !url.contains(char::is_whitespace) {
+        eprintln!("[clawd/agent-chat] Opening markdown URL from reply in system browser: {}", url);
+        let _ = tauri::api::shell::open(&app_handle.shell_scope(), url, None);
+        return;
+      }
+    }
+  }
+
+  // Fallback: scan whitespace-separated words for bare URLs
+  for word in reply.split_whitespace() {
+    // Strip common markdown/punctuation wrappers
+    let cleaned = word
+      .trim_matches(|c: char| c == '(' || c == ')' || c == '[' || c == ']' || c == '<' || c == '>' || c == '"' || c == '\'' || c == ',')
+      .trim_end_matches(|c: char| c == '.' || c == '!' || c == '?');
+    if (cleaned.starts_with("http://") || cleaned.starts_with("https://"))
+      && cleaned.len() > 10
+      && !cleaned.contains(char::is_whitespace)
+    {
+      eprintln!("[clawd/agent-chat] Opening URL from reply in system browser: {}", cleaned);
+      let _ = tauri::api::shell::open(&app_handle.shell_scope(), cleaned, None);
+      return; // Only open the first URL
+    }
+  }
+}
+
+/// Send a chat message through the gateway's agent pipeline.
+///
+/// This shares the same session as Telegram/WhatsApp/iMessage channels,
+/// so conversation history carries across all surfaces.  Falls back to
+/// the direct `/api/clawd/chat` path if the gateway is not reachable or
+/// returns an error.
+#[post("/api/clawd/agent-chat")]
+pub async fn agent_chat(
+  app_handle: web::Data<tauri::AppHandle>,
+  body: web::Json<JsonValue>,
+) -> impl Responder {
+  let text = body
+    .get("text")
+    .and_then(|v| v.as_str())
+    .unwrap_or("")
+    .trim()
+    .to_string();
+
+  if text.is_empty() {
+    return HttpResponse::BadRequest()
+      .json(serde_json::json!({"ok": false, "message": "text is required"}));
+  }
+
+  // Try gateway agent-chat if port is open
+  let gateway_reply = if gateway_client::is_gateway_port_open().await {
+    eprintln!("[clawd/agent-chat] Sending to gateway: {:?}", &text[..text.len().min(100)]);
+
+    match gateway_client::agent_chat(&text, None).await {
+      Ok(result) => {
+        eprintln!("[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
+          result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+        let status = result.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
+        eprintln!("[clawd/agent-chat] status={}, has result/payloads={}",
+          status,
+          result.pointer("/result/payloads").is_some());
+
+        let reply = result
+          .pointer("/result/payloads")
+          .and_then(|p| p.as_array())
+          .map(|payloads| {
+            payloads
+              .iter()
+              .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+              .map(|raw| parse_sse_payload_text(raw))
+              .collect::<Vec<_>>()
+              .join("\n\n")
+          })
+          .unwrap_or_else(|| {
+            result
+              .get("summary")
+              .and_then(|s| s.as_str())
+              .unwrap_or("")
+              .to_string()
+          });
+
+        if !reply.is_empty() {
+          eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
+          open_first_url_in_reply(&app_handle, &reply);
+          Some(reply)
+        } else {
+          eprintln!("[clawd/agent-chat] Gateway returned empty reply, falling back to direct chat");
+          None
+        }
+      }
+      Err(e) => {
+        eprintln!("[clawd/agent-chat] Gateway agent request FAILED: {}, falling back to direct chat", e);
+        None
+      }
+    }
+  } else {
+    eprintln!("[clawd/agent-chat] Gateway port not open, falling back to direct chat");
+    None
+  };
+
+  if let Some(reply) = gateway_reply {
+    return HttpResponse::Ok().json(serde_json::json!({
+      "ok": true,
+      "reply": reply,
+      "gateway": true,
+    }));
+  }
+
+  // Fallback: direct LLM chat via internal HTTP request to /api/clawd/chat.
+  // This path has browser tools with shell fallback, so URLs will still open.
+  eprintln!("[clawd/agent-chat] Falling back to direct /api/clawd/chat");
+  let fallback_body = serde_json::json!({ "text": text });
+  match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(120))
+    .build()
+  {
+    Ok(client) => {
+      match client
+        .post("http://127.0.0.1:8897/api/clawd/chat")
+        .json(&fallback_body)
+        .send()
+        .await
+      {
+        Ok(res) => {
+          match res.json::<JsonValue>().await {
+            Ok(data) => {
+              let reply = data.get("reply").and_then(|v| v.as_str()).unwrap_or("");
+              let model = data.get("model").and_then(|v| v.as_str());
+              if !reply.is_empty() {
+                eprintln!("[clawd/agent-chat] Direct chat fallback succeeded");
+                open_first_url_in_reply(&app_handle, reply);
+                HttpResponse::Ok().json(serde_json::json!({
+                  "ok": true,
+                  "reply": reply,
+                  "gateway": false,
+                  "model": model,
+                }))
+              } else {
+                let msg = data.get("message").or(data.get("error"))
+                  .and_then(|v| v.as_str())
+                  .unwrap_or("No reply from direct chat");
+                HttpResponse::Ok().json(serde_json::json!({
+                  "ok": false,
+                  "message": msg,
+                }))
+              }
+            }
+            Err(e) => {
+              HttpResponse::Ok().json(serde_json::json!({
+                "ok": false,
+                "message": format!("Failed to parse direct chat response: {}", e),
+              }))
+            }
+          }
+        }
+        Err(e) => {
+          HttpResponse::Ok().json(serde_json::json!({
+            "ok": false,
+            "message": format!("Direct chat request failed: {}", e),
+          }))
+        }
+      }
+    }
+    Err(e) => {
+      HttpResponse::Ok().json(serde_json::json!({
+        "ok": false,
+        "message": format!("Failed to init HTTP client: {}", e),
+      }))
+    }
+  }
+}
+
 #[post("/api/clawd/chat")]
 pub async fn chat(
   app_handle: web::Data<tauri::AppHandle>,
@@ -1138,14 +1374,17 @@ pub async fn chat(
         format!("https://{}", url_raw)
       };
 
-      // Retry once on transient errors (browser may still be launching)
+      // Try gateway RPC first, fall back to system shell open immediately
       let out = match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
         Ok(v) => v,
         Err(e) => {
-          let msg = e.to_string();
-          eprintln!("[clawd/chat] open_url first attempt failed ({}), retrying...", msg);
-          tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-          do_post("/tabs/open", serde_json::json!({"url": url}), &query).await?
+          eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to shell open", e);
+          match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
+            Ok(_) => format!("Opened in default browser: {}", url),
+            Err(shell_err) => {
+              anyhow::bail!("Failed to open URL via gateway ({}) and shell ({})", e, shell_err);
+            }
+          }
         }
       };
       return Ok(json!({"ok": true, "result": out}));
@@ -1183,14 +1422,17 @@ pub async fn chat(
         }
         p
       };
-      // Retry once on transient errors (browser may still be launching)
+      // Try gateway RPC, fall back to shell open immediately
       let out = match do_post("/navigate", mk_payload(), &query).await {
         Ok(v) => v,
         Err(e) => {
-          let msg = e.to_string();
-          eprintln!("[clawd/chat] navigate first attempt failed ({}), retrying...", msg);
-          tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
-          do_post("/navigate", mk_payload(), &query).await?
+          eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to shell open", e);
+          match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
+            Ok(_) => format!("Opened in default browser: {}", url),
+            Err(shell_err) => {
+              anyhow::bail!("Failed to navigate via gateway ({}) and shell ({})", e, shell_err);
+            }
+          }
         }
       };
       return Ok(json!({"ok": true, "result": out}));
@@ -2481,7 +2723,7 @@ When the user asks "what can you do" or "what skills do you have", mention that 
   };
 
   let system_content = format!(
-    r#"You are Moltbot, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
+    r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
 {}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.

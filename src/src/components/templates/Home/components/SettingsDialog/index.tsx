@@ -69,46 +69,34 @@ const PERMISSION_NAME_LIST = {
 
 const NOTIFICATION_LEAD_TIME = [{label: '1 minute before', value: '1'}, {label: '2 minutes before', value: '2'}, {label: '3 minutes before', value: '3'}]
 
-// ── Accordion primitive ──────────────────────────────────────────────────────
+// ── Accordion primitive (mirrors ClawdChat channel accordion) ────────────────
 
 type ProviderAccordionProps = {
   title: string
-  badge?: React.ReactNode
+  isActive?: boolean
+  isConnected?: boolean
   expanded: boolean
   onToggle: () => void
   children: React.ReactNode
 }
 
-const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
-  <svg
-    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2}
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-  </svg>
-)
-
-const ProviderAccordion = ({ title, badge, expanded, onToggle, children }: ProviderAccordionProps) => (
-  <div className="border border-zinc-200 rounded-md overflow-hidden">
-    <button
-      type="button"
-      className="w-full flex items-center justify-between px-3 py-2.5 bg-zinc-50 hover:bg-zinc-100 transition-colors cursor-pointer"
-      onClick={onToggle}
-    >
-      <div className="flex items-center gap-2">
-        <Typography weight={TypographyWeight.medium} className="text-sm">{title}</Typography>
-        {badge}
-      </div>
-      <ChevronIcon expanded={expanded} />
+const ProviderAccordion = ({ title, isActive, isConnected, expanded, onToggle, children }: ProviderAccordionProps) => (
+  <div className={`${styles.providerItem} ${expanded ? styles.providerItemOpen : ''} ${isConnected ? styles.providerItemConnected : ''}`}>
+    <button className={styles.providerHeader} onClick={onToggle}>
+      <div className={styles.providerTitle}>{title}</div>
+      {isConnected && (
+        <span className={styles.providerCheck}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+      )}
+      {isActive && (
+        <span className={styles.providerBadgeActive}>Active</span>
+      )}
+      <svg className={styles.providerChevron} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </button>
-    {expanded && (
-      <div className="px-3 py-2.5 flex flex-col gap-2 border-t border-zinc-100">
-        {children}
-      </div>
-    )}
+    <div className={styles.providerBody}>
+      {children}
+    </div>
   </div>
 )
 
@@ -329,17 +317,6 @@ export const SettingsDialog = ({
     setExpandedProvider(prev => prev === id ? null : id)
   }
 
-  // ── Status badge helper ──────────────────────────────────────────────────
-
-  const statusBadge = (isActive: boolean, isConnected: boolean) => {
-    if (!isConnected) return null
-    return (
-      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${isActive ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
-        {isActive ? 'Active' : 'Connected'}
-      </span>
-    )
-  }
-
   useEffect(() => {
     if (!isOpen) return
 
@@ -397,171 +374,165 @@ export const SettingsDialog = ({
         <div className="p-6 flex flex-col gap-3">
           <Typography weight={TypographyWeight.medium}>AI Provider</Typography>
 
-          {/* Cloud providers */}
-          <ProviderAccordion
-            title="OpenAI"
-            badge={statusBadge(providerStatus?.active_provider === 'openai', !!providerStatus?.has_openai_key)}
-            expanded={expandedProvider === 'openai'}
-            onToggle={() => toggleProvider('openai')}
-          >
-            <div className="flex justify-between items-center">
-              <Typography className="text-sm text-gray-600">
-                {providerStatus?.has_openai_key ? 'API key configured' : 'No API key set'}
-              </Typography>
-              <Typography
-                className={`cursor-pointer text-sm ${styles.link}`}
-                onClick={() => { handleClose(); onProviderSignInClick?.('openai') }}
-              >
-                {providerStatus?.has_openai_key ? 'Change' : 'Sign in'}
-              </Typography>
-            </div>
-          </ProviderAccordion>
-
-          <ProviderAccordion
-            title="Anthropic"
-            badge={statusBadge(providerStatus?.active_provider === 'anthropic', !!providerStatus?.has_anthropic_key)}
-            expanded={expandedProvider === 'anthropic'}
-            onToggle={() => toggleProvider('anthropic')}
-          >
-            <div className="flex justify-between items-center">
-              <Typography className="text-sm text-gray-600">
-                {providerStatus?.has_anthropic_key ? 'API key configured' : 'No API key set'}
-              </Typography>
-              <Typography
-                className={`cursor-pointer text-sm ${styles.link}`}
-                onClick={() => { handleClose(); onProviderSignInClick?.('anthropic') }}
-              >
-                {providerStatus?.has_anthropic_key ? 'Change' : 'Sign in'}
-              </Typography>
-            </div>
-          </ProviderAccordion>
-
-          {/* Extra providers */}
-          {[
-            { id: 'minimax', envVar: 'MINIMAX_API_KEY', name: 'MiniMax' },
-            { id: 'zai', envVar: 'ZAI_API_KEY', name: 'ZAI (GLM)' },
-            { id: 'huggingface', envVar: 'HF_TOKEN', name: 'Hugging Face' },
-          ].map(ep => {
-            const status = providerStatus?.extra_providers?.find(p => p.env_var === ep.envVar)
-            return (
-              <ProviderAccordion
-                key={ep.id}
-                title={ep.name}
-                badge={status?.has_key ? (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
-                    Connected
-                  </span>
-                ) : undefined}
-                expanded={expandedProvider === ep.id}
-                onToggle={() => toggleProvider(ep.id)}
-              >
-                <div className="flex justify-between items-center">
-                  <Typography className="text-sm text-gray-600">
-                    {status?.has_key ? 'API key configured' : 'No API key set'}
-                  </Typography>
-                  <Typography
-                    className={`cursor-pointer text-sm ${styles.link}`}
-                    onClick={() => { handleClose(); onProviderSignInClick?.() }}
-                  >
-                    {status?.has_key ? 'Change' : 'Add key'}
-                  </Typography>
-                </div>
-              </ProviderAccordion>
-            )
-          })}
-
-          {/* Ollama (local LLM) */}
-          <ProviderAccordion
-            title="Ollama (Local)"
-            badge={
-              providerStatus?.ollama_enabled ? (
-                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${providerStatus.active_provider === 'ollama' ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
-                  {providerStatus.active_provider === 'ollama' ? 'Active' : 'Enabled'}
+          <div className={styles.providerAccordion}>
+            {/* OpenAI */}
+            <ProviderAccordion
+              title="OpenAI"
+              isActive={providerStatus?.active_provider === 'openai'}
+              isConnected={!!providerStatus?.has_openai_key}
+              expanded={expandedProvider === 'openai'}
+              onToggle={() => toggleProvider('openai')}
+            >
+              <div className={styles.providerActions}>
+                <span className={styles.providerStatus}>
+                  {providerStatus?.has_openai_key ? 'API key configured' : 'No API key set'}
                 </span>
-              ) : undefined
-            }
-            expanded={expandedProvider === 'ollama'}
-            onToggle={() => toggleProvider('ollama')}
-          >
-            {/* Connection status */}
-            <div className="flex items-center gap-2 mb-1">
-              {ollamaRunning === null ? (
-                <span className="text-xs text-gray-400 animate-pulse">Checking Ollama...</span>
-              ) : ollamaRunning ? (
-                <span className="text-xs text-green-600 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                  Ollama running
-                </span>
-              ) : (
-                <span className="text-xs text-red-500 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-                  Ollama not detected
-                </span>
-              )}
-            </div>
-
-            {!ollamaRunning && ollamaRunning !== null && (
-              <Typography className="text-xs text-gray-500">
-                Install Ollama from{' '}
-                <a
-                  href="https://ollama.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.link}
-                >
-                  ollama.com
-                </a>
-                {' '}and start it to use local models.
-              </Typography>
-            )}
-
-            {/* Model picker */}
-            {ollamaRunning && ollamaModels.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <Typography className="text-xs text-gray-500">Model</Typography>
-                <InputSelect
-                  options={ollamaModels.map(m => ({
-                    label: `${m.name}${m.parameter_size ? ` (${m.parameter_size})` : ''}`,
-                    value: m.name,
-                  }))}
-                  value={selectedOllamaModel || ollamaModels[0]?.name || ''}
-                  onChange={handleOllamaModelChange}
-                />
-              </div>
-            )}
-
-            {ollamaRunning && ollamaModels.length === 0 && (
-              <Typography className="text-xs text-gray-500">
-                No models found. Run <code className="bg-zinc-100 px-1 rounded text-[11px]">ollama pull llama3.1</code> to download a model.
-              </Typography>
-            )}
-
-            {/* Enable / Disable toggle */}
-            {ollamaRunning && (
-              <div className="flex justify-between items-center pt-1">
-                <Typography className="text-sm">
-                  {providerStatus?.ollama_enabled ? 'Ollama is enabled' : 'Use Ollama for AI'}
-                </Typography>
                 <button
-                  className={`px-3 py-1 text-xs rounded transition-colors ${
-                    providerStatus?.ollama_enabled
-                      ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                      : 'bg-gray-800 text-white hover:bg-gray-700'
-                  } disabled:opacity-50`}
-                  disabled={ollamaBusy}
-                  onClick={() => handleOllamaToggle(!providerStatus?.ollama_enabled)}
+                  className={styles.providerActionLink}
+                  onClick={() => { handleClose(); onProviderSignInClick?.('openai') }}
                 >
-                  {ollamaBusy ? 'Saving...' : providerStatus?.ollama_enabled ? 'Disable' : 'Enable'}
+                  {providerStatus?.has_openai_key ? 'Change' : 'Sign in'}
                 </button>
               </div>
-            )}
+            </ProviderAccordion>
 
-            {providerStatus?.ollama_enabled && (
-              <Typography className="text-[11px] text-gray-400">
-                Free local execution — no API costs
-              </Typography>
-            )}
-          </ProviderAccordion>
+            {/* Anthropic */}
+            <ProviderAccordion
+              title="Anthropic"
+              isActive={providerStatus?.active_provider === 'anthropic'}
+              isConnected={!!providerStatus?.has_anthropic_key}
+              expanded={expandedProvider === 'anthropic'}
+              onToggle={() => toggleProvider('anthropic')}
+            >
+              <div className={styles.providerActions}>
+                <span className={styles.providerStatus}>
+                  {providerStatus?.has_anthropic_key ? 'API key configured' : 'No API key set'}
+                </span>
+                <button
+                  className={styles.providerActionLink}
+                  onClick={() => { handleClose(); onProviderSignInClick?.('anthropic') }}
+                >
+                  {providerStatus?.has_anthropic_key ? 'Change' : 'Sign in'}
+                </button>
+              </div>
+            </ProviderAccordion>
+
+            {/* Extra providers */}
+            {[
+              { id: 'gemini', envVar: 'GEMINI_API_KEY', name: 'Google (Gemini)' },
+              { id: 'groq', envVar: 'GROQ_API_KEY', name: 'Groq' },
+              { id: 'minimax', envVar: 'MINIMAX_API_KEY', name: 'MiniMax' },
+              { id: 'zai', envVar: 'ZAI_API_KEY', name: 'ZAI (GLM)' },
+              { id: 'huggingface', envVar: 'HF_TOKEN', name: 'Hugging Face' },
+            ].map(ep => {
+              const status = providerStatus?.extra_providers?.find(p => p.env_var === ep.envVar)
+              return (
+                <ProviderAccordion
+                  key={ep.id}
+                  title={ep.name}
+                  isConnected={!!status?.has_key}
+                  expanded={expandedProvider === ep.id}
+                  onToggle={() => toggleProvider(ep.id)}
+                >
+                  <div className={styles.providerActions}>
+                    <span className={styles.providerStatus}>
+                      {status?.has_key ? 'API key configured' : 'No API key set'}
+                    </span>
+                    <button
+                      className={styles.providerActionLink}
+                      onClick={() => { handleClose(); onProviderSignInClick?.() }}
+                    >
+                      {status?.has_key ? 'Change' : 'Add key'}
+                    </button>
+                  </div>
+                </ProviderAccordion>
+              )
+            })}
+
+            {/* Ollama (local LLM) */}
+            <ProviderAccordion
+              title="Ollama (Local)"
+              isActive={providerStatus?.active_provider === 'ollama'}
+              isConnected={!!providerStatus?.ollama_enabled}
+              expanded={expandedProvider === 'ollama'}
+              onToggle={() => toggleProvider('ollama')}
+            >
+              {/* Connection status */}
+              <div style={{ marginBottom: 6 }}>
+                {ollamaRunning === null ? (
+                  <span className={styles.ollamaStatusChecking}>Checking Ollama...</span>
+                ) : ollamaRunning ? (
+                  <span className={styles.ollamaStatusGreen}>
+                    <span className={styles.ollamaStatusDotGreen} />
+                    Ollama running
+                  </span>
+                ) : (
+                  <span className={styles.ollamaStatusRed}>
+                    <span className={styles.ollamaStatusDotRed} />
+                    Ollama not detected
+                  </span>
+                )}
+              </div>
+
+              {!ollamaRunning && ollamaRunning !== null && (
+                <div className={styles.ollamaHint}>
+                  Install Ollama from{' '}
+                  <a
+                    href="https://ollama.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.ollamaHintLink}
+                  >
+                    ollama.com
+                  </a>
+                  {' '}and start it to use local models.
+                </div>
+              )}
+
+              {/* Model picker */}
+              {ollamaRunning && ollamaModels.length > 0 && (
+                <div>
+                  <div className={styles.ollamaModelLabel}>Model</div>
+                  <InputSelect
+                    options={ollamaModels.map(m => ({
+                      label: `${m.name}${m.parameter_size ? ` (${m.parameter_size})` : ''}`,
+                      value: m.name,
+                    }))}
+                    value={selectedOllamaModel || ollamaModels[0]?.name || ''}
+                    onChange={handleOllamaModelChange}
+                  />
+                </div>
+              )}
+
+              {ollamaRunning && ollamaModels.length === 0 && (
+                <div className={styles.ollamaNoModels}>
+                  No models found. Run <code className={styles.ollamaNoModelsCode}>ollama pull llama3.1</code> to download a model.
+                </div>
+              )}
+
+              {/* Enable / Disable toggle */}
+              {ollamaRunning && (
+                <div className={styles.ollamaToggleRow}>
+                  <span className={styles.ollamaToggleLabel}>
+                    {providerStatus?.ollama_enabled ? 'Ollama is enabled' : 'Use Ollama for AI'}
+                  </span>
+                  <button
+                    className={providerStatus?.ollama_enabled ? styles.ollamaToggleBtnDisable : styles.ollamaToggleBtnEnable}
+                    disabled={ollamaBusy}
+                    onClick={() => handleOllamaToggle(!providerStatus?.ollama_enabled)}
+                  >
+                    {ollamaBusy ? 'Saving...' : providerStatus?.ollama_enabled ? 'Disable' : 'Enable'}
+                  </button>
+                </div>
+              )}
+
+              {providerStatus?.ollama_enabled && (
+                <div className={styles.ollamaFreeHint}>
+                  Free local execution — no API costs
+                </div>
+              )}
+            </ProviderAccordion>
+          </div>
         </div>
 
         <hr className="border-zinc-200" />

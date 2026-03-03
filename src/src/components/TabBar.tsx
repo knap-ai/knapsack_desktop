@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 import './TabBar.scss'
 
@@ -10,7 +10,7 @@ interface TabData {
 }
 
 export enum TabChoices {
-  Moltbot = 'Moltbot',
+  Openclaw = 'Openclaw',
   Work = 'Work',
   Email = 'Email',
   Meeting = 'Meeting',
@@ -18,6 +18,8 @@ export enum TabChoices {
   Chat = 'Chat',
   NewAutomation = 'NewAutomation',
   Activity = 'Activity',
+  Workspaces = 'Workspaces',
+  MCPMarketplace = 'MCPMarketplace',
 }
 
 interface TabBarProps {
@@ -27,9 +29,11 @@ interface TabBarProps {
 }
 
 const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease }) => {
+  const [collapsed, setCollapsed] = useState(true)
+
   const tabs: TabData[] = [
     {
-      id: TabChoices.Moltbot,
+      id: TabChoices.Openclaw,
       svg: '/assets/images/tabBar/chatTab.svg',
       label: 'Chat',
       isActive: true,
@@ -58,39 +62,80 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
       label: 'Chat',
       isActive: fullRelease === true,
     },
+    {
+      id: TabChoices.Workspaces,
+      svg: '/assets/images/tabBar/automateTab.svg',
+      label: 'RAG',
+      isActive: false,
+    },
+    {
+      id: TabChoices.MCPMarketplace,
+      svg: '/assets/images/tabBar/automateTab.svg',
+      label: 'Skills',
+      isActive: false,
+    },
   ]
 
   const numActiveTabs = tabs.filter(tab => tab.isActive).length
+
+  if (numActiveTabs <= 1) return null
+
+  if (collapsed) {
+    return (
+      <div data-tauri-drag-region className="TabBarContainer TabBarContainer--collapsed mt-12 select-none">
+        <button
+          className="TabBarExpandBtn"
+          onClick={() => setCollapsed(false)}
+          title="Show tabs"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+          </svg>
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div
       data-tauri-drag-region
       className="TabBarContainer mt-12 select-none flex flex-col space-y-0"
     >
-      {numActiveTabs > 1 &&
-        tabs.map(tab => {
-          const selectedTabClass = currentTab === tab.id ? 'SelectedTabItem' : 'TabItem'
-          return (
-            <div key={tab.id}>
-              {tab.isActive && (
-                <div className={`rounded-lg text-center cursor-pointer`}>
+      <button
+        className="TabBarCollapseBtn"
+        onClick={() => setCollapsed(true)}
+        title="Hide tabs"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+
+      {tabs.map(tab => {
+        const selectedTabClass = currentTab === tab.id ? 'SelectedTabItem' : 'TabItem'
+        return (
+          <div key={tab.id}>
+            {tab.isActive && (
+              <div className={`rounded-lg text-center cursor-pointer`}>
+                <div
+                  data-tauri-drag-region
+                  className={`OuterTabItem p-0.5 m-3 mt-3 mb-0 text-center rounded-2xl ${selectedTabClass}`}
+                  onClick={() => setCurrentTab(tab.id)}
+                >
                   <div
-                    data-tauri-drag-region
-                    className={`OuterTabItem p-0.5 m-3 mt-3 mb-0 text-center rounded-2xl ${selectedTabClass}`}
-                    onClick={() => setCurrentTab(tab.id)}
+                    className={`InnerTabItem cursor-pointer w-12 h-12 content-center items-center rounded-xl ${selectedTabClass}`}
                   >
-                    <div
-                      className={`InnerTabItem cursor-pointer w-12 h-12 content-center items-center rounded-xl ${selectedTabClass}`}
-                    >
-                      <img src={tab.svg} className="w-7 m-auto" alt={tab.label} />
-                    </div>
+                    <img src={tab.svg} className="w-7 m-auto" alt={tab.label} />
                   </div>
-                  <span className={`TabName ${selectedTabClass}`}>{tab.label}</span>
                 </div>
-              )}
-            </div>
-          )
-        })}
+                <span className={`TabName ${selectedTabClass}`}>{tab.label}</span>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
