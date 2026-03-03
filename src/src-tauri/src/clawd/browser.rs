@@ -965,8 +965,18 @@ pub async fn agent_chat(
       .json(serde_json::json!({"ok": false, "message": "Gateway not reachable", "fallback": true}));
   }
 
+  eprintln!("[clawd/agent-chat] Sending to gateway: {:?}", &text[..text.len().min(100)]);
+
   match gateway_client::agent_chat(&text, None).await {
     Ok(result) => {
+      // Log the raw result keys for debugging
+      eprintln!("[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
+        result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+      let status = result.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
+      eprintln!("[clawd/agent-chat] status={}, has result/payloads={}",
+        status,
+        result.pointer("/result/payloads").is_some());
+
       // Extract the reply text from the agent result.
       // Result structure: { runId, status, summary, result: { payloads: [{text}] } }
       let reply = result
@@ -988,6 +998,8 @@ pub async fn agent_chat(
             .to_string()
         });
 
+      eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
+
       // Try to open any URLs the agent mentioned in the reply text using the
       // system browser, in case the gateway's browser control couldn't open them.
       open_first_url_in_reply(&app_handle, &reply);
@@ -999,7 +1011,7 @@ pub async fn agent_chat(
       }))
     }
     Err(e) => {
-      eprintln!("[clawd/agent-chat] Gateway agent request failed: {}", e);
+      eprintln!("[clawd/agent-chat] Gateway agent request FAILED: {}", e);
       HttpResponse::Ok().json(serde_json::json!({
         "ok": false,
         "message": format!("Gateway error: {}", e),

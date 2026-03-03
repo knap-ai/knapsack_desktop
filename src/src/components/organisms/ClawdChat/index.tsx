@@ -2801,16 +2801,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           })
           if (agentRes.ok) {
             const agentOut = await agentRes.json() as { ok?: boolean; reply?: string; message?: string; fallback?: boolean; gateway?: boolean }
+            console.log('[chat] agent-chat response:', { ok: agentOut.ok, hasReply: !!agentOut.reply, gateway: agentOut.gateway, fallback: agentOut.fallback, message: agentOut.message })
             if (agentOut.ok && agentOut.reply && agentOut.gateway) {
+              console.log('[chat] Using GATEWAY response (browser-capable)')
               setMsgs(prev => [
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: 'gateway' },
               ])
             } else {
               // Gateway returned fallback signal — use direct chat
+              console.warn('[chat] Gateway returned fallback, using direct chat. Response:', agentOut)
               useDirectChat = true
             }
           } else {
+            console.warn('[chat] agent-chat HTTP error:', agentRes.status)
             useDirectChat = true
           }
         } catch (agentErr: any) {
