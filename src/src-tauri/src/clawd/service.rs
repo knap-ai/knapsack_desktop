@@ -1717,12 +1717,11 @@ pub async fn set_service_enabled(
 
             // Ensure the browser is NOT headless — the user needs to see the
             // managed Chrome window to log into services (OAuth, banking, etc.).
-            // Undo any previous headless=true that may have been written.
+            // Always set explicitly — if absent, the gateway may default to headless=true.
             let browser_headless = cfg
               .pointer("/browser/headless")
-              .and_then(|v| v.as_bool())
-              .unwrap_or(false);
-            if browser_headless {
+              .and_then(|v| v.as_bool());
+            if browser_headless != Some(false) {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
                 .insert("headless".to_string(), serde_json::json!(false));
               eprintln!("[clawd/service] Patched browser.headless to false (user needs visible Chrome for logins)");
@@ -1759,49 +1758,51 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Ensure the browser tool is explicitly allowed for the auto-reply
-            // agent so channel messages (Telegram, WhatsApp, etc.) can trigger
-            // browser automation (e.g. "check my email").  We add "browser" to
-            // the tools.allow array without clobbering existing entries.
+            // ── Ensure browser tool is allowed in NORMAL mode (webchat/desktop) ──
+            //
+            // The gateway's internal DEFAULT_TOOL_DENY includes "browser".
+            // If tools.deny is ABSENT from the config, the gateway uses that
+            // default, which BLOCKS browser for normal-mode requests (desktop
+            // webchat).  We must explicitly set tools.deny WITHOUT "browser".
+
+            // Ensure tools object exists
+            if cfg.get("tools").is_none() {
+              cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+            }
+
+            let deny_exists = cfg.pointer("/tools/deny").and_then(|v| v.as_array()).is_some();
+            if deny_exists {
+              // Remove "browser" from existing deny list
+              let browser_denied = cfg
+                .pointer("/tools/deny")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+                .unwrap_or(false);
+              if browser_denied {
+                if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
+                  deny_arr.retain(|item| item.as_str() != Some("browser"));
+                  eprintln!("[clawd/service] Removed browser from tools.deny");
+                  patched = true;
+                }
+              }
+            } else {
+              // tools.deny is ABSENT — create it from gateway defaults WITHOUT "browser"
+              // Gateway defaults: ["browser","canvas","nodes","cron","gateway",...channelIds]
+              cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+                .insert("deny".to_string(), serde_json::json!(["canvas", "nodes", "cron", "gateway"]));
+              eprintln!("[clawd/service] Created tools.deny (without browser)");
+              patched = true;
+            }
+
+            // Ensure "browser" is in tools.allow — the gateway's DEFAULT_TOOL_ALLOW
+            // does NOT include "browser", so even with "full" profile the deny list
+            // takes precedence unless we explicitly allow it.
             let browser_tool_allowed = cfg
               .pointer("/tools/allow")
               .and_then(|v| v.as_array())
               .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
               .unwrap_or(false);
-            // Also check if "group:ui" is already allowed (it includes browser)
-            let group_ui_allowed = cfg
-              .pointer("/tools/allow")
-              .and_then(|v| v.as_array())
-              .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:ui")))
-              .unwrap_or(false);
-            // Check tools.profile — "full" (or absent) means all tools are allowed
-            let tools_profile = cfg
-              .pointer("/tools/profile")
-              .and_then(|v| v.as_str())
-              .unwrap_or("");
-            let needs_browser_allow = !browser_tool_allowed
-              && !group_ui_allowed
-              && !tools_profile.is_empty()
-              && tools_profile != "full";
-            // Also check if browser is explicitly denied
-            let browser_denied = cfg
-              .pointer("/tools/deny")
-              .and_then(|v| v.as_array())
-              .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
-              .unwrap_or(false);
-            if browser_denied {
-              // Remove "browser" from tools.deny
-              if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
-                deny_arr.retain(|item| item.as_str() != Some("browser"));
-                eprintln!("[clawd/service] Removed browser from tools.deny");
-                patched = true;
-              }
-            }
-            if needs_browser_allow {
-              // tools.allow exists but doesn't include browser — append it
-              if cfg.get("tools").is_none() {
-                cfg.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
-              }
+            if !browser_tool_allowed {
               let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
               if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
                 allow.push(serde_json::json!("browser"));

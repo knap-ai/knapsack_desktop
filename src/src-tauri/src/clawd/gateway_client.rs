@@ -323,8 +323,9 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   }
 
   // browser.headless = false  (user needs visible Chrome for logins)
-  let headless = cfg.pointer("/browser/headless").and_then(|v| v.as_bool()).unwrap_or(false);
-  if headless {
+  // Always set explicitly — if absent, the gateway may default to headless=true.
+  let headless = cfg.pointer("/browser/headless").and_then(|v| v.as_bool());
+  if headless != Some(false) {
     cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
       .insert("headless".into(), serde_json::json!(false));
     eprintln!("[gateway_client] Patched browser.headless to false");
@@ -349,43 +350,54 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     patched = true;
   }
 
-  // Ensure the browser tool is not in tools.deny
-  let browser_denied = cfg
-    .pointer("/tools/deny")
-    .and_then(|v| v.as_array())
-    .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
-    .unwrap_or(false);
-  if browser_denied {
-    if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
-      deny_arr.retain(|item| item.as_str() != Some("browser"));
-      eprintln!("[gateway_client] Removed browser from tools.deny");
-      patched = true;
-    }
+  // ── Ensure browser tool is allowed in NORMAL mode (webchat/desktop) ────
+  //
+  // The gateway's internal DEFAULT_TOOL_DENY includes "browser".
+  // If tools.deny is ABSENT from the config, the gateway uses that default,
+  // which BLOCKS browser for normal-mode requests (desktop webchat).
+  // We must explicitly set tools.deny WITHOUT "browser" so the gateway
+  // doesn't fall back to its built-in default.
+
+  // Ensure tools object exists
+  if cfg.get("tools").is_none() {
+    cfg.as_object_mut().unwrap().insert("tools".into(), serde_json::json!({}));
   }
 
-  // Ensure the browser tool is in tools.allow (when a non-full profile is used)
+  let deny_exists = cfg.pointer("/tools/deny").and_then(|v| v.as_array()).is_some();
+  if deny_exists {
+    // Remove "browser" from existing deny list
+    let browser_denied = cfg
+      .pointer("/tools/deny")
+      .and_then(|v| v.as_array())
+      .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+      .unwrap_or(false);
+    if browser_denied {
+      if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
+        deny_arr.retain(|item| item.as_str() != Some("browser"));
+        eprintln!("[gateway_client] Removed browser from tools.deny");
+        patched = true;
+      }
+    }
+  } else {
+    // tools.deny is ABSENT — create it from gateway defaults WITHOUT "browser"
+    // so the gateway doesn't fall back to its internal default (which blocks browser).
+    // Gateway defaults: ["browser","canvas","nodes","cron","gateway",...channelIds]
+    cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+      .insert("deny".into(), serde_json::json!(["canvas", "nodes", "cron", "gateway"]));
+    eprintln!("[gateway_client] Created tools.deny (without browser)");
+    patched = true;
+  }
+
+  // Ensure "browser" and "group:web" are in tools.allow.
+  // The gateway's DEFAULT_TOOL_ALLOW does NOT include "browser" or web tools.
+  // Even with the "full" profile, the deny list takes precedence — so we must
+  // also add browser to the allow list to be safe.
   let browser_tool_allowed = cfg
     .pointer("/tools/allow")
     .and_then(|v| v.as_array())
     .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
     .unwrap_or(false);
-  let group_ui_allowed = cfg
-    .pointer("/tools/allow")
-    .and_then(|v| v.as_array())
-    .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:ui")))
-    .unwrap_or(false);
-  let tools_profile = cfg
-    .pointer("/tools/profile")
-    .and_then(|v| v.as_str())
-    .unwrap_or("");
-  let needs_browser_allow = !browser_tool_allowed
-    && !group_ui_allowed
-    && !tools_profile.is_empty()
-    && tools_profile != "full";
-  if needs_browser_allow {
-    if cfg.get("tools").is_none() {
-      cfg.as_object_mut().unwrap().insert("tools".into(), serde_json::json!({}));
-    }
+  if !browser_tool_allowed {
     let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
     if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
       allow.push(serde_json::json!("browser"));
@@ -393,6 +405,77 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
       tools.insert("allow".into(), serde_json::json!(["browser"]));
     }
     eprintln!("[gateway_client] Added browser to tools.allow");
+    patched = true;
+  }
+
+  // Ensure "group:web" is in tools.allow (includes web_fetch + web_search)
+  let group_web_allowed = cfg
+    .pointer("/tools/allow")
+    .and_then(|v| v.as_array())
+    .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:web")))
+    .unwrap_or(false);
+  if !group_web_allowed {
+    if let Some(allow) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+      allow.push(serde_json::json!("group:web"));
+    }
+    eprintln!("[gateway_client] Added group:web to tools.allow");
+    patched = true;
+  }
+
+  // ── Ensure browser tool is allowed in SANDBOX mode (Telegram/WhatsApp/etc.) ─
+  //
+  // Channel messages run in sandbox mode with a separate tools policy.
+  // The gateway's DEFAULT_TOOL_DENY for sandbox also blocks "browser".
+  // Create/patch sandbox deny and allow lists to match what service.rs does.
+  if cfg.pointer("/tools/sandbox").is_none() {
+    cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+      .insert("sandbox".into(), serde_json::json!({}));
+  }
+  if cfg.pointer("/tools/sandbox/tools").is_none() {
+    cfg.pointer_mut("/tools/sandbox").unwrap().as_object_mut().unwrap()
+      .insert("tools".into(), serde_json::json!({}));
+  }
+
+  // sandbox deny list
+  let sandbox_deny_exists = cfg.pointer("/tools/sandbox/tools/deny").and_then(|v| v.as_array()).is_some();
+  if sandbox_deny_exists {
+    let has_browser = cfg.pointer("/tools/sandbox/tools/deny")
+      .and_then(|v| v.as_array())
+      .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+      .unwrap_or(false);
+    if has_browser {
+      if let Some(arr) = cfg.pointer_mut("/tools/sandbox/tools/deny").and_then(|v| v.as_array_mut()) {
+        arr.retain(|item| item.as_str() != Some("browser"));
+        eprintln!("[gateway_client] Removed browser from tools.sandbox.tools.deny");
+        patched = true;
+      }
+    }
+  } else {
+    cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+      .insert("deny".into(), serde_json::json!(["canvas", "nodes", "cron", "gateway"]));
+    eprintln!("[gateway_client] Created tools.sandbox.tools.deny (without browser)");
+    patched = true;
+  }
+
+  // sandbox allow list
+  let sandbox_allow_has_browser = cfg.pointer("/tools/sandbox/tools/allow")
+    .and_then(|v| v.as_array())
+    .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+    .unwrap_or(false);
+  if !sandbox_allow_has_browser {
+    if let Some(arr) = cfg.pointer_mut("/tools/sandbox/tools/allow").and_then(|v| v.as_array_mut()) {
+      arr.push(serde_json::json!("browser"));
+      arr.push(serde_json::json!("group:web"));
+    } else {
+      cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+        .insert("allow".into(), serde_json::json!([
+          "exec", "process", "read", "write", "edit", "apply_patch",
+          "image", "sessions_list", "sessions_history",
+          "sessions_send", "sessions_spawn", "session_status",
+          "browser", "group:web"
+        ]));
+    }
+    eprintln!("[gateway_client] Added browser + group:web to tools.sandbox.tools.allow");
     patched = true;
   }
 
@@ -552,13 +635,30 @@ async fn apply_runtime_browser_config(token: &str) {
     return;
   }
 
-  // Send config.patch with browser settings.
+  // Send config.patch with browser + tools settings.
+  // This must include tools.deny (without browser) and tools.allow (with browser)
+  // because the gateway's internal defaults DENY browser.
   let raw_patch = serde_json::json!({
     "browser": {
       "enabled": true,
       "headless": false,
       "defaultProfile": "openclaw",
       "noSandbox": true
+    },
+    "tools": {
+      "deny": ["canvas", "nodes", "cron", "gateway"],
+      "allow": ["browser", "group:web"],
+      "sandbox": {
+        "tools": {
+          "deny": ["canvas", "nodes", "cron", "gateway"],
+          "allow": [
+            "exec", "process", "read", "write", "edit", "apply_patch",
+            "image", "sessions_list", "sessions_history",
+            "sessions_send", "sessions_spawn", "session_status",
+            "browser", "group:web"
+          ]
+        }
+      }
     }
   }).to_string();
 
