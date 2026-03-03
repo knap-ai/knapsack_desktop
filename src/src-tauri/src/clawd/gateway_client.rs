@@ -186,23 +186,25 @@ async fn ensure_gateway_best_effort(token: &str) {
 /// but that path is never hit in `npm run tauri dev` or on non-macOS.  Running this
 /// at first connection ensures the managed Chrome is visible and functional regardless
 /// of how the gateway was started.
-fn ensure_browser_config() {
+/// Returns `true` when the on-disk config was changed (browser settings patched).
+fn ensure_browser_config() -> bool {
   let home = match std::env::var("HOME") {
     Ok(h) => h,
-    Err(_) => return,
+    Err(_) => return false,
   };
   let config_path = std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json");
   if !config_path.exists() {
     let legacy = std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json");
     if !legacy.exists() {
-      return; // No config file yet; service.rs will create one when enabling.
+      return false; // No config file yet; service.rs will create one when enabling.
     }
-    ensure_browser_config_at(&legacy);
+    let changed = ensure_browser_config_at(&legacy);
     ensure_tools_md(&legacy);
-    return;
+    return changed;
   }
-  ensure_browser_config_at(&config_path);
+  let changed = ensure_browser_config_at(&config_path);
   ensure_tools_md(&config_path);
+  changed
 }
 
 /// Write TOOLS.md to the workspace if it's missing or outdated.
@@ -291,14 +293,16 @@ Use `web_fetch` to read URLs directly. Use `web_search` to find information onli
   }
 }
 
-fn ensure_browser_config_at(config_path: &std::path::Path) {
+/// Patch browser config at a specific path.  Returns `true` when the file
+/// was modified so the caller knows whether a running gateway needs updating.
+fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   let content = match std::fs::read_to_string(config_path) {
     Ok(c) => c,
-    Err(_) => return,
+    Err(_) => return false,
   };
   let mut cfg: Value = match serde_json::from_str(&content) {
     Ok(v) => v,
-    Err(_) => return,
+    Err(_) => return false,
   };
 
   let mut patched = false;
@@ -314,6 +318,7 @@ fn ensure_browser_config_at(config_path: &std::path::Path) {
   if !enabled {
     cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
       .insert("enabled".into(), serde_json::json!(true));
+    eprintln!("[gateway_client] Patched browser.enabled to true");
     patched = true;
   }
 
@@ -322,6 +327,7 @@ fn ensure_browser_config_at(config_path: &std::path::Path) {
   if headless {
     cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
       .insert("headless".into(), serde_json::json!(false));
+    eprintln!("[gateway_client] Patched browser.headless to false");
     patched = true;
   }
 
@@ -330,23 +336,93 @@ fn ensure_browser_config_at(config_path: &std::path::Path) {
   if profile == "chrome" || profile.is_empty() {
     cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
       .insert("defaultProfile".into(), serde_json::json!("openclaw"));
+    eprintln!("[gateway_client] Patched browser.defaultProfile to openclaw");
+    patched = true;
+  }
+
+  // browser.noSandbox = true  (needed on Linux for Chrome without a display server)
+  let no_sandbox = cfg.pointer("/browser/noSandbox").and_then(|v| v.as_bool()).unwrap_or(false);
+  if !no_sandbox {
+    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+      .insert("noSandbox".into(), serde_json::json!(true));
+    eprintln!("[gateway_client] Patched browser.noSandbox to true");
+    patched = true;
+  }
+
+  // Ensure the browser tool is not in tools.deny
+  let browser_denied = cfg
+    .pointer("/tools/deny")
+    .and_then(|v| v.as_array())
+    .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+    .unwrap_or(false);
+  if browser_denied {
+    if let Some(deny_arr) = cfg.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
+      deny_arr.retain(|item| item.as_str() != Some("browser"));
+      eprintln!("[gateway_client] Removed browser from tools.deny");
+      patched = true;
+    }
+  }
+
+  // Ensure the browser tool is in tools.allow (when a non-full profile is used)
+  let browser_tool_allowed = cfg
+    .pointer("/tools/allow")
+    .and_then(|v| v.as_array())
+    .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+    .unwrap_or(false);
+  let group_ui_allowed = cfg
+    .pointer("/tools/allow")
+    .and_then(|v| v.as_array())
+    .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:ui")))
+    .unwrap_or(false);
+  let tools_profile = cfg
+    .pointer("/tools/profile")
+    .and_then(|v| v.as_str())
+    .unwrap_or("");
+  let needs_browser_allow = !browser_tool_allowed
+    && !group_ui_allowed
+    && !tools_profile.is_empty()
+    && tools_profile != "full";
+  if needs_browser_allow {
+    if cfg.get("tools").is_none() {
+      cfg.as_object_mut().unwrap().insert("tools".into(), serde_json::json!({}));
+    }
+    let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
+    if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
+      allow.push(serde_json::json!("browser"));
+    } else {
+      tools.insert("allow".into(), serde_json::json!(["browser"]));
+    }
+    eprintln!("[gateway_client] Added browser to tools.allow");
     patched = true;
   }
 
   if patched {
     if let Ok(json) = serde_json::to_string_pretty(&cfg) {
       let _ = std::fs::write(config_path, json);
-      eprintln!("[gateway_client] Patched browser config at {}", config_path.display());
+      eprintln!("[gateway_client] Wrote patched config to {}", config_path.display());
     }
   }
+  patched
 }
+
+/// Track whether we've already applied browser config to a running gateway
+/// so we don't repeatedly trigger restarts.
+static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
 
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
   // Patch browser config on disk before the gateway reads it.  This covers
   // cold-start in dev mode (`npm run tauri dev`) where set_service_enabled
-  // never runs.  For a hot gateway that's already running, agent_chat()
-  // additionally sends a config.patch RPC after connection.
-  ensure_browser_config();
+  // never runs.
+  let disk_config_changed = ensure_browser_config();
+
+  // If we patched the config AND the gateway was already running, it has
+  // stale config.  We need to push the config to the running gateway via
+  // config.patch RPC.  We track this with BROWSER_CONFIG_APPLIED so we
+  // only do it once per process lifetime.
+  let need_runtime_patch = disk_config_changed
+    && !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
+    && is_gateway_port_open().await;
 
   ensure_gateway_best_effort(token).await;
 
@@ -481,6 +557,80 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     drop(pending);
     invalidate_client();
   });
+
+  // If we detected that the disk config was stale (gateway was already running
+  // with old config), push browser settings to the running gateway via
+  // config.patch.  This triggers a SIGUSR1 restart.  We mark the flag, fire
+  // the patch, then invalidate so the caller reconnects to the restarted
+  // gateway on the next request.
+  if need_runtime_patch {
+    BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
+    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
+    let patch_client = client.clone();
+    tokio::spawn(async move {
+      // Get current config + baseHash
+      let config_result = {
+        let id = next_request_id();
+        let frame = RequestFrame {
+          frame_type: "req",
+          method: "config.get".to_string(),
+          id: id.clone(),
+          params: None,
+        };
+        let (tx, rx) = oneshot::channel();
+        {
+          let mut pending = patch_client.pending.lock().await;
+          pending.insert(id, Pending { tx, remaining_skips: 0 });
+        }
+        let _ = patch_client.write.lock().await
+          .send(Message::Text(serde_json::to_string(&frame).unwrap()))
+          .await;
+        tokio::time::timeout(Duration::from_secs(5), rx).await
+      };
+
+      if let Ok(Ok(Ok(cfg_val))) = config_result {
+        let base_hash = cfg_val.pointer("/hash")
+          .or_else(|| cfg_val.pointer("/baseHash"))
+          .and_then(|v| v.as_str())
+          .unwrap_or("");
+
+        if !base_hash.is_empty() {
+          // Build the raw config patch for browser settings
+          let raw_patch = serde_json::json!({
+            "browser": {
+              "enabled": true,
+              "headless": false,
+              "defaultProfile": "openclaw",
+              "noSandbox": true
+            }
+          }).to_string();
+
+          let patch_frame = RequestFrame {
+            frame_type: "req",
+            method: "config.patch".to_string(),
+            id: next_request_id(),
+            params: Some(serde_json::json!({
+              "raw": raw_patch,
+              "baseHash": base_hash
+            })),
+          };
+          let _ = patch_client.write.lock().await
+            .send(Message::Text(serde_json::to_string(&patch_frame).unwrap()))
+            .await;
+          eprintln!("[gateway_client] Sent config.patch for browser settings — gateway will restart");
+        } else {
+          eprintln!("[gateway_client] config.get returned no hash, skipping config.patch");
+        }
+      } else {
+        eprintln!("[gateway_client] config.get failed or timed out, skipping config.patch");
+      }
+
+      // Give the gateway a moment to start processing the patch
+      tokio::time::sleep(Duration::from_millis(500)).await;
+      // Invalidate so next request reconnects to the restarted gateway
+      invalidate_client();
+    });
+  }
 
   Ok(client)
 }

@@ -10,13 +10,14 @@
 }
 
 // Subtle icon shown when sidebar is collapsed — ghost style, visible on hover
+// Top margin aligns vertically with the "Enabled" button row in ClawdChat
 .TabBarExpandBtn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin: 6px 12px;
+  margin: 18px 12px 6px;
   padding: 0;
   border: none;
   background: transparent;
@@ -32,13 +33,14 @@
 }
 
 // Subtle chevron at top of expanded sidebar to collapse
+// Top margin aligns vertically with the "Enabled" button row in ClawdChat
 .TabBarCollapseBtn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin: 6px 12px;
+  margin: 18px 12px 6px;
   padding: 0;
   border: none;
   background: transparent;
