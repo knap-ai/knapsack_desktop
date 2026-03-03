@@ -29,7 +29,7 @@ const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 const MAX_IN_FLIGHT: usize = 64;
 
 // Circuit breaker: trip after N consecutive failures, cool down for a bit.
-const BREAKER_TRIP_AFTER: u32 = 2;
+const BREAKER_TRIP_AFTER: u32 = 3;
 const BREAKER_COOLDOWN: Duration = Duration::from_secs(15);
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
@@ -410,6 +410,193 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
 static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
   std::sync::atomic::AtomicBool::new(false);
 
+/// Push browser config to a running gateway via a **temporary** WebSocket
+/// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
+/// we use a throwaway connection and wait for the gateway to come back.
+async fn apply_runtime_browser_config(token: &str) {
+  // Open a temporary WebSocket just for the config.patch exchange.
+  let tmp_ws = match tokio::time::timeout(
+    Duration::from_secs(3),
+    connect_async(GATEWAY_WS_URL),
+  ).await {
+    Ok(Ok((ws, _))) => ws,
+    _ => {
+      eprintln!("[gateway_client] Could not open temporary WS for config.patch");
+      return;
+    }
+  };
+
+  let (mut tmp_write, mut tmp_read) = tmp_ws.split();
+
+  // Complete the handshake on the temporary connection.
+  let challenge_text = match tokio::time::timeout(Duration::from_secs(3), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => break Ok(t),
+        Some(Ok(Message::Close(_))) | None => break Err("closed".to_string()),
+        _ => continue,
+      }
+    }
+  }).await {
+    Ok(Ok(t)) => t,
+    _ => {
+      eprintln!("[gateway_client] Timeout/error waiting for challenge on tmp WS");
+      return;
+    }
+  };
+
+  let event: EventFrame = match serde_json::from_str(&challenge_text) {
+    Ok(e) => e,
+    Err(_) => return,
+  };
+  if event.event != "connect.challenge" {
+    return;
+  }
+
+  let connect_params = ConnectParams {
+    min_protocol: PROTOCOL_VERSION,
+    max_protocol: PROTOCOL_VERSION,
+    client: ClientInfo {
+      id: "gateway-client-patch",
+      display_name: "Knapsack Desktop (config patch)",
+      version: env!("CARGO_PKG_VERSION"),
+      platform: std::env::consts::OS,
+      mode: "backend",
+    },
+    auth: Some(AuthInfo { token: token.to_string() }),
+    role: "operator",
+    scopes: vec!["operator.admin"],
+  };
+
+  let connect_frame = RequestFrame {
+    frame_type: "req",
+    method: "connect".to_string(),
+    id: next_request_id(),
+    params: Some(serde_json::to_value(&connect_params).unwrap()),
+  };
+
+  if tmp_write
+    .send(Message::Text(serde_json::to_string(&connect_frame).unwrap()))
+    .await
+    .is_err()
+  {
+    return;
+  }
+
+  // Wait for connect response.
+  let _connect_ok = match tokio::time::timeout(Duration::from_secs(3), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => {
+          if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
+            break resp.ok;
+          }
+        }
+        Some(Ok(Message::Close(_))) | None => break false,
+        _ => continue,
+      }
+    }
+  }).await {
+    Ok(ok) => ok,
+    Err(_) => false,
+  };
+
+  // Send config.get to get the baseHash.
+  let config_get_id = next_request_id();
+  let config_get_frame = RequestFrame {
+    frame_type: "req",
+    method: "config.get".to_string(),
+    id: config_get_id.clone(),
+    params: None,
+  };
+  if tmp_write
+    .send(Message::Text(serde_json::to_string(&config_get_frame).unwrap()))
+    .await
+    .is_err()
+  {
+    return;
+  }
+
+  // Read config.get response.
+  let cfg_val: Value = match tokio::time::timeout(Duration::from_secs(5), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => {
+          if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
+            if resp.id == config_get_id && resp.ok {
+              break Ok(resp.result.or(resp.data).or(resp.payload).unwrap_or(Value::Null));
+            } else if resp.id == config_get_id {
+              break Err("config.get failed");
+            }
+          }
+        }
+        Some(Ok(Message::Close(_))) | None => break Err("connection closed"),
+        _ => continue,
+      }
+    }
+  }).await {
+    Ok(Ok(v)) => v,
+    _ => {
+      eprintln!("[gateway_client] config.get failed or timed out on tmp WS, skipping patch");
+      return;
+    }
+  };
+
+  let base_hash = cfg_val.pointer("/hash")
+    .or_else(|| cfg_val.pointer("/baseHash"))
+    .and_then(|v| v.as_str())
+    .unwrap_or("");
+
+  if base_hash.is_empty() {
+    eprintln!("[gateway_client] config.get returned no hash, skipping runtime patch");
+    return;
+  }
+
+  // Send config.patch with browser settings.
+  let raw_patch = serde_json::json!({
+    "browser": {
+      "enabled": true,
+      "headless": false,
+      "defaultProfile": "openclaw",
+      "noSandbox": true
+    }
+  }).to_string();
+
+  let patch_frame = RequestFrame {
+    frame_type: "req",
+    method: "config.patch".to_string(),
+    id: next_request_id(),
+    params: Some(serde_json::json!({
+      "raw": raw_patch,
+      "baseHash": base_hash
+    })),
+  };
+  let _ = tmp_write
+    .send(Message::Text(serde_json::to_string(&patch_frame).unwrap()))
+    .await;
+  eprintln!("[gateway_client] Sent config.patch for browser settings on tmp WS — gateway will restart");
+
+  // Close the temporary connection (it'll die when the gateway restarts anyway).
+  let _ = tmp_write.send(Message::Close(None)).await;
+  drop(tmp_write);
+  drop(tmp_read);
+
+  // Wait for the gateway to restart.  Poll until the port is listening again
+  // (up to 8 seconds with exponential backoff).
+  eprintln!("[gateway_client] Waiting for gateway to restart after config.patch...");
+  tokio::time::sleep(Duration::from_secs(1)).await;
+  for wait_ms in [500, 1000, 1500, 2000, 3000] {
+    if is_gateway_port_open().await {
+      eprintln!("[gateway_client] Gateway is back up after config.patch");
+      // Give it a moment to fully initialize.
+      tokio::time::sleep(Duration::from_millis(500)).await;
+      return;
+    }
+    tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+  }
+  eprintln!("[gateway_client] Gateway did not come back after config.patch within timeout");
+}
+
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
   // Patch browser config on disk before the gateway reads it.  This covers
   // cold-start in dev mode (`npm run tauri dev`) where set_service_enabled
@@ -420,9 +607,19 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   // stale config.  We need to push the config to the running gateway via
   // config.patch RPC.  We track this with BROWSER_CONFIG_APPLIED so we
   // only do it once per process lifetime.
+  //
+  // IMPORTANT: We do this BEFORE establishing our main connection, using a
+  // temporary connection.  config.patch triggers a SIGUSR1 restart on the
+  // gateway, which would kill any in-flight requests on the same connection.
   let need_runtime_patch = disk_config_changed
     && !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
     && is_gateway_port_open().await;
+
+  if need_runtime_patch {
+    BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
+    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
+    apply_runtime_browser_config(token).await;
+  }
 
   ensure_gateway_best_effort(token).await;
 
@@ -557,80 +754,6 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     drop(pending);
     invalidate_client();
   });
-
-  // If we detected that the disk config was stale (gateway was already running
-  // with old config), push browser settings to the running gateway via
-  // config.patch.  This triggers a SIGUSR1 restart.  We mark the flag, fire
-  // the patch, then invalidate so the caller reconnects to the restarted
-  // gateway on the next request.
-  if need_runtime_patch {
-    BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
-    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
-    let patch_client = client.clone();
-    tokio::spawn(async move {
-      // Get current config + baseHash
-      let config_result = {
-        let id = next_request_id();
-        let frame = RequestFrame {
-          frame_type: "req",
-          method: "config.get".to_string(),
-          id: id.clone(),
-          params: None,
-        };
-        let (tx, rx) = oneshot::channel();
-        {
-          let mut pending = patch_client.pending.lock().await;
-          pending.insert(id, Pending { tx, remaining_skips: 0 });
-        }
-        let _ = patch_client.write.lock().await
-          .send(Message::Text(serde_json::to_string(&frame).unwrap()))
-          .await;
-        tokio::time::timeout(Duration::from_secs(5), rx).await
-      };
-
-      if let Ok(Ok(Ok(cfg_val))) = config_result {
-        let base_hash = cfg_val.pointer("/hash")
-          .or_else(|| cfg_val.pointer("/baseHash"))
-          .and_then(|v| v.as_str())
-          .unwrap_or("");
-
-        if !base_hash.is_empty() {
-          // Build the raw config patch for browser settings
-          let raw_patch = serde_json::json!({
-            "browser": {
-              "enabled": true,
-              "headless": false,
-              "defaultProfile": "openclaw",
-              "noSandbox": true
-            }
-          }).to_string();
-
-          let patch_frame = RequestFrame {
-            frame_type: "req",
-            method: "config.patch".to_string(),
-            id: next_request_id(),
-            params: Some(serde_json::json!({
-              "raw": raw_patch,
-              "baseHash": base_hash
-            })),
-          };
-          let _ = patch_client.write.lock().await
-            .send(Message::Text(serde_json::to_string(&patch_frame).unwrap()))
-            .await;
-          eprintln!("[gateway_client] Sent config.patch for browser settings — gateway will restart");
-        } else {
-          eprintln!("[gateway_client] config.get returned no hash, skipping config.patch");
-        }
-      } else {
-        eprintln!("[gateway_client] config.get failed or timed out, skipping config.patch");
-      }
-
-      // Give the gateway a moment to start processing the patch
-      tokio::time::sleep(Duration::from_millis(500)).await;
-      // Invalidate so next request reconnects to the restarted gateway
-      invalidate_client();
-    });
-  }
 
   Ok(client)
 }
