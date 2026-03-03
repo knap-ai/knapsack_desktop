@@ -179,7 +179,87 @@ async fn ensure_gateway_best_effort(token: &str) {
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
 }
 
+/// Ensure the OpenClaw config has browser settings suitable for the desktop app:
+///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "openclaw".
+///
+/// The `set_service_enabled` endpoint (macOS launchctl setup) also patches these,
+/// but that path is never hit in `npm run tauri dev` or on non-macOS.  Running this
+/// at first connection ensures the managed Chrome is visible and functional regardless
+/// of how the gateway was started.
+fn ensure_browser_config() {
+  let home = match std::env::var("HOME") {
+    Ok(h) => h,
+    Err(_) => return,
+  };
+  let config_path = std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json");
+  if !config_path.exists() {
+    let legacy = std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json");
+    if !legacy.exists() {
+      return; // No config file yet; service.rs will create one when enabling.
+    }
+    // Use legacy path
+    return ensure_browser_config_at(&legacy);
+  }
+  ensure_browser_config_at(&config_path);
+}
+
+fn ensure_browser_config_at(config_path: &std::path::Path) {
+  let content = match std::fs::read_to_string(config_path) {
+    Ok(c) => c,
+    Err(_) => return,
+  };
+  let mut cfg: Value = match serde_json::from_str(&content) {
+    Ok(v) => v,
+    Err(_) => return,
+  };
+
+  let mut patched = false;
+
+  // Ensure browser object exists.
+  if cfg.get("browser").is_none() {
+    cfg.as_object_mut().unwrap().insert("browser".into(), serde_json::json!({}));
+    patched = true;
+  }
+
+  // browser.enabled = true
+  let enabled = cfg.pointer("/browser/enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+  if !enabled {
+    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+      .insert("enabled".into(), serde_json::json!(true));
+    patched = true;
+  }
+
+  // browser.headless = false  (user needs visible Chrome for logins)
+  let headless = cfg.pointer("/browser/headless").and_then(|v| v.as_bool()).unwrap_or(false);
+  if headless {
+    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+      .insert("headless".into(), serde_json::json!(false));
+    patched = true;
+  }
+
+  // browser.defaultProfile = "openclaw"  (managed, isolated)
+  let profile = cfg.pointer("/browser/defaultProfile").and_then(|v| v.as_str()).unwrap_or("chrome");
+  if profile == "chrome" || profile.is_empty() {
+    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+      .insert("defaultProfile".into(), serde_json::json!("openclaw"));
+    patched = true;
+  }
+
+  if patched {
+    if let Ok(json) = serde_json::to_string_pretty(&cfg) {
+      let _ = std::fs::write(config_path, json);
+      eprintln!("[gateway_client] Patched browser config at {}", config_path.display());
+    }
+  }
+}
+
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
+  // Patch browser config on disk before the gateway reads it.  This covers
+  // cold-start in dev mode (`npm run tauri dev`) where set_service_enabled
+  // never runs.  For a hot gateway that's already running, agent_chat()
+  // additionally sends a config.patch RPC after connection.
+  ensure_browser_config();
+
   ensure_gateway_best_effort(token).await;
 
   // Wrap the TCP/WebSocket connection in a short timeout so we don't hang
@@ -631,6 +711,63 @@ pub async fn browser_request(
   gateway_request_pooled("browser.request", Some(params), &t).await
 }
 
+/// Ensure the running gateway has browser config suitable for the desktop app.
+/// Only runs once per process lifetime to avoid repeated RPC round-trips.
+static BROWSER_CONFIG_ENSURED: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
+
+async fn ensure_browser_config_via_gateway(token: &str) {
+  if BROWSER_CONFIG_ENSURED.load(Ordering::Relaxed) {
+    return;
+  }
+
+  // Fetch current config + baseHash
+  let cfg_result = gateway_request_pooled("config.get", None, token).await;
+  let cfg_val = match cfg_result {
+    Ok(v) => v,
+    Err(_) => return,
+  };
+
+  let base_hash = match cfg_val.get("hash").and_then(|h| h.as_str()) {
+    Some(h) => h.to_string(),
+    None => return,
+  };
+
+  let config = cfg_val.get("config").unwrap_or(&cfg_val);
+
+  let enabled = config.pointer("/browser/enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+  let headless = config.pointer("/browser/headless").and_then(|v| v.as_bool()).unwrap_or(false);
+  let profile = config.pointer("/browser/defaultProfile").and_then(|v| v.as_str()).unwrap_or("chrome");
+
+  let needs_patch = !enabled || headless || profile == "chrome" || profile.is_empty();
+
+  if needs_patch {
+    let patch = serde_json::json!({
+      "browser": {
+        "enabled": true,
+        "headless": false,
+        "defaultProfile": "openclaw"
+      }
+    });
+    let params = serde_json::json!({
+      "raw": serde_json::to_string(&patch).unwrap_or_default(),
+      "baseHash": base_hash,
+    });
+    match gateway_request_pooled("config.patch", Some(params), token).await {
+      Ok(_) => {
+        eprintln!("[gateway_client] Patched browser config via gateway RPC");
+        // config.patch triggers gateway restart (SIGUSR1).  Drop the stale
+        // connection and wait for the gateway to come back up.
+        invalidate_client();
+        tokio::time::sleep(Duration::from_secs(2)).await;
+      }
+      Err(e) => eprintln!("[gateway_client] Failed to patch browser config: {}", e),
+    }
+  }
+
+  BROWSER_CONFIG_ENSURED.store(true, Ordering::Relaxed);
+}
+
 /// Send a chat message through the gateway's `agent` RPC method.
 ///
 /// This routes the message through the same agent pipeline that handles
@@ -641,6 +778,10 @@ pub async fn agent_chat(
   token: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
+
+  // Ensure the gateway has correct browser config (once per session).
+  ensure_browser_config_via_gateway(&t).await;
+
   let idem = format!("knapsack-ui-{}", std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
     .unwrap_or_default()
