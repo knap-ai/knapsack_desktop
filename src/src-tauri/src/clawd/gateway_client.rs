@@ -828,13 +828,17 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
       if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&text) {
         let mut pending = client_clone.pending.lock().await;
         if let Some(mut p) = pending.remove(&resp.id) {
-          if p.remaining_skips > 0 {
-            // Intermediate response (e.g. "accepted" ack for two-phase
-            // methods like `agent`). Re-insert and wait for the next one.
+          // Never skip error responses — if the gateway rejects the request
+          // (ok=false), resolve immediately so callers see the error instead
+          // of waiting for a second response that will never come.
+          if p.remaining_skips > 0 && resp.ok {
+            // Intermediate success response (e.g. "accepted" ack for
+            // two-phase methods like `agent`). Re-insert and wait for
+            // the final result.
             p.remaining_skips -= 1;
             pending.insert(resp.id, p);
           } else {
-            // Final response — resolve the future.
+            // Final response (or error) — resolve the future.
             let out = if resp.ok {
               Ok(resp.result.or(resp.data).or(resp.payload).unwrap_or(Value::Null))
             } else {
