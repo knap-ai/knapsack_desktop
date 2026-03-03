@@ -924,20 +924,45 @@ async fn main() {
 
       let main_window = window_builder.build()?;
 
-      // Resize main window to full screen height
+      // Position the window like Granola: right-aligned, below the menu bar,
+      // filling the usable screen height.  This avoids the window opening
+      // behind the macOS menu bar (y=0) where the drag region and chat input
+      // are inaccessible.
       if let Ok(Some(monitor)) = main_window.current_monitor() {
         let screen_size = monitor.size();
+        let monitor_pos = monitor.position();
         let scale_factor = monitor.scale_factor();
+        let screen_width_logical = screen_size.width as f64 / scale_factor;
         let screen_height_logical = screen_size.height as f64 / scale_factor;
+
+        // Reserve space for the macOS menu bar (~25px) and a small bottom
+        // margin so the window feels grounded rather than flush.
+        let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
+        let bottom_margin: f64 = 0.0;
+        let usable_height = screen_height_logical - menu_bar_height - bottom_margin;
+
+        // Cap width so the window doesn't exceed the screen
+        let window_width = 1440.0_f64.min(screen_width_logical);
+
         main_window
           .set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: 1440.0,
-            height: screen_height_logical,
+            width: window_width,
+            height: usable_height,
           }))
           .unwrap();
-      }
 
-      main_window.center()?;
+        // Right-align: x = screen_right_edge - window_width
+        let monitor_x_logical = monitor_pos.x as f64 / scale_factor;
+        let x = (monitor_x_logical + screen_width_logical - window_width).max(0.0);
+        let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
+
+        main_window
+          .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))
+          .unwrap();
+      } else {
+        // Fallback: just center if we can't detect the monitor
+        main_window.center()?;
+      }
 
       #[cfg(target_os = "macos")]
       {
