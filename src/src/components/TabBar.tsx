@@ -103,6 +103,16 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
       data-tauri-drag-region
       className="TabBarContainer mt-12 select-none flex flex-col space-y-0"
     >
+      <button
+        className="TabBarCollapseBtn"
+        onClick={() => setCollapsed(true)}
+        title="Hide tabs"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+
       {tabs.map(tab => {
         const selectedTabClass = currentTab === tab.id ? 'SelectedTabItem' : 'TabItem'
         return (
@@ -126,16 +136,6 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
           </div>
         )
       })}
-
-      <button
-        className="TabBarCollapseBtn"
-        onClick={() => setCollapsed(true)}
-        title="Hide tabs"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
     </div>
   )
 }

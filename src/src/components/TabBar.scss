@@ -31,14 +31,14 @@
   }
 }
 
-// Subtle chevron at bottom of expanded sidebar to collapse
+// Subtle chevron at top of expanded sidebar to collapse
 .TabBarCollapseBtn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin: 8px auto 4px;
+  margin: 6px 12px;
   padding: 0;
   border: none;
   background: transparent;
