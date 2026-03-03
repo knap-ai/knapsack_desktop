@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { appWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
-import { KN_API_STREAM_LLM_COMPLETE } from 'src/utils/constants'
+import { KN_SERVER_HOST } from 'src/utils/constants'
 
 const INITIAL_HEIGHT = 72
 const MAX_RESPONSE_HEIGHT = 400
@@ -10,15 +10,7 @@ const INPUT_AREA_HEIGHT = 72
 const QUICK_ACTIONS_HEIGHT = 44
 const PADDING_BOTTOM = 16
 
-// Read user profile from localStorage (shared with the main app)
-const PROFILE_KEY = 'KN_PROFILE'
-function getUserProfile(): { email: string; name?: string } | null {
-  try {
-    const raw = localStorage.getItem(PROFILE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch { /* corrupt data */ }
-  return null
-}
+const AGENT_CHAT_URL = KN_SERVER_HOST + '/api/clawd/agent-chat'
 
 interface QuickAction {
   label: string
@@ -28,13 +20,41 @@ interface QuickAction {
 const QUICK_ACTIONS: QuickAction[] = [
   { label: 'Summarize emails', query: 'Summarize my recent emails and highlight anything urgent.' },
   { label: 'Prep for meeting', query: 'Help me prepare for my next upcoming meeting.' },
-  { label: 'Search docs', query: 'Search my documents for relevant information.' },
+  { label: 'Search the web', query: 'Search the web for the latest AI news and give me a summary.' },
 ]
+
+/** Minimal markdown-to-HTML for overlay responses. */
+function renderMarkdown(text: string): string {
+  let html = text
+    // Escape HTML
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:12px 0 4px">$1</h3>')
+  html = html.replace(/^## (.+)$/gm, '<h2 style="font-size:15px;font-weight:700;margin:12px 0 4px">$1</h2>')
+  html = html.replace(/^# (.+)$/gm, '<h1 style="font-size:16px;font-weight:700;margin:12px 0 6px">$1</h1>')
+  // Bold & italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-size:12px">$1</code>')
+  // Bullet lists
+  html = html.replace(/^- (.+)$/gm, '<li style="margin-left:16px;list-style-type:disc">$1</li>')
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:#4f6fac;text-decoration:underline">$1</a>')
+  // Paragraphs (double newlines)
+  html = html.replace(/\n\n/g, '<br/><br/>')
+  // Single newlines
+  html = html.replace(/\n/g, '<br/>')
+  return html
+}
 
 function OverlayPanel() {
   const [query, setQuery] = useState('')
   const [response, setResponse] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [hasResponse, setHasResponse] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const responseRef = useRef<HTMLDivElement>(null)
@@ -45,32 +65,19 @@ function OverlayPanel() {
     const unlistenFocus = listen('tauri://focus', () => {
       inputRef.current?.focus()
     })
-
-    return () => {
-      unlistenFocus.then(unlisten => unlisten())
-    }
+    return () => { unlistenFocus.then(unlisten => unlisten()) }
   }, [])
 
-  // Hide overlay on window blur (lost focus)
+  // Hide overlay on window blur
   useEffect(() => {
     const unlistenBlur = listen('tauri://blur', () => {
-      // Small delay to avoid hiding when clicking within the window itself
-      setTimeout(() => {
-        invoke('hide_overlay_window')
-      }, 100)
+      setTimeout(() => { invoke('hide_overlay_window') }, 100)
     })
-
-    return () => {
-      unlistenBlur.then(unlisten => unlisten())
-    }
+    return () => { unlistenBlur.then(unlisten => unlisten()) }
   }, [])
 
-  // Focus the input on mount
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+  useEffect(() => { inputRef.current?.focus() }, [])
 
-  // Resize the window based on content
   const updateWindowSize = useCallback(async (contentHeight: number) => {
     const totalHeight = INPUT_AREA_HEIGHT + contentHeight + (contentHeight > 0 ? PADDING_BOTTOM : 0)
     const clampedHeight = Math.min(
@@ -79,25 +86,18 @@ function OverlayPanel() {
     )
     try {
       await appWindow.setSize(new (await import('@tauri-apps/api/window')).LogicalSize(680, clampedHeight))
-    } catch (e) {
-      // Window may have been closed; ignore
-    }
+    } catch { /* Window may have been closed */ }
   }, [])
 
-  // Scroll response area to bottom as new content arrives
   useEffect(() => {
-    if (responseRef.current) {
-      responseRef.current.scrollTop = responseRef.current.scrollHeight
-    }
+    if (responseRef.current) responseRef.current.scrollTop = responseRef.current.scrollHeight
   }, [response])
 
-  // Update window size when response or quick-actions visibility changes
   useEffect(() => {
     if (hasResponse && responseRef.current) {
       const contentHeight = Math.min(responseRef.current.scrollHeight, MAX_RESPONSE_HEIGHT) + PADDING_BOTTOM
       updateWindowSize(contentHeight)
     } else if (!hasResponse) {
-      // Show quick actions area
       updateWindowSize(QUICK_ACTIONS_HEIGHT)
     }
   }, [hasResponse, response, updateWindowSize])
@@ -106,16 +106,14 @@ function OverlayPanel() {
     setQuery('')
     setResponse('')
     setHasResponse(false)
-    setIsStreaming(false)
+    setIsLoading(false)
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
     try {
       await appWindow.setSize(new (await import('@tauri-apps/api/window')).LogicalSize(680, INITIAL_HEIGHT))
-    } catch (e) {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }, [])
 
   const hideOverlay = useCallback(async () => {
@@ -125,83 +123,45 @@ function OverlayPanel() {
 
   const handleSubmit = useCallback(
     async (submittedQuery: string) => {
-      if (!submittedQuery.trim() || isStreaming) return
+      if (!submittedQuery.trim() || isLoading) return
 
-      // Abort any in-flight request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-
+      if (abortControllerRef.current) abortControllerRef.current.abort()
       const controller = new AbortController()
       abortControllerRef.current = controller
 
       setResponse('')
       setHasResponse(true)
-      setIsStreaming(true)
+      setIsLoading(true)
 
       try {
-        // Get user profile for the required user_email/user_name fields
-        const profile = getUserProfile()
-
-        const res = await fetch(KN_API_STREAM_LLM_COMPLETE, {
+        const res = await fetch(AGENT_CHAT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_email: profile?.email || '',
-            user_name: profile?.name || '',
-            prompt: submittedQuery,
-            documents: [],
-            is_local: false,
-          }),
+          body: JSON.stringify({ text: submittedQuery }),
           signal: controller.signal,
         })
 
-        const reader = res.body?.getReader()
-        if (!reader) {
-          setResponse('Failed to connect to Knapsack server.')
-          setIsStreaming(false)
-          return
-        }
+        const data = await res.json()
 
-        const decoder = new TextDecoder()
-        let accumulated = ''
-        let buffer = ''
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-
-          // Parse SSE lines: each is "data: {json}\n"
-          const lines = buffer.split('\n')
-          // Keep the last (possibly incomplete) line in the buffer
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            if (line === 'data: [DONE]') break
-            try {
-              const parsed = JSON.parse(line.slice(6))
-              const text = parsed?.choices?.[0]?.text ?? ''
-              accumulated += text
-            } catch {
-              // Malformed JSON chunk — skip
-            }
-          }
-          setResponse(accumulated)
+        if (data.ok && data.reply) {
+          setResponse(data.reply)
+        } else if (data.message) {
+          setResponse(data.message)
+        } else {
+          setResponse('No response received. Make sure the gateway is running.')
         }
       } catch (err: any) {
         if (err.name === 'AbortError') {
-          // User cancelled — do nothing
+          // User cancelled
         } else {
           setResponse('An error occurred while getting a response. Please try again.')
         }
       } finally {
-        setIsStreaming(false)
+        setIsLoading(false)
         abortControllerRef.current = null
       }
     },
-    [isStreaming],
+    [isLoading],
   )
 
   const handleKeyDown = useCallback(
@@ -249,13 +209,11 @@ function OverlayPanel() {
       >
         {/* Input area */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px', height: 72 }}>
-          {/* Knapsack logo */}
           <img
             src="/assets/images/knap-logo-medium.png"
             alt="Knapsack"
             style={{ width: 24, height: 24, marginRight: 12, flexShrink: 0 }}
           />
-
           <input
             ref={inputRef}
             type="text"
@@ -275,12 +233,10 @@ function OverlayPanel() {
               fontFamily: 'inherit',
             }}
           />
-
-          {/* Stop / clear button when streaming or has response */}
-          {(isStreaming || hasResponse) && (
+          {(isLoading || hasResponse) && (
             <button
               onClick={resetOverlay}
-              title={isStreaming ? 'Stop' : 'Clear'}
+              title={isLoading ? 'Stop' : 'Clear'}
               style={{
                 marginLeft: 8,
                 background: 'none',
@@ -294,18 +250,12 @@ function OverlayPanel() {
               }}
             >
               <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           )}
         </div>
 
-        {/* Separator */}
         <div style={{ margin: '0 16px', borderTop: '1px solid rgba(0,0,0,0.08)' }} />
 
         {/* Response area */}
@@ -320,47 +270,24 @@ function OverlayPanel() {
               overflowY: 'auto',
               maxHeight: MAX_RESPONSE_HEIGHT,
               fontFamily: 'inherit',
-              whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
             }}
           >
-            {response || (
+            {isLoading && !response ? (
               <span style={{ color: '#999', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    opacity={0.25}
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    opacity={0.75}
-                  />
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity={0.25} />
+                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity={0.75} />
                 </svg>
-                Thinking...
+                Thinking... this may take a moment
               </span>
-            )}
-            {isStreaming && (
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: 6,
-                  height: 16,
-                  background: '#c54841',
-                  marginLeft: 2,
-                  verticalAlign: 'text-bottom',
-                  animation: 'pulse 1s infinite',
-                }}
-              />
+            ) : (
+              <div dangerouslySetInnerHTML={{ __html: renderMarkdown(response) }} />
             )}
           </div>
         )}
 
-        {/* Quick action buttons — shown only when there is no response */}
+        {/* Quick action buttons */}
         {!hasResponse && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px 10px' }}>
             {QUICK_ACTIONS.map(action => (
@@ -391,19 +318,8 @@ function OverlayPanel() {
                 {action.label}
               </button>
             ))}
-
-            {/* Keyboard shortcut hint */}
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: '#bbb', fontSize: 11 }}>
-              <kbd
-                style={{
-                  padding: '2px 6px',
-                  borderRadius: 4,
-                  fontSize: 10,
-                  border: '1px solid #ddd',
-                  background: '#f5f5f5',
-                  fontFamily: 'inherit',
-                }}
-              >
+              <kbd style={{ padding: '2px 6px', borderRadius: 4, fontSize: 10, border: '1px solid #ddd', background: '#f5f5f5', fontFamily: 'inherit' }}>
                 Esc
               </kbd>
               <span>to close</span>
@@ -412,17 +328,11 @@ function OverlayPanel() {
         )}
       </div>
 
-      {/* CSS animations */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        /* Ensure placeholder color in light theme */
         input::placeholder {
           color: #aaa !important;
         }

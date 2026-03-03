@@ -419,6 +419,8 @@ export const SettingsDialog = ({
 
             {/* Extra providers */}
             {[
+              { id: 'gemini', envVar: 'GEMINI_API_KEY', name: 'Google (Gemini)' },
+              { id: 'groq', envVar: 'GROQ_API_KEY', name: 'Groq' },
               { id: 'minimax', envVar: 'MINIMAX_API_KEY', name: 'MiniMax' },
               { id: 'zai', envVar: 'ZAI_API_KEY', name: 'ZAI (GLM)' },
               { id: 'huggingface', envVar: 'HF_TOKEN', name: 'Hugging Face' },

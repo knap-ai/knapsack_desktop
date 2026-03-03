@@ -799,63 +799,6 @@ pub async fn browser_request(
   gateway_request_pooled("browser.request", Some(params), &t).await
 }
 
-/// Ensure the running gateway has browser config suitable for the desktop app.
-/// Only runs once per process lifetime to avoid repeated RPC round-trips.
-static BROWSER_CONFIG_ENSURED: std::sync::atomic::AtomicBool =
-  std::sync::atomic::AtomicBool::new(false);
-
-async fn ensure_browser_config_via_gateway(token: &str) {
-  if BROWSER_CONFIG_ENSURED.load(Ordering::Relaxed) {
-    return;
-  }
-
-  // Fetch current config + baseHash
-  let cfg_result = gateway_request_pooled("config.get", None, token).await;
-  let cfg_val = match cfg_result {
-    Ok(v) => v,
-    Err(_) => return,
-  };
-
-  let base_hash = match cfg_val.get("hash").and_then(|h| h.as_str()) {
-    Some(h) => h.to_string(),
-    None => return,
-  };
-
-  let config = cfg_val.get("config").unwrap_or(&cfg_val);
-
-  let enabled = config.pointer("/browser/enabled").and_then(|v| v.as_bool()).unwrap_or(false);
-  let headless = config.pointer("/browser/headless").and_then(|v| v.as_bool()).unwrap_or(false);
-  let profile = config.pointer("/browser/defaultProfile").and_then(|v| v.as_str()).unwrap_or("chrome");
-
-  let needs_patch = !enabled || headless || profile == "chrome" || profile.is_empty();
-
-  if needs_patch {
-    let patch = serde_json::json!({
-      "browser": {
-        "enabled": true,
-        "headless": false,
-        "defaultProfile": "openclaw"
-      }
-    });
-    let params = serde_json::json!({
-      "raw": serde_json::to_string(&patch).unwrap_or_default(),
-      "baseHash": base_hash,
-    });
-    match gateway_request_pooled("config.patch", Some(params), token).await {
-      Ok(_) => {
-        eprintln!("[gateway_client] Patched browser config via gateway RPC");
-        // config.patch triggers gateway restart (SIGUSR1).  Drop the stale
-        // connection and wait for the gateway to come back up.
-        invalidate_client();
-        tokio::time::sleep(Duration::from_secs(2)).await;
-      }
-      Err(e) => eprintln!("[gateway_client] Failed to patch browser config: {}", e),
-    }
-  }
-
-  BROWSER_CONFIG_ENSURED.store(true, Ordering::Relaxed);
-}
-
 /// Send a chat message through the gateway's `agent` RPC method.
 ///
 /// This routes the message through the same agent pipeline that handles
@@ -866,10 +809,6 @@ pub async fn agent_chat(
   token: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
-
-  // Ensure the gateway has correct browser config (once per session).
-  ensure_browser_config_via_gateway(&t).await;
-
   let idem = format!("knapsack-ui-{}", std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
     .unwrap_or_default()
