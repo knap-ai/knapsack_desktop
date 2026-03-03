@@ -920,7 +920,21 @@ fn parse_sse_payload_text(raw: &str) -> String {
 /// the system browser. This ensures users see a browser open even when the
 /// gateway's built-in browser control (Chrome extension) is unavailable.
 fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
-  // Simple regex-free URL extraction — look for http(s)://...
+  // First try to extract a URL from markdown link syntax: [text](url)
+  // This handles the common case where the agent wraps URLs in markdown.
+  if let Some(start) = reply.find("](http") {
+    let url_start = start + 2; // skip "]("
+    if let Some(end) = reply[url_start..].find(')') {
+      let url = &reply[url_start..url_start + end];
+      if url.len() > 10 && !url.contains(char::is_whitespace) {
+        eprintln!("[clawd/agent-chat] Opening markdown URL from reply in system browser: {}", url);
+        let _ = tauri::api::shell::open(&app_handle.shell_scope(), url, None);
+        return;
+      }
+    }
+  }
+
+  // Fallback: scan whitespace-separated words for bare URLs
   for word in reply.split_whitespace() {
     // Strip common markdown/punctuation wrappers
     let cleaned = word
