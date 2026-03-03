@@ -1,6 +1,58 @@
 @import "../main.css";
 
 .TabBarContainer {
+  &--collapsed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 4px;
+    width: 40px;
+    min-width: 40px;
+  }
+}
+
+// Hamburger icon shown when sidebar is collapsed
+.TabBarExpandBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 4px auto;
+  padding: 0;
+  border: none;
+  background: #E4E7EC;
+  color: #6A6969;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.15s, color 0.15s;
+
+  &:hover {
+    background-color: #D3DBEA;
+    color: #6474AC;
+  }
+}
+
+// Chevron at bottom of expanded sidebar to collapse it
+.TabBarCollapseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 8px auto 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #bbb;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 0.15s, color 0.15s;
+
+  &:hover {
+    background-color: #E4E7EC;
+    color: #6474AC;
+  }
 }
 
 .SelectedTabItem {

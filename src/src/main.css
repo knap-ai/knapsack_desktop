@@ -1,6 +1,6 @@
 @import "https://www.nerdfonts.com/assets/css/webfont.css";
 @import url('https://fonts.cdnfonts.com/css/sf-pro-display');
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -180,7 +180,7 @@ html, body {
   --font-roboto-mono: 'RobotoMono', monospace;
   --font-inter-tight: 'InterTight', sans-serif;
   --font-lora: 'Lora', serif;
-  --font-instrument-serif: 'Instrument Serif', serif;
+  --font-eb-garamond: 'EB Garamond', serif;
   --font-sf-pro: 'SF Pro Display', sans-serif;
 
   /* Legacy font variables - keeping for backward compatibility */
@@ -189,7 +189,7 @@ html, body {
   --font-mono: var(--font-roboto-mono);
   --font-font-style: normal;
   --font-tight: var(--font-inter-tight);
-  --font-serif: var(--font-instrument-serif);
+  --font-serif: var(--font-eb-garamond);
 
   --font-weight-lighter: 100;
   --font-weight-extralight: 200;

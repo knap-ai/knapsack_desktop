@@ -28,7 +28,7 @@ module.exports = {
         'serif': ['var(--font-serif)'],
         Inter:['Inter', 'sans-serif'],
         Lora: ['Lora', 'serif'],
-        InstrumentSerif: ['Instrument Serif', 'serif'],
+        EBGaramond: ['EB Garamond', 'serif'],
         InterTight: ['InterTight', 'sans-serif'],
         RobotoMono: ['RobotoMono', 'mono'],
       },
