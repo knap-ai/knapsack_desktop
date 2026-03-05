@@ -1,3 +1,6 @@
+# Signing credentials (contains secrets)
+.env.signing
+
 # Logs
 logs
 *.log
@@ -42,6 +45,7 @@ config
 .env
 .env.*
 !.env.example
+!.env.signing.example
 .env_*
 
 # qdrant
