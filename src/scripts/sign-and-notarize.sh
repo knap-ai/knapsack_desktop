@@ -111,18 +111,21 @@ echo "[sign] Signing identity: $SIGN_IDENTITY"
 # 1. Strip node-llama-cpp binaries (unsigned, not needed — remote fallback)
 # ---------------------------------------------------------------------------
 RESOURCES="$CONTENTS/Resources"
-LLAMA_DIR="$RESOURCES/resources/clawdbot/node_modules/node-llama-cpp"
+# Remove both node-llama-cpp and @node-llama-cpp (scoped package)
+for LLAMA_DIR in \
+  "$RESOURCES/resources/clawdbot/node_modules/node-llama-cpp" \
+  "$RESOURCES/resources/clawdbot/node_modules/@node-llama-cpp"; do
+  if [ -d "$LLAMA_DIR" ]; then
+    echo "[sign] Removing $(basename "$LLAMA_DIR") directory..."
+    rm -rf "$LLAMA_DIR"
+  fi
+done
 
-if [ -d "$LLAMA_DIR" ]; then
-  echo "[sign] Removing node-llama-cpp directory..."
-  rm -rf "$LLAMA_DIR"
-fi
-
-# Remove hoisted node-llama-cpp artifacts
+# Remove hoisted node-llama-cpp artifacts (matches both scoped and unscoped)
 while IFS= read -r -d '' f; do
   echo "[sign]   Removing stray llama binary: $f"
   rm -f "$f"
-done < <(find "$RESOURCES" -path "*/node-llama-cpp*" \( -name "*.node" -o -name "*.dylib" -o -name "*.so" \) -print0 2>/dev/null || true)
+done < <(find "$RESOURCES" \( -path "*/node-llama-cpp*" -o -path "*/@node-llama-cpp*" \) \( -name "*.node" -o -name "*.dylib" -o -name "*.so" \) -print0 2>/dev/null || true)
 
 # ---------------------------------------------------------------------------
 # 2. Clear extended attributes
@@ -142,15 +145,15 @@ done < <(find "$APP_PATH" -name "*.node" -print0 2>/dev/null || true)
 echo "[sign]   Signed $NODE_COUNT .node file(s)"
 
 # ---------------------------------------------------------------------------
-# 4. Sign all .dylib files
+# 4. Sign all .dylib and .so files
 # ---------------------------------------------------------------------------
-echo "[sign] Signing .dylib files..."
+echo "[sign] Signing .dylib and .so files..."
 DYLIB_COUNT=0
 while IFS= read -r -d '' f; do
   codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$f"
   DYLIB_COUNT=$((DYLIB_COUNT + 1))
-done < <(find "$APP_PATH" -name "*.dylib" -print0 2>/dev/null || true)
-echo "[sign]   Signed $DYLIB_COUNT .dylib file(s)"
+done < <(find "$APP_PATH" \( -name "*.dylib" -o -name "*.so" \) -print0 2>/dev/null || true)
+echo "[sign]   Signed $DYLIB_COUNT .dylib/.so file(s)"
 
 # ---------------------------------------------------------------------------
 # 5. Sign standalone executables in node_modules
@@ -228,11 +231,28 @@ if [ "$DO_NOTARIZE" = true ]; then
   ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
   echo "[notarize] Submitting to Apple (this may take a few minutes)..."
-  xcrun notarytool submit "$ZIP_PATH" \
+  SUBMIT_OUTPUT=$(xcrun notarytool submit "$ZIP_PATH" \
     --apple-id "$APPLE_ID" \
     --team-id "$APPLE_TEAM_ID" \
     --password "$APPLE_APP_PASSWORD" \
-    --wait
+    --wait 2>&1) || true
+  echo "$SUBMIT_OUTPUT"
+
+  # Extract submission ID and status
+  SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
+  NOTARY_STATUS=$(echo "$SUBMIT_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
+
+  if [ "$NOTARY_STATUS" != "Accepted" ]; then
+    echo "[notarize] ERROR: Notarization failed with status: $NOTARY_STATUS" >&2
+    if [ -n "$SUBMISSION_ID" ]; then
+      echo "[notarize] Fetching rejection log..." >&2
+      xcrun notarytool log "$SUBMISSION_ID" \
+        --apple-id "$APPLE_ID" \
+        --team-id "$APPLE_TEAM_ID" \
+        --password "$APPLE_APP_PASSWORD" || true
+    fi
+    exit 1
+  fi
 
   echo "[notarize] Stapling notarization ticket..."
   xcrun stapler staple "$APP_PATH"
