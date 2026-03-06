@@ -113,9 +113,17 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
 function friendlyError(raw: string): string {
   if (!raw) return 'Something went wrong. Please try again.'
   const lower = raw.toLowerCase()
+  // All providers failed (fallback exhausted)
+  if (lower.includes('all fallback providers also failed')) {
+    return '⚠️ **All AI providers are unavailable.** Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.'
+  }
   // OpenAI quota / billing errors
   if (lower.includes('insufficient_quota') || lower.includes('exceeded your current quota')) {
-    return '⚠️ **API quota exceeded.** Your OpenAI account has run out of credits or hit its spending limit. Check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).'
+    return '⚠️ **API quota exceeded.** Your OpenAI account has run out of credits or hit its spending limit. Add another provider\'s API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).'
+  }
+  // Anthropic credit errors
+  if (lower.includes('anthropic') && (lower.includes('credit') || lower.includes('billing') || lower.includes('exceeded'))) {
+    return '⚠️ **Anthropic credit limit reached.** Add another provider\'s API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).'
   }
   // Rate limit (but not quota)
   if (lower.includes('rate_limit') || (lower.includes('429') && !lower.includes('insufficient_quota'))) {
@@ -668,11 +676,13 @@ function getMimeTypeFromExt(ext: string): string {
 // only re-render this small component instead of the entire chat body.
 type ChatInputBarProps = {
   busy: boolean
+  hasQueuedMessage: boolean
   isRecording: boolean
   isTranscribing: boolean
   voiceEnabled: boolean
   attachedFiles: Array<{ name: string; type: string; content: string; preview?: string }>
   onSend: (text: string) => void
+  onQueue: (text: string) => void
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveFile: (index: number) => void
   onStartRecording: () => void
@@ -739,8 +749,8 @@ const ChatMessage = memo(function ChatMessage({
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
-    busy, isRecording, isTranscribing, voiceEnabled,
-    attachedFiles, onSend, onFileSelect, onRemoveFile,
+    busy, hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
+    attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
   } = props
   const [input, setInput] = useState('')
@@ -842,12 +852,21 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               }
             }}
             onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey && !busy) {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                handleSend()
+                if (busy) {
+                  // Queue the message to send after current request completes
+                  if (input.trim()) {
+                    onQueue(input.trim())
+                    setInput('')
+                    autoResize()
+                  }
+                } else {
+                  handleSend()
+                }
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : busy ? 'Type your next message...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            placeholder={isRecording ? '🎤 Listening...' : hasQueuedMessage ? '📋 Message queued — will send when done...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
             disabled={isRecording}
             rows={1}
           />
@@ -870,11 +889,26 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           </button>
         </div>
         {busy ? (
-          <button className="ClawdStopBtn" onClick={onStopGeneration}>
-            ⏹️ Stop
-          </button>
+          <>
+            <button className="ClawdStopBtn" onClick={onStopGeneration}>
+              ⏹️ Stop
+            </button>
+            <button
+              disabled={!input.trim() || hasQueuedMessage}
+              onClick={() => {
+                if (input.trim()) {
+                  onQueue(input.trim())
+                  setInput('')
+                  autoResize()
+                }
+              }}
+              title="Queue this message to send after current response"
+            >
+              {hasQueuedMessage ? '📋 Queued' : '📋 Queue'}
+            </button>
+          </>
         ) : (
-          <button disabled={busy || (!input.trim() && attachedFiles.length === 0)} onClick={handleSend}>
+          <button disabled={!input.trim() && attachedFiles.length === 0} onClick={handleSend}>
             Send
           </button>
         )}
@@ -910,6 +944,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return []
   })
   const [busy, setBusy] = useState(false)
+
+  // Queued message — when user presses Enter while busy, store message to send after current request completes
+  const queuedMessageRef = useRef<string | null>(null)
+  const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
 
   // Abort controller for stopping generation
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -949,6 +987,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [savedProviderKeys, setSavedProviderKeys] = useState<Record<string, boolean>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
   const thinkingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Clean up thinking interval on unmount to prevent leaked intervals
+  useEffect(() => {
+    return () => {
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current)
+        thinkingIntervalRef.current = null
+      }
+    }
+  }, [])
 
   // Claude Code activity tracking — shows indicator when Claude Code is running
   const [claudeCodeActive, setClaudeCodeActive] = useState(false)
@@ -2721,6 +2769,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       let thinkingIndex = 0
       setThinkingMessage(shuffled[0])
 
+      // Clear any previously leaked interval before starting a new one
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current)
+      }
       thinkingIntervalRef.current = setInterval(() => {
         thinkingIndex = (thinkingIndex + 1) % shuffled.length
         setThinkingMessage(shuffled[thinkingIndex])
@@ -2905,6 +2957,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } catch (e: any) {
       pushAssistant(friendlyError(e?.message || String(e)))
     } finally {
+      // Safety net: always clear thinking state when request ends, even if inner
+      // finally was skipped due to an error thrown between setting thinkingMessage
+      // and entering the inner try block.
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current)
+        thinkingIntervalRef.current = null
+      }
+      setThinkingMessage(null)
       setBusy(false)
     }
   }
@@ -2924,6 +2984,26 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const stopGenerationRef = useRef(stopGeneration)
   stopGenerationRef.current = stopGeneration
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
+
+  // Queue a message to send after the current request completes
+  const stableQueueMessage = useCallback((text: string) => {
+    queuedMessageRef.current = text
+    setHasQueuedMessage(true)
+  }, [])
+
+  // Drain queued message when busy transitions from true → false
+  const prevBusyRef = useRef(false)
+  useEffect(() => {
+    if (prevBusyRef.current && !busy && queuedMessageRef.current) {
+      const queued = queuedMessageRef.current
+      queuedMessageRef.current = null
+      setHasQueuedMessage(false)
+      // Short delay to let UI settle before sending next message
+      const timer = setTimeout(() => doSendRef.current?.(queued), 150)
+      return () => clearTimeout(timer)
+    }
+    prevBusyRef.current = busy
+  }, [busy])
 
   // Keyboard shortcuts
   const clearHistoryRef = useRef(clearHistory)
@@ -3304,11 +3384,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       <ChatInputBar
         busy={busy}
+        hasQueuedMessage={hasQueuedMessage}
         isRecording={isRecording}
         isTranscribing={isTranscribing}
         voiceEnabled={voiceEnabled}
         attachedFiles={attachedFiles}
         onSend={stableDoSend}
+        onQueue={stableQueueMessage}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
         onStartRecording={startRecording}

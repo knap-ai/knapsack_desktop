@@ -3115,20 +3115,36 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
 
   // Tool loop - allow up to 75 iterations for complex multi-step tasks
   // Determine model based on provider (reads user's selection from stored config)
-  let model = match provider.as_str() {
+  let mut current_provider = provider.clone();
+  let mut current_api_key = api_key.clone();
+  let mut current_model = match current_provider.as_str() {
     "anthropic" => super::service::get_anthropic_model(&app_handle),
     "gemini" => super::service::get_gemini_model(&app_handle),
     "groq" => super::service::get_groq_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
   };
-  eprintln!("[clawd/chat] Using provider={} model={}", provider, model);
+  eprintln!("[clawd/chat] Using provider={} model={}", current_provider, current_model);
+
+  // Helper: call the appropriate provider's chat API
+  async fn call_provider(
+      prov: &str, key: &str, model: &str,
+      msgs: Vec<chat_agent::OaiMessage>, tls: Vec<chat_agent::OaiToolSpec>,
+    ) -> anyhow::Result<chat_agent::OaiChatResp> {
+      match prov {
+        "anthropic" => chat_agent::anthropic_chat(key, model, msgs, tls).await,
+        "gemini" => chat_agent::gemini_chat(key, model, msgs, tls).await,
+        "groq" => chat_agent::groq_chat(key, model, msgs, tls).await,
+        _ => chat_agent::openai_chat(key, model, msgs, tls).await,
+      }
+    }
+
   let mut tool_iter = 0u32;
   for _ in 0..75 {
     tool_iter += 1;
     // Pace API calls to avoid rate limits (especially Anthropic/Gemini).
     // Skip delay on the first call; add a small pause between subsequent tool-loop iterations.
     if tool_iter > 1 {
-      let delay_ms: u64 = match provider.as_str() {
+      let delay_ms: u64 = match current_provider.as_str() {
         "anthropic" => 500, // Anthropic has tighter rate limits
         "gemini" => 300,
         _ => 100, // OpenAI is more generous
@@ -3136,42 +3152,66 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
       tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
     }
 
-    let resp = match provider.as_str() {
-      "anthropic" => {
-        match chat_agent::anthropic_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-          Ok(r) => r,
-          Err(e) => {
+    // Try primary provider, then fallback to others on credit/rate-limit errors
+    let resp = match call_provider(&current_provider, &current_api_key, &current_model, messages.clone(), tools.clone()).await {
+      Ok(r) => r,
+      Err(e) => {
+        let err_str = e.to_string();
+        let is_credit_or_rate_error = err_str.contains("429")
+          || err_str.contains("rate")
+          || err_str.contains("quota")
+          || err_str.contains("credit")
+          || err_str.contains("insufficient")
+          || err_str.contains("exceeded")
+          || err_str.contains("billing");
+        if !is_credit_or_rate_error {
+          return HttpResponse::InternalServerError().json(
+            serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
+          );
+        }
+        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq
+        eprintln!("[clawd/chat] {} hit credit/rate limit: {}", current_provider, err_str);
+        let fallbacks: [(&str, Option<String>); 4] = [
+          ("openai", openai_key(&app_handle)),
+          ("anthropic", anthropic_key(&app_handle)),
+          ("gemini", gemini_key(&app_handle)),
+          ("groq", groq_key(&app_handle)),
+        ];
+        let mut fallback_resp = None;
+        for (fb_provider, fb_key_opt) in &fallbacks {
+          if *fb_provider == current_provider.as_str() { continue; }
+          if let Some(fb_key) = fb_key_opt {
+            let fb_model = match *fb_provider {
+              "anthropic" => super::service::get_anthropic_model(&app_handle),
+              "gemini" => super::service::get_gemini_model(&app_handle),
+              "groq" => super::service::get_groq_model(&app_handle),
+              _ => super::service::get_openai_model(&app_handle),
+            };
+            eprintln!("[clawd/chat] Trying fallback provider={} model={}", fb_provider, fb_model);
+            match call_provider(fb_provider, fb_key, &fb_model, messages.clone(), tools.clone()).await {
+              Ok(r) => {
+                eprintln!("[clawd/chat] Fallback to {} succeeded", fb_provider);
+                current_provider = fb_provider.to_string();
+                current_api_key = fb_key.clone();
+                current_model = fb_model;
+                fallback_resp = Some(r);
+                break;
+              }
+              Err(fb_err) => {
+                eprintln!("[clawd/chat] Fallback {} also failed: {}", fb_provider, fb_err);
+              }
+            }
+          }
+        }
+        match fallback_resp {
+          Some(r) => r,
+          None => {
             return HttpResponse::InternalServerError().json(
-              serde_json::json!({"ok": false, "message": format!("Anthropic error: {}", e)}),
+              serde_json::json!({"ok": false, "message": format!("{} error: {}. All fallback providers also failed.", current_provider, e)}),
             );
           }
         }
       }
-      "gemini" => {
-        match chat_agent::gemini_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-          Ok(r) => r,
-          Err(e) => {
-            return HttpResponse::InternalServerError()
-              .json(serde_json::json!({"ok": false, "message": format!("Gemini error: {}", e)}));
-          }
-        }
-      }
-      "groq" => {
-        match chat_agent::groq_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-          Ok(r) => r,
-          Err(e) => {
-            return HttpResponse::InternalServerError()
-              .json(serde_json::json!({"ok": false, "message": format!("Groq error: {}", e)}));
-          }
-        }
-      }
-      _ => match chat_agent::openai_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-        Ok(r) => r,
-        Err(e) => {
-          return HttpResponse::InternalServerError()
-            .json(serde_json::json!({"ok": false, "message": format!("OpenAI error: {}", e)}));
-        }
-      },
     };
 
     let choice = match resp.choices.first() {
