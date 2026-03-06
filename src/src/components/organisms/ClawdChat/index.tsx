@@ -2857,7 +2857,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // Use a 90-second timeout so we don't hang forever if the gateway agent is stuck
         // (e.g. browser tool blocked by deny list).  The user's abort controller also
         // cancels the request if they navigate away.
-        let useDirectChat = false
+        // Skip gateway when there are attachments — the gateway protocol only
+        // carries a text message string and cannot forward images/files.
+        // Go straight to direct /api/clawd/chat which has full vision support.
+        let useDirectChat = currentAttachments.length > 0
         const agentTimeout = AbortController.prototype ? new AbortController() : null
         const agentTimerId = agentTimeout ? setTimeout(() => {
           console.warn('[chat] agent-chat timed out after 90s, falling back to direct chat')
@@ -2873,7 +2876,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: requestBody.text }),
+            body: JSON.stringify({ text: requestBody.text, advancedMode }),
             signal: agentSignal,
           })
           if (agentTimerId) clearTimeout(agentTimerId)
