@@ -4794,6 +4794,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               Change Key
                             </button>
                           </div>
+                          <p className="ClawdKeyPromptHelp">
+                            Get your API key at{' '}
+                            <a href={p.helpUrl} target="_blank" rel="noopener noreferrer">
+                              {p.helpUrl.replace('https://', '')}
+                            </a>
+                          </p>
                         </>
                       ) : (
                         <>
