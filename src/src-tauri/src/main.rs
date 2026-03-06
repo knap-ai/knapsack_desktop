@@ -341,12 +341,11 @@ async fn show_notification_window(
 
         let y_position = (NOTIF_Y_OFFSET * scale_factor) as i32;
 
-        // Resize notification window to full screen height
-        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        // Size the notification window to just fit its content
         window
           .set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: NOTIF_WIDTH,
-            height: screen_height_logical,
+            height: NOTIF_HEIGHT,
           }))
           .unwrap();
 

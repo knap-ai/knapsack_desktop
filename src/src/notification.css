@@ -62,7 +62,11 @@ html, body {
   margin: 0;
 }
 
-#notification-root,
+#notification-root {
+  width: 100%;
+  height: fit-content;
+}
+
 #overlay-root {
   width: 100%;
   height: 100%;
