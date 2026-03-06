@@ -531,6 +531,16 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 
+// Slash commands that trigger Tauri events instead of hitting the LLM
+const SLASH_COMMANDS: Record<string, string> = {
+  '/morning': 'kn_trigger_morning_briefing',
+  '/emails': 'kn_trigger_email_check',
+  '/prep': 'kn_trigger_meeting_prep',
+  '/fu': 'kn_trigger_post_meeting',
+  '/testnotif': 'kn_trigger_test_notification',
+  '/autopilot': 'kn_trigger_autopilot',
+}
+
 /**
  * Pre-fetch recent emails and today's calendar events from Knapsack's backend APIs.
  * Returns a formatted context string, or empty string if no data is available.
@@ -738,28 +748,16 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Easter egg commands supported in chat input
-  const CHAT_COMMANDS: Record<string, string> = {
-    '/morning': 'kn_trigger_morning_briefing',
-    '/emails': 'kn_trigger_email_check',
-    '/prep': 'kn_trigger_meeting_prep',
-    '/fu': 'kn_trigger_post_meeting',
-    '/testnotif': 'kn_trigger_test_notification',
-    '/autopilot': 'kn_trigger_autopilot',
-  }
+  // Auto-focus textarea on mount so users can start typing immediately
+  useEffect(() => {
+    // Small delay to ensure layout is complete after tab switch
+    const timer = setTimeout(() => textareaRef.current?.focus(), 100)
+    return () => clearTimeout(timer)
+  }, [])
 
   const handleSend = () => {
     const text = input.trim()
     if (!text && attachedFiles.length === 0) return
-
-    // Intercept slash commands before sending to LLM
-    const cmd = CHAT_COMMANDS[text.toLowerCase()]
-    if (cmd) {
-      console.log(`🔔 Triggering command: ${text}`)
-      emit(cmd, {})
-      setInput('')
-      return
-    }
 
     onSend(text)
     setInput('')
@@ -844,19 +842,19 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               }
             }}
             onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !busy) {
                 e.preventDefault()
                 handleSend()
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : 'Ask me to browse, search, read pages, or automate tasks...'}
-            disabled={busy || isRecording}
+            placeholder={isRecording ? '🎤 Listening...' : busy ? 'Type your next message...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            disabled={isRecording}
             rows={1}
           />
           {/* Voice mode toggle - always visible inside input like ChatGPT */}
           <button
             className={`ClawdVoiceToggle ${voiceEnabled ? 'active' : ''} ${isRecording ? 'recording' : ''} ${isTranscribing ? 'transcribing' : ''}`}
-            onClick={voiceEnabled && !isRecording ? (isRecording ? onStopRecording : onStartRecording) : onToggleVoice}
+            onClick={isRecording ? onStopRecording : voiceEnabled ? onStartRecording : onToggleVoice}
             disabled={busy || isTranscribing}
             title={
               !voiceEnabled
@@ -876,7 +874,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             ⏹️ Stop
           </button>
         ) : (
-          <button disabled={!input.trim() && attachedFiles.length === 0} onClick={handleSend}>
+          <button disabled={busy || (!input.trim() && attachedFiles.length === 0)} onClick={handleSend}>
             Send
           </button>
         )}
@@ -2394,17 +2392,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     localStorage.setItem(VOICE_MODE_STORAGE, String(newValue))
   }, [voiceEnabled, stopCurrentAudio])
 
-  // Called by ChatInputBar (via onSend) or by handleSendWithText (prompt actions, voice)
-  // Slash commands that trigger Tauri events instead of hitting the LLM
-  const SLASH_COMMANDS: Record<string, string> = {
-    '/morning': 'kn_trigger_morning_briefing',
-    '/emails': 'kn_trigger_email_check',
-    '/prep': 'kn_trigger_meeting_prep',
-    '/fu': 'kn_trigger_post_meeting',
-    '/testnotif': 'kn_trigger_test_notification',
-    '/autopilot': 'kn_trigger_autopilot',
-  }
-
   const doSend = async (text: string) => {
 
     // Intercept slash commands before any LLM processing
@@ -2938,10 +2925,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   stopGenerationRef.current = stopGeneration
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
 
-  // Escape key stops generation
+  // Keyboard shortcuts
+  const clearHistoryRef = useRef(clearHistory)
+  clearHistoryRef.current = clearHistory
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') stopGenerationRef.current()
+      const mod = e.metaKey || e.ctrlKey
+      // Cmd/Ctrl+Shift+Backspace — clear chat history
+      if (mod && e.shiftKey && e.key === 'Backspace') {
+        e.preventDefault()
+        clearHistoryRef.current()
+      }
+      // Cmd/Ctrl+L — focus chat input
+      if (mod && !e.shiftKey && e.key === 'l') {
+        e.preventDefault()
+        document.querySelector<HTMLTextAreaElement>('.ClawdChatInput textarea')?.focus()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
