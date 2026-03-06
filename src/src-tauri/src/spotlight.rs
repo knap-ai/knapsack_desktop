@@ -82,20 +82,20 @@ fn register_shortcut(app_handle: AppHandle<Wry>) {
 #[tauri::command]
 pub fn kn_show_app(app_handle: AppHandle<Wry>) {
   if let Some(window) = app_handle.get_window("main_window") {
-    println!("show_spotlight: 1");
+    log::debug!("show_spotlight: 1");
     // panel!(app_handle).show();
     window.show().expect("Failed to show window");
-    println!("show_spotlight: 2");
+    log::debug!("show_spotlight: 2");
   }
 }
 
 #[tauri::command]
 pub fn kn_hide_app(app_handle: AppHandle<Wry>) {
   if let Some(window) = app_handle.get_window("main_window") {
-    println!("hide_spotlight: 1");
+    log::debug!("hide_spotlight: 1");
     // panel!(app_handle).order_out(None);
     window.hide().expect("Failed to hide window");
-    println!("hide_spotlight: 2");
+    log::debug!("hide_spotlight: 2");
   }
 }
 
@@ -132,18 +132,18 @@ pub fn toggle_overlay_window(app_handle: AppHandle<Wry>) {
 #[tauri::command]
 pub fn set_window_level_bottom(app_handle: AppHandle<Wry>) {
   if let Some(_window) = app_handle.get_window("main_window") {
-    println!("set_window_level_bottom_spotlight: 1");
+    log::debug!("set_window_level_bottom_spotlight: 1");
     // panel!(app_handle).set_level(1); // NSNormalWindowLevel + 1 so it is above your other windows but below the security modal
-    println!("set_window_level_bottom_spotlight: 2");
+    log::debug!("set_window_level_bottom_spotlight: 2");
   }
 }
 
 #[tauri::command]
 pub fn set_window_level_top(app_handle: AppHandle<Wry>) {
   if let Some(_window) = app_handle.get_window("main_window") {
-    println!("set_window_level_top_spotlight: 1");
+    log::debug!("set_window_level_top_spotlight: 1");
     // panel!(app_handle).set_level(NSMainMenuWindowLevel + 1); 
     // panel!(app_handle).show();
-    println!("set_window_level_top_spotlight: 2");
+    log::debug!("set_window_level_top_spotlight: 2");
   }
 }

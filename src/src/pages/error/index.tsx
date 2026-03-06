@@ -4,7 +4,7 @@ import { Typography, TypographySize, TypographyWeight } from 'src/components/ato
 
 export const ErrorPage = () => {
   useEffect(() => {
-    const timeout = setTimeout(() => window.location.reload(), 10000000)
+    const timeout = setTimeout(() => window.location.reload(), 10000)
     return () => clearTimeout(timeout)
   })
 
@@ -18,7 +18,7 @@ export const ErrorPage = () => {
         className="cursor-pointer"
         weight={TypographyWeight.bold}
       >
-        An error ocurred the app will refresh in 10 seconds
+        An error occurred — the app will refresh in 10 seconds
       </Typography>
     </div>
   )
