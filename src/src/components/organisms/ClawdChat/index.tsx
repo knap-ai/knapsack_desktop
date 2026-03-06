@@ -2806,6 +2806,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         }
 
+        // Auto-include recent terminal output as context so the AI can see
+        // what the user is working on without requiring copy-paste
+        if (!isSmartPrompt) {
+          try {
+            const termRes = await fetch(apiUrl('/api/clawd/terminal/output?max_lines=30'))
+            if (termRes.ok) {
+              const termData = await termRes.json() as { ok?: boolean; sessions?: Record<string, string[]> }
+              if (termData.ok && termData.sessions) {
+                const entries = Object.entries(termData.sessions).filter(([, lines]) => lines.length > 0)
+                if (entries.length > 0) {
+                  let termContext = '\n\n---\n[Terminal context — recent output from built-in terminal]\n'
+                  for (const [sid, lines] of entries) {
+                    termContext += `[Session: ${sid}]\n${lines.join('\n')}\n`
+                  }
+                  termContext += '---'
+                  actualText += termContext
+                }
+              }
+            }
+          } catch {
+            // Terminal context is best-effort, don't fail the request
+          }
+        }
+
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
           text: actualText || 'Please analyze the attached files.',

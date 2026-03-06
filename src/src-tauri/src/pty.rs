@@ -10,12 +10,63 @@
 
 use log::{error, info, warn};
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, State};
 
+/// Max lines kept per session in the output ring buffer.
+const OUTPUT_BUFFER_MAX_LINES: usize = 500;
+
+use once_cell::sync::Lazy;
+
+/// Global terminal output buffer accessible from the HTTP server (actix-web).
+/// This mirrors the Tauri-managed TerminalOutputBuffer but is accessible without Tauri state.
+pub static GLOBAL_TERMINAL_BUFFER: Lazy<Arc<Mutex<HashMap<String, VecDeque<String>>>>> =
+  Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+/// Read recent terminal output for use by the chat agent.
+/// Returns the last `max_lines` lines for the given session (or all sessions).
+pub fn read_terminal_output(session_id: Option<&str>, max_lines: usize) -> HashMap<String, Vec<String>> {
+  let limit = max_lines.min(OUTPUT_BUFFER_MAX_LINES);
+  let buffers = GLOBAL_TERMINAL_BUFFER.lock().unwrap();
+  let mut result = HashMap::new();
+  match session_id {
+    Some(sid) => {
+      if let Some(buf) = buffers.get(sid) {
+        let start = if buf.len() > limit { buf.len() - limit } else { 0 };
+        result.insert(sid.to_string(), buf.iter().skip(start).cloned().collect());
+      }
+    }
+    None => {
+      for (sid, buf) in buffers.iter() {
+        let start = if buf.len() > limit { buf.len() - limit } else { 0 };
+        result.insert(sid.clone(), buf.iter().skip(start).cloned().collect());
+      }
+    }
+  }
+  result
+}
+
+/// Push a line to the global terminal buffer (for non-PTY command output).
+pub fn push_terminal_line(session_id: &str, line: &str) {
+  if let Ok(mut buffers) = GLOBAL_TERMINAL_BUFFER.lock() {
+    let ring = buffers.entry(session_id.to_string()).or_insert_with(VecDeque::new);
+    ring.push_back(line.to_string());
+    if ring.len() > OUTPUT_BUFFER_MAX_LINES {
+      ring.pop_front();
+    }
+  }
+}
+
 // ── Shared session state managed by Tauri ──────────────────────────────
+
+/// Ring buffer that accumulates terminal output lines for each session.
+/// This allows the chat AI to read recent terminal output without requiring
+/// the user to copy-paste.
+pub struct TerminalOutputBuffer {
+  pub buffers: Arc<Mutex<HashMap<String, VecDeque<String>>>>,
+}
 
 pub struct PtySessionState {
   pub sessions: Arc<Mutex<HashMap<String, PtyHandle>>>,
@@ -101,6 +152,16 @@ pub async fn kn_pty_resize(
     .get(&session_id)
     .ok_or_else(|| format!("PTY session {} not found", session_id))?;
   platform_resize(handle, cols, rows)
+}
+
+/// Read recent terminal output lines for a session (or all sessions).
+/// Returns the last `max_lines` lines from the ring buffer.
+#[tauri::command]
+pub async fn kn_pty_read_output(
+  session_id: Option<String>,
+  max_lines: Option<usize>,
+) -> Result<HashMap<String, Vec<String>>, String> {
+  Ok(read_terminal_output(session_id.as_deref(), max_lines.unwrap_or(100)))
 }
 
 /// Kill a PTY session and clean up resources.
@@ -219,6 +280,12 @@ fn platform_spawn(
             break;
           }
           let text = String::from_utf8_lossy(&buf[..n as usize]).to_string();
+
+          // Push to global ring buffer so chat AI can read terminal output
+          for line in text.lines() {
+            push_terminal_line(&sid, line);
+          }
+
           let _ = app_clone.emit_all(
             "pty-output",
             json!({
@@ -576,6 +643,12 @@ fn platform_spawn(
             break;
           }
           let text = String::from_utf8_lossy(&buf[..bytes_read as usize]).to_string();
+
+          // Push to global ring buffer so chat AI can read terminal output
+          for line in text.lines() {
+            push_terminal_line(&sid, line);
+          }
+
           let _ = app_clone.emit_all(
             "pty-output",
             json!({

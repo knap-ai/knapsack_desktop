@@ -952,6 +952,22 @@ fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
 }
 
 /// Send a chat message through the gateway's agent pipeline.
+/// Read recent terminal output from the built-in terminal sessions.
+/// Used by the chat agent's `read_terminal` tool so the AI can see what's
+/// in the terminal without the user having to copy-paste.
+#[get("/api/clawd/terminal/output")]
+pub async fn terminal_output(
+  query: web::Query<std::collections::HashMap<String, String>>,
+) -> impl Responder {
+  let session_id = query.get("session_id").map(|s| s.as_str());
+  let max_lines = query.get("max_lines").and_then(|s| s.parse::<usize>().ok()).unwrap_or(100);
+  let output = crate::pty::read_terminal_output(session_id, max_lines);
+  HttpResponse::Ok().json(serde_json::json!({
+    "ok": true,
+    "sessions": output,
+  }))
+}
+
 ///
 /// This shares the same session as Telegram/WhatsApp/iMessage channels,
 /// so conversation history carries across all surfaces.  Falls back to
@@ -2279,6 +2295,23 @@ pub async fn chat(
       }
     }
 
+    // Read terminal output — allows AI to see what's in the terminal without user pasting
+    if name == "read_terminal" {
+      let session_id = args_map.get("session_id").and_then(|v| v.as_str());
+      let max_lines = args_map.get("max_lines").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+      let output = crate::pty::read_terminal_output(session_id, max_lines);
+      if output.is_empty() {
+        return Ok(json!({"ok": true, "terminal_output": "No terminal output available. The terminal may not have been used yet."}));
+      }
+      let mut summary = String::new();
+      for (sid, lines) in &output {
+        summary.push_str(&format!("--- Terminal session: {} ({} lines) ---\n", sid, lines.len()));
+        summary.push_str(&lines.join("\n"));
+        summary.push_str("\n\n");
+      }
+      return Ok(json!({"ok": true, "terminal_output": summary}));
+    }
+
     // Shell command execution (Advanced Mode only — gated at tool-list level,
     // but also checked here as defense-in-depth)
     if name == "run_command" {
@@ -3065,6 +3098,14 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
 - Do NOT ask the user whether to accept — just accept and move on
 - These popups block interaction with the page, so dismiss them as your first action before doing anything else
 - If the accept button is not visible in the snapshot, try scrolling or look for it in a different location on the page
+
+# TERMINAL AWARENESS
+
+The user has a built-in terminal panel in this app. You can see its output using the `read_terminal` tool.
+- When the user mentions terminal output, errors, or commands they ran, use `read_terminal` to see the context instead of asking them to paste
+- When troubleshooting errors, proactively call `read_terminal` to see what happened
+- Terminal sessions: 'app' is the main terminal, 'clawdbot' is the backend service terminal
+- If no session_id is specified, you'll see output from all active sessions
 
 # WORKFLOW LOOP
 

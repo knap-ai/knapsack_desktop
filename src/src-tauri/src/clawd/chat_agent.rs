@@ -385,6 +385,21 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         }),
       },
     },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
+        name: "read_terminal".to_string(),
+        description: "Read recent output from the built-in terminal panel. Use this to see what the user is working on in their terminal, check command output, view error messages, or understand terminal context without asking the user to paste. Returns the last N lines from active terminal sessions.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "session_id": { "type": "string", "description": "Optional terminal session ID ('app' for main terminal, 'clawdbot' for backend). If omitted, returns output from all sessions." },
+            "max_lines": { "type": "integer", "description": "Maximum number of lines to return (default: 50, max: 500)" }
+          },
+          "additionalProperties": false
+        }),
+      },
+    },
   ]
 }
 

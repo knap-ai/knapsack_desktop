@@ -646,6 +646,14 @@ async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<Stri
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
+    // Push command output to global terminal buffer so the chat AI can see it
+    for line in stdout.lines() {
+        pty::push_terminal_line("app", line);
+    }
+    for line in stderr.lines() {
+        pty::push_terminal_line("app", line);
+    }
+
     if output.status.success() {
         Ok(stdout)
     } else {
@@ -1102,7 +1110,8 @@ async fn main() {
       pty::kn_pty_spawn,
       pty::kn_pty_write,
       pty::kn_pty_resize,
-      pty::kn_pty_kill
+      pty::kn_pty_kill,
+      pty::kn_pty_read_output
     ])
     .manage(UUIDState {
       uuid: StdMutex::new(None),
