@@ -801,6 +801,36 @@ pub async fn anthropic_chat(
   anyhow::bail!("Anthropic error after {} retries: {}", max_retries, last_error)
 }
 
+/// Recursively strip fields that Gemini doesn't support from JSON-Schema
+/// tool parameters: `additionalProperties` and array-style `"type": [...]`
+/// (Gemini expects a single string for `type`, not an array).
+fn clean_schema_for_gemini(val: &mut JsonValue) {
+  match val {
+    JsonValue::Object(map) => {
+      map.remove("additionalProperties");
+      // Convert "type": ["boolean","string"] → "type": "string"
+      if let Some(t) = map.get_mut("type") {
+        if let Some(arr) = t.as_array() {
+          if let Some(first) = arr.iter().find(|v| v.as_str() != Some("null")).and_then(|v| v.as_str()) {
+            *t = json!(first);
+          } else if let Some(first) = arr.first().and_then(|v| v.as_str()) {
+            *t = json!(first);
+          }
+        }
+      }
+      for (_, v) in map.iter_mut() {
+        clean_schema_for_gemini(v);
+      }
+    }
+    JsonValue::Array(arr) => {
+      for v in arr.iter_mut() {
+        clean_schema_for_gemini(v);
+      }
+    }
+    _ => {}
+  }
+}
+
 /// Call Google Gemini API and map the response back to OAI-compatible format.
 pub async fn gemini_chat(
   api_key: &str,
@@ -875,14 +905,16 @@ pub async fn gemini_chat(
     }
   }
 
-  // Convert OAI tools → Gemini function declarations
+  // Convert OAI tools → Gemini function declarations, stripping unsupported schema fields
   let gemini_tools: Vec<JsonValue> = if !tools.is_empty() {
     vec![json!({
       "functionDeclarations": tools.iter().map(|t| {
+        let mut params = t.function.parameters.clone();
+        clean_schema_for_gemini(&mut params);
         json!({
           "name": t.function.name,
           "description": t.function.description,
-          "parameters": t.function.parameters
+          "parameters": params
         })
       }).collect::<Vec<JsonValue>>()
     })]
