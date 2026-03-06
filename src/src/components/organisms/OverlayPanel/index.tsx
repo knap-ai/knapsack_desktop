@@ -52,11 +52,27 @@ function renderMarkdown(text: string): string {
   return html
 }
 
+/** Extract a suggested follow-up prompt from the AI response.
+ *  Looks for a trailing question or falls back to a generic follow-up. */
+function extractSuggestedPrompt(response: string, originalQuery: string): string {
+  // Look for the last sentence ending with '?'
+  const lines = response.trim().split('\n').filter(l => l.trim())
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 3); i--) {
+    const line = lines[i].trim()
+    if (line.endsWith('?') && line.length > 10 && line.length < 200) {
+      // Use the question itself as the follow-up (strip leading markdown)
+      return line.replace(/^[#*\->\s]+/, '')
+    }
+  }
+  return 'Tell me more about this'
+}
+
 function OverlayPanel() {
   const [query, setQuery] = useState('')
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [hasResponse, setHasResponse] = useState(false)
+  const [suggestedPrompt, setSuggestedPrompt] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const responseRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -108,6 +124,7 @@ function OverlayPanel() {
     setResponse('')
     setHasResponse(false)
     setIsLoading(false)
+    setSuggestedPrompt('')
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
@@ -170,6 +187,7 @@ function OverlayPanel() {
 
         if (reply) {
           setResponse(reply)
+          setSuggestedPrompt(extractSuggestedPrompt(reply, submittedQuery))
         } else {
           setResponse('No response received. Make sure an API key is configured in Settings.')
         }
@@ -306,6 +324,32 @@ function OverlayPanel() {
               </span>
             ) : (
               <div dangerouslySetInnerHTML={{ __html: renderMarkdown(response) }} />
+            )}
+            {suggestedPrompt && !isLoading && response && (
+              <button
+                onClick={() => {
+                  setQuery(suggestedPrompt)
+                  inputRef.current?.focus()
+                }}
+                style={{
+                  display: 'block',
+                  marginTop: 12,
+                  padding: 0,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#c54841',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  textAlign: 'left',
+                  lineHeight: 1.4,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+                onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+              >
+                {suggestedPrompt}
+              </button>
             )}
           </div>
         )}
