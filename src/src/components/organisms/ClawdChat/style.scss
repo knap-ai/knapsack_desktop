@@ -315,6 +315,22 @@
   50% { opacity: 1; }
 }
 
+.ClawdMsg-queued {
+  opacity: 0.5;
+
+  .ClawdBubble {
+    border-style: dashed;
+  }
+}
+
+.ClawdQueuedLabel {
+  display: block;
+  font-size: 11px;
+  color: #999;
+  margin-top: 4px;
+  font-style: italic;
+}
+
 // Claude Code running indicator
 .ClawdMsg-claude-code {
   .ClawdBubble--claude-code {

@@ -948,6 +948,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Queued message — when user presses Enter while busy, store message to send after current request completes
   const queuedMessageRef = useRef<string | null>(null)
   const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
+  const [queuedMessageText, setQueuedMessageText] = useState<string | null>(null)
 
   // Abort controller for stopping generation
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -2131,7 +2132,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setShowScrollButton(true)
       }
     }
-  }, [msgs, thinkingMessage])
+  }, [msgs, thinkingMessage, queuedMessageText])
 
   const scrollToBottom = useCallback(() => {
     if (chatBodyRef.current) {
@@ -3016,6 +3017,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const stableQueueMessage = useCallback((text: string) => {
     queuedMessageRef.current = text
     setHasQueuedMessage(true)
+    setQueuedMessageText(text)
   }, [])
 
   // Drain queued message when busy transitions from true → false
@@ -3025,6 +3027,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       const queued = queuedMessageRef.current
       queuedMessageRef.current = null
       setHasQueuedMessage(false)
+      setQueuedMessageText(null)
       // Short delay to let UI settle before sending next message
       const timer = setTimeout(() => doSendRef.current?.(queued), 150)
       return () => clearTimeout(timer)
@@ -3375,6 +3378,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <div className="ClawdBubble">
               <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{thinkingMessage}</ReactMarkdown>
             </div>
+          </div>
+        )}
+        {queuedMessageText && (
+          <div className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
+            <div className="ClawdBubble">
+              <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{queuedMessageText}</ReactMarkdown>
+            </div>
+            <span className="ClawdQueuedLabel">Queued — will send when done</span>
           </div>
         )}
         {claudeCodeActive && (
