@@ -19,6 +19,26 @@ use tauri::{AppHandle, Manager, State};
 const OUTPUT_BUFFER_MAX_LINES: usize = 500;
 
 use once_cell::sync::Lazy;
+use regex::Regex;
+
+/// Strip ANSI escape sequences and terminal control codes from a string.
+/// Used before storing output in the ring buffer so the chat AI gets clean text.
+fn strip_ansi(text: &str) -> String {
+  // Lazily compiled regex for all common terminal escape sequences
+  static RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(concat!(
+      r"\x1B\[[0-9;?]*[A-Za-z]",        // CSI sequences (colors, cursor, erase)
+      r"|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)", // OSC sequences
+      r"|\x1B[()#][A-Za-z0-9]",          // Charset selection
+      r"|\x1B[78>=]",                     // Cursor save/restore, keypad mode
+      r"|\x1B[P_^][^\x1B]*\x1B\\",       // DCS/PM/APC sequences
+      r"|\x1B[A-Za-z]",                   // Remaining 2-byte ESC sequences
+      r"|\x9B[0-9;?]*[A-Za-z]",          // 8-bit CSI (rare)
+      r"|[\x00-\x08\x0E-\x1F\x7F]",     // Control chars (except \t \n \r)
+    )).unwrap()
+  });
+  RE.replace_all(text, "").to_string()
+}
 
 /// Global terminal output buffer accessible from the HTTP server (actix-web).
 /// This mirrors the Tauri-managed TerminalOutputBuffer but is accessible without Tauri state.
@@ -49,10 +69,16 @@ pub fn read_terminal_output(session_id: Option<&str>, max_lines: usize) -> HashM
 }
 
 /// Push a line to the global terminal buffer (for non-PTY command output).
+/// ANSI escape sequences are stripped so the chat AI gets clean text.
 pub fn push_terminal_line(session_id: &str, line: &str) {
   if let Ok(mut buffers) = GLOBAL_TERMINAL_BUFFER.lock() {
     let ring = buffers.entry(session_id.to_string()).or_insert_with(VecDeque::new);
-    ring.push_back(line.to_string());
+    let clean = strip_ansi(line);
+    // Skip empty lines that were entirely escape sequences
+    if clean.trim().is_empty() && !line.trim().is_empty() {
+      return;
+    }
+    ring.push_back(clean);
     if ring.len() > OUTPUT_BUFFER_MAX_LINES {
       ring.pop_front();
     }

@@ -9,12 +9,26 @@ import {
   KN_API_TOKEN_USAGE_BUDGET,
 } from 'src/utils/constants'
 
-/** Strip ANSI escape codes from a string for clean terminal display */
+/** Strip ANSI escape sequences and terminal control codes for clean display.
+ *  Handles CSI sequences, OSC sequences, cursor save/restore, charset selection,
+ *  and other common terminal escapes that PTY output may contain. */
 function stripAnsi(text: string): string {
   return text
-    .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')
-    .replace(/\x1B\][^\x07]*\x07/g, '')
-    .replace(/\x1B\(B/g, '')
+    // CSI sequences: ESC [ <params> <intermediate> <final>  (e.g. colors, cursor movement, erase)
+    .replace(/\x1B\[[0-9;?]*[A-Za-z]/g, '')
+    // OSC sequences: ESC ] ... BEL  or  ESC ] ... ST (string terminator)
+    .replace(/\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '')
+    // ESC sequences (2-char): cursor save/restore (ESC 7/8), charset (ESC (B), etc.
+    .replace(/\x1B[()#][A-Za-z0-9]/g, '')
+    .replace(/\x1B[78>=]/g, '')
+    // DCS / PM / APC sequences (rare but possible)
+    .replace(/\x1B[P_^][^\x1B]*\x1B\\/g, '')
+    // Any remaining lone ESC + single char
+    .replace(/\x1B[A-Za-z]/g, '')
+    // 8-bit CSI (0x9B) without ESC prefix
+    .replace(/\x9B[0-9;?]*[A-Za-z]/g, '')
+    // Strip remaining control characters (except newline, tab, carriage return)
+    .replace(/[\x00-\x08\x0E-\x1F\x7F]/g, '')
 }
 
 // ── Module-level cache for active Claude Code session ──
@@ -733,7 +747,7 @@ const TerminalView: React.FC = () => {
           if (!exists) return prev
           return prev.map(s =>
             s.id === sessionId
-              ? { ...s, lines: [...s.lines, { type: 'stdout' as const, text: data, timestamp: new Date() }] }
+              ? { ...s, lines: [...s.lines, { type: 'stdout' as const, text: stripAnsi(data), timestamp: new Date() }] }
               : s,
           )
         })
