@@ -428,7 +428,7 @@ pub fn advanced_tools() -> Vec<OaiToolSpec> {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "run_claude_code".to_string(),
-        description: "Delegate a complex coding task to Claude Code (an AI coding agent). Claude Code can read/write files, run commands, search codebases, and perform multi-step software engineering tasks autonomously. Use this when the user asks to modify code, create projects, debug issues, or perform any coding task. The user will see Claude Code's live progress in the terminal panel. Prefer this over run_command for any multi-step coding work.".to_string(),
+        description: "Delegate a coding task to Claude Code (an AI coding agent). Claude Code can read/write files, run commands, search codebases, and perform multi-step software engineering tasks autonomously. ALWAYS use this when the user asks to modify code, create projects, debug issues, add features, fix bugs, or perform ANY coding task — even simple ones. The user sees Claude Code's live progress in the terminal panel. NEVER suggest the user run claude themselves — call this tool directly instead.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {

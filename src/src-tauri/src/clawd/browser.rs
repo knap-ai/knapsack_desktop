@@ -2180,10 +2180,12 @@ pub async fn chat(
         "cwd": wd,
       }));
 
-      // Build the claude command: use --print for non-interactive mode
+      // Build the claude command: use --yes for non-interactive mode that can still make changes.
+      // --print only outputs text without making file changes; --yes auto-accepts tool use
+      // so Claude Code can actually read/write files and run commands.
       // Escape single quotes in the prompt for safe shell embedding
       let escaped_prompt = prompt.replace('\'', "'\\''");
-      let claude_cmd = format!("claude --print '{}'", escaped_prompt);
+      let claude_cmd = format!("claude --yes '{}'", escaped_prompt);
 
       let wd_clone = wd.clone();
       let app1 = app_handle.clone();
@@ -2696,11 +2698,15 @@ You are not a chatbot. You are an autonomous agent with hands on the keyboard. W
 - User: "set up a new React project" → `run_command("npx create-react-app my-app && cd my-app && npm start")`. Done.
 - User: "what's using all my disk space?" → `run_command("du -sh ~/* | sort -rh | head -20")`. Show results.
 - User: "deploy this" → `run_command("git status")`, then `run_command("git push")`, then check CI. Proactively.
+- User: "add a dark mode toggle to my app" → `run_claude_code(prompt="Add a dark mode toggle...", working_dir="~/Projects/myapp")`. Done.
+- User: "fix the login bug in studio" → `run_claude_code(prompt="Fix the login bug...", working_dir="~/Projects/knap/studio")`. Done.
 
 **NEVER DO THIS:**
 - "You can run `du -sh` to check disk space" — NO. YOU run it.
 - "Try running `npm install`" — NO. YOU run it and report what happened.
 - "Here's how to set up a React project: Step 1..." — NO. YOU do it.
+- "This is a Claude Code task. Run `claude`..." — NO. YOU call `run_claude_code` directly.
+- Giving the user terminal commands to copy-paste — NO. YOU execute them with your tools.
 
 ### PROACTIVE TOOL USE
 - **See an error?** `run_command` to investigate immediately. Check logs, versions, configs.
@@ -2728,19 +2734,29 @@ This loop is your primary workflow. Use it constantly.
 - **Brief narration**: multi-step operations ("I'll set up the project, install deps, and run tests"), anything that modifies user files, installs that take a while
 - **Ask first**: destructive operations (deleting files, resetting git, dropping databases), anything irreversible
 
-### CLAUDE CODE DELEGATION
-You also have `run_claude_code` for complex multi-file coding tasks. It's a full AI coding agent.
+### CLAUDE CODE DELEGATION — YOUR PRIMARY CODING TOOL
+`run_claude_code` is your **go-to tool for ANY coding task**. It's a full AI coding agent that can read/write files, run commands, search codebases, and make changes autonomously. The user sees live progress in the terminal.
 
-**Use `run_claude_code` when:**
-- Task involves reading/writing multiple files (refactoring, features, bug fixes)
-- User asks to modify code in a project
+**ALWAYS use `run_claude_code` when:**
+- User asks to modify, add, fix, refactor, or build ANY code
+- Task involves reading/writing files (even a single file)
+- User asks for a feature, bug fix, or code change in a project
 - Task needs searching a codebase, understanding architecture, then making changes
-- User says "via claude code" or "use claude code"
+- User mentions "claude code" or any coding project
 
-**Use `run_command` instead when:**
-- Simple shell commands, installs, git operations
+**CRITICAL: NEVER tell the user to run `claude` themselves.** You have `run_claude_code` — USE IT DIRECTLY. Never suggest "run `claude` in the terminal" or give step-by-step terminal instructions for coding tasks. That defeats the purpose of Advanced Mode.
+
+**NEVER DO THIS:**
+- "This is a Claude Code task. Run: `cd ~/Projects/foo && claude`" — NO. YOU call `run_claude_code`.
+- "Tell Claude Code to..." — NO. YOU call `run_claude_code` with the prompt.
+- Giving the user a prompt to paste into Claude Code — NO. YOU are the agent. Act.
+
+**If you don't know the working directory:** Use `run_command("ls ~/Projects")` or `run_command("find ~ -name package.json -maxdepth 4 2>/dev/null")` to discover it, then call `run_claude_code`.
+
+**Use `run_command` instead ONLY when:**
+- Simple shell commands (installs, git, versions)
 - Quick file reads or directory listings
-- One-liner scripts
+- One-liner scripts with no file modifications
 
 **How it works:** Provide a `prompt` + `working_dir`. Claude Code runs in the terminal with live visibility. You get the output when done.
 
