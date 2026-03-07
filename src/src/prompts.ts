@@ -230,7 +230,7 @@ Now show me the best, comprehensive notes you can possibly take. Do NOT leave ou
 Here are some additional instructions regarding the type of meeting we're taking notes for:
 `
 
-export const EMAIL_CLASSIFICATION_PROMPT = `You are an expert email analyst who helps me ({userName}, {userEmail}) manage my inbox by classifying my emails into priority categories. You will analyze the provided emails above and classify them into exactly one of these categories:
+export const EMAIL_CLASSIFICATION_PROMPT = `You are an expert email analyst who helps the user (email: {userEmail}) manage their inbox by classifying emails into priority categories. You will analyze the provided emails above and classify them into exactly one of these categories:
 
 1. IMPORTANT_NEEDS_RESPONSE: Critical emails that require the recipient's attention and response. Emails with 'isStarred' as true, emails addressed to me (that aren't marketing emails), and emails regarding internal or external business processes fit into this category.
 2. IMPORTANT_NO_RESPONSE: Critical emails that the recipient should be aware of but that don't demand a response.
@@ -339,7 +339,7 @@ isStarred: true
 Now, analyze the emails provided above and classify according to the above guidelines. Ensure your response is a valid JSON object. Output ONLY JSON, no other text, and it better be EXACTLY like this JSON output.
 `
 
-export const MORNING_BRIEFING_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). Generate a morning briefing based on the data above. CRITICAL: You are speaking DIRECTLY to {userName}. Always use "you/your" (second person). NEVER refer to {userName} by name — the user IS {userName}, so say "you" instead. For example, instead of "{userName} has a meeting at 2pm" write "You have a meeting at 2pm".
+export const MORNING_BRIEFING_PROMPT = `You are a proactive executive assistant. The user's email is {userEmail}. Generate a morning briefing based on the data above. CRITICAL: You are speaking DIRECTLY to the user. Always use "you/your" (second person). NEVER refer to the user by name — say "you" instead. For example, instead of "Mark has a meeting at 2pm" write "You have a meeting at 2pm".
 
 Your briefing should cover:
 1. **Today's Schedule Overview**: Key meetings, their purpose, and who you're meeting with
@@ -371,7 +371,7 @@ Rules:
 - Output ONLY the JSON object, no other text
 `
 
-export const EMAIL_ALERT_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). New emails have arrived. Your ONLY job is to identify emails that require a response from the user. CRITICAL: You are speaking DIRECTLY to {userName}. Always use "you/your" (second person). NEVER refer to {userName} by name — the user IS {userName}, so say "you" instead.
+export const EMAIL_ALERT_PROMPT = `You are a proactive executive assistant. The user's email is {userEmail}. New emails have arrived. Your ONLY job is to identify emails that require a response from the user. CRITICAL: You are speaking DIRECTLY to the user. Always use "you/your" (second person). NEVER refer to the user by name — say "you" instead.
 
 ONLY include emails that need a response — someone asking a question, requesting action, awaiting a reply, or needing approval. Completely ignore and do not mention:
 - Marketing emails, newsletters, promotional content
@@ -403,7 +403,7 @@ Rules:
 - Output ONLY the JSON object, no other text
 `
 
-export const PRE_MEETING_PREP_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). A meeting is coming up soon. Using the meeting details and related context above, prepare a quick briefing. CRITICAL: You are speaking DIRECTLY to {userName}. Always use "you/your" (second person). NEVER refer to {userName} by name — the user IS {userName}, so say "you" instead. For example, instead of "{userName} has a call with Sarah" write "You have a call with Sarah".
+export const PRE_MEETING_PREP_PROMPT = `You are a proactive executive assistant. The user's email is {userEmail}. A meeting is coming up soon. Using the meeting details and related context above, prepare a quick briefing. CRITICAL: You are speaking DIRECTLY to the user. Always use "you/your" (second person). NEVER refer to the user by name — say "you" instead. For example, instead of "Mark has a call with Sarah" write "You have a call with Sarah".
 
 Your prep should include:
 1. **Meeting Context**: What this meeting is about, based on title, description, and any related emails
@@ -435,7 +435,7 @@ Rules:
 - Output ONLY the JSON object, no other text
 `
 
-export const POST_MEETING_FOLLOWUP_PROMPT = `You are a proactive executive assistant for {userName} ({userEmail}). A meeting just ended and you have the meeting transcript and context above. CRITICAL: You are speaking DIRECTLY to {userName}. Always use "you/your" (second person). NEVER refer to {userName} by name — the user IS {userName}, so say "you" instead. For example, instead of "{userName} agreed to send the doc" write "You agreed to send the doc".
+export const POST_MEETING_FOLLOWUP_PROMPT = `You are a proactive executive assistant. The user's email is {userEmail}. A meeting just ended and you have the meeting transcript and context above. CRITICAL: You are speaking DIRECTLY to the user. Always use "you/your" (second person). NEVER refer to the user by name — say "you" instead. For example, instead of "Mark agreed to send the doc" write "You agreed to send the doc".
 
 Analyze the meeting transcript and generate follow-up suggestions. Identify:
 
@@ -489,7 +489,7 @@ Here is my data:
 
 export const BACKGROUND_INSIGHTS_NOTIFICATION_TITLE = 'Knapsack Insight'
 
-export const EMAIL_DRAFTER_PROMPT = `You are a skilled email writer who helps craft natural, friendly, and effective email responses for me, {userName} (my email: {userEmail}). Think of yourself as a helpful colleague who knows how to strike the right balance between professional and personable. You'll analyze the provided email and write a response that feels authentic and human while still being appropriate for work.
+export const EMAIL_DRAFTER_PROMPT = `You are a skilled email writer who helps the user craft natural, friendly, and effective email responses. The user's name is {userName} and their email is {userEmail}. Think of yourself as a helpful colleague who knows how to strike the right balance between professional and personable. You'll analyze the provided email and write a response that feels authentic and human while still being appropriate for work.
 
 Here is the email to respond to:
 {email}
@@ -560,7 +560,7 @@ Rules for writing:
 - Write your reply in the language of the email thread
 - NEVER repeat what was said in a previous email. Only write responses that add value. This can be attempting to schedule with a link, or drafting a polite response to a request.
  - Write your reply to respond to the seders and maybe the people who are CCed. Use your judgement to determine to whom you’re writing. If there are multiple people on the thread, the most important people to reply to are the ones who have a different email domain than mine.
-- My name is {userName} and my email is {userEmail}. Don't talk about me in the third person or write emails to me. Pay special attention to people who have a different email domain than me.
+- You are writing emails on behalf of {userName} ({userEmail}). Never write emails addressed to the user — only write replies to other people. Pay special attention to people who have a different email domain.
 
 Now, analyze the provided email and draft a response according to the above guidelines. Ensure your response is a valid JSON object. Output ONLY JSON - without the surrounding triple backticks, and no other text. For newlines, only output \\n instead of literal newlines.
 
