@@ -990,11 +990,16 @@ pub async fn agent_chat(
       .json(serde_json::json!({"ok": false, "message": "text is required"}));
   }
 
+  let advanced_mode = body
+    .get("advancedMode")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
+
   // Try gateway agent-chat if port is open
   let gateway_reply = if gateway_client::is_gateway_port_open().await {
-    eprintln!("[clawd/agent-chat] Sending to gateway: {:?}", &text[..text.len().min(100)]);
+    eprintln!("[clawd/agent-chat] Sending to gateway (advanced={}): {:?}", advanced_mode, &text[..text.len().min(100)]);
 
-    match gateway_client::agent_chat(&text, None).await {
+    match gateway_client::agent_chat(&text, None, advanced_mode).await {
       Ok(result) => {
         eprintln!("[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
           result.as_object().map(|o| o.keys().collect::<Vec<_>>()));

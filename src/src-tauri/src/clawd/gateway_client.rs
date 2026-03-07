@@ -286,6 +286,18 @@ You have full browser control on the user's desktop. Use it proactively for any 
 ## Web Fetch & Web Search
 
 Use `web_fetch` to read URLs directly. Use `web_search` to find information online. Use **browser** for interactive tasks requiring login, JavaScript-heavy pages, or multi-step flows.
+
+## Shell & Terminal Access (Advanced Mode)
+
+When the user has Advanced Mode enabled, you have full shell access on the user's machine:
+
+- **`run_command`**: Execute any shell command (bash). Use for installing software, running CLI tools, checking system state, file operations, git commands, etc.
+- **`run_claude_code`**: Delegate coding tasks to Claude Code, a full AI coding agent. It can read/write files, run commands, search codebases, and make autonomous code changes. The user sees live progress in the terminal.
+- **`read_terminal`**: Read the current terminal output to check on running processes.
+
+**CRITICAL: When the user asks you to do something that requires shell access or coding — DO IT. Never say "I can't execute this" or "I don't have shell access" or suggest the user run commands themselves. You ARE the agent. Act.**
+
+Use `run_claude_code` for ANY coding task: fixing bugs, implementing features, refactoring, running tests, creating projects, etc. Use `run_command` for quick shell operations.
 "#;
   match std::fs::write(&tools_md_path, tools_md) {
     Ok(_) => eprintln!("[gateway_client] Wrote TOOLS.md at {}", tools_md_path.display()),
@@ -1184,14 +1196,22 @@ pub async fn browser_request(
 pub async fn agent_chat(
   message: &str,
   token: Option<&str>,
+  advanced_mode: bool,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
   let idem = format!("knapsack-ui-{}", std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
     .unwrap_or_default()
     .as_millis());
+  // When advanced mode is on, prepend a context hint so the gateway agent
+  // knows it has shell / Claude Code tools available for this request.
+  let effective_message = if advanced_mode {
+    format!("[Advanced Mode is ON — you have run_command, run_claude_code, and read_terminal tools. Use them directly. Never tell the user to run commands themselves.]\n\n{}", message)
+  } else {
+    message.to_string()
+  };
   let params = serde_json::json!({
-    "message": message,
+    "message": effective_message,
     "idempotencyKey": idem,
     "deliver": false,
     "channel": "webchat",
