@@ -792,15 +792,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     })
   }, [])
 
-  // Clear the input when the queued message is actually sent (hasQueuedMessage → false)
-  const prevQueuedRef = useRef(false)
-  useEffect(() => {
-    if (prevQueuedRef.current && !hasQueuedMessage) {
-      setInput('')
-      if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    }
-    prevQueuedRef.current = hasQueuedMessage
-  }, [hasQueuedMessage])
+  // Allow parent to trigger send with specific text (for prompt actions, voice, etc.)
+  // via the onSend callback directly — the parent calls onSend(text).
 
   return (
     <>
@@ -863,16 +856,17 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 e.preventDefault()
                 if (busy) {
                   // Queue the message to send after current request completes
-                  if (input.trim() && !hasQueuedMessage) {
+                  if (input.trim()) {
                     onQueue(input.trim())
+                    setInput('')
+                    autoResize()
                   }
                 } else {
                   handleSend()
                 }
               }
             }}
-            readOnly={hasQueuedMessage}
-            placeholder={isRecording ? '🎤 Listening...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            placeholder={isRecording ? '🎤 Listening...' : hasQueuedMessage ? '📋 Message queued — will send when done...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
             disabled={isRecording}
             rows={1}
           />
@@ -902,8 +896,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             <button
               disabled={!input.trim() || hasQueuedMessage}
               onClick={() => {
-                if (input.trim() && !hasQueuedMessage) {
+                if (input.trim()) {
                   onQueue(input.trim())
+                  setInput('')
+                  autoResize()
                 }
               }}
               title="Queue this message to send after current response"
