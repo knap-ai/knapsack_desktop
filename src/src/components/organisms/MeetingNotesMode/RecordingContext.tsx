@@ -124,16 +124,11 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
 
         console.info(`[Recording] permissions: mic=${permissions.microphone} screen=${permissions.screen_recording} all=${permissions.all_granted}`)
 
-        if (!permissions.all_granted) {
-          const missing: string[] = []
-          if (!permissions.microphone) missing.push('Microphone')
-          if (!permissions.screen_recording) missing.push('Screen Recording')
-
-          const message = `Recording requires ${missing.join(' and ')} permission${missing.length > 1 ? 's' : ''}. Please grant access in System Settings > Privacy & Security, then try again.`
+        if (!permissions.microphone) {
+          const message = `Recording requires Microphone permission. Please grant access in System Settings > Privacy & Security, then try again.`
 
           // Clear stale localStorage so AudioPermissionChecker re-shows
-          if (!permissions.microphone) localStorage.removeItem('micPermissionGranted')
-          if (!permissions.screen_recording) localStorage.removeItem('screenPermissionGranted')
+          localStorage.removeItem('micPermissionGranted')
           // Also clear the dismissal flag so the permission dialog re-appears
           localStorage.removeItem('permissionsDismissed')
 
@@ -141,7 +136,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
             new Error('Missing recording permissions'),
             {
               additionalInfo: message,
-              error: `microphone=${permissions.microphone}, screen_recording=${permissions.screen_recording}`,
+              error: `microphone=${permissions.microphone}`,
             },
             true,
           )

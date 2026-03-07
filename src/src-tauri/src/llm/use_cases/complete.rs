@@ -419,7 +419,7 @@ async fn anthropic_completion(
 }
 
 /// Complete using the best available provider. Falls back through providers on failure.
-async fn multi_provider_completion(
+pub async fn multi_provider_completion(
   messages: Vec<LlmMessage>,
 ) -> Result<String, LLMError> {
   let mut provider = resolve_provider()?;

@@ -28,6 +28,10 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
 /// Check whether the app has the required macOS permissions for recording.
 /// Returns a JSON object with `microphone` and `screen_recording` boolean fields,
 /// plus `all_granted` for convenience.
+///
+/// Only microphone permission is required to start recording.  Screen recording
+/// (system audio) is optional — when missing, we record mic-only which still
+/// captures both sides through the user's microphone in most meeting setups.
 #[tauri::command]
 pub fn check_audio_permissions() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "macos")]
@@ -38,7 +42,7 @@ pub fn check_audio_permissions() -> Result<serde_json::Value, String> {
         Ok(json!({
             "microphone": mic_granted,
             "screen_recording": screen_granted,
-            "all_granted": mic_granted && screen_granted
+            "all_granted": mic_granted
         }))
     }
 
