@@ -362,17 +362,9 @@ pub async fn start_recording(
     }
   });
 
-  // Only start speaker output recording if screen recording permission is granted.
-  // This permission is optional — mic-only recording is fully functional.
-  let has_screen_permission = {
-    use crate::audio::permission::check_audio_permissions;
-    check_audio_permissions()
-      .ok()
-      .and_then(|v| v.get("screen_recording").and_then(|v| v.as_bool()))
-      .unwrap_or(false)
-  };
-
-  if has_screen_permission {
+  // Start system audio recording via Core Audio Taps.
+  // Both mic and system audio permissions are checked upfront before reaching here.
+  {
     let output_file_semaphore = Arc::clone(&recording_state.output_file_semaphore);
     let output_thread = handle.spawn_blocking(move || {
       if let Err(e) = tokio::runtime::Runtime::new()
@@ -396,8 +388,6 @@ pub async fn start_recording(
       let mut output_thread_guard = recording_state.output_thread.lock().unwrap();
       *output_thread_guard = Some(output_thread);
     }
-  } else {
-    log::info!("[recording] Screen recording permission not granted — recording mic only");
   }
 
   {

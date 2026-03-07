@@ -6,12 +6,22 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
     {
         use std::process::Command;
 
-        let output = Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+        // Open "System Audio Recording Only" pane in System Settings (macOS 14.4+)
+        // Falls back to the older Screen Capture pane on older macOS versions
+        let result = Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture")
             .output();
 
-        match output {
-            Ok(_) => Ok(json!({ "success": true })),
+        match result {
+            Ok(output) => {
+                if !output.status.success() {
+                    // Fallback: try the Screen Capture pane (pre-macOS 14.4)
+                    let _ = Command::new("open")
+                        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+                        .output();
+                }
+                Ok(json!({ "success": true }))
+            }
             Err(e) => Ok(json!({
                 "success": false,
                 "error": format!("Failed to open settings: {}", e)
@@ -29,20 +39,21 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
 /// Returns a JSON object with `microphone` and `screen_recording` boolean fields,
 /// plus `all_granted` for convenience.
 ///
-/// Only microphone permission is required to start recording.  Screen recording
-/// (system audio) is optional — when missing, we record mic-only which still
-/// captures both sides through the user's microphone in most meeting setups.
+/// Both microphone and system audio permissions are required for full meeting
+/// recording. System audio now uses "System Audio Recording Only"
+/// (kTCCServiceAudioCapture) instead of the full "Screen & System Audio Recording"
+/// (kTCCServiceScreenCapture).
 #[tauri::command]
 pub fn check_audio_permissions() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "macos")]
     {
         let mic_granted = check_microphone_permission_macos();
-        let screen_granted = check_screen_recording_permission_macos();
+        let system_audio_granted = check_system_audio_permission_macos();
 
         Ok(json!({
             "microphone": mic_granted,
-            "screen_recording": screen_granted,
-            "all_granted": mic_granted
+            "screen_recording": system_audio_granted,
+            "all_granted": mic_granted && system_audio_granted
         }))
     }
 
@@ -85,52 +96,16 @@ return status as integer"#,
     }
 }
 
+/// Check if the app has "System Audio Recording Only" permission
+/// (kTCCServiceAudioCapture) on macOS 14.4+.
+///
+/// This is the less-intrusive permission that only captures system audio
+/// (like Granola, ChatGPT, krisp, Limitless) instead of full screen recording.
 #[cfg(target_os = "macos")]
-fn check_screen_recording_permission_macos() -> bool {
-    // On macOS Sequoia (15.x+), both CGPreflightScreenCaptureAccess() and
-    // SCShareableContent can return false even when the permission IS granted
-    // in System Settings — the app often needs to be restarted after the user
-    // toggles the permission on.  We try multiple strategies and return true
-    // if ANY of them succeed.
-
-    // Strategy 1: SCShareableContent (most reliable on modern macOS)
-    {
-        use std::sync::mpsc::channel;
-        use std::time::Duration;
-        use screen_capture_kit::shareable_content::SCShareableContent;
-
-        let (tx, rx) = channel();
-        SCShareableContent::get_shareable_content_with_completion_closure(
-            move |shareable_content, _error| {
-                let _ = tx.send(shareable_content.is_some());
-            },
-        );
-
-        match rx.recv_timeout(Duration::from_secs(5)) {
-            Ok(true) => return true,
-            Ok(false) => { /* denied — try other methods */ }
-            Err(_) => {
-                log::warn!("SCShareableContent permission check timed out");
-            }
-        }
-    }
-
-    // Strategy 2: CGPreflightScreenCaptureAccess (works on pre-Sequoia)
-    {
-        extern "C" {
-            fn CGPreflightScreenCaptureAccess() -> bool;
-        }
-        if unsafe { CGPreflightScreenCaptureAccess() } {
-            return true;
-        }
-    }
-
-    // Strategy 3: Check the TCC database directly.  On Sequoia the above APIs
-    // can return stale results until the app is restarted, but the TCC database
-    // reflects the actual toggle state immediately.
+fn check_system_audio_permission_macos() -> bool {
+    // Strategy 1: Check the TCC database for kTCCServiceAudioCapture
     {
         use std::process::Command;
-        // Get our bundle ID (or fall back to a known value)
         let bundle_id = Command::new("osascript")
             .arg("-e")
             .arg(r#"return id of app "Knapsack""#)
@@ -142,8 +117,9 @@ fn check_screen_recording_permission_macos() -> bool {
             })
             .unwrap_or_else(|| "ai.knapsack.desktop".to_string());
 
+        // Check kTCCServiceAudioCapture (System Audio Recording Only)
         let query = format!(
-            "SELECT auth_value FROM access WHERE service='kTCCServiceScreenCapture' AND client='{}' LIMIT 1",
+            "SELECT auth_value FROM access WHERE service='kTCCServiceAudioCapture' AND client='{}' LIMIT 1",
             bundle_id
         );
         if let Ok(output) = Command::new("sqlite3")
@@ -155,11 +131,36 @@ fn check_screen_recording_permission_macos() -> bool {
             let val = String::from_utf8_lossy(&output.stdout).trim().to_string();
             // auth_value 2 = authorized
             if val == "2" {
-                log::info!("TCC database confirms screen recording permission granted");
+                log::info!("TCC database confirms system audio recording permission granted (kTCCServiceAudioCapture)");
+                return true;
+            }
+        }
+
+        // Also check the old kTCCServiceScreenCapture as a fallback —
+        // if the user already had screen recording permission, system audio
+        // capture will also work since screen recording is a superset.
+        let query_screen = format!(
+            "SELECT auth_value FROM access WHERE service='kTCCServiceScreenCapture' AND client='{}' LIMIT 1",
+            bundle_id
+        );
+        if let Ok(output) = Command::new("sqlite3")
+            .arg(format!("{}/Library/Application Support/com.apple.TCC/TCC.db",
+                std::env::var("HOME").unwrap_or_default()))
+            .arg(&query_screen)
+            .output()
+        {
+            let val = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if val == "2" {
+                log::info!("TCC database confirms screen recording permission granted (superset of audio capture)");
                 return true;
             }
         }
     }
+
+    // Strategy 2: Try to use CATapDescription to check if we can create a tap.
+    // If the permission is not granted, AudioHardwareCreateProcessTap will fail.
+    // We don't actually do this here to avoid side effects — the TCC check above
+    // should be sufficient.
 
     false
 }

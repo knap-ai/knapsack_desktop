@@ -35,6 +35,7 @@ import MarkdownDisplay from 'src/components/molecules/MarkdownDisplay'
 
 import { Event, listen } from '@tauri-apps/api/event'
 
+import { sendNotification } from 'src/utils/permissions/notification'
 import { TaskItem } from '../CenterWorkspace'
 import { RecordingContextProps } from './RecordingContext'
 
@@ -316,9 +317,22 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       }
       handleStopRecording('Automatic')
     })
+    // Listen for 15-minute heartbeat insights during recording
+    const unlistenHeartbeatPromise = listen(
+      'meeting_heartbeat',
+      async (event: Event<{ threadId: number; insight: string; elapsedMinutes: number }>) => {
+        const { insight, elapsedMinutes } = event.payload
+        const mins = Math.round(elapsedMinutes)
+        sendNotification({
+          title: `Meeting insight (${mins} min)`,
+          body: insight,
+        })
+      },
+    )
     return () => {
       unlistenAutoStopRecordingPromise.then(unlisten => unlisten())
       unlistenAutoStartRecordingPromise.then(unlisten => unlisten())
+      unlistenHeartbeatPromise.then(unlisten => unlisten())
     }
   }, [[thread.id, isLLMLoading, synthesisState]])
 
