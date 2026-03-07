@@ -317,10 +317,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       }
       handleStopRecording('Automatic')
     })
-    // Listen for 15-minute heartbeat insights during recording
+    // Listen for 15-minute heartbeat insights during recording (proactive mode only)
     const unlistenHeartbeatPromise = listen(
       'meeting_heartbeat',
       async (event: Event<{ threadId: number; insight: string; elapsedMinutes: number }>) => {
+        const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
+        if (!isProactive) return
+
         const { insight, elapsedMinutes } = event.payload
         const mins = Math.round(elapsedMinutes)
         sendNotification({
