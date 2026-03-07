@@ -62,7 +62,9 @@ const MeetingsTabView = ({
 }: MeetingsTabViewProps) => {
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true')
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true')
-  const [permissionsDismissed, setPermissionsDismissed] = useState(false)
+  const [permissionsDismissed, setPermissionsDismissed] = useState(
+    localStorage.getItem('permissionsDismissed') === 'true'
+  )
   const [synthesisState, setSynthesisState] = useState(false)
   const threadCardRef = useRef<HTMLDivElement>(null)
 
@@ -451,8 +453,13 @@ const MeetingsTabView = ({
                 onBothPermissionsGranted={() => {
                   setMicPermission(true)
                   setScreenPermission(true)
+                  localStorage.setItem('permissionsDismissed', 'true')
+                  setPermissionsDismissed(true)
                 }}
-                onClose={() => setPermissionsDismissed(true)}
+                onClose={() => {
+                  localStorage.setItem('permissionsDismissed', 'true')
+                  setPermissionsDismissed(true)
+                }}
               />
             )}
 

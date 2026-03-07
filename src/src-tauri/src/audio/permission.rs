@@ -83,34 +83,79 @@ return status as integer"#,
 
 #[cfg(target_os = "macos")]
 fn check_screen_recording_permission_macos() -> bool {
-    // On macOS Sequoia (15.x+), CGPreflightScreenCaptureAccess() is unreliable —
-    // it can return false even when the permission IS granted in System Settings.
-    // So we try SCShareableContent FIRST (more reliable), then fall back to CGPreflight.
-    use std::sync::mpsc::channel;
-    use std::time::Duration;
-    use screen_capture_kit::shareable_content::SCShareableContent;
+    // On macOS Sequoia (15.x+), both CGPreflightScreenCaptureAccess() and
+    // SCShareableContent can return false even when the permission IS granted
+    // in System Settings — the app often needs to be restarted after the user
+    // toggles the permission on.  We try multiple strategies and return true
+    // if ANY of them succeed.
 
-    let (tx, rx) = channel();
-    SCShareableContent::get_shareable_content_with_completion_closure(
-        move |shareable_content, _error| {
-            let _ = tx.send(shareable_content.is_some());
-        },
-    );
+    // Strategy 1: SCShareableContent (most reliable on modern macOS)
+    {
+        use std::sync::mpsc::channel;
+        use std::time::Duration;
+        use screen_capture_kit::shareable_content::SCShareableContent;
 
-    // Give SCShareableContent up to 5 seconds (system can be slow on first check
-    // after granting permission, especially right after restart).
-    match rx.recv_timeout(Duration::from_secs(5)) {
-        Ok(true) => return true,
-        Ok(false) => { /* denied — fall through to CGPreflight as secondary check */ }
-        Err(_) => {
-            log::warn!("SCShareableContent permission check timed out, trying CGPreflight");
+        let (tx, rx) = channel();
+        SCShareableContent::get_shareable_content_with_completion_closure(
+            move |shareable_content, _error| {
+                let _ = tx.send(shareable_content.is_some());
+            },
+        );
+
+        match rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(true) => return true,
+            Ok(false) => { /* denied — try other methods */ }
+            Err(_) => {
+                log::warn!("SCShareableContent permission check timed out");
+            }
         }
     }
 
-    // Secondary check: CGPreflightScreenCaptureAccess (works on pre-Sequoia, may
-    // also work on Sequoia for some configurations).
-    extern "C" {
-        fn CGPreflightScreenCaptureAccess() -> bool;
+    // Strategy 2: CGPreflightScreenCaptureAccess (works on pre-Sequoia)
+    {
+        extern "C" {
+            fn CGPreflightScreenCaptureAccess() -> bool;
+        }
+        if unsafe { CGPreflightScreenCaptureAccess() } {
+            return true;
+        }
     }
-    unsafe { CGPreflightScreenCaptureAccess() }
+
+    // Strategy 3: Check the TCC database directly.  On Sequoia the above APIs
+    // can return stale results until the app is restarted, but the TCC database
+    // reflects the actual toggle state immediately.
+    {
+        use std::process::Command;
+        // Get our bundle ID (or fall back to a known value)
+        let bundle_id = Command::new("osascript")
+            .arg("-e")
+            .arg(r#"return id of app "Knapsack""#)
+            .output()
+            .ok()
+            .and_then(|o| {
+                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if s.is_empty() { None } else { Some(s) }
+            })
+            .unwrap_or_else(|| "ai.knapsack.desktop".to_string());
+
+        let query = format!(
+            "SELECT auth_value FROM access WHERE service='kTCCServiceScreenCapture' AND client='{}' LIMIT 1",
+            bundle_id
+        );
+        if let Ok(output) = Command::new("sqlite3")
+            .arg(format!("{}/Library/Application Support/com.apple.TCC/TCC.db",
+                std::env::var("HOME").unwrap_or_default()))
+            .arg(&query)
+            .output()
+        {
+            let val = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            // auth_value 2 = authorized
+            if val == "2" {
+                log::info!("TCC database confirms screen recording permission granted");
+                return true;
+            }
+        }
+    }
+
+    false
 }
