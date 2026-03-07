@@ -923,9 +923,10 @@ interface ClawdChatProps {
   onCloseActivity?: () => void
   userEmail?: string
   userName?: string
+  onBusyChange?: (busy: boolean) => void
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -944,6 +945,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return []
   })
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
   const queuedMessagesRef = useRef<string[]>([])

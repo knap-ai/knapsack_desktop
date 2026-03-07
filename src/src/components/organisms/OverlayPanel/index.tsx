@@ -163,7 +163,7 @@ function OverlayPanel() {
           const agentRes = await fetch(AGENT_CHAT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: submittedQuery }),
+            body: JSON.stringify({ text: submittedQuery, preferFast: true }),
             signal: controller.signal,
           })
           const agentData = await agentRes.json()
@@ -181,7 +181,7 @@ function OverlayPanel() {
           const directRes = await fetch(DIRECT_CHAT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: submittedQuery }),
+            body: JSON.stringify({ text: submittedQuery, preferFast: true }),
             signal: controller.signal,
           })
           const directData = await directRes.json()

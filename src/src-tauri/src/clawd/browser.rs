@@ -1303,8 +1303,23 @@ pub async fn chat(
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
   let profile = clawd_profile(chrome);
 
+  // When preferFast is set (e.g. Quick Chat overlay), prefer the fastest provider:
+  // Groq > Gemini Flash > user's active provider
+  let prefer_fast = body.get("preferFast").and_then(|v| v.as_bool()).unwrap_or(false);
+
   // Determine which provider to use
-  let provider = active_provider(&app_handle);
+  let provider = if prefer_fast {
+    // Try fastest providers first, fall back to user's active provider
+    if groq_key(&app_handle).is_some() {
+      "groq".to_string()
+    } else if gemini_key(&app_handle).is_some() {
+      "gemini".to_string()
+    } else {
+      active_provider(&app_handle)
+    }
+  } else {
+    active_provider(&app_handle)
+  };
   let api_key = match provider.as_str() {
     "anthropic" => match anthropic_key(&app_handle) {
       Some(k) => k,
