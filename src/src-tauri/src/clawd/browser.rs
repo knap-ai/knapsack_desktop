@@ -990,21 +990,8 @@ pub async fn agent_chat(
       .json(serde_json::json!({"ok": false, "message": "text is required"}));
   }
 
-  let advanced_mode = body
-    .get("advancedMode")
-    .and_then(|v| v.as_bool())
-    .unwrap_or(false);
-
-  // Try gateway agent-chat if port is open.
-  // IMPORTANT: When advanced mode is on, skip the gateway entirely and fall
-  // through to the direct /api/clawd/chat path which has the shell tools
-  // (run_command, run_claude_code, read_terminal).  The gateway agent does NOT
-  // have these tools, so routing through it would make the AI say "I don't
-  // have shell access."
-  let gateway_reply = if advanced_mode {
-    eprintln!("[clawd/agent-chat] Advanced mode ON — skipping gateway, using direct chat for shell tools");
-    None
-  } else if gateway_client::is_gateway_port_open().await {
+  // Try gateway agent-chat if port is open
+  let gateway_reply = if gateway_client::is_gateway_port_open().await {
     eprintln!("[clawd/agent-chat] Sending to gateway: {:?}", &text[..text.len().min(100)]);
 
     match gateway_client::agent_chat(&text, None).await {

@@ -241,7 +241,7 @@ fn ensure_tools_md(config_path: &std::path::Path) {
 
   let should_write = if tools_md_path.exists() {
     std::fs::read_to_string(&tools_md_path)
-      .map(|c| !c.contains("## Cross-Channel Awareness"))
+      .map(|c| !c.contains("## Shell & Code Execution"))
       .unwrap_or(true)
   } else {
     true
@@ -286,6 +286,16 @@ You have full browser control on the user's desktop. Use it proactively for any 
 ## Web Fetch & Web Search
 
 Use `web_fetch` to read URLs directly. Use `web_search` to find information online. Use **browser** for interactive tasks requiring login, JavaScript-heavy pages, or multi-step flows.
+
+## Shell & Code Execution
+
+You have shell access on the user's desktop machine. Use these tools to execute commands, edit files, and automate tasks:
+
+- **`exec`** — Execute shell commands (bash/zsh). Use for installing software, running CLI tools, git operations, build scripts, etc.
+- **`process`** — Manage running processes (start, stop, check status).
+- **`read`** / **`write`** / **`edit`** / **`apply_patch`** — Read, write, edit, and patch files on the local filesystem.
+
+**IMPORTANT:** When the user asks you to run a command, write code, install something, or automate a task — DO IT directly using these tools. Never tell the user to run commands themselves or say you lack shell access.
 "#;
   match std::fs::write(&tools_md_path, tools_md) {
     Ok(_) => eprintln!("[gateway_client] Wrote TOOLS.md at {}", tools_md_path.display()),
@@ -420,6 +430,27 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     }
     eprintln!("[gateway_client] Added group:web to tools.allow");
     patched = true;
+  }
+
+  // ── Ensure exec/process/file tools are allowed in NORMAL mode ──────────
+  //
+  // These are the same tools granted in sandbox mode (for Telegram/WhatsApp/etc.)
+  // but they must also be in the normal-mode allow list so that desktop webchat
+  // can execute shell commands and edit files when Advanced Mode is on.
+  // The gateway controls whether the agent actually *uses* them via the system
+  // prompt and TOOLS.md; having them in the allow list just makes them available.
+  let exec_tools: Vec<&str> = vec![
+    "exec", "process", "read", "write", "edit", "apply_patch",
+  ];
+  if let Some(allow) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+    for tool_name in &exec_tools {
+      let already = allow.iter().any(|item| item.as_str() == Some(tool_name));
+      if !already {
+        allow.push(serde_json::json!(tool_name));
+        eprintln!("[gateway_client] Added {} to tools.allow", tool_name);
+        patched = true;
+      }
+    }
   }
 
   // ── Ensure browser tool is allowed in SANDBOX mode (Telegram/WhatsApp/etc.) ─
