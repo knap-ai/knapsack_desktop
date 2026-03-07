@@ -238,14 +238,17 @@ export const EMAIL_CLASSIFICATION_PROMPT = `You are an expert email analyst who 
 3. MARKETING: Legitimate marketing or promotional emails from known senders
 4. UNIMPORTANT: Spam, junk, or low-priority emails that can be safely ignored
 
+CRITICAL: Pay attention to who SENT each email. If the user ({userEmail}) is the SENDER (the "From" address matches the user's email), that email does NOT need a response — the user already wrote it. Only emails FROM other people TO the user can be IMPORTANT_NEEDS_RESPONSE.
+
 For each email, analyze the following elements:
+- Whether the user sent this email or received it (check the From field against {userEmail})
 - Sender identity and legitimacy
 - Subject line content and urgency
 - Email body content and purpose
 - Any action items or requests
 - Deadline or time sensitivity
 - Professional vs automated nature
-- Relationship to my work/life
+- Relationship to the user's work/life
 
 You must respond with a JSON object for each email like this:
 {
@@ -272,7 +275,7 @@ Rules for classification:
   * Personal emergencies
   * Legal or financial notices requiring action
   * Direct questions from key stakeholders
-  * Unlikely to be emails where I am the last person who replied.
+  * NEVER classify an email as IMPORTANT_NEEDS_RESPONSE if the user ({userEmail}) is the sender — if the user sent it, they don't need to respond to their own email. Classify the thread based on whether there's a new reply FROM someone else.
 
 - IMPORTANT_NO_RESPONSE:
   * FYI emails from leadership or colleagues
@@ -366,6 +369,7 @@ Rules:
 - Include concrete action items, not generic advice
 - If the day is light, suggest proactive tasks based on recent email threads or projects
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
@@ -398,6 +402,7 @@ Rules:
 - Focus exclusively on emails from real people who need a reply from the user
 - Include sender names and subjects in your analysis
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
@@ -430,6 +435,7 @@ Rules:
 - Suggest concrete talking points based on available context
 - If you have relevant email threads with attendees, summarize them briefly
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
@@ -461,6 +467,7 @@ Rules:
 - Action items should have clear owners and deadlines when mentioned
 - If email follow-ups are needed, draft brief outlines of what they should say
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
 - Don't hallucinate - only reference what's in the transcript
 - Output ONLY the JSON object, no other text
