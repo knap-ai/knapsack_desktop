@@ -8,6 +8,7 @@ const INITIAL_HEIGHT = 72
 const MAX_RESPONSE_HEIGHT = 400
 const INPUT_AREA_HEIGHT = 72
 const QUICK_ACTIONS_HEIGHT = 44
+const SUGGESTED_PROMPT_HEIGHT = 40
 const PADDING_BOTTOM = 16
 
 const AGENT_CHAT_URL = KN_SERVER_HOST + '/api/clawd/agent-chat'
@@ -99,7 +100,7 @@ function OverlayPanel() {
     const totalHeight = INPUT_AREA_HEIGHT + contentHeight + (contentHeight > 0 ? PADDING_BOTTOM : 0)
     const clampedHeight = Math.min(
       totalHeight,
-      INPUT_AREA_HEIGHT + QUICK_ACTIONS_HEIGHT + MAX_RESPONSE_HEIGHT + PADDING_BOTTOM,
+      INPUT_AREA_HEIGHT + MAX_RESPONSE_HEIGHT + SUGGESTED_PROMPT_HEIGHT + PADDING_BOTTOM,
     )
     try {
       await appWindow.setSize(new (await import('@tauri-apps/api/window')).LogicalSize(680, clampedHeight))
@@ -112,12 +113,14 @@ function OverlayPanel() {
 
   useEffect(() => {
     if (hasResponse && responseRef.current) {
-      const contentHeight = Math.min(responseRef.current.scrollHeight, MAX_RESPONSE_HEIGHT) + PADDING_BOTTOM
+      const scrollH = Math.min(responseRef.current.scrollHeight, MAX_RESPONSE_HEIGHT)
+      const suggestedH = suggestedPrompt && !isLoading && response ? SUGGESTED_PROMPT_HEIGHT : 0
+      const contentHeight = scrollH + suggestedH + PADDING_BOTTOM
       updateWindowSize(contentHeight)
     } else if (!hasResponse) {
       updateWindowSize(QUICK_ACTIONS_HEIGHT)
     }
-  }, [hasResponse, response, updateWindowSize])
+  }, [hasResponse, response, suggestedPrompt, isLoading, updateWindowSize])
 
   const resetOverlay = useCallback(async () => {
     setQuery('')
@@ -325,32 +328,36 @@ function OverlayPanel() {
             ) : (
               <div dangerouslySetInnerHTML={{ __html: renderMarkdown(response) }} />
             )}
-            {suggestedPrompt && !isLoading && response && (
-              <button
-                onClick={() => {
-                  setQuery(suggestedPrompt)
-                  inputRef.current?.focus()
-                }}
-                style={{
-                  display: 'block',
-                  marginTop: 12,
-                  padding: 0,
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#c54841',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  textAlign: 'left',
-                  lineHeight: 1.4,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
-                onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
-              >
-                {suggestedPrompt}
-              </button>
-            )}
+          </div>
+        )}
+
+        {/* Suggested follow-up — always visible below the response scroll area */}
+        {suggestedPrompt && !isLoading && response && (
+          <div style={{ padding: '0 16px 12px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            <button
+              onClick={() => {
+                setQuery(suggestedPrompt)
+                inputRef.current?.focus()
+              }}
+              style={{
+                display: 'block',
+                marginTop: 8,
+                padding: 0,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#c54841',
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                textAlign: 'left',
+                lineHeight: 1.4,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+              onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+            >
+              {suggestedPrompt}
+            </button>
           </div>
         )}
 
