@@ -227,7 +227,7 @@ pub async fn record_speaker_output(
   #[cfg(target_os = "macos")]
   {
     use objc2::runtime::{AnyClass, AnyObject};
-    use objc2::{msg_send, msg_send_id, rc::Id};
+    use objc2::{msg_send, msg_send_id, rc::{Allocated, Id}};
     use core_foundation::base::{CFRelease, TCFType};
     use core_foundation::string::CFString;
     use core_foundation::dictionary::CFDictionary;
@@ -260,7 +260,7 @@ pub async fn record_speaker_output(
     };
 
     let tap_desc: Id<AnyObject> = unsafe {
-      let alloc: Id<AnyObject> = msg_send_id![tap_desc_class, alloc];
+      let alloc: Allocated<AnyObject> = msg_send_id![tap_desc_class, alloc];
       msg_send_id![alloc, initStereoGlobalTapButExcludeProcesses: &*exclude_pids]
     };
 
