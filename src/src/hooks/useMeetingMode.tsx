@@ -215,6 +215,7 @@ It's highly likely that the company names mentioned in the transcript appear in 
             additionalInfo: 'error getTranscript',
             error: 'Transcript is undefined or null',
           })
+          setIsLLMLoading(false)
           return
         }
 
