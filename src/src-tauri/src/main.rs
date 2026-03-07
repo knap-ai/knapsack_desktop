@@ -971,10 +971,10 @@ async fn main() {
         main_window.center()?;
       }
 
-      #[cfg(target_os = "macos")]
-      {
-        main_window.set_decorations(false).unwrap();
-      }
+      // NOTE: Do NOT call set_decorations(false) on macOS — it disables
+      // the native window chrome that Tauri needs for data-tauri-drag-region
+      // to work.  TitleBarStyle::Overlay (set above) already hides the
+      // visible titlebar while keeping the drag machinery intact.
       main_window.set_resizable(true);
       main_window.set_maximizable(true);
 

@@ -145,6 +145,86 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   }
 }
 
+/// Open a URL in the system Chrome/Chromium browser instead of the OS default
+/// browser.  Falls back to the system default only if no Chrome-family browser
+/// can be found.
+fn open_url_in_chrome(url: &str) -> Result<(), String> {
+  #[cfg(target_os = "macos")]
+  {
+    // Try Chrome → Brave → Edge → Chromium in order of preference.
+    let browsers: &[&str] = &[
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+      "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+      "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    ];
+    for browser in browsers {
+      if Path::new(browser).exists() {
+        return std::process::Command::new(browser)
+          .arg(url)
+          .spawn()
+          .map(|_| ())
+          .map_err(|e| format!("Failed to launch {}: {}", browser, e));
+      }
+    }
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    // Try well-known Chrome install locations on Windows.
+    let program_files = std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
+    let program_files_x86 = std::env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
+    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let candidates = vec![
+      format!(r"{}\Google\Chrome\Application\chrome.exe", program_files),
+      format!(r"{}\Google\Chrome\Application\chrome.exe", program_files_x86),
+      format!(r"{}\Google\Chrome\Application\chrome.exe", local_appdata),
+    ];
+    for browser in &candidates {
+      if Path::new(browser).exists() {
+        return std::process::Command::new(browser)
+          .arg(url)
+          .spawn()
+          .map(|_| ())
+          .map_err(|e| format!("Failed to launch Chrome: {}", e));
+      }
+    }
+  }
+
+  #[cfg(target_os = "linux")]
+  {
+    // Try common binary names on Linux.
+    for bin in &["google-chrome", "google-chrome-stable", "chromium-browser", "chromium"] {
+      if let Ok(output) = std::process::Command::new("which").arg(bin).output() {
+        if output.status.success() {
+          return std::process::Command::new(bin)
+            .arg(url)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("Failed to launch {}: {}", bin, e));
+        }
+      }
+    }
+  }
+
+  Err("No Chrome-family browser found on this system".to_string())
+}
+
+/// Best-effort fallback: open URL in Chrome first, then system default.
+fn fallback_open_url(app_handle: &tauri::AppHandle, url: &str) -> Result<(), String> {
+  match open_url_in_chrome(url) {
+    Ok(_) => {
+      eprintln!("[clawd/browser] Opened URL in Chrome (fallback): {}", url);
+      Ok(())
+    }
+    Err(chrome_err) => {
+      eprintln!("[clawd/browser] Chrome fallback failed ({}), using system default", chrome_err);
+      tauri::api::shell::open(&app_handle.shell_scope(), url, None)
+        .map_err(|e| format!("System shell open also failed: {}", e))
+    }
+  }
+}
+
 async fn control_client() -> Result<reqwest::Client, String> {
   reqwest::Client::builder()
     .timeout(std::time::Duration::from_millis(120_000))
@@ -492,8 +572,8 @@ pub async fn open_browser(
     }
   }
 
-  // Fallback path: open on the host using Tauri's shell open.
-  match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
+  // Fallback path: open in Chrome first, then system default.
+  match fallback_open_url(&app_handle, &url) {
     Ok(_) => HttpResponse::Ok().json(OpenBrowserResponse {
       success: true,
       message: format!("Opened locally: {}", url),
@@ -927,8 +1007,8 @@ fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
     if let Some(end) = reply[url_start..].find(')') {
       let url = &reply[url_start..url_start + end];
       if url.len() > 10 && !url.contains(char::is_whitespace) {
-        eprintln!("[clawd/agent-chat] Opening markdown URL from reply in system browser: {}", url);
-        let _ = tauri::api::shell::open(&app_handle.shell_scope(), url, None);
+        eprintln!("[clawd/agent-chat] Opening markdown URL from reply in Chrome: {}", url);
+        let _ = fallback_open_url(app_handle, url);
         return;
       }
     }
@@ -944,8 +1024,8 @@ fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
       && cleaned.len() > 10
       && !cleaned.contains(char::is_whitespace)
     {
-      eprintln!("[clawd/agent-chat] Opening URL from reply in system browser: {}", cleaned);
-      let _ = tauri::api::shell::open(&app_handle.shell_scope(), cleaned, None);
+      eprintln!("[clawd/agent-chat] Opening URL from reply in Chrome: {}", cleaned);
+      let _ = fallback_open_url(app_handle, cleaned);
       return; // Only open the first URL
     }
   }
@@ -1414,11 +1494,11 @@ pub async fn chat(
       let out = match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
         Ok(v) => v,
         Err(e) => {
-          eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to shell open", e);
-          match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
-            Ok(_) => format!("Opened in default browser: {}", url),
+          eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to Chrome", e);
+          match fallback_open_url(&app_handle, &url) {
+            Ok(_) => format!("Opened in Chrome (fallback): {}", url),
             Err(shell_err) => {
-              anyhow::bail!("Failed to open URL via gateway ({}) and shell ({})", e, shell_err);
+              anyhow::bail!("Failed to open URL via gateway ({}) and Chrome fallback ({})", e, shell_err);
             }
           }
         }
@@ -1462,11 +1542,11 @@ pub async fn chat(
       let out = match do_post("/navigate", mk_payload(), &query).await {
         Ok(v) => v,
         Err(e) => {
-          eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to shell open", e);
-          match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
-            Ok(_) => format!("Opened in default browser: {}", url),
+          eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to Chrome", e);
+          match fallback_open_url(&app_handle, &url) {
+            Ok(_) => format!("Opened in Chrome (fallback): {}", url),
             Err(shell_err) => {
-              anyhow::bail!("Failed to navigate via gateway ({}) and shell ({})", e, shell_err);
+              anyhow::bail!("Failed to navigate via gateway ({}) and Chrome fallback ({})", e, shell_err);
             }
           }
         }
