@@ -866,7 +866,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 }
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : hasQueuedMessage ? '📋 Message queued — will send when done...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            placeholder={isRecording ? '🎤 Listening...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
             disabled={isRecording}
             rows={1}
           />
@@ -894,7 +894,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               ⏹️ Stop
             </button>
             <button
-              disabled={!input.trim() || hasQueuedMessage}
+              disabled={!input.trim()}
               onClick={() => {
                 if (input.trim()) {
                   onQueue(input.trim())
@@ -904,7 +904,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               }}
               title="Queue this message to send after current response"
             >
-              {hasQueuedMessage ? '📋 Queued' : '📋 Queue'}
+              📋 Queue
             </button>
           </>
         ) : (
@@ -945,10 +945,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   })
   const [busy, setBusy] = useState(false)
 
-  // Queued message — when user presses Enter while busy, store message to send after current request completes
-  const queuedMessageRef = useRef<string | null>(null)
+  // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
+  const queuedMessagesRef = useRef<string[]>([])
   const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
-  const [queuedMessageText, setQueuedMessageText] = useState<string | null>(null)
+  const [queuedMessageTexts, setQueuedMessageTexts] = useState<string[]>([])
 
   // Abort controller for stopping generation
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -2132,7 +2132,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setShowScrollButton(true)
       }
     }
-  }, [msgs, thinkingMessage, queuedMessageText])
+  }, [msgs, thinkingMessage, queuedMessageTexts])
 
   const scrollToBottom = useCallback(() => {
     if (chatBodyRef.current) {
@@ -3015,21 +3015,21 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Queue a message to send after the current request completes
   const stableQueueMessage = useCallback((text: string) => {
-    queuedMessageRef.current = text
+    queuedMessagesRef.current = [...queuedMessagesRef.current, text]
     setHasQueuedMessage(true)
-    setQueuedMessageText(text)
+    setQueuedMessageTexts(prev => [...prev, text])
   }, [])
 
-  // Drain queued message when busy transitions from true → false
+  // Drain queued messages one at a time when busy transitions from true → false
   const prevBusyRef = useRef(false)
   useEffect(() => {
-    if (prevBusyRef.current && !busy && queuedMessageRef.current) {
-      const queued = queuedMessageRef.current
-      queuedMessageRef.current = null
-      setHasQueuedMessage(false)
-      setQueuedMessageText(null)
+    if (prevBusyRef.current && !busy && queuedMessagesRef.current.length > 0) {
+      const [next, ...rest] = queuedMessagesRef.current
+      queuedMessagesRef.current = rest
+      setQueuedMessageTexts(rest)
+      setHasQueuedMessage(rest.length > 0)
       // Short delay to let UI settle before sending next message
-      const timer = setTimeout(() => doSendRef.current?.(queued), 150)
+      const timer = setTimeout(() => doSendRef.current?.(next), 150)
       return () => clearTimeout(timer)
     }
     prevBusyRef.current = busy
@@ -3380,14 +3380,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             </div>
           </div>
         )}
-        {queuedMessageText && (
-          <div className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
+        {queuedMessageTexts.map((qText, i) => (
+          <div key={`queued-${i}`} className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
             <div className="ClawdBubble">
-              <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{queuedMessageText}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
             </div>
-            <span className="ClawdQueuedLabel">Queued — will send when done</span>
+            <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''} — will send when done</span>
           </div>
-        )}
+        ))}
         {claudeCodeActive && (
           <div className="ClawdMsg ClawdMsg-assistant ClawdMsg-claude-code">
             <div className="ClawdBubble ClawdBubble--claude-code">
