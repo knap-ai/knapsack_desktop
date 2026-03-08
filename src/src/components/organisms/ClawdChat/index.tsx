@@ -105,7 +105,26 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
   }
 
   // Collapse runs of 3+ newlines left after stripping prompt links
-  const cleaned = result.replace(/\n{3,}/g, '\n\n').trim()
+  let cleaned = result.replace(/\n{3,}/g, '\n\n').trim()
+
+  // Deduplicate: if the cleaned text ends with (or equals) an action label,
+  // the AI repeated the suggestion both inline and as a prompt link — strip it.
+  for (const action of actions) {
+    const label = action.label.trim()
+    if (!label) continue
+    // Check if cleaned text ends with the label (possibly followed by punctuation/whitespace)
+    const idx = cleaned.lastIndexOf(label)
+    if (idx !== -1) {
+      const before = cleaned.slice(0, idx).trim()
+      const after = cleaned.slice(idx + label.length).trim()
+      // Only strip if the remaining "after" portion is empty or just punctuation
+      if (!after || /^[?.!]+$/.test(after)) {
+        cleaned = before
+      }
+    }
+  }
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+
   return { cleaned, actions }
 }
 
