@@ -337,7 +337,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       unlistenAutoStartRecordingPromise.then(unlisten => unlisten())
       unlistenHeartbeatPromise.then(unlisten => unlisten())
     }
-  }, [[thread.id, isLLMLoading, synthesisState]])
+  }, [thread.id, isLLMLoading, synthesisState])
 
   // Track the previous promptTemplate to detect changes
   const previousPromptTemplateRef = React.useRef(thread.promptTemplate)
@@ -477,7 +477,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   const isSynthesizing = useCallback(() => {
     return recordingHandlers.isLoadingNotes(thread.id) || isLLMLoading
-  }, [recordingHandlers.isLoadingNotes, isLLMLoading])
+  }, [recordingHandlers, thread.id, isLLMLoading])
 
   useEffect(() => {
     if (isSynthesizing()) {

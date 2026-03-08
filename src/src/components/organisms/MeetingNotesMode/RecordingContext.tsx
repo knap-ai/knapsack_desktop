@@ -1,4 +1,4 @@
-import React, { createContext, ReactNode, useContext, useRef, useState } from 'react'
+import React, { createContext, ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
 
 import { pauseRecord, startRecord, stopRecord } from 'src/api/recording'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
@@ -69,35 +69,35 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   const [isPaused, setIsPaused] = useState(false)
   const isStartingRef = useRef(false)
 
-  const hasSynthesized = (threadId: number) => {
+  const hasSynthesized = useCallback((threadId: number) => {
     return hasSynthesizedState.get(threadId) || false
-  }
+  }, [hasSynthesizedState])
 
-  const setHasSynthesized = (threadId: number, isSynthesizing: boolean) => {
+  const setHasSynthesized = useCallback((threadId: number, isSynthesizing: boolean) => {
     setHasSynthesizedState(prev => new Map(prev).set(threadId, isSynthesizing))
-  }
+  }, [])
 
-  const isLoadingNotes = (threadId: number) => {
+  const isLoadingNotes = useCallback((threadId: number) => {
     return loadingStates.get(threadId) || false
-  }
+  }, [loadingStates])
 
-  const setLoadingState = (threadId: number, isLoading: boolean) => {
+  const setLoadingState = useCallback((threadId: number, isLoading: boolean) => {
     setLoadingStates(prev => new Map(prev).set(threadId, isLoading))
-  }
+  }, [])
 
-  const isRecording = (threadId: number) => {
+  const isRecording = useCallback((threadId: number) => {
     return isRecordingStates.get(threadId) || false
-  }
+  }, [isRecordingStates])
 
-  const setIsRecording = (threadId: number, isRecording: boolean) => {
+  const setIsRecording = useCallback((threadId: number, isRecording: boolean) => {
     setIsRecordingStates(prev => {
       const newMap = new Map(prev).set(threadId, isRecording)
       setIsAnyRecording(Array.from(newMap.values()).some(Boolean))
       return newMap
     })
-  }
+  }, [])
 
-  const startRecording = async (
+  const startRecording = useCallback(async (
     setFeedIsRecording: (isRecording: boolean | undefined) => void,
     saveTranscript: boolean,
     threadId: number,
@@ -189,9 +189,9 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     } finally {
       isStartingRef.current = false
     }
-  }
+  }, [setIsRecording])
 
-  const generateNotes = async (
+  const generateNotes = useCallback(async (
     threadId: number,
     synthesizeContent: (
       threadId: number,
@@ -218,9 +218,9 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         logError(lastError, { additionalInfo: 'Issue synthesizing/saving notes' }, true)
       }
 
-  }
+  }, [setHasSynthesized, setIsRecording])
 
-  const stopRecording = async (
+  const stopRecording = useCallback(async (
     fetchNotes: () => Promise<void>,
     setFeedIsRecording: (isRecording: boolean | undefined) => void,
     synthesizeContent: (
@@ -264,9 +264,9 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     await fetchNotes()
     setLoadingState(threadId, false)
     checkTranscriptSaved()
-  }
+  }, [isRecording, setIsRecording, setLoadingState, generateNotes])
 
-  const pauseRecording = async () => {
+  const pauseRecording = useCallback(async () => {
     console.info('[Recording] pauseRecording')
     try {
       await pauseRecord()
@@ -279,23 +279,23 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         true,
       )
     }
-  }
+  }, [])
+
+  const contextValue = useMemo(() => ({
+    isRecording,
+    setIsRecording,
+    isLoadingNotes,
+    startRecording,
+    stopRecording,
+    isAnyRecording,
+    pauseRecording,
+    isPaused,
+    generateNotes,
+    hasSynthesized,
+  }), [isRecording, setIsRecording, isLoadingNotes, startRecording, stopRecording, isAnyRecording, pauseRecording, isPaused, generateNotes, hasSynthesized])
 
   return (
-    <RecordingContext.Provider
-      value={{
-        isRecording,
-        setIsRecording,
-        isLoadingNotes,
-        startRecording,
-        stopRecording,
-        isAnyRecording,
-        pauseRecording,
-        isPaused,
-        generateNotes,
-        hasSynthesized,
-      }}
-    >
+    <RecordingContext.Provider value={contextValue}>
       {children}
     </RecordingContext.Provider>
   )
