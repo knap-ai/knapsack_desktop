@@ -105,7 +105,26 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
   }
 
   // Collapse runs of 3+ newlines left after stripping prompt links
-  const cleaned = result.replace(/\n{3,}/g, '\n\n').trim()
+  let cleaned = result.replace(/\n{3,}/g, '\n\n').trim()
+
+  // Deduplicate: if the cleaned text ends with (or equals) an action label,
+  // the AI repeated the suggestion both inline and as a prompt link — strip it.
+  for (const action of actions) {
+    const label = action.label.trim()
+    if (!label) continue
+    // Check if cleaned text ends with the label (possibly followed by punctuation/whitespace)
+    const idx = cleaned.lastIndexOf(label)
+    if (idx !== -1) {
+      const before = cleaned.slice(0, idx).trim()
+      const after = cleaned.slice(idx + label.length).trim()
+      // Only strip if the remaining "after" portion is empty or just punctuation
+      if (!after || /^[?.!]+$/.test(after)) {
+        cleaned = before
+      }
+    }
+  }
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+
   return { cleaned, actions }
 }
 
@@ -113,9 +132,17 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
 function friendlyError(raw: string): string {
   if (!raw) return 'Something went wrong. Please try again.'
   const lower = raw.toLowerCase()
+  // All providers failed (fallback exhausted)
+  if (lower.includes('all fallback providers also failed')) {
+    return '⚠️ **All AI providers are unavailable.** Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.'
+  }
   // OpenAI quota / billing errors
   if (lower.includes('insufficient_quota') || lower.includes('exceeded your current quota')) {
-    return '⚠️ **API quota exceeded.** Your OpenAI account has run out of credits or hit its spending limit. Check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).'
+    return '⚠️ **API quota exceeded.** Your OpenAI account has run out of credits or hit its spending limit. Add another provider\'s API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).'
+  }
+  // Anthropic credit errors
+  if (lower.includes('anthropic') && (lower.includes('credit') || lower.includes('billing') || lower.includes('exceeded'))) {
+    return '⚠️ **Anthropic credit limit reached.** Add another provider\'s API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).'
   }
   // Rate limit (but not quota)
   if (lower.includes('rate_limit') || (lower.includes('429') && !lower.includes('insufficient_quota'))) {
@@ -531,6 +558,16 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 
+// Slash commands that trigger Tauri events instead of hitting the LLM
+const SLASH_COMMANDS: Record<string, string> = {
+  '/morning': 'kn_trigger_morning_briefing',
+  '/emails': 'kn_trigger_email_check',
+  '/prep': 'kn_trigger_meeting_prep',
+  '/fu': 'kn_trigger_post_meeting',
+  '/testnotif': 'kn_trigger_test_notification',
+  '/autopilot': 'kn_trigger_autopilot',
+}
+
 /**
  * Pre-fetch recent emails and today's calendar events from Knapsack's backend APIs.
  * Returns a formatted context string, or empty string if no data is available.
@@ -658,11 +695,13 @@ function getMimeTypeFromExt(ext: string): string {
 // only re-render this small component instead of the entire chat body.
 type ChatInputBarProps = {
   busy: boolean
+  hasQueuedMessage: boolean
   isRecording: boolean
   isTranscribing: boolean
   voiceEnabled: boolean
   attachedFiles: Array<{ name: string; type: string; content: string; preview?: string }>
   onSend: (text: string) => void
+  onQueue: (text: string) => void
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveFile: (index: number) => void
   onStartRecording: () => void
@@ -729,8 +768,8 @@ const ChatMessage = memo(function ChatMessage({
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
-    busy, isRecording, isTranscribing, voiceEnabled,
-    attachedFiles, onSend, onFileSelect, onRemoveFile,
+    busy, hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
+    attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
   } = props
   const [input, setInput] = useState('')
@@ -738,28 +777,16 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Easter egg commands supported in chat input
-  const CHAT_COMMANDS: Record<string, string> = {
-    '/morning': 'kn_trigger_morning_briefing',
-    '/emails': 'kn_trigger_email_check',
-    '/prep': 'kn_trigger_meeting_prep',
-    '/fu': 'kn_trigger_post_meeting',
-    '/testnotif': 'kn_trigger_test_notification',
-    '/autopilot': 'kn_trigger_autopilot',
-  }
+  // Auto-focus textarea on mount so users can start typing immediately
+  useEffect(() => {
+    // Small delay to ensure layout is complete after tab switch
+    const timer = setTimeout(() => textareaRef.current?.focus(), 100)
+    return () => clearTimeout(timer)
+  }, [])
 
   const handleSend = () => {
     const text = input.trim()
     if (!text && attachedFiles.length === 0) return
-
-    // Intercept slash commands before sending to LLM
-    const cmd = CHAT_COMMANDS[text.toLowerCase()]
-    if (cmd) {
-      console.log(`🔔 Triggering command: ${text}`)
-      emit(cmd, {})
-      setInput('')
-      return
-    }
 
     onSend(text)
     setInput('')
@@ -846,17 +873,26 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                handleSend()
+                if (busy) {
+                  // Queue the message to send after current request completes
+                  if (input.trim()) {
+                    onQueue(input.trim())
+                    setInput('')
+                    autoResize()
+                  }
+                } else {
+                  handleSend()
+                }
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : 'Ask me to browse, search, read pages, or automate tasks...'}
-            disabled={busy || isRecording}
+            placeholder={isRecording ? '🎤 Listening...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            disabled={isRecording}
             rows={1}
           />
           {/* Voice mode toggle - always visible inside input like ChatGPT */}
           <button
             className={`ClawdVoiceToggle ${voiceEnabled ? 'active' : ''} ${isRecording ? 'recording' : ''} ${isTranscribing ? 'transcribing' : ''}`}
-            onClick={voiceEnabled && !isRecording ? (isRecording ? onStopRecording : onStartRecording) : onToggleVoice}
+            onClick={isRecording ? onStopRecording : voiceEnabled ? onStartRecording : onToggleVoice}
             disabled={busy || isTranscribing}
             title={
               !voiceEnabled
@@ -872,9 +908,24 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           </button>
         </div>
         {busy ? (
-          <button className="ClawdStopBtn" onClick={onStopGeneration}>
-            ⏹️ Stop
-          </button>
+          <>
+            <button className="ClawdStopBtn" onClick={onStopGeneration}>
+              ⏹️ Stop
+            </button>
+            <button
+              disabled={!input.trim()}
+              onClick={() => {
+                if (input.trim()) {
+                  onQueue(input.trim())
+                  setInput('')
+                  autoResize()
+                }
+              }}
+              title="Queue this message to send after current response"
+            >
+              📋 Queue
+            </button>
+          </>
         ) : (
           <button disabled={!input.trim() && attachedFiles.length === 0} onClick={handleSend}>
             Send
@@ -891,9 +942,10 @@ interface ClawdChatProps {
   onCloseActivity?: () => void
   userEmail?: string
   userName?: string
+  onBusyChange?: (busy: boolean) => void
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -912,6 +964,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return []
   })
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
+
+  // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
+  const queuedMessagesRef = useRef<string[]>([])
+  const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
+  const [queuedMessageTexts, setQueuedMessageTexts] = useState<string[]>([])
 
   // Abort controller for stopping generation
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -951,6 +1010,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [savedProviderKeys, setSavedProviderKeys] = useState<Record<string, boolean>>({})
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
   const thinkingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Clean up thinking interval on unmount to prevent leaked intervals
+  useEffect(() => {
+    return () => {
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current)
+        thinkingIntervalRef.current = null
+      }
+    }
+  }, [])
 
   // Claude Code activity tracking — shows indicator when Claude Code is running
   const [claudeCodeActive, setClaudeCodeActive] = useState(false)
@@ -2085,7 +2154,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setShowScrollButton(true)
       }
     }
-  }, [msgs, thinkingMessage])
+  }, [msgs, thinkingMessage, queuedMessageTexts])
 
   const scrollToBottom = useCallback(() => {
     if (chatBodyRef.current) {
@@ -2393,17 +2462,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     setVoiceEnabled(newValue)
     localStorage.setItem(VOICE_MODE_STORAGE, String(newValue))
   }, [voiceEnabled, stopCurrentAudio])
-
-  // Called by ChatInputBar (via onSend) or by handleSendWithText (prompt actions, voice)
-  // Slash commands that trigger Tauri events instead of hitting the LLM
-  const SLASH_COMMANDS: Record<string, string> = {
-    '/morning': 'kn_trigger_morning_briefing',
-    '/emails': 'kn_trigger_email_check',
-    '/prep': 'kn_trigger_meeting_prep',
-    '/fu': 'kn_trigger_post_meeting',
-    '/testnotif': 'kn_trigger_test_notification',
-    '/autopilot': 'kn_trigger_autopilot',
-  }
 
   const doSend = async (text: string) => {
 
@@ -2734,6 +2792,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       let thinkingIndex = 0
       setThinkingMessage(shuffled[0])
 
+      // Clear any previously leaked interval before starting a new one
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current)
+      }
       thinkingIntervalRef.current = setInterval(() => {
         thinkingIndex = (thinkingIndex + 1) % shuffled.length
         setThinkingMessage(shuffled[thinkingIndex])
@@ -2767,6 +2829,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         }
 
+        // Auto-include recent terminal output as context so the AI can see
+        // what the user is working on without requiring copy-paste
+        if (!isSmartPrompt) {
+          try {
+            const termRes = await fetch(apiUrl('/api/clawd/terminal/output?max_lines=30'))
+            if (termRes.ok) {
+              const termData = await termRes.json() as { ok?: boolean; sessions?: Record<string, string[]> }
+              if (termData.ok && termData.sessions) {
+                const entries = Object.entries(termData.sessions).filter(([, lines]) => lines.length > 0)
+                if (entries.length > 0) {
+                  let termContext = '\n\n---\n[Terminal context — recent output from built-in terminal]\n'
+                  for (const [sid, lines] of entries) {
+                    termContext += `[Session: ${sid}]\n${lines.join('\n')}\n`
+                  }
+                  termContext += '---'
+                  actualText += termContext
+                }
+              }
+            }
+          } catch {
+            // Terminal context is best-effort, don't fail the request
+          }
+        }
+
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
           text: actualText || 'Please analyze the attached files.',
@@ -2794,7 +2880,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // Use a 90-second timeout so we don't hang forever if the gateway agent is stuck
         // (e.g. browser tool blocked by deny list).  The user's abort controller also
         // cancels the request if they navigate away.
-        let useDirectChat = false
+        // Skip gateway when there are attachments — the gateway protocol only
+        // carries a text message string and cannot forward images/files.
+        // Go straight to direct /api/clawd/chat which has full vision support.
+        let useDirectChat = currentAttachments.length > 0
         const agentTimeout = AbortController.prototype ? new AbortController() : null
         const agentTimerId = agentTimeout ? setTimeout(() => {
           console.warn('[chat] agent-chat timed out after 90s, falling back to direct chat')
@@ -2810,7 +2899,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: requestBody.text }),
+            body: JSON.stringify({ text: requestBody.text, advancedMode }),
             signal: agentSignal,
           })
           if (agentTimerId) clearTimeout(agentTimerId)
@@ -2918,6 +3007,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } catch (e: any) {
       pushAssistant(friendlyError(e?.message || String(e)))
     } finally {
+      // Safety net: always clear thinking state when request ends, even if inner
+      // finally was skipped due to an error thrown between setting thinkingMessage
+      // and entering the inner try block.
+      if (thinkingIntervalRef.current) {
+        clearInterval(thinkingIntervalRef.current)
+        thinkingIntervalRef.current = null
+      }
+      setThinkingMessage(null)
       setBusy(false)
     }
   }
@@ -2938,10 +3035,45 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   stopGenerationRef.current = stopGeneration
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
 
-  // Escape key stops generation
+  // Queue a message to send after the current request completes
+  const stableQueueMessage = useCallback((text: string) => {
+    queuedMessagesRef.current = [...queuedMessagesRef.current, text]
+    setHasQueuedMessage(true)
+    setQueuedMessageTexts(prev => [...prev, text])
+  }, [])
+
+  // Drain queued messages one at a time when busy transitions from true → false
+  const prevBusyRef = useRef(false)
+  useEffect(() => {
+    if (prevBusyRef.current && !busy && queuedMessagesRef.current.length > 0) {
+      const [next, ...rest] = queuedMessagesRef.current
+      queuedMessagesRef.current = rest
+      setQueuedMessageTexts(rest)
+      setHasQueuedMessage(rest.length > 0)
+      // Short delay to let UI settle before sending next message
+      const timer = setTimeout(() => doSendRef.current?.(next), 150)
+      return () => clearTimeout(timer)
+    }
+    prevBusyRef.current = busy
+  }, [busy])
+
+  // Keyboard shortcuts
+  const clearHistoryRef = useRef(clearHistory)
+  clearHistoryRef.current = clearHistory
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') stopGenerationRef.current()
+      const mod = e.metaKey || e.ctrlKey
+      // Cmd/Ctrl+Shift+Backspace — clear chat history
+      if (mod && e.shiftKey && e.key === 'Backspace') {
+        e.preventDefault()
+        clearHistoryRef.current()
+      }
+      // Cmd/Ctrl+L — focus chat input
+      if (mod && !e.shiftKey && e.key === 'l') {
+        e.preventDefault()
+        document.querySelector<HTMLTextAreaElement>('.ClawdChatInput textarea')?.focus()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -3270,6 +3402,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             </div>
           </div>
         )}
+        {queuedMessageTexts.map((qText, i) => (
+          <div key={`queued-${i}`} className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
+            <div className="ClawdBubble">
+              <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
+            </div>
+            <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''} — will send when done</span>
+          </div>
+        ))}
         {claudeCodeActive && (
           <div className="ClawdMsg ClawdMsg-assistant ClawdMsg-claude-code">
             <div className="ClawdBubble ClawdBubble--claude-code">
@@ -3304,11 +3444,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       <ChatInputBar
         busy={busy}
+        hasQueuedMessage={hasQueuedMessage}
         isRecording={isRecording}
         isTranscribing={isTranscribing}
         voiceEnabled={voiceEnabled}
         attachedFiles={attachedFiles}
         onSend={stableDoSend}
+        onQueue={stableQueueMessage}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
         onStartRecording={startRecording}
@@ -4685,6 +4827,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               Change Key
                             </button>
                           </div>
+                          <p className="ClawdKeyPromptHelp">
+                            Get your API key at{' '}
+                            <a href={p.helpUrl} target="_blank" rel="noopener noreferrer">
+                              {p.helpUrl.replace('https://', '')}
+                            </a>
+                          </p>
                         </>
                       ) : (
                         <>

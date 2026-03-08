@@ -75,7 +75,7 @@ use console_subscriber;
 pub const KNAPSACK_DATA_DIR: &str = ".knapsack";
 pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
-const NOTIF_HEIGHT: f64 = 100.0;
+const NOTIF_HEIGHT: f64 = 180.0;
 const NOTIF_WIDTH: f64 = 720.0;
 const NOTIF_Y_OFFSET: f64 = 50.0; // Push below macOS menu bar / notch
 const NOTIF_START_X_OFFSET: i32 = 500;
@@ -341,12 +341,11 @@ async fn show_notification_window(
 
         let y_position = (NOTIF_Y_OFFSET * scale_factor) as i32;
 
-        // Resize notification window to full screen height
-        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        // Size the notification window to just fit its content
         window
           .set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: NOTIF_WIDTH,
-            height: screen_height_logical,
+            height: NOTIF_HEIGHT,
           }))
           .unwrap();
 
@@ -645,6 +644,14 @@ async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<Stri
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    // Push command output to global terminal buffer so the chat AI can see it
+    for line in stdout.lines() {
+        pty::push_terminal_line("app", line);
+    }
+    for line in stderr.lines() {
+        pty::push_terminal_line("app", line);
+    }
 
     if output.status.success() {
         Ok(stdout)
@@ -964,10 +971,10 @@ async fn main() {
         main_window.center()?;
       }
 
-      #[cfg(target_os = "macos")]
-      {
-        main_window.set_decorations(false).unwrap();
-      }
+      // NOTE: Do NOT call set_decorations(false) on macOS — it disables
+      // the native window chrome that Tauri needs for data-tauri-drag-region
+      // to work.  TitleBarStyle::Overlay (set above) already hides the
+      // visible titlebar while keeping the drag machinery intact.
       main_window.set_resizable(true);
       main_window.set_maximizable(true);
 
@@ -1102,7 +1109,8 @@ async fn main() {
       pty::kn_pty_spawn,
       pty::kn_pty_write,
       pty::kn_pty_resize,
-      pty::kn_pty_kill
+      pty::kn_pty_kill,
+      pty::kn_pty_read_output
     ])
     .manage(UUIDState {
       uuid: StdMutex::new(None),
@@ -1134,16 +1142,23 @@ async fn main() {
           tauri::AppHandle::hide(&event.window().app_handle()).unwrap();
           api.prevent_close();
         }
+
+        #[cfg(target_os = "linux")]
+        {
+          let window = event.window();
+          window.hide().unwrap();
+          api.prevent_close();
+        }
       }
       _ => {}
     });
 
-  #[cfg(target_os = "windows")]
+  #[cfg(any(target_os = "windows", target_os = "linux"))]
   {
     let quit = CustomMenuItem::new("quit".to_string(), "Quit");
     let show = CustomMenuItem::new("show".to_string(), "Show");
 
-    let tray_menu = SystemTrayMenu::new().add_item(quit).add_item(show);
+    let tray_menu = SystemTrayMenu::new().add_item(show).add_item(quit);
 
     let system_tray = SystemTray::new().with_menu(tray_menu);
     builder = builder

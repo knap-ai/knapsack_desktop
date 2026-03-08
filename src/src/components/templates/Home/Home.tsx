@@ -94,6 +94,7 @@ function Home({
   const [showActivityPanel, setShowActivityPanel] = useState(false)
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
+  const [isChatBusy, setIsChatBusy] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const isResizingRef = useRef(false)
 
@@ -484,6 +485,7 @@ function Home({
                       onCloseActivity={() => setShowActivityPanel(false)}
                       userEmail={userEmail}
                       userName={userName}
+                      onBusyChange={setIsChatBusy}
                     />
                   </div>
                   {showActivityPanel && (
@@ -530,6 +532,7 @@ function Home({
                       profileProvider={auth.profile?.provider}
                       forceOpen={autopilotForceOpen}
                       onForceOpenHandled={() => setAutopilotForceOpen(false)}
+                      isChatBusy={isChatBusy}
                     />
                   )}
                 </div>

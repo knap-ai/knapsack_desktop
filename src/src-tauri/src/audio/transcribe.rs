@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::llm::types::LLMError;
+use crate::llm::types::{LLMError, Message as LlmMessage, MessageSender};
 use crate::utils::log::knap_log_error;
 use regex::Regex;
 use reqwest::multipart::{Form, Part};
@@ -203,6 +203,50 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
     }
     Err(e) => {
       log::error!("Failed to transcribe audio: {:?}", e);
+    }
+  }
+}
+
+/// Read the accumulated transcript so far and ask the LLM for a brief,
+/// actionable meeting insight (something interesting the user should know,
+/// a question they should ask, or an action they should take).
+pub async fn generate_meeting_insight(
+  input_filename: &str,
+  output_filename: &str,
+) -> Result<String, Error> {
+  let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
+  let transcripts_dir = home_dir.join(".knapsack/transcripts");
+
+  let input_content = read_file_content(&transcripts_dir.join(format!("{}.txt", input_filename)))?;
+  let output_content = read_file_content(&transcripts_dir.join(format!("{}.txt", output_filename)))?;
+
+  let transcript_so_far = merge_transcripts(&input_content, &output_content);
+
+  if transcript_so_far.trim().is_empty() {
+    return Ok("Meeting is still getting started...".to_string());
+  }
+
+  let messages = vec![
+    LlmMessage {
+      sender: MessageSender::System,
+      content: "You are a real-time meeting assistant observing a live meeting transcript. \
+        Based on the transcript so far, provide ONE brief, actionable insight — something \
+        interesting the user should know, a question they could ask, or an action they should \
+        take. Be specific, concise (1-2 sentences), and directly relevant to the conversation. \
+        Do not summarize the meeting. Do not start with 'Based on the transcript'.".to_string(),
+    },
+    LlmMessage {
+      sender: MessageSender::User,
+      content: format!("Here is the meeting transcript so far:\n\n{}", transcript_so_far),
+    },
+  ];
+
+  use crate::llm::use_cases::complete::multi_provider_completion;
+  match multi_provider_completion(messages).await {
+    Ok(insight) => Ok(insight),
+    Err(e) => {
+      log::warn!("[heartbeat] LLM insight generation failed: {:?}", e);
+      Err(Error::from(e))
     }
   }
 }

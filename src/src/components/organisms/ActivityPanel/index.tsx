@@ -9,12 +9,92 @@ import {
   KN_API_TOKEN_USAGE_BUDGET,
 } from 'src/utils/constants'
 
-/** Strip ANSI escape codes from a string for clean terminal display */
+/** Render a line of PTY output into plain text by interpreting ANSI/CSI cursor
+ *  positioning sequences into a virtual line buffer.  This preserves the spatial
+ *  layout that TUI apps (e.g. Claude Code) produce via cursor-column moves. */
 function stripAnsi(text: string): string {
-  return text
-    .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')
-    .replace(/\x1B\][^\x07]*\x07/g, '')
-    .replace(/\x1B\(B/g, '')
+  const buf: string[] = []
+  let col = 0
+  let i = 0
+
+  while (i < text.length) {
+    const ch = text[i]
+
+    // ── ESC sequences ──
+    if (ch === '\x1B') {
+      // CSI: ESC [ <params> <final>
+      if (text[i + 1] === '[') {
+        const m = text.slice(i).match(/^\x1B\[([0-9;?]*)([A-Za-z])/)
+        if (m) {
+          i += m[0].length
+          const params = m[1]
+          const code = m[2]
+          const n = parseInt(params, 10) || 1
+
+          if (code === 'C') {
+            // Cursor forward — insert spaces
+            col += n
+          } else if (code === 'G') {
+            // Absolute column (1-based)
+            col = (parseInt(params, 10) || 1) - 1
+          } else if (code === 'D') {
+            // Cursor back
+            col = Math.max(0, col - n)
+          } else if (code === 'K') {
+            // Erase in line — clear from cursor to end
+            const mode = parseInt(params, 10) || 0
+            if (mode === 0 || mode === 2) buf.length = col
+          }
+          // All other CSI sequences (colors, etc.) are silently consumed
+          continue
+        }
+      }
+
+      // OSC: ESC ] ... BEL/ST
+      const oscMatch = text.slice(i).match(/^\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/)
+      if (oscMatch) { i += oscMatch[0].length; continue }
+
+      // Two-char ESC sequences: charset, cursor save/restore, etc.
+      const esc2 = text.slice(i).match(/^\x1B[()#][A-Za-z0-9]/) || text.slice(i).match(/^\x1B[78>=A-Za-z]/)
+      if (esc2) { i += esc2[0].length; continue }
+
+      // DCS / PM / APC
+      const dcs = text.slice(i).match(/^\x1B[P_^][^\x1B]*\x1B\\/)
+      if (dcs) { i += dcs[0].length; continue }
+
+      // Unknown ESC — skip it
+      i++
+      continue
+    }
+
+    // 8-bit CSI (0x9B)
+    if (ch === '\x9B') {
+      const m = text.slice(i).match(/^\x9B[0-9;?]*[A-Za-z]/)
+      if (m) { i += m[0].length; continue }
+    }
+
+    // Carriage return — move cursor to column 0
+    if (ch === '\r') { col = 0; i++; continue }
+
+    // Newline / tab — keep as-is
+    if (ch === '\n') { buf.push('\n'); col = 0; i++; continue }
+    if (ch === '\t') {
+      const tabStop = ((col >> 3) + 1) << 3
+      while (col < tabStop) { while (buf.length <= col) buf.push(' '); col++ }
+      i++; continue
+    }
+
+    // Strip other control characters
+    if (ch.charCodeAt(0) < 0x20 || ch === '\x7F') { i++; continue }
+
+    // Printable character — place into buffer at current column
+    while (buf.length < col) buf.push(' ')
+    buf[col] = ch
+    col++
+    i++
+  }
+
+  return buf.join('')
 }
 
 // ── Module-level cache for active Claude Code session ──
@@ -733,7 +813,7 @@ const TerminalView: React.FC = () => {
           if (!exists) return prev
           return prev.map(s =>
             s.id === sessionId
-              ? { ...s, lines: [...s.lines, { type: 'stdout' as const, text: data, timestamp: new Date() }] }
+              ? { ...s, lines: [...s.lines, { type: 'stdout' as const, text: stripAnsi(data), timestamp: new Date() }] }
               : s,
           )
         })
@@ -837,7 +917,17 @@ const TerminalView: React.FC = () => {
       const session = sessions.find(s => s.id === sessionId)
       if (!session) return
       const trimmed = command.trim()
-      if (!trimmed) return
+
+      // For PTY sessions, always forward Enter (even when empty) so that
+      // interactive TUI prompts (e.g. Claude Code selection menus) receive
+      // the keypress. Non-PTY sessions still require non-empty input.
+      if (!trimmed) {
+        if (session.isPty && session.ptyAlive) {
+          invoke('kn_pty_write', { sessionId, data: '\n' }).catch(() => {})
+          return
+        }
+        return
+      }
 
       updateSession(sessionId, s => ({
         ...s,

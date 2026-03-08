@@ -143,6 +143,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
     initialCheck();
   }, [onBothPermissionsGranted, checkRealPermissions]);
 
+  // Both permissions required — call onBothPermissionsGranted when both are true
   useEffect(() => {
     if (micPermission && systemAudioPermission) {
       onBothPermissionsGranted();
@@ -217,34 +218,13 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         <div className="text-center">
           <div className="mb-8">
             <h1 className="text-4xl text-ks-warm-grey-950 !font-Lora">
-              <span className="font-bold">Audio</span> and <span className="font-bold">screen</span><br/>
-              access is required<br/>
+              <span className="font-bold">Audio</span> access<br/>
+              is required<br/>
               to create meeting notes
             </h1>
           </div>
           <div className="flex flex-col gap-5 w-full max-w-[400px] mx-auto">
-            {systemAudioPermission ? (
-              <button
-                className="flex items-center justify-center gap-3 w-full py-4 px-8 bg-ks-warm-grey-50 rounded-full text-ks-warm-grey-950 font-normal border-[1px] border-solid border-ks-warm-grey-950"
-                disabled
-              >
-                <img
-                  src="/assets/images/icons/Bullet-Check.svg"
-                  alt="Check"
-                  className="w-6 h-6"
-                />
-                <span>Screen access enabled</span>
-              </button>
-            ) : (
-              <button
-                className="w-full py-4 px-8 bg-ks-red-800 hover:bg-ks-red-900 rounded-full text-white font-normal transition-colors"
-                onClick={requestSystemAudioAccess}
-                disabled={isCheckingSystemAudio}
-              >
-                {isCheckingSystemAudio ? 'Checking...' : 'Enable screen access'}
-              </button>
-            )}
-
+            {/* Microphone permission */}
             {micPermission ? (
               <button
                 className="flex items-center justify-center gap-3 w-full py-4 px-8 bg-ks-warm-grey-50 rounded-full text-ks-warm-grey-950 font-normal border-[1px] border-solid border-ks-warm-grey-950"
@@ -255,7 +235,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
                   alt="Check"
                   className="w-6 h-6"
                 />
-                <span>Audio access enabled</span>
+                <span>Microphone access enabled</span>
               </button>
             ) : (
               <button
@@ -263,11 +243,38 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
                 onClick={requestMicrophoneAccess}
                 disabled={isCheckingMic}
               >
-                {isCheckingMic ? 'Checking...' : 'Enable audio access'}
+                {isCheckingMic ? 'Checking...' : 'Enable microphone access'}
+              </button>
+            )}
+
+            {/* System audio permission */}
+            {systemAudioPermission ? (
+              <button
+                className="flex items-center justify-center gap-3 w-full py-4 px-8 bg-ks-warm-grey-50 rounded-full text-ks-warm-grey-950 font-normal border-[1px] border-solid border-ks-warm-grey-950"
+                disabled
+              >
+                <img
+                  src="/assets/images/icons/Bullet-Check.svg"
+                  alt="Check"
+                  className="w-6 h-6"
+                />
+                <span>System audio access enabled</span>
+              </button>
+            ) : (
+              <button
+                className={`w-full py-4 px-8 rounded-full font-normal transition-colors ${
+                  micPermission
+                    ? 'bg-ks-red-800 hover:bg-ks-red-900 text-white'
+                    : 'bg-ks-warm-grey-200 text-ks-warm-grey-500 cursor-not-allowed'
+                }`}
+                onClick={requestSystemAudioAccess}
+                disabled={isCheckingSystemAudio || !micPermission}
+              >
+                {isCheckingSystemAudio ? 'Checking...' : 'Enable system audio access'}
               </button>
             )}
           </div>
-          {(!systemAudioPermission || !micPermission) && (
+          {(!micPermission || !systemAudioPermission) && (
             <p className="text-xs text-ks-warm-grey-500 mt-6 max-w-[400px] mx-auto text-center leading-5">
               Already enabled in System Settings? You may need to quit and reopen Knapsack for the change to take effect.
             </p>

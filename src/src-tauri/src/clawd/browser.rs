@@ -145,6 +145,86 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   }
 }
 
+/// Open a URL in the system Chrome/Chromium browser instead of the OS default
+/// browser.  Falls back to the system default only if no Chrome-family browser
+/// can be found.
+fn open_url_in_chrome(url: &str) -> Result<(), String> {
+  #[cfg(target_os = "macos")]
+  {
+    // Try Chrome → Brave → Edge → Chromium in order of preference.
+    let browsers: &[&str] = &[
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+      "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+      "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    ];
+    for browser in browsers {
+      if Path::new(browser).exists() {
+        return std::process::Command::new(browser)
+          .arg(url)
+          .spawn()
+          .map(|_| ())
+          .map_err(|e| format!("Failed to launch {}: {}", browser, e));
+      }
+    }
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    // Try well-known Chrome install locations on Windows.
+    let program_files = std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
+    let program_files_x86 = std::env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
+    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let candidates = vec![
+      format!(r"{}\Google\Chrome\Application\chrome.exe", program_files),
+      format!(r"{}\Google\Chrome\Application\chrome.exe", program_files_x86),
+      format!(r"{}\Google\Chrome\Application\chrome.exe", local_appdata),
+    ];
+    for browser in &candidates {
+      if Path::new(browser).exists() {
+        return std::process::Command::new(browser)
+          .arg(url)
+          .spawn()
+          .map(|_| ())
+          .map_err(|e| format!("Failed to launch Chrome: {}", e));
+      }
+    }
+  }
+
+  #[cfg(target_os = "linux")]
+  {
+    // Try common binary names on Linux.
+    for bin in &["google-chrome", "google-chrome-stable", "chromium-browser", "chromium"] {
+      if let Ok(output) = std::process::Command::new("which").arg(bin).output() {
+        if output.status.success() {
+          return std::process::Command::new(bin)
+            .arg(url)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("Failed to launch {}: {}", bin, e));
+        }
+      }
+    }
+  }
+
+  Err("No Chrome-family browser found on this system".to_string())
+}
+
+/// Best-effort fallback: open URL in Chrome first, then system default.
+fn fallback_open_url(app_handle: &tauri::AppHandle, url: &str) -> Result<(), String> {
+  match open_url_in_chrome(url) {
+    Ok(_) => {
+      eprintln!("[clawd/browser] Opened URL in Chrome (fallback): {}", url);
+      Ok(())
+    }
+    Err(chrome_err) => {
+      eprintln!("[clawd/browser] Chrome fallback failed ({}), using system default", chrome_err);
+      tauri::api::shell::open(&app_handle.shell_scope(), url, None)
+        .map_err(|e| format!("System shell open also failed: {}", e))
+    }
+  }
+}
+
 async fn control_client() -> Result<reqwest::Client, String> {
   reqwest::Client::builder()
     .timeout(std::time::Duration::from_millis(120_000))
@@ -492,8 +572,8 @@ pub async fn open_browser(
     }
   }
 
-  // Fallback path: open on the host using Tauri's shell open.
-  match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
+  // Fallback path: open in Chrome first, then system default.
+  match fallback_open_url(&app_handle, &url) {
     Ok(_) => HttpResponse::Ok().json(OpenBrowserResponse {
       success: true,
       message: format!("Opened locally: {}", url),
@@ -927,8 +1007,8 @@ fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
     if let Some(end) = reply[url_start..].find(')') {
       let url = &reply[url_start..url_start + end];
       if url.len() > 10 && !url.contains(char::is_whitespace) {
-        eprintln!("[clawd/agent-chat] Opening markdown URL from reply in system browser: {}", url);
-        let _ = tauri::api::shell::open(&app_handle.shell_scope(), url, None);
+        eprintln!("[clawd/agent-chat] Opening markdown URL from reply in Chrome: {}", url);
+        let _ = fallback_open_url(app_handle, url);
         return;
       }
     }
@@ -944,14 +1024,30 @@ fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
       && cleaned.len() > 10
       && !cleaned.contains(char::is_whitespace)
     {
-      eprintln!("[clawd/agent-chat] Opening URL from reply in system browser: {}", cleaned);
-      let _ = tauri::api::shell::open(&app_handle.shell_scope(), cleaned, None);
+      eprintln!("[clawd/agent-chat] Opening URL from reply in Chrome: {}", cleaned);
+      let _ = fallback_open_url(app_handle, cleaned);
       return; // Only open the first URL
     }
   }
 }
 
 /// Send a chat message through the gateway's agent pipeline.
+/// Read recent terminal output from the built-in terminal sessions.
+/// Used by the chat agent's `read_terminal` tool so the AI can see what's
+/// in the terminal without the user having to copy-paste.
+#[get("/api/clawd/terminal/output")]
+pub async fn terminal_output(
+  query: web::Query<std::collections::HashMap<String, String>>,
+) -> impl Responder {
+  let session_id = query.get("session_id").map(|s| s.as_str());
+  let max_lines = query.get("max_lines").and_then(|s| s.parse::<usize>().ok()).unwrap_or(100);
+  let output = crate::pty::read_terminal_output(session_id, max_lines);
+  HttpResponse::Ok().json(serde_json::json!({
+    "ok": true,
+    "sessions": output,
+  }))
+}
+
 ///
 /// This shares the same session as Telegram/WhatsApp/iMessage channels,
 /// so conversation history carries across all surfaces.  Falls back to
@@ -1035,8 +1131,13 @@ pub async fn agent_chat(
 
   // Fallback: direct LLM chat via internal HTTP request to /api/clawd/chat.
   // This path has browser tools with shell fallback, so URLs will still open.
+  // Forward the full request body so attachments, advancedMode, etc. are preserved.
   eprintln!("[clawd/agent-chat] Falling back to direct /api/clawd/chat");
-  let fallback_body = serde_json::json!({ "text": text });
+  let mut fallback_body = body.into_inner();
+  // Ensure text field is present (in case body only had "message" key from gateway)
+  if fallback_body.get("text").is_none() {
+    fallback_body["text"] = serde_json::json!(text);
+  }
   match reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(120))
     .build()
@@ -1282,8 +1383,23 @@ pub async fn chat(
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
   let profile = clawd_profile(chrome);
 
+  // When preferFast is set (e.g. Quick Chat overlay), prefer the fastest provider:
+  // Groq > Gemini Flash > user's active provider
+  let prefer_fast = body.get("preferFast").and_then(|v| v.as_bool()).unwrap_or(false);
+
   // Determine which provider to use
-  let provider = active_provider(&app_handle);
+  let provider = if prefer_fast {
+    // Try fastest providers first, fall back to user's active provider
+    if groq_key(&app_handle).is_some() {
+      "groq".to_string()
+    } else if gemini_key(&app_handle).is_some() {
+      "gemini".to_string()
+    } else {
+      active_provider(&app_handle)
+    }
+  } else {
+    active_provider(&app_handle)
+  };
   let api_key = match provider.as_str() {
     "anthropic" => match anthropic_key(&app_handle) {
       Some(k) => k,
@@ -1378,11 +1494,11 @@ pub async fn chat(
       let out = match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
         Ok(v) => v,
         Err(e) => {
-          eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to shell open", e);
-          match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
-            Ok(_) => format!("Opened in default browser: {}", url),
+          eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to Chrome", e);
+          match fallback_open_url(&app_handle, &url) {
+            Ok(_) => format!("Opened in Chrome (fallback): {}", url),
             Err(shell_err) => {
-              anyhow::bail!("Failed to open URL via gateway ({}) and shell ({})", e, shell_err);
+              anyhow::bail!("Failed to open URL via gateway ({}) and Chrome fallback ({})", e, shell_err);
             }
           }
         }
@@ -1426,11 +1542,11 @@ pub async fn chat(
       let out = match do_post("/navigate", mk_payload(), &query).await {
         Ok(v) => v,
         Err(e) => {
-          eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to shell open", e);
-          match tauri::api::shell::open(&app_handle.shell_scope(), url.clone(), None) {
-            Ok(_) => format!("Opened in default browser: {}", url),
+          eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to Chrome", e);
+          match fallback_open_url(&app_handle, &url) {
+            Ok(_) => format!("Opened in Chrome (fallback): {}", url),
             Err(shell_err) => {
-              anyhow::bail!("Failed to navigate via gateway ({}) and shell ({})", e, shell_err);
+              anyhow::bail!("Failed to navigate via gateway ({}) and Chrome fallback ({})", e, shell_err);
             }
           }
         }
@@ -2159,10 +2275,12 @@ pub async fn chat(
         "cwd": wd,
       }));
 
-      // Build the claude command: use --print for non-interactive mode
+      // Build the claude command: use --yes for non-interactive mode that can still make changes.
+      // --print only outputs text without making file changes; --yes auto-accepts tool use
+      // so Claude Code can actually read/write files and run commands.
       // Escape single quotes in the prompt for safe shell embedding
       let escaped_prompt = prompt.replace('\'', "'\\''");
-      let claude_cmd = format!("claude --print '{}'", escaped_prompt);
+      let claude_cmd = format!("claude --yes '{}'", escaped_prompt);
 
       let wd_clone = wd.clone();
       let app1 = app_handle.clone();
@@ -2277,6 +2395,23 @@ pub async fn chat(
           return Ok(json!({"ok": false, "error": format!("Task error: {}", e)}));
         }
       }
+    }
+
+    // Read terminal output — allows AI to see what's in the terminal without user pasting
+    if name == "read_terminal" {
+      let session_id = args_map.get("session_id").and_then(|v| v.as_str());
+      let max_lines = args_map.get("max_lines").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+      let output = crate::pty::read_terminal_output(session_id, max_lines);
+      if output.is_empty() {
+        return Ok(json!({"ok": true, "terminal_output": "No terminal output available. The terminal may not have been used yet."}));
+      }
+      let mut summary = String::new();
+      for (sid, lines) in &output {
+        summary.push_str(&format!("--- Terminal session: {} ({} lines) ---\n", sid, lines.len()));
+        summary.push_str(&lines.join("\n"));
+        summary.push_str("\n\n");
+      }
+      return Ok(json!({"ok": true, "terminal_output": summary}));
     }
 
     // Shell command execution (Advanced Mode only — gated at tool-list level,
@@ -2646,60 +2781,86 @@ You should: "I'll navigate to Gmail now to check your inbox. [navigate] I can se
   let advanced_section = if advanced_mode {
     r#"
 
-## ADVANCED MODE: CLI ENABLED ⚡
-The user has enabled **Advanced Mode**, giving you access to the `run_command` tool for shell command execution.
+## ADVANCED MODE: YOU ARE A POWER USER'S AGENT ⚡
 
-### What You Can Do
-- **Install software**: `brew install ffmpeg`, `npm install -g typescript`, `pip3 install pandas`
-- **Check versions**: `node --version`, `python3 --version`, `brew list`
-- **Run CLI tools**: `git status`, `docker ps`, `npm run build`
-- **System tasks**: `ls -la`, `df -h`, `top -l 1`
-- **Package management**: `brew update && brew upgrade`, `npm update`
+The user has enabled **Advanced Mode** because they want you to **ACT**, not advise. You have full shell access via `run_command`, terminal visibility via `read_terminal`, and coding delegation via `run_claude_code`. USE THEM AGGRESSIVELY.
 
-### Guidelines
-- Always explain what a command will do before running it
-- For install commands, mention what software is being installed and why
-- If a command fails, diagnose the error and suggest alternatives
-- Use `run_command` for system tasks, keep `run_script` for Python scripts
-- Chain related commands with `&&` for efficiency (e.g., `brew update && brew install ffmpeg`)
-- Report the outcome clearly: what was installed, what version, any warnings
+### YOUR MINDSET IN ADVANCED MODE
+You are not a chatbot. You are an autonomous agent with hands on the keyboard. When the user describes a problem, your first instinct should be to **investigate and solve it**, not explain how they could solve it.
 
-### Safety (Enforced Automatically)
-- Dangerous commands (rm -rf /, shutdown, etc.) are blocked
-- Pipe-to-shell (curl | bash) is blocked — download and inspect first
-- Sensitive paths (~/.ssh, ~/.aws, etc.) are protected
-- Commands have a 60-second default timeout (max 120s)
-- **Password and credential changes are ALWAYS blocked** — passwd, chpasswd, dscl -passwd, htpasswd, and similar commands cannot be executed. The user must change passwords themselves.
+**DO THIS:**
+- User: "my node app is crashing" → Immediately `read_terminal` to see errors, then `run_command` to check logs, node version, disk space, etc. Diagnose and fix.
+- User: "set up a new React project" → `run_command("npx create-react-app my-app && cd my-app && npm start")`. Done.
+- User: "what's using all my disk space?" → `run_command("du -sh ~/* | sort -rh | head -20")`. Show results.
+- User: "deploy this" → `run_command("git status")`, then `run_command("git push")`, then check CI. Proactively.
+- User: "add a dark mode toggle to my app" → `run_claude_code(prompt="Add a dark mode toggle...", working_dir="~/Projects/myapp")`. Done.
+- User: "fix the login bug in studio" → `run_claude_code(prompt="Fix the login bug...", working_dir="~/Projects/knap/studio")`. Done.
 
-### CRITICAL: Password and Credential Safety
-You must NEVER change, set, or reset passwords or authentication credentials on behalf of the user, regardless of mode (standard or advanced). This includes:
-- System user passwords (passwd, dscl -passwd, usermod -p)
-- Application passwords (htpasswd, database user passwords)
-- SSH keys (ssh-keygen for overwriting existing keys)
-- API keys and tokens (even if the user asks you to rotate them)
-- Web service passwords (never fill in "change password" forms on behalf of the user)
-- Keychain/credential store entries
-If the user asks you to change a password, explain that for security reasons they must do it themselves and provide the steps they should follow.
+**NEVER DO THIS:**
+- "You can run `du -sh` to check disk space" — NO. YOU run it.
+- "Try running `npm install`" — NO. YOU run it and report what happened.
+- "Here's how to set up a React project: Step 1..." — NO. YOU do it.
+- "This is a Claude Code task. Run `claude`..." — NO. YOU call `run_claude_code` directly.
+- Giving the user terminal commands to copy-paste — NO. YOU execute them with your tools.
 
-### CLAUDE CODE DELEGATION
-You also have access to the `run_claude_code` tool, which delegates complex coding tasks to **Claude Code** — an AI coding agent that can autonomously read/write files, run commands, search codebases, and perform multi-step software engineering work.
+### PROACTIVE TOOL USE
+- **See an error?** `run_command` to investigate immediately. Check logs, versions, configs.
+- **User mentions terminal?** `read_terminal` first, then act on what you see.
+- **Need to verify something?** `run_command` to check, don't guess or assume.
+- **Multi-step task?** Chain commands. Don't stop after step 1 and ask if you should continue.
+- **Something failed?** Diagnose with more commands. Try alternatives. Fix it yourself.
 
-**When to use `run_claude_code`:**
-- The user asks to modify, create, or debug code in a project
-- Multi-step coding tasks (refactoring, adding features, fixing bugs)
-- Any task that involves reading multiple files, making changes, and running tests
-- When the user says "via claude code" or "use claude code"
+### COMMAND EXECUTION PATTERNS
+- **Chain for efficiency**: `cd project && npm install && npm run build && npm test`
+- **Diagnose thoroughly**: `echo "=== Node ===" && node -v && echo "=== NPM ===" && npm -v && echo "=== Git ===" && git status`
+- **Check before acting**: `ls package.json && cat package.json | head -20` before running npm commands
+- **Capture context**: `run_command` for one-shot results, `read_terminal` for ongoing process output
+- Use `run_command` for system/CLI tasks, `run_script` for Python scripts
 
-**When NOT to use it:**
-- Simple one-liner shell commands (use `run_command` instead)
-- Non-coding tasks (browsing, emails, calendar)
+### TERMINAL + COMMAND SYNERGY
+You have a unique superpower: you can see what's happening in the user's terminal (`read_terminal`) AND run your own commands (`run_command`). Use them together:
+1. `read_terminal` → see the error or current state
+2. `run_command` → investigate or fix based on what you saw
+3. `read_terminal` → verify the fix worked
+This loop is your primary workflow. Use it constantly.
+
+### WHEN TO NARRATE vs. JUST DO IT
+- **Just do it** (no narration needed): checking versions, reading files, listing directories, simple installs, git status, diagnostics
+- **Brief narration**: multi-step operations ("I'll set up the project, install deps, and run tests"), anything that modifies user files, installs that take a while
+- **Ask first**: destructive operations (deleting files, resetting git, dropping databases), anything irreversible
+
+### CLAUDE CODE DELEGATION — YOUR PRIMARY CODING TOOL
+`run_claude_code` is your **go-to tool for ANY coding task**. It's a full AI coding agent that can read/write files, run commands, search codebases, and make changes autonomously. The user sees live progress in the terminal.
+
+**ALWAYS use `run_claude_code` when:**
+- User asks to modify, add, fix, refactor, or build ANY code
+- Task involves reading/writing files (even a single file)
+- User asks for a feature, bug fix, or code change in a project
+- Task needs searching a codebase, understanding architecture, then making changes
+- User mentions "claude code" or any coding project
+
+**CRITICAL: NEVER tell the user to run `claude` themselves.** You have `run_claude_code` — USE IT DIRECTLY. Never suggest "run `claude` in the terminal" or give step-by-step terminal instructions for coding tasks. That defeats the purpose of Advanced Mode.
+
+**NEVER DO THIS:**
+- "This is a Claude Code task. Run: `cd ~/Projects/foo && claude`" — NO. YOU call `run_claude_code`.
+- "Tell Claude Code to..." — NO. YOU call `run_claude_code` with the prompt.
+- Giving the user a prompt to paste into Claude Code — NO. YOU are the agent. Act.
+
+**If you don't know the working directory:** Use `run_command("ls ~/Projects")` or `run_command("find ~ -name package.json -maxdepth 4 2>/dev/null")` to discover it, then call `run_claude_code`.
+
+**Use `run_command` instead ONLY when:**
+- Simple shell commands (installs, git, versions)
 - Quick file reads or directory listings
+- One-liner scripts with no file modifications
 
-**How it works:**
-- You provide a `prompt` describing the task and a `working_dir` for the project
-- Claude Code runs in the terminal — the user can see its live progress in the Activity Panel
-- The Activity Panel auto-opens so the user has full visibility into what Claude Code is doing
-- When done, you receive the output and can summarize results for the user
+**How it works:** Provide a `prompt` + `working_dir`. Claude Code runs in the terminal with live visibility. You get the output when done.
+
+### SAFETY (Auto-Enforced)
+- Destructive commands (rm -rf /, shutdown, etc.) are blocked
+- Pipe-to-shell (curl | bash) is blocked
+- Sensitive paths (~/.ssh, ~/.aws, etc.) are protected
+- 60s default timeout (max 120s)
+- Password/credential changes are ALWAYS blocked — the user must do these themselves
 "#.to_string()
   } else {
     String::new()
@@ -2728,6 +2889,9 @@ When the user asks "what can you do" or "what skills do you have", mention that 
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
 
+## CRITICAL: Always Use Second Person
+You are speaking DIRECTLY to the user. Always use "you/your" (second person). NEVER refer to the user by name in your responses — they already know who they are. For example, instead of "Here's the rundown for Mark" write "Here's your rundown". Instead of "Mark has a meeting at 2pm" write "You have a meeting at 2pm".
+
 ## Key Traits
 - **PERSISTENT**: When something doesn't work, try alternative approaches. Don't give up after one attempt.
 - **RESOURCEFUL**: Find creative solutions to problems. If one path is blocked, find another.
@@ -2749,6 +2913,9 @@ When a task seems complex:
 4. **Summarize** what you accomplished at the end
 
 # TOOLS & CAPABILITIES
+
+## Vision — You Can See Images
+Users can attach screenshots, photos, and images to their messages. When an image is attached, you receive it as a vision content block and **can see it directly**. NEVER say "I can't see images" or "I can't view screenshots" — you CAN. Describe what you see, answer questions about the image, or act on its contents. If no image data arrives despite the user mentioning one, say "The image didn't come through — could you try attaching it again?" (not "I can't see images").
 
 ## Available Tools
 - **navigate(url)**: Navigate to a URL IN THE CURRENT TAB (preferred - avoids opening many tabs)
@@ -2780,9 +2947,11 @@ When a task seems complex:
 - Only use **open_url()** when you specifically need to keep the current page open
 
 ## Tool Call Style
+- **Bias toward action.** If you have a tool that can answer a question or solve a problem, USE IT immediately instead of speculating or advising.
 - Do not narrate routine, low-risk tool calls (just call the tool).
 - Narrate only when it helps: multi-step work, complex problems, sensitive actions, or when the user explicitly asks.
 - Keep narration brief and value-dense; avoid repeating obvious steps.
+- **NEVER say "you can run X" or "try running X"** — if you have `run_command`, YOU run it. If you have `read_terminal`, YOU read it. The user enabled these tools so YOU would use them.
 
 # NAVIGATION
 
@@ -2937,6 +3106,11 @@ Before you send ANY message to the user, mentally review it and ask yourself the
    - Can I include additional context the user will probably need next?
    - Can I save the user a click by navigating somewhere or drafting something proactively?
 
+7. **"Did I use my tools, or did I just talk about using them?"** [Advanced Mode]
+   - If my response contains shell commands in code blocks that I'm suggesting the user run — STOP. I have `run_command`. I should run them myself and report the results.
+   - If the user asked about an error and I didn't call `read_terminal` — STOP. Go read the terminal first.
+   - If I said "let me know if you'd like me to run that" — STOP. Just run it. The user enabled Advanced Mode precisely so I would act autonomously.
+
 ## Anti-Patterns to NEVER Do
 - ❌ "I tried to paste the content but the iframe blocked it. You'll need to paste it manually."
   → ✅ Try: JavaScript injection into iframe, keyboard shortcuts (Cmd+V), contentEditable manipulation, writing to file and using upload, or navigating to a direct editor URL.
@@ -2946,6 +3120,12 @@ Before you send ANY message to the user, mentally review it and ask yourself the
   → ✅ Try 3 more approaches before saying this. And if you truly can't, say what you DID accomplish and offer specific next steps.
 - ❌ "Here's what you can do to solve this: Step 1..."
   → ✅ Just DO those steps yourself. That's your job.
+- ❌ "You can run `npm install` to fix this" [Advanced Mode]
+  → ✅ Call run_command("npm install"), report the result.
+- ❌ "Can you paste the error from your terminal?" [Advanced Mode]
+  → ✅ Call read_terminal() to see it yourself.
+- ❌ "Would you like me to check the logs?" [Advanced Mode]
+  → ✅ Just check the logs. run_command("tail -100 /var/log/syslog") or read_terminal().
 
 # SAFETY CONSTRAINTS
 
@@ -3066,6 +3246,26 @@ When you encounter cookie consent banners, GDPR popups, or similar overlays on a
 - These popups block interaction with the page, so dismiss them as your first action before doing anything else
 - If the accept button is not visible in the snapshot, try scrolling or look for it in a different location on the page
 
+# TERMINAL AWARENESS
+
+You have eyes on the user's terminal via the `read_terminal` tool and auto-attached terminal context at the bottom of each message. **USE THIS ACTIVELY.**
+
+### When to Call `read_terminal`
+- **ALWAYS** when the user mentions an error, crash, failure, or unexpected behavior — don't ask them to paste it
+- **ALWAYS** when troubleshooting — read terminal FIRST, then diagnose
+- **ALWAYS** before suggesting a fix — verify you understand the actual error
+- **PROACTIVELY** when the user's message implies they were doing something in the terminal (e.g., "it's not working", "I got an error", "the build failed")
+- When you need more context than the auto-attached 30 lines provide (request up to 500 lines)
+
+### Terminal Context (Auto-Attached)
+Each user message includes the last ~30 lines of terminal output at the bottom. **Read this context carefully** — it often contains the answer to the user's question. Don't ignore it or ask the user to repeat what's already visible there.
+
+### Sessions
+- `app` — the user's main terminal (commands they're running)
+- `clawdbot` — backend service logs
+- Claude Code sessions — created dynamically when Claude Code runs
+- Omit session_id to see all sessions at once
+
 # WORKFLOW LOOP
 
 1. **Understand** the user's request fully
@@ -3115,20 +3315,36 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
 
   // Tool loop - allow up to 75 iterations for complex multi-step tasks
   // Determine model based on provider (reads user's selection from stored config)
-  let model = match provider.as_str() {
+  let mut current_provider = provider.clone();
+  let mut current_api_key = api_key.clone();
+  let mut current_model = match current_provider.as_str() {
     "anthropic" => super::service::get_anthropic_model(&app_handle),
     "gemini" => super::service::get_gemini_model(&app_handle),
     "groq" => super::service::get_groq_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
   };
-  eprintln!("[clawd/chat] Using provider={} model={}", provider, model);
+  eprintln!("[clawd/chat] Using provider={} model={}", current_provider, current_model);
+
+  // Helper: call the appropriate provider's chat API
+  async fn call_provider(
+      prov: &str, key: &str, model: &str,
+      msgs: Vec<chat_agent::OaiMessage>, tls: Vec<chat_agent::OaiToolSpec>,
+    ) -> anyhow::Result<chat_agent::OaiChatResp> {
+      match prov {
+        "anthropic" => chat_agent::anthropic_chat(key, model, msgs, tls).await,
+        "gemini" => chat_agent::gemini_chat(key, model, msgs, tls).await,
+        "groq" => chat_agent::groq_chat(key, model, msgs, tls).await,
+        _ => chat_agent::openai_chat(key, model, msgs, tls).await,
+      }
+    }
+
   let mut tool_iter = 0u32;
   for _ in 0..75 {
     tool_iter += 1;
     // Pace API calls to avoid rate limits (especially Anthropic/Gemini).
     // Skip delay on the first call; add a small pause between subsequent tool-loop iterations.
     if tool_iter > 1 {
-      let delay_ms: u64 = match provider.as_str() {
+      let delay_ms: u64 = match current_provider.as_str() {
         "anthropic" => 500, // Anthropic has tighter rate limits
         "gemini" => 300,
         _ => 100, // OpenAI is more generous
@@ -3136,42 +3352,66 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
       tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
     }
 
-    let resp = match provider.as_str() {
-      "anthropic" => {
-        match chat_agent::anthropic_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-          Ok(r) => r,
-          Err(e) => {
+    // Try primary provider, then fallback to others on credit/rate-limit errors
+    let resp = match call_provider(&current_provider, &current_api_key, &current_model, messages.clone(), tools.clone()).await {
+      Ok(r) => r,
+      Err(e) => {
+        let err_str = e.to_string();
+        let is_credit_or_rate_error = err_str.contains("429")
+          || err_str.contains("rate")
+          || err_str.contains("quota")
+          || err_str.contains("credit")
+          || err_str.contains("insufficient")
+          || err_str.contains("exceeded")
+          || err_str.contains("billing");
+        if !is_credit_or_rate_error {
+          return HttpResponse::InternalServerError().json(
+            serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
+          );
+        }
+        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq
+        eprintln!("[clawd/chat] {} hit credit/rate limit: {}", current_provider, err_str);
+        let fallbacks: [(&str, Option<String>); 4] = [
+          ("openai", openai_key(&app_handle)),
+          ("anthropic", anthropic_key(&app_handle)),
+          ("gemini", gemini_key(&app_handle)),
+          ("groq", groq_key(&app_handle)),
+        ];
+        let mut fallback_resp = None;
+        for (fb_provider, fb_key_opt) in &fallbacks {
+          if *fb_provider == current_provider.as_str() { continue; }
+          if let Some(fb_key) = fb_key_opt {
+            let fb_model = match *fb_provider {
+              "anthropic" => super::service::get_anthropic_model(&app_handle),
+              "gemini" => super::service::get_gemini_model(&app_handle),
+              "groq" => super::service::get_groq_model(&app_handle),
+              _ => super::service::get_openai_model(&app_handle),
+            };
+            eprintln!("[clawd/chat] Trying fallback provider={} model={}", fb_provider, fb_model);
+            match call_provider(fb_provider, fb_key, &fb_model, messages.clone(), tools.clone()).await {
+              Ok(r) => {
+                eprintln!("[clawd/chat] Fallback to {} succeeded", fb_provider);
+                current_provider = fb_provider.to_string();
+                current_api_key = fb_key.clone();
+                current_model = fb_model;
+                fallback_resp = Some(r);
+                break;
+              }
+              Err(fb_err) => {
+                eprintln!("[clawd/chat] Fallback {} also failed: {}", fb_provider, fb_err);
+              }
+            }
+          }
+        }
+        match fallback_resp {
+          Some(r) => r,
+          None => {
             return HttpResponse::InternalServerError().json(
-              serde_json::json!({"ok": false, "message": format!("Anthropic error: {}", e)}),
+              serde_json::json!({"ok": false, "message": format!("{} error: {}. All fallback providers also failed.", current_provider, e)}),
             );
           }
         }
       }
-      "gemini" => {
-        match chat_agent::gemini_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-          Ok(r) => r,
-          Err(e) => {
-            return HttpResponse::InternalServerError()
-              .json(serde_json::json!({"ok": false, "message": format!("Gemini error: {}", e)}));
-          }
-        }
-      }
-      "groq" => {
-        match chat_agent::groq_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-          Ok(r) => r,
-          Err(e) => {
-            return HttpResponse::InternalServerError()
-              .json(serde_json::json!({"ok": false, "message": format!("Groq error: {}", e)}));
-          }
-        }
-      }
-      _ => match chat_agent::openai_chat(&api_key, &model, messages.clone(), tools.clone()).await {
-        Ok(r) => r,
-        Err(e) => {
-          return HttpResponse::InternalServerError()
-            .json(serde_json::json!({"ok": false, "message": format!("OpenAI error: {}", e)}));
-        }
-      },
     };
 
     let choice = match resp.choices.first() {

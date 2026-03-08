@@ -385,6 +385,21 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         }),
       },
     },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
+        name: "read_terminal".to_string(),
+        description: "Read recent output from the built-in terminal panel. Use this to see what the user is working on in their terminal, check command output, view error messages, or understand terminal context without asking the user to paste. Returns the last N lines from active terminal sessions.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "session_id": { "type": "string", "description": "Optional terminal session ID ('app' for main terminal, 'clawdbot' for backend). If omitted, returns output from all sessions." },
+            "max_lines": { "type": "integer", "description": "Maximum number of lines to return (default: 50, max: 500)" }
+          },
+          "additionalProperties": false
+        }),
+      },
+    },
   ]
 }
 
@@ -413,7 +428,7 @@ pub fn advanced_tools() -> Vec<OaiToolSpec> {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "run_claude_code".to_string(),
-        description: "Delegate a complex coding task to Claude Code (an AI coding agent). Claude Code can read/write files, run commands, search codebases, and perform multi-step software engineering tasks autonomously. Use this when the user asks to modify code, create projects, debug issues, or perform any coding task. The user will see Claude Code's live progress in the terminal panel. Prefer this over run_command for any multi-step coding work.".to_string(),
+        description: "Delegate a coding task to Claude Code (an AI coding agent). Claude Code can read/write files, run commands, search codebases, and perform multi-step software engineering tasks autonomously. ALWAYS use this when the user asks to modify code, create projects, debug issues, add features, fix bugs, or perform ANY coding task — even simple ones. The user sees Claude Code's live progress in the terminal panel. NEVER suggest the user run claude themselves — call this tool directly instead.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
@@ -786,6 +801,36 @@ pub async fn anthropic_chat(
   anyhow::bail!("Anthropic error after {} retries: {}", max_retries, last_error)
 }
 
+/// Recursively strip fields that Gemini doesn't support from JSON-Schema
+/// tool parameters: `additionalProperties` and array-style `"type": [...]`
+/// (Gemini expects a single string for `type`, not an array).
+fn clean_schema_for_gemini(val: &mut JsonValue) {
+  match val {
+    JsonValue::Object(map) => {
+      map.remove("additionalProperties");
+      // Convert "type": ["boolean","string"] → "type": "string"
+      if let Some(t) = map.get_mut("type") {
+        if let Some(arr) = t.as_array() {
+          if let Some(first) = arr.iter().find(|v| v.as_str() != Some("null")).and_then(|v| v.as_str()) {
+            *t = json!(first);
+          } else if let Some(first) = arr.first().and_then(|v| v.as_str()) {
+            *t = json!(first);
+          }
+        }
+      }
+      for (_, v) in map.iter_mut() {
+        clean_schema_for_gemini(v);
+      }
+    }
+    JsonValue::Array(arr) => {
+      for v in arr.iter_mut() {
+        clean_schema_for_gemini(v);
+      }
+    }
+    _ => {}
+  }
+}
+
 /// Call Google Gemini API and map the response back to OAI-compatible format.
 pub async fn gemini_chat(
   api_key: &str,
@@ -860,14 +905,16 @@ pub async fn gemini_chat(
     }
   }
 
-  // Convert OAI tools → Gemini function declarations
+  // Convert OAI tools → Gemini function declarations, stripping unsupported schema fields
   let gemini_tools: Vec<JsonValue> = if !tools.is_empty() {
     vec![json!({
       "functionDeclarations": tools.iter().map(|t| {
+        let mut params = t.function.parameters.clone();
+        clean_schema_for_gemini(&mut params);
         json!({
           "name": t.function.name,
           "description": t.function.description,
-          "parameters": t.function.parameters
+          "parameters": params
         })
       }).collect::<Vec<JsonValue>>()
     })]

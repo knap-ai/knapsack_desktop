@@ -1861,6 +1861,21 @@ pub async fn set_service_enabled(
               }
             }
 
+            // ── Ensure exec/process/file tools are in normal-mode allow ─────
+            // These are the same tools granted in sandbox mode (Telegram/etc.)
+            // but desktop webchat also needs them for Advanced Mode shell access.
+            let exec_tools = ["exec", "process", "read", "write", "edit", "apply_patch"];
+            if let Some(allow_arr) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+              for tool_name in &exec_tools {
+                let already = allow_arr.iter().any(|item| item.as_str() == Some(tool_name));
+                if !already {
+                  allow_arr.push(serde_json::json!(tool_name));
+                  eprintln!("[clawd/service] Added {} to tools.allow", tool_name);
+                  patched = true;
+                }
+              }
+            }
+
             // ── Ensure browser + web tools are allowed in sandbox mode ─────
             // Channel messages (Telegram, Signal, etc.) run in sandbox mode,
             // which has a separate tools policy.  The gateway's built-in
@@ -1992,11 +2007,10 @@ pub async fn set_service_enabled(
       }
 
       let tools_md_path = workspace_path.join("TOOLS.md");
-      // Write TOOLS.md if it doesn't exist or if it's missing the web_fetch
-      // section (indicating it has the old version without web/image guidance).
+      // Write TOOLS.md if it doesn't exist or if it's missing key sections.
       let should_write_tools_md = if tools_md_path.exists() {
         fs::read_to_string(&tools_md_path)
-          .map(|content| !content.contains("## Cross-Channel Awareness"))
+          .map(|content| !content.contains("## Shell & Command Execution"))
           .unwrap_or(true)
       } else {
         true
@@ -2082,6 +2096,12 @@ You can read and write local files, list directories, and search for files.
 ## Script Execution
 
 You can run Python scripts for calculations, data processing, and file transformations.
+
+## Shell & Command Execution
+
+You have full shell access on the user's machine. Use the `exec` tool to run any shell command — bash, git, npm, pip, curl, etc. Use the `process` tool to manage long-running processes.
+
+**IMPORTANT:** When the user asks you to run a command, install something, write code, or automate a task — DO IT directly using these tools. Never tell the user to run commands themselves or say you lack shell access. You ARE the agent — act on their behalf.
 
 ## Scheduling
 

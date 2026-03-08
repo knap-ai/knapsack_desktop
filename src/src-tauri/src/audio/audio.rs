@@ -50,7 +50,7 @@ use crate::utils::log::knap_log_error;
 use crate::RecordingState;
 
 use super::encode::save_chunk;
-use super::transcribe::{finalize_chunk, unify_transcript};
+use super::transcribe::{finalize_chunk, generate_meeting_insight, unify_transcript};
 use cpal::SizedSample;
 use hound::SampleFormat;
 use std::collections::HashMap;
@@ -362,32 +362,37 @@ pub async fn start_recording(
     }
   });
 
-  let output_file_semaphore = Arc::clone(&recording_state.output_file_semaphore);
-  let output_thread = handle.spawn_blocking(move || {
-    if let Err(e) = tokio::runtime::Runtime::new()
-      .unwrap()
-      .block_on(record_speaker_output(
-        is_recording_output,
-        is_paused_output,
-        &output_filename,
-        output_file_semaphore,
-      ))
+  // Start system audio recording via Core Audio Taps.
+  // Both mic and system audio permissions are checked upfront before reaching here.
+  {
+    let output_file_semaphore = Arc::clone(&recording_state.output_file_semaphore);
+    let output_thread = handle.spawn_blocking(move || {
+      if let Err(e) = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(record_speaker_output(
+          is_recording_output,
+          is_paused_output,
+          &output_filename,
+          output_file_semaphore,
+        ))
+      {
+        knap_log_error(
+          format!("Error in speaker output recording: {:?}", e.to_string()),
+          None,
+          None,
+        );
+      }
+    });
+
     {
-      knap_log_error(
-        format!("Error in speaker output recording: {:?}", e.to_string()),
-        None,
-        None,
-      );
+      let mut output_thread_guard = recording_state.output_thread.lock().unwrap();
+      *output_thread_guard = Some(output_thread);
     }
-  });
+  }
 
   {
     let mut mic_thread_guard = recording_state.mic_thread.lock().unwrap();
     *mic_thread_guard = Some(mic_thread);
-  }
-  {
-    let mut output_thread_guard = recording_state.output_thread.lock().unwrap();
-    *output_thread_guard = Some(output_thread);
   }
 
   {
@@ -1070,9 +1075,41 @@ async fn stream_audio(
   let mut stop_event_called = false; // void duplicate signal call
   let mut should_stop_time = Utc::now();
   let mut should_stop_flag = false;
+
+  // Heartbeat: every 15 minutes, generate an LLM insight from the transcript so far
+  let heartbeat_interval = ChronoDuration::minutes(15);
+  let mut last_heartbeat = Utc::now();
+
+  // Derive the output filename from the input filename (replace _input with _output)
+  let heartbeat_input_filename = input_filename_clone.clone();
+  let heartbeat_output_filename = input_filename_clone.replace("_input", "_output");
+
   while recording_state.is_recording.load(Ordering::Relaxed) {
     sleep(Duration::from_millis(100)).await;
     let elapsed_time = Utc::now() - start_time;
+
+    // 15-minute heartbeat: generate insight and send notification
+    if (Utc::now() - last_heartbeat) >= heartbeat_interval {
+      last_heartbeat = Utc::now();
+      let elapsed_minutes = elapsed_time.num_minutes();
+      log::info!("[heartbeat] Generating meeting insight at {} minutes", elapsed_minutes);
+
+      match generate_meeting_insight(&heartbeat_input_filename, &heartbeat_output_filename).await {
+        Ok(insight) => {
+          log::info!("[heartbeat] Insight generated: {}", &insight);
+          if let Some(window) = app_handle.get_window(WINDOW_LABEL) {
+            let _ = window.emit("meeting_heartbeat", json!({
+              "threadId": data.thread_id,
+              "insight": insight,
+              "elapsedMinutes": elapsed_minutes,
+            }));
+          }
+        }
+        Err(e) => {
+          log::warn!("[heartbeat] Failed to generate insight: {:?}", e);
+        }
+      }
+    }
 
     if !should_stop_flag && elapsed_time >= ChronoDuration::seconds(60) {
       if elapsed_time < ChronoDuration::seconds(61) {

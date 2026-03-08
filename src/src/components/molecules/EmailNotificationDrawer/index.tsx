@@ -60,6 +60,8 @@ const EmailNotificationDrawer = ({
   const frozenEmailRef = useRef<DisplayEmail | null>(null)
   const caughtUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAutopilotStatusRef = useRef<string | undefined>(undefined)
+  const chatBusyStartRef = useRef<number | null>(null)
+  const shownEmailUidsRef = useRef<Set<string>>(new Set())
 
   // Check if user has permanently dismissed
   useEffect(() => {
@@ -199,8 +201,9 @@ const EmailNotificationDrawer = ({
     ).length
   }, [feed.classifiedEmails])
 
-  // Only auto-surface the drawer while the chat is busy (inference running)
-  // AND there are new pending emails.  Auto-dismiss when inference finishes.
+  // Conservative auto-surface: only show after inference has been running for
+  // a while (5s+), and only show each email once per session.
+  const BUSY_DELAY_MS = 5000
   const prevChatBusyRef = useRef(isChatBusy)
   useEffect(() => {
     if (permanentlyDismissed || permanentlyDismissed === null) return
@@ -220,10 +223,12 @@ const EmailNotificationDrawer = ({
       return
     }
 
-    // Show the drawer when chat becomes busy and there are pending emails
-    if (isChatBusy && pendingEmail && currentCount > 0) {
-      setIsVisible(true)
-      setIsAnimatingOut(false)
+    // Track when chat became busy
+    if (isChatBusy && !prevChatBusyRef.current) {
+      chatBusyStartRef.current = Date.now()
+    }
+    if (!isChatBusy) {
+      chatBusyStartRef.current = null
     }
 
     // Auto-dismiss when chat finishes (busy → not busy) and drawer wasn't force-opened
@@ -239,6 +244,27 @@ const EmailNotificationDrawer = ({
     prevChatBusyRef.current = isChatBusy
     prevEmailCountRef.current = currentCount
   }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail, isChatBusy])
+
+  // Delayed show: only pop the drawer after chat has been busy for BUSY_DELAY_MS,
+  // and only for emails not yet shown this session.
+  useEffect(() => {
+    if (permanentlyDismissed || permanentlyDismissed === null) return
+    if (!isChatBusy || !pendingEmail || initialLoadRef.current) return
+
+    // Skip emails already shown this session
+    if (shownEmailUidsRef.current.has(pendingEmail.message.emailUid)) return
+
+    const timer = setTimeout(() => {
+      // Re-check: still busy and same email?
+      if (chatBusyStartRef.current && pendingEmail) {
+        shownEmailUidsRef.current.add(pendingEmail.message.emailUid)
+        setIsVisible(true)
+        setIsAnimatingOut(false)
+      }
+    }, BUSY_DELAY_MS)
+
+    return () => clearTimeout(timer)
+  }, [isChatBusy, pendingEmail?.message.emailUid, permanentlyDismissed])
 
   const isLoading =
     feed.emailAutopilotStatus.status === 'fetching-emails' ||
@@ -342,13 +368,49 @@ const EmailNotificationDrawer = ({
   }, [onGoToEmail])
 
   const handleExpand = useCallback(() => {
+    // Sync expanded view to the same email shown in the collapsed preview
+    if (pendingEmail) {
+      setCurrentEmailUid(pendingEmail.message.emailUid)
+    }
     setIsExpanded(true)
     KNAnalytics.trackEvent('email_drawer_expanded', {})
-  }, [])
+  }, [pendingEmail])
 
   const handleCollapse = useCallback(() => {
     setIsExpanded(false)
   }, [])
+
+  const handleNoResponseNeeded = useCallback(() => {
+    if (!pendingEmail) return
+    const uid = pendingEmail.message.emailUid
+    // Mark as read (ignored) — feeds back that this email didn't need a response
+    feed.takeEmailAction(
+      uid,
+      AutopilotActions.MARK_AS_READ,
+      profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+    )
+    // Also session-dismiss so it doesn't reappear
+    setSessionDismissedIds(prev => new Set(prev).add(uid))
+  }, [pendingEmail, feed.takeEmailAction, profileProvider])
+
+  // Send the recommended action as a chat message (like heartbeat notification actions)
+  const handleActionRequired = useCallback(() => {
+    if (!pendingEmail?.classification?.actionRequired) return
+    const action = pendingEmail.classification.actionRequired
+    const subject = decodeEmailSubject(pendingEmail.message.subject ?? '')
+    const sender = pendingEmail.message.sender ?? ''
+    // Send as user message with context
+    const msg = `${action} (re: "${subject}" from ${sender})`
+    window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: msg }))
+    // Dismiss the drawer after sending
+    setSessionDismissedIds(prev => new Set(prev).add(pendingEmail.message.emailUid))
+    setIsAnimatingOut(true)
+    setIsExpanded(false)
+    setTimeout(() => {
+      setIsVisible(false)
+      setIsAnimatingOut(false)
+    }, 300)
+  }, [pendingEmail])
 
   // Resize drag handler — user drags the top-left corner to grow/shrink the drawer
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -390,6 +452,7 @@ const EmailNotificationDrawer = ({
   const summary = pendingEmail?.classification?.summary?.join(' ') || 'New email needs your response.'
   const sender = pendingEmail?.message.sender ?? ''
   const subject = decodeEmailSubject(pendingEmail?.message.subject ?? '')
+  const actionRequired = pendingEmail?.classification?.actionRequired || null
 
   return (
     <div
@@ -508,8 +571,29 @@ const EmailNotificationDrawer = ({
               </div>
             </div>
 
-            {/* Collapsed footer — single expand CTA */}
-            <div className="flex items-center justify-end px-4 py-2 border-t border-ks-warm-grey-100 shrink-0">
+            {/* Recommended action button — sends action as chat message */}
+            {actionRequired && (
+              <div className="px-4 pb-1">
+                <button
+                  onClick={handleActionRequired}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 hover:border-amber-300 text-xs font-medium font-InterTight transition-colors cursor-pointer text-left"
+                >
+                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span className="truncate">{actionRequired}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Collapsed footer */}
+            <div className="flex items-center justify-between px-4 py-2 border-t border-ks-warm-grey-100 shrink-0">
+              <button
+                onClick={handleNoResponseNeeded}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-ks-warm-grey-200 hover:bg-ks-warm-grey-100 text-ks-warm-grey-700 text-xs font-medium font-InterTight transition-colors"
+              >
+                No Response Needed
+              </button>
               <button
                 onClick={handleExpand}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"

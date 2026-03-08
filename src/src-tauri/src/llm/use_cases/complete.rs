@@ -419,7 +419,7 @@ async fn anthropic_completion(
 }
 
 /// Complete using the best available provider. Falls back through providers on failure.
-async fn multi_provider_completion(
+pub async fn multi_provider_completion(
   messages: Vec<LlmMessage>,
 ) -> Result<String, LLMError> {
   let mut provider = resolve_provider()?;
@@ -443,8 +443,51 @@ async fn multi_provider_completion(
   match result {
     Ok(text) => Ok(text),
     Err(e) => {
-      log::warn!("[notes] {} failed: {}. Trying Groq fallback...", provider.name, e);
-      // If primary provider fails and it wasn't Groq, try Groq as fallback
+      log::warn!("[notes] {} failed: {}. Trying fallback providers...", provider.name, e);
+
+      // Try all other configured providers as fallback
+      let fb_openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+      let fb_anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
+      let fb_gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+      let fb_groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
+      let fb_openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.2".to_string());
+
+      let fallbacks: Vec<(&str, &Option<String>, String, &str, bool)> = vec![
+        ("openai", &fb_openai_key, fb_openai_model, "https://api.openai.com/v1", false),
+        ("anthropic", &fb_anthropic_key, "claude-sonnet-4-5-20250929".to_string(), "https://api.anthropic.com/v1", true),
+        ("gemini", &fb_gemini_key, "gemini-2.5-flash".to_string(), "https://generativelanguage.googleapis.com/v1beta/openai", false),
+        ("groq", &fb_groq_key, "meta-llama/llama-4-maverick-17b-128e-instruct".to_string(), "https://api.groq.com/openai/v1", false),
+      ];
+
+      for (fb_name, fb_key_opt, fb_model, fb_url, fb_is_anthropic) in &fallbacks {
+        if *fb_name == provider.name { continue; }
+        if let Some(fb_key) = fb_key_opt {
+          log::info!("[notes] Trying fallback provider: {} ({})", fb_name, fb_model);
+          let fb_provider = ResolvedProvider {
+            name: fb_name.to_string(),
+            api_key: fb_key.clone(),
+            model: fb_model.clone(),
+            base_url: fb_url.to_string(),
+            is_anthropic: *fb_is_anthropic,
+          };
+          let fb_result = if fb_provider.is_anthropic {
+            anthropic_completion(&fb_provider, &messages).await
+          } else {
+            openai_compatible_completion(&fb_provider, &messages).await
+          };
+          match fb_result {
+            Ok(text) => {
+              log::info!("[notes] Fallback to {} succeeded", fb_name);
+              return Ok(text);
+            }
+            Err(fb_err) => {
+              log::warn!("[notes] Fallback {} also failed: {}", fb_name, fb_err);
+            }
+          }
+        }
+      }
+
+      // Also try Groq SDK as last resort (may have different key source)
       if provider.name != "groq" {
         if let Ok(groq) = GroqLlm::new() {
           let primary = "meta-llama/llama-4-maverick-17b-128e-instruct".to_string();
@@ -454,7 +497,6 @@ async fn multi_provider_completion(
             ..Default::default()
           }).await {
             Ok(text) => {
-              // Record Groq fallback usage (estimate since Groq SDK doesn't return usage easily)
               let input_est: usize = messages.iter().map(|m| m.content.len()).sum();
               let usage = CompletionUsage {
                 input_tokens: estimate_tokens(&" ".repeat(input_est)),
@@ -463,7 +505,7 @@ async fn multi_provider_completion(
               record_usage("groq", &primary, &usage, "chat");
               return Ok(text);
             },
-            Err(groq_err) => log::warn!("[notes] Groq fallback also failed: {}", groq_err),
+            Err(groq_err) => log::warn!("[notes] Groq SDK fallback also failed: {}", groq_err),
           }
         }
       }

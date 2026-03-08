@@ -345,11 +345,13 @@ function App() {
 
         const decoder = new TextDecoder('utf-8')
         if (!reader) {
+          const noReaderError = new Error('No return from dataFetcher.getChatCompletionStream')
           handleOpenToastr(<span>An error occurred, please try again</span>, 'error', 5000)
-          logError(new Error('No return from dataFetcher.getChatCompletionStream'), {
+          logError(noReaderError, {
             additionalInfo: 'No return from dataFetcher.getChatCompletionStream',
             error: 'No return from dataFetcher.getChatCompletionStream',
           })
+          errorCallback?.(noReaderError)
           return
         }
         let num_reads = 0
@@ -366,17 +368,16 @@ function App() {
           const strData = decoder.decode(value)
           const objects = strData.split('\n')
           for (const strLine of objects) {
-            if (!strLine.startsWith('data: ')) {
-              return false
-            }
             if (strLine === 'data: [DONE]') {
               return true
+            }
+            if (!strLine.startsWith('data: ')) {
+              continue
             }
 
             messageText += JSON.parse(strLine.slice(6)).choices[0].text
             if (messageText) {
               messageStreamCallback?.(messageText)
-              // setMessageStream(messageText)
             }
 
             num_reads += 1
@@ -397,8 +398,14 @@ function App() {
             break
           }
         }
-        if (messageText) {
-          messageFinishCallback?.(messageText)
+        try {
+          await messageFinishCallback?.(messageText)
+        } catch (callbackErr) {
+          logError(callbackErr instanceof Error ? callbackErr : new Error(String(callbackErr)), {
+            additionalInfo: 'Error in messageFinishCallback',
+            error: String(callbackErr),
+          })
+          errorCallback?.(callbackErr as Error)
         }
         return messageText
       } catch (err) {

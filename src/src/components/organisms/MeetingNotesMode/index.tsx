@@ -35,6 +35,7 @@ import MarkdownDisplay from 'src/components/molecules/MarkdownDisplay'
 
 import { Event, listen } from '@tauri-apps/api/event'
 
+import { sendNotification } from 'src/utils/permissions/notification'
 import { TaskItem } from '../CenterWorkspace'
 import { RecordingContextProps } from './RecordingContext'
 
@@ -316,11 +317,27 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       }
       handleStopRecording('Automatic')
     })
+    // Listen for 15-minute heartbeat insights during recording (proactive mode only)
+    const unlistenHeartbeatPromise = listen(
+      'meeting_heartbeat',
+      async (event: Event<{ threadId: number; insight: string; elapsedMinutes: number }>) => {
+        const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
+        if (!isProactive) return
+
+        const { insight, elapsedMinutes } = event.payload
+        const mins = Math.round(elapsedMinutes)
+        sendNotification({
+          title: `Meeting insight (${mins} min)`,
+          body: insight,
+        })
+      },
+    )
     return () => {
       unlistenAutoStopRecordingPromise.then(unlisten => unlisten())
       unlistenAutoStartRecordingPromise.then(unlisten => unlisten())
+      unlistenHeartbeatPromise.then(unlisten => unlisten())
     }
-  }, [[thread.id, isLLMLoading, synthesisState]])
+  }, [thread.id, isLLMLoading, synthesisState])
 
   // Track the previous promptTemplate to detect changes
   const previousPromptTemplateRef = React.useRef(thread.promptTemplate)
@@ -460,7 +477,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   const isSynthesizing = useCallback(() => {
     return recordingHandlers.isLoadingNotes(thread.id) || isLLMLoading
-  }, [recordingHandlers.isLoadingNotes, isLLMLoading])
+  }, [recordingHandlers, thread.id, isLLMLoading])
 
   useEffect(() => {
     if (isSynthesizing()) {
