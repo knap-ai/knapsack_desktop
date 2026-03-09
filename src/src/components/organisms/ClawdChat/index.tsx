@@ -768,7 +768,7 @@ const ChatMessage = memo(function ChatMessage({
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
-    busy, hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
+    busy, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
   } = props

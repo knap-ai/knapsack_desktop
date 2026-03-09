@@ -55,7 +55,7 @@ function renderMarkdown(text: string): string {
 
 /** Extract a suggested follow-up prompt from the AI response.
  *  Looks for a trailing question or falls back to a generic follow-up. */
-function extractSuggestedPrompt(response: string, originalQuery: string): string {
+function extractSuggestedPrompt(response: string, _originalQuery: string): string {
   // Look for the last sentence ending with '?'
   const lines = response.trim().split('\n').filter(l => l.trim())
   for (let i = lines.length - 1; i >= Math.max(0, lines.length - 3); i--) {
