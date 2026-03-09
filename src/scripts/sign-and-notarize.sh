@@ -254,16 +254,50 @@ if [ "$DO_NOTARIZE" = true ]; then
     exit 1
   fi
 
-  echo "[notarize] Stapling notarization ticket..."
+  echo "[notarize] Stapling notarization ticket to .app..."
   xcrun stapler staple "$APP_PATH"
 
-  # Staple DMG too if it exists
-  for dmg in "$BUNDLE_DIR"/../dmg/*.dmg; do
-    if [ -f "$dmg" ]; then
-      echo "[notarize] Stapling DMG: $dmg"
-      xcrun stapler staple "$dmg"
+  # Recreate DMG with the stapled .app, then notarize & staple the DMG
+  DMG_DIR="$BUNDLE_DIR/../dmg"
+  if [ -d "$DMG_DIR" ]; then
+    # Find the architecture suffix from the existing DMG filename
+    EXISTING_DMG=$(find "$DMG_DIR" -name "*.dmg" -print -quit 2>/dev/null || true)
+    if [ -n "$EXISTING_DMG" ]; then
+      DMG_PATH="$EXISTING_DMG"
+      echo "[notarize] Recreating DMG with stapled .app: $DMG_PATH"
+
+      # Create a fresh DMG containing the signed+stapled .app
+      DMG_TEMP="$(mktemp -d /tmp/knapsack-dmg.XXXXXX)"
+      cp -R "$APP_PATH" "$DMG_TEMP/"
+      ln -s /Applications "$DMG_TEMP/Applications"
+      rm -f "$DMG_PATH"
+      hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_TEMP" \
+        -ov -format UDZO "$DMG_PATH"
+      rm -rf "$DMG_TEMP"
+
+      # Sign the DMG
+      echo "[notarize] Signing DMG..."
+      codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_PATH"
+
+      # Notarize the DMG
+      echo "[notarize] Submitting DMG to Apple for notarization..."
+      DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
+        --apple-id "$APPLE_ID" \
+        --team-id "$APPLE_TEAM_ID" \
+        --password "$APPLE_APP_PASSWORD" \
+        --wait 2>&1) || true
+      echo "$DMG_SUBMIT_OUTPUT"
+
+      DMG_STATUS=$(echo "$DMG_SUBMIT_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
+      if [ "$DMG_STATUS" = "Accepted" ]; then
+        echo "[notarize] Stapling DMG..."
+        xcrun stapler staple "$DMG_PATH"
+      else
+        echo "[notarize] WARNING: DMG notarization status: $DMG_STATUS" >&2
+        echo "[notarize]          The .app is still fully notarized. DMG may trigger Gatekeeper." >&2
+      fi
     fi
-  done
+  fi
 
   echo "[notarize] Verifying Gatekeeper approval..."
   spctl --assess --type execute --verbose=2 "$APP_PATH"
