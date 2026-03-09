@@ -157,10 +157,72 @@ fn check_system_audio_permission_macos() -> bool {
         }
     }
 
-    // Strategy 2: Try to use CATapDescription to check if we can create a tap.
-    // If the permission is not granted, AudioHardwareCreateProcessTap will fail.
-    // We don't actually do this here to avoid side effects — the TCC check above
-    // should be sufficient.
+    // Strategy 2: Try to actually create a Core Audio process tap.
+    // This is the most reliable check because it exercises the exact permission
+    // (kTCCServiceAudioCapture) that the recording code needs.
+    // The TCC database check above can fail on macOS Sonoma/Sequoia where
+    // SIP protects the database from direct sqlite3 access.
+    if check_system_audio_via_tap_probe() {
+        return true;
+    }
 
     false
+}
+
+/// Probe whether system audio recording is actually allowed by attempting
+/// to create (and immediately destroy) a Core Audio process tap.
+#[cfg(target_os = "macos")]
+fn check_system_audio_via_tap_probe() -> bool {
+    use objc2::runtime::{AnyClass, AnyObject};
+    use objc2::{msg_send, msg_send_id, rc::Id};
+
+    extern "C" {
+        fn AudioHardwareCreateProcessTap(
+            tap_description: *mut std::ffi::c_void,
+            tap_id: *mut u32,
+        ) -> i32;
+        fn AudioHardwareDestroyProcessTap(tap_id: u32) -> i32;
+    }
+
+    let tap_desc_class = match AnyClass::get("CATapDescription") {
+        Some(cls) => cls,
+        None => {
+            log::warn!("CATapDescription class not found — macOS 14.2+ required for tap probe");
+            return false;
+        }
+    };
+
+    // Create a minimal stereo global tap (excluding our own process to avoid feedback)
+    let our_pid = std::process::id() as i32;
+    let our_pid_ns: Id<AnyObject> = unsafe {
+        let ns_number_class = AnyClass::get("NSNumber").unwrap();
+        msg_send_id![ns_number_class, numberWithInt: our_pid]
+    };
+    let exclude_pids: Id<AnyObject> = unsafe {
+        let ns_array_class = AnyClass::get("NSArray").unwrap();
+        msg_send_id![ns_array_class, arrayWithObject: &*our_pid_ns]
+    };
+
+    let tap_desc: Id<AnyObject> = unsafe {
+        let alloc: objc2::rc::Allocated<AnyObject> = msg_send_id![tap_desc_class, alloc];
+        msg_send_id![alloc, initStereoGlobalTapButExcludeProcesses: &*exclude_pids]
+    };
+
+    let mut tap_id: u32 = 0;
+    let status = unsafe {
+        AudioHardwareCreateProcessTap(
+            &*tap_desc as *const AnyObject as *mut std::ffi::c_void,
+            &mut tap_id,
+        )
+    };
+
+    if status == 0 {
+        // Success — permission is granted. Clean up immediately.
+        unsafe { AudioHardwareDestroyProcessTap(tap_id); }
+        log::info!("Tap probe succeeded — system audio recording permission confirmed");
+        true
+    } else {
+        log::info!("Tap probe failed with status {} — system audio permission not granted", status);
+        false
+    }
 }
