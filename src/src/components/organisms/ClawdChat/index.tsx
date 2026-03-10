@@ -557,14 +557,39 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 // The smart prompts that auto-execute
 const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
-const BUILD_WEBSITE_PROMPT = `Build a personal website about me. First, ask me a few quick questions about myself (name, what I do, interests, and preferred style). Then:
+const BUILD_WEBSITE_PROMPT = `Build a personal website about me`
+
+function buildWebsiteInstructions(userName: string, userEmail: string): string {
+  const namePart = userName ? `My name is ${userName}.` : ''
+  const emailPart = userEmail ? `My email is ${userEmail}.` : ''
+  const linkedinHint = userName
+    ? `Search the web for my LinkedIn profile (try "${userName}" on LinkedIn) and use what you find (job title, company, skills, summary, experience) to populate the website content.`
+    : userEmail
+      ? `Search the web for my LinkedIn profile using my email or name from my email address and use what you find to populate the website content.`
+      : ''
+  const emailContextHint = userEmail
+    ? `Also use my email domain to infer my company/organization.`
+    : ''
+
+  return `Build a personal website about me. Do NOT ask me any questions — gather all the information you need automatically.
+
+${namePart} ${emailPart}
+
+Here is how to gather info about me:
+1. ${linkedinHint} ${emailContextHint}
+2. Check my recent emails for additional context about what I do, my role, and my interests.
+3. Use any information you already know about me from our conversation context.
+
+Then:
 1. Enable advanced node/exec tools if not already enabled
 2. Check which tools and API keys are available (Claude, OpenAI, etc.) and use them
 3. Create a beautiful, responsive single-page website about me using HTML, CSS, and JavaScript
 4. Save it to my Desktop as "my-website/index.html"
 5. Open it in the browser so I can see it
 
-Make it look professional with a modern design, smooth animations, and sections for: hero/intro, about me, skills/interests, and a contact section.`
+Make it look professional with a modern design, smooth animations, and sections for: hero/intro, about me, skills/interests, and a contact section.
+Use real information you gathered — do not use placeholder text. If you couldn't find certain details, make reasonable inferences or leave those sections minimal rather than using obviously fake content.`
+}
 
 // Slash commands that trigger Tauri events instead of hitting the LLM
 const SLASH_COMMANDS: Record<string, string> = {
@@ -2847,7 +2872,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // For the smart prompt, pre-fetch email/calendar data from Knapsack's APIs
         // so the agent can analyze it directly without browser emulation.
         const isSmartPrompt = text === SMART_PROMPT
+        const isBuildWebsitePrompt = text === BUILD_WEBSITE_PROMPT
         let actualText = text
+
+        // For the build website prompt, inject user info so the AI can auto-populate
+        // the website without asking the user a bunch of questions.
+        if (isBuildWebsitePrompt) {
+          actualText = buildWebsiteInstructions(userName || '', userEmail || '')
+        }
+
         if (isSmartPrompt) {
           try {
             const context = await fetchEmailCalendarContext()
