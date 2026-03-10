@@ -1793,15 +1793,18 @@ pub async fn set_service_enabled(
 
             // On Linux, Chrome/Chromium requires --no-sandbox when running
             // headless (no display server).  Set browser.noSandbox = true.
-            let no_sandbox = cfg
-              .pointer("/browser/noSandbox")
-              .and_then(|v| v.as_bool())
-              .unwrap_or(false);
-            if !no_sandbox {
-              cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("noSandbox".to_string(), serde_json::json!(true));
-              eprintln!("[clawd/service] Patched browser.noSandbox to true");
-              patched = true;
+            // On macOS this is unnecessary and causes a visible warning bar.
+            if cfg!(target_os = "linux") {
+              let no_sandbox = cfg
+                .pointer("/browser/noSandbox")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+              if !no_sandbox {
+                cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                  .insert("noSandbox".to_string(), serde_json::json!(true));
+                eprintln!("[clawd/service] Patched browser.noSandbox to true (Linux)");
+                patched = true;
+              }
             }
 
             // ── Ensure browser tool is allowed in NORMAL mode (webchat/desktop) ──
