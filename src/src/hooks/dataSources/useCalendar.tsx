@@ -110,7 +110,7 @@ const useCalendar = () => {
   const [meetings, setMeetings] = useState<Record<string, Meeting>>({})
   const ONE_WEEK_IN_MILLIS = 1000 * 60 * 60 * 24 * 7
   const TWO_WEEKS_IN_MILLIS = 1000 * 60 * 60 * 24 * 16
-  const ONE_DAY_IN_MILLIS = 1000 * 60 * 60 * 24 * 1
+
 
   const updateMeetingStatuses = useCallback((currentTime: number) => {
     setMeetings(prevMeetings => {
