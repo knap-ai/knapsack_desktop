@@ -12,6 +12,7 @@ import KNDateUtils from 'src/utils/KNDateUtils'
 import GenerateDraftButton from 'src/components/molecules/GenerateDraftButton'
 import IgnoreEmailButton from 'src/components/molecules/IgnoreEmailButton'
 import SendEmailButton from 'src/components/molecules/SendEmailButton'
+import TakeActionButton from 'src/components/molecules/TakeActionButton'
 import { decodeEmailSubject } from 'src/utils/emails'
 
 interface EmailDraftCardProps {
@@ -337,7 +338,7 @@ const EmailDraftCard = ({
         </div>
       </div>
 
-      <div className="flex justify-between w-full">
+      <div className="flex justify-between items-center w-full">
         <IgnoreEmailButton
           onSuccess={() => {
             KNAnalytics.trackEvent('email_ignored', {
@@ -350,6 +351,9 @@ const EmailDraftCard = ({
           }}
           action={actions.leftAction}
           updateAction={updateAction}
+        />
+        <TakeActionButton
+          email={email}
         />
         <SendEmailButton
           previousEmail={email}

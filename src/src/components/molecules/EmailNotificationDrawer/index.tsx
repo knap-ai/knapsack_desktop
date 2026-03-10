@@ -13,6 +13,7 @@ import {
 
 import EmailDraftCard from 'src/components/molecules/EmailDraftCard'
 import EmailAutopilotSettings from 'src/components/molecules/EmailAutopilotSettings'
+import TakeActionButton from 'src/components/molecules/TakeActionButton'
 import SettingsButton from 'src/components/atoms/settings-button'
 import { decodeEmailSubject } from 'src/utils/emails'
 
@@ -393,24 +394,6 @@ const EmailNotificationDrawer = ({
     setSessionDismissedIds(prev => new Set(prev).add(uid))
   }, [pendingEmail, feed.takeEmailAction, profileProvider])
 
-  // Send the recommended action as a chat message (like heartbeat notification actions)
-  const handleActionRequired = useCallback(() => {
-    if (!pendingEmail?.classification?.actionRequired) return
-    const action = pendingEmail.classification.actionRequired
-    const subject = decodeEmailSubject(pendingEmail.message.subject ?? '')
-    const sender = pendingEmail.message.sender ?? ''
-    // Send as user message with context
-    const msg = `${action} (re: "${subject}" from ${sender})`
-    window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: msg }))
-    // Dismiss the drawer after sending
-    setSessionDismissedIds(prev => new Set(prev).add(pendingEmail.message.emailUid))
-    setIsAnimatingOut(true)
-    setIsExpanded(false)
-    setTimeout(() => {
-      setIsVisible(false)
-      setIsAnimatingOut(false)
-    }, 300)
-  }, [pendingEmail])
 
   // Resize drag handler — user drags the top-left corner to grow/shrink the drawer
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -571,18 +554,13 @@ const EmailNotificationDrawer = ({
               </div>
             </div>
 
-            {/* Recommended action button — sends action as chat message */}
-            {actionRequired && (
+            {/* Take Action button — sends email context as chat message */}
+            {pendingEmail && (
               <div className="px-4 pb-1">
-                <button
-                  onClick={handleActionRequired}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 hover:border-amber-300 text-xs font-medium font-InterTight transition-colors cursor-pointer text-left"
-                >
-                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  <span className="truncate">{actionRequired}</span>
-                </button>
+                <TakeActionButton
+                  email={pendingEmail}
+                  label={actionRequired ?? 'Take Action'}
+                />
               </div>
             )}
 
