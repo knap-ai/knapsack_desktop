@@ -364,6 +364,40 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     setIsEditing(!thread.recorded)
   }, [recordingHandlers.hasSynthesized])
 
+  // Auto-generate title for ad hoc / untitled meetings after notes are synthesized
+  useEffect(() => {
+    if (!isTitleSet && recordingHandlers.hasSynthesized(thread.id) && notesMarkdown) {
+      // Extract title from the generated notes:
+      // 1. First markdown heading (# Title)
+      // 2. First non-empty line
+      // 3. First ~60 chars of content
+      let autoTitle = ''
+      const lines = notesMarkdown.split('\n').filter(l => l.trim())
+      for (const line of lines) {
+        const headingMatch = line.match(/^#{1,3}\s+(.+)/)
+        if (headingMatch) {
+          autoTitle = headingMatch[1].trim()
+          break
+        }
+      }
+      if (!autoTitle && lines.length > 0) {
+        // Use the first meaningful line, stripped of markdown formatting
+        autoTitle = lines[0]
+          .replace(/^[#*\->\s]+/, '')
+          .replace(/\*\*/g, '')
+          .trim()
+      }
+      if (autoTitle) {
+        // Cap at 60 chars
+        if (autoTitle.length > 60) {
+          autoTitle = autoTitle.substring(0, 57) + '...'
+        }
+        feed.renameMeeting(thread.id, autoTitle, feedItemId)
+        setIsTitleSet(true)
+      }
+    }
+  }, [recordingHandlers.hasSynthesized(thread.id), notesMarkdown, isTitleSet])
+
   const getRunParamObject = () => {
     if (runParam) {
       try {
@@ -437,8 +471,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         getEventUrl(meeting),
         isStart,
       )
-    } catch (err) {
-      handleErrorContact("Couldn't start recording")
+    } catch (err: any) {
+      const message = err?.message?.includes('permission') || err?.message?.includes('Permission')
+        ? 'Recording requires audio permissions. Please grant access in System Settings > Privacy & Security, then try again.'
+        : "Couldn't start recording. Check that your microphone is available and try again."
+      handleErrorContact(message)
     }
   }
 
@@ -458,7 +495,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     const saveTranscript = await shouldSaveTranscript()
 
     try {
-      recordingHandlers.stopRecording(
+      await recordingHandlers.stopRecording(
         fetchNotes,
         setFeedIsRecording,
         synthesizeContent,
@@ -471,7 +508,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         eventId,
       )
     } catch (err) {
-      handleErrorContact("Couldn't stop recording")
+      handleErrorContact("Couldn't stop recording. Please try again.")
     }
   }
 
@@ -479,17 +516,31 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     return recordingHandlers.isLoadingNotes(thread.id) || isLLMLoading
   }, [recordingHandlers, thread.id, isLLMLoading])
 
+  const [synthTimedOut, setSynthTimedOut] = useState(false)
+
   useEffect(() => {
-    if (isSynthesizing()) {
+    if (isSynthesizing() && !synthTimedOut) {
       const timer = setInterval(() => {
         setTranscribingTextIndex(prevIndex => (prevIndex + 1) % transcribingTexts.length)
       }, 1600)
 
-      return () => clearInterval(timer)
+      // Safety timeout: if synthesizing takes more than 3 minutes, stop the spinner
+      const timeout = setTimeout(() => {
+        setSynthTimedOut(true)
+        handleErrorContact('Note generation is taking longer than expected. Your recording was saved — you can regenerate notes from the template menu.')
+      }, 3 * 60 * 1000)
+
+      return () => {
+        clearInterval(timer)
+        clearTimeout(timeout)
+      }
     } else {
       setTranscribingTextIndex(0)
+      if (!isSynthesizing()) {
+        setSynthTimedOut(false)
+      }
     }
-  }, [isSynthesizing])
+  }, [isSynthesizing, synthTimedOut])
 
   if (!editor || isInitialLoading) return null
 
@@ -544,14 +595,14 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   return (
     <div>
       <div className="TightShadow w-full max-w-[45rem] mx-auto flex flex-col gap-y-4 rounded-[10px] bg-white relative p-4 mb-2">
-        <div className="w-full flex-col justify-start items-start gap-4 inline-flex">
-          <div className={'flex-row self-stretch justify-between items-center inline-flex'}>
-            <div className="mr-auto mb-4 justify-start items-start inline-flex">
-              <div className="text-zinc-800 text-xl font-Lora font-bold leading-6">
+        <div className="w-full flex flex-col gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-zinc-800 text-xl font-Lora font-bold leading-7">
                 {thread.subtitle}
               </div>
             </div>
-            <div className={' my-auto'}>
+            <div className="flex-shrink-0">
               {!thread.recorded && (
                 <RecordControlPanel
                   onClickJoin={() => handleRecordClick(true)}
@@ -564,9 +615,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
                   isPaused={recordingHandlers.isPaused}
                 />
               )}
-              {isSynthesizing() && (
+              {isSynthesizing() && !synthTimedOut && (
                 <div className="inline-flex justify-center items-center">
-                  <div className="text-right text-stone-500 text-sm font-normal font-Inter leading-tight w-72">
+                  <div className="text-right text-stone-500 text-sm font-normal font-Inter leading-tight max-w-[18rem]">
                     <TransitionGroup className="relative overflow-hidden whitespace-nowrap h-6">
                       <CSSTransition
                         key={transcribingTextIndex}

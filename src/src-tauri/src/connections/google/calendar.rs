@@ -230,7 +230,7 @@ pub async fn fetch_calendar(
       false,
     )
     .await;
-    UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), two_weeks_ago);
+    UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), chrono::Utc::now());
     let window = app_handle.get_window(WINDOW_LABEL).unwrap();
     window.emit(
       "finish_fetch_calendar",
