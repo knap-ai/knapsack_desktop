@@ -1,4 +1,5 @@
 import React, { Fragment, useState, useEffect, useMemo } from 'react'
+import { invoke } from '@tauri-apps/api/tauri'
 
 import './style.scss'
 
@@ -188,37 +189,35 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
   }
 
   useEffect(() => {
-    const checkMicrophonePermission = async () => {
-      try {
-        if (navigator.permissions) {
-          const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName })
-          const hasPermission = permissionStatus.state === 'granted'
-          setMicPermission(hasPermission)
-          return hasPermission
-        } else {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-            stream.getTracks().forEach(track => track.stop())
-            setMicPermission(true)
-            return true
-          } catch (error) {
-            logError(new Error('Mic permission denied'), {
-              additionalInfo: '',
-              error: error instanceof Error ? error.message : String(error),
-            })
-            setMicPermission(false)
-            return false
-          }
-        }
-      } catch (error) {
-        setMicPermission(false)
-        return false
-      }
-    }
-
     const checkPermissions = async () => {
       try {
-        await checkMicrophonePermission()
+        // Use the real OS permission check (same as AudioPermissionChecker)
+        // instead of only checking microphone via navigator.permissions.
+        // This ensures both mic and system audio states are accurate.
+        const permissions = await invoke<{
+          microphone: boolean
+          screen_recording: boolean
+          all_granted: boolean
+        }>('check_audio_permissions')
+
+        setMicPermission(permissions.microphone)
+        setScreenPermission(permissions.screen_recording)
+
+        if (permissions.microphone) {
+          localStorage.setItem('micPermissionGranted', 'true')
+        } else {
+          localStorage.removeItem('micPermissionGranted')
+        }
+        if (permissions.screen_recording) {
+          localStorage.setItem('screenPermissionGranted', 'true')
+        } else {
+          localStorage.removeItem('screenPermissionGranted')
+        }
+
+        if (permissions.all_granted) {
+          localStorage.setItem('permissionsDismissed', 'true')
+          setPermissionsDismissed(true)
+        }
       } catch (error) {
         logError(new Error('Error checking permissions.'), {
           additionalInfo: '',

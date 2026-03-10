@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { invoke } from '@tauri-apps/api/tauri'
 
 import { FeedItem } from 'src/api/feed_items'
 import { IThread, ThreadType } from 'src/api/threads'
@@ -74,6 +75,41 @@ const MeetingsTabView = ({
   const [tasksState, setTasksState] = useState<TasksState>({ isOpen: false, tasks: [] })
 
   const onSynthesisFinish = () => setSynthesisState(prev => !prev)
+
+  // Check real OS permissions on mount instead of relying solely on localStorage
+  useEffect(() => {
+    const checkPermissions = async () => {
+      try {
+        const permissions = await invoke<{
+          microphone: boolean
+          screen_recording: boolean
+          all_granted: boolean
+        }>('check_audio_permissions')
+
+        setMicPermission(permissions.microphone)
+        setScreenPermission(permissions.screen_recording)
+
+        if (permissions.microphone) {
+          localStorage.setItem('micPermissionGranted', 'true')
+        } else {
+          localStorage.removeItem('micPermissionGranted')
+        }
+        if (permissions.screen_recording) {
+          localStorage.setItem('screenPermissionGranted', 'true')
+        } else {
+          localStorage.removeItem('screenPermissionGranted')
+        }
+
+        if (permissions.all_granted) {
+          localStorage.setItem('permissionsDismissed', 'true')
+          setPermissionsDismissed(true)
+        }
+      } catch {
+        // Fall back to localStorage values (already set in initial state)
+      }
+    }
+    checkPermissions()
+  }, [])
 
   // Check if any meeting is currently recording
   const isAnyRecording = useMemo(() => {

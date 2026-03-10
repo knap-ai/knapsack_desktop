@@ -79,13 +79,30 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
   const requestSystemAudioAccess = async () => {
     setIsCheckingSystemAudio(true);
     try {
+      let settingsResult: { success: boolean; already_granted?: boolean } | undefined;
       try {
-        await invoke<{ success: boolean }>('open_screen_recording_settings');
+        settingsResult = await invoke<{ success: boolean; already_granted?: boolean }>('open_screen_recording_settings');
       } catch (error) {
         logError(new Error('Failed to open System audio settings'), {
           additionalInfo: '',
           error: error instanceof Error ? error.message : String(error),
         })
+      }
+
+      // If the tap probe in open_screen_recording_settings already confirmed
+      // permission is granted, update state immediately without waiting.
+      if (settingsResult?.already_granted) {
+        setSystemAudioPermission(true);
+        localStorage.setItem('screenPermissionGranted', 'true');
+        const permissions = await checkRealPermissions();
+        setMicPermission(permissions.microphone);
+        if (permissions.microphone) {
+          localStorage.setItem('micPermissionGranted', 'true');
+        }
+        if (permissions.all_granted) {
+          onBothPermissionsGranted();
+        }
+        return;
       }
 
       // Wait a moment for the user to interact with System Settings
@@ -276,7 +293,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
           </div>
           {(!micPermission || !systemAudioPermission) && (
             <p className="text-xs text-ks-warm-grey-500 mt-6 max-w-[400px] mx-auto text-center leading-5">
-              Already enabled in System Settings? You may need to quit and reopen Knapsack for the change to take effect.
+              Already enabled in System Settings? This screen will update automatically once access is detected. If it doesn't, try quitting and reopening Knapsack.
             </p>
           )}
         </div>
