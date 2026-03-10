@@ -6,6 +6,16 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
     {
         use std::process::Command;
 
+        // First, attempt a process tap probe. On macOS 14.4+/15+, this triggers
+        // the system to register Knapsack in the "System Audio Recording" list
+        // in System Settings, so the user doesn't have to manually find and add it.
+        // This may also trigger an OS permission prompt dialog automatically.
+        let already_granted = check_system_audio_via_tap_probe();
+        if already_granted {
+            log::info!("System audio permission already granted (tap probe succeeded)");
+            return Ok(json!({ "success": true, "already_granted": true }));
+        }
+
         // Open "System Audio Recording Only" pane in System Settings (macOS 14.4+)
         // Falls back to the older Screen Capture pane on older macOS versions
         let result = Command::new("open")
@@ -103,7 +113,18 @@ return status as integer"#,
 /// (like Granola, ChatGPT, krisp, Limitless) instead of full screen recording.
 #[cfg(target_os = "macos")]
 fn check_system_audio_permission_macos() -> bool {
-    // Strategy 1: Check the TCC database for kTCCServiceAudioCapture
+    // Strategy 1 (most reliable): Try to actually create a Core Audio process tap.
+    // This exercises the exact permission (kTCCServiceAudioCapture) that the
+    // recording code needs and works regardless of SIP or TCC database access.
+    // On macOS Sonoma/Sequoia, SIP protects the TCC database from direct sqlite3
+    // access, making database checks unreliable. The tap probe is authoritative.
+    if check_system_audio_via_tap_probe() {
+        return true;
+    }
+
+    // Strategy 2 (fallback): Check the TCC database for kTCCServiceAudioCapture.
+    // This may fail on newer macOS versions where SIP protects the database,
+    // but is kept as a fallback for older systems.
     {
         use std::process::Command;
         let bundle_id = Command::new("osascript")
@@ -129,6 +150,10 @@ fn check_system_audio_permission_macos() -> bool {
             .output()
         {
             let val = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if !stderr.is_empty() {
+                log::warn!("TCC database query for kTCCServiceAudioCapture returned stderr: {}", stderr);
+            }
             // auth_value 2 = authorized
             if val == "2" {
                 log::info!("TCC database confirms system audio recording permission granted (kTCCServiceAudioCapture)");
@@ -155,15 +180,6 @@ fn check_system_audio_permission_macos() -> bool {
                 return true;
             }
         }
-    }
-
-    // Strategy 2: Try to actually create a Core Audio process tap.
-    // This is the most reliable check because it exercises the exact permission
-    // (kTCCServiceAudioCapture) that the recording code needs.
-    // The TCC database check above can fail on macOS Sonoma/Sequoia where
-    // SIP protects the database from direct sqlite3 access.
-    if check_system_audio_via_tap_probe() {
-        return true;
     }
 
     false
