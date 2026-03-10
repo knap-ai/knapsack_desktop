@@ -491,6 +491,39 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   }
 }
 
+/// Startup readiness endpoint: waits for gateway to become healthy with
+/// exponential backoff, up to 30 seconds. Returns immediately if already healthy.
+/// The frontend should call this once on app launch before making API calls.
+#[get("/api/clawd/service/startup-ready")]
+pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  use crate::clawd::gateway_supervisor;
+
+  let tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(ServiceHealthResponse {
+        success: false,
+        gateway_ok: false,
+        browser_ok: false,
+        message: format!("Could not load tokens: {}", e),
+      })
+    }
+  };
+
+  let ready = gateway_supervisor::wait_for_gateway_ready(&tokens.gateway_token, 30_000).await;
+
+  HttpResponse::Ok().json(ServiceHealthResponse {
+    success: ready,
+    gateway_ok: ready,
+    browser_ok: false, // Not checked during startup — browser takes longer
+    message: if ready {
+      "Gateway is ready".to_string()
+    } else {
+      "Gateway did not become ready within 30s".to_string()
+    },
+  })
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ServiceLogsParams {
   /// stdout | stderr
@@ -1745,17 +1778,33 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // On Linux, Chrome/Chromium requires --no-sandbox when running
-            // headless (no display server).  Set browser.noSandbox = true.
-            let no_sandbox = cfg
-              .pointer("/browser/noSandbox")
+            // Suppress the "Chrome is being controlled by automated test software"
+            // infobar on first launch by setting browser.hideAutomationBanner.
+            let hide_banner = cfg
+              .pointer("/browser/hideAutomationBanner")
               .and_then(|v| v.as_bool())
               .unwrap_or(false);
-            if !no_sandbox {
+            if !hide_banner {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("noSandbox".to_string(), serde_json::json!(true));
-              eprintln!("[clawd/service] Patched browser.noSandbox to true");
+                .insert("hideAutomationBanner".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched browser.hideAutomationBanner to true");
               patched = true;
+            }
+
+            // On Linux, Chrome/Chromium requires --no-sandbox when running
+            // headless (no display server).  Set browser.noSandbox = true.
+            // On macOS this is unnecessary and causes a visible warning bar.
+            if cfg!(target_os = "linux") {
+              let no_sandbox = cfg
+                .pointer("/browser/noSandbox")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+              if !no_sandbox {
+                cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+                  .insert("noSandbox".to_string(), serde_json::json!(true));
+                eprintln!("[clawd/service] Patched browser.noSandbox to true (Linux)");
+                patched = true;
+              }
             }
 
             // ── Ensure browser tool is allowed in NORMAL mode (webchat/desktop) ──
@@ -2177,6 +2226,10 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
         // Note: only OPENCLAW_BUNDLED_PLUGINS_DIR is recognized in 2026.2+ (no CLAWDBOT_ fallback).
         ("OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
+        // Suppress the repetitive "Config was last written by a newer OpenClaw" warning.
+        // The gateway logs this on every config read; setting this env var tells it to
+        // log the warning only once on startup instead of on every read cycle.
+        ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
       ];
 
       // Propagate LLM keys to clawdbot subprocess AND to the current Tauri process

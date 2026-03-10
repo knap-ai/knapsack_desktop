@@ -2377,8 +2377,15 @@ pub async fn chat(
 
       match result {
         Ok(Ok((exit_code, stdout))) => {
-          let truncated = if stdout.len() > 50000 {
-            format!("{}... [truncated, {} bytes total]", &stdout[..50000], stdout.len())
+          // Keep tool result concise — full output is visible in the Activity Panel terminal.
+          // Large outputs (file contents, etc.) cause the orchestrating LLM to echo raw code
+          // back to the user in the chat, which looks terrible.
+          let max_result = 4000;
+          let truncated = if stdout.len() > max_result {
+            format!(
+              "{}...\n\n[Output truncated — {} bytes total. Full output visible in the Terminal panel.]",
+              &stdout[..max_result], stdout.len()
+            )
           } else {
             stdout
           };
@@ -3219,6 +3226,14 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
 - NEVER use them to suggest actions that you should be doing autonomously
 - Not for general information or explanations (just use plain text)
 - Not for external websites (use the actual URL only if you've verified it)
+
+## Content Display: INLINE, Not Files
+When the user asks you to create a brief, summary, draft, template, plan, prep doc, or any written content, **display it directly in the chat as formatted Markdown** — do NOT save it to a .md file. Users want to read content immediately without navigating to files.
+
+- **DO**: Write the content inline in your response using Markdown formatting (headers, bold, bullets, etc.)
+- **DON'T**: Use `write_file` to create .md files for content the user wants to read
+- **Exception**: Only save to a file if the user explicitly asks to save/export it, or if the content is code (source files, configs, scripts)
+- After displaying content inline, you may offer a follow-up action to save it: `[Save to file](knapsack://prompt/Save the brief above to a file in my workspace)`
 
 ## Code Blocks
 When suggesting shell commands, scripts, or code snippets that the user might want to run, **always use fenced code blocks** (triple backticks) with a language tag. NEVER use inline code for runnable commands. The chat UI adds Copy and Run in Terminal buttons to fenced code blocks.

@@ -557,6 +557,14 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 // The smart prompts that auto-execute
 const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
+const BUILD_WEBSITE_PROMPT = `Build a personal website about me. First, ask me a few quick questions about myself (name, what I do, interests, and preferred style). Then:
+1. Enable advanced node/exec tools if not already enabled
+2. Check which tools and API keys are available (Claude, OpenAI, etc.) and use them
+3. Create a beautiful, responsive single-page website about me using HTML, CSS, and JavaScript
+4. Save it to my Desktop as "my-website/index.html"
+5. Open it in the browser so I can see it
+
+Make it look professional with a modern design, smooth animations, and sections for: hero/intro, about me, skills/interests, and a contact section.`
 
 // Slash commands that trigger Tauri events instead of hitting the LLM
 const SLASH_COMMANDS: Record<string, string> = {
@@ -1144,6 +1152,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         promptActions: [
           { label: 'Check my email & calendar to get started', prompt: SMART_PROMPT },
           { label: 'Check the latest AI news', prompt: NO_AUTH_PROMPT },
+          { label: 'Build a website about me', prompt: BUILD_WEBSITE_PROMPT },
         ],
       },
     ],
@@ -2056,19 +2065,27 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (!s.running) {
           // Service is not running — start it
           await apiPost('/api/clawd/service/enable', { enabled: true })
-          // Wait for service to start (browser Chrome process needs extra time)
-          await new Promise(resolve => setTimeout(resolve, 4000))
+          // Wait for gateway to become healthy (with exponential backoff on backend).
+          // The startup-ready endpoint polls until the gateway responds or 30s elapses.
+          try {
+            await fetch('http://localhost:8897/api/clawd/service/startup-ready')
+          } catch {
+            // Backend might not be reachable yet — fall back to a short delay
+            await new Promise(resolve => setTimeout(resolve, 4000))
+          }
         }
 
         // Refresh status after enabling
         await refreshStatus()
 
         // Poll for gateway/browser health — update the status indicators.
-        // No auto-recovery: the LaunchAgent has KeepAlive=true so macOS
-        // restarts clawdbot automatically if it crashes. Frontend-driven
-        // cycling (disable+enable) was causing a SIGTERM restart loop.
+        // The LaunchAgent has KeepAlive=true so macOS restarts clawdbot
+        // automatically if it crashes.  We detect disconnect within 5s and
+        // show "Reconnecting..." while the gateway comes back.
         let gatewayAttempts = 0
         const maxFastAttempts = 20
+        let wasHealthy = false
+        let consecutiveDownPolls = 0
         let lastHealthJson = ''
         let lastStatusJson = ''
         const pollGateway = async () => {
@@ -2089,18 +2106,35 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             }
 
             const isHealthy = h.gateway_ok && h.browser_ok
-            if (!isHealthy && gatewayAttempts < maxFastAttempts) {
-              // Gateway or browser not ready yet, retry quickly
+
+            if (isHealthy) {
+              wasHealthy = true
+              consecutiveDownPolls = 0
+              // Healthy — slow poll every 5s to detect disconnect quickly
+              setTimeout(pollGateway, 5000)
+            } else if (!isHealthy && wasHealthy) {
+              // Was previously healthy but now down — gateway crashed.
+              // Poll fast to detect recovery quickly (reconnect within 5s).
+              consecutiveDownPolls++
+              // After 3 consecutive down polls (~15s), try to trigger a restart
+              // via the startup-ready endpoint which calls ensure_gateway_running.
+              if (consecutiveDownPolls === 3) {
+                fetch('http://localhost:8897/api/clawd/service/startup-ready').catch(() => {})
+              }
+              setTimeout(pollGateway, 2000)
+            } else if (!isHealthy && gatewayAttempts < maxFastAttempts) {
+              // Initial startup — fast poll
               setTimeout(pollGateway, 1500)
             } else {
-              // Connected or gave up fast polling - continue slow polling every 15s
-              setTimeout(pollGateway, 15000)
+              // Slow poll fallback
+              setTimeout(pollGateway, 10000)
             }
           } catch {
+            consecutiveDownPolls++
             if (gatewayAttempts < maxFastAttempts) {
               setTimeout(pollGateway, 1500)
             } else {
-              setTimeout(pollGateway, 15000)
+              setTimeout(pollGateway, 5000)
             }
           }
         }
@@ -3094,20 +3128,21 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       )
     }
     if (health) {
+      const gwStarting = channelStatus.gatewayStarting
       parts.push(
-        <span key="gw" className={health.gateway_ok ? 'status-ok' : 'status-down'}>
-          {health.gateway_ok ? 'Gateway: OK' : 'Gateway: down'}
+        <span key="gw" className={health.gateway_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}>
+          {health.gateway_ok ? 'Gateway: OK' : gwStarting ? 'Gateway: starting...' : 'Gateway: reconnecting...'}
         </span>,
       )
       parts.push(
-        <span key="br" className={health.browser_ok ? 'status-ok' : 'status-down'}>
-          {health.browser_ok ? 'Browser: OK' : 'Browser: down'}
+        <span key="br" className={health.browser_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}>
+          {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : 'Browser: reconnecting...'}
         </span>,
       )
     } else if (status?.running) {
       // Health not loaded yet but service is running — show checking state
-      parts.push(<span key="gw" className="status-warn">Gateway: checking...</span>)
-      parts.push(<span key="br" className="status-warn">Browser: checking...</span>)
+      parts.push(<span key="gw" className="status-warn">Gateway: starting...</span>)
+      parts.push(<span key="br" className="status-warn">Browser: starting...</span>)
     }
     if (currentTargetId) parts.push(<span key="tab">Tab: {currentTargetId.slice(0, 12)}...</span>)
     return parts.reduce<ReactNode[]>((acc, part, i) => {
@@ -3407,7 +3442,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <div className="ClawdBubble">
               <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
             </div>
-            <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''} — will send when done</span>
+            <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''}</span>
           </div>
         ))}
         {claudeCodeActive && (

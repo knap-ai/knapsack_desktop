@@ -86,10 +86,19 @@ function OverlayPanel() {
     return () => { unlistenFocus.then(unlisten => unlisten()) }
   }, [])
 
-  // Hide overlay on window blur
+  // Hide overlay on window blur — but only when idle (no active query).
+  // When a response is loading or displayed, keep the overlay visible so it
+  // doesn't disappear behind browser windows the agent opens.
+  const hasResponseRef = useRef(false)
+  const isLoadingRef = useRef(false)
+  useEffect(() => { hasResponseRef.current = hasResponse }, [hasResponse])
+  useEffect(() => { isLoadingRef.current = isLoading }, [isLoading])
+
   useEffect(() => {
     const unlistenBlur = listen('tauri://blur', () => {
-      setTimeout(() => { invoke('hide_overlay_window') }, 100)
+      if (!hasResponseRef.current && !isLoadingRef.current) {
+        setTimeout(() => { invoke('hide_overlay_window') }, 100)
+      }
     })
     return () => { unlistenBlur.then(unlisten => unlisten()) }
   }, [])

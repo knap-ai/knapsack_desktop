@@ -458,7 +458,22 @@ pub async fn groq_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
-  openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", messages, tools).await
+  // Groq requires content to be a plain string — strip image attachments and
+  // mention them as text so the conversation still makes sense.
+  let sanitized: Vec<OaiMessage> = messages.into_iter().map(|msg| {
+    match msg {
+      OaiMessage::User { content, images } if !images.is_empty() => {
+        let image_note = format!(
+          "{}\n\n[{} image(s) attached — this model does not support vision, so the image(s) cannot be displayed]",
+          content,
+          images.len()
+        );
+        OaiMessage::User { content: image_note, images: vec![] }
+      }
+      other => other,
+    }
+  }).collect();
+  openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", sanitized, tools).await
 }
 
 pub async fn openai_compatible_chat(

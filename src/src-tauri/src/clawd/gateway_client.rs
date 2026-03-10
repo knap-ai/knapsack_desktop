@@ -352,12 +352,15 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   }
 
   // browser.noSandbox = true  (needed on Linux for Chrome without a display server)
-  let no_sandbox = cfg.pointer("/browser/noSandbox").and_then(|v| v.as_bool()).unwrap_or(false);
-  if !no_sandbox {
-    cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-      .insert("noSandbox".into(), serde_json::json!(true));
-    eprintln!("[gateway_client] Patched browser.noSandbox to true");
-    patched = true;
+  // On macOS this is unnecessary and causes a visible warning bar in Chrome.
+  if cfg!(target_os = "linux") {
+    let no_sandbox = cfg.pointer("/browser/noSandbox").and_then(|v| v.as_bool()).unwrap_or(false);
+    if !no_sandbox {
+      cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+        .insert("noSandbox".into(), serde_json::json!(true));
+      eprintln!("[gateway_client] Patched browser.noSandbox to true (Linux)");
+      patched = true;
+    }
   }
 
   // ── Ensure browser tool is allowed in NORMAL mode (webchat/desktop) ────
@@ -669,12 +672,13 @@ async fn apply_runtime_browser_config(token: &str) {
   // Send config.patch with browser + tools settings.
   // This must include tools.deny (without browser) and tools.allow (with browser)
   // because the gateway's internal defaults DENY browser.
+  let no_sandbox = cfg!(target_os = "linux");
   let raw_patch = serde_json::json!({
     "browser": {
       "enabled": true,
       "headless": false,
       "defaultProfile": "openclaw",
-      "noSandbox": true
+      "noSandbox": no_sandbox
     },
     "tools": {
       "deny": ["canvas", "nodes", "cron", "gateway"],

@@ -240,6 +240,8 @@ export const EMAIL_CLASSIFICATION_PROMPT = `You are an expert email analyst who 
 
 CRITICAL: Pay attention to who SENT each email. If the user ({userEmail}) is the SENDER (the "From" address matches the user's email), that email does NOT need a response — the user already wrote it. Only emails FROM other people TO the user can be IMPORTANT_NEEDS_RESPONSE.
 
+CRITICAL: In ALL summary fields, always refer to the user in the second person ("you/your"). NEVER use the user's name — always say "you" instead. The user's email is {userEmail}; any name associated with that email must be replaced with "you/your" in summaries.
+
 For each email, analyze the following elements:
 - Whether the user sent this email or received it (check the From field against {userEmail})
 - Sender identity and legitimacy
@@ -305,6 +307,7 @@ Rules for classification:
 
 Rules for "summary" field:
   * Use exactly 2 SHORT sentences returned as an array of strings.
+  * CRITICAL: Always use second person ("you/your") when referring to the user ({userEmail}). NEVER refer to the user by name — say "you" instead. For example, instead of "Mark's email discusses proposals" write "You received an email discussing proposals". Instead of "John forwarded the announcement to Mark" write "John forwarded the announcement to you".
   * The first sentence should summarize WHO is asking and WHAT they want — lead with the specific ask, request, or call to action. Examples: "Sarah needs your sign-off on the Q4 budget by Friday.", "Tom is proposing a partnership call next week and wants your availability."
   * The second sentence should provide the key context or detail that helps decide how to respond — e.g. numbers, deadlines, stakes, or what's at risk.
   * Don't include HTML.
@@ -324,7 +327,7 @@ isStarred: true
     {
       "documentId": 894,
       "classification": "IMPORTANT_NEEDS_RESPONSE",
-      "summary": ["Mark Heynen's email discusses proposals for deepening the relationship between WTS and Knapsack, including a referral incentive and content engagement.", "The referral incentive is $10,000 for 100 clients within the next month."],
+      "summary": ["Your boss is requesting you review the attached Q4 report draft and provide feedback before the board presentation.", "The deadline is EOD Friday since the report goes to the board on Monday morning."],
       "justification": "Time-sensitive request from supervisor regarding critical Q4 report requiring review and feedback for board presentation.",
       "response_deadline": "EOD Friday",
       "confidence_score": 0.95,

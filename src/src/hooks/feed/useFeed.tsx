@@ -1507,25 +1507,38 @@ export function useFeed(
           return { ...prevState }
         })
 
+        setSelectedFeedItem(feedItem)
+        setSubTab(SubTabChoices.Workspace)
+
         const eventId = feedItem.run?.runParams
           ? (JSON.parse(feedItem.run.runParams as string).event_id ?? 0)
           : 0
         const saveTranscript = await shouldSaveTranscript()
 
-        await startRecord(thread.id, feedItem.id, eventId, saveTranscript)
-        setIsRecording(feedItem)
-        setSelectedFeedItem(feedItem)
-        setSubTab(SubTabChoices.Workspace)
+        try {
+          await startRecord(thread.id, feedItem.id, eventId, saveTranscript)
+          setIsRecording(feedItem)
+        } catch (recordErr: any) {
+          // Recording failed (permissions, no audio device, etc.) but the meeting
+          // was still created — user can type notes manually.
+          logError(new Error('Failed to start recording for ad-hoc meeting'), {
+            additionalInfo: recordErr.message || String(recordErr),
+            error: recordErr.message || String(recordErr),
+          })
+          handleErrorContact(
+            'Could not start recording. Check audio permissions in System Settings and try again. You can still type notes manually.',
+          )
+        }
+
         return { threadId: thread.id, feedItemId: feedItem.id }
       }
     } catch (error) {
-      if (error instanceof HttpError) {
-        logError(new Error('insertFeedItemAPI or createThread failed'), {
-          additionalInfo: 'Error occurred while creating new meeting.',
-          error: error.message,
-        })
-        handleErrorContact('Error creating new meeting, please try again later.')
-      }
+      const errMsg = error instanceof Error ? error.message : String(error)
+      logError(new Error('insertFeedItemAPI or createThread failed'), {
+        additionalInfo: 'Error occurred while creating new meeting.',
+        error: errMsg,
+      })
+      handleErrorContact('Error creating new meeting, please try again later.')
       throw error
     }
   }

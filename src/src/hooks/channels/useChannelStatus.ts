@@ -42,15 +42,29 @@ export interface ChannelStates {
   healthChecking: boolean
   /** Result of the last gateway health check. */
   gatewayHealthy: boolean | null
+  /** True during initial gateway startup — UI should show "Starting..." not error states. */
+  gatewayStarting: boolean
+}
+
+/** Interval for polling unconfigured channels (30s instead of active interval). */
+const UNCONFIGURED_POLL_INTERVAL = 30_000
+
+/** Returns true if a channel status indicates it has been configured/enabled by the user. */
+function isChannelConfigured(status: ChannelStatus | null): boolean {
+  if (!status) return false
+  return !!(status.linked || status.configured || status.enabled)
 }
 
 /**
  * Hook that polls WhatsApp, iMessage, and Telegram channel status from the backend.
  *
+ * Only polls individual channel status for channels that have been configured.
+ * Unconfigured channels are checked at a slower rate (30s) to detect new configs.
+ *
  * @param enabled  Pass `false` to suppress polling (e.g. when the dialog is closed).
- * @param intervalMs  Polling interval in ms (default 10 s).
+ * @param intervalMs  Polling interval in ms (default 15 s).
  */
-export function useChannelStatus(enabled = true, intervalMs = 10_000) {
+export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   const [whatsapp, setWhatsapp] = useState<ChannelStatus | null>(null)
   const [imessage, setImessage] = useState<ChannelStatus | null>(null)
   const [telegram, setTelegram] = useState<ChannelStatus | null>(null)
@@ -64,6 +78,8 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   const [whatsappLinking, setWhatsappLinking] = useState(false)
   const [healthChecking, setHealthChecking] = useState(false)
   const [gatewayHealthy, setGatewayHealthy] = useState<boolean | null>(null)
+  /** True while the gateway is initializing on first launch. */
+  const [gatewayStarting, setGatewayStarting] = useState(true)
 
   // Track whether a QR wait is already in flight so we don't double-fire.
   const qrWaitActiveRef = useRef(false)
@@ -76,6 +92,12 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
   // actually changes.  This prevents the parent component (ClawdChat) from
   // re-rendering on every poll cycle, which was causing typing input lag.
   const prevJsonRef = useRef<Record<string, string>>({})
+
+  // Track the last time we did a full poll (including unconfigured channels)
+  const lastFullPollRef = useRef(0)
+
+  // Track consecutive gateway-down polls for reconnect detection (Fix 5)
+  const gwDownCountRef = useRef(0)
 
   const refresh = useCallback(async () => {
     // Only show loading indicator on the very first fetch, not background polls.
@@ -101,17 +123,43 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
       }
 
       if (!gwOk) {
+        gwDownCountRef.current++
         if (isFirstLoad) setLoading(false)
         prevJsonRef.current._initialized = 'true'
+        // Keep gatewayStarting true on first load so UI shows "Starting..." not "DOWN"
         return
       }
 
-      const [wa, im, tg, ...genericResults] = await Promise.all([
-        getWhatsAppStatus().catch(() => null),
-        getIMessageStatus().catch(() => null),
-        getTelegramStatus().catch(() => null),
-        ...GENERIC_CHANNELS.map(ch => getGenericChannelStatus(ch).catch(() => null)),
-      ])
+      // Gateway is up — reset down counter and clear starting state
+      gwDownCountRef.current = 0
+      setGatewayStarting(false)
+
+      // Determine which channels need polling this cycle.
+      // Configured channels: poll every cycle. Unconfigured: poll every 30s.
+      const now = Date.now()
+      const doFullPoll = isFirstLoad || (now - lastFullPollRef.current >= UNCONFIGURED_POLL_INTERVAL)
+      if (doFullPoll) lastFullPollRef.current = now
+
+      // Build promise array — only poll configured channels on fast path
+      const waConfigured = isChannelConfigured(whatsapp)
+      const imConfigured = isChannelConfigured(imessage)
+      const tgConfigured = isChannelConfigured(telegram)
+
+      const promises: Promise<ChannelStatus | null>[] = [
+        (waConfigured || doFullPoll) ? getWhatsAppStatus().catch(() => null) : Promise.resolve(whatsapp),
+        (imConfigured || doFullPoll) ? getIMessageStatus().catch(() => null) : Promise.resolve(imessage),
+        (tgConfigured || doFullPoll) ? getTelegramStatus().catch(() => null) : Promise.resolve(telegram),
+      ]
+
+      // Generic channels: only poll configured ones (or all on full poll)
+      const genericPromises = GENERIC_CHANNELS.map(ch => {
+        const configured = isChannelConfigured(genericChannels[ch])
+        return (configured || doFullPoll)
+          ? getGenericChannelStatus(ch).catch(() => null)
+          : Promise.resolve(genericChannels[ch])
+      })
+
+      const [wa, im, tg, ...genericResults] = await Promise.all([...promises, ...genericPromises])
 
       // Only update state when data actually changed (compare JSON snapshots).
       // This avoids re-rendering the parent on every poll when nothing changed.
@@ -142,15 +190,21 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
         setGenericChannels(newGeneric as Record<GenericChannelName, ChannelStatus | null>)
       }
 
-      // Surface gateway-level errors per channel
+      // Surface gateway-level errors per channel — but suppress errors during
+      // first launch when no channels are configured (first-run experience).
+      const anyConfigured = waConfigured || imConfigured || tgConfigured ||
+        GENERIC_CHANNELS.some(ch => isChannelConfigured(genericChannels[ch]))
+
       const newErrors: Record<string, string | null> = {}
-      newErrors.whatsapp = (wa && !wa.success && wa.message) ? wa.message : null
-      newErrors.imessage = (im && !im.success && im.message) ? im.message : null
-      newErrors.telegram = (tg && !tg.success && tg.message) ? tg.message : null
-      GENERIC_CHANNELS.forEach((ch, i) => {
-        const status = genericResults[i]
-        newErrors[ch] = (status && !status.success && status.message) ? status.message : null
-      })
+      if (anyConfigured) {
+        newErrors.whatsapp = (wa && !wa.success && wa.message) ? wa.message : null
+        newErrors.imessage = (im && !im.success && im.message) ? im.message : null
+        newErrors.telegram = (tg && !tg.success && tg.message) ? tg.message : null
+        GENERIC_CHANNELS.forEach((ch, i) => {
+          const status = genericResults[i]
+          newErrors[ch] = (status && !status.success && status.message) ? status.message : null
+        })
+      }
       const errJson = JSON.stringify(newErrors)
       if (errJson !== prevJsonRef.current.err) {
         prevJsonRef.current.err = errJson
@@ -168,7 +222,7 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
       if (isFirstLoad) setLoading(false)
       prevJsonRef.current._initialized = 'true'
     }
-  }, [])
+  }, [whatsapp, imessage, telegram, genericChannels])
 
   // Always do a single initial fetch so hasAnyChannel / showChannelBanner
   // are populated on mount even when polling is disabled.
@@ -195,6 +249,7 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
       if (res.ok) {
         const data = await res.json()
         setGatewayHealthy(!!data.gateway_ok)
+        if (data.gateway_ok) setGatewayStarting(false)
       } else {
         setGatewayHealthy(false)
       }
@@ -394,6 +449,8 @@ export function useChannelStatus(enabled = true, intervalMs = 10_000) {
     whatsappLinking,
     healthChecking,
     gatewayHealthy,
+    /** True during initial gateway startup — UI should show "Starting..." not "DOWN". */
+    gatewayStarting,
     refresh,
     checkHealth,
     connectWhatsApp,

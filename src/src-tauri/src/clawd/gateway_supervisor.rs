@@ -64,6 +64,7 @@ pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
 /// Best-effort: if gateway isn't healthy, try kickstarting the LaunchAgent.
 ///
 /// This does NOT install/bootstrap the agent; it assumes the service is already enabled.
+/// Uses exponential backoff: retries up to 4 times with delays of 1s, 2s, 4s, 8s.
 pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureResponse {
   if is_gateway_healthy(token).await {
     return GatewayEnsureResponse {
@@ -73,25 +74,55 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
     };
   }
 
-  // Try kickstart (macOS)
-  let _ = kickstart_launch_agent(label);
+  // Retry with exponential backoff: 1s, 2s, 4s, 8s
+  let backoff_ms: &[u64] = &[1000, 2000, 4000, 8000];
 
-  // Give it a moment to come up
-  tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+  for (attempt, &delay) in backoff_ms.iter().enumerate() {
+    eprintln!(
+      "[gateway_supervisor] Gateway not healthy, attempt {}/{} — kickstarting and waiting {}ms",
+      attempt + 1,
+      backoff_ms.len(),
+      delay
+    );
 
-  if is_gateway_healthy(token).await {
-    GatewayEnsureResponse {
-      success: true,
-      running: true,
-      message: "Gateway restarted".to_string(),
-    }
-  } else {
-    GatewayEnsureResponse {
-      success: false,
-      running: false,
-      message: "Gateway not reachable".to_string(),
+    // Try kickstart (macOS)
+    let _ = kickstart_launch_agent(label);
+
+    tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+
+    if is_gateway_healthy(token).await {
+      return GatewayEnsureResponse {
+        success: true,
+        running: true,
+        message: format!("Gateway started after {} attempt(s)", attempt + 1),
+      };
     }
   }
+
+  eprintln!("[gateway_supervisor] Gateway failed to start after {} attempts", backoff_ms.len());
+  GatewayEnsureResponse {
+    success: false,
+    running: false,
+    message: "Gateway not reachable after multiple retries".to_string(),
+  }
+}
+
+/// Wait for the gateway to become healthy, polling with exponential backoff.
+/// Returns `true` if the gateway is ready, `false` if it didn't come up in time.
+/// Used by the frontend health-check endpoint to block until the gateway is ready.
+pub async fn wait_for_gateway_ready(token: &str, max_wait_ms: u64) -> bool {
+  let start = std::time::Instant::now();
+  let mut interval_ms: u64 = 500;
+  let max_interval_ms: u64 = 3000;
+
+  while start.elapsed().as_millis() < max_wait_ms as u128 {
+    if is_gateway_healthy(token).await {
+      return true;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(interval_ms)).await;
+    interval_ms = (interval_ms * 2).min(max_interval_ms);
+  }
+  false
 }
 
 /// Helper for locating clawdbot home (used by other modules). Kept here to avoid

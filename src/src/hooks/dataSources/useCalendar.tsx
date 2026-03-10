@@ -109,6 +109,7 @@ export const serializeCalendarEventToMeeting = (event: CalendarEvents): Meeting 
 const useCalendar = () => {
   const [meetings, setMeetings] = useState<Record<string, Meeting>>({})
   const ONE_WEEK_IN_MILLIS = 1000 * 60 * 60 * 24 * 7
+  const TWO_WEEKS_IN_MILLIS = 1000 * 60 * 60 * 24 * 16
   const ONE_DAY_IN_MILLIS = 1000 * 60 * 60 * 24 * 1
 
   const updateMeetingStatuses = useCallback((currentTime: number) => {
@@ -143,10 +144,10 @@ const useCalendar = () => {
   const getFutureMeetings = useCallback(
     () =>
       getCalendarEvents(
-        Math.floor((new Date().getTime() - ONE_DAY_IN_MILLIS) / 1000),
+        Math.floor((new Date().getTime() - TWO_WEEKS_IN_MILLIS) / 1000),
         Math.floor((new Date().getTime() + ONE_WEEK_IN_MILLIS) / 1000),
       ),
-    [ONE_DAY_IN_MILLIS, ONE_WEEK_IN_MILLIS],
+    [TWO_WEEKS_IN_MILLIS, ONE_WEEK_IN_MILLIS],
   )
 
   const syncMeetings = useCallback(async () => {

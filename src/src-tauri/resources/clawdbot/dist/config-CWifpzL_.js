@@ -5115,12 +5115,14 @@ function stampConfigVersion(cfg) {
 		}
 	};
 }
+var _configVersionWarned = false;
 function warnIfConfigFromFuture(cfg, logger) {
+	if (_configVersionWarned) return;
 	const touched = cfg.meta?.lastTouchedVersion;
 	if (!touched) return;
 	const cmp = compareOpenClawVersions(VERSION, touched);
 	if (cmp === null) return;
-	if (cmp < 0) logger.warn(`Config was last written by a newer OpenClaw (${touched}); current version is ${VERSION}.`);
+	if (cmp < 0) { _configVersionWarned = true; logger.warn(`Config was last written by a newer OpenClaw (${touched}); current version is ${VERSION}.`); }
 }
 function applyConfigEnv(cfg, env) {
 	const entries = collectConfigEnvVars(cfg);
