@@ -1,7 +1,7 @@
 {
   "name": "knapsack",
   "private": true,
-  "version": "0.9.536",
+  "version": "0.9.537",
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
