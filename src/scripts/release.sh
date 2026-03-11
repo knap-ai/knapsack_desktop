@@ -21,28 +21,28 @@ BUNDLE_DIR="$PROJECT_DIR/src-tauri/target/release/bundle"
 ARTIFACTS=()
 
 # macOS .dmg
-for f in "$BUNDLE_DIR"/dmg/*.dmg 2>/dev/null; do
+for f in "$BUNDLE_DIR"/dmg/*.dmg; do
   [ -f "$f" ] && ARTIFACTS+=("$f")
 done
 
 # macOS .app.tar.gz (updater)
-for f in "$BUNDLE_DIR"/macos/*.tar.gz 2>/dev/null; do
+for f in "$BUNDLE_DIR"/macos/*.tar.gz; do
   [ -f "$f" ] && ARTIFACTS+=("$f")
 done
 
 # Linux .deb / .AppImage
-for f in "$BUNDLE_DIR"/deb/*.deb 2>/dev/null; do
+for f in "$BUNDLE_DIR"/deb/*.deb; do
   [ -f "$f" ] && ARTIFACTS+=("$f")
 done
-for f in "$BUNDLE_DIR"/appimage/*.AppImage 2>/dev/null; do
+for f in "$BUNDLE_DIR"/appimage/*.AppImage; do
   [ -f "$f" ] && ARTIFACTS+=("$f")
 done
 
 # Windows .msi / .exe
-for f in "$BUNDLE_DIR"/msi/*.msi 2>/dev/null; do
+for f in "$BUNDLE_DIR"/msi/*.msi; do
   [ -f "$f" ] && ARTIFACTS+=("$f")
 done
-for f in "$BUNDLE_DIR"/nsis/*.exe 2>/dev/null; do
+for f in "$BUNDLE_DIR"/nsis/*.exe; do
   [ -f "$f" ] && ARTIFACTS+=("$f")
 done
 
