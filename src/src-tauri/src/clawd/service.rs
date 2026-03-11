@@ -1974,16 +1974,12 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Suppress the "Chrome is being controlled by automated test software"
-            // infobar on first launch by setting browser.hideAutomationBanner.
-            let hide_banner = cfg
-              .pointer("/browser/hideAutomationBanner")
-              .and_then(|v| v.as_bool())
-              .unwrap_or(false);
-            if !hide_banner {
+            // Clean up browser.hideAutomationBanner — the gateway's config
+            // validator rejects this unrecognized key, causing a crash loop.
+            if cfg.pointer("/browser/hideAutomationBanner").is_some() {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("hideAutomationBanner".to_string(), serde_json::json!(true));
-              eprintln!("[clawd/service] Patched browser.hideAutomationBanner to true");
+                .remove("hideAutomationBanner");
+              eprintln!("[clawd/service] Removed invalid browser.hideAutomationBanner key from config");
               patched = true;
             }
 
