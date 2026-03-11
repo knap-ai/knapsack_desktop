@@ -216,6 +216,7 @@ pub async fn start_server<'a>(
       .service(clawd::channels::whatsapp_login)
       .service(clawd::channels::whatsapp_login_wait)
       .service(clawd::channels::whatsapp_relink)
+      .service(clawd::channels::whatsapp_login_phone)
       .service(clawd::channels::whatsapp_disconnect)
       .service(clawd::channels::imessage_status)
       .service(clawd::channels::imessage_enable)

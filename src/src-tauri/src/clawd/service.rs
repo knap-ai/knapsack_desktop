@@ -61,6 +61,64 @@ fn kill_stale_clawdbot_chromes() {
   }
 }
 
+/// Stop and remove the standalone OpenClaw gateway LaunchAgent if present.
+///
+/// When a user previously installed standalone OpenClaw (`ai.openclaw.gateway`)
+/// and then switches to Knapsack Desktop (`ai.knap.knapsack.clawdbot`), both
+/// services compete for port 18789.  The standalone gateway may also use a
+/// different device token, causing "device token mismatch" errors.
+///
+/// This function is best-effort: if the plist doesn't exist or bootout fails,
+/// we silently continue.
+#[cfg(target_os = "macos")]
+fn remove_stale_standalone_gateway() {
+  const STANDALONE_LABEL: &str = "ai.openclaw.gateway";
+  let home = match dirs::home_dir() {
+    Some(h) => h,
+    None => return,
+  };
+  let plist_path = home
+    .join("Library")
+    .join("LaunchAgents")
+    .join(format!("{}.plist", STANDALONE_LABEL));
+
+  if !plist_path.exists() {
+    return;
+  }
+
+  eprintln!(
+    "[clawd/service] Found standalone OpenClaw gateway plist at {}; removing to avoid port conflict",
+    plist_path.display()
+  );
+
+  let uid = unsafe { libc::getuid() };
+  let domain = format!("gui/{}", uid);
+
+  // Try to unload the service first
+  let _ = std::process::Command::new("launchctl")
+    .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+    .status();
+
+  // Remove the plist file so it doesn't get reloaded on login
+  if let Err(e) = std::fs::remove_file(&plist_path) {
+    eprintln!(
+      "[clawd/service] Failed to remove standalone plist {}: {}",
+      plist_path.display(),
+      e
+    );
+  } else {
+    eprintln!("[clawd/service] Removed standalone OpenClaw gateway plist");
+  }
+
+  // Give the old gateway a moment to exit
+  std::thread::sleep(std::time::Duration::from_millis(1000));
+}
+
+#[cfg(not(target_os = "macos"))]
+fn remove_stale_standalone_gateway() {
+  // No-op on other platforms
+}
+
 fn launch_agent_plist_path() -> Result<PathBuf, String> {
   let home = dirs::home_dir().ok_or("Couldn't resolve home dir")?;
   Ok(
@@ -2516,6 +2574,11 @@ You can create, list, and cancel scheduled tasks (cron jobs).
       // Kill any stale Chrome processes from a previous clawdbot session so
       // the new gateway can grab the CDP port (18800).
       kill_stale_clawdbot_chromes();
+
+      // Remove the standalone OpenClaw gateway service if present — it
+      // conflicts with Knapsack's own gateway on port 18789 and may use a
+      // different device token, causing "device token mismatch" errors.
+      remove_stale_standalone_gateway();
 
       // bootstrap + kickstart
       let uid = unsafe { libc::getuid() };
