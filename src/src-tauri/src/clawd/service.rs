@@ -10,31 +10,40 @@ use crate::clawd::sidecar::SharedClawdbotConfig;
 
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
-/// Kill any Chrome processes that were launched by clawdbot and may still be
-/// holding the CDP debug port (18800).  This happens when the service is
-/// restarted (the gateway exits but the Chrome child survives because it's a
+/// Kill any Chrome processes that were launched by clawdbot/openclaw and may
+/// still be holding the CDP debug port (18800).  This happens when the service
+/// is restarted (the gateway exits but the Chrome child survives because it's a
 /// separate process).  Without this cleanup the new gateway can't launch its
 /// own Chrome on the same port and browser control stays in `cdpReady: false`.
 #[cfg(target_os = "macos")]
 fn kill_stale_clawdbot_chromes() {
   // `pgrep -f` finds processes whose full command-line matches the pattern.
-  // The clawdbot-managed Chrome always has `--user-data-dir=…/clawdbot/browser/`
+  // The managed Chrome always has `--user-data-dir=…/browser/<profile>/user-data`
   // in its argv, which normal user Chrome doesn't.
-  let output = std::process::Command::new("pgrep")
-    .args(["-f", "clawdbot/browser/.*/user-data"])
-    .output();
-  if let Ok(out) = output {
-    let pids = String::from_utf8_lossy(&out.stdout);
-    for pid_str in pids.split_whitespace() {
-      if let Ok(pid) = pid_str.parse::<i32>() {
-        eprintln!("[clawd/service] killing stale clawdbot Chrome (pid {})", pid);
-        unsafe { libc::kill(pid, libc::SIGTERM); }
+  // Match both clawdbot/ and openclaw/ paths since CONFIG_DIR may use either.
+  let patterns = &[
+    "clawdbot/browser/.*/user-data",
+    "openclaw/browser/.*/user-data",
+  ];
+  let mut killed_any = false;
+  for pattern in patterns {
+    let output = std::process::Command::new("pgrep")
+      .args(["-f", pattern])
+      .output();
+    if let Ok(out) = output {
+      let pids = String::from_utf8_lossy(&out.stdout);
+      for pid_str in pids.split_whitespace() {
+        if let Ok(pid) = pid_str.parse::<i32>() {
+          eprintln!("[clawd/service] killing stale managed Chrome (pid {}, pattern: {})", pid, pattern);
+          unsafe { libc::kill(pid, libc::SIGTERM); }
+          killed_any = true;
+        }
       }
     }
-    // Give Chrome a moment to exit so the port is released.
-    if !pids.trim().is_empty() {
-      std::thread::sleep(std::time::Duration::from_millis(1500));
-    }
+  }
+  // Give Chrome a moment to exit so the port is released.
+  if killed_any {
+    std::thread::sleep(std::time::Duration::from_millis(1500));
   }
 }
 
@@ -472,11 +481,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     let mut message = if gateway_ok && browser_ok {
       "Clawdbot gateway + browser are healthy".to_string()
     } else if gateway_ok {
-      "Clawdbot gateway OK; browser control not reachable".to_string()
+      "Clawdbot gateway OK; browser is still starting up — waiting for Chrome CDP to become ready".to_string()
     } else if browser_ok {
       "Browser control OK; gateway not reachable".to_string()
     } else {
-      "Clawdbot not reachable".to_string()
+      "Clawdbot not reachable — the background service may not be running".to_string()
     };
 
     if !gateway_ok {
@@ -522,12 +531,22 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   let ready = gateway_supervisor::wait_for_gateway_ready(&tokens.gateway_token, 30_000).await;
 
+  // If gateway is up, also wait for the browser CDP to become reachable.
+  // Chrome takes a few seconds to start after the gateway launches it.
+  let browser_ok = if ready {
+    gateway_client::wait_for_browser_ready(None, 15).await
+  } else {
+    false
+  };
+
   HttpResponse::Ok().json(ServiceHealthResponse {
     success: ready,
     gateway_ok: ready,
-    browser_ok: false, // Not checked during startup — browser takes longer
-    message: if ready {
-      "Gateway is ready".to_string()
+    browser_ok,
+    message: if ready && browser_ok {
+      "Gateway and browser are ready".to_string()
+    } else if ready {
+      "Gateway is ready; browser is still starting up".to_string()
     } else {
       "Gateway did not become ready within 30s".to_string()
     },

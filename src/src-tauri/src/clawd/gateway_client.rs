@@ -1304,10 +1304,34 @@ pub async fn call_channel_method(
   gateway_request_pooled(method, params, &t).await
 }
 
+/// Check whether an error string indicates a transient browser/CDP startup issue
+/// (Chrome hasn't finished launching, CDP port not yet listening, etc.) as
+/// opposed to a permanent failure (bad request, gateway auth error, etc.).
+fn is_transient_browser_error(err: &str) -> bool {
+  err.contains("onnection refused")
+    || err.contains("No pages available")
+    || err.contains("tcp connect error")
+    || err.contains("error sending request")
+    || err.contains("not reachable")
+    || err.contains("not running")
+    || err.contains("not ready")
+    || err.contains("cdpReady")
+    || err.contains("ECONNREFUSED")
+    || err.contains("Target closed")
+    || err.contains("Browser not started")
+    || err.contains("browser is not running")
+    || err.contains("CDP") && err.contains("not")
+}
+
 /// Send a browser control request through the gateway's `browser.request`
 /// RPC method.  The gateway dispatches to its in-process browser control
 /// service (same routes as the legacy HTTP bridge that used to run on
 /// port 18791).
+///
+/// Retries up to 3 times with exponential backoff (500ms, 1s, 2s) on
+/// transient CDP errors (connection refused, browser not ready, etc.).
+/// This handles the common case where Chrome is still starting up after
+/// a gateway restart.
 pub async fn browser_request(
   http_method: &str,
   path: &str,
@@ -1316,17 +1340,81 @@ pub async fn browser_request(
   token: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
-  let mut params = serde_json::json!({
-    "method": http_method,
-    "path": path,
-  });
-  if let Some(q) = query {
-    params["query"] = q;
+
+  let backoffs: &[u64] = &[500, 1000, 2000];
+  let mut last_err = String::new();
+
+  for attempt in 0..=backoffs.len() {
+    let mut params = serde_json::json!({
+      "method": http_method,
+      "path": path,
+    });
+    if let Some(ref q) = query {
+      params["query"] = q.clone();
+    }
+    if let Some(ref b) = body {
+      params["body"] = b.clone();
+    }
+
+    match gateway_request_pooled("browser.request", Some(params), &t).await {
+      Ok(result) => return Ok(result),
+      Err(e) => {
+        last_err = e;
+        if attempt < backoffs.len() && is_transient_browser_error(&last_err) {
+          let delay = backoffs[attempt];
+          eprintln!(
+            "[gateway_client] browser_request transient error (attempt {}/{}), retrying in {}ms: {}",
+            attempt + 1, backoffs.len() + 1, delay, last_err
+          );
+          tokio::time::sleep(Duration::from_millis(delay)).await;
+          continue;
+        }
+        break;
+      }
+    }
   }
-  if let Some(b) = body {
-    params["body"] = b;
+
+  // Provide a user-friendly error message for transient failures.
+  if is_transient_browser_error(&last_err) {
+    Err(format!(
+      "Browser is still starting up. Please wait a moment and try again. ({})",
+      last_err
+    ))
+  } else {
+    Err(last_err)
   }
-  gateway_request_pooled("browser.request", Some(params), &t).await
+}
+
+/// Wait for the browser to become ready, polling up to `max_wait` seconds.
+/// Returns `true` if the browser responded successfully within the deadline.
+pub async fn wait_for_browser_ready(token: Option<&str>, max_wait_secs: u64) -> bool {
+  let t = match resolve_token(token) {
+    Ok(t) => t,
+    Err(_) => return false,
+  };
+  let deadline = Instant::now() + Duration::from_secs(max_wait_secs);
+  let mut delay_ms: u64 = 500;
+
+  while Instant::now() < deadline {
+    let params = serde_json::json!({
+      "method": "GET",
+      "path": "/tabs",
+      "query": {"profile": "knapsack"},
+    });
+    match gateway_request_pooled("browser.request", Some(params), &t).await {
+      Ok(_) => return true,
+      Err(e) => {
+        if !is_transient_browser_error(&e) {
+          // Permanent error — no point waiting.
+          return false;
+        }
+        eprintln!("[gateway_client] Waiting for browser to start... ({})", e);
+      }
+    }
+    tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+    delay_ms = (delay_ms * 2).min(3000);
+  }
+  false
 }
 
 /// Send a chat message through the gateway's `agent` RPC method.
