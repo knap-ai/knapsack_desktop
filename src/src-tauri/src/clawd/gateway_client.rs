@@ -180,7 +180,7 @@ async fn ensure_gateway_best_effort(token: &str) {
 }
 
 /// Ensure the OpenClaw config has browser settings suitable for the desktop app:
-///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "openclaw".
+///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "knapsack".
 ///
 /// The `set_service_enabled` endpoint (macOS launchctl setup) also patches these,
 /// but that path is never hit in `npm run tauri dev` or on non-macOS.  Running this
@@ -342,12 +342,12 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     patched = true;
   }
 
-  // browser.defaultProfile = "openclaw"  (managed, isolated)
+  // browser.defaultProfile = "knapsack"  (managed, isolated)
   let profile = cfg.pointer("/browser/defaultProfile").and_then(|v| v.as_str()).unwrap_or("chrome");
-  if profile == "chrome" || profile.is_empty() {
+  if profile == "chrome" || profile.is_empty() || profile == "openclaw" {
     cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-      .insert("defaultProfile".into(), serde_json::json!("openclaw"));
-    eprintln!("[gateway_client] Patched browser.defaultProfile to openclaw");
+      .insert("defaultProfile".into(), serde_json::json!("knapsack"));
+    eprintln!("[gateway_client] Patched browser.defaultProfile to knapsack");
     patched = true;
   }
 
@@ -677,7 +677,7 @@ async fn apply_runtime_browser_config(token: &str) {
     "browser": {
       "enabled": true,
       "headless": false,
-      "defaultProfile": "openclaw",
+      "defaultProfile": "knapsack",
       "noSandbox": no_sandbox
     },
     "tools": {

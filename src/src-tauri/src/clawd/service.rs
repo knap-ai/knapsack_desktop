@@ -450,7 +450,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       match tokio::time::timeout(
         std::time::Duration::from_secs(5),
         gateway_client::browser_request(
-          "GET", "/tabs", Some(serde_json::json!({"profile": "openclaw"})), None, None,
+          "GET", "/tabs", Some(serde_json::json!({"profile": "knapsack"})), None, None,
         ),
       ).await {
         Ok(Ok(_)) => true,
@@ -1771,7 +1771,7 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Set default profile to "openclaw" (managed, isolated) so the
+            // Set default profile to "knapsack" (managed, isolated) so the
             // browser tool works for channel automations.  The "chrome"
             // profile is an extension-relay that requires a human to manually
             // attach the OpenClaw Chrome extension to a tab — it will never
@@ -1781,10 +1781,10 @@ pub async fn set_service_enabled(
               .and_then(|v| v.as_str())
               .unwrap_or("chrome")
               .to_string();
-            if current_profile == "chrome" || current_profile.is_empty() {
+            if current_profile == "chrome" || current_profile == "openclaw" || current_profile.is_empty() {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("defaultProfile".to_string(), serde_json::json!("openclaw"));
-              eprintln!("[clawd/service] Patched browser.defaultProfile from {:?} to openclaw", current_profile);
+                .insert("defaultProfile".to_string(), serde_json::json!("knapsack"));
+              eprintln!("[clawd/service] Patched browser.defaultProfile from {:?} to knapsack", current_profile);
               patched = true;
             }
 
