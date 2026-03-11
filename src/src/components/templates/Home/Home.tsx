@@ -89,6 +89,7 @@ function Home({
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
   const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<'openai' | 'anthropic' | undefined>(undefined)
+  const [openProviderPanelTrigger, setOpenProviderPanelTrigger] = useState(0)
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
   const [showActivityPanel, setShowActivityPanel] = useState(false)
@@ -263,10 +264,10 @@ function Home({
   }
 
   const handleOpenProviderSignIn = useCallback((provider?: 'openai' | 'anthropic') => {
-    // Close settings dialog first so both drawers don't stack
+    // Close settings dialog and open the ClawdChat provider sidebar instead
     setIsSettingsDialogOpened(false)
     setProviderSignInInitialProvider(provider)
-    setIsProviderSignInDialogOpened(true)
+    setOpenProviderPanelTrigger(prev => prev + 1)
   }, [])
 
   const handleBackToHome = async () => {
@@ -486,6 +487,7 @@ function Home({
                       userEmail={userEmail}
                       userName={userName}
                       onBusyChange={setIsChatBusy}
+                      openProviderPanel={openProviderPanelTrigger}
                     />
                   </div>
                   {showActivityPanel && (

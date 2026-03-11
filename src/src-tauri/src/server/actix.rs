@@ -231,6 +231,8 @@ pub async fn start_server<'a>(
       .service(clawd::channels::generic_channel_status)
       .service(clawd::channels::generic_channel_configure)
       .service(clawd::channels::generic_channel_disconnect)
+      .service(clawd::channels::channel_allowlist_get)
+      .service(clawd::channels::channel_allowlist_update)
       .service(clawd::channels::signal_check_cli)
       .service(clawd::channels::signal_install_cli)
       .service(clawd::channels::signal_link)

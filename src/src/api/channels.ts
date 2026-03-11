@@ -182,3 +182,22 @@ export interface SendMessageResponse {
 /** Send a message to a user through a connected channel (WhatsApp, iMessage, or Telegram). */
 export const sendChannelMessage = (channel: string, to: string, message: string) =>
   post<SendMessageResponse>('/api/clawd/channels/send', { channel, to, message })
+
+// ── Allowlist Management ─────────────────────────────────────
+
+export interface AllowlistResponse {
+  success: boolean
+  dmPolicy: string
+  allowFrom: string[]
+  message?: string
+}
+
+/** Get the current DM policy and allowlist for a channel. */
+export const getChannelAllowlist = (channel: string) =>
+  get<AllowlistResponse>(`/api/clawd/channels/${channel}/allowlist`)
+
+/** Update the DM policy and/or allowlist for a channel. */
+export const updateChannelAllowlist = (
+  channel: string,
+  update: { dmPolicy?: string; allowFrom?: string[] },
+) => post<GenericResponse>(`/api/clawd/channels/${channel}/allowlist`, update)

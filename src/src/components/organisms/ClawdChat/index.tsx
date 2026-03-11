@@ -8,7 +8,7 @@ import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
-import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus } from 'src/api/channels'
+import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist } from 'src/api/channels'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 
@@ -301,10 +301,10 @@ type ProviderOption = {
 }
 
 const PROVIDERS: ProviderOption[] = [
-  { id: 'openai', name: 'OpenAI', description: 'GPT-5.2, GPT-4o, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.5, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini', name: 'Google', description: 'Gemini 3 Pro, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
-  { id: 'groq', name: 'Groq', description: 'Llama 4, Kimi K2, DeepSeek R1 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
+  { id: 'openai', name: 'OpenAI', description: 'GPT-5.4, GPT-5-mini, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3 Flash, 3.1 Flash Lite', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
 ]
 
@@ -316,10 +316,10 @@ type AnthropicModelOption = {
 
 const ANTHROPIC_MODELS: AnthropicModelOption[] = [
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for agents and coding' },
-  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Best balance of speed and intelligence' },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Best balance of speed and intelligence' },
   { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost' },
+  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet, still excellent' },
   { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous flagship, excellent for long tasks' },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Reliable legacy model' },
 ]
 
 type GeminiModelOption = {
@@ -329,11 +329,11 @@ type GeminiModelOption = {
 }
 
 const GEMINI_MODELS: GeminiModelOption[] = [
-  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', description: 'Most intelligent, state-of-the-art reasoning' },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning' },
   { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance' },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks' },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking' },
-  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', description: 'Optimized for speed and low cost' },
 ]
 
 type GroqModelOption = {
@@ -343,6 +343,7 @@ type GroqModelOption = {
 }
 
 const GROQ_MODELS: GroqModelOption[] = [
+  { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', description: 'OpenAI open-weight flagship, tools built-in' },
   { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Multimodal MoE, 10M context window' },
   { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, 128 experts, 1M context' },
   { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2', description: '1T params, agentic coding, 256K context' },
@@ -350,7 +351,6 @@ const GROQ_MODELS: GroqModelOption[] = [
   { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill', description: 'Reasoning model, great for logic' },
   { id: 'qwen-qwq-32b', name: 'Qwen QwQ 32B', description: 'Reasoning model, chain-of-thought' },
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', description: 'Versatile general-purpose model' },
-  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', description: 'Ultra-fast, lightweight' },
 ]
 
 // Recommended models to offer for download when Ollama has none installed
@@ -407,7 +407,7 @@ const ADVANCED_MODE_STORAGE = 'moltbot_advanced_mode'
 const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
 // The current app version — bump this when you want to re-show the key prompt
-const APP_VERSION = '0.9.46'
+const APP_VERSION = '0.9.536'
 
 // Available OpenAI models
 type OpenAIModelOption = {
@@ -418,13 +418,13 @@ type OpenAIModelOption = {
 
 const OPENAI_MODELS: OpenAIModelOption[] = [
   {
-    id: 'gpt-5.2',
-    name: 'GPT-5.2',
+    id: 'gpt-5.4',
+    name: 'GPT-5.4',
     description: 'Most intelligent model, best for complex tasks',
   },
   {
-    id: 'gpt-5.2-pro',
-    name: 'GPT-5.2 Pro',
+    id: 'gpt-5.4-pro',
+    name: 'GPT-5.4 Pro',
     description: 'Extended thinking for harder problems',
   },
   {
@@ -433,9 +433,9 @@ const OPENAI_MODELS: OpenAIModelOption[] = [
     description: 'Reasoning model for complex logic',
   },
   {
-    id: 'o3-mini',
-    name: 'o3 Mini',
-    description: 'Fast reasoning model',
+    id: 'gpt-5-mini',
+    name: 'GPT-5 Mini',
+    description: 'Fast and affordable',
   },
 ]
 
@@ -969,6 +969,156 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   )
 })
 
+// ── Allowlist management section (rendered inside each connected channel) ──
+
+const DM_POLICIES = [
+  { id: 'allowlist', label: 'Allowlist only', description: 'Only approved contacts can message' },
+  { id: 'pairing', label: 'Pairing code', description: 'Unknown senders get a code you must approve' },
+  { id: 'open', label: 'Open', description: 'Anyone can message (not recommended)' },
+  { id: 'disabled', label: 'Disabled', description: 'Block all inbound DMs' },
+]
+
+function ChannelAllowlistSection({ channel, isConnected }: { channel: string; isConnected: boolean }) {
+  const [dmPolicy, setDmPolicy] = useState('allowlist')
+  const [allowFrom, setAllowFrom] = useState<string[]>([])
+  const [newContact, setNewContact] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  const fetchAllowlist = useCallback(async () => {
+    if (!isConnected) return
+    setLoading(true)
+    try {
+      const res = await getChannelAllowlist(channel)
+      if (res.success) {
+        setDmPolicy(res.dmPolicy || 'allowlist')
+        setAllowFrom(res.allowFrom || [])
+      }
+    } catch { /* gateway not reachable */ }
+    finally { setLoading(false); setLoaded(true) }
+  }, [channel, isConnected])
+
+  useEffect(() => { fetchAllowlist() }, [fetchAllowlist])
+
+  const save = async (policy: string, contacts: string[]) => {
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await updateChannelAllowlist(channel, { dmPolicy: policy, allowFrom: contacts })
+      if (!res.success) setError(res.message || 'Failed to save')
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save')
+    } finally { setSaving(false) }
+  }
+
+  const handlePolicyChange = async (newPolicy: string) => {
+    setDmPolicy(newPolicy)
+    await save(newPolicy, allowFrom)
+  }
+
+  const addContact = async () => {
+    const trimmed = newContact.trim()
+    if (!trimmed || allowFrom.includes(trimmed)) return
+    const updated = [...allowFrom, trimmed]
+    setAllowFrom(updated)
+    setNewContact('')
+    await save(dmPolicy, updated)
+  }
+
+  const removeContact = async (contact: string) => {
+    const updated = allowFrom.filter(c => c !== contact)
+    setAllowFrom(updated)
+    await save(dmPolicy, updated)
+  }
+
+  if (!isConnected || !loaded) return null
+
+  return (
+    <div className="ClawdChannelGuide" style={{ borderTop: '1px solid #e2e8f0', marginTop: 8 }}>
+      <div className="ClawdChannelGuideTitle">Who can message</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {DM_POLICIES.map(p => (
+          <button
+            key={p.id}
+            disabled={saving}
+            onClick={() => handlePolicyChange(p.id)}
+            title={p.description}
+            style={{
+              padding: '3px 10px',
+              fontSize: 11,
+              borderRadius: 12,
+              border: dmPolicy === p.id ? '1.5px solid #3b82f6' : '1px solid #d1d5db',
+              background: dmPolicy === p.id ? '#eff6ff' : '#fff',
+              color: dmPolicy === p.id ? '#1d4ed8' : '#374151',
+              cursor: 'pointer',
+              fontWeight: dmPolicy === p.id ? 600 : 400,
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {(dmPolicy === 'allowlist' || dmPolicy === 'pairing') && (
+        <>
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
+            {dmPolicy === 'allowlist'
+              ? 'Only these contacts (plus your own number) can reach the AI:'
+              : 'Pre-approved contacts (skip pairing code):'}
+          </div>
+
+          {allowFrom.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              {allowFrom.filter(c => c !== '*').map(contact => (
+                <div key={contact} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                  <code style={{ flex: 1, padding: '2px 6px', background: '#f1f5f9', borderRadius: 4, fontSize: 11 }}>{contact}</code>
+                  <button
+                    onClick={() => removeContact(contact)}
+                    disabled={saving}
+                    style={{ padding: '1px 6px', fontSize: 11, color: '#ef4444', background: 'none', border: '1px solid #fecaca', borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              type="text"
+              value={newContact}
+              onChange={e => setNewContact(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addContact() }}
+              placeholder={channel === 'discord' ? 'User ID' : channel === 'slack' ? 'User ID' : channel === 'telegram' ? '@username or user ID' : '+1234567890'}
+              style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #ccc' }}
+            />
+            <button
+              onClick={addContact}
+              disabled={!newContact.trim() || saving}
+              style={{ padding: '4px 10px', fontSize: 11, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !newContact.trim() || saving ? 0.5 : 1 }}
+            >
+              {saving ? 'Saving...' : 'Add'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {dmPolicy === 'open' && (
+        <div style={{ fontSize: 11, color: '#d97706', background: '#fffbeb', padding: '6px 10px', borderRadius: 6, marginTop: 4 }}>
+          Warning: Open mode lets anyone message your AI. Your assistant will respond to all incoming messages.
+        </div>
+      )}
+
+      {error && (
+        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>{error}</div>
+      )}
+    </div>
+  )
+}
+
 interface ClawdChatProps {
   showActivityPanel?: boolean
   onToggleActivity?: () => void
@@ -976,9 +1126,11 @@ interface ClawdChatProps {
   userEmail?: string
   userName?: string
   onBusyChange?: (busy: boolean) => void
+  /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
+  openProviderPanel?: number
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -1015,7 +1167,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5.2'
+    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5.4'
   })
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
     return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-5-20250929'
@@ -1041,6 +1193,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
   const [keyHints, setKeyHints] = useState<Record<string, string | undefined>>({})
   const [savedProviderKeys, setSavedProviderKeys] = useState<Record<string, boolean>>({})
+  // Extra providers (MiniMax, ZAI, HuggingFace) state
+  const [extraProviderStatuses, setExtraProviderStatuses] = useState<Record<string, { has_key?: boolean; key_hint?: string }>>({})
+  const [editingExtraProvider, setEditingExtraProvider] = useState<string | null>(null)
+  const [extraProviderKey, setExtraProviderKey] = useState('')
   const [thinkingMessage, setThinkingMessage] = useState<string | null>(null)
   const thinkingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -1063,6 +1219,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return localStorage.getItem(TONE_STORAGE) || 'snarky'
   })
   const [showToneSelector, setShowToneSelector] = useState(false)
+
+  // Open provider sidebar when triggered externally (e.g. from Settings dialog)
+  useEffect(() => {
+    if (openProviderPanel) {
+      setShowKeyPrompt(true)
+      setShowChannelsPanel(false)
+      setShowSkillsPanel(false)
+    }
+  }, [openProviderPanel])
 
   // Autonomy mode - how independent the agent is
   const [autonomyMode, setAutonomyMode] = useState<AutonomyMode>(() => {
@@ -1219,6 +1384,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           gemini: !!keyStatus.has_gemini_key,
           groq: !!keyStatus.has_groq_key,
         })
+        // Fetch extra provider statuses
+        if (keyStatus.extra_providers) {
+          const epMap: Record<string, { has_key?: boolean; key_hint?: string }> = {}
+          for (const ep of keyStatus.extra_providers as Array<{ env_var: string; has_key: boolean; key_hint?: string }>) {
+            const id = ep.env_var === 'MINIMAX_API_KEY' ? 'minimax'
+              : ep.env_var === 'ZAI_API_KEY' ? 'zai'
+              : ep.env_var === 'HF_TOKEN' ? 'huggingface'
+              : null
+            if (id) epMap[id] = { has_key: ep.has_key, key_hint: ep.key_hint }
+          }
+          setExtraProviderStatuses(epMap)
+        }
         // Also sync provider-specific models from the backend
         try {
           const fullKeys = await apiGet<{
@@ -3780,6 +3957,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     </div>
                   )}
                   {channelStatus.whatsapp?.linked ? (
+                    <>
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">How to use WhatsApp</div>
                       <ol className="ClawdChannelGuideSteps">
@@ -3800,6 +3978,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         Messages are processed locally. Your assistant uses the linked WhatsApp session — just like WhatsApp Web.
                       </div>
                     </div>
+                    <ChannelAllowlistSection channel="whatsapp" isConnected={true} />
+                    </>
                   ) : (
                     <div className="ClawdChannelGuide">
                       {channelStatus.whatsappQrUrl && (
@@ -3877,6 +4057,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     </button>
                   </div>
                   {channelStatus.imessage?.configured ? (
+                    <>
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">How to use iMessage</div>
                       <ol className="ClawdChannelGuideSteps">
@@ -3893,6 +4074,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         iMessage works locally on macOS only. Knapsack reads the Messages database on your Mac — nothing leaves your machine.
                       </div>
                     </div>
+                    <ChannelAllowlistSection channel="imessage" isConnected={true} />
+                    </>
                   ) : (
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">How to connect iMessage</div>
@@ -3975,6 +4158,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     </button>
                   </div>
                   {channelStatus.telegram?.configured ? (
+                    <>
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">How to use Telegram</div>
                       <ol className="ClawdChannelGuideSteps">
@@ -3991,6 +4175,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         Messages are routed through your Telegram bot. Your assistant processes everything locally.
                       </div>
                     </div>
+                    <ChannelAllowlistSection channel="telegram" isConnected={true} />
+                    </>
                   ) : (
                     <div className="ClawdChannelGuide">
                       {showTelegramInput && (() => {
@@ -4151,6 +4337,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       </div>
                     </div>
                   )}
+                  {channelStatus.genericChannels.slack?.configured && (
+                    <ChannelAllowlistSection channel="slack" isConnected={true} />
+                  )}
                 </div>
               </div>
 
@@ -4230,6 +4419,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     </div>
                     )
                   })()}
+                  {channelStatus.genericChannels.discord?.configured && (
+                    <ChannelAllowlistSection channel="discord" isConnected={true} />
+                  )}
                 </div>
               </div>
 
@@ -4657,6 +4849,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       })()}
                     </div>
                   )}
+                  {channelStatus.genericChannels.signal?.configured && (
+                    <ChannelAllowlistSection channel="signal" isConnected={true} />
+                  )}
                 </div>
               </div>
 
@@ -4728,6 +4923,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         Connects to an IRC server. Your assistant will join the specified channel and respond to messages.
                       </div>
                     </div>
+                  )}
+                  {channelStatus.genericChannels.irc?.configured && (
+                    <ChannelAllowlistSection channel="irc" isConnected={true} />
                   )}
                 </div>
               </div>
@@ -4812,6 +5010,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         Create a webhook in Google Chat: open a Space, click the dropdown arrow, select <strong>Manage webhooks</strong>, then copy the webhook URL.
                       </div>
                     </div>
+                  )}
+                  {channelStatus.genericChannels.googlechat?.configured && (
+                    <ChannelAllowlistSection channel="googlechat" isConnected={true} />
                   )}
                 </div>
               </div>
@@ -5105,6 +5306,111 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* ── Extra Providers (env-var based) ── */}
+            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 12, paddingTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8, padding: '0 4px' }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>More Providers</span>
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>Models auto-selected by OpenClaw</span>
+              </div>
+              {[
+                { id: 'minimax', name: 'MiniMax', description: 'M2.5 (SOTA coding + agents), M2.1', envVar: 'MINIMAX_API_KEY', helpUrl: 'https://platform.minimax.io' },
+                { id: 'zai', name: 'ZAI (GLM)', description: 'GLM-5 (745B, SOTA open-source), GLM-4.7', envVar: 'ZAI_API_KEY', helpUrl: 'https://open.bigmodel.cn' },
+                { id: 'huggingface', name: 'Hugging Face', description: '200K+ models via Inference API', envVar: 'HF_TOKEN', helpUrl: 'https://huggingface.co/settings/tokens' },
+              ].map(ep => {
+                const epStatus = extraProviderStatuses[ep.id]
+                const isEditing = editingExtraProvider === ep.id
+                return (
+                  <div key={ep.id} style={{ padding: '8px 4px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontWeight: 500, fontSize: 13 }}>{ep.name}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>{ep.description}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {epStatus?.has_key && (
+                          <span style={{ fontSize: 10, padding: '2px 6px', background: '#dcfce7', color: '#16a34a', borderRadius: 8, fontWeight: 500 }}>Connected</span>
+                        )}
+                        {epStatus?.has_key && !isEditing && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await apiPost('/api/clawd/service/delete-extra-provider-key', { env_var: ep.envVar })
+                                setExtraProviderStatuses(prev => ({ ...prev, [ep.id]: { has_key: false } }))
+                              } catch { /* ignore */ }
+                            }}
+                            style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                        {!isEditing ? (
+                          <button
+                            onClick={() => { setEditingExtraProvider(ep.id); setExtraProviderKey('') }}
+                            style={{ fontSize: 11, color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
+                          >
+                            {epStatus?.has_key ? 'Change key' : 'Add key'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setEditingExtraProvider(null)}
+                            style={{ fontSize: 11, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer' }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {isEditing && (
+                      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                        <input
+                          type="password"
+                          value={extraProviderKey}
+                          onChange={e => setExtraProviderKey(e.target.value)}
+                          placeholder="Paste your API key..."
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && extraProviderKey.trim()) {
+                              (async () => {
+                                try {
+                                  await apiPost('/api/clawd/service/set-api-key', { key: extraProviderKey.trim(), provider: ep.id, env_var: ep.envVar })
+                                  setExtraProviderStatuses(prev => ({ ...prev, [ep.id]: { has_key: true, key_hint: extraProviderKey.trim().slice(-4) } }))
+                                  setEditingExtraProvider(null)
+                                  setExtraProviderKey('')
+                                } catch { /* ignore */ }
+                              })()
+                            }
+                          }}
+                          style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #ccc' }}
+                          autoFocus
+                        />
+                        <button
+                          disabled={!extraProviderKey.trim()}
+                          onClick={async () => {
+                            try {
+                              await apiPost('/api/clawd/service/set-api-key', { key: extraProviderKey.trim(), provider: ep.id, env_var: ep.envVar })
+                              setExtraProviderStatuses(prev => ({ ...prev, [ep.id]: { has_key: true, key_hint: extraProviderKey.trim().slice(-4) } }))
+                              setEditingExtraProvider(null)
+                              setExtraProviderKey('')
+                            } catch { /* ignore */ }
+                          }}
+                          style={{ padding: '4px 10px', fontSize: 11, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !extraProviderKey.trim() ? 0.5 : 1 }}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    )}
+                    {isEditing && (
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                        Get your key at{' '}
+                        <a href={ep.helpUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>
+                          {ep.helpUrl.replace('https://', '')}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

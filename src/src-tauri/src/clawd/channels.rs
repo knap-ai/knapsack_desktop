@@ -2059,6 +2059,151 @@ pub async fn signal_verify(body: web::Json<SignalVerifyRequest>) -> impl Respond
     }
 }
 
+// ── Allowlist management ──────────────────────────────────────────
+
+/// Response for allowlist queries
+#[derive(Serialize)]
+struct AllowlistResponse {
+    success: bool,
+    #[serde(rename = "dmPolicy")]
+    dm_policy: String,
+    #[serde(rename = "allowFrom")]
+    allow_from: Vec<String>,
+    message: Option<String>,
+}
+
+/// Request body for updating allowlist
+#[derive(Deserialize)]
+struct AllowlistUpdateRequest {
+    /// DM policy: "allowlist", "pairing", "open", "disabled"
+    #[serde(rename = "dmPolicy")]
+    dm_policy: Option<String>,
+    /// List of allowed sender identifiers (phone numbers, usernames, etc.)
+    #[serde(rename = "allowFrom")]
+    allow_from: Option<Vec<String>>,
+}
+
+/// Read the current DM policy and allowlist for a channel from gateway config.
+fn read_channel_allowlist(config: &serde_json::Value, channel: &str) -> (String, Vec<String>) {
+    let ch = &config["config"]["channels"][channel];
+
+    // Some channels (discord, slack, googlechat) use nested dm: { policy, allowFrom }
+    let (policy, allow) = if ch.get("dm").is_some() {
+        let dm = &ch["dm"];
+        (
+            dm.get("policy").and_then(|v| v.as_str()).unwrap_or("allowlist").to_string(),
+            dm.get("allowFrom")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default(),
+        )
+    } else {
+        (
+            ch.get("dmPolicy").and_then(|v| v.as_str()).unwrap_or("allowlist").to_string(),
+            ch.get("allowFrom")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default(),
+        )
+    };
+    (policy, allow)
+}
+
+/// Get the allowlist and DM policy for any channel.
+#[get("/api/clawd/channels/{channel}/allowlist")]
+pub async fn channel_allowlist_get(path: web::Path<String>) -> impl Responder {
+    let channel = path.into_inner();
+    let config_result = gateway_client::config_get(None).await;
+    match config_result {
+        Ok(config) => {
+            let (policy, allow) = read_channel_allowlist(&config, &channel);
+            HttpResponse::Ok().json(AllowlistResponse {
+                success: true,
+                dm_policy: policy,
+                allow_from: allow,
+                message: None,
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(AllowlistResponse {
+            success: false,
+            dm_policy: "allowlist".to_string(),
+            allow_from: vec![],
+            message: Some(format!("Failed to get config: {}", e)),
+        }),
+    }
+}
+
+/// Update the allowlist and/or DM policy for any channel.
+#[post("/api/clawd/channels/{channel}/allowlist")]
+pub async fn channel_allowlist_update(
+    path: web::Path<String>,
+    body: web::Json<AllowlistUpdateRequest>,
+) -> impl Responder {
+    let channel = path.into_inner();
+    let config_result = gateway_client::config_get(None).await;
+    match config_result {
+        Ok(config_snapshot) => {
+            let base_hash = extract_base_hash(&config_snapshot);
+            let uses_nested_dm = matches!(channel.as_str(), "discord" | "slack" | "googlechat");
+
+            let mut patch_inner = serde_json::Map::new();
+
+            if uses_nested_dm {
+                let mut dm = serde_json::Map::new();
+                if let Some(ref policy) = body.dm_policy {
+                    dm.insert("policy".to_string(), serde_json::json!(policy));
+                }
+                if let Some(ref allow) = body.allow_from {
+                    dm.insert("allowFrom".to_string(), serde_json::json!(allow));
+                }
+                if !dm.is_empty() {
+                    patch_inner.insert("dm".to_string(), serde_json::Value::Object(dm));
+                }
+            } else {
+                if let Some(ref policy) = body.dm_policy {
+                    patch_inner.insert("dmPolicy".to_string(), serde_json::json!(policy));
+                }
+                if let Some(ref allow) = body.allow_from {
+                    patch_inner.insert("allowFrom".to_string(), serde_json::json!(allow));
+                }
+            }
+
+            let patch = serde_json::json!({
+                "channels": {
+                    channel.clone(): patch_inner
+                }
+            });
+
+            match gateway_client::config_patch(
+                &serde_json::to_string(&patch).unwrap(),
+                &base_hash,
+                None,
+            )
+            .await
+            {
+                Ok(_) => HttpResponse::Ok().json(GenericResponse {
+                    success: true,
+                    message: Some("Allowlist updated".to_string()),
+                    configured: None,
+                    linked: None,
+                }),
+                Err(e) => HttpResponse::Ok().json(GenericResponse {
+                    success: false,
+                    message: Some(format!("Failed to update allowlist: {}", e)),
+                    configured: None,
+                    linked: None,
+                }),
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(GenericResponse {
+            success: false,
+            message: Some(format!("Failed to get config: {}", e)),
+            configured: None,
+            linked: None,
+        }),
+    }
+}
+
 /// Open System Preferences to Full Disk Access pane
 #[post("/api/clawd/channels/open-full-disk-access")]
 pub async fn open_full_disk_access() -> impl Responder {
