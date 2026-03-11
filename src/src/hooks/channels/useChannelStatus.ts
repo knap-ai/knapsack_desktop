@@ -348,9 +348,14 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
             })
         }
       } else {
-        // No QR returned — may already be linked
+        // No QR returned — check if already linked before giving up
         setWhatsappLinking(false)
         await refresh()
+        // If still not linked after refresh, surface an actionable error
+        const latest = whatsappRef.current
+        if (!latest?.linked) {
+          setChannelError('whatsapp', 'Could not generate QR code. Click Connect to try again.')
+        }
       }
     } catch (e: any) {
       setChannelError('whatsapp', e.message)

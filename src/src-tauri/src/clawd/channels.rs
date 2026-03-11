@@ -428,6 +428,20 @@ pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
                     .unwrap_or("WhatsApp login started. Scan the QR code.")
                     .to_string();
 
+                // If the RPC succeeded but no QR was returned, the WhatsApp
+                // channel likely hasn't finished initializing yet. Treat this
+                // as a retryable failure rather than returning success with no
+                // QR (which the frontend misinterprets as "already linked").
+                if qr_data_url.is_none() {
+                    eprintln!(
+                        "[channels] web.login.start attempt {} returned OK but no qrDataUrl — retrying",
+                        attempt + 1,
+                    );
+                    last_err = format!("No QR code returned: {}", message);
+                    gateway_client::invalidate();
+                    continue;
+                }
+
                 return HttpResponse::Ok().json(WhatsAppLoginResponse {
                     success: true,
                     message: Some(message),
