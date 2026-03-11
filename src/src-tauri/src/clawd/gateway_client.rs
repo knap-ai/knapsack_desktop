@@ -785,21 +785,25 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   // never runs.
   let disk_config_changed = ensure_browser_config();
 
-  // If we patched the config AND the gateway was already running, it has
-  // stale config.  We need to push the config to the running gateway via
-  // config.patch RPC.  We track this with BROWSER_CONFIG_APPLIED so we
-  // only do it once per process lifetime.
+  // Always push browser config to the running gateway on first connection.
+  // Even if the on-disk config didn't change (because we patched it in a
+  // previous app session), the running gateway may have been started with
+  // stale config (e.g., headless=true).  We track with BROWSER_CONFIG_APPLIED
+  // so we only do this once per process lifetime.
   //
   // IMPORTANT: We do this BEFORE establishing our main connection, using a
   // temporary connection.  config.patch triggers a SIGUSR1 restart on the
   // gateway, which would kill any in-flight requests on the same connection.
-  let need_runtime_patch = disk_config_changed
-    && !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
+  let need_runtime_patch = !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
     && is_gateway_port_open().await;
 
   if need_runtime_patch {
     BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
-    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
+    if disk_config_changed {
+      eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
+    } else {
+      eprintln!("[gateway_client] Pushing browser config to running gateway (ensure headless=false, browser enabled)");
+    }
     apply_runtime_browser_config(token).await;
   }
 
