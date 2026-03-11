@@ -337,12 +337,11 @@ pub async fn whatsapp_enable(
             let base_hash = extract_base_hash(&config_snapshot);
 
             // WhatsApp channel config:
-            // - allowFrom ["*"] = accept messages from anyone
-            // - dmPolicy "open" = auto-reply to all inbound DMs
+            // - dmPolicy "pairing" = unknown senders must be approved by owner
             // Also ensures agents.defaults.model is set so auto-reply actually works.
             let patch = if body.enabled {
                 build_enable_patch(
-                    r#"{"channels": {"whatsapp": {"allowFrom": ["*"], "dmPolicy": "open"}}}"#,
+                    r#"{"channels": {"whatsapp": {"dmPolicy": "pairing"}}}"#,
                     &config_snapshot,
                 )
             } else {
@@ -499,13 +498,12 @@ pub async fn imessage_enable(
             let base_hash = extract_base_hash(&config_snapshot);
 
             // iMessage channel config:
-            // - allowFrom ["*"] = accept messages from anyone
-            // - dmPolicy "open" = auto-reply to all inbound DMs
+            // - dmPolicy "pairing" = unknown senders must be approved by owner
             // - service "auto" = detect iMessage vs SMS automatically
             // Also ensures agents.defaults.model is set so auto-reply actually works.
             let patch = if body.enabled {
                 build_enable_patch(
-                    r#"{"channels": {"imessage": {"allowFrom": ["*"], "dmPolicy": "open", "service": "auto"}}}"#,
+                    r#"{"channels": {"imessage": {"dmPolicy": "pairing", "service": "auto"}}}"#,
                     &config_snapshot,
                 )
             } else {
@@ -776,7 +774,7 @@ pub async fn telegram_enable(
 
             let patch = if body.enabled {
                 build_enable_patch(
-                    r#"{"channels": {"telegram": {"allowFrom": ["*"], "dmPolicy": "open"}}}"#,
+                    r#"{"channels": {"telegram": {"dmPolicy": "pairing"}}}"#,
                     &config_snapshot,
                 )
             } else {
@@ -843,8 +841,7 @@ pub async fn telegram_configure(
                 "channels": {
                     "telegram": {
                         "botToken": token,
-                        "allowFrom": ["*"],
-                        "dmPolicy": "open"
+                        "dmPolicy": "pairing"
                     }
                 }
             });
@@ -1230,8 +1227,7 @@ pub async fn generic_channel_configure(
 
                 if !obj.contains_key("dm") {
                     obj.insert("dm".to_string(), serde_json::json!({
-                        "policy": "open",
-                        "allowFrom": ["*"]
+                        "policy": "pairing"
                     }));
                 }
 
@@ -1252,19 +1248,13 @@ pub async fn generic_channel_configure(
                         obj.insert("account".to_string(), phone);
                     }
                 }
-                if !obj.contains_key("allowFrom") {
-                    obj.insert("allowFrom".to_string(), serde_json::json!(["*"]));
-                }
                 if !obj.contains_key("dmPolicy") {
-                    obj.insert("dmPolicy".to_string(), serde_json::json!("open"));
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
                 }
             }
             _ => {
-                if !obj.contains_key("allowFrom") {
-                    obj.insert("allowFrom".to_string(), serde_json::json!(["*"]));
-                }
                 if !obj.contains_key("dmPolicy") {
-                    obj.insert("dmPolicy".to_string(), serde_json::json!("open"));
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
                 }
             }
         }
