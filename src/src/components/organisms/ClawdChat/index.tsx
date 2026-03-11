@@ -291,7 +291,7 @@ type SkillInfo = {
   homepage?: string // URL for skill detail page (from gateway)
 }
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq' | 'openrouter' | 'ollama'
 
 type ProviderOption = {
   id: Provider
@@ -306,6 +306,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3 Flash, 3.1 Flash Lite', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
+  { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
   { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
 ]
 
@@ -354,6 +355,20 @@ const GROQ_MODELS: GroqModelOption[] = [
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', description: 'Versatile general-purpose model' },
 ]
 
+type OpenRouterModelOption = {
+  id: string
+  name: string
+  description: string
+}
+
+const OPENROUTER_MODELS: OpenRouterModelOption[] = [
+  { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
+  { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', description: 'Free, fast and capable' },
+  { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 (Free)', description: 'Free, good for coding and reasoning' },
+  { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits' },
+  { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'Paid, use your OpenRouter credits' },
+]
+
 // Recommended models to offer for download when Ollama has none installed
 type OllamaModelSuggestion = { id: string; name: string; description: string; size: string }
 const OLLAMA_SUGGESTED_MODELS: OllamaModelSuggestion[] = [
@@ -398,6 +413,7 @@ const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
 const ANTHROPIC_MODEL_STORAGE = 'moltbot_anthropic_model'
 const GEMINI_MODEL_STORAGE = 'moltbot_gemini_model'
 const GROQ_MODEL_STORAGE = 'moltbot_groq_model'
+const OPENROUTER_MODEL_STORAGE = 'moltbot_openrouter_model'
 const OLLAMA_MODEL_STORAGE = 'moltbot_ollama_model'
 const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
@@ -1180,6 +1196,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedGroqModel, setSelectedGroqModel] = useState<string>(() => {
     return localStorage.getItem(GROQ_MODEL_STORAGE) || 'meta-llama/llama-4-scout-17b-16e-instruct'
   })
+  const [selectedOpenRouterModel, setSelectedOpenRouterModel] = useState<string>(() => {
+    return localStorage.getItem(OPENROUTER_MODEL_STORAGE) || 'meta-llama/llama-3.3-70b-instruct:free'
+  })
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
   })
@@ -1412,6 +1431,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             anthropic_model?: string
             gemini_model?: string
             groq_model?: string
+            openrouter_model?: string
           }>('/api/clawd/service/get-api-key')
           if (fullKeys.anthropic_model) {
             setSelectedAnthropicModel(fullKeys.anthropic_model)
@@ -1424,6 +1444,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           if (fullKeys.groq_model) {
             setSelectedGroqModel(fullKeys.groq_model)
             localStorage.setItem(GROQ_MODEL_STORAGE, fullKeys.groq_model)
+          }
+          if (fullKeys.openrouter_model) {
+            setSelectedOpenRouterModel(fullKeys.openrouter_model)
+            localStorage.setItem(OPENROUTER_MODEL_STORAGE, fullKeys.openrouter_model)
           }
         } catch { /* ignore */ }
         // If this version was already onboarded, skip the prompt
@@ -2204,6 +2228,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : selectedProvider === 'anthropic' ? selectedAnthropicModel
         : selectedProvider === 'gemini' ? selectedGeminiModel
         : selectedProvider === 'groq' ? selectedGroqModel
+        : selectedProvider === 'openrouter' ? selectedOpenRouterModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
         key: apiKey.trim(),
@@ -2219,6 +2244,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(GEMINI_MODEL_STORAGE, selectedGeminiModel)
       } else if (selectedProvider === 'groq') {
         localStorage.setItem(GROQ_MODEL_STORAGE, selectedGroqModel)
+      } else if (selectedProvider === 'openrouter') {
+        localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
       }
       setShowKeyPrompt(false)
       setHasCompletedOnboarding(true)
@@ -2239,6 +2266,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           modelName = ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || selectedAnthropicModel
         } else if (selectedProvider === 'groq') {
           modelName = GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel
+        } else if (selectedProvider === 'openrouter') {
+          modelName = OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel
         } else {
           modelName = GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel
         }
@@ -2253,7 +2282,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOpenRouterModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
 
   // Switch to a provider that already has a saved key (no new key needed)
   const switchProviderModel = useCallback(async (providerId: Provider) => {
@@ -2263,6 +2292,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'anthropic' ? selectedAnthropicModel
         : providerId === 'gemini' ? selectedGeminiModel
         : providerId === 'groq' ? selectedGroqModel
+        : providerId === 'openrouter' ? selectedOpenRouterModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
         provider: providerId,
@@ -2277,6 +2307,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(GEMINI_MODEL_STORAGE, selectedGeminiModel)
       } else if (providerId === 'groq') {
         localStorage.setItem(GROQ_MODEL_STORAGE, selectedGroqModel)
+      } else if (providerId === 'openrouter') {
+        localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
       }
       setSelectedProvider(providerId)
       setShowKeyPrompt(false)
@@ -2288,10 +2320,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       const models = providerId === 'openai' ? OPENAI_MODELS
         : providerId === 'anthropic' ? ANTHROPIC_MODELS
         : providerId === 'gemini' ? GEMINI_MODELS
+        : providerId === 'openrouter' ? OPENROUTER_MODELS
         : GROQ_MODELS
       const mv = providerId === 'openai' ? selectedModel
         : providerId === 'anthropic' ? selectedAnthropicModel
         : providerId === 'gemini' ? selectedGeminiModel
+        : providerId === 'openrouter' ? selectedOpenRouterModel
         : selectedGroqModel
       const modelName = models.find(m => m.id === mv)?.name || mv
       pushAssistant(`Switched to ${providerInfo?.name || providerId} (${modelName}).`)
@@ -2300,7 +2334,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel])
+  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOpenRouterModel])
 
   useEffect(() => {
     const init = async () => {
@@ -5165,14 +5199,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 const models = p.id === 'openai' ? OPENAI_MODELS
                   : p.id === 'anthropic' ? ANTHROPIC_MODELS
                   : p.id === 'gemini' ? GEMINI_MODELS
+                  : p.id === 'openrouter' ? OPENROUTER_MODELS
                   : GROQ_MODELS
                 const modelValue = p.id === 'openai' ? selectedModel
                   : p.id === 'anthropic' ? selectedAnthropicModel
                   : p.id === 'gemini' ? selectedGeminiModel
+                  : p.id === 'openrouter' ? selectedOpenRouterModel
                   : selectedGroqModel
                 const setModelValue = p.id === 'openai' ? setSelectedModel
                   : p.id === 'anthropic' ? setSelectedAnthropicModel
                   : p.id === 'gemini' ? setSelectedGeminiModel
+                  : p.id === 'openrouter' ? setSelectedOpenRouterModel
                   : setSelectedGroqModel
 
                 return (

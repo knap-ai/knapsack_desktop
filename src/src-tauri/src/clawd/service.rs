@@ -1482,6 +1482,7 @@ pub struct GetApiKeyResponse {
   pub anthropic_model: Option<String>,
   pub gemini_model: Option<String>,
   pub groq_model: Option<String>,
+  pub openrouter_model: Option<String>,
 }
 
 #[get("/api/clawd/service/get-api-key")]
@@ -1500,6 +1501,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
         anthropic_model: None,
         gemini_model: None,
         groq_model: None,
+        openrouter_model: None,
       })
     }
   };
@@ -1527,6 +1529,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
     anthropic_model: tokens.anthropic_model,
     gemini_model: tokens.gemini_model,
     groq_model: tokens.groq_model,
+    openrouter_model: tokens.openrouter_model,
   })
 }
 

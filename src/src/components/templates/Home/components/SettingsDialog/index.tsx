@@ -40,7 +40,7 @@ type SettingsDialogProps = {
   fetchConnections: (email: string) => void
   deleteConnection: (id: number) => void
   profile: Profile | undefined
-  onProviderSignInClick?: (provider?: 'openai' | 'anthropic') => void
+  onProviderSignInClick?: (provider?: 'openai' | 'anthropic' | 'openrouter') => void
 }
 
 const PERMISSION_LIST_GOOGLE_CONNECTIONS = new Set([
@@ -132,6 +132,7 @@ export const SettingsDialog = ({
     active_provider?: string
     has_openai_key?: boolean
     has_anthropic_key?: boolean
+    has_openrouter_key?: boolean
     ollama_enabled?: boolean
     ollama_model?: string
     ollama_base_url?: string
@@ -175,6 +176,7 @@ export const SettingsDialog = ({
           active_provider: data.active_provider,
           has_openai_key: data.has_openai_key,
           has_anthropic_key: data.has_anthropic_key,
+          has_openrouter_key: data.has_openrouter_key,
           ollama_enabled: data.ollama_enabled,
           ollama_model: data.ollama_model,
           ollama_base_url: data.ollama_base_url,
@@ -413,6 +415,27 @@ export const SettingsDialog = ({
                   onClick={() => { handleClose(); onProviderSignInClick?.('anthropic') }}
                 >
                   {providerStatus?.has_anthropic_key ? 'Change' : 'Sign in'}
+                </button>
+              </div>
+            </ProviderAccordion>
+
+            {/* OpenRouter */}
+            <ProviderAccordion
+              title="OpenRouter"
+              isActive={providerStatus?.active_provider === 'openrouter'}
+              isConnected={!!providerStatus?.has_openrouter_key}
+              expanded={expandedProvider === 'openrouter'}
+              onToggle={() => toggleProvider('openrouter')}
+            >
+              <div className={styles.providerActions}>
+                <span className={styles.providerStatus}>
+                  {providerStatus?.has_openrouter_key ? 'API key configured' : 'No API key set'}
+                </span>
+                <button
+                  className={styles.providerActionLink}
+                  onClick={() => { handleClose(); onProviderSignInClick?.('openrouter') }}
+                >
+                  {providerStatus?.has_openrouter_key ? 'Change' : 'Sign in'}
                 </button>
               </div>
             </ProviderAccordion>
