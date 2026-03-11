@@ -3452,11 +3452,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             {proactiveMode ? '🔔 Proactive' : '🔕 Reactive'}
           </button>
           <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); setShowChannelsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
-            {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || 'Anthropic')
-              : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || 'Gemini')
-              : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || 'Groq')
+            {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || selectedAnthropicModel || 'Anthropic')
+              : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel || 'Gemini')
+              : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel || 'Groq')
               : selectedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
-              : OPENAI_MODELS.find(m => m.id === selectedModel)?.name || 'OpenAI'}
+              : (OPENAI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel || 'OpenAI')}
           </button>
           <button disabled={busy} onClick={() => setShowToneSelector(true)}>
             Tone: {TONE_OPTIONS.find(t => t.id === selectedTone)?.name || 'Select'}
