@@ -18,6 +18,7 @@ pub fn get_pricing(provider: &str, model: &str) -> ModelPricing {
         "anthropic" => anthropic_pricing(&model_lower),
         "gemini" => gemini_pricing(&model_lower),
         "groq" => groq_pricing(&model_lower),
+        "openrouter" => openrouter_pricing(&model_lower),
         "local" | "ollama" => ModelPricing { input_per_1k: 0.0, output_per_1k: 0.0 },
         _ => ModelPricing { input_per_1k: 0.003, output_per_1k: 0.006 }, // conservative fallback
     }
@@ -81,6 +82,18 @@ fn groq_pricing(model: &str) -> ModelPricing {
         ModelPricing { input_per_1k: 0.00024, output_per_1k: 0.00024 }
     } else {
         ModelPricing { input_per_1k: 0.0002, output_per_1k: 0.0002 }
+    }
+}
+
+fn openrouter_pricing(model: &str) -> ModelPricing {
+    if model.contains(":free") {
+        ModelPricing { input_per_1k: 0.0, output_per_1k: 0.0 }
+    } else if model.contains("claude") {
+        // Anthropic models via OpenRouter have a small markup
+        ModelPricing { input_per_1k: 0.003, output_per_1k: 0.015 }
+    } else {
+        // Conservative fallback for paid OpenRouter models
+        ModelPricing { input_per_1k: 0.001, output_per_1k: 0.002 }
     }
 }
 

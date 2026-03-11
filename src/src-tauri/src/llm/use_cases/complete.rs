@@ -36,7 +36,7 @@ struct CompletionUsage {
 
 /// Resolved LLM provider info for meeting notes completion.
 struct ResolvedProvider {
-  name: String,        // "openai", "anthropic", "gemini", "groq"
+  name: String,        // "openai", "anthropic", "gemini", "groq", "openrouter"
   api_key: String,
   model: String,
   base_url: String,    // e.g. "https://api.openai.com/v1"
@@ -51,6 +51,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
+  let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let ollama_key = std::env::var("OLLAMA_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.2".to_string());
 
@@ -77,6 +78,17 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
       is_anthropic: false,
     }),
+    "openrouter" if openrouter_key.is_some() => {
+      let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+        .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+      return Ok(ResolvedProvider {
+        name: "openrouter".into(),
+        api_key: openrouter_key.unwrap(),
+        model: openrouter_model,
+        base_url: "https://openrouter.ai/api/v1".into(),
+        is_anthropic: false,
+      });
+    }
     "ollama" if ollama_key.is_some() => {
       let ollama_base = std::env::var("OLLAMA_HOST")
         .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
@@ -130,6 +142,17 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       is_anthropic: false,
     });
   }
+  if let Some(key) = openrouter_key {
+    let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+      .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+    return Ok(ResolvedProvider {
+      name: "openrouter".into(),
+      api_key: key,
+      model: openrouter_model,
+      base_url: "https://openrouter.ai/api/v1".into(),
+      is_anthropic: false,
+    });
+  }
 
   Err(LLMError::ChatCompletionFailed(
     "No API key configured. Please add your API key in Settings.".into(),
@@ -137,7 +160,8 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
 }
 
 /// When smart model routing is enabled, downgrade to a cheaper model for simple tasks.
-/// Keeps the user's chosen provider but picks the cheapest model tier within it.
+/// If OpenRouter is configured with a free model, simple tasks are routed there entirely
+/// (cross-provider routing). Otherwise falls back to cheapest model within the same provider.
 fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
     let enabled = std::env::var("KNAPSACK_MODEL_ROUTING_ENABLED")
         .map(|v| v == "true" || v == "1")
@@ -151,12 +175,40 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
     log::info!("[routing] Task classified as '{}' for provider '{}'", complexity, provider.name);
 
     if complexity == "haiku" {
-        // Downgrade to cheapest model within each provider
+        // Cross-provider routing: if OpenRouter is available and the current provider
+        // is a paid one, route simple tasks to OpenRouter's free model instead.
+        if provider.name != "openrouter" && provider.name != "ollama" && provider.name != "groq" {
+            let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
+            let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL").unwrap_or_default();
+            if let Some(or_key) = openrouter_key {
+                // Only cross-route if the configured OpenRouter model is a free one
+                if openrouter_model.contains(":free") || openrouter_model.is_empty() {
+                    let model = if openrouter_model.is_empty() {
+                        "meta-llama/llama-3.3-70b-instruct:free".to_string()
+                    } else {
+                        openrouter_model
+                    };
+                    log::info!(
+                        "[routing] Cross-provider routing: {} ({}) -> openrouter ({}) for simple task",
+                        provider.name, provider.model, model
+                    );
+                    provider.name = "openrouter".into();
+                    provider.api_key = or_key;
+                    provider.model = model;
+                    provider.base_url = "https://openrouter.ai/api/v1".into();
+                    provider.is_anthropic = false;
+                    return;
+                }
+            }
+        }
+
+        // Fallback: downgrade to cheapest model within each provider
         let (new_model, label) = match provider.name.as_str() {
             "openai" => ("o3-mini".to_string(), "o3-mini"),
             "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
             "gemini" => ("gemini-2.5-flash".to_string(), "Flash"), // already cheap
             "groq" => (provider.model.clone(), "Groq"),           // already cheap
+            "openrouter" => (provider.model.clone(), "OpenRouter"), // user chose this
             "ollama" => (provider.model.clone(), "Ollama"),       // local, no cost
             _ => (provider.model.clone(), "unchanged"),
         };
