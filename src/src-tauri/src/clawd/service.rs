@@ -617,7 +617,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         match tokio::time::timeout(
           std::time::Duration::from_secs(10),
           gateway_client::browser_request(
-            "POST", "/start", Some(serde_json::json!({"profile": "openclaw"})), None, None,
+            "POST", "/start", Some(serde_json::json!({"profile": "knapsack"})), None, None,
           ),
         ).await {
           Ok(Ok(_)) => eprintln!("[clawd/service] browser /start nudge succeeded"),
