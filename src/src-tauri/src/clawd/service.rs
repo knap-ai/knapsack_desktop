@@ -1730,6 +1730,22 @@ pub async fn set_service_enabled(
             "slots": {
               "memory": "none"
             }
+          },
+          "tools": {
+            "allow": ["browser", "group:web", "exec", "process", "read", "write", "edit", "apply_patch"],
+            "deny": ["canvas", "nodes", "cron", "gateway"],
+            "media": {"image": {"enabled": true}},
+            "sandbox": {
+              "tools": {
+                "deny": ["canvas", "nodes", "cron", "gateway"],
+                "allow": [
+                  "exec", "process", "read", "write", "edit", "apply_patch",
+                  "image", "sessions_list", "sessions_history",
+                  "sessions_send", "sessions_spawn", "session_status",
+                  "browser", "group:web"
+                ]
+              }
+            }
           }
         });
         match fs::write(&config_path, serde_json::to_string_pretty(&default_config).unwrap_or_default()) {
