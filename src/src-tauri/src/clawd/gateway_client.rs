@@ -1058,6 +1058,16 @@ pub async fn is_gateway_port_open() -> bool {
     .unwrap_or(false)
 }
 
+/// Best-effort gateway restart for callers that want to wait briefly.
+/// Resolves the token from env/config and calls ensure_gateway_running.
+/// Used by `gateway_or_bail()` in channels.rs to try restarting the
+/// gateway before returning an error to the frontend.
+pub async fn ensure_gateway_and_wait() {
+  if let Ok(token) = resolve_token(None) {
+    ensure_gateway_best_effort(&token).await;
+  }
+}
+
 /// Make a request using a persistent gateway connection.
 ///
 /// Adds:

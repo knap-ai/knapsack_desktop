@@ -6,22 +6,35 @@ use std::time::Duration;
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
-/// Quick check: is the gateway port listening?  If not, return a fast error
-/// response instead of blocking for 10+ seconds on WebSocket connection attempts.
+/// Quick check: is the gateway port listening?  If not, attempt a restart
+/// via `ensure_gateway_best_effort` and re-check.  Returns a fast error
+/// response if the gateway is still down after the restart attempt.
 async fn gateway_or_bail() -> Option<HttpResponse> {
-    if !gateway_client::is_gateway_port_open().await {
-        Some(HttpResponse::Ok().json(ChannelStatusResponse {
-            success: false,
-            enabled: false,
-            configured: false,
-            linked: Some(false),
-            provider: None,
-            message: Some("Gateway not reachable".to_string()),
-            account: None,
-        }))
-    } else {
-        None
+    if gateway_client::is_gateway_port_open().await {
+        return None;
     }
+
+    // Gateway is down — try to restart it before giving up.
+    // This handles the common case where the gateway crashed and macOS
+    // KeepAlive hasn't restarted it yet, or the restart is in progress.
+    eprintln!("[channels] gateway port not open — attempting restart before bailing");
+    gateway_client::ensure_gateway_and_wait().await;
+
+    // Re-check after restart attempt
+    if gateway_client::is_gateway_port_open().await {
+        eprintln!("[channels] gateway came back after restart — proceeding");
+        return None;
+    }
+
+    Some(HttpResponse::Ok().json(ChannelStatusResponse {
+        success: false,
+        enabled: false,
+        configured: false,
+        linked: Some(false),
+        provider: None,
+        message: Some("Gateway not reachable — the background service may need to be restarted. Check the Activity panel.".to_string()),
+        account: None,
+    }))
 }
 
 /// Request body for sending a message through a channel.

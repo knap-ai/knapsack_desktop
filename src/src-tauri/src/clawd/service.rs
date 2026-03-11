@@ -10,10 +10,17 @@ use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
 /// Whether we've already sent a one-shot `/start` nudge to the gateway's
-/// browser control.  Set once and never cleared — if the gateway can't start
-/// Chrome after a nudge, repeatedly retrying won't help and just causes
-/// blank-screen flashing.
+/// browser control.  Reset when the gateway transitions from down to up,
+/// so the nudge fires again after a gateway restart.
 static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
+
+/// Tracks whether the gateway was healthy on the last health check.
+/// Used to detect down→up transitions and reset BROWSER_START_NUDGED.
+static GATEWAY_WAS_HEALTHY: AtomicBool = AtomicBool::new(false);
+
+/// Tracks whether a gateway restart attempt is already in progress,
+/// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
+static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
@@ -482,6 +489,40 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       None => false,
     };
 
+    // Track gateway state transitions for recovery logic.
+    let was_healthy = GATEWAY_WAS_HEALTHY.load(Ordering::Relaxed);
+
+    if gateway_ok {
+      // Gateway is up — record it so we can detect down→up transitions.
+      GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
+
+      // If the gateway just came back (was previously down), reset the
+      // browser nudge flag so we'll send a fresh /start nudge if needed.
+      if !was_healthy {
+        eprintln!("[clawd/service] gateway recovered — resetting browser nudge flag");
+        BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+        // Invalidate the pooled WebSocket connection — the old one is dead.
+        gateway_client::invalidate();
+      }
+    } else {
+      GATEWAY_WAS_HEALTHY.store(false, Ordering::Relaxed);
+    }
+
+    // If gateway is down, try to restart it via launchctl kickstart.
+    // This runs in a background task to avoid blocking the health poll.
+    // We guard with GATEWAY_RESTART_IN_PROGRESS to prevent concurrent restarts.
+    if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+      let token = tokens.gateway_token.clone();
+      eprintln!("[clawd/service] gateway not reachable — attempting background restart");
+      tokio::spawn(async move {
+        use crate::clawd::gateway_supervisor;
+        let result = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, &token).await;
+        eprintln!("[clawd/service] gateway restart attempt: {} ({})", result.message,
+          if result.running { "running" } else { "not running" });
+        GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      });
+    }
+
     // Browser control is accessed through the gateway's `browser.request` RPC
     // method.  Send a lightweight request to verify it's responsive.
     // Use a 5-second timeout to avoid blocking the health endpoint when the
@@ -508,11 +549,12 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     };
 
     // If the gateway is healthy but browser control isn't responding, send
-    // a single `/start` nudge.  This is idempotent on the gateway — if the
-    // browser is already starting it's a no-op.  We only do this once per
-    // process lifetime to avoid restart loops that flash blank Chrome windows.
+    // a `/start` nudge.  This is idempotent on the gateway — if the
+    // browser is already starting it's a no-op.  The flag resets when the
+    // gateway recovers (down→up transition above) so the nudge can fire
+    // again after a gateway restart.
     if gateway_ok && !browser_ok && !BROWSER_START_NUDGED.swap(true, Ordering::Relaxed) {
-      eprintln!("[clawd/service] browser not reachable — sending one-time /start nudge");
+      eprintln!("[clawd/service] browser not reachable — sending /start nudge");
       tokio::spawn(async {
         match tokio::time::timeout(
           std::time::Duration::from_secs(10),
@@ -1932,16 +1974,12 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Suppress the "Chrome is being controlled by automated test software"
-            // infobar on first launch by setting browser.hideAutomationBanner.
-            let hide_banner = cfg
-              .pointer("/browser/hideAutomationBanner")
-              .and_then(|v| v.as_bool())
-              .unwrap_or(false);
-            if !hide_banner {
+            // Clean up browser.hideAutomationBanner — the gateway's config
+            // validator rejects this unrecognized key, causing a crash loop.
+            if cfg.pointer("/browser/hideAutomationBanner").is_some() {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("hideAutomationBanner".to_string(), serde_json::json!(true));
-              eprintln!("[clawd/service] Patched browser.hideAutomationBanner to true");
+                .remove("hideAutomationBanner");
+              eprintln!("[clawd/service] Removed invalid browser.hideAutomationBanner key from config");
               patched = true;
             }
 

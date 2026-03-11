@@ -2423,9 +2423,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               setTimeout(pollGateway, 2000)
             } else if (!isHealthy && gatewayAttempts < maxFastAttempts) {
               // Initial startup — fast poll
+              consecutiveDownPolls++
+              // Trigger a restart attempt after several failed startup polls too,
+              // not just after a healthy→down transition. This handles the case
+              // where the gateway never started successfully.
+              if (consecutiveDownPolls === 6) {
+                fetch('http://localhost:8897/api/clawd/service/startup-ready').catch(() => {})
+              }
               setTimeout(pollGateway, 1500)
             } else {
-              // Slow poll fallback
+              // Slow poll fallback — still try restart periodically
+              consecutiveDownPolls++
+              if (consecutiveDownPolls % 6 === 0) {
+                fetch('http://localhost:8897/api/clawd/service/startup-ready').catch(() => {})
+              }
               setTimeout(pollGateway, 10000)
             }
           } catch {
@@ -3462,12 +3473,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     if (health) {
       const gwStarting = channelStatus.gatewayStarting
       parts.push(
-        <span key="gw" className={health.gateway_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}>
+        <span key="gw" className={health.gateway_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
+          title={!health.gateway_ok && health.message ? health.message : undefined}>
           {health.gateway_ok ? 'Gateway: OK' : gwStarting ? 'Gateway: starting...' : 'Gateway: reconnecting...'}
         </span>,
       )
       parts.push(
-        <span key="br" className={health.browser_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}>
+        <span key="br" className={health.browser_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
+          title={!health.browser_ok && health.message ? health.message : undefined}>
           {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : 'Browser: reconnecting...'}
         </span>,
       )
