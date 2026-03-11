@@ -10,7 +10,7 @@ import styles from './styles.module.scss'
 
 const API_BASE = 'http://localhost:8897'
 
-type Provider = 'openai' | 'anthropic'
+type Provider = 'openai' | 'anthropic' | 'openrouter'
 
 type ProviderConfig = {
   id: Provider
@@ -58,6 +58,21 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
       { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable' },
     ],
     defaultModel: 'claude-sonnet-4-6',
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    description: 'Access many models, including free ones',
+    keyPrefix: 'sk-or-',
+    helpUrl: 'https://openrouter.ai/keys',
+    helpLabel: 'openrouter.ai/keys',
+    models: [
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
+      { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', description: 'Free, fast and capable' },
+      { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 (Free)', description: 'Free, good for coding and reasoning' },
+      { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits' },
+    ],
+    defaultModel: 'meta-llama/llama-3.3-70b-instruct:free',
   },
 ]
 
@@ -113,8 +128,10 @@ type ApiKeyStatusResponse = {
   model?: string
   has_openai_key?: boolean
   has_anthropic_key?: boolean
+  has_openrouter_key?: boolean
   openai_key_hint?: string
   anthropic_key_hint?: string
+  openrouter_key_hint?: string
   extra_providers?: ExtraProviderStatusItem[]
 }
 
@@ -160,6 +177,7 @@ export const ProviderSignInDialog = ({
     if (!keyStatus) return undefined
     if (provider === 'openai') return keyStatus.openai_key_hint
     if (provider === 'anthropic') return keyStatus.anthropic_key_hint
+    if (provider === 'openrouter') return keyStatus.openrouter_key_hint
     return undefined
   }
 
@@ -254,7 +272,7 @@ export const ProviderSignInDialog = ({
         setSelectedProvider(initialProvider)
         const config = PROVIDER_CONFIGS.find(p => p.id === initialProvider)!
         setSelectedModel(config.defaultModel)
-      } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic') {
+      } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic' || data.active_provider === 'openrouter') {
         setSelectedProvider(data.active_provider as Provider)
         const config = PROVIDER_CONFIGS.find(p => p.id === data.active_provider)!
         setSelectedModel(data.model || config.defaultModel)
@@ -341,6 +359,7 @@ export const ProviderSignInDialog = ({
     if (!keyStatus) return false
     if (provider === 'openai') return !!keyStatus.has_openai_key
     if (provider === 'anthropic') return !!keyStatus.has_anthropic_key
+    if (provider === 'openrouter') return !!keyStatus.has_openrouter_key
     return false
   }
 
@@ -475,6 +494,12 @@ export const ProviderSignInDialog = ({
                 {config.id === 'anthropic' && (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M13.827 3.52h3.603L24 20.48h-3.603l-6.57-16.96zm-7.258 0h3.767L16.906 20.48h-3.674l-1.47-4.004H5.69l-1.457 4.004H.673L6.57 3.52zm4.132 9.96L8.453 7.687 6.205 13.48h4.496z" fill="currentColor"/>
+                  </svg>
+                )}
+                {config.id === 'openrouter' && (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h6v6h-6v-6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none"/>
+                    <path d="M10 7h4M7 10v4M17 10v4M10 17h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                   </svg>
                 )}
               </div>
