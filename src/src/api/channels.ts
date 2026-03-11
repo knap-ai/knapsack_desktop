@@ -69,6 +69,10 @@ export interface WhatsAppLoginWaitResponse {
 export const waitWhatsAppLogin = () =>
   post<WhatsAppLoginWaitResponse>('/api/clawd/channels/whatsapp/login-wait')
 
+/** Re-link WhatsApp: clear stale credentials and start fresh QR login. */
+export const relinkWhatsApp = () =>
+  post<WhatsAppLoginResponse>('/api/clawd/channels/whatsapp/relink', {})
+
 /** Disconnect WhatsApp: logout from Baileys and remove channel config. */
 export const disconnectWhatsApp = () =>
   post<GenericResponse>('/api/clawd/channels/whatsapp/disconnect', {})
@@ -201,3 +205,21 @@ export const updateChannelAllowlist = (
   channel: string,
   update: { dmPolicy?: string; allowFrom?: string[] },
 ) => post<GenericResponse>(`/api/clawd/channels/${channel}/allowlist`, update)
+
+// ── Diagnostics ─────────────────────────────────────────────
+
+export interface ChannelDiagnostics {
+  success: boolean
+  channelSummary: string[]
+  hasModel: boolean
+  model: string | null
+  hasApiKey: boolean
+  apiKeyProvider: string | null
+  configuredChannels: string[]
+  issues: string[]
+  repairs: string[]
+}
+
+/** Run channel diagnostics and auto-repair common issues. */
+export const runChannelDiagnostics = () =>
+  get<ChannelDiagnostics>('/api/clawd/channels/diagnostics')

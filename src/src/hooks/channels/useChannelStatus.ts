@@ -11,6 +11,7 @@ import {
   configureGenericChannel,
   startWhatsAppLogin,
   waitWhatsAppLogin,
+  relinkWhatsApp,
   disconnectWhatsApp,
   disconnectIMessage,
   disconnectTelegram,
@@ -383,6 +384,45 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     }
   }, [refresh])
 
+  const doRelinkWhatsApp = useCallback(async () => {
+    setChannelError('whatsapp', null)
+    setWhatsappLinking(true)
+    setWhatsappQrUrl(null)
+    try {
+      const res = await relinkWhatsApp()
+      if (!res.success) throw new Error(res.message ?? 'Failed to relink WhatsApp')
+      if (res.qrDataUrl) {
+        setWhatsappQrUrl(res.qrDataUrl)
+        // Clear linked state so QR code is shown
+        setWhatsapp(prev => prev ? { ...prev, linked: false } : prev)
+        // Start polling for scan completion
+        const pollForLink = async () => {
+          for (let i = 0; i < 30; i++) {
+            await new Promise(r => setTimeout(r, 3000))
+            const status = await getWhatsAppStatus()
+            if (status.linked) {
+              setWhatsapp(status)
+              setWhatsappQrUrl(null)
+              setWhatsappLinking(false)
+              prevJsonRef.current.wa = JSON.stringify(status)
+              return
+            }
+          }
+          setWhatsappLinking(false)
+          setChannelError('whatsapp', 'QR code expired. Click Relink to try again.')
+        }
+        pollForLink()
+      } else {
+        setWhatsappLinking(false)
+        await refresh()
+      }
+    } catch (e: any) {
+      setChannelError('whatsapp', e.message)
+      setWhatsappLinking(false)
+      throw e
+    }
+  }, [refresh])
+
   const connectIMessage = useCallback(async () => {
     setChannelError('imessage', null)
     try {
@@ -493,6 +533,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     checkHealth,
     connectWhatsApp,
     disconnectWhatsApp: doDisconnectWhatsApp,
+    relinkWhatsApp: doRelinkWhatsApp,
     connectIMessage,
     disconnectIMessage: doDisconnectIMessage,
     connectTelegram,

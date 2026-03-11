@@ -3929,31 +3929,52 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     ) : (
                       <div className="ClawdChannelCardStatus">Not connected</div>
                     )}
-                    <button
-                      className={`ClawdChannelCardAction ${(channelStatus.whatsapp?.linked || channelStatus.whatsapp?.enabled) ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
-                      disabled={channelBusy === 'whatsapp'}
-                      onClick={async () => {
-                        setChannelBusy('whatsapp')
-                        setChannelError(null)
-                        try {
-                          if (channelStatus.whatsapp?.linked || (channelStatus.whatsapp?.enabled && !channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl)) {
-                            await channelStatus.disconnectWhatsApp()
-                          } else {
-                            await channelStatus.connectWhatsApp()
-                          }
-                        } catch (err: any) {
-                          const msg = err?.message || String(err)
-                          console.error('[Channels] WhatsApp error:', msg)
-                          setChannelError(`WhatsApp: ${msg}`)
-                        } finally { setChannelBusy(null) }
-                      }}
-                    >
-                      {channelBusy === 'whatsapp'
-                        ? (channelStatus.whatsappLinking ? 'Starting WhatsApp...' : 'Working...')
-                        : (channelStatus.whatsapp?.linked || (channelStatus.whatsapp?.enabled && !channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl))
-                          ? 'Disconnect'
-                          : 'Connect'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {channelStatus.whatsapp?.linked && (
+                        <button
+                          className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                          disabled={channelBusy === 'whatsapp'}
+                          onClick={async () => {
+                            setChannelBusy('whatsapp')
+                            setChannelError(null)
+                            try {
+                              await channelStatus.relinkWhatsApp()
+                            } catch (err: any) {
+                              const msg = err?.message || String(err)
+                              console.error('[Channels] WhatsApp relink error:', msg)
+                              setChannelError(`WhatsApp relink: ${msg}`)
+                            } finally { setChannelBusy(null) }
+                          }}
+                        >
+                          {channelBusy === 'whatsapp' ? 'Relinking...' : 'Relink'}
+                        </button>
+                      )}
+                      <button
+                        className={`ClawdChannelCardAction ${(channelStatus.whatsapp?.linked || channelStatus.whatsapp?.enabled) ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
+                        disabled={channelBusy === 'whatsapp'}
+                        onClick={async () => {
+                          setChannelBusy('whatsapp')
+                          setChannelError(null)
+                          try {
+                            if (channelStatus.whatsapp?.linked || (channelStatus.whatsapp?.enabled && !channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl)) {
+                              await channelStatus.disconnectWhatsApp()
+                            } else {
+                              await channelStatus.connectWhatsApp()
+                            }
+                          } catch (err: any) {
+                            const msg = err?.message || String(err)
+                            console.error('[Channels] WhatsApp error:', msg)
+                            setChannelError(`WhatsApp: ${msg}`)
+                          } finally { setChannelBusy(null) }
+                        }}
+                      >
+                        {channelBusy === 'whatsapp'
+                          ? (channelStatus.whatsappLinking ? 'Starting WhatsApp...' : 'Working...')
+                          : (channelStatus.whatsapp?.linked || (channelStatus.whatsapp?.enabled && !channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl))
+                            ? 'Disconnect'
+                            : 'Connect'}
+                      </button>
+                    </div>
                   </div>
                   {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && (
                     <div className="ClawdChannelGuide" style={{ textAlign: 'center', padding: '20px 16px' }}>
@@ -5015,8 +5036,28 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               <div className="ClawdChannelsPanelError">{channelStatus.error}</div>
             )}
           </div>
-          <div className="ClawdChannelsPanelFooter">
-            All messaging credentials stay on your Mac. Nothing is sent to external servers.
+          <div className="ClawdChannelsPanelFooter" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>All messaging credentials stay on your device. Nothing is sent to external servers.</span>
+            <button
+              style={{ fontSize: 11, color: '#64748b', background: 'none', border: '1px solid #e2e8f0', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}
+              onClick={async () => {
+                try {
+                  const { runChannelDiagnostics } = await import('src/api/channels')
+                  const diag = await runChannelDiagnostics()
+                  const parts: string[] = []
+                  parts.push(`Model: ${diag.model ?? 'NOT SET'}`)
+                  parts.push(`API Key: ${diag.hasApiKey ? diag.apiKeyProvider : 'NONE'}`)
+                  parts.push(`Channels in config: ${diag.configuredChannels.join(', ') || 'none'}`)
+                  if (diag.issues.length) parts.push(`\nIssues:\n  - ${diag.issues.join('\n  - ')}`)
+                  if (diag.repairs.length) parts.push(`\nAuto-repairs:\n  - ${diag.repairs.join('\n  - ')}`)
+                  if (!diag.issues.length && !diag.repairs.length) parts.push('\nNo issues found.')
+                  alert(parts.join('\n'))
+                  if (diag.repairs.length) channelStatus.refresh()
+                } catch (e: any) {
+                  alert(`Diagnostics failed: ${e.message}`)
+                }
+              }}
+            >Diagnose</button>
           </div>
         </div>
       )}
