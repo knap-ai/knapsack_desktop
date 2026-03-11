@@ -4,9 +4,16 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
+
+/// Timestamp (seconds since UNIX epoch) of the last browser recovery attempt.
+/// Used to rate-limit recovery so we don't spam stop/start on every health poll.
+static LAST_BROWSER_RECOVERY: AtomicU64 = AtomicU64::new(0);
+/// Minimum seconds between browser recovery attempts.
+const BROWSER_RECOVERY_COOLDOWN_SECS: u64 = 30;
 
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
@@ -466,6 +473,52 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     } else {
       false
     };
+
+    // Auto-recover browser when the gateway is healthy but Chrome is not.
+    // This handles stale Chrome processes holding the CDP port (18800) after
+    // an app restart, or Chrome crashing while the gateway stays up.
+    // Rate-limited to once per BROWSER_RECOVERY_COOLDOWN_SECS to avoid loops.
+    if gateway_ok && !browser_ok {
+      let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+      let last = LAST_BROWSER_RECOVERY.load(Ordering::Relaxed);
+      if now.saturating_sub(last) >= BROWSER_RECOVERY_COOLDOWN_SECS {
+        LAST_BROWSER_RECOVERY.store(now, Ordering::Relaxed);
+        eprintln!("[clawd/service] browser down but gateway OK — attempting auto-recovery");
+
+        // 1. Kill any stale Chrome processes that may be holding the CDP port.
+        kill_stale_clawdbot_chromes();
+
+        // 2. Tell the gateway to stop its current browser (if any) and start a fresh one.
+        //    Fire-and-forget so we don't block the health response.
+        tokio::spawn(async {
+          // Stop first — ignore errors (browser may already be stopped)
+          let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            gateway_client::browser_request(
+              "POST", "/stop", Some(serde_json::json!({"profile": "openclaw"})), None, None,
+            ),
+          ).await;
+
+          // Small delay to let the port be released
+          tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+
+          // Start a fresh browser
+          match tokio::time::timeout(
+            std::time::Duration::from_secs(15),
+            gateway_client::browser_request(
+              "POST", "/start", Some(serde_json::json!({"profile": "openclaw"})), None, None,
+            ),
+          ).await {
+            Ok(Ok(_)) => eprintln!("[clawd/service] browser auto-recovery: /start succeeded"),
+            Ok(Err(e)) => eprintln!("[clawd/service] browser auto-recovery: /start failed: {}", e),
+            Err(_) => eprintln!("[clawd/service] browser auto-recovery: /start timed out"),
+          }
+        });
+      }
+    }
 
     // When gateway is down, include the last few lines from stderr so the
     // user/UI can see why the process is failing without opening Terminal.
