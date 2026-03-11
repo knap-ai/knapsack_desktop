@@ -10,31 +10,40 @@ use crate::clawd::sidecar::SharedClawdbotConfig;
 
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
-/// Kill any Chrome processes that were launched by clawdbot and may still be
-/// holding the CDP debug port (18800).  This happens when the service is
-/// restarted (the gateway exits but the Chrome child survives because it's a
+/// Kill any Chrome processes that were launched by clawdbot/openclaw and may
+/// still be holding the CDP debug port (18800).  This happens when the service
+/// is restarted (the gateway exits but the Chrome child survives because it's a
 /// separate process).  Without this cleanup the new gateway can't launch its
 /// own Chrome on the same port and browser control stays in `cdpReady: false`.
 #[cfg(target_os = "macos")]
 fn kill_stale_clawdbot_chromes() {
   // `pgrep -f` finds processes whose full command-line matches the pattern.
-  // The clawdbot-managed Chrome always has `--user-data-dir=…/clawdbot/browser/`
+  // The managed Chrome always has `--user-data-dir=…/browser/<profile>/user-data`
   // in its argv, which normal user Chrome doesn't.
-  let output = std::process::Command::new("pgrep")
-    .args(["-f", "clawdbot/browser/.*/user-data"])
-    .output();
-  if let Ok(out) = output {
-    let pids = String::from_utf8_lossy(&out.stdout);
-    for pid_str in pids.split_whitespace() {
-      if let Ok(pid) = pid_str.parse::<i32>() {
-        eprintln!("[clawd/service] killing stale clawdbot Chrome (pid {})", pid);
-        unsafe { libc::kill(pid, libc::SIGTERM); }
+  // Match both clawdbot/ and openclaw/ paths since CONFIG_DIR may use either.
+  let patterns = &[
+    "clawdbot/browser/.*/user-data",
+    "openclaw/browser/.*/user-data",
+  ];
+  let mut killed_any = false;
+  for pattern in patterns {
+    let output = std::process::Command::new("pgrep")
+      .args(["-f", pattern])
+      .output();
+    if let Ok(out) = output {
+      let pids = String::from_utf8_lossy(&out.stdout);
+      for pid_str in pids.split_whitespace() {
+        if let Ok(pid) = pid_str.parse::<i32>() {
+          eprintln!("[clawd/service] killing stale managed Chrome (pid {}, pattern: {})", pid, pattern);
+          unsafe { libc::kill(pid, libc::SIGTERM); }
+          killed_any = true;
+        }
       }
     }
-    // Give Chrome a moment to exit so the port is released.
-    if !pids.trim().is_empty() {
-      std::thread::sleep(std::time::Duration::from_millis(1500));
-    }
+  }
+  // Give Chrome a moment to exit so the port is released.
+  if killed_any {
+    std::thread::sleep(std::time::Duration::from_millis(1500));
   }
 }
 
@@ -158,7 +167,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     browser_control_token,
     groq_api_key: None,
     openai_api_key: None, // User must provide their own API key
-    openai_model: None,   // Defaults to gpt-5.2
+    openai_model: None,   // Defaults to gpt-5.4
     anthropic_api_key: None,
     anthropic_model: None, // Defaults to claude-sonnet-4-5-20250929
     gemini_api_key: None,
@@ -296,12 +305,12 @@ fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(
   Ok(())
 }
 
-/// Get the configured OpenAI model (defaults to gpt-5.2 if not set)
+/// Get the configured OpenAI model (defaults to gpt-5.4 if not set)
 pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.openai_model)
-    .unwrap_or_else(|| "gpt-5.2".to_string())
+    .unwrap_or_else(|| "gpt-5.4".to_string())
 }
 
 /// Get the configured Anthropic model (defaults to claude-sonnet-4-5-20250929 if not set)
@@ -474,7 +483,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       match tokio::time::timeout(
         std::time::Duration::from_secs(5),
         gateway_client::browser_request(
-          "GET", "/tabs", Some(serde_json::json!({"profile": "openclaw"})), None, None,
+          "GET", "/tabs", Some(serde_json::json!({"profile": "knapsack"})), None, None,
         ),
       ).await {
         Ok(Ok(_)) => true,
@@ -496,11 +505,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     let mut message = if gateway_ok && browser_ok {
       "Clawdbot gateway + browser are healthy".to_string()
     } else if gateway_ok {
-      "Clawdbot gateway OK; browser control not reachable".to_string()
+      "Clawdbot gateway OK; browser is still starting up — waiting for Chrome CDP to become ready".to_string()
     } else if browser_ok {
       "Browser control OK; gateway not reachable".to_string()
     } else {
-      "Clawdbot not reachable".to_string()
+      "Clawdbot not reachable — the background service may not be running".to_string()
     };
 
     if !gateway_ok {
@@ -546,12 +555,22 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   let ready = gateway_supervisor::wait_for_gateway_ready(&tokens.gateway_token, 30_000).await;
 
+  // If gateway is up, also wait for the browser CDP to become reachable.
+  // Chrome takes a few seconds to start after the gateway launches it.
+  let browser_ok = if ready {
+    gateway_client::wait_for_browser_ready(None, 15).await
+  } else {
+    false
+  };
+
   HttpResponse::Ok().json(ServiceHealthResponse {
     success: ready,
     gateway_ok: ready,
-    browser_ok: false, // Not checked during startup — browser takes longer
-    message: if ready {
-      "Gateway is ready".to_string()
+    browser_ok,
+    message: if ready && browser_ok {
+      "Gateway and browser are ready".to_string()
+    } else if ready {
+      "Gateway is ready; browser is still starting up".to_string()
     } else {
       "Gateway did not become ready within 30s".to_string()
     },
@@ -1132,7 +1151,7 @@ pub async fn set_api_key(
     _ => {
       tokens.openai_api_key = Some(key);
       tokens.active_provider = Some("openai".to_string());
-      // Save model if provided, default to gpt-5.2
+      // Save model if provided, default to gpt-5.4
       if let Some(model) = &payload.model {
         tokens.openai_model = Some(model.trim().to_string());
       }
@@ -1853,20 +1872,20 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Set default profile to "openclaw" (managed, isolated) so the
+            // Set default profile to "knapsack" (managed, isolated) so the
             // browser tool works for channel automations.  The "chrome"
             // profile is an extension-relay that requires a human to manually
-            // attach the OpenClaw Chrome extension to a tab — it will never
-            // work from a background channel context (Telegram/Signal/etc.).
+            // attach the Chrome extension to a tab — it will never work from
+            // a background channel context (Telegram/Signal/etc.).
             let current_profile = cfg
               .pointer("/browser/defaultProfile")
               .and_then(|v| v.as_str())
               .unwrap_or("chrome")
               .to_string();
-            if current_profile == "chrome" || current_profile.is_empty() {
+            if current_profile == "chrome" || current_profile == "openclaw" || current_profile.is_empty() {
               cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-                .insert("defaultProfile".to_string(), serde_json::json!("openclaw"));
-              eprintln!("[clawd/service] Patched browser.defaultProfile from {:?} to openclaw", current_profile);
+                .insert("defaultProfile".to_string(), serde_json::json!("knapsack"));
+              eprintln!("[clawd/service] Patched browser.defaultProfile from {:?} to knapsack", current_profile);
               patched = true;
             }
 

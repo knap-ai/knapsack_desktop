@@ -428,6 +428,20 @@ pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
                     .unwrap_or("WhatsApp login started. Scan the QR code.")
                     .to_string();
 
+                // If the RPC succeeded but no QR was returned, the WhatsApp
+                // channel likely hasn't finished initializing yet. Treat this
+                // as a retryable failure rather than returning success with no
+                // QR (which the frontend misinterprets as "already linked").
+                if qr_data_url.is_none() {
+                    eprintln!(
+                        "[channels] web.login.start attempt {} returned OK but no qrDataUrl — retrying",
+                        attempt + 1,
+                    );
+                    last_err = format!("No QR code returned: {}", message);
+                    gateway_client::invalidate();
+                    continue;
+                }
+
                 return HttpResponse::Ok().json(WhatsAppLoginResponse {
                     success: true,
                     message: Some(message),
@@ -450,6 +464,119 @@ pub async fn whatsapp_login(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
     HttpResponse::Ok().json(WhatsAppLoginResponse {
         success: false,
         message: Some(format!("Login failed after retries: {}", last_err)),
+        qr_data_url: None,
+    })
+}
+
+/// Re-link WhatsApp: clears stale credentials and starts a fresh QR login.
+///
+/// Use this when the user unlinked the device from their phone and wants to
+/// re-scan a QR code.  The flow is: channel.logout → ensure channel config
+/// exists → web.login.start.
+#[post("/api/clawd/channels/whatsapp/relink")]
+pub async fn whatsapp_relink(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+    // Step 1: Clear stale Baileys credentials via channel.logout.
+    // This is best-effort — if it fails (e.g. already unlinked), continue.
+    let logout_params = serde_json::json!({
+        "channel": "whatsapp",
+        "accountId": "default",
+    });
+    let _ = gateway_client::call_channel_method(
+        "channel.logout",
+        Some(logout_params),
+        None,
+    )
+    .await;
+    gateway_client::invalidate();
+
+    // Step 2: Ensure WhatsApp channel config is present (re-enable if needed).
+    // After logout, the channel config should still be there, but if a
+    // previous disconnect removed it, we need to add it back.
+    if let Ok(snapshot) = gateway_client::config_get(None).await {
+        let config = snapshot.get("config").unwrap_or(&snapshot);
+        let has_whatsapp = config
+            .pointer("/channels/whatsapp")
+            .map(|v| !v.is_null())
+            .unwrap_or(false);
+
+        if !has_whatsapp {
+            let base_hash = extract_base_hash(&snapshot);
+            let patch = build_enable_patch(
+                r#"{"channels": {"whatsapp": {"dmPolicy": "allowlist"}}}"#,
+                &snapshot,
+            );
+            if let Err(e) = gateway_client::config_patch(&patch, &base_hash, None).await {
+                eprintln!("[channels] relink: failed to re-enable whatsapp config: {}", e);
+            }
+            gateway_client::invalidate();
+        }
+    }
+
+    // Step 3: Wait for gateway to settle, then start login flow.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    gateway_client::invalidate();
+
+    let params = serde_json::json!({"force": true});
+    let mut last_err = String::new();
+    let delays = [
+        Duration::from_secs(2),
+        Duration::from_secs(3),
+        Duration::from_secs(4),
+    ];
+
+    for (attempt, delay) in delays.iter().enumerate() {
+        tokio::time::sleep(*delay).await;
+
+        match gateway_client::call_channel_method(
+            "web.login.start",
+            Some(params.clone()),
+            None,
+        )
+        .await
+        {
+            Ok(result) => {
+                let qr_data_url = result
+                    .get("qrDataUrl")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                if qr_data_url.is_none() {
+                    eprintln!(
+                        "[channels] relink: web.login.start attempt {} — no qrDataUrl, retrying",
+                        attempt + 1,
+                    );
+                    last_err = "No QR code returned yet".to_string();
+                    gateway_client::invalidate();
+                    continue;
+                }
+
+                let message = result
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Scan this QR code with WhatsApp to re-link.")
+                    .to_string();
+
+                return HttpResponse::Ok().json(WhatsAppLoginResponse {
+                    success: true,
+                    message: Some(message),
+                    qr_data_url,
+                });
+            }
+            Err(e) => {
+                eprintln!(
+                    "[channels] relink: web.login.start attempt {} failed: {}",
+                    attempt + 1,
+                    e
+                );
+                last_err = e;
+                gateway_client::invalidate();
+            }
+        }
+    }
+
+    HttpResponse::Ok().json(WhatsAppLoginResponse {
+        success: false,
+        message: Some(format!("Re-link failed after retries: {}", last_err)),
         qr_data_url: None,
     })
 }
@@ -963,10 +1090,14 @@ pub async fn whatsapp_disconnect(
         .unwrap_or("default")
         .to_string();
 
-    // Step 1: Ask the gateway to logout the WhatsApp account (clears
-    // Baileys auth directory and stops the monitor).
+    disconnect_channel("whatsapp", &account_id).await
+}
+
+/// Shared disconnect logic: logout + remove config with retries.
+async fn disconnect_channel(channel: &str, account_id: &str) -> HttpResponse {
+    // Step 1: Ask the gateway to logout the channel (clears credentials).
     let logout_params = serde_json::json!({
-        "channel": "whatsapp",
+        "channel": channel,
         "accountId": account_id,
     });
     if let Err(e) = gateway_client::call_channel_method(
@@ -976,44 +1107,70 @@ pub async fn whatsapp_disconnect(
     )
     .await
     {
-        eprintln!("[channels] channel.logout(whatsapp) failed: {}", e);
+        eprintln!("[channels] channel.logout({}) failed: {}", channel, e);
         // Continue to config removal even if logout RPC fails — the user
         // still wants the channel removed from config.
+        gateway_client::invalidate();
     }
 
-    // Step 2: Remove WhatsApp from the gateway config.
-    let config_result = gateway_client::config_get(None).await;
-    match config_result {
-        Ok(config_snapshot) => {
-            let base_hash = extract_base_hash(&config_snapshot);
-            let patch = r#"{"channels": {"whatsapp": null}}"#;
-            match gateway_client::config_patch(patch, &base_hash, None).await {
-                Ok(_) => {
-                    // Invalidate pooled connection — the gateway may restart
-                    // after config.patch, so next request needs a fresh conn.
-                    gateway_client::invalidate();
-                    HttpResponse::Ok().json(GenericResponse {
-                        success: true,
-                        message: Some("WhatsApp disconnected".to_string()),
-                        configured: None,
-                        linked: None,
-                    })
+    // Give the gateway a moment to process the logout before we fetch
+    // config — logout may update internal state / config hash.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    // Step 2: Remove the channel from the gateway config (with retries).
+    let patch = format!(r#"{{"channels": {{"{}": null}}}}"#, channel);
+    let mut last_err = String::new();
+
+    for attempt in 0..3 {
+        if attempt > 0 {
+            // Invalidate connection and wait before retry — the gateway
+            // may have restarted or the hash changed.
+            gateway_client::invalidate();
+            tokio::time::sleep(Duration::from_millis(500 * (attempt as u64))).await;
+        }
+
+        match gateway_client::config_get(None).await {
+            Ok(config_snapshot) => {
+                let base_hash = extract_base_hash(&config_snapshot);
+                match gateway_client::config_patch(&patch, &base_hash, None).await {
+                    Ok(_) => {
+                        gateway_client::invalidate();
+                        return HttpResponse::Ok().json(GenericResponse {
+                            success: true,
+                            message: Some(format!("{} disconnected", channel)),
+                            configured: None,
+                            linked: None,
+                        });
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "[channels] config.patch to remove {} failed (attempt {}): {}",
+                            channel,
+                            attempt + 1,
+                            e
+                        );
+                        last_err = format!("Failed to remove config: {}", e);
+                    }
                 }
-                Err(e) => HttpResponse::Ok().json(GenericResponse {
-                    success: false,
-                    message: Some(format!("Failed to remove config: {}", e)),
-                    configured: None,
-                    linked: None,
-                }),
+            }
+            Err(e) => {
+                eprintln!(
+                    "[channels] config.get failed during disconnect {} (attempt {}): {}",
+                    channel,
+                    attempt + 1,
+                    e
+                );
+                last_err = format!("Failed to get config: {}", e);
             }
         }
-        Err(e) => HttpResponse::Ok().json(GenericResponse {
-            success: false,
-            message: Some(format!("Failed to get config: {}", e)),
-            configured: None,
-            linked: None,
-        }),
     }
+
+    HttpResponse::Ok().json(GenericResponse {
+        success: false,
+        message: Some(last_err),
+        configured: None,
+        linked: None,
+    })
 }
 
 /// Disconnect Telegram: calls channel.logout then removes config.
@@ -1028,50 +1185,7 @@ pub async fn telegram_disconnect(
         .unwrap_or("default")
         .to_string();
 
-    let logout_params = serde_json::json!({
-        "channel": "telegram",
-        "accountId": account_id,
-    });
-    if let Err(e) = gateway_client::call_channel_method(
-        "channel.logout",
-        Some(logout_params),
-        None,
-    )
-    .await
-    {
-        eprintln!("[channels] channel.logout(telegram) failed: {}", e);
-    }
-
-    let config_result = gateway_client::config_get(None).await;
-    match config_result {
-        Ok(config_snapshot) => {
-            let base_hash = extract_base_hash(&config_snapshot);
-            let patch = r#"{"channels": {"telegram": null}}"#;
-            match gateway_client::config_patch(patch, &base_hash, None).await {
-                Ok(_) => {
-                    gateway_client::invalidate();
-                    HttpResponse::Ok().json(GenericResponse {
-                        success: true,
-                        message: Some("Telegram disconnected".to_string()),
-                        configured: None,
-                        linked: None,
-                    })
-                }
-                Err(e) => HttpResponse::Ok().json(GenericResponse {
-                    success: false,
-                    message: Some(format!("Failed to remove config: {}", e)),
-                    configured: None,
-                    linked: None,
-                }),
-            }
-        }
-        Err(e) => HttpResponse::Ok().json(GenericResponse {
-            success: false,
-            message: Some(format!("Failed to get config: {}", e)),
-            configured: None,
-            linked: None,
-        }),
-    }
+    disconnect_channel("telegram", &account_id).await
 }
 
 /// Disconnect iMessage: removes channel from config.
@@ -1080,36 +1194,9 @@ pub async fn telegram_disconnect(
 pub async fn imessage_disconnect(
     _cfg: web::Data<SharedClawdbotConfig>,
 ) -> impl Responder {
-    let config_result = gateway_client::config_get(None).await;
-    match config_result {
-        Ok(config_snapshot) => {
-            let base_hash = extract_base_hash(&config_snapshot);
-            let patch = r#"{"channels": {"imessage": null}}"#;
-            match gateway_client::config_patch(patch, &base_hash, None).await {
-                Ok(_) => {
-                    gateway_client::invalidate();
-                    HttpResponse::Ok().json(GenericResponse {
-                        success: true,
-                        message: Some("iMessage disconnected".to_string()),
-                        configured: None,
-                        linked: None,
-                    })
-                }
-                Err(e) => HttpResponse::Ok().json(GenericResponse {
-                    success: false,
-                    message: Some(format!("Failed to remove config: {}", e)),
-                    configured: None,
-                    linked: None,
-                }),
-            }
-        }
-        Err(e) => HttpResponse::Ok().json(GenericResponse {
-            success: false,
-            message: Some(format!("Failed to get config: {}", e)),
-            configured: None,
-            linked: None,
-        }),
-    }
+    // iMessage uses "default" account; no separate logout needed since
+    // it's system-level, but disconnect_channel handles the no-op gracefully.
+    disconnect_channel("imessage", "default").await
 }
 
 // ── Generic channel endpoints ────────────────────────────────────────────
@@ -1335,6 +1422,9 @@ pub async fn generic_channel_disconnect(
     .await
     {
         log::warn!("[channels] channel.logout({}) failed (non-fatal): {}", channel, e);
+        // Invalidate pooled connection after failed logout to ensure
+        // config_get uses a fresh connection.
+        gateway_client::invalidate();
     }
 
     // Remove from config
@@ -2226,4 +2316,188 @@ pub async fn open_full_disk_access() -> impl Responder {
             linked: None,
         }),
     }
+}
+
+// ── Channel diagnostics ─────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct ChannelDiagnostics {
+    success: bool,
+    /// Full channel summary from the gateway
+    #[serde(rename = "channelSummary")]
+    channel_summary: Vec<String>,
+    /// Whether agents.defaults.model is set
+    #[serde(rename = "hasModel")]
+    has_model: bool,
+    /// The model string if set
+    model: Option<String>,
+    /// Whether any LLM API key env var is set in this process
+    #[serde(rename = "hasApiKey")]
+    has_api_key: bool,
+    /// Which provider's API key is available
+    #[serde(rename = "apiKeyProvider")]
+    api_key_provider: Option<String>,
+    /// Channel configs present in the gateway config
+    #[serde(rename = "configuredChannels")]
+    configured_channels: Vec<String>,
+    /// Issues detected
+    issues: Vec<String>,
+    /// Auto-repair actions taken
+    repairs: Vec<String>,
+}
+
+/// Diagnose channel configuration and auto-repair common issues.
+///
+/// Checks:
+/// 1. Which channels are linked vs. configured in gateway config
+/// 2. Whether agents.defaults.model is set
+/// 3. Whether an LLM API key is available
+/// 4. Auto-repairs: adds missing channel config for linked channels,
+///    sets model if missing
+#[get("/api/clawd/channels/diagnostics")]
+pub async fn channel_diagnostics() -> impl Responder {
+    let mut issues = Vec::new();
+    let mut repairs = Vec::new();
+
+    // Check LLM API key availability in the current process
+    let (has_api_key, api_key_provider) = {
+        if std::env::var("ANTHROPIC_API_KEY").map(|k| !k.trim().is_empty()).unwrap_or(false) {
+            (true, Some("anthropic".to_string()))
+        } else if std::env::var("OPENAI_API_KEY").map(|k| !k.trim().is_empty()).unwrap_or(false) {
+            (true, Some("openai".to_string()))
+        } else if std::env::var("GROQ_API_KEY").map(|k| !k.trim().is_empty()).unwrap_or(false) {
+            (true, Some("groq".to_string()))
+        } else if std::env::var("GEMINI_API_KEY").map(|k| !k.trim().is_empty()).unwrap_or(false) {
+            (true, Some("gemini".to_string()))
+        } else {
+            (false, None)
+        }
+    };
+
+    if !has_api_key {
+        issues.push("No LLM API key found in environment (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)".to_string());
+    }
+
+    // Fetch channel status from gateway
+    let channel_summary = match gateway_client::get_channel_status(None).await {
+        Ok(status) => {
+            status.get("channelSummary")
+                .and_then(|cs| cs.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default()
+        }
+        Err(e) => {
+            return HttpResponse::Ok().json(ChannelDiagnostics {
+                success: false,
+                channel_summary: vec![],
+                has_model: false,
+                model: None,
+                has_api_key,
+                api_key_provider,
+                configured_channels: vec![],
+                issues: vec![format!("Cannot reach gateway: {}", e)],
+                repairs: vec![],
+            });
+        }
+    };
+
+    // Fetch gateway config to check model and channel configs
+    let (has_model, model, configured_channels) = match gateway_client::config_get(None).await {
+        Ok(snapshot) => {
+            let config = snapshot.get("config").unwrap_or(&snapshot);
+
+            // Check model
+            let model_val = config.pointer("/agents/defaults/model");
+            let (hm, m) = match model_val {
+                Some(serde_json::Value::String(s)) if !s.trim().is_empty() => {
+                    (true, Some(s.clone()))
+                }
+                Some(serde_json::Value::Object(o)) => {
+                    let primary = o.get("primary").and_then(|v| v.as_str()).unwrap_or("");
+                    (!primary.is_empty(), if primary.is_empty() { None } else { Some(primary.to_string()) })
+                }
+                _ => (false, None),
+            };
+
+            // Check which channels are in config
+            let mut channels = Vec::new();
+            if let Some(ch) = config.get("channels").and_then(|c| c.as_object()) {
+                for (name, val) in ch {
+                    if !val.is_null() {
+                        channels.push(name.clone());
+                    }
+                }
+            }
+
+            // Auto-repair: if model is missing, patch it
+            if !hm {
+                issues.push("agents.defaults.model is NOT set in gateway config — AI cannot respond".to_string());
+                let model_str = resolve_default_model();
+                let base_hash = extract_base_hash(&snapshot);
+                let patch = serde_json::json!({"agents": {"defaults": {"model": model_str}}}).to_string();
+                match gateway_client::config_patch(&patch, &base_hash, None).await {
+                    Ok(_) => repairs.push(format!("Set agents.defaults.model to '{}'", model_str)),
+                    Err(e) => issues.push(format!("Failed to repair model: {}", e)),
+                }
+            }
+
+            // Auto-repair: check if linked channels are missing from config
+            for line in &channel_summary {
+                let lower = line.to_lowercase();
+                // e.g. "whatsapp: linked +1234567890 auth 2h ago"
+                for (ch_name, ch_key) in &[
+                    ("whatsapp", "whatsapp"),
+                    ("imessage", "imessage"),
+                    ("telegram", "telegram"),
+                ] {
+                    let prefix = format!("{}: ", ch_name);
+                    if let Some(status_part) = lower.strip_prefix(&prefix) {
+                        if status_part.starts_with("linked") || status_part.starts_with("configured") {
+                            if !channels.contains(&ch_key.to_string()) {
+                                issues.push(format!(
+                                    "Channel '{}' is {} but NOT in gateway config — messages won't be processed",
+                                    ch_key, status_part.split_whitespace().next().unwrap_or("linked")
+                                ));
+                                // Try to repair by adding the channel config
+                                let re_snapshot = gateway_client::config_get(None).await;
+                                if let Ok(snap) = re_snapshot {
+                                    let bh = extract_base_hash(&snap);
+                                    let dm_policy = match *ch_key {
+                                        "imessage" => r#"{"channels":{"imessage":{"dmPolicy":"allowlist","service":"auto"}}}"#,
+                                        _ => &format!(r#"{{"channels":{{"{}": {{"dmPolicy":"allowlist"}}}}}}"#, ch_key),
+                                    };
+                                    match gateway_client::config_patch(dm_policy, &bh, None).await {
+                                        Ok(_) => repairs.push(format!("Added channel config for '{}'", ch_key)),
+                                        Err(e) => issues.push(format!("Failed to repair channel '{}': {}", ch_key, e)),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            (hm, m, channels)
+        }
+        Err(e) => {
+            issues.push(format!("Cannot fetch gateway config: {}", e));
+            (false, None, vec![])
+        }
+    };
+
+    if !has_model {
+        issues.push("agents.defaults.model is NOT set — AI cannot generate responses".to_string());
+    }
+
+    HttpResponse::Ok().json(ChannelDiagnostics {
+        success: issues.is_empty(),
+        channel_summary,
+        has_model,
+        model,
+        has_api_key,
+        api_key_provider,
+        configured_channels,
+        issues,
+        repairs,
+    })
 }

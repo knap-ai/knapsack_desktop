@@ -53,7 +53,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let ollama_key = std::env::var("OLLAMA_API_KEY").ok().filter(|k| !k.trim().is_empty());
-  let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.2".to_string());
+  let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
 
   // Try the user's active provider first
   match active.as_str() {
@@ -502,7 +502,7 @@ pub async fn multi_provider_completion(
       let fb_anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
       let fb_gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
       let fb_groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
-      let fb_openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.2".to_string());
+      let fb_openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
 
       let fallbacks: Vec<(&str, &Option<String>, String, &str, bool)> = vec![
         ("openai", &fb_openai_key, fb_openai_model, "https://api.openai.com/v1", false),

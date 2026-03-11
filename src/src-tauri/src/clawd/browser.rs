@@ -141,7 +141,7 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   if chrome.unwrap_or(false) {
     "chrome"
   } else {
-    "openclaw"
+    "knapsack"
   }
 }
 
@@ -3484,14 +3484,18 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
             || err_str.contains("Extension not connected")
             || err_str.contains("extension disconnected")
             || err_str.contains("no tab is connected")
-            || err_str.contains("relay") && err_str.contains("not reachable");
+            || err_str.contains("not reachable")
+            || err_str.contains("not ready")
+            || err_str.contains("still starting")
+            || err_str.contains("Browser not started")
+            || err_str.contains("browser is not running");
           if is_connection_err {
             // Report the error — do NOT cycle the service.
             // Cycling (SIGTERM → restart) kills the entire gateway including
             // the browser control server, creating a restart loop. The
             // LaunchAgent has KeepAlive=true so macOS handles crash recovery.
             eprintln!("[clawd/chat] tool {} connection error: {}", name, err_str);
-            json!({"ok": false, "error": "Browser not ready yet. Retry the same action."})
+            json!({"ok": false, "error": "Browser is still starting up. Wait a few seconds and retry the same action."})
           } else {
             eprintln!("[clawd/chat] tool {} failed: {}", name, e);
             json!({"ok": false, "error": String::from(err_str)})

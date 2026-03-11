@@ -180,7 +180,7 @@ async fn ensure_gateway_best_effort(token: &str) {
 }
 
 /// Ensure the OpenClaw config has browser settings suitable for the desktop app:
-///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "openclaw".
+///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "knapsack".
 ///
 /// The `set_service_enabled` endpoint (macOS launchctl setup) also patches these,
 /// but that path is never hit in `npm run tauri dev` or on non-macOS.  Running this
@@ -389,12 +389,12 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     patched = true;
   }
 
-  // browser.defaultProfile = "openclaw"  (managed, isolated)
+  // browser.defaultProfile = "knapsack"  (managed, isolated)
   let profile = cfg.pointer("/browser/defaultProfile").and_then(|v| v.as_str()).unwrap_or("chrome");
-  if profile == "chrome" || profile.is_empty() {
+  if profile == "chrome" || profile == "openclaw" || profile.is_empty() {
     cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-      .insert("defaultProfile".into(), serde_json::json!("openclaw"));
-    eprintln!("[gateway_client] Patched browser.defaultProfile to openclaw");
+      .insert("defaultProfile".into(), serde_json::json!("knapsack"));
+    eprintln!("[gateway_client] Patched browser.defaultProfile to knapsack");
     patched = true;
   }
 
@@ -575,6 +575,21 @@ static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
   std::sync::atomic::AtomicBool::new(false);
 
 /// Push browser config to a running gateway via a **temporary** WebSocket
+/// Pick the best default LLM model based on which API key is available.
+fn resolve_default_model() -> &'static str {
+  for (var, model) in [
+    ("ANTHROPIC_API_KEY", "anthropic/claude-opus-4-6"),
+    ("OPENAI_API_KEY", "openai/gpt-4o"),
+    ("GROQ_API_KEY", "groq/llama-3.3-70b-versatile"),
+    ("GEMINI_API_KEY", "google/gemini-2.0-flash"),
+  ] {
+    if std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false) {
+      return model;
+    }
+  }
+  "anthropic/claude-opus-4-6"
+}
+
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
 /// we use a throwaway connection and wait for the gateway to come back.
 async fn apply_runtime_browser_config(token: &str) {
@@ -719,12 +734,16 @@ async fn apply_runtime_browser_config(token: &str) {
   // Send config.patch with browser + tools settings.
   // This must include tools.deny (without browser) and tools.allow (with browser)
   // because the gateway's internal defaults DENY browser.
+  //
+  // Also ensure agents.defaults.model is set — if the original channel-enable
+  // config.patch failed (e.g. due to token mismatch), the model may be missing
+  // and the gateway can't generate AI responses for incoming messages.
   let no_sandbox = cfg!(target_os = "linux");
-  let raw_patch = serde_json::json!({
+  let mut patch_obj = serde_json::json!({
     "browser": {
       "enabled": true,
       "headless": false,
-      "defaultProfile": "openclaw",
+      "defaultProfile": "knapsack",
       "noSandbox": no_sandbox
     },
     "tools": {
@@ -742,7 +761,33 @@ async fn apply_runtime_browser_config(token: &str) {
         }
       }
     }
-  }).to_string();
+  });
+
+  // Check if agents.defaults.model is already set in the config.
+  let config_inner = cfg_val.get("config").unwrap_or(&cfg_val);
+  let has_model = config_inner
+    .pointer("/agents/defaults/model")
+    .and_then(|v| match v {
+      Value::String(s) => if s.trim().is_empty() { None } else { Some(()) },
+      Value::Object(o) => o.get("primary")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|_| ()),
+      _ => None,
+    })
+    .is_some();
+
+  if !has_model {
+    // Pick the best model based on available API keys.
+    let model = resolve_default_model();
+    patch_obj.as_object_mut().unwrap().insert(
+      "agents".to_string(),
+      serde_json::json!({"defaults": {"model": model}}),
+    );
+    eprintln!("[gateway_client] agents.defaults.model missing — adding '{}' to runtime patch", model);
+  }
+
+  let raw_patch = patch_obj.to_string();
 
   let patch_frame = RequestFrame {
     frame_type: "req",
@@ -785,21 +830,25 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   // never runs.
   let disk_config_changed = ensure_browser_config();
 
-  // If we patched the config AND the gateway was already running, it has
-  // stale config.  We need to push the config to the running gateway via
-  // config.patch RPC.  We track this with BROWSER_CONFIG_APPLIED so we
-  // only do it once per process lifetime.
+  // Always push browser config to the running gateway on first connection.
+  // Even if the on-disk config didn't change (because we patched it in a
+  // previous app session), the running gateway may have been started with
+  // stale config (e.g., headless=true).  We track with BROWSER_CONFIG_APPLIED
+  // so we only do this once per process lifetime.
   //
   // IMPORTANT: We do this BEFORE establishing our main connection, using a
   // temporary connection.  config.patch triggers a SIGUSR1 restart on the
   // gateway, which would kill any in-flight requests on the same connection.
-  let need_runtime_patch = disk_config_changed
-    && !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
+  let need_runtime_patch = !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
     && is_gateway_port_open().await;
 
   if need_runtime_patch {
     BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
-    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
+    if disk_config_changed {
+      eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
+    } else {
+      eprintln!("[gateway_client] Pushing browser config to running gateway (ensure headless=false, browser enabled)");
+    }
     apply_runtime_browser_config(token).await;
   }
 
@@ -1304,10 +1353,34 @@ pub async fn call_channel_method(
   gateway_request_pooled(method, params, &t).await
 }
 
+/// Check whether an error string indicates a transient browser/CDP startup issue
+/// (Chrome hasn't finished launching, CDP port not yet listening, etc.) as
+/// opposed to a permanent failure (bad request, gateway auth error, etc.).
+fn is_transient_browser_error(err: &str) -> bool {
+  err.contains("onnection refused")
+    || err.contains("No pages available")
+    || err.contains("tcp connect error")
+    || err.contains("error sending request")
+    || err.contains("not reachable")
+    || err.contains("not running")
+    || err.contains("not ready")
+    || err.contains("cdpReady")
+    || err.contains("ECONNREFUSED")
+    || err.contains("Target closed")
+    || err.contains("Browser not started")
+    || err.contains("browser is not running")
+    || err.contains("CDP") && err.contains("not")
+}
+
 /// Send a browser control request through the gateway's `browser.request`
 /// RPC method.  The gateway dispatches to its in-process browser control
 /// service (same routes as the legacy HTTP bridge that used to run on
 /// port 18791).
+///
+/// Retries up to 3 times with exponential backoff (500ms, 1s, 2s) on
+/// transient CDP errors (connection refused, browser not ready, etc.).
+/// This handles the common case where Chrome is still starting up after
+/// a gateway restart.
 pub async fn browser_request(
   http_method: &str,
   path: &str,
@@ -1316,17 +1389,81 @@ pub async fn browser_request(
   token: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
-  let mut params = serde_json::json!({
-    "method": http_method,
-    "path": path,
-  });
-  if let Some(q) = query {
-    params["query"] = q;
+
+  let backoffs: &[u64] = &[500, 1000, 2000];
+  let mut last_err = String::new();
+
+  for attempt in 0..=backoffs.len() {
+    let mut params = serde_json::json!({
+      "method": http_method,
+      "path": path,
+    });
+    if let Some(ref q) = query {
+      params["query"] = q.clone();
+    }
+    if let Some(ref b) = body {
+      params["body"] = b.clone();
+    }
+
+    match gateway_request_pooled("browser.request", Some(params), &t).await {
+      Ok(result) => return Ok(result),
+      Err(e) => {
+        last_err = e;
+        if attempt < backoffs.len() && is_transient_browser_error(&last_err) {
+          let delay = backoffs[attempt];
+          eprintln!(
+            "[gateway_client] browser_request transient error (attempt {}/{}), retrying in {}ms: {}",
+            attempt + 1, backoffs.len() + 1, delay, last_err
+          );
+          tokio::time::sleep(Duration::from_millis(delay)).await;
+          continue;
+        }
+        break;
+      }
+    }
   }
-  if let Some(b) = body {
-    params["body"] = b;
+
+  // Provide a user-friendly error message for transient failures.
+  if is_transient_browser_error(&last_err) {
+    Err(format!(
+      "Browser is still starting up. Please wait a moment and try again. ({})",
+      last_err
+    ))
+  } else {
+    Err(last_err)
   }
-  gateway_request_pooled("browser.request", Some(params), &t).await
+}
+
+/// Wait for the browser to become ready, polling up to `max_wait` seconds.
+/// Returns `true` if the browser responded successfully within the deadline.
+pub async fn wait_for_browser_ready(token: Option<&str>, max_wait_secs: u64) -> bool {
+  let t = match resolve_token(token) {
+    Ok(t) => t,
+    Err(_) => return false,
+  };
+  let deadline = Instant::now() + Duration::from_secs(max_wait_secs);
+  let mut delay_ms: u64 = 500;
+
+  while Instant::now() < deadline {
+    let params = serde_json::json!({
+      "method": "GET",
+      "path": "/tabs",
+      "query": {"profile": "knapsack"},
+    });
+    match gateway_request_pooled("browser.request", Some(params), &t).await {
+      Ok(_) => return true,
+      Err(e) => {
+        if !is_transient_browser_error(&e) {
+          // Permanent error — no point waiting.
+          return false;
+        }
+        eprintln!("[gateway_client] Waiting for browser to start... ({})", e);
+      }
+    }
+    tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+    delay_ms = (delay_ms * 2).min(3000);
+  }
+  false
 }
 
 /// Send a chat message through the gateway's `agent` RPC method.
