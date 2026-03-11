@@ -6,11 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "bash scripts/prepare-node.sh",
+    "prebuild": "bash scripts/sync-version.sh && bash scripts/prepare-node.sh",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "source .env && tauri",
-    "tauri-windows": "tauri"
+    "tauri-windows": "tauri",
+    "release": "bash scripts/release.sh"
   },
   "dependencies": {
     "@amplitude/analytics-browser": "^1.3.0",
