@@ -249,6 +249,7 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   let gw_token = &tokens.gateway_token;
   if !gw_token.trim().is_empty() {
     std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw_token.trim());
+    std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw_token.trim());
   }
 }
 
@@ -2228,6 +2229,10 @@ You can create, list, and cancel scheduled tasks (cron jobs).
           "CLAWDBOT_GATEWAY_TOKEN".to_string(),
           tokens.gateway_token.clone(),
         ),
+        (
+          "OPENCLAW_GATEWAY_TOKEN".to_string(),
+          tokens.gateway_token.clone(),
+        ),
         // Browser control auth is now unified with gateway auth in OpenClaw 2026.2+.
         // The old CLAWDBOT_BROWSER_CONTROL_TOKEN is no longer recognized.
         // Ensure control server family ports remain default.
@@ -2313,6 +2318,7 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         let gw = tokens.gateway_token.trim();
         if !gw.is_empty() {
           std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
+          std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw);
         }
       }
 
