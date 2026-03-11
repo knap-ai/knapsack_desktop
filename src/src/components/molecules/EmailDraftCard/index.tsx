@@ -352,9 +352,11 @@ const EmailDraftCard = ({
           action={actions.leftAction}
           updateAction={updateAction}
         />
-        <TakeActionButton
-          email={email}
-        />
+        {email.classification?.actionRequired && (
+          <TakeActionButton
+            email={email}
+          />
+        )}
         <SendEmailButton
           previousEmail={email}
           userEmail={userEmail}
