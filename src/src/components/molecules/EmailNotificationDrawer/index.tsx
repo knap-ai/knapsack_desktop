@@ -554,16 +554,6 @@ const EmailNotificationDrawer = ({
               </div>
             </div>
 
-            {/* Take Action button — sends email context as chat message */}
-            {pendingEmail && (
-              <div className="px-4 pb-1">
-                <TakeActionButton
-                  email={pendingEmail}
-                  label={actionRequired ?? 'Take Action'}
-                />
-              </div>
-            )}
-
             {/* Collapsed footer */}
             <div className="flex items-center justify-between px-4 py-2 border-t border-ks-warm-grey-100 shrink-0">
               <button
@@ -572,6 +562,13 @@ const EmailNotificationDrawer = ({
               >
                 No Response Needed
               </button>
+              {/* Take Action button — only show when there's a non-email action */}
+              {pendingEmail && actionRequired && (
+                <TakeActionButton
+                  email={pendingEmail}
+                  label={actionRequired}
+                />
+              )}
               <button
                 onClick={handleExpand}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
