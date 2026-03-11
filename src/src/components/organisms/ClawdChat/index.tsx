@@ -2405,6 +2405,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               consecutiveDownPolls = 0
               // Healthy — slow poll every 5s to detect disconnect quickly
               setTimeout(pollGateway, 5000)
+            } else if (h.gateway_ok && !h.browser_ok) {
+              // Gateway is up but browser is down — backend health endpoint
+              // auto-recovers (kills stale Chrome, sends /stop + /start to
+              // gateway).  Poll at 5s so we detect recovery quickly.
+              consecutiveDownPolls++
+              if (!wasHealthy && consecutiveDownPolls === 3) {
+                // During initial startup, also poke startup-ready in case the
+                // gateway itself needs a kickstart.
+                fetch('http://localhost:8897/api/clawd/service/startup-ready').catch(() => {})
+              }
+              setTimeout(pollGateway, 5000)
             } else if (!isHealthy && wasHealthy) {
               // Was previously healthy but now down — gateway crashed.
               // Poll fast to detect recovery quickly (reconnect within 5s).
