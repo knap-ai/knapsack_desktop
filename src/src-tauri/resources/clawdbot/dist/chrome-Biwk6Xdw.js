@@ -13,7 +13,7 @@ import WebSocket, { WebSocketServer } from "ws";
 //#region src/browser/constants.ts
 const DEFAULT_OPENCLAW_BROWSER_ENABLED = true;
 const DEFAULT_BROWSER_EVALUATE_ENABLED = true;
-const DEFAULT_OPENCLAW_BROWSER_COLOR = "#FF4500";
+const DEFAULT_OPENCLAW_BROWSER_COLOR = "#983B3B";
 const DEFAULT_OPENCLAW_BROWSER_PROFILE_NAME = "openclaw";
 const DEFAULT_BROWSER_DEFAULT_PROFILE_NAME = "chrome";
 const DEFAULT_AI_SNAPSHOT_MAX_CHARS = 8e4;

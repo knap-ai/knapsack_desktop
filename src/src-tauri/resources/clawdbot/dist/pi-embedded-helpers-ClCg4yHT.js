@@ -3015,7 +3015,7 @@ function getUsedPorts(profiles) {
 	return used;
 }
 const PROFILE_COLORS = [
-	"#FF4500",
+	"#983B3B",
 	"#0066CC",
 	"#00AA00",
 	"#9933FF",

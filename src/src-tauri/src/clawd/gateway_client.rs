@@ -678,7 +678,13 @@ async fn apply_runtime_browser_config(token: &str) {
       "enabled": true,
       "headless": false,
       "defaultProfile": "knapsack",
-      "noSandbox": no_sandbox
+      "noSandbox": no_sandbox,
+      "defaultColor": "#983B3B",
+      "profiles": {
+        "knapsack": {
+          "color": "#983B3B"
+        }
+      }
     },
     "tools": {
       "deny": ["canvas", "nodes", "cron", "gateway"],
