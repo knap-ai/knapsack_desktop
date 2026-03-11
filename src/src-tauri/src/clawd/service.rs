@@ -554,12 +554,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       // Gateway is up — record it so we can detect down→up transitions.
       GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
 
-      // If the gateway just came back (was previously down), reset the
-      // browser nudge flag so we'll send a fresh /start nudge if needed.
+      // When the gateway recovers after being down, invalidate the old
+      // WebSocket connection (it's dead) but do NOT reset the browser nudge
+      // flag.  The gateway manages its own browser lifecycle on restart —
+      // re-sending /start from the health poll causes a visible browser
+      // window to open every time there's a transient gateway health blip.
       if !was_healthy {
-        eprintln!("[clawd/service] gateway recovered — resetting browser nudge flag");
-        BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
-        // Invalidate the pooled WebSocket connection — the old one is dead.
+        eprintln!("[clawd/service] gateway recovered — invalidating stale WS connection");
         gateway_client::invalidate();
       }
     } else {
