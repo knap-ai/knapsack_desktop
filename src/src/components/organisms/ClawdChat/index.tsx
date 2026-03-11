@@ -3542,6 +3542,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel || 'Gemini')
               : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel || 'Groq')
               : selectedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
+              : selectedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel || 'OpenRouter')
               : (OPENAI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel || 'OpenAI')}
           </button>
           <button disabled={busy} onClick={() => setShowToneSelector(true)}>
