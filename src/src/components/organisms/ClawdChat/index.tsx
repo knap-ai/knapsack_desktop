@@ -1365,8 +1365,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       if (keyStatus.has_key) {
         setHasCompletedOnboarding(true)
         if (keyStatus.model) {
-          setSelectedModel(keyStatus.model)
-          localStorage.setItem(OPENAI_MODEL_STORAGE, keyStatus.model)
+          // Only use backend model if the user hasn't made a local choice yet
+          const localModel = localStorage.getItem(OPENAI_MODEL_STORAGE)
+          if (!localModel) {
+            setSelectedModel(keyStatus.model)
+            localStorage.setItem(OPENAI_MODEL_STORAGE, keyStatus.model)
+          }
         }
         if (keyStatus.active_provider) {
           setSelectedProvider(keyStatus.active_provider as Provider)
@@ -5074,7 +5078,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           <select
                             className="ClawdModelSelect"
                             value={modelValue}
-                            onChange={e => setModelValue(e.target.value)}
+                            onChange={async e => {
+                              const newModel = e.target.value
+                              setModelValue(newModel)
+                              // Auto-persist model choice to localStorage and backend
+                              const storageKey = p.id === 'openai' ? OPENAI_MODEL_STORAGE
+                                : p.id === 'anthropic' ? ANTHROPIC_MODEL_STORAGE
+                                : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
+                                : GROQ_MODEL_STORAGE
+                              localStorage.setItem(storageKey, newModel)
+                              if (isActive) {
+                                try {
+                                  await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
+                                  const modelName = models.find(m => m.id === newModel)?.name || newModel
+                                  pushAssistant(`Switched to ${modelName}.`)
+                                } catch {}
+                              }
+                            }}
                             disabled={savingKey}
                           >
                             {models.map(model => (
@@ -5092,15 +5112,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               >
                                 {savingKey ? 'Switching...' : 'Switch to ' + p.name}
                               </button>
-                            ) : (
-                              <button
-                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                                onClick={() => switchProviderModel(p.id)}
-                                disabled={savingKey}
-                              >
-                                {savingKey ? 'Saving...' : 'Update Model'}
-                              </button>
-                            )}
+                            ) : null}
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
                               onClick={() => setApiKey(' ')}
