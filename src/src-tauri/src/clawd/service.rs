@@ -443,13 +443,22 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 
     // Browser control is accessed through the gateway's `browser.request` RPC
     // method.  Send a lightweight request to verify it's responsive.
+    // Use a 5-second timeout to avoid blocking the health endpoint when the
+    // browser RPC is slow (the default pooled request timeout is 30s).
     let browser_ok = if gateway_ok {
-      match gateway_client::browser_request(
-        "GET", "/tabs", Some(serde_json::json!({"profile": "openclaw"})), None, None,
+      match tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        gateway_client::browser_request(
+          "GET", "/tabs", Some(serde_json::json!({"profile": "openclaw"})), None, None,
+        ),
       ).await {
-        Ok(_) => true,
-        Err(e) => {
+        Ok(Ok(_)) => true,
+        Ok(Err(e)) => {
           eprintln!("[clawd/service] browser health check failed: {}", e);
+          false
+        }
+        Err(_) => {
+          eprintln!("[clawd/service] browser health check timed out (5s)");
           false
         }
       }
