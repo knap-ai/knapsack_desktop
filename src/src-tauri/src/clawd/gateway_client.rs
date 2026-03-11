@@ -575,6 +575,21 @@ static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
   std::sync::atomic::AtomicBool::new(false);
 
 /// Push browser config to a running gateway via a **temporary** WebSocket
+/// Pick the best default LLM model based on which API key is available.
+fn resolve_default_model() -> &'static str {
+  for (var, model) in [
+    ("ANTHROPIC_API_KEY", "anthropic/claude-opus-4-6"),
+    ("OPENAI_API_KEY", "openai/gpt-4o"),
+    ("GROQ_API_KEY", "groq/llama-3.3-70b-versatile"),
+    ("GEMINI_API_KEY", "google/gemini-2.0-flash"),
+  ] {
+    if std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false) {
+      return model;
+    }
+  }
+  "anthropic/claude-opus-4-6"
+}
+
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
 /// we use a throwaway connection and wait for the gateway to come back.
 async fn apply_runtime_browser_config(token: &str) {
@@ -719,8 +734,12 @@ async fn apply_runtime_browser_config(token: &str) {
   // Send config.patch with browser + tools settings.
   // This must include tools.deny (without browser) and tools.allow (with browser)
   // because the gateway's internal defaults DENY browser.
+  //
+  // Also ensure agents.defaults.model is set — if the original channel-enable
+  // config.patch failed (e.g. due to token mismatch), the model may be missing
+  // and the gateway can't generate AI responses for incoming messages.
   let no_sandbox = cfg!(target_os = "linux");
-  let raw_patch = serde_json::json!({
+  let mut patch_obj = serde_json::json!({
     "browser": {
       "enabled": true,
       "headless": false,
@@ -742,7 +761,33 @@ async fn apply_runtime_browser_config(token: &str) {
         }
       }
     }
-  }).to_string();
+  });
+
+  // Check if agents.defaults.model is already set in the config.
+  let config_inner = cfg_val.get("config").unwrap_or(&cfg_val);
+  let has_model = config_inner
+    .pointer("/agents/defaults/model")
+    .and_then(|v| match v {
+      Value::String(s) => if s.trim().is_empty() { None } else { Some(()) },
+      Value::Object(o) => o.get("primary")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|_| ()),
+      _ => None,
+    })
+    .is_some();
+
+  if !has_model {
+    // Pick the best model based on available API keys.
+    let model = resolve_default_model();
+    patch_obj.as_object_mut().unwrap().insert(
+      "agents".to_string(),
+      serde_json::json!({"defaults": {"model": model}}),
+    );
+    eprintln!("[gateway_client] agents.defaults.model missing — adding '{}' to runtime patch", model);
+  }
+
+  let raw_patch = patch_obj.to_string();
 
   let patch_frame = RequestFrame {
     frame_type: "req",
