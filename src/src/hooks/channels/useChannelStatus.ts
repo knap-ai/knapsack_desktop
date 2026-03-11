@@ -18,6 +18,7 @@ import {
   disconnectGenericChannel,
   setupIMessage,
   openFullDiskAccess,
+  runChannelDiagnostics,
 } from 'src/api/channels'
 
 /** Channel names supported via the generic endpoint. */
@@ -99,6 +100,11 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
 
   // Track consecutive gateway-down polls for reconnect detection (Fix 5)
   const gwDownCountRef = useRef(0)
+
+  // Track whether we've run diagnostics since gateway came up.
+  // This ensures sandbox tools + model are repaired after a config reset
+  // even if the user doesn't manually reconnect a channel.
+  const diagRanRef = useRef(false)
 
   // Use refs to track current channel states for smart-polling decisions.
   // This avoids putting state variables in `refresh`'s dependency array,
@@ -241,6 +247,25 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
         setWhatsappQrUrl(null)
         setWhatsappLinking(false)
       }
+
+      // Run diagnostics once when we first detect any connected channel.
+      // This auto-repairs missing sandbox tools + model after a config
+      // reset, which is the most common cause of "channel shows connected
+      // but AI doesn't respond".
+      if (!diagRanRef.current) {
+        const anyLinked = !!(wa?.linked || im?.linked || im?.configured ||
+          tg?.linked || tg?.configured ||
+          genericResults.some(g => g?.linked || g?.configured))
+        if (anyLinked) {
+          diagRanRef.current = true
+          // Fire-and-forget — don't block the poll cycle
+          runChannelDiagnostics().then(diag => {
+            if (diag.repairs.length > 0) {
+              console.info('[useChannelStatus] Auto-repaired on startup:', diag.repairs)
+            }
+          }).catch(() => {})
+        }
+      }
     } catch (e: any) {
       setError(e?.message ?? 'Failed to fetch channel status')
     } finally {
@@ -293,6 +318,24 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
 
   // ── Actions ────────────────────────────────────────────
 
+  // Run diagnostics after channel connect/reconnect to auto-repair missing
+  // sandbox tools, model settings, etc.  Without this, channels can show as
+  // "connected" but the AI silently fails to respond because sandbox mode
+  // blocks the tools it needs (especially after a config reset).
+  const triggerDiagnostics = useCallback(async () => {
+    try {
+      const diag = await runChannelDiagnostics()
+      if (diag.repairs.length > 0) {
+        console.info('[useChannelStatus] Auto-repaired:', diag.repairs)
+      }
+      if (diag.issues.length > 0) {
+        console.warn('[useChannelStatus] Remaining issues:', diag.issues)
+      }
+    } catch (e) {
+      console.warn('[useChannelStatus] Diagnostics failed:', e)
+    }
+  }, [])
+
   const connectWhatsApp = useCallback(async () => {
     setWhatsappQrUrl(null)
     setWhatsappLinking(true)
@@ -320,6 +363,8 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
               if (waitRes.connected) {
                 setWhatsappQrUrl(null)
                 await refresh()
+                // Auto-repair sandbox tools/model after successful connect
+                triggerDiagnostics()
               } else {
                 // If the wait returned very quickly (< 10 s) the backend likely
                 // wasn't ready yet — keep the QR visible so the user can still
@@ -405,6 +450,8 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
               setWhatsappQrUrl(null)
               setWhatsappLinking(false)
               prevJsonRef.current.wa = JSON.stringify(status)
+              // Auto-repair sandbox tools/model after successful relink
+              triggerDiagnostics()
               return
             }
           }
@@ -433,10 +480,12 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
         await openFullDiskAccess()
       }
       await refresh()
+      // Auto-repair sandbox tools/model after successful connect
+      triggerDiagnostics()
     } catch (e: any) {
       setChannelError('imessage', e.message)
     }
-  }, [refresh])
+  }, [refresh, triggerDiagnostics])
 
   const doDisconnectIMessage = useCallback(async () => {
     setChannelError('imessage', null)
@@ -461,11 +510,13 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       const res = await configureTelegram(botToken)
       if (!res.success) throw new Error(res.message ?? 'Failed to configure Telegram')
       await refresh()
+      // Auto-repair sandbox tools/model after successful connect
+      triggerDiagnostics()
     } catch (e: any) {
       setChannelError('telegram', e.message)
       throw e
     }
-  }, [refresh])
+  }, [refresh, triggerDiagnostics])
 
   const doDisconnectTelegram = useCallback(async () => {
     setChannelError('telegram', null)
@@ -490,11 +541,13 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       const res = await configureGenericChannel(channel, config)
       if (!res.success) throw new Error(res.message ?? `Failed to configure ${channel}`)
       await refresh()
+      // Auto-repair sandbox tools/model after successful connect
+      triggerDiagnostics()
     } catch (e: any) {
       setChannelError(channel, e.message)
       throw e
     }
-  }, [refresh])
+  }, [refresh, triggerDiagnostics])
 
   const doDisconnectGenericChannel = useCallback(async (channel: GenericChannelName) => {
     setChannelError(channel, null)
