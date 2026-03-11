@@ -126,7 +126,12 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
         gwDownCountRef.current++
         if (isFirstLoad) setLoading(false)
         prevJsonRef.current._initialized = 'true'
-        // Keep gatewayStarting true on first load so UI shows "Starting..." not "DOWN"
+        // Keep gatewayStarting true for the first ~45s so UI shows "Starting..."
+        // instead of "DOWN" during initial startup. After enough failed polls,
+        // transition to "reconnecting..." so the user gets actionable feedback.
+        if (gwDownCountRef.current >= 4) {
+          setGatewayStarting(false)
+        }
         return
       }
 
