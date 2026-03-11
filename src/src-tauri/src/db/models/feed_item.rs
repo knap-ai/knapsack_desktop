@@ -226,27 +226,24 @@ impl FeedItem {
 
     let insert_result = if self.timestamp.is_none() {
       let mut stmt = connection
-        .prepare("INSERT INTO feed_items (timestamp, title) VALUES (strftime('%s','now'), ?1)")
+        .prepare("INSERT OR IGNORE INTO feed_items (timestamp, title) VALUES (strftime('%s','now'), ?1)")
         .map_err(|e| Error::KSError(format!("Failed to prepare insert statement: {}", e)))?;
 
       stmt.execute(params![self.title])
     } else {
       let mut stmt = connection
-        .prepare("INSERT INTO feed_items (timestamp, title) VALUES (?1, ?2)")
+        .prepare("INSERT OR IGNORE INTO feed_items (timestamp, title) VALUES (?1, ?2)")
         .map_err(|e| Error::KSError(format!("Failed to prepare insert statement: {}", e)))?;
 
       stmt.execute(params![&self.timestamp, &self.title])
     };
 
     match insert_result {
-      Ok(_) => {
-        self.id = Some(connection.last_insert_rowid() as u64);
-        Ok(())
-      }
-      Err(e) => {
-        // On UNIQUE constraint failure, look up the existing record instead of failing
-        let is_unique_violation = e.to_string().contains("UNIQUE constraint failed");
-        if is_unique_violation {
+      Ok(rows_affected) => {
+        if rows_affected > 0 {
+          self.id = Some(connection.last_insert_rowid() as u64);
+        } else {
+          // INSERT was ignored due to UNIQUE constraint — look up the existing record
           if let Some(title) = &self.title {
             let ts = self.timestamp.unwrap_or_else(|| {
               std::time::SystemTime::now()
@@ -258,15 +255,14 @@ impl FeedItem {
               .prepare("SELECT id FROM feed_items WHERE title = ?1 AND timestamp = ?2")
               .map_err(|e| Error::KSError(format!("Failed to prepare lookup: {}", e)))?;
             if let Ok(id) = lookup.query_row(params![title, ts], |row| row.get::<_, u64>(0)) {
-              eprintln!("[FeedItem::create] UNIQUE constraint hit, reusing existing feed_item id={}", id);
               self.id = Some(id);
-              return Ok(());
             }
           }
-          Err(Error::KSError(format!("Failed to insert feed_item and couldn't find existing: {}", e)))
-        } else {
-          Err(Error::KSError(format!("Failed to execute insert statement: {}", e)))
         }
+        Ok(())
+      }
+      Err(e) => {
+        Err(Error::KSError(format!("Failed to execute insert statement: {}", e)))
       }
     }
   }
