@@ -188,6 +188,24 @@ fn has_browser_enabled(snapshot: &serde_json::Value) -> bool {
         .unwrap_or(false)
 }
 
+/// Check whether `tools.sandbox.tools.allow` includes the minimum set of
+/// tools required for channel messages (Telegram, WhatsApp, etc.) to work.
+/// Without these, the gateway's sandbox mode blocks browser, web, and exec
+/// tools — so the agent silently fails to respond to channel messages even
+/// though the channel shows as "connected" in the UI.
+fn has_sandbox_tools(snapshot: &serde_json::Value) -> bool {
+    let config = snapshot.get("config").unwrap_or(snapshot);
+    let allow = match config.pointer("/tools/sandbox/tools/allow").and_then(|v| v.as_array()) {
+        Some(arr) => arr,
+        None => return false,
+    };
+    // Check for a few critical tools that must be present
+    let required = ["exec", "browser", "sessions_send"];
+    required.iter().all(|tool| {
+        allow.iter().any(|item| item.as_str() == Some(tool))
+    })
+}
+
 /// Build a config.patch JSON string for enabling a channel.
 ///
 /// If `agents.defaults.model` is not already set, the patch includes it so
@@ -195,11 +213,17 @@ fn has_browser_enabled(snapshot: &serde_json::Value) -> bool {
 ///
 /// Also ensures `browser.enabled` is true so the auto-reply agent can use
 /// browser automation (e.g. "check my email" from Telegram).
+///
+/// Also ensures `tools.sandbox.tools.allow` and `tools.sandbox.tools.deny`
+/// are set so that channel messages can use browser, exec, web, and session
+/// tools.  Without this, channels show "connected" but the AI cannot
+/// respond because sandbox mode blocks all the tools it needs.
 fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> String {
     let needs_model = !has_default_model(snapshot);
     let needs_browser = !has_browser_enabled(snapshot);
+    let needs_sandbox_tools = !has_sandbox_tools(snapshot);
 
-    if !needs_model && !needs_browser {
+    if !needs_model && !needs_browser && !needs_sandbox_tools {
         return channel_patch.to_string();
     }
 
@@ -224,6 +248,40 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
                 "browser".to_string(),
                 serde_json::json!({"enabled": true}),
             );
+    }
+
+    if needs_sandbox_tools {
+        // Merge sandbox tools into the patch.  This mirrors what service.rs
+        // does at startup, but ensures it also happens when a channel is
+        // enabled/reconnected after a config reset (when service.rs startup
+        // patching has already run against the old, now-deleted config).
+        let tools_patch = serde_json::json!({
+            "sandbox": {
+                "tools": {
+                    "deny": ["canvas", "nodes", "cron", "gateway"],
+                    "allow": [
+                        "exec", "process", "read", "write", "edit", "apply_patch",
+                        "image", "sessions_list", "sessions_history",
+                        "sessions_send", "sessions_spawn", "session_status",
+                        "browser", "group:web"
+                    ]
+                }
+            }
+        });
+        // Also ensure normal-mode tools.allow includes browser + group:web
+        let mut tools_val = serde_json::json!({
+            "allow": ["browser", "group:web", "exec", "process", "read", "write", "edit", "apply_patch"],
+            "deny": ["canvas", "nodes", "cron", "gateway"],
+            "media": {"image": {"enabled": true}}
+        });
+        // Merge sandbox into tools
+        tools_val.as_object_mut().unwrap().insert("sandbox".to_string(), tools_patch["sandbox"].clone());
+
+        patch
+            .as_object_mut()
+            .unwrap()
+            .insert("tools".to_string(), tools_val);
+        eprintln!("[channels] build_enable_patch: added sandbox tools to config patch");
     }
 
     serde_json::to_string(&patch).unwrap()
@@ -2438,6 +2496,40 @@ pub async fn channel_diagnostics() -> impl Responder {
                 match gateway_client::config_patch(&patch, &base_hash, None).await {
                     Ok(_) => repairs.push(format!("Set agents.defaults.model to '{}'", model_str)),
                     Err(e) => issues.push(format!("Failed to repair model: {}", e)),
+                }
+            }
+
+            // Auto-repair: if sandbox tools are missing, patch them.
+            // This is critical after a config reset — without sandbox tools,
+            // channel messages (Telegram, WhatsApp, etc.) are silently dropped
+            // because the gateway's sandbox mode blocks all tools.
+            if !has_sandbox_tools(&snapshot) {
+                issues.push("tools.sandbox.tools.allow is missing or incomplete — channel messages cannot use tools".to_string());
+                let re_snapshot = gateway_client::config_get(None).await;
+                if let Ok(snap) = re_snapshot {
+                    let bh = extract_base_hash(&snap);
+                    let sandbox_patch = serde_json::json!({
+                        "tools": {
+                            "allow": ["browser", "group:web", "exec", "process", "read", "write", "edit", "apply_patch"],
+                            "deny": ["canvas", "nodes", "cron", "gateway"],
+                            "media": {"image": {"enabled": true}},
+                            "sandbox": {
+                                "tools": {
+                                    "deny": ["canvas", "nodes", "cron", "gateway"],
+                                    "allow": [
+                                        "exec", "process", "read", "write", "edit", "apply_patch",
+                                        "image", "sessions_list", "sessions_history",
+                                        "sessions_send", "sessions_spawn", "session_status",
+                                        "browser", "group:web"
+                                    ]
+                                }
+                            }
+                        }
+                    }).to_string();
+                    match gateway_client::config_patch(&sandbox_patch, &bh, None).await {
+                        Ok(_) => repairs.push("Added tools.sandbox.tools.allow with browser + web + exec tools".to_string()),
+                        Err(e) => issues.push(format!("Failed to repair sandbox tools: {}", e)),
+                    }
                 }
             }
 
