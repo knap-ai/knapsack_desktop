@@ -269,6 +269,7 @@ fn create_wav_writer(
 struct StartRecordingRequest {
   thread_id: u64,
   feed_item_id: u64,
+  #[serde(default)]
   event_id: u64,
   save_transcript: bool,
 }
@@ -448,6 +449,7 @@ pub async fn start_recording(
 #[derive(Deserialize, Clone)]
 struct StopRecordingRequest {
   thread_id: u64,
+  #[serde(default)]
   event_id: u64,
   save_transcript: bool,
 }

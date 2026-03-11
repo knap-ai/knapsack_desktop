@@ -192,6 +192,29 @@ fn ensure_browser_config() -> bool {
     Ok(h) => h,
     Err(_) => return false,
   };
+
+  // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR) —
+  // that's where service.rs creates the config the gateway actually reads.
+  for var in ["OPENCLAW_HOME", "CLAWDBOT_STATE_DIR"] {
+    if let Ok(dir) = std::env::var(var) {
+      let dir = dir.trim().to_string();
+      if !dir.is_empty() {
+        let app_config = std::path::PathBuf::from(&dir).join("openclaw.json");
+        if app_config.exists() {
+          let changed = ensure_browser_config_at(&app_config);
+          ensure_tools_md(&app_config);
+          return changed;
+        }
+        let app_legacy = std::path::PathBuf::from(&dir).join("clawdbot.json");
+        if app_legacy.exists() {
+          let changed = ensure_browser_config_at(&app_legacy);
+          ensure_tools_md(&app_legacy);
+          return changed;
+        }
+      }
+    }
+  }
+
   let config_path = std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json");
   if !config_path.exists() {
     let legacy = std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json");
@@ -316,6 +339,30 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   };
 
   let mut patched = false;
+
+  // Sync gateway.auth.token from env vars into the config file.
+  // The gateway reads this token on startup and validates it during
+  // WebSocket handshakes.  If this is missing or stale, all RPC
+  // calls fail with "gateway token mismatch".
+  if let Some(env_token) = get_gateway_token() {
+    let config_token = cfg
+      .pointer("/gateway/auth/token")
+      .and_then(|v| v.as_str())
+      .unwrap_or("");
+    if config_token != env_token {
+      if cfg.get("gateway").is_none() {
+        cfg.as_object_mut().unwrap().insert("gateway".into(), serde_json::json!({}));
+      }
+      if cfg.pointer("/gateway/auth").is_none() {
+        cfg.pointer_mut("/gateway").unwrap().as_object_mut().unwrap()
+          .insert("auth".into(), serde_json::json!({}));
+      }
+      cfg.pointer_mut("/gateway/auth").unwrap().as_object_mut().unwrap()
+        .insert("token".into(), serde_json::json!(env_token));
+      eprintln!("[gateway_client] Synced gateway.auth.token in config file");
+      patched = true;
+    }
+  }
 
   // Ensure browser object exists.
   if cfg.get("browser").is_none() {
@@ -907,12 +954,31 @@ async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
   }
 
   // Slow path: establish a new connection.
-  let client = connect_and_handshake(token).await?;
-  {
-    let mut guard = CLIENT.write().unwrap();
-    *guard = Some(client.clone());
+  match connect_and_handshake(token).await {
+    Ok(client) => {
+      let mut guard = CLIENT.write().unwrap();
+      *guard = Some(client.clone());
+      Ok(client)
+    }
+    Err(e) if e.contains("token mismatch") || e.contains("unauthorized") => {
+      // The token from env/tokens.json doesn't match what the gateway
+      // expects.  Try reading the token from the gateway's own config
+      // file as a fallback — it may have been set externally.
+      eprintln!("[gateway_client] Auth failed with provided token, trying config file token");
+      if let Some(config_token) = read_token_from_config() {
+        if config_token != token {
+          let client = connect_and_handshake(&config_token).await?;
+          // Update the env var so future calls use the correct token
+          std::env::set_var("OPENCLAW_GATEWAY_TOKEN", &config_token);
+          let mut guard = CLIENT.write().unwrap();
+          *guard = Some(client.clone());
+          return Ok(client);
+        }
+      }
+      Err(e)
+    }
+    Err(e) => Err(e),
   }
-  Ok(client)
 }
 
 /// Invalidate the current connection so the next request reconnects.
@@ -1011,22 +1077,30 @@ pub async fn gateway_request_pooled(
     return Err(e);
   }
 
-  let out = tokio::time::timeout(Duration::from_secs(30), rx)
-    .await
-    .map_err(|_| "Timeout waiting for response".to_string())
-    .and_then(|r| r.map_err(|_| "Gateway response channel closed".to_string()))
-    .and_then(|r| r);
+  // Distinguish connection-level errors (timeout, channel closed) from
+  // RPC-level errors (gateway responded with ok=false).  Only connection
+  // errors should trip the circuit breaker and invalidate the client;
+  // an RPC error means the WebSocket is healthy — the gateway just
+  // rejected the specific request (e.g. browser not running).
+  let rpc_result = tokio::time::timeout(Duration::from_secs(30), rx).await;
+
+  let (out, is_connection_error) = match rpc_result {
+    Ok(Ok(Ok(value))) => (Ok(value), false),
+    Ok(Ok(Err(e))) => (Err(e), false),                // RPC error — connection is fine
+    Ok(Err(_)) => (Err("Gateway response channel closed".to_string()), true),
+    Err(_) => (Err("Timeout waiting for response".to_string()), true),
+  };
 
   // Update breaker state based on outcome.
   {
     let mut breaker = client.breaker.lock().await;
-    if out.is_ok() {
-      breaker.on_success();
-    } else {
+    if is_connection_error {
       breaker.on_failure();
       // Connection may be stale; drop it so we reconnect next time.
       drop(breaker);
       invalidate_client();
+    } else {
+      breaker.on_success();
     }
   }
 
@@ -1100,20 +1174,23 @@ pub async fn gateway_request_agent(
     return Err(e);
   }
 
-  let out = tokio::time::timeout(Duration::from_secs(timeout_secs), rx)
-    .await
-    .map_err(|_| format!("Agent request timed out after {}s", timeout_secs))
-    .and_then(|r| r.map_err(|_| "Gateway response channel closed".to_string()))
-    .and_then(|r| r);
+  let rpc_result = tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await;
+
+  let (out, is_connection_error) = match rpc_result {
+    Ok(Ok(Ok(value))) => (Ok(value), false),
+    Ok(Ok(Err(e))) => (Err(e), false),                // RPC error — connection is fine
+    Ok(Err(_)) => (Err("Gateway response channel closed".to_string()), true),
+    Err(_) => (Err(format!("Agent request timed out after {}s", timeout_secs)), true),
+  };
 
   {
     let mut breaker = client.breaker.lock().await;
-    if out.is_ok() {
-      breaker.on_success();
-    } else {
+    if is_connection_error {
       breaker.on_failure();
       drop(breaker);
       invalidate_client();
+    } else {
+      breaker.on_success();
     }
   }
 
@@ -1153,6 +1230,47 @@ fn get_gateway_token() -> Option<String> {
           .and_then(|t| t.as_str())
         {
           return Some(token.to_string());
+        }
+      }
+    }
+  }
+
+  None
+}
+
+/// Read the gateway token directly from config files, bypassing env vars.
+/// Used as a fallback when the env var token doesn't match the running gateway.
+fn read_token_from_config() -> Option<String> {
+  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+
+  // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR),
+  // then standard user-level config locations.
+  let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+
+  for var in ["OPENCLAW_HOME", "CLAWDBOT_STATE_DIR"] {
+    if let Ok(dir) = std::env::var(var) {
+      let dir = dir.trim().to_string();
+      if !dir.is_empty() {
+        candidates.push(std::path::PathBuf::from(&dir).join("openclaw.json"));
+        candidates.push(std::path::PathBuf::from(&dir).join("clawdbot.json"));
+      }
+    }
+  }
+
+  candidates.push(std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json"));
+  candidates.push(std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json"));
+
+  for config_path in &candidates {
+    if let Ok(content) = std::fs::read_to_string(config_path) {
+      if let Ok(config) = serde_json::from_str::<Value>(&content) {
+        if let Some(token) = config
+          .pointer("/gateway/auth/token")
+          .and_then(|t| t.as_str())
+        {
+          let t = token.trim().to_string();
+          if !t.is_empty() {
+            return Some(t);
+          }
         }
       }
     }

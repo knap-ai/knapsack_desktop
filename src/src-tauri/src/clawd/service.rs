@@ -1699,7 +1699,10 @@ pub async fn set_service_enabled(
         let _ = ensure_dir(&clawdbot_home);
         let default_config = serde_json::json!({
           "gateway": {
-            "mode": "local"
+            "mode": "local",
+            "auth": {
+              "token": tokens.gateway_token.clone()
+            }
           },
           "browser": {
             "enabled": true
@@ -1719,6 +1722,28 @@ pub async fn set_service_enabled(
         if let Ok(existing) = fs::read_to_string(&config_path) {
           if let Ok(mut cfg) = serde_json::from_str::<serde_json::Value>(&existing) {
             let mut patched = false;
+
+            // Ensure gateway.auth.token matches tokens.json so the
+            // WebSocket handshake succeeds.  Without this, a stale or
+            // missing token in the config file causes "gateway token
+            // mismatch" errors on every RPC call.
+            let config_token = cfg
+              .pointer("/gateway/auth/token")
+              .and_then(|v| v.as_str())
+              .unwrap_or("");
+            if config_token != tokens.gateway_token.trim() {
+              if cfg.get("gateway").is_none() {
+                cfg.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+              }
+              if cfg.pointer("/gateway/auth").is_none() {
+                cfg.pointer_mut("/gateway").unwrap().as_object_mut().unwrap()
+                  .insert("auth".to_string(), serde_json::json!({}));
+              }
+              cfg.pointer_mut("/gateway/auth").unwrap().as_object_mut().unwrap()
+                .insert("token".to_string(), serde_json::json!(tokens.gateway_token.trim()));
+              eprintln!("[clawd/service] Synced gateway.auth.token in config to match tokens.json");
+              patched = true;
+            }
 
             // Ensure plugins.slots.memory is set to "none".
             // Clawdbot's config normalizer defaults an absent memory slot to "memory-core",
