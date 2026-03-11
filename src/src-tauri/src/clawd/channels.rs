@@ -2379,11 +2379,11 @@ pub async fn channel_diagnostics() -> impl Responder {
     }
 
     // Fetch channel status from gateway
-    let channel_summary = match gateway_client::get_channel_status(None).await {
+    let channel_summary: Vec<String> = match gateway_client::get_channel_status(None).await {
         Ok(status) => {
             status.get("channelSummary")
                 .and_then(|cs| cs.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
                 .unwrap_or_default()
         }
         Err(e) => {
