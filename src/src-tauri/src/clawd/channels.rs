@@ -337,11 +337,11 @@ pub async fn whatsapp_enable(
             let base_hash = extract_base_hash(&config_snapshot);
 
             // WhatsApp channel config:
-            // - dmPolicy "pairing" = unknown senders must be approved by owner
+            // - dmPolicy "allowlist" = only owner (linked self number) can interact; others silently ignored
             // Also ensures agents.defaults.model is set so auto-reply actually works.
             let patch = if body.enabled {
                 build_enable_patch(
-                    r#"{"channels": {"whatsapp": {"dmPolicy": "pairing"}}}"#,
+                    r#"{"channels": {"whatsapp": {"dmPolicy": "allowlist"}}}"#,
                     &config_snapshot,
                 )
             } else {
@@ -498,12 +498,12 @@ pub async fn imessage_enable(
             let base_hash = extract_base_hash(&config_snapshot);
 
             // iMessage channel config:
-            // - dmPolicy "pairing" = unknown senders must be approved by owner
+            // - dmPolicy "allowlist" = only owner (linked self number) can interact; others silently ignored
             // - service "auto" = detect iMessage vs SMS automatically
             // Also ensures agents.defaults.model is set so auto-reply actually works.
             let patch = if body.enabled {
                 build_enable_patch(
-                    r#"{"channels": {"imessage": {"dmPolicy": "pairing", "service": "auto"}}}"#,
+                    r#"{"channels": {"imessage": {"dmPolicy": "allowlist", "service": "auto"}}}"#,
                     &config_snapshot,
                 )
             } else {
@@ -774,7 +774,7 @@ pub async fn telegram_enable(
 
             let patch = if body.enabled {
                 build_enable_patch(
-                    r#"{"channels": {"telegram": {"dmPolicy": "pairing"}}}"#,
+                    r#"{"channels": {"telegram": {"dmPolicy": "allowlist"}}}"#,
                     &config_snapshot,
                 )
             } else {
@@ -841,7 +841,7 @@ pub async fn telegram_configure(
                 "channels": {
                     "telegram": {
                         "botToken": token,
-                        "dmPolicy": "pairing"
+                        "dmPolicy": "allowlist"
                     }
                 }
             });
@@ -1227,7 +1227,7 @@ pub async fn generic_channel_configure(
 
                 if !obj.contains_key("dm") {
                     obj.insert("dm".to_string(), serde_json::json!({
-                        "policy": "pairing"
+                        "policy": "allowlist"
                     }));
                 }
 
