@@ -1156,6 +1156,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Auto-briefing: track whether we've already triggered the initial briefing this session
   const autoTriggeredBriefingRef = useRef(false)
 
+  // Timer for auto-follow-up after "Run in Terminal" so the AI reads the output
+  const runInTerminalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const thinkingMessageRef = useRef(thinkingMessage)
+  thinkingMessageRef.current = thinkingMessage
+
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
   const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
@@ -2488,7 +2493,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
         onToggleActivityRef.current()
       }
-      window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command: codeText.trim() } }))
+      const command = codeText.trim()
+      window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command } }))
+
+      // Auto-follow-up: after a delay, send a message so the AI reads
+      // terminal output and continues without the user having to ask.
+      if (runInTerminalTimerRef.current) {
+        clearTimeout(runInTerminalTimerRef.current)
+      }
+      runInTerminalTimerRef.current = setTimeout(() => {
+        runInTerminalTimerRef.current = null
+        // Don't auto-send if the AI is already generating a response
+        if (thinkingMessageRef.current) return
+        window.dispatchEvent(
+          new CustomEvent('clawd-send-user', {
+            detail: `I ran \`${command}\` in the terminal. Check the terminal output and continue with the next step.`,
+          }),
+        )
+      }, 3000)
     }
 
     return (
@@ -2523,6 +2545,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }, [voiceEnabled, stopCurrentAudio])
 
   const doSend = async (text: string) => {
+
+    // Cancel any pending "Run in Terminal" auto-follow-up since the user
+    // (or another trigger) is already sending a message.
+    if (runInTerminalTimerRef.current) {
+      clearTimeout(runInTerminalTimerRef.current)
+      runInTerminalTimerRef.current = null
+    }
 
     // Intercept slash commands before any LLM processing
     const slashEvent = SLASH_COMMANDS[text.trim().toLowerCase()]
