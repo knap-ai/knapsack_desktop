@@ -99,6 +99,19 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   // Track consecutive gateway-down polls for reconnect detection (Fix 5)
   const gwDownCountRef = useRef(0)
 
+  // Use refs to track current channel states for smart-polling decisions.
+  // This avoids putting state variables in `refresh`'s dependency array,
+  // which was causing the callback identity to change on every poll cycle
+  // and restarting the polling interval (double-poll + interval drift).
+  const whatsappRef = useRef(whatsapp)
+  whatsappRef.current = whatsapp
+  const imessageRef = useRef(imessage)
+  imessageRef.current = imessage
+  const telegramRef = useRef(telegram)
+  telegramRef.current = telegram
+  const genericChannelsRef = useRef(genericChannels)
+  genericChannelsRef.current = genericChannels
+
   const refresh = useCallback(async () => {
     // Only show loading indicator on the very first fetch, not background polls.
     // Toggling loading on every poll caused 2 extra parent re-renders per cycle.
@@ -139,6 +152,12 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       gwDownCountRef.current = 0
       setGatewayStarting(false)
 
+      // Read current state from refs (not closure) to avoid dependency churn
+      const curWhatsapp = whatsappRef.current
+      const curImessage = imessageRef.current
+      const curTelegram = telegramRef.current
+      const curGeneric = genericChannelsRef.current
+
       // Determine which channels need polling this cycle.
       // Configured channels: poll every cycle. Unconfigured: poll every 30s.
       const now = Date.now()
@@ -146,22 +165,22 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       if (doFullPoll) lastFullPollRef.current = now
 
       // Build promise array — only poll configured channels on fast path
-      const waConfigured = isChannelConfigured(whatsapp)
-      const imConfigured = isChannelConfigured(imessage)
-      const tgConfigured = isChannelConfigured(telegram)
+      const waConfigured = isChannelConfigured(curWhatsapp)
+      const imConfigured = isChannelConfigured(curImessage)
+      const tgConfigured = isChannelConfigured(curTelegram)
 
       const promises: Promise<ChannelStatus | null>[] = [
-        (waConfigured || doFullPoll) ? getWhatsAppStatus().catch(() => null) : Promise.resolve(whatsapp),
-        (imConfigured || doFullPoll) ? getIMessageStatus().catch(() => null) : Promise.resolve(imessage),
-        (tgConfigured || doFullPoll) ? getTelegramStatus().catch(() => null) : Promise.resolve(telegram),
+        (waConfigured || doFullPoll) ? getWhatsAppStatus().catch(() => null) : Promise.resolve(curWhatsapp),
+        (imConfigured || doFullPoll) ? getIMessageStatus().catch(() => null) : Promise.resolve(curImessage),
+        (tgConfigured || doFullPoll) ? getTelegramStatus().catch(() => null) : Promise.resolve(curTelegram),
       ]
 
       // Generic channels: only poll configured ones (or all on full poll)
       const genericPromises = GENERIC_CHANNELS.map(ch => {
-        const configured = isChannelConfigured(genericChannels[ch])
+        const configured = isChannelConfigured(curGeneric[ch])
         return (configured || doFullPoll)
           ? getGenericChannelStatus(ch).catch(() => null)
-          : Promise.resolve(genericChannels[ch])
+          : Promise.resolve(curGeneric[ch])
       })
 
       const [wa, im, tg, ...genericResults] = await Promise.all([...promises, ...genericPromises])
@@ -198,7 +217,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       // Surface gateway-level errors per channel — but suppress errors during
       // first launch when no channels are configured (first-run experience).
       const anyConfigured = waConfigured || imConfigured || tgConfigured ||
-        GENERIC_CHANNELS.some(ch => isChannelConfigured(genericChannels[ch]))
+        GENERIC_CHANNELS.some(ch => isChannelConfigured(curGeneric[ch]))
 
       const newErrors: Record<string, string | null> = {}
       if (anyConfigured) {
@@ -227,7 +246,8 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       if (isFirstLoad) setLoading(false)
       prevJsonRef.current._initialized = 'true'
     }
-  }, [whatsapp, imessage, telegram, genericChannels])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Always do a single initial fetch so hasAnyChannel / showChannelBanner
   // are populated on mount even when polling is disabled.
@@ -345,8 +365,10 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       if (!res.success) throw new Error(res.message ?? 'Failed to disconnect WhatsApp')
       setWhatsappQrUrl(null)
       setWhatsappLinking(false)
-      // Optimistically clear local state immediately
+      // Optimistically clear local state and sync the JSON snapshot ref
+      // so the next poll doesn't see a phantom "change" and re-set state.
       setWhatsapp(null)
+      prevJsonRef.current.wa = JSON.stringify(null)
       // Wait a moment for the gateway to restart after config.patch
       await new Promise(r => setTimeout(r, 2000))
       await refresh()
@@ -376,8 +398,9 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     try {
       const res = await disconnectIMessage()
       if (!res.success) throw new Error(res.message ?? 'Failed to disconnect iMessage')
-      // Optimistically clear local state immediately
+      // Optimistically clear local state and sync the JSON snapshot ref
       setImessage(null)
+      prevJsonRef.current.im = JSON.stringify(null)
       // Wait a moment for the gateway to restart after config.patch
       await new Promise(r => setTimeout(r, 2000))
       await refresh()
@@ -405,6 +428,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       const res = await disconnectTelegram()
       if (!res.success) throw new Error(res.message ?? 'Failed to disconnect Telegram')
       setTelegram(null)
+      prevJsonRef.current.tg = JSON.stringify(null)
       await new Promise(r => setTimeout(r, 2000))
       await refresh()
     } catch (e: any) {
@@ -432,8 +456,12 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     try {
       const res = await disconnectGenericChannel(channel)
       if (!res.success) throw new Error(res.message ?? `Failed to disconnect ${channel}`)
-      // Optimistically clear this channel's local state
-      setGenericChannels(prev => ({ ...prev, [channel]: null }))
+      // Optimistically clear this channel's local state and sync snapshot
+      setGenericChannels(prev => {
+        const next = { ...prev, [channel]: null }
+        prevJsonRef.current.gen = JSON.stringify(next)
+        return next
+      })
       await new Promise(r => setTimeout(r, 2000))
       await refresh()
     } catch (e: any) {

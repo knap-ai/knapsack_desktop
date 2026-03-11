@@ -979,6 +979,10 @@ pub async fn whatsapp_disconnect(
         eprintln!("[channels] channel.logout(whatsapp) failed: {}", e);
         // Continue to config removal even if logout RPC fails — the user
         // still wants the channel removed from config.
+        // Invalidate the pooled connection: the failed RPC may have left
+        // the WebSocket in a bad state (e.g. device already unlinked on
+        // the phone). Without this, the subsequent config_get also fails.
+        gateway_client::invalidate();
     }
 
     // Step 2: Remove WhatsApp from the gateway config.
@@ -1040,6 +1044,9 @@ pub async fn telegram_disconnect(
     .await
     {
         eprintln!("[channels] channel.logout(telegram) failed: {}", e);
+        // Invalidate pooled connection after failed logout to ensure
+        // config_get uses a fresh connection.
+        gateway_client::invalidate();
     }
 
     let config_result = gateway_client::config_get(None).await;
@@ -1335,6 +1342,9 @@ pub async fn generic_channel_disconnect(
     .await
     {
         log::warn!("[channels] channel.logout({}) failed (non-fatal): {}", channel, e);
+        // Invalidate pooled connection after failed logout to ensure
+        // config_get uses a fresh connection.
+        gateway_client::invalidate();
     }
 
     // Remove from config
