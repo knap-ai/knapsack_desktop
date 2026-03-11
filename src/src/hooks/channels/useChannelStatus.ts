@@ -12,6 +12,7 @@ import {
   startWhatsAppLogin,
   waitWhatsAppLogin,
   relinkWhatsApp,
+  loginWhatsAppPhone,
   disconnectWhatsApp,
   disconnectIMessage,
   disconnectTelegram,
@@ -37,6 +38,8 @@ export interface ChannelStates {
   channelErrors: Record<string, string | null>
   /** Base64 data URL for the WhatsApp QR code, if login is in progress. */
   whatsappQrUrl: string | null
+  /** 8-character pairing code for phone-number linking (alternative to QR). */
+  whatsappPairingCode: string | null
   /** True while the backend is waiting for the gateway to restart and
    *  generate a QR code (can take ~10 s due to retry backoff). */
   whatsappLinking: boolean
@@ -77,6 +80,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   const [error, setError] = useState<string | null>(null)
   const [channelErrors, setChannelErrors] = useState<Record<string, string | null>>({})
   const [whatsappQrUrl, setWhatsappQrUrl] = useState<string | null>(null)
+  const [whatsappPairingCode, setWhatsappPairingCode] = useState<string | null>(null)
   const [whatsappLinking, setWhatsappLinking] = useState(false)
   const [healthChecking, setHealthChecking] = useState(false)
   const [gatewayHealthy, setGatewayHealthy] = useState<boolean | null>(null)
@@ -470,6 +474,44 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     }
   }, [refresh])
 
+  const doLoginWithPhone = useCallback(async (phoneNumber: string) => {
+    setChannelError('whatsapp', null)
+    setWhatsappLinking(true)
+    setWhatsappQrUrl(null)
+    setWhatsappPairingCode(null)
+    try {
+      const res = await loginWhatsAppPhone(phoneNumber)
+      if (!res.success) throw new Error(res.message ?? 'Failed to start phone pairing')
+      if (res.pairingCode) {
+        setWhatsappPairingCode(res.pairingCode)
+        // Clear linked state so pairing code is shown
+        setWhatsapp(prev => prev ? { ...prev, linked: false } : prev)
+        // Poll for link completion
+        for (let i = 0; i < 40; i++) {
+          await new Promise(r => setTimeout(r, 3000))
+          const status = await getWhatsAppStatus()
+          if (status.linked) {
+            setWhatsapp(status)
+            setWhatsappPairingCode(null)
+            setWhatsappLinking(false)
+            prevJsonRef.current.wa = JSON.stringify(status)
+            triggerDiagnostics()
+            return
+          }
+        }
+        setWhatsappLinking(false)
+        setChannelError('whatsapp', 'Pairing timed out. Try again.')
+      } else {
+        setWhatsappLinking(false)
+        await refresh()
+      }
+    } catch (e: any) {
+      setChannelError('whatsapp', e.message)
+      setWhatsappLinking(false)
+      throw e
+    }
+  }, [refresh, triggerDiagnostics])
+
   const connectIMessage = useCallback(async () => {
     setChannelError('imessage', null)
     try {
@@ -577,6 +619,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     error,
     channelErrors,
     whatsappQrUrl,
+    whatsappPairingCode,
     whatsappLinking,
     healthChecking,
     gatewayHealthy,
@@ -587,6 +630,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     connectWhatsApp,
     disconnectWhatsApp: doDisconnectWhatsApp,
     relinkWhatsApp: doRelinkWhatsApp,
+    loginWithPhone: doLoginWithPhone,
     connectIMessage,
     disconnectIMessage: doDisconnectIMessage,
     connectTelegram,

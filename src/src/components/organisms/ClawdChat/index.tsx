@@ -1288,6 +1288,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [showTelegramInput, setShowTelegramInput] = useState(false)
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null)
+  const [whatsappPhoneInput, setWhatsappPhoneInput] = useState('')
+  const [whatsappPhoneLinking, setWhatsappPhoneLinking] = useState(false)
   // Generic channel credential inputs
   const [slackBotToken, setSlackBotToken] = useState('')
   const [slackAppToken, setSlackAppToken] = useState('')
@@ -4137,9 +4139,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       </button>
                     </div>
                   </div>
-                  {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && (
+                  {channelStatus.whatsappLinking && !channelStatus.whatsappQrUrl && !channelStatus.whatsappPairingCode && (
                     <div className="ClawdChannelGuide" style={{ textAlign: 'center', padding: '20px 16px' }}>
-                      <div style={{ fontSize: 14, color: '#64748b' }}>Starting WhatsApp service and generating QR code...</div>
+                      <div style={{ fontSize: 14, color: '#64748b' }}>{whatsappPhoneLinking ? 'Requesting pairing code...' : 'Starting WhatsApp service and generating QR code...'}</div>
                       <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>This can take up to 10 seconds while the gateway restarts.</div>
                     </div>
                   )}
@@ -4169,7 +4171,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     </>
                   ) : (
                     <div className="ClawdChannelGuide">
-                      {channelStatus.whatsappQrUrl && (
+                      {channelStatus.whatsappPairingCode && (
+                        <div style={{ textAlign: 'center', margin: '12px 0' }}>
+                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>Enter this code on your phone:</div>
+                          <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 4, fontFamily: 'monospace', color: '#1e293b', padding: '12px 20px', background: '#f1f5f9', borderRadius: 8, display: 'inline-block' }}>
+                            {channelStatus.whatsappPairingCode}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}>WhatsApp → Linked Devices → Link a Device → <strong>Link with phone number instead</strong></div>
+                        </div>
+                      )}
+                      {channelStatus.whatsappQrUrl && !channelStatus.whatsappPairingCode && (
                         <div style={{ textAlign: 'center', margin: '12px 0' }}>
                           <img src={channelStatus.whatsappQrUrl} alt="WhatsApp QR Code" style={{ width: 200, height: 200, imageRendering: 'pixelated', borderRadius: 8 }} />
                         </div>
@@ -4182,13 +4193,47 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                         </li>
                         <li>
                           <span className="ClawdChannelGuideNum">2</span>
-                          <span>{channelStatus.whatsappQrUrl ? 'Scan the QR code above.' : 'A QR code will appear above.'} On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
+                          <span>{channelStatus.whatsappQrUrl ? 'Scan the QR code above.' : channelStatus.whatsappPairingCode ? 'Enter the code above on your phone.' : 'A QR code will appear above.'} On your phone, open <strong>WhatsApp → Settings → Linked Devices → Link a Device</strong>.</span>
                         </li>
                         <li>
                           <span className="ClawdChannelGuideNum">3</span>
-                          <span>Scan the QR code with your phone camera. Once linked, this panel will update automatically.</span>
+                          <span>{channelStatus.whatsappPairingCode ? 'Tap "Link with phone number instead" and enter the code.' : 'Scan the QR code with your phone camera.'} Once linked, this panel will update automatically.</span>
                         </li>
                       </ol>
+                      {/* Phone number linking alternative */}
+                      {!channelStatus.whatsappPairingCode && (
+                        <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 12, paddingTop: 12 }}>
+                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Can't scan QR? Link with phone number instead:</div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <input
+                              type="tel"
+                              value={whatsappPhoneInput}
+                              onChange={e => setWhatsappPhoneInput(e.target.value)}
+                              placeholder="+1 (234) 567-8900"
+                              disabled={whatsappPhoneLinking || channelStatus.whatsappLinking}
+                              style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }}
+                            />
+                            <button
+                              disabled={!whatsappPhoneInput.trim() || whatsappPhoneLinking || channelStatus.whatsappLinking}
+                              style={{ padding: '4px 12px', fontSize: 12, background: '#25d366', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: !whatsappPhoneInput.trim() ? 0.5 : 1, whiteSpace: 'nowrap' }}
+                              onClick={async () => {
+                                setWhatsappPhoneLinking(true)
+                                setChannelError(null)
+                                try {
+                                  await channelStatus.loginWithPhone(whatsappPhoneInput.trim())
+                                  setWhatsappPhoneInput('')
+                                } catch (err: any) {
+                                  const msg = err?.message || String(err)
+                                  console.error('[Channels] WhatsApp phone link error:', msg)
+                                  setChannelError(`WhatsApp: ${msg}`)
+                                } finally { setWhatsappPhoneLinking(false) }
+                              }}
+                            >
+                              {whatsappPhoneLinking ? 'Linking...' : 'Get code'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="ClawdChannelGuideNote">
                         Knapsack doesn't need your phone number — it links as a companion device, just like WhatsApp Web.
                         Your phone stays the primary device.

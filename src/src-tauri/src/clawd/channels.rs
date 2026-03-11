@@ -652,6 +652,146 @@ pub async fn whatsapp_relink(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
     })
 }
 
+/// Response for phone-number pairing (returns a pairing code instead of QR).
+#[derive(Serialize)]
+struct WhatsAppPhonePairResponse {
+    success: bool,
+    message: Option<String>,
+    #[serde(rename = "pairingCode", skip_serializing_if = "Option::is_none")]
+    pairing_code: Option<String>,
+}
+
+/// Start WhatsApp phone-number pairing flow.
+///
+/// Instead of scanning a QR code, the gateway requests a pairing code from
+/// WhatsApp servers.  The user enters this code on their phone via
+/// WhatsApp → Linked Devices → Link a Device → Link with phone number.
+#[post("/api/clawd/channels/whatsapp/login-phone")]
+pub async fn whatsapp_login_phone(
+    body: web::Json<serde_json::Value>,
+    _cfg: web::Data<SharedClawdbotConfig>,
+) -> impl Responder {
+    let phone_number = body
+        .get("phoneNumber")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    if phone_number.is_empty() {
+        return HttpResponse::Ok().json(WhatsAppPhonePairResponse {
+            success: false,
+            message: Some("Phone number is required.".to_string()),
+            pairing_code: None,
+        });
+    }
+
+    // Step 1: Clear stale credentials (best-effort).
+    let logout_params = serde_json::json!({
+        "channel": "whatsapp",
+        "accountId": "default",
+    });
+    let _ = gateway_client::call_channel_method(
+        "channel.logout",
+        Some(logout_params),
+        None,
+    )
+    .await;
+    gateway_client::invalidate();
+
+    // Step 2: Ensure WhatsApp channel config is present.
+    if let Ok(snapshot) = gateway_client::config_get(None).await {
+        let config = snapshot.get("config").unwrap_or(&snapshot);
+        let has_whatsapp = config
+            .pointer("/channels/whatsapp")
+            .map(|v| !v.is_null())
+            .unwrap_or(false);
+
+        if !has_whatsapp {
+            let base_hash = extract_base_hash(&snapshot);
+            let patch = build_enable_patch(
+                r#"{"channels": {"whatsapp": {"dmPolicy": "allowlist"}}}"#,
+                &snapshot,
+            );
+            if let Err(e) = gateway_client::config_patch(&patch, &base_hash, None).await {
+                eprintln!("[channels] login-phone: failed to re-enable whatsapp config: {}", e);
+            }
+            gateway_client::invalidate();
+        }
+    }
+
+    // Step 3: Wait for gateway to settle, then start phone pairing.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    gateway_client::invalidate();
+
+    let params = serde_json::json!({
+        "phoneNumber": phone_number,
+        "force": true,
+    });
+
+    let mut last_err = String::new();
+    let delays = [
+        Duration::from_secs(2),
+        Duration::from_secs(3),
+        Duration::from_secs(4),
+    ];
+
+    for (attempt, delay) in delays.iter().enumerate() {
+        tokio::time::sleep(*delay).await;
+
+        match gateway_client::call_channel_method(
+            "web.login.phone",
+            Some(params.clone()),
+            None,
+        )
+        .await
+        {
+            Ok(result) => {
+                let pairing_code = result
+                    .get("pairingCode")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                if pairing_code.is_none() {
+                    eprintln!(
+                        "[channels] web.login.phone attempt {} — no pairingCode, retrying",
+                        attempt + 1,
+                    );
+                    last_err = "No pairing code returned yet".to_string();
+                    gateway_client::invalidate();
+                    continue;
+                }
+
+                let message = result
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Enter the pairing code in WhatsApp on your phone.")
+                    .to_string();
+
+                return HttpResponse::Ok().json(WhatsAppPhonePairResponse {
+                    success: true,
+                    message: Some(message),
+                    pairing_code,
+                });
+            }
+            Err(e) => {
+                eprintln!(
+                    "[channels] web.login.phone attempt {} failed: {}",
+                    attempt + 1,
+                    e
+                );
+                last_err = e;
+                gateway_client::invalidate();
+            }
+        }
+    }
+
+    HttpResponse::Ok().json(WhatsAppPhonePairResponse {
+        success: false,
+        message: Some(format!("Phone pairing failed after retries: {}", last_err)),
+        pairing_code: None,
+    })
+}
+
 /// Get iMessage channel status
 #[get("/api/clawd/channels/imessage/status")]
 pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {

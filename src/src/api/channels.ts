@@ -73,6 +73,16 @@ export const waitWhatsAppLogin = () =>
 export const relinkWhatsApp = () =>
   post<WhatsAppLoginResponse>('/api/clawd/channels/whatsapp/relink', {})
 
+export interface WhatsAppPhonePairResponse {
+  success: boolean
+  message?: string
+  pairingCode?: string
+}
+
+/** Link WhatsApp via phone number pairing code (alternative to QR scan). */
+export const loginWhatsAppPhone = (phoneNumber: string) =>
+  post<WhatsAppPhonePairResponse>('/api/clawd/channels/whatsapp/login-phone', { phoneNumber })
+
 /** Disconnect WhatsApp: logout from Baileys and remove channel config. */
 export const disconnectWhatsApp = () =>
   post<GenericResponse>('/api/clawd/channels/whatsapp/disconnect', {})
