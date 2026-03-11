@@ -11,6 +11,7 @@ import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist } from 'src/api/channels'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
+import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -404,6 +405,7 @@ const CHAT_HISTORY_STORAGE = 'moltbot_chat_history'
 const AUTONOMY_MODE_STORAGE = 'moltbot_autonomy_mode'
 const PROACTIVE_MODE_STORAGE = 'moltbot_proactive_mode'
 const ADVANCED_MODE_STORAGE = 'moltbot_advanced_mode'
+const DEVELOPER_MODE_STORAGE = 'moltbot_developer_mode'
 const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
 // The current app version — bump this when you want to re-show the key prompt
@@ -1249,6 +1251,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   })
   const [showAdvancedWarning, setShowAdvancedWarning] = useState(false)
 
+  // Developer mode - beyond Advanced: scans Sentry reports and error logs, initiates Claude Code sessions/PRs
+  const [developerMode, setDeveloperMode] = useState(() => {
+    return localStorage.getItem(DEVELOPER_MODE_STORAGE) === 'true'
+  })
+  const [showDeveloperWarning, setShowDeveloperWarning] = useState(false)
+  const [showDevPanel, setShowDevPanel] = useState(false)
+
   // Activity panel is now controlled by parent via props
 
   // Skills panel state
@@ -1511,6 +1520,44 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     setShowAdvancedWarning(false)
     pushAssistant('⚡ **Advanced mode enabled.** I can now run shell commands to install software, check versions, and execute scripts. Dangerous commands are blocked for safety.')
   }, [])
+
+  // Developer mode toggle — requires Advanced mode, adds Sentry/error log scanning & auto-PR
+  const toggleDeveloperMode = useCallback(() => {
+    if (!developerMode) {
+      // Enabling developer mode also enables advanced mode
+      if (!advancedMode) {
+        setAdvancedMode(true)
+        localStorage.setItem(ADVANCED_MODE_STORAGE, 'true')
+      }
+      setShowDeveloperWarning(true)
+    } else {
+      setDeveloperMode(false)
+      setShowDevPanel(false)
+      localStorage.setItem(DEVELOPER_MODE_STORAGE, 'false')
+      pushAssistant('Developer mode disabled. Sentry scanning and auto-PR features turned off. Advanced mode remains active.')
+    }
+  }, [developerMode, advancedMode])
+
+  const confirmDeveloperMode = useCallback(() => {
+    setDeveloperMode(true)
+    localStorage.setItem(DEVELOPER_MODE_STORAGE, 'true')
+    setShowDeveloperWarning(false)
+    setShowDevPanel(true)
+    pushAssistant('{} **Developer mode enabled.** I will now scan your email for Sentry error reports and local error logs. When bugs are found, I can automatically initiate Claude Code sessions and create PRs to fix them in the knapsack-desktop project.')
+  }, [])
+
+  // Handle initiating a Claude Code session from the Developer panel
+  const handleDevSessionInitiate = useCallback((prompt: string) => {
+    // Enable advanced mode if not already (needed for shell commands)
+    if (!advancedMode) {
+      setAdvancedMode(true)
+      localStorage.setItem(ADVANCED_MODE_STORAGE, 'true')
+    }
+    // Send the prompt as a new message
+    if (doSendRef.current) {
+      doSendRef.current(prompt)
+    }
+  }, [advancedMode])
 
   // Skills panel — fetch from backend, fall back to static catalog
   const fetchSkills = useCallback(async () => {
@@ -3135,6 +3182,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           voiceMode: voiceEnabled, // Signal backend to be more concise for voice output
           autonomyMode, // 'assist' or 'autonomous' - controls how independent the agent is
           advancedMode, // When true, enables run_command tool for shell execution
+          developerMode, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
           userEmail: userEmail || '', // For direct email sending via send_email tool
           userName: userName || '', // Sender display name for emails
         }
@@ -3462,14 +3510,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </button>
           <button
             disabled={busy}
-            onClick={toggleAdvancedMode}
-            className={advancedMode ? 'toggle-advanced-on' : 'toggle-advanced-off'}
-            title={advancedMode
+            onClick={developerMode ? toggleDeveloperMode : toggleAdvancedMode}
+            className={developerMode ? 'toggle-developer-on' : advancedMode ? 'toggle-advanced-on' : 'toggle-advanced-off'}
+            title={developerMode
+              ? 'Developer mode ON — Sentry scanning + auto-PR enabled. Click to disable.'
+              : advancedMode
               ? 'Advanced mode ON — shell commands enabled. Click to disable.'
               : 'Standard mode — click to enable shell commands.'}
           >
-            {advancedMode ? '⚡ Advanced' : '▸ Standard'}
+            {developerMode ? '{} Developer' : advancedMode ? '⚡ Advanced' : '▸ Standard'}
           </button>
+          {advancedMode && !developerMode && (
+            <button
+              disabled={busy}
+              onClick={toggleDeveloperMode}
+              className="toggle-developer-off"
+              title="Enable Developer mode — scan Sentry reports and auto-create PRs for bugs."
+            >
+              {} Dev
+            </button>
+          )}
+          {developerMode && (
+            <button
+              disabled={busy}
+              onClick={() => { setShowDevPanel(p => !p); setShowSkillsPanel(false); setShowChannelsPanel(false); setShowKeyPrompt(false) }}
+              className={showDevPanel ? 'toggle-on' : ''}
+              title="Open Developer panel — view Sentry issues and error logs"
+            >
+              Bugs
+            </button>
+          )}
           <button
             disabled={busy}
             onClick={() => { setShowSkillsPanel(true); setShowChannelsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity(); fetchSkills() }}
@@ -3540,6 +3610,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <div className="ClawdAdvancedWarningActions">
               <button onClick={() => setShowAdvancedWarning(false)}>Cancel</button>
               <button onClick={confirmAdvancedMode}>Enable Advanced Mode</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeveloperWarning && (
+        <div className="ClawdDeveloperWarning">
+          <div className="ClawdDeveloperWarningContent">
+            <h3>Enable Developer Mode?</h3>
+            <p>Developer mode goes beyond Advanced mode. It actively monitors for bugs and can automatically create fixes:</p>
+            <ul>
+              <li><strong>Sentry email scanning</strong> — reads your email for Sentry error reports and alerts</li>
+              <li><strong>Local error logs</strong> — monitors browser console errors, app logs, Tauri backend logs, and Rust panic traces</li>
+              <li><strong>Frontend Sentry events</strong> — captures React error boundary reports and unhandled rejections</li>
+              <li><strong>Backend Sentry events</strong> — reads Rust-side captured errors and panics</li>
+              <li><strong>Auto-investigation</strong> — initiates Claude Code sessions to search the codebase, diagnose bugs, and implement fixes</li>
+              <li><strong>PR creation</strong> — automatically creates pull requests for discovered bugs in knapsack-desktop</li>
+            </ul>
+            <div className="ClawdDeveloperNote">
+              <strong>Requires:</strong> Advanced mode (auto-enabled), connected email account (for Sentry alerts), and a configured AI provider. Token usage will increase due to automated code analysis sessions.
+            </div>
+            <div className="ClawdDeveloperWarningActions">
+              <button onClick={() => setShowDeveloperWarning(false)}>Cancel</button>
+              <button onClick={confirmDeveloperMode}>Enable Developer Mode</button>
             </div>
           </div>
         </div>
@@ -3736,6 +3830,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       </div>{/* end ClawdChatContent */}
 
       {/* ── Drawer panels (absolutely positioned within ClawdChatRoot) ── */}
+
+      {showDevPanel && developerMode && (
+        <div className="ClawdDevPanel">
+          <div className="ClawdDevPanelHeader">
+            <h3>{'{}'} Developer</h3>
+            <button onClick={() => setShowDevPanel(false)}>&times;</button>
+          </div>
+          <DeveloperModePanel
+            onInitiateSession={handleDevSessionInitiate}
+            userEmail={userEmail}
+          />
+        </div>
+      )}
 
       {showSkillsPanel && (
         <div className="ClawdSkillsPanel">

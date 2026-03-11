@@ -100,6 +100,20 @@ export const setPostMeetingFollowupEnabled = async (enabled: boolean) => {
   await KNLocalStorage.setItem(KN_POST_MEETING_FOLLOWUP_ENABLED, enabled)
 }
 
+// Developer mode settings
+export const KN_DEVELOPER_MODE_ENABLED = 'kn_developer_mode_enabled'
+export const KN_DEVELOPER_MODE_AUTOSCAN = 'kn_dev_mode_autoscan'
+export const KN_DEVELOPER_MODE_SCAN_INTERVAL = 'kn_dev_mode_scan_interval'
+
+export const getDeveloperModeEnabled = async (): Promise<boolean> => {
+  const value = await KNLocalStorage.getItem(KN_DEVELOPER_MODE_ENABLED)
+  return value === true
+}
+
+export const setDeveloperModeEnabled = async (enabled: boolean) => {
+  await KNLocalStorage.setItem(KN_DEVELOPER_MODE_ENABLED, enabled)
+}
+
 // Model routing: use cheaper models for simple tasks
 export const getModelRoutingEnabled = async (): Promise<boolean> => {
   const value = await KNLocalStorage.getItem(KN_MODEL_ROUTING_ENABLED)

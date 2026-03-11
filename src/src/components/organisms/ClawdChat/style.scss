@@ -1795,6 +1795,163 @@
   }
 }
 
+// Developer mode toggle
+.ClawdChatActions button.toggle-developer-on {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.35);
+  color: #7c3aed;
+  font-weight: 500;
+
+  &:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.25);
+    border-color: rgba(139, 92, 246, 0.5);
+  }
+}
+
+.ClawdChatActions button.toggle-developer-off {
+  background: rgba(139, 92, 246, 0.06);
+  border-color: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+  font-size: 11px;
+
+  &:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+}
+
+// Developer Mode Warning Dialog
+.ClawdDeveloperWarning {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: inherit;
+}
+
+.ClawdDeveloperWarningContent {
+  background: white;
+  padding: 28px 32px;
+  border-radius: 16px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  p {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #555;
+  }
+
+  ul {
+    margin: 0 0 12px 0;
+    padding-left: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #555;
+  }
+}
+
+.ClawdDeveloperNote {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.06);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  font-size: 13px !important;
+  color: #7c3aed !important;
+}
+
+.ClawdDeveloperWarningActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+
+  button {
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:first-child {
+      background: white;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      color: #555;
+
+      &:hover { background: #f5f5f5; }
+    }
+
+    &:last-child {
+      background: #8b5cf6;
+      border: 1px solid #7c3aed;
+      color: white;
+
+      &:hover { background: #7c3aed; }
+    }
+  }
+}
+
+// Developer Mode Panel (drawer)
+.ClawdDevPanel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 100%;
+  background: white;
+  border-left: 1px solid #e5e7eb;
+  z-index: 50;
+  overflow-y: auto;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+}
+
+.ClawdDevPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0f0;
+
+  h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #999;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+
+    &:hover {
+      background: #f5f5f5;
+      color: #333;
+    }
+  }
+}
+
 // Proactive/Reactive mode toggle modal
 .ClawdProactiveModal {
   position: absolute;
