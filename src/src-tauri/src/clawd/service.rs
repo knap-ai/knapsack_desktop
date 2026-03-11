@@ -81,7 +81,13 @@ struct StoredTokens {
   gemini_model: Option<String>,
   #[serde(default)]
   groq_model: Option<String>,
-  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq", "ollama"
+  // OpenRouter support (access many models via openrouter.ai)
+  #[serde(default)]
+  openrouter_api_key: Option<String>,
+  #[serde(default)]
+  openrouter_model: Option<String>,
+
+  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq", "openrouter", "ollama"
   #[serde(default)]
   active_provider: Option<String>,
 
@@ -158,6 +164,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     gemini_api_key: None,
     gemini_model: None,    // Defaults to gemini-2.5-flash
     groq_model: None,      // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
+    openrouter_api_key: None,
+    openrouter_model: None, // Defaults to meta-llama/llama-3.3-70b-instruct:free
     active_provider: None, // Defaults to openai
     ollama_enabled: None,
     ollama_model: None,
@@ -220,6 +228,14 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   if let Some(m) = &tokens.groq_model {
     let m = m.trim();
     if !m.is_empty() { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
+  }
+  if let Some(k) = &tokens.openrouter_api_key {
+    let k = k.trim();
+    if !k.is_empty() { std::env::set_var("OPENROUTER_API_KEY", k); }
+  }
+  if let Some(m) = &tokens.openrouter_model {
+    let m = m.trim();
+    if !m.is_empty() { std::env::set_var("KNAPSACK_OPENROUTER_MODEL", m); }
   }
   // Propagate Ollama settings so OpenClaw subprocess picks them up
   if tokens.ollama_enabled.unwrap_or(false) {
@@ -310,6 +326,14 @@ pub fn get_groq_model(app_handle: &tauri::AppHandle) -> String {
     .ok()
     .and_then(|t| t.groq_model)
     .unwrap_or_else(|| "meta-llama/llama-4-scout-17b-16e-instruct".to_string())
+}
+
+/// Get the configured OpenRouter model (defaults to meta-llama/llama-3.3-70b-instruct:free if not set)
+pub fn get_openrouter_model(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.openrouter_model)
+    .unwrap_or_else(|| "meta-llama/llama-3.3-70b-instruct:free".to_string())
 }
 
 fn resource_path(app_handle: &tauri::AppHandle, rel: &str) -> PathBuf {
@@ -690,10 +714,12 @@ pub struct ApiKeyStatusResponse {
   pub has_anthropic_key: bool,
   pub has_gemini_key: bool,
   pub has_groq_key: bool,
+  pub has_openrouter_key: bool,
   pub openai_key_hint: Option<String>,
   pub anthropic_key_hint: Option<String>,
   pub gemini_key_hint: Option<String>,
   pub groq_key_hint: Option<String>,
+  pub openrouter_key_hint: Option<String>,
   // Ollama (local LLM) status
   pub ollama_enabled: bool,
   pub ollama_model: Option<String>,
@@ -726,10 +752,12 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         has_anthropic_key: false,
         has_gemini_key: false,
         has_groq_key: false,
+        has_openrouter_key: false,
         openai_key_hint: None,
         anthropic_key_hint: None,
         gemini_key_hint: None,
         groq_key_hint: None,
+        openrouter_key_hint: None,
         ollama_enabled: false,
         ollama_model: None,
         ollama_base_url: None,
@@ -742,8 +770,9 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let has_anthropic = tokens.anthropic_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
   let has_gemini = tokens.gemini_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
   let has_groq = tokens.groq_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
+  let has_openrouter = tokens.openrouter_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
-  let has_key = has_openai || has_anthropic || has_gemini || has_groq || ollama_enabled;
+  let has_key = has_openai || has_anthropic || has_gemini || has_groq || has_openrouter || ollama_enabled;
 
   let model = tokens.openai_model.clone();
   let active_provider = tokens.active_provider.clone();
@@ -752,6 +781,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let anthropic_hint = tokens.anthropic_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
   let gemini_hint = tokens.gemini_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
   let groq_hint = tokens.groq_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
+  let openrouter_hint = tokens.openrouter_api_key.as_ref().filter(|k| !k.trim().is_empty()).map(|k| mask_key(k));
 
   // Build extra provider status list
   let extra_provider_defs: &[(&str, &str)] = &[
@@ -790,10 +820,12 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     has_anthropic_key: has_anthropic,
     has_gemini_key: has_gemini,
     has_groq_key: has_groq,
+    has_openrouter_key: has_openrouter,
     openai_key_hint: openai_hint,
     anthropic_key_hint: anthropic_hint,
     gemini_key_hint: gemini_hint,
     groq_key_hint: groq_hint,
+    openrouter_key_hint: openrouter_hint,
     ollama_enabled,
     ollama_model: tokens.ollama_model.clone(),
     ollama_base_url: tokens.ollama_base_url.clone(),
@@ -874,6 +906,14 @@ pub async fn validate_api_key(
       // ZAI/GLM uses Anthropic-messages-compatible endpoint
       client
         .get("https://api.synthetic.new/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
+    "openrouter" => {
+      // OpenRouter: list models to validate key
+      client
+        .get("https://openrouter.ai/api/v1/models")
         .bearer_auth(&key)
         .send()
         .await
@@ -971,6 +1011,7 @@ pub async fn set_api_key(
       "anthropic" => tokens.anthropic_api_key.as_ref().map_or(false, |k| !k.is_empty()),
       "gemini" => tokens.gemini_api_key.as_ref().map_or(false, |k| !k.is_empty()),
       "groq" => tokens.groq_api_key.as_ref().map_or(false, |k| !k.is_empty()),
+      "openrouter" => tokens.openrouter_api_key.as_ref().map_or(false, |k| !k.is_empty()),
       "ollama" => true,
       _ => tokens.openai_api_key.as_ref().map_or(false, |k| !k.is_empty()),
     };
@@ -987,6 +1028,7 @@ pub async fn set_api_key(
         "anthropic" => { tokens.anthropic_model = Some(model.trim().to_string()); }
         "gemini" => { tokens.gemini_model = Some(model.trim().to_string()); }
         "groq" => { tokens.groq_model = Some(model.trim().to_string()); }
+        "openrouter" => { tokens.openrouter_model = Some(model.trim().to_string()); }
         "ollama" => { tokens.ollama_model = Some(model.trim().to_string()); }
         _ => { tokens.openai_model = Some(model.trim().to_string()); }
       }
@@ -995,6 +1037,7 @@ pub async fn set_api_key(
       "anthropic" => "Anthropic",
       "gemini" => "Gemini",
       "groq" => "Groq",
+      "openrouter" => "OpenRouter",
       "ollama" => "Ollama",
       _ => "OpenAI",
     };
@@ -1010,6 +1053,7 @@ pub async fn set_api_key(
     if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
     if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
     if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
+    if let Some(k) = &tokens.openrouter_api_key { std::env::set_var("OPENROUTER_API_KEY", k); }
     return HttpResponse::Ok().json(SetApiKeyResponse {
       success: true,
       message: format!("Switched to {}", provider_name),
@@ -1040,6 +1084,14 @@ pub async fn set_api_key(
         tokens.groq_model = Some(model.trim().to_string());
       }
       "Groq"
+    }
+    "openrouter" => {
+      tokens.openrouter_api_key = Some(key);
+      tokens.active_provider = Some("openrouter".to_string());
+      if let Some(model) = &payload.model {
+        tokens.openrouter_model = Some(model.trim().to_string());
+      }
+      "OpenRouter"
     }
     "ollama" => {
       // Ollama doesn't need a real API key — just enable it and store settings
@@ -1100,11 +1152,13 @@ pub async fn set_api_key(
   if let Some(k) = &tokens.openai_api_key { std::env::set_var("OPENAI_API_KEY", k); }
   if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
   if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
+  if let Some(k) = &tokens.openrouter_api_key { std::env::set_var("OPENROUTER_API_KEY", k); }
   if let Some(p) = &tokens.active_provider { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
   if let Some(m) = &tokens.openai_model { std::env::set_var("KNAPSACK_OPENAI_MODEL", m); }
   if let Some(m) = &tokens.anthropic_model { std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", m); }
   if let Some(m) = &tokens.gemini_model { std::env::set_var("KNAPSACK_GEMINI_MODEL", m); }
   if let Some(m) = &tokens.groq_model { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
+  if let Some(m) = &tokens.openrouter_model { std::env::set_var("KNAPSACK_OPENROUTER_MODEL", m); }
   // Propagate Ollama settings
   if tokens.ollama_enabled.unwrap_or(false) {
     std::env::set_var("OLLAMA_API_KEY", "ollama-local");
