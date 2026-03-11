@@ -109,3 +109,5 @@ export { createInfoCard, createListCard, createImageCard, createActionCard, crea
 export { processLineMessage, hasMarkdownToConvert, stripMarkdown, } from "../line/markdown-to-line.js";
 export type { ProcessedLineMessage } from "../line/markdown-to-line.js";
 export { loadWebMedia, type WebMediaResult } from "../web/media.js";
+export { createWaSocket, waitForWaConnection, webAuthExists } from "../web/session.js";
+export { logoutWeb } from "../web/auth-store.js";
