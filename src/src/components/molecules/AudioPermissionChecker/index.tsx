@@ -22,6 +22,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
   const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [isCheckingSystemAudio, setIsCheckingSystemAudio] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [systemAudioAttempts, setSystemAudioAttempts] = useState(0);
 
   const checkRealPermissions = useCallback(async (): Promise<AudioPermissions> => {
     try {
@@ -78,6 +79,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
 
   const requestSystemAudioAccess = async () => {
     setIsCheckingSystemAudio(true);
+    setSystemAudioAttempts(prev => prev + 1);
     try {
       let settingsResult: { success: boolean; already_granted?: boolean } | undefined;
       try {
@@ -293,7 +295,10 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
           </div>
           {(!micPermission || !systemAudioPermission) && (
             <p className="text-xs text-ks-warm-grey-500 mt-6 max-w-[400px] mx-auto text-center leading-5">
-              Already enabled in System Settings? This screen will update automatically once access is detected. If it doesn't, try quitting and reopening Knapsack.
+              {systemAudioAttempts >= 2 && !systemAudioPermission
+                ? 'Still not detected? In System Settings > Privacy & Security > Screen & System Audio Recording, toggle Knapsack OFF then ON again, then quit and reopen Knapsack.'
+                : 'Already enabled in System Settings? This screen will update automatically once access is detected. If it doesn\'t, try quitting and reopening Knapsack.'
+              }
             </p>
           )}
         </div>
