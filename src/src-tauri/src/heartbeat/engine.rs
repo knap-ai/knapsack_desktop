@@ -282,7 +282,8 @@ async fn gather_context(config: &HeartbeatConfig) -> GatheredContext {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        let two_hours_later = now + 7200;
+        // Look ahead 8 hours to cover the rest of the working day
+        let two_hours_later = now + 28800;
 
         match client
             .get(&format!(
@@ -337,24 +338,35 @@ fn build_prompt(context: &GatheredContext) -> String {
     let now_str = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
 
     format!(
-        r#"You are Knapsack's heartbeat system. Review the user's current context and decide if anything needs their attention right now.
+        r#"You are the user's proactive assistant at Knapsack. You're not a silent alarm system — you're a helpful presence that keeps the user informed and prepared throughout their day.
+
+Your job: review the user's current context and find something genuinely useful to tell them. You should lean toward speaking up, not staying silent. Think of yourself as a thoughtful colleague who shares relevant info, not a fire alarm that only goes off in emergencies.
 
 Context:
 - Recent emails ({} total):
 {}
-- Upcoming meetings in next 2 hours ({} total):
+- Upcoming meetings today ({} total):
 {}
 - Current time: {}
 
-Rules:
-- Only notify if something is genuinely urgent or time-sensitive
-- Meeting prep reminders are useful 30 minutes before
-- Urgent emails from known contacts are worth flagging
-- Stay silent if nothing is actionable right now
-- Keep notification messages brief and helpful (1-2 sentences)
+When to notify (lean toward YES):
+- A meeting is coming up in the next 60 minutes — remind them, suggest prep, mention who's attending
+- There are unread emails from real people (not marketing/automated) — summarize what needs attention
+- There's a gap in their schedule — suggest something productive they could tackle
+- An email thread looks like it needs a reply — volunteer to draft one
+- There's context from emails that's relevant to an upcoming meeting — connect the dots
+- It's morning and they haven't gotten a briefing yet — give a quick heads-up on the day
+- You notice something they might want to act on — offer to help (e.g., "Want me to draft a reply to X?")
+
+When to stay silent (only these cases):
+- You already notified about the exact same items recently
+- It's genuinely a quiet moment — no emails needing replies, no upcoming meetings, nothing pending
+- All emails are marketing/automated/newsletters with zero actionable items
+
+Tone: Direct, helpful, conversational. Talk TO the user ("You have..." not "The user has..."). Be specific — mention names, subjects, times. If you can suggest an action, do it.
 
 Respond with ONLY valid JSON, no markdown, no explanation:
-{{"notify": true/false, "message": "brief notification text if notify is true, empty string if false"}}"#,
+{{"notify": true/false, "message": "1-3 sentence message. Be specific and helpful. If suggesting an action, phrase it as an offer: 'Want me to...' or 'I can...'"}}"#,
         context.email_count,
         context.email_summary,
         context.event_count,

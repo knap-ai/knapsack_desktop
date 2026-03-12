@@ -767,6 +767,7 @@ function App() {
 
   const {
     checkMorningBriefing,
+    checkProactiveCheckin,
     handleEmailSyncComplete,
     handleCalendarSyncComplete,
     handlePostMeetingFollowup,
@@ -824,13 +825,14 @@ function App() {
       handleNotificationsScheduleService(date)
       handleAutomationsFeedScheduleService(date)
       checkMorningBriefing(date)
+      checkProactiveCheckin(date)
       updateMeetingStatuses(currentTime)
     }, MINUTE_MS)
 
     return () => {
       clearInterval(minuteInterval)
     }
-  }, [userEmail, checkMorningBriefing])
+  }, [userEmail, checkMorningBriefing, checkProactiveCheckin])
 
   // TODO test this hook the refresh don't look being working as expected
   useEffect(() => {
@@ -1057,7 +1059,8 @@ function App() {
   }, [handleOpenToastr])
 
   // Heartbeat notification listener: shows a notification when the heartbeat
-  // engine decides something needs the user's attention.
+  // engine decides something needs the user's attention. Also triggers a
+  // proactive check-in cycle when channels are attached.
   useEffect(() => {
     const unlistenHeartbeat = listen('heartbeat_notification', async (event: Event<{ message: string; timestamp: number }>) => {
       const { message } = event.payload
@@ -1066,10 +1069,10 @@ function App() {
       openNotificationWindow(
         'heartbeat-' + Date.now(),
         [
-          { buttonText: 'View', buttonHandler: 'dismiss_notification_handler' },
+          { buttonText: 'Open Knapsack', buttonHandler: 'dismiss_notification_handler' },
           { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
         ],
-        'Heartbeat Alert',
+        'Knapsack',
         message,
       )
     })
