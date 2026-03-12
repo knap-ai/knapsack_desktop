@@ -6,14 +6,18 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
     {
         use std::process::Command;
 
-        // First, attempt a process tap probe. On macOS 14.4+/15+, this triggers
-        // the system to register Knapsack in the "System Audio Recording" list
-        // in System Settings, so the user doesn't have to manually find and add it.
-        // This may also trigger an OS permission prompt dialog automatically.
-        let already_granted = std::panic::catch_unwind(check_system_audio_via_tap_probe).unwrap_or(false);
-        if already_granted {
-            log::info!("System audio permission already granted (tap probe succeeded)");
-            return Ok(json!({ "success": true, "already_granted": true }));
+        // On macOS < 14.2, Core Audio Taps aren't available so skip the tap probe
+        // and go straight to opening the (legacy) Screen Capture settings pane.
+        if check_macos_version_sufficient() {
+            // Attempt a process tap probe. On macOS 14.4+/15+, this triggers
+            // the system to register Knapsack in the "System Audio Recording" list
+            // in System Settings, so the user doesn't have to manually find and add it.
+            // This may also trigger an OS permission prompt dialog automatically.
+            let already_granted = std::panic::catch_unwind(check_system_audio_via_tap_probe).unwrap_or(false);
+            if already_granted {
+                log::info!("System audio permission already granted (tap probe succeeded)");
+                return Ok(json!({ "success": true, "already_granted": true }));
+            }
         }
 
         // Open "System Audio Recording Only" pane in System Settings (macOS 14.4+)
@@ -212,6 +216,20 @@ pub fn diagnose_audio_permissions() -> Result<serde_json::Value, String> {
 pub fn check_audio_permissions() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "macos")]
     {
+        // The notetaker uses Core Audio Taps (AudioHardwareCreateProcessTap /
+        // CATapDescription) which require macOS 14.2+. On older versions we
+        // return early with a clear upgrade message instead of letting the
+        // permission probe silently fail.
+        if !check_macos_version_sufficient() {
+            return Ok(json!({
+                "microphone": false,
+                "screen_recording": false,
+                "all_granted": false,
+                "os_update_required": true,
+                "os_update_message": "Meeting notes require macOS 14.2 (Sonoma) or later. Please update your operating system to use this feature."
+            }));
+        }
+
         let mic_granted = check_microphone_permission_macos();
         let system_audio_granted = check_system_audio_permission_macos();
 
@@ -359,6 +377,32 @@ fn check_system_audio_permission_macos() -> bool {
     }
 
     false
+}
+
+/// Check if the current macOS version is >= 14.2 (required for Core Audio Taps).
+#[cfg(target_os = "macos")]
+fn check_macos_version_sufficient() -> bool {
+    use std::process::Command;
+    // sw_vers -productVersion returns e.g. "14.5" or "13.6.1"
+    let output = match Command::new("sw_vers")
+        .arg("-productVersion")
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            log::warn!("Failed to run sw_vers: {}", e);
+            return true; // assume sufficient if we can't determine
+        }
+    };
+    let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let parts: Vec<u32> = version_str
+        .split('.')
+        .filter_map(|p| p.parse().ok())
+        .collect();
+    let major = parts.first().copied().unwrap_or(0);
+    let minor = parts.get(1).copied().unwrap_or(0);
+    // Require macOS 14.2+
+    major > 14 || (major == 14 && minor >= 2)
 }
 
 /// Helper to get the app's bundle ID, with fallback to the known production ID.
