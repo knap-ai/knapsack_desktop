@@ -104,7 +104,7 @@ export default class DataFetcher {
       semantic_search_query: semanticSearchQuery,
       documents,
       additional_documents: additionalDocuments,
-      is_local: useLocalLLM,
+      is_local: false, // Local llama_cpp inference removed; always use cloud/Ollama providers
       thread_id: threadId,
     }
 
