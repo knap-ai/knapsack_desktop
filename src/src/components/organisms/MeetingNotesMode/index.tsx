@@ -489,7 +489,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   }
 
   const handleStopRecording = async (type: string) => {
-    recordingHandlers.setIsRecording(thread.id, false)
     let eventId = getEventId()
     KNAnalytics.trackEvent('Stop recording', { type: type, meetingId: eventId })
     const saveTranscript = await shouldSaveTranscript()

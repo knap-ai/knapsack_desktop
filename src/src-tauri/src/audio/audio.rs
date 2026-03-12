@@ -641,8 +641,8 @@ pub async fn stop_recording(
 
   let transcript_dir = home_dir.join(".transcripts");
   let file_name = generate_filename(
-    thread.clone().subtitle.unwrap(),
-    thread.clone().timestamp.unwrap(),
+    thread.clone().subtitle.unwrap_or_else(|| "Untitled".to_string()),
+    thread.clone().timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp_millis()),
   );
   let file_path = transcript_dir.join(file_name);
 
@@ -668,7 +668,7 @@ pub fn save_transcript_for_user(thread_id: u64, event_id: u64, path: &str) -> Re
   let knapsack_data_dir = home_dir.join(".knapsack");
   let temp_transcripts_dir = knapsack_data_dir.join("transcripts");
 
-  let participants_str = CalendarEvent::get_event_participants_str(event_id).unwrap();
+  let participants_str = CalendarEvent::get_event_participants_str(event_id).unwrap_or_default();
 
   let transcript = match Transcript::find_by_thread_id(thread_id) {
     Ok(Some(t)) => t,
@@ -699,7 +699,10 @@ pub fn save_transcript_for_user(thread_id: u64, event_id: u64, path: &str) -> Re
 
     create_dir_all(&file_path)?;
 
-    let file_name = generate_filename(thread.subtitle.unwrap(), thread.timestamp.unwrap());
+    let file_name = generate_filename(
+      thread.subtitle.unwrap_or_else(|| "Untitled".to_string()),
+      thread.timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp_millis()),
+    );
     let file_path = file_path.join(file_name);
 
     let content_w_participants = format!("{}\n\n\n{}", participants_str, content);
