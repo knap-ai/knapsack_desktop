@@ -39,8 +39,20 @@ struct StoredTokens {
   gemini_model: Option<String>,
   #[serde(default)]
   groq_model: Option<String>,
+  // OpenRouter support
+  #[serde(default)]
+  openrouter_api_key: Option<String>,
+  #[serde(default)]
+  openrouter_model: Option<String>,
   #[serde(default)]
   active_provider: Option<String>,
+  // Ollama (local LLM) support
+  #[serde(default)]
+  ollama_enabled: Option<bool>,
+  #[serde(default)]
+  ollama_model: Option<String>,
+  #[serde(default)]
+  ollama_base_url: Option<String>,
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
 }
@@ -100,7 +112,12 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     gemini_api_key: None,
     gemini_model: None,
     groq_model: None,
+    openrouter_api_key: None,
+    openrouter_model: None,
     active_provider: None,
+    ollama_enabled: None,
+    ollama_model: None,
+    ollama_base_url: None,
     extra_provider_keys: None,
   };
 
@@ -318,6 +335,27 @@ fn groq_key(app_handle: &tauri::AppHandle) -> Option<String> {
     .and_then(|t| t.groq_api_key)
     .map(|s| s.trim().to_string())
     .filter(|s| !s.is_empty())
+}
+
+fn ollama_is_enabled(app_handle: &tauri::AppHandle) -> bool {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.ollama_enabled)
+    .unwrap_or(false)
+}
+
+fn ollama_base_url(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.ollama_base_url)
+    .unwrap_or_else(|| "http://localhost:11434".to_string())
+}
+
+fn ollama_model(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.ollama_model)
+    .unwrap_or_else(|| "llama3.2:latest".to_string())
 }
 
 fn active_provider(app_handle: &tauri::AppHandle) -> String {
@@ -1401,6 +1439,15 @@ pub async fn chat(
     active_provider(&app_handle)
   };
   let api_key = match provider.as_str() {
+    "ollama" => {
+      if !ollama_is_enabled(&app_handle) {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+          "ok": false,
+          "message": "Ollama is not enabled. Enable it in Settings and Save, then re-enable."
+        }))
+      }
+      "ollama-local".to_string()
+    },
     "anthropic" => match anthropic_key(&app_handle) {
       Some(k) => k,
       None => {
@@ -3336,19 +3383,26 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
     "anthropic" => super::service::get_anthropic_model(&app_handle),
     "gemini" => super::service::get_gemini_model(&app_handle),
     "groq" => super::service::get_groq_model(&app_handle),
+    "ollama" => ollama_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
   };
+  let current_ollama_base = ollama_base_url(&app_handle);
   eprintln!("[clawd/chat] Using provider={} model={}", current_provider, current_model);
 
   // Helper: call the appropriate provider's chat API
   async fn call_provider(
       prov: &str, key: &str, model: &str,
       msgs: Vec<chat_agent::OaiMessage>, tls: Vec<chat_agent::OaiToolSpec>,
+      ollama_base: &str,
     ) -> anyhow::Result<chat_agent::OaiChatResp> {
       match prov {
         "anthropic" => chat_agent::anthropic_chat(key, model, msgs, tls).await,
         "gemini" => chat_agent::gemini_chat(key, model, msgs, tls).await,
         "groq" => chat_agent::groq_chat(key, model, msgs, tls).await,
+        "ollama" => {
+          let base = format!("{}/v1", ollama_base.trim_end_matches('/'));
+          chat_agent::openai_compatible_chat(key, model, &base, msgs, tls).await
+        },
         _ => chat_agent::openai_chat(key, model, msgs, tls).await,
       }
     }
@@ -3362,13 +3416,14 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
       let delay_ms: u64 = match current_provider.as_str() {
         "anthropic" => 500, // Anthropic has tighter rate limits
         "gemini" => 300,
+        "ollama" => 0,      // Local — no rate limits
         _ => 100, // OpenAI is more generous
       };
       tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
     }
 
     // Try primary provider, then fallback to others on credit/rate-limit errors
-    let resp = match call_provider(&current_provider, &current_api_key, &current_model, messages.clone(), tools.clone()).await {
+    let resp = match call_provider(&current_provider, &current_api_key, &current_model, messages.clone(), tools.clone(), &current_ollama_base).await {
       Ok(r) => r,
       Err(e) => {
         let err_str = e.to_string();
@@ -3403,7 +3458,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
               _ => super::service::get_openai_model(&app_handle),
             };
             eprintln!("[clawd/chat] Trying fallback provider={} model={}", fb_provider, fb_model);
-            match call_provider(fb_provider, fb_key, &fb_model, messages.clone(), tools.clone()).await {
+            match call_provider(fb_provider, fb_key, &fb_model, messages.clone(), tools.clone(), &current_ollama_base).await {
               Ok(r) => {
                 eprintln!("[clawd/chat] Fallback to {} succeeded", fb_provider);
                 current_provider = fb_provider.to_string();

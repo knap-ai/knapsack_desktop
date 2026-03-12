@@ -483,8 +483,11 @@ pub async fn openai_compatible_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
+  // Use a longer timeout for local providers (Ollama) which may need more time
+  let is_local = base_url.contains("localhost") || base_url.contains("127.0.0.1");
+  let timeout_secs = if is_local { 300 } else { 60 };
   let client = reqwest::Client::builder()
-    .timeout(Duration::from_secs(60))
+    .timeout(Duration::from_secs(timeout_secs))
     .build()?;
 
   // o3, o1, and gpt-5.2-pro reasoning models only support temperature=1 (default)

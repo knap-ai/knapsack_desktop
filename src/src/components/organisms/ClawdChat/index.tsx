@@ -277,6 +277,9 @@ type ApiKeyStatus = {
   gemini_key_hint?: string
   groq_key_hint?: string
   openrouter_key_hint?: string
+  ollama_enabled?: boolean
+  ollama_model?: string
+  ollama_base_url?: string
   extra_providers?: Array<{ env_var: string; has_key: boolean; key_hint?: string }>
 }
 
@@ -1423,6 +1426,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           groq: !!keyStatus.has_groq_key,
           openrouter: !!keyStatus.has_openrouter_key,
         })
+        // Restore Ollama model from backend if Ollama is the active provider
+        if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
+          setSelectedOllamaModel(keyStatus.ollama_model)
+          localStorage.setItem(OLLAMA_MODEL_STORAGE, keyStatus.ollama_model)
+        }
         // Fetch extra provider statuses
         if (keyStatus.extra_providers) {
           const epMap: Record<string, { has_key?: boolean; key_hint?: string }> = {}
@@ -2297,6 +2305,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Switch to a provider that already has a saved key (no new key needed)
   const switchProviderModel = useCallback(async (providerId: Provider) => {
+    // Ollama uses its own configure endpoint
+    if (providerId === 'ollama') {
+      saveOllamaProvider()
+      return
+    }
     setSavingKey(true)
     try {
       const modelForProvider = providerId === 'openai' ? selectedModel
@@ -2852,7 +2865,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       const hasKey = await checkAndPromptForKey()
       if (!hasKey) {
         pushUser(text || '(files attached)')
-        pushAssistant('Please enter your OpenAI API key first to get started.')
+        pushAssistant('Please set up an AI provider first. Add an API key or enable Ollama in Settings to get started.')
         return
       }
     }
