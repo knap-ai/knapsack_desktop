@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "bash scripts/sync-version.sh && bash scripts/prepare-node.sh",
+    "prebuild": "bash scripts/sync-version.sh && bash scripts/prepare-node.sh && bash scripts/prune-clawdbot.sh",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "source .env && tauri",
