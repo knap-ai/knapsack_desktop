@@ -113,7 +113,10 @@ for pkg in "${UNUSED_PACKAGES[@]}"; do
 done
 
 # Remove broken symlinks in .bin/ left behind by pruned packages
-find "$CLAWDBOT_DIR/node_modules/.bin" -xtype l -delete 2>/dev/null || true
+# (uses -L + ! -e to stay compatible with macOS find, which lacks -xtype)
+for link in "$CLAWDBOT_DIR/node_modules/.bin"/*; do
+  [ -L "$link" ] && [ ! -e "$link" ] && rm -f "$link"
+done
 
 # ── Step 3: Clean up .cache, docs, and source maps ─────────────────────
 echo "[prune-clawdbot] 3/3 Cleaning up ancillary files…"
