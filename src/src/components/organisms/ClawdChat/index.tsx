@@ -275,6 +275,7 @@ type ApiKeyStatus = {
   anthropic_key_hint?: string
   gemini_key_hint?: string
   groq_key_hint?: string
+  extra_providers?: Array<{ env_var: string; has_key: boolean; key_hint?: string }>
 }
 
 type SkillInfo = {
@@ -1001,7 +1002,7 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
   const [dmPolicy, setDmPolicy] = useState('allowlist')
   const [allowFrom, setAllowFrom] = useState<string[]>([])
   const [newContact, setNewContact] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -1296,7 +1297,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [discordBotToken, setDiscordBotToken] = useState('')
   const [signalPhoneNumber, setSignalPhoneNumber] = useState('')
   const [signalCliStatus, setSignalCliStatus] = useState<SignalCliStatus | null>(null)
-  const [signalCliChecking, setSignalCliChecking] = useState(false)
   const [signalCliInstalling, setSignalCliInstalling] = useState(false)
   const [signalRegMode, setSignalRegMode] = useState<'choose' | 'link' | 'sms'>('choose')
   const [signalLinkUri, setSignalLinkUri] = useState<string | null>(null)
@@ -1306,7 +1306,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [signalVerifyCode, setSignalVerifyCode] = useState('')
   const [signalCaptchaToken, setSignalCaptchaToken] = useState('')
   const [signalNeedsCaptcha, setSignalNeedsCaptcha] = useState(false)
-  const [signalRegDone, setSignalRegDone] = useState(false)
+  const [, setSignalRegDone] = useState(false)
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
   const [googleChatWebhook, setGoogleChatWebhook] = useState('')
   const [skills, setSkills] = useState<SkillInfo[]>([])
