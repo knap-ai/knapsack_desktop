@@ -473,7 +473,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       )
     } catch (err: any) {
       const message = err?.message?.includes('permission') || err?.message?.includes('Permission')
-        ? 'Recording requires audio permissions. Please grant access in System Settings > Privacy & Security, then try again.'
+        ? 'Recording requires audio permissions. Please grant access in System Settings > Privacy & Security, then try again. If already enabled, try toggling the permission off and on, then restart Knapsack.'
         : "Couldn't start recording. Check that your microphone is available and try again."
       handleErrorContact(message)
     }
