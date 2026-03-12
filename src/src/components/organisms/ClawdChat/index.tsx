@@ -429,6 +429,7 @@ const AUTONOMY_MODE_STORAGE = 'moltbot_autonomy_mode'
 const PROACTIVE_MODE_STORAGE = 'moltbot_proactive_mode'
 const ADVANCED_MODE_STORAGE = 'moltbot_advanced_mode'
 const DEVELOPER_MODE_STORAGE = 'moltbot_developer_mode'
+const ACTIVE_PROVIDER_STORAGE = 'moltbot_active_provider'
 const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
 // The current app version — bump this when you want to re-show the key prompt
@@ -1237,7 +1238,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
   })
-  const [selectedProvider, setSelectedProvider] = useState<Provider>('openai')
+  const [selectedProvider, setSelectedProvider] = useState<Provider>(() => {
+    return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
+  })
   const [savingKey, setSavingKey] = useState(false)
 
   // Ollama state
@@ -1437,6 +1440,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         }
         if (keyStatus.active_provider) {
           setSelectedProvider(keyStatus.active_provider as Provider)
+          localStorage.setItem(ACTIVE_PROVIDER_STORAGE, keyStatus.active_provider)
         }
         // Store masked key hints for placeholders
         setKeyHints({
@@ -2363,6 +2367,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
       }
       setSelectedProvider(providerId)
+      localStorage.setItem(ACTIVE_PROVIDER_STORAGE, providerId)
       setShowKeyPrompt(false)
       try {
         await apiPost('/api/clawd/service/enable', { enabled: true })
