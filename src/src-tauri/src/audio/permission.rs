@@ -6,14 +6,18 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
     {
         use std::process::Command;
 
-        // First, attempt a process tap probe. On macOS 14.4+/15+, this triggers
-        // the system to register Knapsack in the "System Audio Recording" list
-        // in System Settings, so the user doesn't have to manually find and add it.
-        // This may also trigger an OS permission prompt dialog automatically.
-        let already_granted = check_system_audio_via_tap_probe();
-        if already_granted {
-            log::info!("System audio permission already granted (tap probe succeeded)");
-            return Ok(json!({ "success": true, "already_granted": true }));
+        // On macOS < 14.2, Core Audio Taps aren't available so skip the tap probe
+        // and go straight to opening the (legacy) Screen Capture settings pane.
+        if check_macos_version_sufficient() {
+            // Attempt a process tap probe. On macOS 14.4+/15+, this triggers
+            // the system to register Knapsack in the "System Audio Recording" list
+            // in System Settings, so the user doesn't have to manually find and add it.
+            // This may also trigger an OS permission prompt dialog automatically.
+            let already_granted = check_system_audio_via_tap_probe();
+            if already_granted {
+                log::info!("System audio permission already granted (tap probe succeeded)");
+                return Ok(json!({ "success": true, "already_granted": true }));
+            }
         }
 
         // Open "System Audio Recording Only" pane in System Settings (macOS 14.4+)

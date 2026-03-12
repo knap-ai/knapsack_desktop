@@ -1,5 +1,4 @@
 use futures::Stream;
-use std::path::Path;
 
 use crate::llm::types::{
   ChatCompletionArgs, ChatCompletionLlm, EmbeddingArgs, EmbeddingLlm, EmbeddingTokensArgs,
