@@ -60,7 +60,6 @@ export default class DataFetcher {
       userPrompt,
       semanticSearchQuery,
       documents,
-      false,
       additionalDocuments,
       threadId,
     )
@@ -93,7 +92,6 @@ export default class DataFetcher {
     userPrompt: string,
     semanticSearchQuery: string | undefined,
     documents: number[],
-    useLocalLLM: boolean,
     additionalDocuments?: { title: string; content: string }[],
     threadId?: number,
   ) {

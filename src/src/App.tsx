@@ -338,7 +338,6 @@ function App() {
           prompt,
           semanticSearchQuery,
           documents,
-          false,
           additionalDocuments,
           threadId,
         )
