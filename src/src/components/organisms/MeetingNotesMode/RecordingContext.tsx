@@ -120,9 +120,24 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
           microphone: boolean
           screen_recording: boolean
           all_granted: boolean
+          os_update_required?: boolean
+          os_update_message?: string
         }>('check_audio_permissions')
 
         console.info(`[Recording] permissions: mic=${permissions.microphone} screen=${permissions.screen_recording} all=${permissions.all_granted}`)
+
+        if (permissions.os_update_required) {
+          const message = permissions.os_update_message || 'Meeting notes require macOS 14.2 (Sonoma) or later. Please update your operating system to use this feature.'
+          logError(
+            new Error('macOS update required'),
+            {
+              additionalInfo: message,
+              error: 'os_update_required',
+            },
+            true,
+          )
+          throw new Error(message)
+        }
 
         if (!permissions.all_granted) {
           const missing = []
@@ -148,7 +163,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         }
       } catch (permErr: any) {
         // If this is our own permission error, rethrow it
-        if (permErr.message?.includes('permission') || permErr.message?.includes('Permission') || permErr.message?.includes('Recording requires')) {
+        if (permErr.message?.includes('permission') || permErr.message?.includes('Permission') || permErr.message?.includes('Recording requires') || permErr.message?.includes('macOS')) {
           throw permErr
         }
         // The permission check command itself failed. This is a real problem —

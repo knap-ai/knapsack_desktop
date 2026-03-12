@@ -45,16 +45,8 @@ glob = "0.3"
 tokio-retry = "0.3"
 flume = "=0.11.0"
 qdrant-client = "=1.8.0"
-llama_cpp = { git = "https://github.com/knap-ai/llama-cpp-rust.git", features = ["metal", "compat"], branch = "windows" }
-# llama_cpp = { git = "https://github.com/knap-ai/llama-cpp-rust.git", features = [ "compat", "metal"], branch = "main" }
-blake3 = "=1.5.1"
-dashmap = "=5.5.3"
 tracing = "=0.1.40"
 uuid = {version = "1.8.0", features = ["v4", "v5"] }
-llm = { git = "https://github.com/rustformers/llm", branch = "main", package = "llm", features = [
-  "default",
-  # "cublas",
-] }
 rand = "=0.8.5"
 thiserror = "=2.0.3"
 env_logger = "=0.11.3"
@@ -102,7 +94,6 @@ flacenc = "0.4"
 libc = "0.2"
 console = { version = "0.16", features = ["std"] }
 
-
 [dependencies.console-subscriber]
 version = "0.1"
 optional = true
@@ -115,7 +106,6 @@ core-media = "0.5.1"
 core-video = "0.4.3"
 libc = "0.2.162"
 dispatch2 = "0.1.0"
-screen-capture-kit = "0.3.1"
 coreaudio-rs = "0.12.1"
 coreaudio-sys = "0.2.16"
 

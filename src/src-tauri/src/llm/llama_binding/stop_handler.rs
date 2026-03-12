@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::llm::llama_binding::llm::LlamaBinding;
+use super::llm::LlamaBinding;
 
 use std::collections::HashSet;
 
