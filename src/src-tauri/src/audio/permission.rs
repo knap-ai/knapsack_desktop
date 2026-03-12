@@ -45,6 +45,161 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
     }
 }
 
+/// Reset stale TCC entries for audio/screen recording permissions, then
+/// re-trigger the OS permission prompt via CGRequestScreenCaptureAccess().
+///
+/// This fixes the "stuck state" where permissions show as enabled in System
+/// Settings but the app can't detect them (typically due to a stale code
+/// signature in the TCC database after an app update).
+#[tauri::command]
+pub fn reset_audio_permissions() -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+
+        let bundle_id = get_bundle_id();
+        log::info!("Resetting audio permissions for bundle ID: {}", bundle_id);
+
+        // Reset both TCC services. tccutil only supports resetting (not granting),
+        // which removes the stale entry so the OS will re-prompt on next access.
+        let services = ["ScreenCapture", "AudioCapture"];
+        let mut reset_results = Vec::new();
+
+        for service in &services {
+            let result = Command::new("tccutil")
+                .arg("reset")
+                .arg(service)
+                .arg(&bundle_id)
+                .output();
+
+            match result {
+                Ok(output) => {
+                    let success = output.status.success();
+                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                    log::info!("tccutil reset {} {}: success={}, stderr={}", service, bundle_id, success, stderr);
+                    reset_results.push(json!({
+                        "service": service,
+                        "success": success,
+                        "stderr": stderr,
+                    }));
+                }
+                Err(e) => {
+                    log::warn!("tccutil reset {} {} failed: {}", service, bundle_id, e);
+                    reset_results.push(json!({
+                        "service": service,
+                        "success": false,
+                        "error": e.to_string(),
+                    }));
+                }
+            }
+        }
+
+        // After resetting, call CGRequestScreenCaptureAccess() to trigger the
+        // OS permission prompt. This registers the current binary's code signature
+        // with TCC, replacing any stale entry.
+        let prompted = request_screen_capture_access();
+
+        // Also try to trigger the system audio recording prompt by attempting
+        // a tap probe (which registers the app in "System Audio Recording Only")
+        let _ = std::panic::catch_unwind(check_system_audio_via_tap_probe);
+
+        Ok(json!({
+            "success": true,
+            "bundle_id": bundle_id,
+            "reset_results": reset_results,
+            "screen_capture_prompted": prompted,
+        }))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(json!({ "success": false, "error": "Only supported on macOS" }))
+    }
+}
+
+/// Diagnose audio permission state — returns detailed info about each
+/// detection strategy for debugging stuck permission issues.
+#[tauri::command]
+pub fn diagnose_audio_permissions() -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+
+        let bundle_id = get_bundle_id();
+
+        // Check microphone
+        let mic = check_microphone_permission_macos();
+
+        // Strategy 1: tap probe
+        let tap_result = match std::panic::catch_unwind(check_system_audio_via_tap_probe) {
+            Ok(granted) => json!({ "granted": granted }),
+            Err(_) => json!({ "granted": false, "error": "panicked" }),
+        };
+
+        // Strategy 2: CGPreflight
+        let cg_preflight = check_screen_capture_via_cg_preflight();
+
+        // Strategy 3: TCC database
+        let tcc_audio = {
+            let query = format!(
+                "SELECT auth_value FROM access WHERE service='kTCCServiceAudioCapture' AND client='{}' LIMIT 1",
+                bundle_id
+            );
+            Command::new("sqlite3")
+                .arg(format!("{}/Library/Application Support/com.apple.TCC/TCC.db",
+                    std::env::var("HOME").unwrap_or_default()))
+                .arg(&query)
+                .output()
+                .map(|o| {
+                    let val = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                    let err = String::from_utf8_lossy(&o.stderr).trim().to_string();
+                    json!({ "auth_value": val, "stderr": err })
+                })
+                .unwrap_or_else(|e| json!({ "error": e.to_string() }))
+        };
+
+        let tcc_screen = {
+            let query = format!(
+                "SELECT auth_value FROM access WHERE service='kTCCServiceScreenCapture' AND client='{}' LIMIT 1",
+                bundle_id
+            );
+            Command::new("sqlite3")
+                .arg(format!("{}/Library/Application Support/com.apple.TCC/TCC.db",
+                    std::env::var("HOME").unwrap_or_default()))
+                .arg(&query)
+                .output()
+                .map(|o| {
+                    let val = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                    let err = String::from_utf8_lossy(&o.stderr).trim().to_string();
+                    json!({ "auth_value": val, "stderr": err })
+                })
+                .unwrap_or_else(|e| json!({ "error": e.to_string() }))
+        };
+
+        // macOS version
+        let macos_version = Command::new("sw_vers")
+            .arg("-productVersion")
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
+
+        Ok(json!({
+            "bundle_id": bundle_id,
+            "macos_version": macos_version,
+            "microphone": mic,
+            "tap_probe": tap_result,
+            "cg_preflight_screen_capture": cg_preflight,
+            "tcc_audio_capture": tcc_audio,
+            "tcc_screen_capture": tcc_screen,
+        }))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(json!({ "error": "Only supported on macOS" }))
+    }
+}
+
 /// Check whether the app has the required macOS permissions for recording.
 /// Returns a JSON object with `microphone` and `screen_recording` boolean fields,
 /// plus `all_granted` for convenience.
@@ -239,6 +394,28 @@ fn check_screen_capture_via_cg_preflight() -> bool {
         }
         Err(_) => {
             log::warn!("CGPreflightScreenCaptureAccess panicked");
+            false
+        }
+    }
+}
+
+/// Actively request screen capture access via CGRequestScreenCaptureAccess().
+/// Unlike CGPreflight (read-only check), this triggers the OS permission prompt
+/// if access hasn't been granted yet, and registers the current binary's code
+/// signature with TCC. Returns true if access was granted.
+#[cfg(target_os = "macos")]
+fn request_screen_capture_access() -> bool {
+    extern "C" {
+        fn CGRequestScreenCaptureAccess() -> bool;
+    }
+
+    match std::panic::catch_unwind(|| unsafe { CGRequestScreenCaptureAccess() }) {
+        Ok(granted) => {
+            log::info!("CGRequestScreenCaptureAccess returned {}", granted);
+            granted
+        }
+        Err(_) => {
+            log::warn!("CGRequestScreenCaptureAccess panicked");
             false
         }
     }
