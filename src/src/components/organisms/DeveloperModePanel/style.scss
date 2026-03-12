@@ -469,6 +469,141 @@
     border-radius: 8px;
   }
 
+  &__repos {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__reposHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__repoAddBtn {
+    width: 22px;
+    height: 22px;
+    font-size: 16px;
+    line-height: 1;
+    font-weight: 600;
+    color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: rgba(139, 92, 246, 0.15);
+    }
+  }
+
+  &__repoList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  &__repoChip {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    color: #555;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+
+    &:hover {
+      border-color: #d1d5db;
+    }
+
+    &--active {
+      color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.08);
+      border-color: rgba(139, 92, 246, 0.3);
+    }
+  }
+
+  &__repoName {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+  }
+
+  &__repoRemoveBtn {
+    font-size: 14px;
+    line-height: 1;
+    color: #999;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 2px;
+    display: flex;
+    align-items: center;
+
+    &:hover {
+      color: #dc2626;
+    }
+  }
+
+  &__repoInputRow {
+    display: flex;
+    gap: 6px;
+  }
+
+  &__repoInput {
+    flex: 1;
+    padding: 5px 8px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #333;
+
+    &::placeholder {
+      color: #bbb;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #8b5cf6;
+      box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+    }
+  }
+
+  &__repoConfirmBtn {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    background: #8b5cf6;
+    border: 1px solid #7c3aed;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: #7c3aed;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
   &__history {
     display: flex;
     flex-direction: column;

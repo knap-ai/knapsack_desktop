@@ -138,6 +138,31 @@ function formatRelativeTime(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+const DEFAULT_REPO = 'knap-ai/knapsack_desktop'
+
+function loadGithubRepos(): string[] {
+  try {
+    const stored = localStorage.getItem('kn_dev_mode_github_repos')
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch { /* ignore */ }
+  return [DEFAULT_REPO]
+}
+
+function saveGithubRepos(repos: string[]) {
+  localStorage.setItem('kn_dev_mode_github_repos', JSON.stringify(repos))
+}
+
+function loadActiveRepo(): string {
+  return localStorage.getItem('kn_dev_mode_active_repo') || DEFAULT_REPO
+}
+
+function saveActiveRepo(repo: string) {
+  localStorage.setItem('kn_dev_mode_active_repo', repo)
+}
+
 export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }: DeveloperModePanelProps) => {
   const [scanning, setScanning] = useState(false)
   const [scanResults, setScanResults] = useState<DevScanResult[]>([])
@@ -152,6 +177,10 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
   const [error, setError] = useState<string | null>(null)
   const [logSources, setLogSources] = useState<Record<string, number>>({})
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [githubRepos, setGithubRepos] = useState<string[]>(loadGithubRepos)
+  const [activeRepo, setActiveRepo] = useState<string>(loadActiveRepo)
+  const [newRepoInput, setNewRepoInput] = useState('')
+  const [showRepoInput, setShowRepoInput] = useState(false)
 
   // ── Email scanning: search for Sentry alerts ──
   const searchSentryEmails = useCallback(async (): Promise<SentryEmail[]> => {
@@ -464,6 +493,41 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
     }
   }, [])
 
+  const handleAddRepo = useCallback(() => {
+    const repo = newRepoInput.trim()
+    // Accept owner/repo format
+    if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return
+    if (githubRepos.includes(repo)) {
+      setNewRepoInput('')
+      setShowRepoInput(false)
+      return
+    }
+    const updated = [...githubRepos, repo]
+    setGithubRepos(updated)
+    saveGithubRepos(updated)
+    setActiveRepo(repo)
+    saveActiveRepo(repo)
+    setNewRepoInput('')
+    setShowRepoInput(false)
+  }, [newRepoInput, githubRepos])
+
+  const handleRemoveRepo = useCallback((repo: string) => {
+    if (repo === DEFAULT_REPO) return // Can't remove the default
+    const updated = githubRepos.filter(r => r !== repo)
+    if (updated.length === 0) updated.push(DEFAULT_REPO)
+    setGithubRepos(updated)
+    saveGithubRepos(updated)
+    if (activeRepo === repo) {
+      setActiveRepo(updated[0])
+      saveActiveRepo(updated[0])
+    }
+  }, [githubRepos, activeRepo])
+
+  const handleSelectRepo = useCallback((repo: string) => {
+    setActiveRepo(repo)
+    saveActiveRepo(repo)
+  }, [])
+
   const toggleAutoScan = useCallback(() => {
     const next = !autoScanEnabled
     setAutoScanEnabled(next)
@@ -479,23 +543,25 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
     (issue: SentryEmail) => {
       setInitiatingPR(issue.id)
 
+      const repoName = activeRepo.split('/').pop() || activeRepo
       const prompt = [
         `I found a Sentry error report that needs investigation and a fix:`,
         ``,
         `**Project:** ${issue.projectName || 'Unknown'}`,
         `**Error:** ${issue.errorType || 'Error'}`,
         `**Title:** ${issue.issueTitle || issue.subject}`,
+        `**Target repo:** ${activeRepo}`,
         ``,
         `**Details from Sentry email:**`,
         '```',
         issue.snippet || issue.body.slice(0, 500),
         '```',
         ``,
-        `Please investigate this bug in the knapsack-desktop codebase:`,
+        `Please investigate this bug in the ${repoName} codebase (${activeRepo}):`,
         `1. Search for the relevant code that could cause this error`,
         `2. Identify the root cause`,
         `3. Implement a fix`,
-        `4. Create a PR with the fix`,
+        `4. Create a PR with the fix in the ${activeRepo} repository`,
         ``,
         `Use Advanced mode shell commands if needed to search the codebase and run tests.`,
       ].join('\n')
@@ -503,11 +569,12 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
       onInitiateSession(prompt)
       setTimeout(() => setInitiatingPR(null), 2000)
     },
-    [onInitiateSession],
+    [onInitiateSession, activeRepo],
   )
 
   const handleInitiateFromLog = useCallback(
     (entry: ErrorLogEntry) => {
+      const repoName = activeRepo.split('/').pop() || activeRepo
       const prompt = [
         `I found an error in the application logs that needs investigation:`,
         ``,
@@ -515,18 +582,19 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
         `**Level:** ${entry.level}`,
         `**Timestamp:** ${entry.timestamp}`,
         `**Message:** ${entry.message}`,
+        `**Target repo:** ${activeRepo}`,
         entry.stackTrace ? `\n**Stack trace:**\n\`\`\`\n${entry.stackTrace}\n\`\`\`` : '',
         ``,
-        `Please investigate this error in the knapsack-desktop codebase:`,
+        `Please investigate this error in the ${repoName} codebase (${activeRepo}):`,
         `1. Search for the relevant code referenced in the error`,
         `2. Identify the root cause`,
         `3. Implement a fix`,
-        `4. Create a PR with the fix`,
+        `4. Create a PR with the fix in the ${activeRepo} repository`,
       ].join('\n')
 
       onInitiateSession(prompt)
     },
-    [onInitiateSession],
+    [onInitiateSession, activeRepo],
   )
 
   const latestScan = scanResults[0]
@@ -543,6 +611,72 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
 
       <div className="DevModePanel__description">
         Scans all error sources — Sentry emails, backend logs (ks.log, ks_error.log), browser console, frontend exceptions, heartbeat errors, OpenClaw agent errors, and terminal output — to find bugs and initiate Claude Code sessions with PRs.
+      </div>
+
+      {/* GitHub repository targeting */}
+      <div className="DevModePanel__repos">
+        <div className="DevModePanel__reposHeader">
+          <span className="DevModePanel__sourcesTitle">Target Repository</span>
+          <button
+            className="DevModePanel__repoAddBtn"
+            onClick={() => setShowRepoInput(!showRepoInput)}
+            title="Add a GitHub repository"
+          >
+            +
+          </button>
+        </div>
+        <div className="DevModePanel__repoList">
+          {githubRepos.map(repo => (
+            <div
+              key={repo}
+              className={`DevModePanel__repoChip ${activeRepo === repo ? 'DevModePanel__repoChip--active' : ''}`}
+              onClick={() => handleSelectRepo(repo)}
+            >
+              <span className="DevModePanel__repoName">{repo}</span>
+              {repo !== DEFAULT_REPO && (
+                <button
+                  className="DevModePanel__repoRemoveBtn"
+                  onClick={e => {
+                    e.stopPropagation()
+                    handleRemoveRepo(repo)
+                  }}
+                  title="Remove repository"
+                >
+                  &times;
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {showRepoInput && (
+          <div className="DevModePanel__repoInputRow">
+            <input
+              className="DevModePanel__repoInput"
+              type="text"
+              placeholder="owner/repo"
+              value={newRepoInput}
+              onChange={e => setNewRepoInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleAddRepo()
+                if (e.key === 'Escape') {
+                  setShowRepoInput(false)
+                  setNewRepoInput('')
+                }
+              }}
+              autoFocus
+            />
+            <button
+              className="DevModePanel__repoConfirmBtn"
+              onClick={handleAddRepo}
+              disabled={!newRepoInput.trim() || !/^[\w.-]+\/[\w.-]+$/.test(newRepoInput.trim())}
+            >
+              Add
+            </button>
+          </div>
+        )}
+        <div className="DevModePanel__settingHint">
+          Bugs and PRs will target the selected repository
+        </div>
       </div>
 
       {error && <div className="DevModePanel__error">{error}</div>}

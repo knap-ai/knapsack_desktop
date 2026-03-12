@@ -22,6 +22,8 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
   const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [isCheckingSystemAudio, setIsCheckingSystemAudio] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [systemAudioAttempts, setSystemAudioAttempts] = useState(0);
+  const [isResetting, setIsResetting] = useState(false);
 
   const checkRealPermissions = useCallback(async (): Promise<AudioPermissions> => {
     try {
@@ -78,6 +80,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
 
   const requestSystemAudioAccess = async () => {
     setIsCheckingSystemAudio(true);
+    setSystemAudioAttempts(prev => prev + 1);
     try {
       let settingsResult: { success: boolean; already_granted?: boolean } | undefined;
       try {
@@ -122,6 +125,40 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
       }
     } finally {
       setIsCheckingSystemAudio(false);
+    }
+  };
+
+  const resetPermissions = async () => {
+    setIsResetting(true);
+    try {
+      try {
+        await invoke('reset_audio_permissions');
+      } catch (error) {
+        logError(new Error('Failed to reset audio permissions'), {
+          additionalInfo: '',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      // Wait for the OS to process the reset and re-prompt
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Re-check permissions
+      const permissions = await checkRealPermissions();
+      setMicPermission(permissions.microphone);
+      setSystemAudioPermission(permissions.screen_recording);
+
+      if (permissions.microphone) {
+        localStorage.setItem('micPermissionGranted', 'true');
+      }
+      if (permissions.screen_recording) {
+        localStorage.setItem('screenPermissionGranted', 'true');
+      }
+      if (permissions.all_granted) {
+        onBothPermissionsGranted();
+      }
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -292,9 +329,29 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
             )}
           </div>
           {(!micPermission || !systemAudioPermission) && (
-            <p className="text-xs text-ks-warm-grey-500 mt-6 max-w-[400px] mx-auto text-center leading-5">
-              Already enabled in System Settings? This screen will update automatically once access is detected. If it doesn't, try quitting and reopening Knapsack.
-            </p>
+            <div className="mt-6 max-w-[400px] mx-auto text-center">
+              {systemAudioAttempts >= 2 && !systemAudioPermission ? (
+                <>
+                  <p className="text-xs text-ks-warm-grey-500 leading-5 mb-3">
+                    Still not detected? Your permissions may be stale. Try resetting them:
+                  </p>
+                  <button
+                    className="text-xs text-ks-red-800 hover:text-ks-red-900 underline transition-colors"
+                    onClick={resetPermissions}
+                    disabled={isResetting}
+                  >
+                    {isResetting ? 'Resetting permissions...' : 'Reset and re-request permissions'}
+                  </button>
+                  <p className="text-xs text-ks-warm-grey-400 mt-2 leading-5">
+                    This will clear saved permissions. You may need to re-enable Knapsack in System Settings and restart the app.
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-ks-warm-grey-500 leading-5">
+                  Already enabled in System Settings? This screen will update automatically once access is detected. If it doesn't, try quitting and reopening Knapsack.
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>
