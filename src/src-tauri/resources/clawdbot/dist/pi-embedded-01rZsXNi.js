@@ -39248,7 +39248,7 @@ async function scpFile(remoteHost, remotePath, localPath) {
 //#endregion
 //#region src/auto-reply/reply/typing.ts
 function createTypingController(params) {
-	const { onReplyStart, onCleanup, typingIntervalSeconds = 6, typingTtlMs = 2 * 6e4, silentToken = SILENT_REPLY_TOKEN, log } = params;
+	const { onReplyStart, onCleanup, typingIntervalSeconds = 6, typingTtlMs = 10 * 6e4, silentToken = SILENT_REPLY_TOKEN, log } = params;
 	let started = false;
 	let active = false;
 	let runComplete = false;
