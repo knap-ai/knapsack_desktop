@@ -1557,7 +1557,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     localStorage.setItem(PROACTIVE_MODE_STORAGE, String(pendingProactiveState))
     setShowProactiveModal(false)
     pushAssistant(pendingProactiveState
-      ? "🔔 **Proactive mode enabled.** I'll send you background notifications — morning briefings, email alerts, meeting prep, and post-meeting follow-ups. Heartbeat monitoring is now active."
+      ? "🔔 **Proactive mode enabled.** I'll keep you in the loop throughout the day — morning briefings, meeting prep, email alerts, and proactive check-ins. If you have channels connected (WhatsApp, iMessage), I'll be more conversational there too, offering to help and flagging things worth your attention."
       : "🔕 **Reactive mode enabled.** Background notifications and heartbeat monitoring are off. I'll only respond when you ask. You can still trigger notifications manually with /morning, /emails, /prep, or /fu."
     )
 

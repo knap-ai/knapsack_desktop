@@ -10,6 +10,7 @@ import {
   EMAIL_ALERT_PROMPT,
   PRE_MEETING_PREP_PROMPT,
   POST_MEETING_FOLLOWUP_PROMPT,
+  PROACTIVE_CHECKIN_PROMPT,
 } from 'src/prompts'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { CalendarEvents } from 'src/hooks/dataSources/useCalendar'
@@ -62,13 +63,24 @@ const THROTTLE_MINUTES = {
   low: 120,
 }
 
+// When channels are attached, the user explicitly wants to be reached — lower throttles
+const THROTTLE_MINUTES_WITH_CHANNELS = {
+  high: 10,
+  medium: 30,
+  low: 60,
+}
+
 // Maximum background notifications per day (excludes post-meeting follow-ups)
 const MAX_DAILY_NOTIFICATIONS = 6
+
+// Higher daily cap when channels are attached — user opted into being chatty
+const MAX_DAILY_NOTIFICATIONS_WITH_CHANNELS = 15
 
 // LocalStorage keys for notification state
 const KN_MORNING_BRIEFING_DATE = 'kn_morning_briefing_date'
 const KN_DAILY_NOTIFICATION_COUNT = 'kn_daily_notification_count'
 const KN_DAILY_NOTIFICATION_DATE = 'kn_daily_notification_date'
+const KN_LAST_PROACTIVE_CHECKIN = 'kn_last_proactive_checkin'
 
 export function useBackgroundNotifications({
   userEmail,
@@ -83,6 +95,31 @@ export function useBackgroundNotifications({
   const lastNotificationTimeRef = useRef<number>(0)
   const preppedMeetingIdsRef = useRef<Set<string>>(new Set())
   const processingLockRef = useRef<boolean>(false)
+  const channelsAttachedRef = useRef<boolean | null>(null)
+
+  /**
+   * Check if any messaging channels (WhatsApp, iMessage) are connected.
+   * Cached for the session to avoid repeated API calls.
+   */
+  const hasChannelsAttached = useCallback(async (): Promise<boolean> => {
+    if (channelsAttachedRef.current !== null) return channelsAttachedRef.current
+
+    try {
+      const [waStatus, imStatus] = await Promise.all([
+        getWhatsAppStatus().catch(() => null),
+        getIMessageStatus().catch(() => null),
+      ])
+
+      const attached =
+        (waStatus?.enabled && waStatus?.linked) ||
+        (imStatus?.enabled && imStatus?.configured) ||
+        false
+      channelsAttachedRef.current = attached
+      return attached
+    } catch {
+      return false
+    }
+  }, [])
 
   /**
    * Check if we can send a notification given the priority and daily limits.
@@ -90,31 +127,39 @@ export function useBackgroundNotifications({
    */
   const canSendNotification = useCallback(
     async (priority: string): Promise<boolean> => {
+      // All proactive notifications require proactive mode to be enabled
+      const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
+      if (!isProactive) return false
+
       const enabled = await getBackgroundNotificationsEnabled()
       if (!enabled) return false
 
       const notificationsEnabled = await arePushNotificationsOSEnabledAndWantedByUser()
       if (!notificationsEnabled) return false
 
-      // Check throttle based on priority
+      const withChannels = await hasChannelsAttached()
+
+      // Check throttle based on priority — use lower throttles when channels are attached
       const now = Date.now()
       const minutesSinceLast = (now - lastNotificationTimeRef.current) / (1000 * 60)
+      const throttleTable = withChannels ? THROTTLE_MINUTES_WITH_CHANNELS : THROTTLE_MINUTES
       const minMinutes =
-        THROTTLE_MINUTES[priority as keyof typeof THROTTLE_MINUTES] || THROTTLE_MINUTES.medium
+        throttleTable[priority as keyof typeof throttleTable] || throttleTable.medium
       if (minutesSinceLast < minMinutes) return false
 
-      // Check daily limit
+      // Check daily limit — higher cap when channels are attached
+      const maxDaily = withChannels ? MAX_DAILY_NOTIFICATIONS_WITH_CHANNELS : MAX_DAILY_NOTIFICATIONS
       const today = dayjs().format('YYYY-MM-DD')
       const storedDate = await KNLocalStorage.getItem(KN_DAILY_NOTIFICATION_DATE)
       let dailyCount = 0
       if (storedDate === today) {
         dailyCount = (await KNLocalStorage.getItem(KN_DAILY_NOTIFICATION_COUNT)) || 0
       }
-      if (dailyCount >= MAX_DAILY_NOTIFICATIONS) return false
+      if (dailyCount >= maxDaily) return false
 
       return true
     },
-    [],
+    [hasChannelsAttached],
   )
 
   /**
@@ -168,10 +213,30 @@ export function useBackgroundNotifications({
   /**
    * Push a notification to connected messaging channels (WhatsApp, iMessage).
    * Runs in the background — failures are logged but never block the notification flow.
+   *
+   * When fullAnalysis is provided, sends a richer message to channels with the
+   * full briefing content (stripped of markdown links for channel readability).
    */
   const pushToChannels = useCallback(
-    async (title: string, body: string) => {
-      const text = `${title}\n\n${body}`
+    async (title: string, body: string, fullAnalysis?: string, suggestedAction?: string) => {
+      let text: string
+
+      if (fullAnalysis) {
+        // For channels: send the full briefing, not just the short notification
+        // Strip knapsack:// deep links (not clickable outside the app) but keep the label
+        const cleanedAnalysis = fullAnalysis
+          .replace(/\[([^\]]+)\]\(knapsack:\/\/prompt\/[^)]+\)/g, '$1')
+          .trim()
+
+        text = `${title}\n\n${cleanedAnalysis}`
+
+        // Append the suggested action as plain text if available
+        if (suggestedAction) {
+          text += `\n\n💡 Want me to help? Just reply: "${suggestedAction}"`
+        }
+      } else {
+        text = `${title}\n\n${body}`
+      }
 
       try {
         const [waStatus, imStatus] = await Promise.all([
@@ -427,8 +492,13 @@ export function useBackgroundNotifications({
               parsed.notificationBody,
             )
 
-            // Also push to connected messaging channels (non-blocking)
-            pushToChannels(parsed.notificationTitle, parsed.notificationBody)
+            // Push full briefing to connected messaging channels (non-blocking)
+            pushToChannels(
+              parsed.notificationTitle,
+              parsed.notificationBody,
+              parsed.fullAnalysis,
+              parsed.suggestedActionPrompt,
+            )
 
             return response
           },
@@ -603,20 +673,25 @@ export function useBackgroundNotifications({
               const minutesUntilFirstMeeting =
                 (firstMeetingStart - now.getTime()) / (1000 * 60)
 
-              // Trigger 25-35 minutes before first meeting
-              if (minutesUntilFirstMeeting >= 25 && minutesUntilFirstMeeting <= 35) {
+              // Trigger 25-45 minutes before first meeting (wider window to avoid misses)
+              if (minutesUntilFirstMeeting >= 25 && minutesUntilFirstMeeting <= 45) {
                 shouldTrigger = true
               }
             }
           }
 
-          // Fallback: if it's 9:00 AM and no meeting-based trigger happened
-          if (!shouldTrigger && currentHour === 9 && currentMinute === 0) {
+          // Fallback: if it's between 8:55-9:05 AM and no meeting-based trigger happened
+          // Wider window so we don't miss the exact 9:00 minute
+          if (!shouldTrigger && currentHour === 9 && currentMinute <= 5) {
+            shouldTrigger = true
+          }
+          // Second fallback: if it's past 9 AM and still no briefing, trigger by 10 AM
+          if (!shouldTrigger && currentHour === 10 && currentMinute === 0) {
             shouldTrigger = true
           }
         } catch (err) {
-          // If calendar check fails, fall back to 9 AM
-          if (currentHour === 9 && currentMinute === 0) {
+          // If calendar check fails, fall back to 9 AM window
+          if (currentHour === 9 && currentMinute <= 5) {
             shouldTrigger = true
           }
         }
@@ -642,6 +717,53 @@ export function useBackgroundNotifications({
       )
     },
     [userEmail, canSendNotification, gatherFullContext, generateAndShowNotification],
+  )
+
+  /**
+   * HEARTBEAT TRIGGER: Proactive check-in.
+   * Called from the heartbeat loop when channels are attached.
+   * Offers to help with whatever's on the user's plate — drafting replies,
+   * prepping for meetings, triaging emails, etc.
+   * Only fires when channels are connected (user explicitly opted into chatty mode).
+   */
+  const checkProactiveCheckin = useCallback(
+    async (now: Date, force = false) => {
+      if (!userEmail || processingLockRef.current) return
+
+      if (!force) {
+        // Only fire proactive check-ins when channels are attached
+        const withChannels = await hasChannelsAttached()
+        if (!withChannels) return
+
+        const currentHour = now.getHours()
+        // Only during working hours (8 AM - 7 PM)
+        if (currentHour < 8 || currentHour >= 19) return
+
+        // Don't fire if a check-in was sent recently (at least 2 hours between check-ins)
+        const lastCheckin = await KNLocalStorage.getItem(KN_LAST_PROACTIVE_CHECKIN)
+        if (lastCheckin) {
+          const hoursSinceLast = (now.getTime() - new Date(lastCheckin).getTime()) / (1000 * 60 * 60)
+          if (hoursSinceLast < 2) return
+        }
+
+        const canSend = await canSendNotification('medium')
+        if (!canSend) return
+      }
+
+      await KNLocalStorage.setItem(KN_LAST_PROACTIVE_CHECKIN, now.toISOString())
+
+      const context = await gatherFullContext()
+      if (!context) return
+
+      await generateAndShowNotification(
+        context,
+        PROACTIVE_CHECKIN_PROMPT,
+        'proactive_checkin',
+        'background_insight_notification_handler',
+        'Take Action',
+      )
+    },
+    [userEmail, hasChannelsAttached, canSendNotification, gatherFullContext, generateAndShowNotification],
   )
 
   /**
@@ -713,8 +835,13 @@ export function useBackgroundNotifications({
                 body,
               )
 
-              // Also push to connected messaging channels (non-blocking)
-              pushToChannels(title, body)
+              // Push full follow-up analysis to connected messaging channels (non-blocking)
+              pushToChannels(
+                title,
+                body,
+                parsed.fullAnalysis,
+                parsed.suggestedActionPrompt,
+              )
             }
             return response
           },
@@ -858,8 +985,13 @@ export function useBackgroundNotifications({
             const feedItemId = await createInsightFeedItem()
             resolve({ feedItemId, fullAnalysis: parsed.fullAnalysis })
 
-            // Also push to connected channels (non-blocking)
-            pushToChannels(parsed.notificationTitle, parsed.notificationBody)
+            // Push full briefing to connected channels (non-blocking)
+            pushToChannels(
+              parsed.notificationTitle,
+              parsed.notificationBody,
+              parsed.fullAnalysis,
+              parsed.suggestedActionPrompt,
+            )
 
             return response
           },
@@ -914,6 +1046,7 @@ export function useBackgroundNotifications({
 
   return {
     checkMorningBriefing,
+    checkProactiveCheckin,
     handleEmailSyncComplete,
     handleCalendarSyncComplete,
     handlePostMeetingFollowup,
