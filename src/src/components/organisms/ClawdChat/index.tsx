@@ -271,10 +271,12 @@ type ApiKeyStatus = {
   has_anthropic_key?: boolean
   has_gemini_key?: boolean
   has_groq_key?: boolean
+  has_openrouter_key?: boolean
   openai_key_hint?: string
   anthropic_key_hint?: string
   gemini_key_hint?: string
   groq_key_hint?: string
+  openrouter_key_hint?: string
   extra_providers?: Array<{ env_var: string; has_key: boolean; key_hint?: string }>
 }
 
@@ -1411,6 +1413,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           anthropic: keyStatus.anthropic_key_hint,
           gemini: keyStatus.gemini_key_hint,
           groq: keyStatus.groq_key_hint,
+          openrouter: keyStatus.openrouter_key_hint,
         })
         // Track which providers have saved keys
         setSavedProviderKeys({
@@ -1418,6 +1421,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           anthropic: !!keyStatus.has_anthropic_key,
           gemini: !!keyStatus.has_gemini_key,
           groq: !!keyStatus.has_groq_key,
+          openrouter: !!keyStatus.has_openrouter_key,
         })
         // Fetch extra provider statuses
         if (keyStatus.extra_providers) {
