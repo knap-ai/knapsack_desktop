@@ -54,6 +54,8 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let ollama_key = std::env::var("OLLAMA_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
+  let anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
+  let gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
 
   // Try the user's active provider first
   match active.as_str() {
@@ -67,14 +69,14 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     "anthropic" if anthropic_key.is_some() => return Ok(ResolvedProvider {
       name: "anthropic".into(),
       api_key: anthropic_key.unwrap(),
-      model: "claude-sonnet-4-5-20250929".into(),
+      model: anthropic_model,
       base_url: "https://api.anthropic.com/v1".into(),
       is_anthropic: true,
     }),
     "gemini" if gemini_key.is_some() => return Ok(ResolvedProvider {
       name: "gemini".into(),
       api_key: gemini_key.unwrap(),
-      model: "gemini-2.5-flash".into(),
+      model: gemini_model,
       base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
       is_anthropic: false,
     }),
@@ -119,7 +121,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     return Ok(ResolvedProvider {
       name: "anthropic".into(),
       api_key: key,
-      model: "claude-sonnet-4-5-20250929".into(),
+      model: anthropic_model,
       base_url: "https://api.anthropic.com/v1".into(),
       is_anthropic: true,
     });
@@ -128,7 +130,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     return Ok(ResolvedProvider {
       name: "gemini".into(),
       api_key: key,
-      model: "gemini-2.5-flash".into(),
+      model: gemini_model,
       base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
       is_anthropic: false,
     });
@@ -503,11 +505,13 @@ pub async fn multi_provider_completion(
       let fb_gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
       let fb_groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
       let fb_openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
+      let fb_anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
+      let fb_gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
 
       let fallbacks: Vec<(&str, &Option<String>, String, &str, bool)> = vec![
         ("openai", &fb_openai_key, fb_openai_model, "https://api.openai.com/v1", false),
-        ("anthropic", &fb_anthropic_key, "claude-sonnet-4-5-20250929".to_string(), "https://api.anthropic.com/v1", true),
-        ("gemini", &fb_gemini_key, "gemini-2.5-flash".to_string(), "https://generativelanguage.googleapis.com/v1beta/openai", false),
+        ("anthropic", &fb_anthropic_key, fb_anthropic_model, "https://api.anthropic.com/v1", true),
+        ("gemini", &fb_gemini_key, fb_gemini_model, "https://generativelanguage.googleapis.com/v1beta/openai", false),
         ("groq", &fb_groq_key, "meta-llama/llama-4-maverick-17b-128e-instruct".to_string(), "https://api.groq.com/openai/v1", false),
       ];
 
