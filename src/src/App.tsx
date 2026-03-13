@@ -1057,18 +1057,21 @@ function App() {
     }
   }, [handleOpenToastr])
 
+  // Store the latest heartbeat message so the view handler can display it in chat
+  const lastHeartbeatMessageRef = useRef<string | null>(null)
+
   // Heartbeat notification listener: shows a notification when the heartbeat
-  // engine decides something needs the user's attention. Also triggers a
-  // proactive check-in cycle when channels are attached.
+  // engine decides something needs the user's attention.
   useEffect(() => {
     const unlistenHeartbeat = listen('heartbeat_notification', async (event: Event<{ message: string; timestamp: number }>) => {
       const { message } = event.payload
       if (!message) return
       console.log('[heartbeat] Notification received:', message)
+      lastHeartbeatMessageRef.current = message
       openNotificationWindow(
         'heartbeat-' + Date.now(),
         [
-          { buttonText: 'Open Knapsack', buttonHandler: 'dismiss_notification_handler' },
+          { buttonText: 'View', buttonHandler: 'heartbeat_view_handler' },
           { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
         ],
         'Knapsack',
@@ -1223,6 +1226,15 @@ function App() {
       const { fullAnalysis } = await triggerBriefingFeedItemRef.current()
       if (fullAnalysis) {
         window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: fullAnalysis }))
+      }
+    },
+    heartbeat_view_handler: async (_meetingId: string | null) => {
+      await invoke('activate_main_window')
+      await invoke('close_notification_window')
+      const message = lastHeartbeatMessageRef.current
+      if (message) {
+        window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: message }))
+        lastHeartbeatMessageRef.current = null
       }
     },
     background_insight_notification_handler: async (_meetingId: string | null) => {
