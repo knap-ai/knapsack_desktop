@@ -52,6 +52,7 @@ const EmailNotificationDrawer = ({
   const [isEditorActive, setIsEditorActive] = useState(false)
   const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
   const [caughtUpDismissing, setCaughtUpDismissing] = useState(false)
+
   const [drawerWidth, setDrawerWidth] = useState(540)
   const [drawerHeight, setDrawerHeight] = useState(Math.round(window.innerHeight * 0.55))
   const resizingRef = useRef(false)
@@ -390,8 +391,15 @@ const EmailNotificationDrawer = ({
       AutopilotActions.MARK_AS_READ,
       profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
     )
-    // Also session-dismiss so it doesn't reappear
+    // Session-dismiss so it doesn't reappear
     setSessionDismissedIds(prev => new Set(prev).add(uid))
+    // Animate the drawer out
+    setIsAnimatingOut(true)
+    setIsExpanded(false)
+    setTimeout(() => {
+      setIsVisible(false)
+      setIsAnimatingOut(false)
+    }, 300)
   }, [pendingEmail, feed.takeEmailAction, profileProvider])
 
 
