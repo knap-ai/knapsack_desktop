@@ -15,6 +15,10 @@ import {
   setNotificationLeadTimeMin,
   setSaveTranscriptStore,
   shouldSaveTranscript,
+  getMeetingChatEnabled,
+  setMeetingChatEnabled as setMeetingChatEnabledSetting,
+  getMeetingChatAutoSend,
+  setMeetingChatAutoSend as setMeetingChatAutoSendSetting,
 } from 'src/utils/settings'
 
 import { InputCheckbox } from 'src/components/atoms/input-checkbox'
@@ -126,6 +130,8 @@ export const SettingsDialog = ({
 }: SettingsDialogProps) => {
   const [sendPushNotificationsIsChecked, setSendPushNotificationsIsChecked] = useState<boolean>(false)
   const [saveTranscripts, setSaveTranscripts] = useState<boolean>(true)
+  const [meetingChatEnabled, setMeetingChatEnabled] = useState<boolean>(true)
+  const [meetingChatAutoSend, setMeetingChatAutoSend] = useState<boolean>(false)
   const [connectionsKey, setConnectionsKey] = useState<ConnectionKeys[]>([])
   const [showNotificationLeadTime, setShowNotificationLeadTime] = useState<number>(1)
   const [providerStatus, setProviderStatus] = useState<{
@@ -214,6 +220,9 @@ export const SettingsDialog = ({
     arePushNotificationsOSEnabledAndWantedByUser().then(value => {
       setSendPushNotificationsIsChecked(value)
     })
+
+    getMeetingChatEnabled().then(setMeetingChatEnabled)
+    getMeetingChatAutoSend().then(setMeetingChatAutoSend)
   }, [])
 
   const handleNotificationEnabledChange = useCallback(async () => {
@@ -265,6 +274,18 @@ export const SettingsDialog = ({
   const handleFlipSaveTranscript = () => {
     setSaveTranscripts(prevState => !prevState)
     setSaveTranscriptStore(!saveTranscripts)
+  }
+
+  const handleFlipMeetingChatEnabled = () => {
+    const newValue = !meetingChatEnabled
+    setMeetingChatEnabled(newValue)
+    setMeetingChatEnabledSetting(newValue)
+  }
+
+  const handleFlipMeetingChatAutoSend = () => {
+    const newValue = !meetingChatAutoSend
+    setMeetingChatAutoSend(newValue)
+    setMeetingChatAutoSendSetting(newValue)
   }
 
   // ── Ollama enable/disable ────────────────────────────────────────────────
@@ -837,6 +858,23 @@ export const SettingsDialog = ({
             onClick={handleFlipSaveTranscript}
           >
             <Typography className="text-black">Save Transcripts</Typography>
+          </InputCheckbox>
+        </div>
+
+        <hr className="border-zinc-200" />
+        <div className="DocumentsContainer p-6 flex flex-col gap-4">
+          <Typography weight={TypographyWeight.medium}>Meeting Chat Notice</Typography>
+          <InputCheckbox
+            checked={meetingChatEnabled}
+            onClick={handleFlipMeetingChatEnabled}
+          >
+            <Typography className="text-black">Show chat notice when recording</Typography>
+          </InputCheckbox>
+          <InputCheckbox
+            checked={meetingChatAutoSend}
+            onClick={handleFlipMeetingChatAutoSend}
+          >
+            <Typography className="text-black">Auto-send notice to meeting chat (macOS)</Typography>
           </InputCheckbox>
         </div>
 

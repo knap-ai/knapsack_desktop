@@ -100,6 +100,40 @@ export const setPostMeetingFollowupEnabled = async (enabled: boolean) => {
   await KNLocalStorage.setItem(KN_POST_MEETING_FOLLOWUP_ENABLED, enabled)
 }
 
+// Meeting chat notice settings
+export const KN_MEETING_CHAT_MESSAGE = 'kn_meeting_chat_message'
+export const KN_MEETING_CHAT_AUTO_SEND = 'kn_meeting_chat_auto_send'
+export const KN_MEETING_CHAT_ENABLED = 'kn_meeting_chat_enabled'
+
+const DEFAULT_MEETING_CHAT_MESSAGE = "fyi, I'm using Knapsack to take notes. It transcribes the meeting privately."
+
+export const getMeetingChatMessage = async (): Promise<string> => {
+  const value = await KNLocalStorage.getItem(KN_MEETING_CHAT_MESSAGE)
+  return value || DEFAULT_MEETING_CHAT_MESSAGE
+}
+
+export const setMeetingChatMessage = async (message: string) => {
+  await KNLocalStorage.setItem(KN_MEETING_CHAT_MESSAGE, message)
+}
+
+export const getMeetingChatAutoSend = async (): Promise<boolean> => {
+  const value = await KNLocalStorage.getItem(KN_MEETING_CHAT_AUTO_SEND)
+  return value === true // disabled by default — user must opt in
+}
+
+export const setMeetingChatAutoSend = async (enabled: boolean) => {
+  await KNLocalStorage.setItem(KN_MEETING_CHAT_AUTO_SEND, enabled)
+}
+
+export const getMeetingChatEnabled = async (): Promise<boolean> => {
+  const value = await KNLocalStorage.getItem(KN_MEETING_CHAT_ENABLED)
+  return value !== false // enabled by default
+}
+
+export const setMeetingChatEnabled = async (enabled: boolean) => {
+  await KNLocalStorage.setItem(KN_MEETING_CHAT_ENABLED, enabled)
+}
+
 // Developer mode settings
 export const KN_DEVELOPER_MODE_ENABLED = 'kn_developer_mode_enabled'
 export const KN_DEVELOPER_MODE_AUTOSCAN = 'kn_dev_mode_autoscan'

@@ -36,6 +36,7 @@ import MarkdownDisplay from 'src/components/molecules/MarkdownDisplay'
 import { Event, listen } from '@tauri-apps/api/event'
 
 import { sendNotification } from 'src/utils/permissions/notification'
+import MeetingChatNotice from 'src/components/molecules/MeetingChatNotice'
 import { TaskItem } from '../CenterWorkspace'
 import { RecordingContextProps } from './RecordingContext'
 
@@ -658,13 +659,16 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
           onEditClick={onEditClick}
         />
         {recordingHandlers.isRecording(thread.id) && (
-          <div className="h-[49px] bg-ks-red-100 border-ks-red-200 border rounded-md py-3 px-3 w-full flex items-center">
-            <span className="text-ks-red-800 text-xxs font-semibold ml-2 font-InterTight mr-1 tracking-[0.08em]">
-              RECORDING.
-            </span>
-            <span className="text-ks-red-800 text-xxs font-InterTight tracking-[0.08em]">
-              PLEASE NOTIFY ATTENDEES THAT THIS MEETING IS BEING RECORDED
-            </span>
+          <div className="flex flex-col gap-2">
+            <div className="h-[49px] bg-ks-red-100 border-ks-red-200 border rounded-md py-3 px-3 w-full flex items-center">
+              <span className="text-ks-red-800 text-xxs font-semibold ml-2 font-InterTight mr-1 tracking-[0.08em]">
+                RECORDING.
+              </span>
+              <span className="text-ks-red-800 text-xxs font-InterTight tracking-[0.08em]">
+                PLEASE NOTIFY ATTENDEES THAT THIS MEETING IS BEING RECORDED
+              </span>
+            </div>
+            <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
           </div>
         )}
         {isEditing ? (
