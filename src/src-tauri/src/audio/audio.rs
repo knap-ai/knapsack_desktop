@@ -541,14 +541,20 @@ pub async fn stop_recording(
     output_filename_guard.clone().unwrap_or_default()
   };
 
-  if let Some(handle) = recording_state.mic_thread.lock().unwrap().take() {
+  // Take the handles out of the mutexes BEFORE awaiting them.
+  // Holding a std::sync::MutexGuard across an .await is undefined behavior
+  // with tokio and causes deadlocks (the guard blocks the runtime thread pool).
+  let mic_handle = recording_state.mic_thread.lock().unwrap().take();
+  let output_handle = recording_state.output_thread.lock().unwrap().take();
+
+  if let Some(handle) = mic_handle {
     if let Err(e) = handle.await {
       let err_msg = format!("Mic recording task failed to complete: {:?}", e);
       return HttpResponse::InternalServerError().body(err_msg);
     }
   }
 
-  if let Some(handle) = recording_state.output_thread.lock().unwrap().take() {
+  if let Some(handle) = output_handle {
     if let Err(e) = handle.await {
       let err_msg = format!("Audio output recording task failed to complete: {:?}", e);
       return HttpResponse::InternalServerError().body(err_msg);

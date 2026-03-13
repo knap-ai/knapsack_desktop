@@ -468,9 +468,10 @@ fn request_screen_capture_access() -> bool {
 /// Probe whether system audio recording is actually allowed by attempting
 /// to create (and immediately destroy) a Core Audio process tap.
 ///
-/// NOTE: This function may panic if CATapDescription's init returns nil
-/// (objc2's msg_send_id! enforces non-nil for init methods). Callers
-/// should wrap this in catch_unwind.
+/// Uses raw `msg_send!` with a nullable return to avoid the panic that
+/// `msg_send_id!` triggers when `initStereoGlobalTapButExcludeProcesses:`
+/// returns nil (common on first permission grant or certain macOS versions).
+/// Callers should still wrap this in `catch_unwind` as an extra safety net.
 #[cfg(target_os = "macos")]
 fn check_system_audio_via_tap_probe() -> bool {
     use objc2::runtime::{AnyClass, AnyObject};
@@ -505,21 +506,35 @@ fn check_system_audio_via_tap_probe() -> bool {
         msg_send_id![ns_array_class, arrayWithObject: &*our_pid_ns]
     };
 
-    // NOTE: msg_send_id! will panic if initStereoGlobalTapButExcludeProcesses:
-    // returns nil. This can happen on macOS versions where the selector exists
-    // but fails internally. The caller wraps us in catch_unwind to handle this.
-    let tap_desc: Id<AnyObject> = unsafe {
-        let alloc: objc2::rc::Allocated<AnyObject> = msg_send_id![tap_desc_class, alloc];
-        msg_send_id![alloc, initStereoGlobalTapButExcludeProcesses: &*exclude_pids]
+    // Use raw msg_send! returning a nullable pointer instead of msg_send_id!
+    // which panics on nil. initStereoGlobalTapButExcludeProcesses: can return
+    // nil when permissions haven't been granted yet or on certain macOS versions,
+    // and a panic here crashes the entire app (ObjC exceptions bypass catch_unwind).
+    let tap_desc_ptr: *mut AnyObject = unsafe {
+        let alloc: *mut AnyObject = msg_send![tap_desc_class, alloc];
+        if alloc.is_null() {
+            log::warn!("Tap probe: CATapDescription alloc returned nil");
+            return false;
+        }
+        msg_send![alloc, initStereoGlobalTapButExcludeProcesses: &*exclude_pids]
     };
+    if tap_desc_ptr.is_null() {
+        log::warn!("Tap probe: CATapDescription initStereoGlobalTapButExcludeProcesses: returned nil — permission likely not granted yet");
+        return false;
+    }
 
     let mut tap_id: u32 = 0;
     let status = unsafe {
         AudioHardwareCreateProcessTap(
-            &*tap_desc as *const AnyObject as *mut std::ffi::c_void,
+            tap_desc_ptr as *mut std::ffi::c_void,
             &mut tap_id,
         )
     };
+
+    // Release the tap description (we own it from alloc/init)
+    unsafe {
+        let _: () = msg_send![tap_desc_ptr, release];
+    }
 
     if status == 0 {
         // Success — permission is granted. Clean up immediately.
@@ -527,10 +542,6 @@ fn check_system_audio_via_tap_probe() -> bool {
         log::info!("Tap probe succeeded — system audio recording permission confirmed");
         true
     } else {
-        // Log the specific error code. Common codes:
-        //   -66680 (kAudioHardwareIllegalOperationError / 'nope') — permission denied or invalid operation
-        //   -66674 (kAudioHardwareBadObjectError / '!obj') — bad tap description
-        //   -66635 — unauthorized (permission not granted)
         log::warn!(
             "Tap probe: AudioHardwareCreateProcessTap failed with OSStatus {}. \
              This may indicate permission is denied, or may be a transient/system error.",
