@@ -320,6 +320,22 @@ async fn openai_compatible_completion(
     provider.name, url, key_len, has_whitespace, has_non_ascii, provider.model
   );
 
+  // Fail fast if the API key is clearly invalid — non-ASCII bytes would cause
+  // reqwest to silently drop the Authorization header, producing a confusing
+  // "Missing Authentication header" error from the provider.
+  if has_non_ascii {
+    return Err(LLMError::ChatCompletionFailed(format!(
+      "{} API key contains invalid (non-ASCII) characters. Please re-enter your API key in Settings.",
+      provider.name
+    )));
+  }
+  if key_len > 256 || provider.api_key.contains(' ') || provider.api_key.starts_with('#') {
+    return Err(LLMError::ChatCompletionFailed(format!(
+      "{} API key looks malformed (len={}, may contain prose/markdown). Please re-enter your API key in Settings.",
+      provider.name, key_len
+    )));
+  }
+
   for attempt in 0..max_retries {
     let auth_header = format!("Bearer {}", &provider.api_key);
     let resp = match client.post(&url)
