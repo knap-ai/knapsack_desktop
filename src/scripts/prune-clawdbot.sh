@@ -96,25 +96,20 @@ UNUSED_PACKAGES=(
 
   # ── AI provider SDKs not used by desktop ──
   "@mistralai"                # ~17 MB (desktop uses Knapsack API, not direct SDKs)
-  "@mariozechner"             # ~22 MB (pi-tui, pi-agent-core — TUI mode only)
 
   # ── Cloud / infra SDKs (not used in desktop) ──
-  "@aws-sdk"                  # ~12 MB
-  "@aws-crypto"               # ~2 MB
-  "@smithy"                   # ~9 MB  (AWS SDK internals)
+  # NOTE: @aws-sdk is KEPT — clawdbot uses @aws-sdk/client-bedrock at runtime
+  # NOTE: @smithy is KEPT — required by @aws-sdk at runtime
+  "@aws-crypto"               # ~2 MB  (not directly imported)
   "@cloudflare"               # ~10 MB (Workers runtime)
   "@octokit"                  # ~12 MB (GitHub API)
   "octokit"                   # ~1 MB
-
-  # ── Browser automation (not needed) ──
-  "playwright-core"           # ~10 MB
 
   # ── Runtime polyfills / unused utilities ──
   "web-streams-polyfill"      # ~9 MB  (not needed on Node 22+)
   "bun-types"                 # ~4 MB  (Bun type defs)
   "@types"                    # ~4 MB  (TypeScript type definitions)
   "highlight.js"              # ~3 MB  (syntax highlighting — not used at runtime)
-  "undici"                    # ~3 MB  (HTTP client — Node 22 has built-in fetch)
   "ipull"                     # ~2 MB  (download utility for models)
   "simple-git"                # ~2 MB  (git operations — not needed at runtime)
   "@tootallnate"              # ~2 MB  (proxy utilities)
@@ -123,13 +118,11 @@ UNUSED_PACKAGES=(
   "@lydell/node-pty"          # ~1 MB  (PTY — Knapsack uses Tauri terminal)
   "@mozilla/readability"      # ~1 MB  (not imported at runtime)
   "linkedom"                  # ~1 MB  (HTML DOM emulation)
-  "long"                      # ~1 MB
   "proper-lockfile"           # ~1 MB
   "signal-utils"              # ~1 MB
   "sqlite-vec"                # ~1 MB
   "sqlite-vec-linux-x64"      # ~1 MB  (wrong platform for macOS)
   "@typescript"               # ~1 MB
-  "@clack"                    # ~1 MB  (CLI prompts — not used in desktop)
   "@oxlint"                   # ~1 MB  (linter — build tool)
   "@oxlint-tsgolint"          # ~1 MB
   "@oxfmt"                    # ~1 MB  (formatter — build tool)
