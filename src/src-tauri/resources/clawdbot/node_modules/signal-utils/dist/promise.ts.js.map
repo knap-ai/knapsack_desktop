@@ -1,0 +1,1 @@
+{"version":3,"file":"promise.ts.js","sources":["../src/promise.ts"],"sourcesContent":["export function promise() {\n  throw new Error(\"Not implemented\");\n}\n"],"names":["promise","Error"],"mappings":"AAAO,SAASA,OAAOA,GAAG;AACxB,EAAA,MAAM,IAAIC,KAAK,CAAC,iBAAiB,CAAC,CAAA;AACpC;;;;"}
