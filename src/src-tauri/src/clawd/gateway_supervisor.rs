@@ -44,15 +44,85 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
   let service = format!("gui/{}/{}", uid, label);
 
   // kickstart will start it if loaded; if not loaded, it errors.
-  let status = Command::new("launchctl")
+  let output = Command::new("launchctl")
     .args(["kickstart", "-k", &service])
-    .status()
+    .output()
     .map_err(|e| format!("Failed to run launchctl kickstart: {}", e))?;
 
-  if status.success() {
-    Ok(())
-  } else {
-    Err("launchctl kickstart failed".to_string())
+  if output.status.success() {
+    return Ok(());
+  }
+
+  let stderr = String::from_utf8_lossy(&output.stderr);
+  eprintln!(
+    "[gateway_supervisor] kickstart failed (exit {}): {}",
+    output.status.code().unwrap_or(-1),
+    stderr.trim()
+  );
+
+  // Fallback: bootout + bootstrap.  This is a stronger reset that reloads
+  // the service definition.  It handles cases where the service is in a
+  // bad state (e.g., macOS throttling crash-looping agents, stale service
+  // registration, or the plist was updated after the last bootstrap).
+  let home = dirs::home_dir().ok_or("Couldn't resolve home dir")?;
+  let plist_path = home
+    .join("Library")
+    .join("LaunchAgents")
+    .join(format!("{}.plist", label));
+
+  if !plist_path.exists() {
+    return Err(format!(
+      "kickstart failed and plist not found at {}",
+      plist_path.display()
+    ));
+  }
+
+  let domain = format!("gui/{}", uid);
+  let plist_str = plist_path.to_string_lossy().to_string();
+
+  eprintln!("[gateway_supervisor] trying bootout + bootstrap fallback");
+
+  // bootout (ignore errors — service may not be loaded)
+  let _ = Command::new("launchctl")
+    .args(["bootout", &domain, &plist_str])
+    .output();
+
+  // Small delay to let launchd clean up
+  std::thread::sleep(std::time::Duration::from_millis(500));
+
+  let boot = Command::new("launchctl")
+    .args(["bootstrap", &domain, &plist_str])
+    .output()
+    .map_err(|e| format!("Failed to run launchctl bootstrap: {}", e))?;
+
+  if !boot.status.success() {
+    let boot_stderr = String::from_utf8_lossy(&boot.stderr);
+    return Err(format!(
+      "kickstart and bootstrap both failed: {}",
+      boot_stderr.trim()
+    ));
+  }
+
+  // kickstart after bootstrap to ensure the process actually starts
+  let kick2 = Command::new("launchctl")
+    .args(["kickstart", "-k", &service])
+    .output();
+
+  match kick2 {
+    Ok(o) if o.status.success() => {
+      eprintln!("[gateway_supervisor] bootout + bootstrap + kickstart succeeded");
+      Ok(())
+    }
+    Ok(o) => {
+      let k2_stderr = String::from_utf8_lossy(&o.stderr);
+      eprintln!("[gateway_supervisor] post-bootstrap kickstart failed: {}", k2_stderr.trim());
+      // Bootstrap succeeded, so the service should start via KeepAlive — treat as OK
+      Ok(())
+    }
+    Err(e) => {
+      eprintln!("[gateway_supervisor] post-bootstrap kickstart error: {}", e);
+      Ok(()) // Bootstrap succeeded, KeepAlive should handle it
+    }
   }
 }
 
@@ -102,6 +172,22 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
   }
 
   eprintln!("[gateway_supervisor] Gateway failed to start after {} attempts", backoff_ms.len());
+
+  // Dump the last few lines of the gateway's stderr log so we can see
+  // why the process is failing to start.
+  let err_log = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+  if let Ok(content) = std::fs::read_to_string(&err_log) {
+    let tail: Vec<&str> = content.lines().rev().take(10).collect();
+    if !tail.is_empty() {
+      let mut lines: Vec<&str> = tail.into_iter().collect();
+      lines.reverse();
+      eprintln!("[gateway_supervisor] --- last gateway stderr ---");
+      for line in &lines {
+        eprintln!("[gateway_supervisor]   {}", line);
+      }
+    }
+  }
+
   GatewayEnsureResponse {
     success: false,
     running: false,
