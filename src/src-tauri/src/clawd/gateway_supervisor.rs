@@ -177,7 +177,7 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
   // why the process is failing to start.
   let err_log = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
   if let Ok(content) = std::fs::read_to_string(&err_log) {
-    let tail: Vec<&str> = content.lines().rev().take(10).collect();
+    let tail: Vec<&str> = content.lines().rev().take(25).collect();
     if !tail.is_empty() {
       let mut lines: Vec<&str> = tail.into_iter().collect();
       lines.reverse();
