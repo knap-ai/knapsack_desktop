@@ -52,7 +52,7 @@ const EmailNotificationDrawer = ({
   const [isEditorActive, setIsEditorActive] = useState(false)
   const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
   const [caughtUpDismissing, setCaughtUpDismissing] = useState(false)
-  const [declinedAutoSurface, setDeclinedAutoSurface] = useState(false)
+
   const [drawerWidth, setDrawerWidth] = useState(540)
   const [drawerHeight, setDrawerHeight] = useState(Math.round(window.innerHeight * 0.55))
   const resizingRef = useRef(false)
@@ -251,7 +251,6 @@ const EmailNotificationDrawer = ({
   // and only for emails not yet shown this session.
   useEffect(() => {
     if (permanentlyDismissed || permanentlyDismissed === null) return
-    if (declinedAutoSurface) return
     if (!isChatBusy || !pendingEmail || initialLoadRef.current) return
 
     // Skip emails already shown this session
@@ -267,7 +266,7 @@ const EmailNotificationDrawer = ({
     }, BUSY_DELAY_MS)
 
     return () => clearTimeout(timer)
-  }, [isChatBusy, pendingEmail?.message.emailUid, permanentlyDismissed, declinedAutoSurface])
+  }, [isChatBusy, pendingEmail?.message.emailUid, permanentlyDismissed])
 
   const isLoading =
     feed.emailAutopilotStatus.status === 'fetching-emails' ||
@@ -394,8 +393,6 @@ const EmailNotificationDrawer = ({
     )
     // Session-dismiss so it doesn't reappear
     setSessionDismissedIds(prev => new Set(prev).add(uid))
-    // Prevent the drawer from auto-surfacing again this session
-    setDeclinedAutoSurface(true)
     // Animate the drawer out
     setIsAnimatingOut(true)
     setIsExpanded(false)
