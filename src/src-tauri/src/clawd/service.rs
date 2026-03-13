@@ -312,7 +312,13 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   }
   if let Some(k) = &tokens.openrouter_api_key {
     let k = k.trim();
-    if !k.is_empty() { std::env::set_var("OPENROUTER_API_KEY", k); }
+    if !k.is_empty() {
+      if validate_api_key_format(k).is_ok() {
+        std::env::set_var("OPENROUTER_API_KEY", k);
+      } else {
+        eprintln!("[clawd/service] WARNING: stored OPENROUTER_API_KEY looks malformed (len={}), skipping propagation. Please re-enter your key in Settings.", k.len());
+      }
+    }
   }
   if let Some(m) = &tokens.openrouter_model {
     let m = m.trim();
@@ -1181,6 +1187,32 @@ pub async fn validate_api_key(
   }
 }
 
+/// Validate that a string looks like a real API key (not markdown, prose, or garbage).
+/// Returns `Ok(())` if valid, or `Err(message)` with a human-readable reason.
+fn validate_api_key_format(key: &str) -> Result<(), String> {
+  // API keys should be printable ASCII only
+  if key.bytes().any(|b| b < 0x20 || b > 0x7e) {
+    return Err("API key contains invalid characters. Keys should be printable ASCII only.".into());
+  }
+  // API keys are typically under 256 characters; 693 chars of markdown is not a key
+  if key.len() > 256 {
+    return Err(format!(
+      "API key is too long ({} characters). Please paste only the key, not documentation.",
+      key.len()
+    ));
+  }
+  // Reject strings that look like markdown or prose (start with heading, bullet, etc.)
+  let lower = key.trim_start();
+  if lower.starts_with('#') || lower.starts_with("* ") || lower.starts_with("- ") {
+    return Err("This looks like markdown or documentation text, not an API key.".into());
+  }
+  // Reject if it contains spaces (API keys never contain spaces)
+  if key.contains(' ') {
+    return Err("API key contains spaces. Please paste only the key value.".into());
+  }
+  Ok(())
+}
+
 /// Set API key for any provider (OpenAI, Anthropic, Gemini, or extra providers)
 #[derive(Debug, Deserialize)]
 pub struct SetApiKeyRequest {
@@ -1217,6 +1249,16 @@ pub async fn set_api_key(
 
   let key = payload.key.trim().to_string();
   let provider = payload.provider.as_deref().unwrap_or("openai").to_lowercase();
+
+  // Validate key format before storing (skip for ollama which uses a dummy key)
+  if !key.is_empty() && provider != "ollama" {
+    if let Err(msg) = validate_api_key_format(&key) {
+      return HttpResponse::BadRequest().json(SetApiKeyResponse {
+        success: false,
+        message: msg,
+      });
+    }
+  }
 
   // If no key provided, allow switching to a provider that already has a saved key
   if key.is_empty() {
