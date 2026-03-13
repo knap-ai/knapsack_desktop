@@ -11,12 +11,18 @@ use crate::clawd::sidecar::SharedClawdbotConfig;
 
 /// Whether we've already sent a one-shot `/start` nudge to the gateway's
 /// browser control.  Reset when the gateway transitions from down to up,
-/// so the nudge fires again after a gateway restart.
+/// or when the browser transitions from healthy to down, so the nudge
+/// fires again after a gateway restart or a browser crash.
 static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
 
 /// Tracks whether the gateway was healthy on the last health check.
 /// Used to detect down→up transitions and reset BROWSER_START_NUDGED.
 static GATEWAY_WAS_HEALTHY: AtomicBool = AtomicBool::new(false);
+
+/// Tracks whether the browser was healthy on the last health check.
+/// Used to detect healthy→down transitions (browser crashes) and reset
+/// BROWSER_START_NUDGED so the recovery nudge can fire again.
+static BROWSER_WAS_HEALTHY: AtomicBool = AtomicBool::new(false);
 
 /// Tracks whether a gateway restart attempt is already in progress,
 /// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
@@ -581,11 +587,18 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       if !was_healthy {
         eprintln!("[clawd/service] gateway recovered — resetting browser nudge flag");
         BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+        // Kill stale managed Chrome processes from the previous gateway
+        // session.  They may still hold the CDP port (18800), preventing
+        // the new gateway from launching its own browser.
+        #[cfg(target_os = "macos")]
+        kill_stale_clawdbot_chromes();
         // Invalidate the pooled WebSocket connection — the old one is dead.
         gateway_client::invalidate();
       }
     } else {
       GATEWAY_WAS_HEALTHY.store(false, Ordering::Relaxed);
+      // Gateway is down — browser can't be healthy either, reset its state.
+      BROWSER_WAS_HEALTHY.store(false, Ordering::Relaxed);
     }
 
     // If gateway is down, try to restart it via launchctl kickstart.
@@ -595,6 +608,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let token = tokens.gateway_token.clone();
       eprintln!("[clawd/service] gateway not reachable — attempting background restart");
       tokio::spawn(async move {
+        // Kill stale managed Chrome processes before restarting the gateway.
+        // When the gateway exits, its Chrome child survives and holds the
+        // CDP port (18800).  Without cleanup the new gateway can't launch
+        // its own browser and browser control stays permanently down.
+        #[cfg(target_os = "macos")]
+        kill_stale_clawdbot_chromes();
+
         use crate::clawd::gateway_supervisor;
         let result = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, &token).await;
         eprintln!("[clawd/service] gateway restart attempt: {} ({})", result.message,
@@ -649,11 +669,25 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       false
     };
 
+    // Track browser state transitions for crash recovery.
+    // If the browser was previously healthy and is now down, reset the
+    // nudge flag so we can send a fresh /start to recover from crashes.
+    let browser_was_healthy = BROWSER_WAS_HEALTHY.load(Ordering::Relaxed);
+    if browser_ok {
+      BROWSER_WAS_HEALTHY.store(true, Ordering::Relaxed);
+    } else if browser_was_healthy {
+      // Browser just went from healthy → down (crashed).
+      BROWSER_WAS_HEALTHY.store(false, Ordering::Relaxed);
+      BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+      eprintln!("[clawd/service] browser was healthy but is now down — resetting nudge flag for crash recovery");
+    }
+
     // If the gateway is healthy but browser control isn't responding, send
     // a `/start` nudge.  This is idempotent on the gateway — if the
     // browser is already starting it's a no-op.  The flag resets when the
-    // gateway recovers (down→up transition above) so the nudge can fire
-    // again after a gateway restart.
+    // gateway recovers (down→up transition above) or when the browser
+    // crashes (healthy→down transition above), so the nudge can fire
+    // again after a gateway restart or browser crash.
     if gateway_ok && !browser_ok && !BROWSER_START_NUDGED.swap(true, Ordering::Relaxed) {
       eprintln!("[clawd/service] browser not reachable — sending /start nudge");
       tokio::spawn(async {
