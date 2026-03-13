@@ -29,7 +29,8 @@ src-tauri/resources/clawdbot/node_modules/@lydell/
 src-tauri/resources/clawdbot/node_modules/@mozilla/
 src-tauri/resources/clawdbot/node_modules/linkedom/
 src-tauri/resources/clawdbot/node_modules/long/
-src-tauri/resources/clawdbot/node_modules/proper-lockfile/
+# proper-lockfile is required by @mariozechner/pi-coding-agent at runtime
+# src-tauri/resources/clawdbot/node_modules/proper-lockfile/
 src-tauri/resources/clawdbot/node_modules/signal-utils/
 src-tauri/resources/clawdbot/node_modules/sqlite-vec/
 src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-tui/

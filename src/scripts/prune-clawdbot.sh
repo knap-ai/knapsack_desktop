@@ -96,7 +96,7 @@ UNUSED_PACKAGES=(
   "@mozilla/readability"      # ~1 MB  (not imported at runtime)
   "linkedom"                  # ~1 MB  (not imported at runtime)
   "long"                      # ~1 MB  (not imported at runtime)
-  "proper-lockfile"           # ~1 MB  (not imported at runtime)
+  # NOTE: proper-lockfile must NOT be pruned — pi-coding-agent imports it via auth-storage.js
   "signal-utils"              # ~1 MB  (not imported at runtime)
   "sqlite-vec"                # ~1 MB  (not imported at runtime)
 )
