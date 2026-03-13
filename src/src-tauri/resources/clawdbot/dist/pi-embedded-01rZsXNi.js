@@ -49657,6 +49657,11 @@ var IMessageRpcClient = class {
 		} catch (err) {
 			const detail = err instanceof Error ? err.message : String(err);
 			this.runtime?.error?.(`imsg rpc: failed to parse ${line}: ${detail}`);
+			if (/permissionDenied|authorization denied/i.test(line)) {
+				const permErr = new Error(`iMessage permission denied – grant Full Disk Access to the host app in System Settings > Privacy & Security, then restart. (${line})`);
+				this.failAll(permErr);
+				this.stop();
+			}
 			return;
 		}
 		if (parsed.id !== void 0 && parsed.id !== null) {

@@ -1458,7 +1458,7 @@ pub async fn wait_for_browser_ready(token: Option<&str>, max_wait_secs: u64) -> 
     let params = serde_json::json!({
       "method": "GET",
       "path": "/tabs",
-      "query": {"profile": "knapsack"},
+      "query": {"profile": "openclaw"},
     });
     match gateway_request_pooled("browser.request", Some(params), &t).await {
       Ok(_) => return true,
