@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
-import { getMeetingChatMessage, getMeetingChatAutoSend } from 'src/utils/settings'
+import { getMeetingChatMessage, getMeetingChatAutoSend, getMeetingChatEnabled } from 'src/utils/settings'
 
 interface MeetingChatNoticeProps {
   meetingPlatform: string | undefined
@@ -10,14 +10,16 @@ const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform }
   const [copied, setCopied] = useState(false)
   const [autoSendStatus, setAutoSendStatus] = useState<'pending' | 'sent' | 'failed' | 'idle'>('idle')
   const [message, setMessage] = useState('')
+  const [enabled, setEnabled] = useState<boolean | null>(null)
 
   useEffect(() => {
+    getMeetingChatEnabled().then(setEnabled)
     getMeetingChatMessage().then(setMessage)
   }, [])
 
   // Attempt auto-send on mount if enabled
   useEffect(() => {
-    if (!message || !meetingPlatform) return
+    if (!message || !meetingPlatform || !enabled) return
 
     const tryAutoSend = async () => {
       const autoSendEnabled = await getMeetingChatAutoSend()
@@ -77,7 +79,7 @@ const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform }
     }
   }, [meetingPlatform, message])
 
-  if (!message) return null
+  if (!message || !enabled) return null
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-md py-2.5 px-3 w-full">

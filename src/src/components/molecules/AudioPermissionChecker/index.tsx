@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { logError } from 'src/utils/errorHandling';
+import {
+  getMeetingChatAutoSend,
+  setMeetingChatAutoSend,
+  getMeetingChatMessage,
+  setMeetingChatMessage,
+} from 'src/utils/settings';
 
 interface AudioPermissions {
   microphone: boolean;
@@ -25,6 +31,12 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
   const [systemAudioAttempts, setSystemAudioAttempts] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
 
+  // Meeting chat notice opt-in state
+  const [showChatNoticeStep, setShowChatNoticeStep] = useState(false);
+  const [chatNoticeEnabled, setChatNoticeEnabled] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
+
   const checkRealPermissions = useCallback(async (): Promise<AudioPermissions> => {
     try {
       const permissions = await invoke<AudioPermissions>('check_audio_permissions');
@@ -40,6 +52,37 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
       };
     }
   }, []);
+
+  // When both permissions are granted, transition to the chat notice step
+  // instead of immediately dismissing
+  const handleAudioPermissionsReady = useCallback(() => {
+    // If the user has already configured the meeting chat notice before
+    // (permissionsDismissed was set in a previous session), skip straight
+    // to dismissing.
+    const alreadyConfigured = localStorage.getItem('kn_meeting_chat_configured') === 'true';
+    if (alreadyConfigured) {
+      onBothPermissionsGranted();
+    } else {
+      setShowChatNoticeStep(true);
+    }
+  }, [onBothPermissionsGranted]);
+
+  const handleFinishSetup = useCallback(async () => {
+    await setMeetingChatAutoSend(chatNoticeEnabled);
+    if (chatMessage) {
+      await setMeetingChatMessage(chatMessage);
+    }
+    localStorage.setItem('kn_meeting_chat_configured', 'true');
+    onBothPermissionsGranted();
+  }, [chatNoticeEnabled, chatMessage, onBothPermissionsGranted]);
+
+  // Load existing chat notice settings when the step appears
+  useEffect(() => {
+    if (showChatNoticeStep) {
+      getMeetingChatAutoSend().then(setChatNoticeEnabled);
+      getMeetingChatMessage().then(setChatMessage);
+    }
+  }, [showChatNoticeStep]);
 
   const requestMicrophoneAccess = async () => {
     setIsCheckingMic(true);
@@ -71,7 +114,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
       }
 
       if (permissions.all_granted) {
-        onBothPermissionsGranted();
+        handleAudioPermissionsReady();
       }
     } finally {
       setIsCheckingMic(false);
@@ -103,7 +146,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
           localStorage.setItem('micPermissionGranted', 'true');
         }
         if (permissions.all_granted) {
-          onBothPermissionsGranted();
+          handleAudioPermissionsReady();
         }
         return;
       }
@@ -121,7 +164,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
       }
 
       if (permissions.all_granted) {
-        onBothPermissionsGranted();
+        handleAudioPermissionsReady();
       }
     } finally {
       setIsCheckingSystemAudio(false);
@@ -155,7 +198,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         localStorage.setItem('screenPermissionGranted', 'true');
       }
       if (permissions.all_granted) {
-        onBothPermissionsGranted();
+        handleAudioPermissionsReady();
       }
     } finally {
       setIsResetting(false);
@@ -182,7 +225,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         }
 
         if (permissions.all_granted) {
-          onBothPermissionsGranted();
+          handleAudioPermissionsReady();
         }
       } catch (error) {
         logError(new Error('Permission initialization check failed'), {
@@ -195,14 +238,14 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
     };
 
     initialCheck();
-  }, [onBothPermissionsGranted, checkRealPermissions]);
+  }, [handleAudioPermissionsReady, checkRealPermissions]);
 
-  // Both permissions required — call onBothPermissionsGranted when both are true
+  // Both permissions required — transition to chat notice step when both are true
   useEffect(() => {
     if (micPermission && systemAudioPermission) {
-      onBothPermissionsGranted();
+      handleAudioPermissionsReady();
     }
-  }, [micPermission, systemAudioPermission, onBothPermissionsGranted]);
+  }, [micPermission, systemAudioPermission, handleAudioPermissionsReady]);
 
   // Poll for permission changes while the component is visible
   // (user may grant permissions in System Settings without coming back to the app)
@@ -220,12 +263,12 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         localStorage.setItem('screenPermissionGranted', 'true');
       }
       if (permissions.all_granted) {
-        onBothPermissionsGranted();
+        handleAudioPermissionsReady();
       }
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [micPermission, systemAudioPermission, onBothPermissionsGranted, checkRealPermissions]);
+  }, [micPermission, systemAudioPermission, handleAudioPermissionsReady, checkRealPermissions]);
 
   if (isInitializing) {
     return (
@@ -235,6 +278,111 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
     );
   }
 
+  // ── Meeting chat notice opt-in step ──
+  if (showChatNoticeStep) {
+    return (
+      <div className="fixed inset-0 bg-ks-warm-grey-200 bg-opacity-75 z-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white rounded-2xl flex TightShadow flex-col items-center max-w-[650px] w-full p-10 relative">
+          <div className="w-full max-w-[300px] bg-[#2D2D2D] rounded-xl TightShadow overflow-hidden mb-8">
+            <div className="py-4 px-6 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="bg-white rounded-xl p-1 w-9 h-9 flex items-center justify-center">
+                  <img
+                    src="/assets/images/knap-logo-medium.png"
+                    alt="Knapsack Logo"
+                    className="w-7 h-7 object-contain"
+                  />
+                </div>
+                <span className="text-white text-xl font-medium">Knapsack</span>
+              </div>
+
+              <div className="w-12 h-6 bg-[#0066FF] rounded-full relative">
+                <div className="w-5 h-5 bg-white rounded-full absolute right-0.5 top-0.5"></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <div className="mb-6">
+              <h1 className="text-4xl text-ks-warm-grey-950 !font-Lora">
+                <span className="font-bold">Notify</span> attendees<br/>
+                when you're taking notes
+              </h1>
+              <p className="text-sm text-ks-warm-grey-500 mt-3 max-w-[400px] mx-auto leading-5">
+                Automatically send a message in your meeting chat to let others know Knapsack is transcribing. This uses macOS Accessibility to paste into Zoom or Google Meet.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-4 w-full max-w-[440px] mx-auto">
+              {/* Toggle for auto-send */}
+              <button
+                className={`flex items-center justify-between w-full py-4 px-6 rounded-full font-normal transition-colors border-[1px] border-solid ${
+                  chatNoticeEnabled
+                    ? 'bg-blue-50 border-blue-300 text-blue-800'
+                    : 'bg-ks-warm-grey-50 border-ks-warm-grey-300 text-ks-warm-grey-700'
+                }`}
+                onClick={() => setChatNoticeEnabled(!chatNoticeEnabled)}
+              >
+                <span className="text-left">
+                  Auto-send meeting chat notice
+                </span>
+                <div className={`w-11 h-6 rounded-full relative transition-colors flex-shrink-0 ml-3 ${
+                  chatNoticeEnabled ? 'bg-[#0066FF]' : 'bg-ks-warm-grey-300'
+                }`}>
+                  <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${
+                    chatNoticeEnabled ? 'right-0.5' : 'left-0.5'
+                  }`}></div>
+                </div>
+              </button>
+
+              {/* Message preview / edit */}
+              {chatNoticeEnabled && (
+                <div className="bg-ks-warm-grey-50 border border-ks-warm-grey-200 rounded-xl p-4 text-left">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-ks-warm-grey-500 tracking-wide">
+                      MESSAGE
+                    </span>
+                    <button
+                      className="text-xs text-blue-600 hover:text-blue-700 transition-colors"
+                      onClick={() => setIsEditingMessage(!isEditingMessage)}
+                    >
+                      {isEditingMessage ? 'Done' : 'Edit'}
+                    </button>
+                  </div>
+                  {isEditingMessage ? (
+                    <textarea
+                      className="w-full text-sm text-ks-warm-grey-800 bg-white border border-ks-warm-grey-200 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-300"
+                      rows={2}
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                    />
+                  ) : (
+                    <p className="text-sm text-ks-warm-grey-800 leading-5">
+                      "{chatMessage}"
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Done button */}
+              <button
+                className="w-full py-4 px-8 bg-ks-red-800 hover:bg-ks-red-900 rounded-full text-white font-normal transition-colors mt-2"
+                onClick={handleFinishSetup}
+              >
+                {chatNoticeEnabled ? 'Enable & continue' : 'Skip for now'}
+              </button>
+
+              <p className="text-xs text-ks-warm-grey-400 leading-5">
+                You can change this anytime in Settings.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Audio permissions step ──
   return (
     <div className="fixed inset-0 bg-ks-warm-grey-200 bg-opacity-75 z-50 flex flex-col items-center justify-center p-4">
       <div className="bg-white rounded-2xl flex TightShadow flex-col items-center max-w-[650px] w-full p-10 relative">
