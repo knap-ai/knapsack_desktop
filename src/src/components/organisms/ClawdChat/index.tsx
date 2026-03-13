@@ -1221,6 +1221,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Onboarding state
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
   const [apiKey, setApiKey] = useState('')
+  const [editingProviderKey, setEditingProviderKey] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5.4'
   })
@@ -2300,6 +2301,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
       }
       setShowKeyPrompt(false)
+      setEditingProviderKey(false)
       setHasCompletedOnboarding(true)
       localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
       // Mark this provider as having a saved key
@@ -5226,7 +5228,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
                 return (
                   <div key={p.id} className={`ClawdAccordionItem ${selectedProvider === p.id ? 'ClawdAccordionItem--open' : ''} ${isActive ? 'ClawdAccordionItem--connected' : ''}`}>
-                    <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider(p.id); setApiKey('') }}>
+                    <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider(p.id); setApiKey(''); setEditingProviderKey(false) }}>
                       <div className="ClawdAccordionTitle">{p.name}</div>
                       <span className="ClawdAccordionDesc">{p.description}</span>
                       {isActive && (
@@ -5237,7 +5239,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                     </button>
                     <div className="ClawdAccordionBody">
-                      {savedProviderKeys[p.id] && !apiKey.trim() ? (
+                      {savedProviderKeys[p.id] && !apiKey.trim() && !editingProviderKey ? (
                         <>
                           <div className="ClawdKeySavedRow">
                             <span className="ClawdKeySavedBadge">Key saved</span>
@@ -5284,7 +5286,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             ) : null}
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
-                              onClick={() => setApiKey(' ')}
+                              onClick={() => { setApiKey(''); setEditingProviderKey(true) }}
                             >
                               Change Key
                             </button>
@@ -5333,7 +5335,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             {savedProviderKeys[p.id] && (
                               <button
                                 className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
-                                onClick={() => setApiKey('')}
+                                onClick={() => { setApiKey(''); setEditingProviderKey(false) }}
                               >
                                 Cancel
                               </button>
@@ -5354,7 +5356,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
               {/* ── Ollama (local) ── */}
               <div className={`ClawdAccordionItem ${selectedProvider === 'ollama' ? 'ClawdAccordionItem--open' : ''} ${selectedProvider === 'ollama' ? 'ClawdAccordionItem--connected' : ''}`}>
-                <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider('ollama'); setApiKey('') }}>
+                <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider('ollama'); setApiKey(''); setEditingProviderKey(false) }}>
                   <div className="ClawdAccordionTitle">Ollama</div>
                   <span className="ClawdAccordionDesc">Local models — free, private</span>
                   {selectedProvider === 'ollama' && (
