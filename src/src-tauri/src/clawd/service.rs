@@ -506,11 +506,27 @@ pub struct ServiceHealthResponse {
 pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   #[cfg(not(target_os = "macos"))]
   {
-    return HttpResponse::NotImplemented().json(ServiceHealthResponse {
-      success: false,
-      gateway_ok: false,
+    // On non-macOS, still check if the gateway happens to be running (e.g.
+    // started manually or via systemd) before giving up.
+    let gateway_ok = reqwest::Client::builder()
+      .timeout(std::time::Duration::from_millis(800))
+      .build()
+      .ok()
+      .map(|c| c.get("http://127.0.0.1:18789/health").send());
+    let gateway_ok = match gateway_ok {
+      Some(fut) => fut.await.map(|r| r.status().is_success() || r.status().as_u16() == 404).unwrap_or(false),
+      None => false,
+    };
+    let message = if gateway_ok {
+      "Gateway is reachable (started externally). Auto-management not available on this platform.".to_string()
+    } else {
+      "Gateway not reachable. On Linux, the gateway must be started manually (e.g. `node entry.js`). LaunchAgent auto-management is macOS-only.".to_string()
+    };
+    return HttpResponse::Ok().json(ServiceHealthResponse {
+      success: gateway_ok,
+      gateway_ok,
       browser_ok: false,
-      message: "Service management is only implemented for macOS right now".to_string(),
+      message,
     });
   }
 
@@ -586,16 +602,37 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // Use a 5-second timeout to avoid blocking the health endpoint when the
     // browser RPC is slow (the default pooled request timeout is 30s).
     let browser_ok = if gateway_ok {
-      match tokio::time::timeout(
+      // Try with "knapsack" profile first, then without profile as fallback.
+      // The gateway may have started the browser under a different profile name
+      // (e.g. during dev mode or after config migration).
+      let check = tokio::time::timeout(
         std::time::Duration::from_secs(5),
         gateway_client::browser_request(
           "GET", "/tabs", Some(serde_json::json!({"profile": "knapsack"})), None, None,
         ),
-      ).await {
+      ).await;
+      match check {
         Ok(Ok(_)) => true,
         Ok(Err(e)) => {
-          eprintln!("[clawd/service] browser health check failed: {}", e);
-          false
+          eprintln!("[clawd/service] browser health check failed (profile=knapsack): {}", e);
+          // Fallback: try without profile restriction
+          match tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            gateway_client::browser_request("GET", "/tabs", None, None, None),
+          ).await {
+            Ok(Ok(_)) => {
+              eprintln!("[clawd/service] browser health check succeeded without profile filter");
+              true
+            }
+            Ok(Err(e2)) => {
+              eprintln!("[clawd/service] browser health check failed (no profile): {}", e2);
+              false
+            }
+            Err(_) => {
+              eprintln!("[clawd/service] browser health check timed out (no profile, 3s)");
+              false
+            }
+          }
         }
         Err(_) => {
           eprintln!("[clawd/service] browser health check timed out (5s)");
@@ -640,6 +677,34 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     };
 
     if !gateway_ok {
+      // Diagnostic: check if the LaunchAgent plist exists
+      match launch_agent_plist_path() {
+        Ok(plist) => {
+          if !plist.exists() {
+            message.push_str("\n[diagnostic] LaunchAgent plist not found — service may not be enabled. Try toggling Enable in Settings.");
+            eprintln!("[clawd/service] gateway down: plist not found at {}", plist.display());
+          } else {
+            // Check if the service is loaded in launchctl
+            let uid = unsafe { libc::getuid() };
+            let domain = format!("gui/{}/{}", uid, LAUNCH_AGENT_LABEL);
+            let loaded = std::process::Command::new("launchctl")
+              .args(["print", &domain])
+              .output()
+              .map(|o| o.status.success())
+              .unwrap_or(false);
+            if !loaded {
+              message.push_str("\n[diagnostic] LaunchAgent plist exists but service is not loaded. Try disabling and re-enabling in Settings.");
+              eprintln!("[clawd/service] gateway down: plist exists but service not loaded (label={})", LAUNCH_AGENT_LABEL);
+            } else {
+              eprintln!("[clawd/service] gateway down: service is loaded but not responding on port 18789");
+            }
+          }
+        }
+        Err(e) => {
+          message.push_str(&format!("\n[diagnostic] Could not resolve LaunchAgent path: {}", e));
+        }
+      }
+
       let err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
       if let Ok(content) = std::fs::read_to_string(&err_path) {
         let tail: Vec<&str> = content.lines().rev().take(8).collect();
@@ -649,6 +714,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           message.push_str("\n--- last stderr ---\n");
           message.push_str(&tail_lines.join("\n"));
         }
+      } else {
+        message.push_str("\n[diagnostic] No stderr log found at /tmp/knapsack-clawdbot.err.log — gateway may have never started.");
       }
     }
 
@@ -1298,7 +1365,10 @@ pub async fn set_api_key(
   if let Some(k) = &tokens.openai_api_key { std::env::set_var("OPENAI_API_KEY", k); }
   if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
   if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
-  if let Some(k) = &tokens.openrouter_api_key { std::env::set_var("OPENROUTER_API_KEY", k); }
+  if let Some(k) = &tokens.openrouter_api_key {
+    eprintln!("[clawd/service] set-api-key: propagating OPENROUTER_API_KEY len={} trimmed_len={}", k.len(), k.trim().len());
+    std::env::set_var("OPENROUTER_API_KEY", k);
+  }
   if let Some(p) = &tokens.active_provider { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
   if let Some(m) = &tokens.openai_model { std::env::set_var("KNAPSACK_OPENAI_MODEL", m); }
   if let Some(m) = &tokens.anthropic_model { std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", m); }
