@@ -293,8 +293,10 @@ if [ "$DO_NOTARIZE" = true ]; then
         echo "[notarize] Stapling DMG..."
         xcrun stapler staple "$DMG_PATH"
       else
-        echo "[notarize] WARNING: DMG notarization status: $DMG_STATUS" >&2
-        echo "[notarize]          The .app is still fully notarized. DMG may trigger Gatekeeper." >&2
+        echo "[notarize] ERROR: DMG notarization failed with status: $DMG_STATUS" >&2
+        echo "[notarize]        An unnotarized DMG will show 'damaged' on user machines." >&2
+        echo "[notarize]        Fix the issue and re-run, or users cannot open the app." >&2
+        exit 1
       fi
     fi
   fi

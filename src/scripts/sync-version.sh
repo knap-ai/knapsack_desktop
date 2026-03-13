@@ -25,7 +25,7 @@ if [ "$LOCK_VERSION" = "$PKG_VERSION" ]; then
   exit 0
 fi
 
-echo "[sync-version] Updating package-lock.json from v$LOCK_VERSION to v$PKG_VERSION…"
+echo "[sync-version] Updating package-lock.json from v$LOCK_VERSION to v$PKG_VERSION..."
 
 # Update both top-level "version" and packages[""].version
 node -e "
@@ -38,4 +38,4 @@ if (lock.packages && lock.packages['']) {
 fs.writeFileSync('$LOCK_FILE', JSON.stringify(lock, null, 2) + '\n');
 "
 
-echo "[sync-version] ✓ package-lock.json synced to v$PKG_VERSION"
+echo "[sync-version] package-lock.json synced to v$PKG_VERSION"

@@ -52,7 +52,19 @@ if [ ${#ARTIFACTS[@]} -eq 0 ]; then
   exit 1
 fi
 
-echo "[release] Creating GitHub release $TAG with ${#ARTIFACTS[@]} artifact(s)…"
+# Verify DMG filenames match the expected version to prevent releasing stale builds
+for f in "${ARTIFACTS[@]}"; do
+  BASENAME="$(basename "$f")"
+  if [[ "$BASENAME" == *.dmg ]] && [[ "$BASENAME" != *"$VERSION"* ]]; then
+    echo "ERROR: DMG version mismatch!" >&2
+    echo "       package.json version: $VERSION" >&2
+    echo "       DMG filename:         $BASENAME" >&2
+    echo "       Run 'npm run tauri build' to rebuild with the current version." >&2
+    exit 1
+  fi
+done
+
+echo "[release] Creating GitHub release $TAG with ${#ARTIFACTS[@]} artifact(s)..."
 
 # Create release (or reuse existing) and upload artifacts
 gh release create "$TAG" \
@@ -61,5 +73,5 @@ gh release create "$TAG" \
   "${ARTIFACTS[@]}" 2>/dev/null \
 || gh release upload "$TAG" "${ARTIFACTS[@]}" --clobber
 
-echo "[release] ✓ Release $TAG published"
+echo "[release] Release $TAG published"
 echo "[release]   $(gh release view "$TAG" --json url -q .url)"
