@@ -2937,6 +2937,23 @@ When the user asks "what can you do" or "what skills do you have", mention that 
     String::new()
   };
 
+  let email_section = if !user_email.is_empty() {
+    r#"## EMAIL SENDING
+Your email account is connected. You have a **send_email** tool that sends emails directly via the Gmail API (no browser needed). This is the PREFERRED way to send emails — do NOT use browser automation to compose/send emails.
+
+### How to Send Emails
+1. **Draft the email** and show the user the full details (To, CC, Subject, Body) in your response
+2. **Ask for confirmation** — e.g. "Ready to send this email. Say **SEND** to confirm, or let me know what to change."
+3. **Only call send_email** after the user explicitly confirms (says "send", "send it", "yes", "confirmed", "go ahead", etc.)
+4. For **replies**, include the thread_id if available to maintain threading
+
+### When the User Says "Send"
+When the user says "send it", "yes send", "confirmed", or similar — immediately call the send_email tool. Do NOT ask for additional confirmation or re-show the email. One confirmation is enough."#.to_string()
+  } else {
+    r#"## EMAIL
+No email account is directly connected via the send_email tool. However, you CAN still help the user with email by using browser automation — navigate to Gmail (https://mail.google.com) or Outlook (https://outlook.live.com) in the browser to read, search, and compose emails. Do NOT tell the user that email is unavailable or ask them to connect their account — just use the browser to help with email tasks."#.to_string()
+  };
+
   let system_content = format!(
     r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
 {}{}{}{}{}{}
@@ -3191,17 +3208,7 @@ Before you send ANY message to the user, mentally review it and ask yourself the
 - **Click "Send", "Submit", "Purchase", "Delete"** buttons without asking
 - **Change passwords or credentials** — NEVER change, set, reset, or fill in password fields on behalf of the user. This includes system passwords, application passwords, web service "change password" forms, API key rotations, SSH key generation (overwriting existing keys), and any credential/authentication changes. If the user requests a password change, explain they must do it themselves for security and provide the steps.
 
-## EMAIL SENDING
-You have a **send_email** tool that sends emails directly via the Gmail API (no browser needed). This is the PREFERRED way to send emails — do NOT use browser automation to compose/send emails.
-
-### How to Send Emails
-1. **Draft the email** and show the user the full details (To, CC, Subject, Body) in your response
-2. **Ask for confirmation** — e.g. "Ready to send this email. Say **SEND** to confirm, or let me know what to change."
-3. **Only call send_email** after the user explicitly confirms (says "send", "send it", "yes", "confirmed", "go ahead", etc.)
-4. For **replies**, include the thread_id if available to maintain threading
-
-### When the User Says "Send"
-When the user says "send it", "yes send", "confirmed", or similar — immediately call the send_email tool. Do NOT ask for additional confirmation or re-show the email. One confirmation is enough.
+{}
 
 ## Always Ask Before
 - Any irreversible action
@@ -3355,7 +3362,8 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
     autonomy_section,
     meeting_section,
     advanced_section,
-    skills_section
+    skills_section,
+    email_section
   );
 
   let system = chat_agent::OaiMessage::System {

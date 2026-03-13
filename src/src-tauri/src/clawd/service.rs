@@ -746,7 +746,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 
       let err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
       if let Ok(content) = std::fs::read_to_string(&err_path) {
-        let tail: Vec<&str> = content.lines().rev().take(8).collect();
+        let tail: Vec<&str> = content.lines().rev().take(25).collect();
         if !tail.is_empty() {
           let mut tail_lines: Vec<&str> = tail.into_iter().collect();
           tail_lines.reverse();

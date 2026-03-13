@@ -1233,8 +1233,14 @@ function App() {
       await invoke('close_notification_window')
       const message = lastHeartbeatMessageRef.current
       if (message) {
+        // Show the notification message as an assistant message in chat
         window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: message }))
         lastHeartbeatMessageRef.current = null
+        // Auto-send "yes" as a user prompt to trigger the AI to take action
+        // (heartbeat messages are phrased as questions like "Want me to help you...?")
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: 'yes' }))
+        }, 500)
       }
     },
     background_insight_notification_handler: async (_meetingId: string | null) => {

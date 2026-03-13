@@ -80,8 +80,8 @@ UNUSED_PACKAGES=(
 
   # ── Channel SDKs for removed extensions ──
   "@larksuiteoapi"            # ~24 MB (Feishu/Lark)
-  "@line"                     # ~3 MB  (LINE)
-  "@buape/carbon"             # ~1 MB
+  # NOTE: @line must NOT be pruned — @line/bot-sdk is statically imported in the dist bundle
+  # NOTE: @buape/carbon must NOT be pruned — statically imported in 10+ dist files (reply, send, channel-activity)
 
   # ── Build tools that shouldn't be in production bundle ──
   "typescript"                # ~23 MB
