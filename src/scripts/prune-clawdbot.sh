@@ -90,7 +90,7 @@ UNUSED_PACKAGES=(
   "@cloudflare"               # ~9 MB  (Workers runtime — not used in desktop)
   "web-streams-polyfill"      # ~9 MB  (not needed on Node 22+)
   "bun-types"                 # ~2 MB  (Bun type defs — not needed at runtime)
-  "@mariozechner/pi-tui"      # ~1 MB  (TUI mode only — desktop doesn't use)
+  # NOTE: @mariozechner/pi-tui must NOT be pruned — pi-coding-agent imports it at startup
   "@homebridge/ciao"          # ~1 MB  (mDNS — not used)
   "@lydell/node-pty"          # ~1 MB  (PTY — Knapsack uses Tauri terminal)
   "@mozilla/readability"      # ~1 MB  (not imported at runtime)
