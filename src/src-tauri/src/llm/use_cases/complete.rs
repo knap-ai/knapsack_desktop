@@ -83,9 +83,16 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     "openrouter" if openrouter_key.is_some() => {
       let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
         .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+      let key = openrouter_key.unwrap();
+      log::debug!(
+        "[resolve_provider] openrouter selected: key_len={} model={} key_starts={} key_ends={}",
+        key.len(), openrouter_model,
+        if key.len() > 4 { &key[..4] } else { &key },
+        if key.len() > 4 { &key[key.len()-4..] } else { &key }
+      );
       return Ok(ResolvedProvider {
         name: "openrouter".into(),
-        api_key: openrouter_key.unwrap(),
+        api_key: key,
         model: openrouter_model,
         base_url: "https://openrouter.ai/api/v1".into(),
         is_anthropic: false,
@@ -147,6 +154,12 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   if let Some(key) = openrouter_key {
     let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
       .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+    log::debug!(
+      "[resolve_provider] openrouter fallback: key_len={} model={} key_starts={} key_ends={}",
+      key.len(), openrouter_model,
+      if key.len() > 4 { &key[..4] } else { &key },
+      if key.len() > 4 { &key[key.len()-4..] } else { &key }
+    );
     return Ok(ResolvedProvider {
       name: "openrouter".into(),
       api_key: key,
@@ -298,9 +311,19 @@ async fn openai_compatible_completion(
   let max_retries = 3;
   let mut last_error = String::new();
 
+  // Debug: log auth details for troubleshooting provider errors
+  let key_len = provider.api_key.len();
+  let has_whitespace = provider.api_key != provider.api_key.trim();
+  let has_non_ascii = provider.api_key.bytes().any(|b| b < 0x20 || b > 0x7e);
+  log::debug!(
+    "[completion] {} request to {} | key_len={} has_whitespace={} has_non_ascii={} model={}",
+    provider.name, url, key_len, has_whitespace, has_non_ascii, provider.model
+  );
+
   for attempt in 0..max_retries {
+    let auth_header = format!("Bearer {}", &provider.api_key);
     let resp = match client.post(&url)
-      .header("Authorization", format!("Bearer {}", &provider.api_key))
+      .header("Authorization", &auth_header)
       .header("Content-Type", "application/json")
       .json(&body)
       .send()
@@ -359,6 +382,17 @@ async fn openai_compatible_completion(
     }
 
     // Non-retryable error or final attempt
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+      let key_preview = if key_len > 8 {
+        format!("{}...{}", &provider.api_key[..4], &provider.api_key[key_len-4..])
+      } else {
+        "(short)".to_string()
+      };
+      log::error!(
+        "[completion] {} 401 Unauthorized — key_len={} key={} has_whitespace={} has_non_ascii={} url={} response={}",
+        provider.name, key_len, key_preview, has_whitespace, has_non_ascii, url, text
+      );
+    }
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
       return Err(LLMError::TooManyRequests(format!("{} rate limited", provider.name)));
     }
@@ -486,7 +520,16 @@ pub async fn multi_provider_completion(
     .unwrap_or_default();
   apply_model_routing(&mut provider, &user_prompt);
 
-  log::info!("[notes] Using {} ({}) for meeting notes completion", provider.name, provider.model);
+  let key_len = provider.api_key.len();
+  let key_preview = if key_len > 8 {
+    format!("{}...{}", &provider.api_key[..4], &provider.api_key[key_len-4..])
+  } else {
+    format!("({}chars)", key_len)
+  };
+  log::info!(
+    "[notes] Using {} ({}) for meeting notes completion [key_len={}, key={}]",
+    provider.name, provider.model, key_len, key_preview
+  );
 
   let result = if provider.is_anthropic {
     anthropic_completion(&provider, &messages).await

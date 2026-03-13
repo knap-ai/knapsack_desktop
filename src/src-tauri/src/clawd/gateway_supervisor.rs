@@ -86,7 +86,9 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
     );
 
     // Try kickstart (macOS)
-    let _ = kickstart_launch_agent(label);
+    if let Err(e) = kickstart_launch_agent(label) {
+      eprintln!("[gateway_supervisor] kickstart failed: {}", e);
+    }
 
     tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
 
