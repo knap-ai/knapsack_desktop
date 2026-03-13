@@ -36,7 +36,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::runtime::Handle;
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{sleep, timeout, Duration, Instant};
 use uuid::Uuid;
 
 use crate::audio::utils::sanitize_filename;
@@ -579,16 +579,24 @@ pub async fn stop_recording(
   };
   let transcript_path = knapsack_data_dir.join(&transcript.filename);
 
-  let _input_permit = recording_state
-    .input_file_semaphore
-    .acquire()
-    .await
-    .unwrap();
-  let _output_permit = recording_state
-    .output_file_semaphore
-    .acquire()
-    .await
-    .unwrap();
+  // Use a timeout so stop_recording doesn't hang indefinitely if background
+  // transcription threads are still holding the semaphore (e.g. due to network
+  // issues or rate-limiting from the transcription API).
+  let semaphore_timeout = Duration::from_secs(30);
+  let _input_permit = match timeout(semaphore_timeout, recording_state.input_file_semaphore.acquire()).await {
+    Ok(Ok(permit)) => Some(permit),
+    _ => {
+      log::warn!("[recording] Timed out waiting for input semaphore — proceeding anyway");
+      None
+    }
+  };
+  let _output_permit = match timeout(semaphore_timeout, recording_state.output_file_semaphore.acquire()).await {
+    Ok(Ok(permit)) => Some(permit),
+    _ => {
+      log::warn!("[recording] Timed out waiting for output semaphore — proceeding anyway");
+      None
+    }
+  };
   match unify_transcript(
     input_path.to_str().unwrap(),
     output_path.to_str().unwrap(),
@@ -1163,7 +1171,15 @@ async fn stream_audio(
   let chunk_filename = format!("{}_{}.flac", input_filename_clone, chunk_counter);
   let transcript_filename = format!("{}.txt", input_filename_clone);
   let semaphore = recording_state.input_file_semaphore.clone();
-  let permit = semaphore.acquire().await;
+  // Use a timeout so the mic thread doesn't block indefinitely waiting for
+  // a previous chunk's transcription to finish.
+  let permit = match timeout(Duration::from_secs(30), semaphore.acquire()).await {
+    Ok(Ok(p)) => Some(p),
+    _ => {
+      log::warn!("[recording] Timed out waiting for input semaphore in stream_audio exit — saving chunk without permit");
+      None
+    }
+  };
   save_chunk(samples, chunk_filename.clone(), channel, sample_rate);
   finalize_chunk(chunk_filename, transcript_filename).await;
   drop(permit);

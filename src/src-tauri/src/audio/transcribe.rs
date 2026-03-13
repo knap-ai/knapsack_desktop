@@ -81,12 +81,15 @@ struct TranscriptionResponse {
 }
 
 /// Send audio to an OpenAI-compatible Whisper transcription endpoint.
+/// Retries up to 3 times on 429 (rate-limit) errors with exponential backoff.
 async fn speech_to_text(
   provider: &SttProvider,
   audio_file: &PathBuf,
   language: Option<&str>,
   temperature: Option<f32>,
 ) -> Result<String, Error> {
+  use std::time::Duration;
+
   if !audio_file.exists() {
     return Err(LLMError::ChatCompletionFailed("Audio file does not exist".to_string()).into());
   }
@@ -97,61 +100,91 @@ async fn speech_to_text(
   let file_name = audio_file
     .file_name()
     .and_then(|n| n.to_str())
-    .unwrap_or("audio.flac");
+    .unwrap_or("audio.flac")
+    .to_string();
 
-  let file_part = Part::bytes(file_bytes)
-    .file_name(file_name.to_string())
-    .mime_str("audio/flac")?;
-
-  let mut form = Form::new()
-    .part("file", file_part)
-    .text("model", provider.model.to_string())
-    .text("response_format", "verbose_json");
-
-  if let Some(lang) = language {
-    form = form.text("language", lang.to_string());
-  }
-  if let Some(temp) = temperature {
-    form = form.text("temperature", temp.to_string());
-  }
-
-  let client = reqwest::Client::new();
-  let response = client
-    .post(provider.base_url)
-    .header("Authorization", format!("Bearer {}", provider.api_key))
-    .multipart(form)
-    .send()
-    .await
+  let client = reqwest::Client::builder()
+    .timeout(Duration::from_secs(120))
+    .build()
     .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
 
-  if !response.status().is_success() {
-    return Err(
-      LLMError::ChatCompletionFailed(format!(
-        "{} transcription failed with status: {}",
+  let max_retries = 3u32;
+  let mut last_status = None;
+
+  for attempt in 0..=max_retries {
+    let file_part = Part::bytes(file_bytes.clone())
+      .file_name(file_name.clone())
+      .mime_str("audio/flac")?;
+
+    let mut form = Form::new()
+      .part("file", file_part)
+      .text("model", provider.model.to_string())
+      .text("response_format", "verbose_json");
+
+    if let Some(lang) = language {
+      form = form.text("language", lang.to_string());
+    }
+    if let Some(temp) = temperature {
+      form = form.text("temperature", temp.to_string());
+    }
+
+    let response = client
+      .post(provider.base_url)
+      .header("Authorization", format!("Bearer {}", provider.api_key))
+      .multipart(form)
+      .send()
+      .await
+      .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
+
+    let status = response.status();
+
+    if status.is_success() {
+      let transcription: TranscriptionResponse = response
+        .json()
+        .await
+        .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
+
+      let joined_segments = transcription
+        .segments
+        .iter()
+        .map(|segment| {
+          format!(
+            "[{:.2} - {:.2}]: {}",
+            segment.start, segment.end, segment.text
+          )
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+      return Ok(joined_segments);
+    }
+
+    last_status = Some(status);
+
+    // Retry on 429 (rate limit) with exponential backoff
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS && attempt < max_retries {
+      let backoff = Duration::from_secs(2u64.pow(attempt + 1)); // 2s, 4s, 8s
+      log::warn!(
+        "[transcribe] {} returned 429, retrying in {:?} (attempt {}/{})",
         provider.name,
-        response.status()
-      ))
-      .into(),
-    );
+        backoff,
+        attempt + 1,
+        max_retries
+      );
+      tokio::time::sleep(backoff).await;
+      continue;
+    }
+
+    break;
   }
 
-  let transcription: TranscriptionResponse = response
-    .json()
-    .await
-    .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
-
-  let joined_segments = transcription
-    .segments
-    .iter()
-    .map(|segment| {
-      format!(
-        "[{:.2} - {:.2}]: {}",
-        segment.start, segment.end, segment.text
-      )
-    })
-    .collect::<Vec<String>>()
-    .join("\n");
-  Ok(joined_segments)
+  Err(
+    LLMError::ChatCompletionFailed(format!(
+      "{} transcription failed with status: {}",
+      provider.name,
+      last_status.map(|s| s.to_string()).unwrap_or_else(|| "unknown".to_string())
+    ))
+    .into(),
+  )
 }
 
 pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
