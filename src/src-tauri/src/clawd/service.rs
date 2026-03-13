@@ -602,16 +602,37 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // Use a 5-second timeout to avoid blocking the health endpoint when the
     // browser RPC is slow (the default pooled request timeout is 30s).
     let browser_ok = if gateway_ok {
-      match tokio::time::timeout(
+      // Try with "knapsack" profile first, then without profile as fallback.
+      // The gateway may have started the browser under a different profile name
+      // (e.g. during dev mode or after config migration).
+      let check = tokio::time::timeout(
         std::time::Duration::from_secs(5),
         gateway_client::browser_request(
           "GET", "/tabs", Some(serde_json::json!({"profile": "knapsack"})), None, None,
         ),
-      ).await {
+      ).await;
+      match check {
         Ok(Ok(_)) => true,
         Ok(Err(e)) => {
-          eprintln!("[clawd/service] browser health check failed: {}", e);
-          false
+          eprintln!("[clawd/service] browser health check failed (profile=knapsack): {}", e);
+          // Fallback: try without profile restriction
+          match tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            gateway_client::browser_request("GET", "/tabs", None, None, None),
+          ).await {
+            Ok(Ok(_)) => {
+              eprintln!("[clawd/service] browser health check succeeded without profile filter");
+              true
+            }
+            Ok(Err(e2)) => {
+              eprintln!("[clawd/service] browser health check failed (no profile): {}", e2);
+              false
+            }
+            Err(_) => {
+              eprintln!("[clawd/service] browser health check timed out (no profile, 3s)");
+              false
+            }
+          }
         }
         Err(_) => {
           eprintln!("[clawd/service] browser health check timed out (5s)");
