@@ -17493,7 +17493,8 @@ function attachGatewayWsMessageHandler(params) {
 				connectParams.scopes = scopes;
 				const isControlUi = connectParams.client.id === GATEWAY_CLIENT_IDS.CONTROL_UI;
 				const isWebchat = isWebchatConnect(connectParams);
-				if (isControlUi || isWebchat) {
+				const hasBrowserOriginHeader = Boolean(requestOrigin);
+				if (isControlUi || isWebchat || hasBrowserOriginHeader) {
 					const originCheck = checkBrowserOrigin({
 						requestHost,
 						origin: requestOrigin,
