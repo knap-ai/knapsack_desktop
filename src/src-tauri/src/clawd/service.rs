@@ -581,6 +581,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       if !was_healthy {
         eprintln!("[clawd/service] gateway recovered — resetting browser nudge flag");
         BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+        // Kill stale managed Chrome processes from the previous gateway
+        // session.  They may still hold the CDP port (18800), preventing
+        // the new gateway from launching its own browser.
+        #[cfg(target_os = "macos")]
+        kill_stale_clawdbot_chromes();
         // Invalidate the pooled WebSocket connection — the old one is dead.
         gateway_client::invalidate();
       }
@@ -597,6 +602,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let token = tokens.gateway_token.clone();
       eprintln!("[clawd/service] gateway not reachable — attempting background restart");
       tokio::spawn(async move {
+        // Kill stale managed Chrome processes before restarting the gateway.
+        // When the gateway exits, its Chrome child survives and holds the
+        // CDP port (18800).  Without cleanup the new gateway can't launch
+        // its own browser and browser control stays permanently down.
+        #[cfg(target_os = "macos")]
+        kill_stale_clawdbot_chromes();
+
         use crate::clawd::gateway_supervisor;
         let result = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, &token).await;
         eprintln!("[clawd/service] gateway restart attempt: {} ({})", result.message,
