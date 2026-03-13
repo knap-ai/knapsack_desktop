@@ -80,6 +80,21 @@ echo "[sign] Found app bundle: $APP_PATH"
 CONTENTS="$APP_PATH/Contents"
 
 # ---------------------------------------------------------------------------
+# Verify the .app version matches package.json (catch stale builds)
+# ---------------------------------------------------------------------------
+EXPECTED_VERSION=$(node -p "require('$PROJECT_DIR/package.json').version")
+APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$CONTENTS/Info.plist" 2>/dev/null || echo "unknown")
+
+if [ "$APP_VERSION" != "$EXPECTED_VERSION" ]; then
+  echo "ERROR: App version mismatch — signing a stale build!" >&2
+  echo "       package.json version: $EXPECTED_VERSION" >&2
+  echo "       .app bundle version:  $APP_VERSION" >&2
+  echo "       Run 'npm run tauri build' to rebuild with the current version." >&2
+  exit 1
+fi
+echo "[sign] Version verified: $APP_VERSION"
+
+# ---------------------------------------------------------------------------
 # Verify entitlements files exist
 # ---------------------------------------------------------------------------
 for f in "$APP_ENTITLEMENTS" "$NODE_ENTITLEMENTS"; do
