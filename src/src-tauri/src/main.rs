@@ -456,6 +456,123 @@ fn activate_main_window_from_notification(window: tauri::Window) {
   }
 }
 
+/// Send a notification message into the meeting chat via macOS Accessibility
+/// API / keyboard simulation. Copies the message to the clipboard, activates
+/// the meeting window, opens chat via platform-specific keyboard shortcut,
+/// pastes, and sends. Falls back to clipboard-only on non-macOS.
+#[tauri::command]
+async fn send_meeting_chat_message(
+  platform: String,
+  message: String,
+) -> Result<bool, String> {
+  #[cfg(target_os = "macos")]
+  {
+    use std::process::Command;
+
+    // 1. Copy message to clipboard via pbcopy
+    let mut pbcopy = Command::new("pbcopy")
+      .stdin(std::process::Stdio::piped())
+      .spawn()
+      .map_err(|e| format!("Failed to start pbcopy: {}", e))?;
+    if let Some(ref mut stdin) = pbcopy.stdin {
+      use std::io::Write;
+      stdin.write_all(message.as_bytes())
+        .map_err(|e| format!("Failed to write to pbcopy: {}", e))?;
+    }
+    pbcopy.wait().map_err(|e| format!("pbcopy failed: {}", e))?;
+
+    // 2. Build the AppleScript to open chat, paste, and send.
+    //    Each platform has a different keyboard shortcut to toggle chat.
+    let (open_chat_keys, close_chat_keys, target_app) = match platform.as_str() {
+      "zoom" => {
+        // Zoom: Cmd+Shift+H toggles chat panel
+        ("key code 4 using {command down, shift down}",   // H
+         "key code 4 using {command down, shift down}",   // toggle off
+         r#"tell application "System Events" to set targetApp to name of first application process whose name contains "zoom""#)
+      }
+      "teams" => {
+        // Teams: Cmd+Shift+M toggles chat (newer) or Cmd+2
+        ("key code 46 using {command down, shift down}",  // M
+         "key code 46 using {command down, shift down}",  // toggle off
+         r#"tell application "System Events" to set targetApp to name of first application process whose name contains "Teams""#)
+      }
+      _ => {
+        // Google Meet in browser: Cmd+Shift+C toggles chat
+        // We target the frontmost browser
+        ("key code 8 using {command down, shift down}",   // C
+         "key code 8 using {command down, shift down}",   // toggle off
+         r#"tell application "System Events" to set targetApp to name of first application process whose frontmost is true"#)
+      }
+    };
+
+    let script = format!(
+      r#"
+      {target_app}
+      tell application targetApp to activate
+      delay 0.5
+      tell application "System Events"
+        tell process targetApp
+          -- Open chat panel
+          {open_chat}
+          delay 0.8
+          -- Paste from clipboard
+          keystroke "v" using command down
+          delay 0.3
+          -- Press Enter to send
+          key code 36
+          delay 0.3
+          -- Close chat panel
+          {close_chat}
+        end tell
+      end tell
+      "#,
+      target_app = target_app,
+      open_chat = open_chat_keys,
+      close_chat = close_chat_keys,
+    );
+
+    let output = Command::new("osascript")
+      .arg("-e")
+      .arg(&script)
+      .output()
+      .map_err(|e| format!("Failed to run AppleScript: {}", e))?;
+
+    if !output.status.success() {
+      let stderr = String::from_utf8_lossy(&output.stderr);
+      log::warn!("Meeting chat AppleScript failed: {}. Message is still on clipboard.", stderr);
+      // Return false to indicate auto-paste failed (message is on clipboard as fallback)
+      return Ok(false);
+    }
+
+    Ok(true)
+  }
+
+  #[cfg(not(target_os = "macos"))]
+  {
+    // On non-macOS, just copy to clipboard and let the user paste manually
+    // Use arboard or fall back to platform clipboard commands
+    let _ = platform;
+    let mut child = std::process::Command::new("xclip")
+      .args(&["-selection", "clipboard"])
+      .stdin(std::process::Stdio::piped())
+      .spawn()
+      .or_else(|_| {
+        std::process::Command::new("xsel")
+          .args(&["--clipboard", "--input"])
+          .stdin(std::process::Stdio::piped())
+          .spawn()
+      })
+      .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
+    if let Some(ref mut stdin) = child.stdin {
+      use std::io::Write;
+      stdin.write_all(message.as_bytes())
+        .map_err(|e| format!("Failed to write to clipboard: {}", e))?;
+    }
+    child.wait().map_err(|e| format!("Clipboard command failed: {}", e))?;
+    Ok(false) // auto-paste not supported, message is on clipboard
+  }
+}
+
 /// Position the frontmost browser window to fill the screen space to the left
 /// of the main Knapsack window. macOS only (uses AppleScript).
 #[tauri::command]
@@ -1091,6 +1208,7 @@ async fn main() {
       activate_main_window,
       activate_main_window_from_notification,
       position_browser_beside_app,
+      send_meeting_chat_message,
       emit_event,
       open_screen_recording_settings,
       open_microphone_settings,
