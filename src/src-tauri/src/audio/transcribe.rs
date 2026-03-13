@@ -20,7 +20,9 @@ struct SttProvider {
 
 /// Resolve the best available speech-to-text provider.
 /// Respects the user's active provider when it supports STT, then falls back
-/// through OpenAI → Groq (the two providers with OpenAI-compatible Whisper APIs).
+/// through Groq → OpenAI (the two providers with OpenAI-compatible Whisper APIs).
+/// Groq is preferred in the fallback because its Whisper API is free and fast,
+/// while OpenAI's is paid and subject to tighter rate limits.
 fn resolve_stt_provider() -> Result<SttProvider, LLMError> {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
@@ -40,25 +42,25 @@ fn resolve_stt_provider() -> Result<SttProvider, LLMError> {
       base_url: "https://api.groq.com/openai/v1/audio/transcriptions",
       model: "whisper-large-v3-turbo",
     }),
-    // Anthropic & Gemini don't offer STT — fall through to any available STT provider
+    // Anthropic, Gemini, OpenRouter, etc. don't offer STT — fall through
     _ => {}
   }
 
-  // Fallback: try any STT-capable provider
-  if let Some(key) = openai_key {
-    return Ok(SttProvider {
-      name: "openai",
-      api_key: key,
-      base_url: "https://api.openai.com/v1/audio/transcriptions",
-      model: "whisper-1",
-    });
-  }
+  // Fallback: prefer Groq (free, fast Whisper API) over OpenAI (paid, rate-limited)
   if let Some(key) = groq_key {
     return Ok(SttProvider {
       name: "groq",
       api_key: key,
       base_url: "https://api.groq.com/openai/v1/audio/transcriptions",
       model: "whisper-large-v3-turbo",
+    });
+  }
+  if let Some(key) = openai_key {
+    return Ok(SttProvider {
+      name: "openai",
+      api_key: key,
+      base_url: "https://api.openai.com/v1/audio/transcriptions",
+      model: "whisper-1",
     });
   }
 
