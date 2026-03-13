@@ -1069,7 +1069,7 @@ function App() {
       openNotificationWindow(
         'heartbeat-' + Date.now(),
         [
-          { buttonText: 'Open Knapsack', buttonHandler: 'dismiss_notification_handler' },
+          { buttonText: 'View', buttonHandler: 'dismiss_notification_handler' },
           { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
         ],
         'Knapsack',
