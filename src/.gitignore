@@ -26,11 +26,13 @@ src-tauri/resources/clawdbot/node_modules/@larksuiteoapi/
 src-tauri/resources/clawdbot/node_modules/sharp/
 # @buape/carbon is statically imported in 10+ dist files — must NOT be gitignored
 # src-tauri/resources/clawdbot/node_modules/@buape/
-src-tauri/resources/clawdbot/node_modules/@homebridge/
+# @homebridge/ciao is required by bonjour discovery at gateway startup
+# src-tauri/resources/clawdbot/node_modules/@homebridge/
 src-tauri/resources/clawdbot/node_modules/@lydell/
 src-tauri/resources/clawdbot/node_modules/@mozilla/
 src-tauri/resources/clawdbot/node_modules/linkedom/
-src-tauri/resources/clawdbot/node_modules/long/
+# long is required by @whiskeysockets/baileys (WhatsApp) — all channel plugins fail without it
+# src-tauri/resources/clawdbot/node_modules/long/
 # proper-lockfile is required by @mariozechner/pi-coding-agent at runtime
 # src-tauri/resources/clawdbot/node_modules/proper-lockfile/
 src-tauri/resources/clawdbot/node_modules/signal-utils/
