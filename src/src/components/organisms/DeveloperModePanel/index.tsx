@@ -18,11 +18,21 @@ interface SentryEmail {
   parsed: boolean
 }
 
+interface SuggestedAction {
+  id: string
+  title: string
+  description: string
+  severity: 'critical' | 'high' | 'medium'
+  sourceEntry: ErrorLogEntry | SentryEmail
+  sourceType: 'sentry' | 'log'
+}
+
 interface DevScanResult {
   id: string
   timestamp: number
   sentryIssues: SentryEmail[]
   errorLogEntries: ErrorLogEntry[]
+  suggestedActions: SuggestedAction[]
   status: 'scanning' | 'done' | 'error'
   summary?: string
 }
@@ -51,6 +61,11 @@ const SENTRY_SEARCH_QUERIES = [
 
 /** Log line pattern: "2024-01-15 10:30:45 [ERROR] module - message" */
 const LOG_LINE_PATTERN = /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(\S+)\s+-\s+(.*)$/
+
+/** Patterns that indicate an error line in unstructured logs (e.g. clawdbot stderr) */
+const RAW_ERROR_PATTERNS = /\b(error|err!|panic|fatal|failed|exception|traceback|segfault|SIGSEGV|SIGABRT|thread.*panicked|unhandled|refused|ECONNREFUSED|ENOENT|EPERM|EACCES|OOM|killed|abort|crash)\b/i
+/** Lines to skip even if they match error patterns */
+const RAW_ERROR_EXCLUDE = /\b(0 errors?|no errors?|error\.ts|errorHandling|error_handler|error\.rs|error\.go|loglevel|RUST_LOG|if err)\b/i
 
 function parseSentryEmail(email: any): SentryEmail {
   const subject = email.subject || email.title || ''
@@ -109,6 +124,50 @@ function parseLogLine(line: string): ErrorLogEntry | null {
   }
 }
 
+/** Parse raw/unstructured log lines (e.g. from clawdbot stderr) by matching error patterns */
+function parseRawLogLines(lines: string[], sourceName: string): ErrorLogEntry[] {
+  const entries: ErrorLogEntry[] = []
+  let currentEntry: ErrorLogEntry | null = null
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    if (RAW_ERROR_PATTERNS.test(trimmed) && !RAW_ERROR_EXCLUDE.test(trimmed)) {
+      // This is a new error line
+      if (currentEntry) entries.push(currentEntry)
+
+      // Try to extract a timestamp if one exists at the start
+      const tsMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}[^\s]*)[\s:]+(.*)/)
+      const isoMatch = trimmed.match(/^(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(.*)/)
+
+      let timestamp = ''
+      let message = trimmed
+      if (tsMatch) {
+        timestamp = tsMatch[1]
+        message = tsMatch[2]
+      } else if (isoMatch) {
+        timestamp = isoMatch[1]
+        message = isoMatch[2]
+      }
+
+      currentEntry = {
+        source: sourceName,
+        level: /\b(panic|fatal|SIGSEGV|SIGABRT|killed|crash|abort)\b/i.test(trimmed) ? 'fatal' : 'error',
+        message,
+        timestamp,
+        raw: trimmed,
+      }
+    } else if (currentEntry) {
+      // Continuation / stack trace line
+      currentEntry.stackTrace = (currentEntry.stackTrace || '') + '\n' + trimmed
+    }
+  }
+  if (currentEntry) entries.push(currentEntry)
+
+  return entries
+}
+
 /** Group consecutive log lines that look like a stack trace into the preceding error */
 function parseLogLines(lines: string[]): ErrorLogEntry[] {
   const entries: ErrorLogEntry[] = []
@@ -136,6 +195,52 @@ function formatRelativeTime(ts: number): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
   return `${Math.floor(diff / 86400)}d ago`
+}
+
+/** Generate actionable suggestions from scan results, prioritized by severity */
+function generateSuggestedActions(sentryIssues: SentryEmail[], logEntries: ErrorLogEntry[]): SuggestedAction[] {
+  const actions: SuggestedAction[] = []
+
+  // Sentry issues are high priority — they represent production errors
+  for (const issue of sentryIssues) {
+    const severity = /\b(panic|fatal|SIGSEG|crash|OOM)\b/i.test(issue.body + issue.subject) ? 'critical' as const : 'high' as const
+    actions.push({
+      id: `sentry-${issue.id}`,
+      title: issue.issueTitle || issue.subject,
+      description: `${issue.projectName ? `[${issue.projectName}] ` : ''}${issue.errorType || 'Error'}: ${issue.snippet.slice(0, 120)}`,
+      severity,
+      sourceEntry: issue,
+      sourceType: 'sentry',
+    })
+  }
+
+  // Deduplicate log entries by message prefix to avoid flooding with repeated errors
+  const seenMessages = new Set<string>()
+  for (const entry of logEntries) {
+    const msgKey = entry.message.slice(0, 80)
+    if (seenMessages.has(msgKey)) continue
+    seenMessages.add(msgKey)
+
+    const severity = entry.level === 'fatal' ? 'critical' as const
+      : /\b(panic|SIGSEG|crash|OOM|killed|abort)\b/i.test(entry.message) ? 'critical' as const
+      : /\b(refused|ECONNREFUSED|timeout|deadlock)\b/i.test(entry.message) ? 'high' as const
+      : 'medium' as const
+
+    actions.push({
+      id: `log-${entry.source}-${entry.timestamp}-${actions.length}`,
+      title: entry.message.slice(0, 100),
+      description: `[${entry.source}] ${entry.level.toUpperCase()} at ${entry.timestamp || 'unknown time'}`,
+      severity,
+      sourceEntry: entry,
+      sourceType: 'log',
+    })
+  }
+
+  // Sort: critical first, then high, then medium
+  const severityOrder = { critical: 0, high: 1, medium: 2 }
+  actions.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+
+  return actions
 }
 
 const DEFAULT_REPO = 'knap-ai/knapsack_desktop'
@@ -381,6 +486,61 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
       sources['terminal'] = -1
     }
 
+    // 9. Clawdbot gateway stderr — /tmp/knapsack-clawdbot.err.log (the main gateway process log)
+    try {
+      const errLines: string[] = await invoke('kn_read_logs', { logType: 'clawdbot_err', maxLines: 200 })
+      const parsed = parseRawLogLines(errLines, 'clawdbot:stderr')
+      sources['clawdbot-stderr'] = parsed.length
+      for (const entry of parsed) {
+        allEntries.push(entry)
+      }
+    } catch {
+      // Also try the HTTP API fallback (works when gateway is running)
+      try {
+        const resp = await fetch(`${API_BASE}/api/clawd/service/logs?stream=stderr&lines=200`)
+        if (resp.ok) {
+          const data = await resp.json()
+          if (data.success && data.text) {
+            const lines = data.text.split('\n')
+            const parsed = parseRawLogLines(lines, 'clawdbot:stderr')
+            sources['clawdbot-stderr'] = parsed.length
+            for (const entry of parsed) {
+              allEntries.push(entry)
+            }
+          }
+        }
+      } catch {
+        sources['clawdbot-stderr'] = -1
+      }
+    }
+
+    // 10. Clawdbot gateway stdout — /tmp/knapsack-clawdbot.out.log
+    try {
+      const outLines: string[] = await invoke('kn_read_logs', { logType: 'clawdbot_out', maxLines: 100 })
+      const parsed = parseRawLogLines(outLines, 'clawdbot:stdout')
+      sources['clawdbot-stdout'] = parsed.length
+      for (const entry of parsed) {
+        allEntries.push(entry)
+      }
+    } catch {
+      try {
+        const resp = await fetch(`${API_BASE}/api/clawd/service/logs?stream=stdout&lines=100`)
+        if (resp.ok) {
+          const data = await resp.json()
+          if (data.success && data.text) {
+            const lines = data.text.split('\n')
+            const parsed = parseRawLogLines(lines, 'clawdbot:stdout')
+            sources['clawdbot-stdout'] = parsed.length
+            for (const entry of parsed) {
+              allEntries.push(entry)
+            }
+          }
+        }
+      } catch {
+        sources['clawdbot-stdout'] = -1
+      }
+    }
+
     setLogSources(sources)
 
     // Sort by timestamp (most recent first) and deduplicate by message
@@ -411,6 +571,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
       timestamp: Date.now(),
       sentryIssues: [],
       errorLogEntries: [],
+      suggestedActions: [],
       status: 'scanning',
     }
 
@@ -422,10 +583,16 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
         fetchAllErrorLogs(),
       ])
 
+      const suggested = generateSuggestedActions(sentryEmails, errorLogs)
       result.sentryIssues = sentryEmails
       result.errorLogEntries = errorLogs
+      result.suggestedActions = suggested
       result.status = 'done'
-      result.summary = `Found ${sentryEmails.length} Sentry issue${sentryEmails.length !== 1 ? 's' : ''} in email, ${errorLogs.length} error${errorLogs.length !== 1 ? 's' : ''} in local logs`
+      const criticalCount = suggested.filter(a => a.severity === 'critical').length
+      const highCount = suggested.filter(a => a.severity === 'high').length
+      result.summary = criticalCount > 0
+        ? `Found ${suggested.length} actionable issue${suggested.length !== 1 ? 's' : ''} (${criticalCount} critical, ${highCount} high) — ${errorLogs.length} errors across all logs`
+        : `Found ${sentryEmails.length} Sentry issue${sentryEmails.length !== 1 ? 's' : ''}, ${errorLogs.length} error${errorLogs.length !== 1 ? 's' : ''} in logs — ${suggested.length} actionable`
 
       setScanResults(prev =>
         prev.map(r => (r.id === scanId ? { ...result } : r)),
@@ -597,6 +764,17 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
     [onInitiateSession, activeRepo],
   )
 
+  const handleInitiateFromAction = useCallback(
+    (action: SuggestedAction) => {
+      if (action.sourceType === 'sentry') {
+        handleInitiateSession(action.sourceEntry as SentryEmail)
+      } else {
+        handleInitiateFromLog(action.sourceEntry as ErrorLogEntry)
+      }
+    },
+    [handleInitiateSession, handleInitiateFromLog],
+  )
+
   const latestScan = scanResults[0]
 
   return (
@@ -610,7 +788,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
       </div>
 
       <div className="DevModePanel__description">
-        Scans all error sources — Sentry emails, backend logs (ks.log, ks_error.log), browser console, frontend exceptions, heartbeat errors, OpenClaw agent errors, and terminal output — to find bugs and initiate Claude Code sessions with PRs.
+        Self-improving mode: scans all error sources — Sentry emails, backend logs (ks.log, ks_error.log), clawdbot gateway logs (/tmp/knapsack-clawdbot.err.log), browser console, frontend exceptions, heartbeat errors, OpenClaw agent errors, and terminal output — then suggests PRs and fixes. Enable auto-scan for continuous self-improvement.
       </div>
 
       {/* GitHub repository targeting */}
@@ -752,6 +930,37 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
         <div className="DevModePanel__results">
           {latestScan.summary && (
             <div className="DevModePanel__summary">{latestScan.summary}</div>
+          )}
+
+          {/* Suggested actions — shown first, most actionable */}
+          {latestScan.suggestedActions.length > 0 && (
+            <div className="DevModePanel__section">
+              <div className="DevModePanel__sectionTitle">
+                Suggested Actions ({latestScan.suggestedActions.length})
+              </div>
+              {latestScan.suggestedActions.slice(0, 20).map(action => (
+                <div key={action.id} className={`DevModePanel__suggestion DevModePanel__suggestion--${action.severity}`}>
+                  <div className="DevModePanel__suggestionHeader">
+                    <span className={`DevModePanel__severityBadge DevModePanel__severityBadge--${action.severity}`}>
+                      {action.severity.toUpperCase()}
+                    </span>
+                    <span className="DevModePanel__suggestionTitle">{action.title}</span>
+                  </div>
+                  <div className="DevModePanel__suggestionDesc">{action.description}</div>
+                  <button
+                    className="DevModePanel__fixBtn"
+                    onClick={() => handleInitiateFromAction(action)}
+                  >
+                    Investigate & Create PR
+                  </button>
+                </div>
+              ))}
+              {latestScan.suggestedActions.length > 20 && (
+                <div className="DevModePanel__moreIndicator">
+                  ...and {latestScan.suggestedActions.length - 20} more suggestions
+                </div>
+              )}
+            </div>
           )}
 
           {/* Sentry issues from email */}
