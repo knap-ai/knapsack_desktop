@@ -929,71 +929,134 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
     if (!socialScan.enabled || !socialScan.meetings) return
 
     try {
-      // Fetch recent threads of type MEETING_NOTES
-      const resp = await fetch(`${KN_API_THREADS}?limit=20`)
-      if (!resp.ok) return
-      const data = await resp.json()
-      if (!data?.success) return
-
-      const threads = (data.data || data.threads || []).filter(
-        (t: any) => t.thread_type === 'MEETING_NOTES' || t.threadType === 'MEETING_NOTES',
-      )
-
-      // Only look at meetings from the last 7 days
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-      const recentThreads = threads.filter((t: any) => {
-        const ts = t.timestamp || t.date || t.created_at
-        return ts ? new Date(typeof ts === 'number' ? ts * 1000 : ts).getTime() > sevenDaysAgo : true
-      }).slice(0, 10)
-
       const insights: MeetingNoteInsight[] = []
 
-      for (const thread of recentThreads) {
+      // Primary: use /api/knapsack/notes/list which returns all notes with content + metadata
+      const notesResp = await fetch(`${API_BASE}/api/knapsack/notes/list`)
+      if (notesResp.ok) {
+        const notesData = await notesResp.json()
+        if (notesData?.success && notesData?.data?.notes) {
+          // Filter to recent notes (last 7 days)
+          const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+          const recentNotes = notesData.data.notes.filter((note: any) => {
+            const startTime = note.start_time
+            if (!startTime) return true
+            const ts = typeof startTime === 'number' ? startTime * 1000 : new Date(startTime).getTime()
+            return ts > sevenDaysAgo
+          }).slice(0, 15)
+
+          for (const note of recentNotes) {
+            const content = note.content || ''
+            if (!content.trim()) continue
+
+            const title = note.filename || `Meeting ${note.thread_id}`
+            const participants = note.participants || ''
+
+            // Extract action items, feature ideas, and bug mentions
+            const actionItems: string[] = []
+            const featureIdeas: string[] = []
+            const bugsMentioned: string[] = []
+
+            const lines = content.split('\n')
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (!trimmed || trimmed.length < 5) continue
+
+              // Action items: "TODO", "action item", "we need to", "let's", "should"
+              if (/\b(TODO|action item|we need to|let's|we should|follow up|next step|assigned to|take away|owner:)\b/i.test(trimmed)) {
+                actionItems.push(trimmed.slice(0, 200))
+              }
+              // Feature ideas: "feature", "it would be nice", "we could add", "idea"
+              if (/\b(feature|it would be (nice|great|cool)|we could add|idea|how about|what if we|wouldn't it be|enhancement|improvement|roadmap|backlog)\b/i.test(trimmed)) {
+                featureIdeas.push(trimmed.slice(0, 200))
+              }
+              // Bug mentions: "bug", "broken", "not working", "error", "fix"
+              if (/\b(bug|broken|not working|keeps crashing|error|issue with|needs? fix|regression|fails|failing)\b/i.test(trimmed) &&
+                  !/\b(no bugs?|0 errors?|bug free|fixed)\b/i.test(trimmed)) {
+                bugsMentioned.push(trimmed.slice(0, 200))
+              }
+            }
+
+            // Also check for markdown "## Action Items" sections
+            const actionSection = content.match(/##\s*Action Items?\s*\n([\s\S]*?)(?=\n##|\n$|$)/i)
+            if (actionSection) {
+              const items = actionSection[1].split('\n').filter((l: string) => l.trim().startsWith('-') || l.trim().startsWith('*'))
+              for (const item of items) {
+                const cleaned = item.replace(/^[\s*-]+/, '').trim()
+                if (cleaned && !actionItems.includes(cleaned)) {
+                  actionItems.push(cleaned.slice(0, 200))
+                }
+              }
+            }
+
+            if (actionItems.length > 0 || featureIdeas.length > 0 || bugsMentioned.length > 0) {
+              insights.push({
+                id: `meeting-${note.thread_id}`,
+                meetingTitle: title + (participants ? ` (${participants})` : ''),
+                threadId: note.thread_id,
+                timestamp: note.start_time || note.end_time || '',
+                actionItems: [...new Set(actionItems)].slice(0, 10),
+                featureIdeas: [...new Set(featureIdeas)].slice(0, 10),
+                bugsMentioned: [...new Set(bugsMentioned)].slice(0, 10),
+                raw: content.slice(0, 2000),
+              })
+            }
+          }
+        }
+      }
+
+      // Fallback: also check transcripts via threads API for meetings without synthesized notes
+      if (insights.length === 0) {
         try {
-          const tResp = await fetch(`${KN_API_TRANSCRIPT}/${thread.id}`)
-          if (!tResp.ok) continue
-          const tData = await tResp.json()
-          if (!tData?.success || !tData?.data?.content) continue
+          const resp = await fetch(`${KN_API_THREADS}?limit=10`)
+          if (resp.ok) {
+            const data = await resp.json()
+            const threads = (data.data || data.threads || []).filter(
+              (t: any) => t.thread_type === 'MEETING_NOTES' || t.threadType === 'MEETING_NOTES',
+            ).slice(0, 5)
 
-          const content = tData.data.content
-          const title = thread.title || thread.subtitle || `Meeting ${thread.id}`
+            for (const thread of threads) {
+              try {
+                const tResp = await fetch(`${KN_API_TRANSCRIPT}/${thread.id}`)
+                if (!tResp.ok) continue
+                const tData = await tResp.json()
+                if (!tData?.success || !tData?.data?.content) continue
 
-          // Extract action items, feature ideas, and bug mentions from transcript
-          const actionItems: string[] = []
-          const featureIdeas: string[] = []
-          const bugsMentioned: string[] = []
+                const content = tData.data.content
+                const title = thread.title || thread.subtitle || `Meeting ${thread.id}`
+                const actionItems: string[] = []
+                const featureIdeas: string[] = []
+                const bugsMentioned: string[] = []
 
-          const lines = content.split('\n')
-          for (const line of lines) {
-            const trimmed = line.trim()
-            // Action items: "TODO", "action item", "we need to", "let's", "should"
-            if (/\b(TODO|action item|we need to|let's|we should|follow up|next step|assigned to)\b/i.test(trimmed)) {
-              actionItems.push(trimmed.slice(0, 200))
-            }
-            // Feature ideas: "feature", "it would be nice", "we could add", "idea"
-            if (/\b(feature|it would be (nice|great|cool)|we could add|idea|how about|what if we|wouldn't it be|enhancement|improvement)\b/i.test(trimmed)) {
-              featureIdeas.push(trimmed.slice(0, 200))
-            }
-            // Bug mentions: "bug", "broken", "not working", "error", "fix"
-            if (/\b(bug|broken|not working|keeps crashing|error|issue with|fix|regression|fails|failing)\b/i.test(trimmed) &&
-                !/\b(no bugs?|0 errors?|bug free)\b/i.test(trimmed)) {
-              bugsMentioned.push(trimmed.slice(0, 200))
+                for (const line of content.split('\n')) {
+                  const trimmed = line.trim()
+                  if (/\b(TODO|action item|we need to|let's|we should|follow up|next step)\b/i.test(trimmed)) {
+                    actionItems.push(trimmed.slice(0, 200))
+                  }
+                  if (/\b(feature|we could add|idea|how about|what if we|enhancement)\b/i.test(trimmed)) {
+                    featureIdeas.push(trimmed.slice(0, 200))
+                  }
+                  if (/\b(bug|broken|not working|crash|error|regression)\b/i.test(trimmed) && !/\b(no bugs?|fixed)\b/i.test(trimmed)) {
+                    bugsMentioned.push(trimmed.slice(0, 200))
+                  }
+                }
+
+                if (actionItems.length > 0 || featureIdeas.length > 0 || bugsMentioned.length > 0) {
+                  insights.push({
+                    id: `meeting-${thread.id}`,
+                    meetingTitle: title,
+                    threadId: thread.id,
+                    timestamp: thread.timestamp || thread.date || '',
+                    actionItems: [...new Set(actionItems)].slice(0, 10),
+                    featureIdeas: [...new Set(featureIdeas)].slice(0, 10),
+                    bugsMentioned: [...new Set(bugsMentioned)].slice(0, 10),
+                    raw: content.slice(0, 2000),
+                  })
+                }
+              } catch { /* transcript fetch failed */ }
             }
           }
-
-          if (actionItems.length > 0 || featureIdeas.length > 0 || bugsMentioned.length > 0) {
-            insights.push({
-              id: `meeting-${thread.id}`,
-              meetingTitle: title,
-              threadId: thread.id,
-              timestamp: thread.timestamp || thread.date || '',
-              actionItems: [...new Set(actionItems)].slice(0, 10),
-              featureIdeas: [...new Set(featureIdeas)].slice(0, 10),
-              bugsMentioned: [...new Set(bugsMentioned)].slice(0, 10),
-              raw: content.slice(0, 2000),
-            })
-          }
-        } catch { /* failed to fetch transcript for this thread */ }
+        } catch { /* threads fallback failed */ }
       }
 
       setMeetingInsights(insights)
