@@ -21,9 +21,11 @@ src-tauri/resources/clawdbot/node_modules/@mariozechner/clipboard-linux-*/
 src-tauri/resources/clawdbot/node_modules/@reflink/reflink-linux-*/
 src-tauri/resources/clawdbot/node_modules/pdfjs-dist/
 src-tauri/resources/clawdbot/node_modules/@larksuiteoapi/
-src-tauri/resources/clawdbot/node_modules/@line/
+# @line/bot-sdk is statically imported in the dist bundle — must NOT be gitignored
+# src-tauri/resources/clawdbot/node_modules/@line/
 src-tauri/resources/clawdbot/node_modules/sharp/
-src-tauri/resources/clawdbot/node_modules/@buape/
+# @buape/carbon is statically imported in 10+ dist files — must NOT be gitignored
+# src-tauri/resources/clawdbot/node_modules/@buape/
 src-tauri/resources/clawdbot/node_modules/@homebridge/
 src-tauri/resources/clawdbot/node_modules/@lydell/
 src-tauri/resources/clawdbot/node_modules/@mozilla/
@@ -33,7 +35,8 @@ src-tauri/resources/clawdbot/node_modules/long/
 # src-tauri/resources/clawdbot/node_modules/proper-lockfile/
 src-tauri/resources/clawdbot/node_modules/signal-utils/
 src-tauri/resources/clawdbot/node_modules/sqlite-vec/
-src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-tui/
+# @mariozechner/pi-tui is statically imported in the dist bundle — must NOT be gitignored
+# src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-tui/
 src-tauri/resources/clawdbot/node_modules/@cloudflare/
 src-tauri/resources/clawdbot/node_modules/web-streams-polyfill/
 src-tauri/resources/clawdbot/node_modules/bun-types/
