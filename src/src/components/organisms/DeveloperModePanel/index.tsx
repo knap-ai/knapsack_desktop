@@ -64,8 +64,13 @@ const MAX_AUTO_SESSIONS_PER_SCAN = 2
 /** localStorage key to track last auto-fix timestamp to throttle */
 const KN_DEV_LAST_AUTOFIX = 'kn_dev_mode_last_autofix'
 
+/** localStorage key for proactive severity scope */
+const KN_DEV_AUTOFIX_SCOPE = 'kn_dev_mode_autofix_scope'
+
 /** Minimum minutes between auto-initiated PR sessions */
 const AUTOFIX_THROTTLE_MINUTES = 30
+
+type AutoFixScope = 'critical' | 'high' | 'all'
 
 /** Sentry search queries to find error notification emails */
 const SENTRY_SEARCH_QUERIES = [
@@ -303,6 +308,9 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
   const [newRepoInput, setNewRepoInput] = useState('')
   const [showRepoInput, setShowRepoInput] = useState(false)
   const [autoFixLog, setAutoFixLog] = useState<string[]>([])
+  const [autoFixScope, setAutoFixScope] = useState<AutoFixScope>(() => {
+    return (localStorage.getItem(KN_DEV_AUTOFIX_SCOPE) as AutoFixScope) || 'critical'
+  })
   const pendingAutoFixRef = useRef<SuggestedAction[]>([])
   const autoFixInProgressRef = useRef(false)
 
@@ -617,11 +625,15 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         prev.map(r => (r.id === scanId ? { ...result } : r)),
       )
 
-      // ── Proactive auto-fix: if proactive mode is on, auto-initiate sessions for critical issues ──
+      // ── Proactive auto-fix: if proactive mode is on, auto-initiate sessions for in-scope issues ──
       if (proactiveMode && autoScanEnabled && suggested.length > 0) {
-        const criticalActions = suggested.filter(a => a.severity === 'critical')
-        if (criticalActions.length > 0) {
-          handleProactiveAutoFix(criticalActions)
+        const inScopeActions = suggested.filter(a => {
+          if (autoFixScope === 'all') return true
+          if (autoFixScope === 'high') return a.severity === 'critical' || a.severity === 'high'
+          return a.severity === 'critical' // default: critical only
+        })
+        if (inScopeActions.length > 0) {
+          handleProactiveAutoFix(inScopeActions)
         }
       }
     } catch (e) {
@@ -634,7 +646,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
     } finally {
       setScanning(false)
     }
-  }, [searchSentryEmails, fetchAllErrorLogs, proactiveMode, autoScanEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchSentryEmails, fetchAllErrorLogs, proactiveMode, autoScanEnabled, autoFixScope]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scan interval
   useEffect(() => {
@@ -731,6 +743,11 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
   const updateInterval = useCallback((mins: number) => {
     setScanInterval(mins)
     localStorage.setItem('kn_dev_mode_scan_interval', String(mins))
+  }, [])
+
+  const updateAutoFixScope = useCallback((scope: AutoFixScope) => {
+    setAutoFixScope(scope)
+    localStorage.setItem(KN_DEV_AUTOFIX_SCOPE, scope)
   }, [])
 
   const handleInitiateSession = useCallback(
@@ -1007,11 +1024,27 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
             </span>
             <span className="DevModePanel__settingHint">
               {proactiveMode
-                ? `Critical errors auto-create PRs${REPO_REVIEWERS[activeRepo] ? ` with @${REPO_REVIEWERS[activeRepo]} as reviewer` : ''}`
-                : 'Enable Proactive mode to auto-create PRs for critical errors'}
+                ? `Auto-creates PRs${REPO_REVIEWERS[activeRepo] ? ` with @${REPO_REVIEWERS[activeRepo]} as reviewer` : ''}`
+                : 'Enable Proactive mode to auto-create PRs for errors'}
             </span>
           </div>
           <span className={`DevModePanel__statusDot ${proactiveMode ? 'DevModePanel__statusDot--active' : 'DevModePanel__statusDot--inactive'}`} />
+        </div>
+      )}
+
+      {/* Auto-fix severity scope */}
+      {autoScanEnabled && proactiveMode && (
+        <div className="DevModePanel__setting">
+          <span className="DevModePanel__settingLabel">Auto-fix scope</span>
+          <select
+            value={autoFixScope}
+            onChange={e => updateAutoFixScope(e.target.value as AutoFixScope)}
+            className="DevModePanel__select"
+          >
+            <option value="critical">Critical only</option>
+            <option value="high">Critical + High</option>
+            <option value="all">Critical + High + Medium</option>
+          </select>
         </div>
       )}
 
