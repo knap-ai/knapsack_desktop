@@ -1,10 +1,23 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::time::Duration;
 
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
+
+/// Strip ANSI escape sequences (colours, bold, etc.) from a string.
+/// The gateway returns colourised channelSummary lines which must be
+/// cleaned before we can prefix-match on them.
+static ANSI_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\x1b\[[0-9;]*m").unwrap()
+});
+
+fn strip_ansi(s: &str) -> String {
+    ANSI_RE.replace_all(s, "").into_owned()
+}
 
 /// Quick check: is the gateway port listening?  If not, attempt a restart
 /// via `ensure_gateway_best_effort` and re-check.  Returns a fast error
@@ -321,7 +334,8 @@ fn parse_channel_from_summary(status: &serde_json::Value, channel_name: &str) ->
         let prefix = format!("{}: ", channel_name.to_lowercase());
         for line in lines {
             if let Some(text) = line.as_str() {
-                let lower = text.to_lowercase();
+                let clean = strip_ansi(text);
+                let lower = clean.to_lowercase();
                 if let Some(status_part) = lower.strip_prefix(&prefix) {
                     let enabled = !status_part.starts_with("disabled");
                     let linked = status_part.starts_with("linked");
@@ -344,10 +358,11 @@ fn parse_account_from_summary(status: &serde_json::Value, channel_name: &str) ->
     let prefix = format!("{}: ", channel_name.to_lowercase());
     for line in channel_summary {
         if let Some(text) = line.as_str() {
-            let lower = text.to_lowercase();
+            let clean = strip_ansi(text);
+            let lower = clean.to_lowercase();
             if lower.starts_with(&prefix) {
                 // Find a token starting with '+' and containing digits
-                for token in text.split_whitespace() {
+                for token in clean.split_whitespace() {
                     if token.starts_with('+') && token.len() > 1 && token[1..].chars().all(|c| c.is_ascii_digit()) {
                         return Some(token.to_string());
                     }
