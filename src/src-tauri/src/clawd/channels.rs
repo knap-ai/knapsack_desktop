@@ -2703,7 +2703,7 @@ pub async fn channel_diagnostics() -> impl Responder {
 
             // Auto-repair: check if linked channels are missing from config
             for line in &channel_summary {
-                let lower = line.to_lowercase();
+                let lower = strip_ansi(line).to_lowercase();
                 // e.g. "whatsapp: linked +1234567890 auth 2h ago"
                 for (ch_name, ch_key) in &[
                     ("whatsapp", "whatsapp"),
