@@ -91,11 +91,11 @@ UNUSED_PACKAGES=(
   "web-streams-polyfill"      # ~9 MB  (not needed on Node 22+)
   "bun-types"                 # ~2 MB  (Bun type defs — not needed at runtime)
   # NOTE: @mariozechner/pi-tui must NOT be pruned — pi-coding-agent imports it at startup
-  "@homebridge/ciao"          # ~1 MB  (mDNS — not used)
+  # NOTE: @homebridge/ciao must NOT be pruned — used by bonjour/mDNS discovery at gateway startup
+  # NOTE: long must NOT be pruned — required by @whiskeysockets/baileys (WhatsApp); all channel plugins fail without it
   "@lydell/node-pty"          # ~1 MB  (PTY — Knapsack uses Tauri terminal)
   "@mozilla/readability"      # ~1 MB  (not imported at runtime)
   "linkedom"                  # ~1 MB  (not imported at runtime)
-  "long"                      # ~1 MB  (not imported at runtime)
   # NOTE: proper-lockfile must NOT be pruned — pi-coding-agent imports it via auth-storage.js
   "signal-utils"              # ~1 MB  (not imported at runtime)
   "sqlite-vec"                # ~1 MB  (not imported at runtime)
