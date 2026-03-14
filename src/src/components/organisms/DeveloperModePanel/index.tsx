@@ -64,13 +64,32 @@ const MAX_AUTO_SESSIONS_PER_SCAN = 2
 /** localStorage key to track last auto-fix timestamp to throttle */
 const KN_DEV_LAST_AUTOFIX = 'kn_dev_mode_last_autofix'
 
-/** localStorage key for proactive severity scope */
+/** localStorage keys for proactive scope settings */
 const KN_DEV_AUTOFIX_SCOPE = 'kn_dev_mode_autofix_scope'
+const KN_DEV_SOCIAL_SCAN = 'kn_dev_mode_social_scan'
 
 /** Minimum minutes between auto-initiated PR sessions */
 const AUTOFIX_THROTTLE_MINUTES = 30
 
-type AutoFixScope = 'critical' | 'high' | 'all'
+interface AutoFixScope {
+  critical: boolean
+  high: boolean
+  medium: boolean
+}
+
+interface SocialScanConfig {
+  enabled: boolean
+  twitter: boolean
+  reddit: boolean
+  github: boolean
+  keywords: string[]
+}
+
+/** localStorage key for social scan last check */
+const KN_DEV_SOCIAL_LAST_CHECK = 'kn_dev_mode_social_last_check'
+
+/** Throttle social scans (hours) */
+const SOCIAL_SCAN_INTERVAL_HOURS = 6
 
 /** localStorage key for last OpenClaw update check */
 const KN_DEV_OPENCLAW_CHECK = 'kn_dev_mode_openclaw_check'
@@ -83,6 +102,25 @@ const BUNDLED_OPENCLAW_VERSION = '2026.2.13'
 
 /** npm registry URL for openclaw */
 const OPENCLAW_NPM_REGISTRY = 'https://registry.npmjs.org/openclaw'
+
+interface SocialPost {
+  id: string
+  platform: 'twitter' | 'reddit' | 'github'
+  title: string
+  body: string
+  url: string
+  author: string
+  score?: number
+  timestamp: string
+  relevance: 'feature-request' | 'bug-report' | 'idea' | 'discussion'
+}
+
+interface SocialScanResult {
+  posts: SocialPost[]
+  lastChecked: number
+  status: 'checking' | 'done' | 'error'
+  error?: string
+}
 
 interface OpenClawUpdateInfo {
   currentVersion: string
@@ -351,8 +389,23 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
   const [showRepoInput, setShowRepoInput] = useState(false)
   const [autoFixLog, setAutoFixLog] = useState<string[]>([])
   const [autoFixScope, setAutoFixScope] = useState<AutoFixScope>(() => {
-    return (localStorage.getItem(KN_DEV_AUTOFIX_SCOPE) as AutoFixScope) || 'critical'
+    try {
+      const stored = localStorage.getItem(KN_DEV_AUTOFIX_SCOPE)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (typeof parsed === 'object' && parsed !== null) return parsed
+      }
+    } catch { /* migrate from old format */ }
+    return { critical: true, high: false, medium: false }
   })
+  const [socialScan, setSocialScan] = useState<SocialScanConfig>(() => {
+    try {
+      const stored = localStorage.getItem(KN_DEV_SOCIAL_SCAN)
+      if (stored) return JSON.parse(stored)
+    } catch { /* ignore */ }
+    return { enabled: false, twitter: true, reddit: true, github: true, keywords: [] }
+  })
+  const [socialResults, setSocialResults] = useState<SocialScanResult | null>(null)
   const [openclawUpdate, setOpenclawUpdate] = useState<OpenClawUpdateInfo | null>(() => {
     try {
       const stored = localStorage.getItem(KN_DEV_OPENCLAW_CHECK)
@@ -659,8 +712,9 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         fetchAllErrorLogs(),
       ])
 
-      // Also check for OpenClaw updates during scans
+      // Also check for OpenClaw updates and social media during scans
       checkOpenClawUpdates()
+      if (socialScan.enabled) scanSocialMedia()
 
       const suggested = generateSuggestedActions(sentryEmails, errorLogs)
       result.sentryIssues = sentryEmails
@@ -679,11 +733,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
 
       // ── Proactive auto-fix: if proactive mode is on, auto-initiate sessions for in-scope issues ──
       if (proactiveMode && autoScanEnabled && suggested.length > 0) {
-        const inScopeActions = suggested.filter(a => {
-          if (autoFixScope === 'all') return true
-          if (autoFixScope === 'high') return a.severity === 'critical' || a.severity === 'high'
-          return a.severity === 'critical' // default: critical only
-        })
+        const inScopeActions = suggested.filter(a => autoFixScope[a.severity])
         if (inScopeActions.length > 0) {
           handleProactiveAutoFix(inScopeActions)
         }
@@ -797,9 +847,22 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
     localStorage.setItem('kn_dev_mode_scan_interval', String(mins))
   }, [])
 
-  const updateAutoFixScope = useCallback((scope: AutoFixScope) => {
-    setAutoFixScope(scope)
-    localStorage.setItem(KN_DEV_AUTOFIX_SCOPE, scope)
+  const updateAutoFixScope = useCallback((key: keyof AutoFixScope, value: boolean) => {
+    setAutoFixScope(prev => {
+      // Critical is always on — can't uncheck it
+      if (key === 'critical' && !value) return prev
+      const next = { ...prev, [key]: value }
+      localStorage.setItem(KN_DEV_AUTOFIX_SCOPE, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const updateSocialScan = useCallback((update: Partial<SocialScanConfig>) => {
+    setSocialScan(prev => {
+      const next = { ...prev, ...update }
+      localStorage.setItem(KN_DEV_SOCIAL_SCAN, JSON.stringify(next))
+      return next
+    })
   }, [])
 
   // ── OpenClaw library update check ──
@@ -913,6 +976,291 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
 
     onInitiateSession(prompt)
   }, [openclawUpdate, activeRepo, onInitiateSession])
+
+  // ── Social media scanning: X.com and Reddit ──
+  const scanSocialMedia = useCallback(async (force = false) => {
+    if (!socialScan.enabled) return
+    if (!socialScan.twitter && !socialScan.reddit && !socialScan.github) return
+
+    // Throttle
+    if (!force) {
+      const lastCheck = localStorage.getItem(KN_DEV_SOCIAL_LAST_CHECK)
+      if (lastCheck) {
+        const hoursSince = (Date.now() - parseInt(lastCheck, 10)) / (1000 * 60 * 60)
+        if (hoursSince < SOCIAL_SCAN_INTERVAL_HOURS) return
+      }
+    }
+
+    setSocialResults({ posts: [], lastChecked: Date.now(), status: 'checking' })
+
+    // Build search keywords from repo name and any user-configured keywords
+    const repoName = activeRepo.split('/').pop() || activeRepo
+    const baseKeywords = [repoName]
+    // Add common related terms based on repo
+    if (repoName === 'knapsack_desktop' || repoName === 'knapsack') {
+      baseKeywords.push('knapsack ai', 'knapsack desktop', 'openclaw')
+    }
+    const allKeywords = [...baseKeywords, ...socialScan.keywords].filter(Boolean)
+
+    const posts: SocialPost[] = []
+
+    // Reddit search via public JSON API
+    if (socialScan.reddit) {
+      for (const keyword of allKeywords.slice(0, 3)) {
+        try {
+          const query = encodeURIComponent(keyword)
+          const resp = await fetch(
+            `https://www.reddit.com/search.json?q=${query}&sort=new&limit=10&t=week`,
+            { headers: { Accept: 'application/json' } },
+          )
+          if (resp.ok) {
+            const data = await resp.json()
+            const children = data?.data?.children || []
+            for (const child of children) {
+              const post = child.data
+              if (!post) continue
+              // Classify by flair or content patterns
+              const text = `${post.title} ${post.selftext || ''}`.toLowerCase()
+              let relevance: SocialPost['relevance'] = 'discussion'
+              if (/\b(feature request|feature idea|wish|would be great|please add|should have)\b/i.test(text)) {
+                relevance = 'feature-request'
+              } else if (/\b(bug|error|crash|broken|not working|issue)\b/i.test(text)) {
+                relevance = 'bug-report'
+              } else if (/\b(idea|concept|thought|what if|how about|suggestion)\b/i.test(text)) {
+                relevance = 'idea'
+              }
+
+              posts.push({
+                id: `reddit-${post.id}`,
+                platform: 'reddit',
+                title: post.title || '',
+                body: (post.selftext || '').slice(0, 500),
+                url: post.permalink ? `https://reddit.com${post.permalink}` : '',
+                author: post.author || '',
+                score: post.score,
+                timestamp: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : '',
+                relevance,
+              })
+            }
+          }
+        } catch { /* reddit search failed for this keyword */ }
+      }
+    }
+
+    // X.com/Twitter — use nitter or public search as fallback
+    // Note: Twitter API requires auth, so we use a best-effort public search
+    if (socialScan.twitter) {
+      for (const keyword of allKeywords.slice(0, 2)) {
+        try {
+          // Try nitter instances for public tweet search
+          const query = encodeURIComponent(keyword)
+          const nitterInstances = ['https://nitter.net', 'https://nitter.privacydev.net']
+          for (const instance of nitterInstances) {
+            try {
+              const resp = await fetch(`${instance}/search?f=tweets&q=${query}`, {
+                headers: { Accept: 'text/html' },
+                signal: AbortSignal.timeout(5000),
+              })
+              if (resp.ok) {
+                const html = await resp.text()
+                // Parse tweet-like content from nitter HTML
+                const tweetPattern = /<div class="tweet-content[^"]*"[^>]*>([\s\S]*?)<\/div>/g
+                const usernamePattern = /<a class="username"[^>]*>@([^<]+)<\/a>/g
+                const linkPattern = /href="\/([^/]+)\/status\/(\d+)"/g
+
+                const contents: string[] = []
+                let match
+                while ((match = tweetPattern.exec(html)) !== null) {
+                  contents.push(match[1].replace(/<[^>]+>/g, '').trim())
+                }
+
+                const usernames: string[] = []
+                while ((match = usernamePattern.exec(html)) !== null) {
+                  usernames.push(match[1])
+                }
+
+                const links: string[] = []
+                while ((match = linkPattern.exec(html)) !== null) {
+                  links.push(`https://x.com/${match[1]}/status/${match[2]}`)
+                }
+
+                for (let i = 0; i < Math.min(contents.length, 5); i++) {
+                  const text = contents[i]
+                  let relevance: SocialPost['relevance'] = 'discussion'
+                  if (/\b(feature|wish|please add|should have|need|want)\b/i.test(text)) {
+                    relevance = 'feature-request'
+                  } else if (/\b(bug|error|crash|broken|not working)\b/i.test(text)) {
+                    relevance = 'bug-report'
+                  } else if (/\b(idea|concept|what if|how about|cool|awesome)\b/i.test(text)) {
+                    relevance = 'idea'
+                  }
+
+                  posts.push({
+                    id: `twitter-${i}-${keyword}`,
+                    platform: 'twitter',
+                    title: text.slice(0, 100),
+                    body: text,
+                    url: links[i] || '',
+                    author: usernames[i] || '',
+                    timestamp: new Date().toISOString(),
+                    relevance,
+                  })
+                }
+                break // Got results from this nitter instance
+              }
+            } catch { /* this nitter instance failed, try next */ }
+          }
+        } catch { /* twitter search failed for this keyword */ }
+      }
+    }
+
+    // GitHub Issues — search the target repo and related repos for feature requests
+    if (socialScan.github) {
+      try {
+        // Search the active repo's issues for feature requests and enhancements
+        const resp = await fetch(
+          `https://api.github.com/search/issues?q=repo:${activeRepo}+type:issue+state:open+label:enhancement,feature,feature-request&sort=created&order=desc&per_page=15`,
+          { headers: { Accept: 'application/vnd.github.v3+json' } },
+        )
+        if (resp.ok) {
+          const data = await resp.json()
+          for (const issue of (data.items || [])) {
+            const labels = (issue.labels || []).map((l: any) => l.name?.toLowerCase() || '').join(' ')
+            const text = `${issue.title} ${issue.body || ''} ${labels}`.toLowerCase()
+
+            let relevance: SocialPost['relevance'] = 'feature-request'
+            if (/\b(bug|error|crash|broken|regression)\b/i.test(text)) {
+              relevance = 'bug-report'
+            } else if (/\b(idea|concept|rfc|proposal|discussion)\b/i.test(text)) {
+              relevance = 'idea'
+            }
+
+            posts.push({
+              id: `github-${issue.id}`,
+              platform: 'github',
+              title: issue.title || '',
+              body: (issue.body || '').slice(0, 500),
+              url: issue.html_url || '',
+              author: issue.user?.login || '',
+              score: issue.reactions?.['+1'] || issue.reactions?.total_count || 0,
+              timestamp: issue.created_at || '',
+              relevance,
+            })
+          }
+        }
+      } catch { /* github search failed */ }
+
+      // Also search across GitHub for mentions in other repos
+      for (const keyword of allKeywords.slice(0, 2)) {
+        try {
+          const query = encodeURIComponent(`${keyword} in:title,body type:issue state:open`)
+          const resp = await fetch(
+            `https://api.github.com/search/issues?q=${query}&sort=created&order=desc&per_page=10`,
+            { headers: { Accept: 'application/vnd.github.v3+json' } },
+          )
+          if (resp.ok) {
+            const data = await resp.json()
+            for (const issue of (data.items || [])) {
+              // Skip issues from the active repo (already fetched above)
+              if (issue.repository_url?.includes(activeRepo)) continue
+
+              const text = `${issue.title} ${issue.body || ''}`.toLowerCase()
+              let relevance: SocialPost['relevance'] = 'discussion'
+              if (/\b(feature|request|enhancement|wish|please add)\b/i.test(text)) {
+                relevance = 'feature-request'
+              } else if (/\b(idea|concept|suggestion)\b/i.test(text)) {
+                relevance = 'idea'
+              } else if (/\b(bug|error|crash|broken)\b/i.test(text)) {
+                relevance = 'bug-report'
+              }
+
+              posts.push({
+                id: `github-ext-${issue.id}`,
+                platform: 'github',
+                title: issue.title || '',
+                body: (issue.body || '').slice(0, 500),
+                url: issue.html_url || '',
+                author: issue.user?.login || '',
+                score: issue.reactions?.['+1'] || 0,
+                timestamp: issue.created_at || '',
+                relevance,
+              })
+            }
+          }
+        } catch { /* github search failed for keyword */ }
+      }
+    }
+
+    // Deduplicate by title similarity
+    const seen = new Set<string>()
+    const deduped = posts.filter(p => {
+      const key = p.title.toLowerCase().slice(0, 50)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    // Sort: feature requests and ideas first, then by score
+    const relevanceOrder = { 'feature-request': 0, 'idea': 1, 'bug-report': 2, 'discussion': 3 }
+    deduped.sort((a, b) => {
+      const ra = relevanceOrder[a.relevance] - relevanceOrder[b.relevance]
+      if (ra !== 0) return ra
+      return (b.score || 0) - (a.score || 0)
+    })
+
+    localStorage.setItem(KN_DEV_SOCIAL_LAST_CHECK, String(Date.now()))
+    setSocialResults({ posts: deduped, lastChecked: Date.now(), status: 'done' })
+
+    // Proactive notification for high-value feature requests
+    if (proactiveMode && deduped.some(p => p.relevance === 'feature-request')) {
+      const featureRequests = deduped.filter(p => p.relevance === 'feature-request')
+      try {
+        sendNotification({
+          title: `${featureRequests.length} feature request${featureRequests.length > 1 ? 's' : ''} found`,
+          body: featureRequests.slice(0, 2).map(p => p.title.slice(0, 60)).join(', '),
+        })
+      } catch { /* notification permission may not be granted */ }
+    }
+  }, [socialScan, activeRepo, proactiveMode])
+
+  const handleInitiateFromSocialPost = useCallback(
+    (post: SocialPost) => {
+      const repoName = activeRepo.split('/').pop() || activeRepo
+      const reviewer = REPO_REVIEWERS[activeRepo]
+      const typeLabel = post.relevance === 'feature-request' ? 'Feature Request'
+        : post.relevance === 'idea' ? 'Idea'
+        : post.relevance === 'bug-report' ? 'Bug Report'
+        : 'Discussion'
+
+      const platformLabel = post.platform === 'twitter' ? 'X.com' : post.platform === 'reddit' ? 'Reddit' : 'GitHub Issues'
+      const prompt = [
+        `I found a ${typeLabel.toLowerCase()} from ${platformLabel} relevant to our project:`,
+        ``,
+        `**Type:** ${typeLabel}`,
+        `**Platform:** ${platformLabel}`,
+        `**Author:** ${post.author}`,
+        post.url ? `**URL:** ${post.url}` : '',
+        `**Title:** ${post.title}`,
+        ``,
+        `**Content:**`,
+        '```',
+        post.body.slice(0, 800),
+        '```',
+        ``,
+        `**Target repo:** ${activeRepo}`,
+        ``,
+        `Please evaluate this ${typeLabel.toLowerCase()} for the ${repoName} codebase (${activeRepo}):`,
+        `1. Assess if this is feasible and valuable to implement`,
+        `2. If yes, design a minimal implementation`,
+        `3. Implement the changes`,
+        `4. Create a PR with the implementation in the ${activeRepo} repository`,
+        reviewer ? `5. Request review from @${reviewer} on the PR` : '',
+      ].filter(Boolean).join('\n')
+
+      onInitiateSession(prompt)
+    },
+    [activeRepo, onInitiateSession],
+  )
 
   const handleInitiateSession = useCallback(
     (issue: SentryEmail) => {
@@ -1260,19 +1608,87 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         </div>
       )}
 
-      {/* Auto-fix severity scope */}
+      {/* Auto-fix severity scope — checkboxes */}
       {autoScanEnabled && proactiveMode && (
-        <div className="DevModePanel__setting">
+        <div className="DevModePanel__checkboxGroup">
           <span className="DevModePanel__settingLabel">Auto-fix scope</span>
-          <select
-            value={autoFixScope}
-            onChange={e => updateAutoFixScope(e.target.value as AutoFixScope)}
-            className="DevModePanel__select"
-          >
-            <option value="critical">Critical only</option>
-            <option value="high">Critical + High</option>
-            <option value="all">Critical + High + Medium</option>
-          </select>
+          <label className="DevModePanel__checkbox">
+            <input type="checkbox" checked={autoFixScope.critical} disabled title="Critical is always enabled" onChange={() => {}} />
+            <span>Critical</span>
+            <span className="DevModePanel__checkboxHint">panics, crashes, OOM</span>
+          </label>
+          <label className="DevModePanel__checkbox">
+            <input type="checkbox" checked={autoFixScope.high} onChange={e => updateAutoFixScope('high', e.target.checked)} />
+            <span>High</span>
+            <span className="DevModePanel__checkboxHint">connection errors, timeouts</span>
+          </label>
+          <label className="DevModePanel__checkbox">
+            <input type="checkbox" checked={autoFixScope.medium} onChange={e => updateAutoFixScope('medium', e.target.checked)} />
+            <span>Medium</span>
+            <span className="DevModePanel__checkboxHint">all other actionable errors</span>
+          </label>
+        </div>
+      )}
+
+      {/* Feature discovery — social media & GitHub issues */}
+      {autoScanEnabled && (
+        <div className="DevModePanel__checkboxGroup">
+          <div className="DevModePanel__settingRow">
+            <span className="DevModePanel__settingLabel">Feature discovery</span>
+            <button
+              onClick={() => updateSocialScan({ enabled: !socialScan.enabled })}
+              className={`DevModePanel__toggle ${socialScan.enabled ? 'DevModePanel__toggle--on' : ''}`}
+            >
+              <span className="DevModePanel__toggleKnob" />
+            </button>
+          </div>
+          <span className="DevModePanel__settingHint">
+            Scan for feature requests, ideas, and discussions relevant to your repository
+          </span>
+          {socialScan.enabled && (
+            <>
+              <label className="DevModePanel__checkbox">
+                <input type="checkbox" checked={socialScan.github} onChange={e => updateSocialScan({ github: e.target.checked })} />
+                <span>GitHub Issues</span>
+                <span className="DevModePanel__checkboxHint">open issues, feature requests, enhancements</span>
+              </label>
+              <label className="DevModePanel__checkbox">
+                <input type="checkbox" checked={socialScan.reddit} onChange={e => updateSocialScan({ reddit: e.target.checked })} />
+                <span>Reddit</span>
+                <span className="DevModePanel__checkboxHint">posts and discussions</span>
+              </label>
+              <label className="DevModePanel__checkbox">
+                <input type="checkbox" checked={socialScan.twitter} onChange={e => updateSocialScan({ twitter: e.target.checked })} />
+                <span>X.com</span>
+                <span className="DevModePanel__checkboxHint">tweets and threads</span>
+              </label>
+              <div className="DevModePanel__keywordsRow">
+                <input
+                  className="DevModePanel__repoInput"
+                  type="text"
+                  placeholder="Extra keywords (comma separated)"
+                  defaultValue={socialScan.keywords.join(', ')}
+                  onBlur={e => {
+                    const kw = e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                    updateSocialScan({ keywords: kw })
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const kw = (e.target as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean)
+                      updateSocialScan({ keywords: kw })
+                    }
+                  }}
+                />
+                <button
+                  className="DevModePanel__openclawRefresh"
+                  onClick={() => scanSocialMedia(true)}
+                  disabled={socialResults?.status === 'checking'}
+                >
+                  {socialResults?.status === 'checking' ? '...' : 'Scan'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1435,6 +1851,64 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
           {latestScan.sentryIssues.length === 0 && latestScan.errorLogEntries.length === 0 && (
             <div className="DevModePanel__empty">
               No Sentry issues or error logs found across any source. Looking good!
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Social / feature discovery results */}
+      {socialResults && socialResults.status === 'done' && socialResults.posts.length > 0 && (
+        <div className="DevModePanel__section">
+          <div className="DevModePanel__sectionTitle">
+            Feature Discovery ({socialResults.posts.length})
+          </div>
+          {socialResults.posts.slice(0, 15).map(post => (
+            <div key={post.id} className="DevModePanel__socialPost">
+              <div className="DevModePanel__socialHeader">
+                <span className={`DevModePanel__socialPlatform DevModePanel__socialPlatform--${post.platform}`}>
+                  {post.platform === 'twitter' ? 'X' : post.platform === 'reddit' ? 'Reddit' : 'GitHub'}
+                </span>
+                <span className={`DevModePanel__socialRelevance DevModePanel__socialRelevance--${post.relevance}`}>
+                  {post.relevance.replace('-', ' ')}
+                </span>
+                {post.score != null && post.score > 0 && (
+                  <span className="DevModePanel__socialScore">+{post.score}</span>
+                )}
+              </div>
+              <div className="DevModePanel__socialTitle">{post.title}</div>
+              {post.body && post.body !== post.title && (
+                <div className="DevModePanel__socialBody">{post.body.slice(0, 150)}</div>
+              )}
+              <div className="DevModePanel__socialFooter">
+                <span className="DevModePanel__logTime">@{post.author}</span>
+                {post.url && (
+                  <a
+                    className="DevModePanel__socialLink"
+                    href={post.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    View
+                  </a>
+                )}
+                <button
+                  className="DevModePanel__fixBtnSmall"
+                  onClick={() => handleInitiateFromSocialPost(post)}
+                >
+                  Implement
+                </button>
+              </div>
+            </div>
+          ))}
+          {socialResults.posts.length > 15 && (
+            <div className="DevModePanel__moreIndicator">
+              ...and {socialResults.posts.length - 15} more posts
+            </div>
+          )}
+          {socialResults.lastChecked > 0 && (
+            <div className="DevModePanel__settingHint">
+              Last checked: {formatRelativeTime(socialResults.lastChecked)}
             </div>
           )}
         </div>
