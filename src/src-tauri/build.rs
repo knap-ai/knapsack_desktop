@@ -19,7 +19,7 @@ fn main() {
              ╔══════════════════════════════════════════════════════════════╗\n\
              ║  MISSING: {}  ║\n\
              ║                                                            ║\n\
-             ║  Run:  cd src && bash scripts/prepare-node.sh              ║\n\
+             ║  Run:  cd src && node scripts/prepare-node.cjs              ║\n\
              ║                                                            ║\n\
              ║  This downloads the Node.js binary that gets bundled into  ║\n\
              ║  the app. Without it, Clawd/clawdbot won't work.           ║\n\
@@ -30,7 +30,7 @@ fn main() {
         if std::env::var("PROFILE").as_deref() == Ok("release") {
             panic!(
                 "Bundled Node.js binary not found at `{}`. \
-                 Run `bash scripts/prepare-node.sh` from the src/ directory.",
+                 Run `node scripts/prepare-node.cjs` from the src/ directory.",
                 node_bin
             );
         }

@@ -1,0 +1,67 @@
+name: Build Windows App
+
+on:
+  push:
+    branches: [main, "release/*", "claude/*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src/src-tauri
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: src
+        run: npm install
+
+      - name: Create .env from example
+        working-directory: src
+        run: Copy-Item .env.example .env
+
+      - name: Run prebuild scripts
+        working-directory: src
+        run: |
+          node scripts/sync-version.cjs
+          node scripts/prepare-node.cjs
+          node scripts/prune-clawdbot.cjs
+
+      - name: Build Tauri app
+        working-directory: src
+        run: npx tauri build
+        env:
+          VITE_KN_API_SERVER: https://api.knapsack.ai
+          MICROSOFT_CLIENT_ID: unused
+          VITE_GOOGLE_CLIENT_ID: ""
+          VITE_GOOGLE_DEVELOPER_KEY: ""
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: knapsack-windows-msi
+          path: src/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
+
+      - name: Upload NSIS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: knapsack-windows-nsis
+          path: src/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
