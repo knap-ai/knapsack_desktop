@@ -72,6 +72,48 @@ const AUTOFIX_THROTTLE_MINUTES = 30
 
 type AutoFixScope = 'critical' | 'high' | 'all'
 
+/** localStorage key for last OpenClaw update check */
+const KN_DEV_OPENCLAW_CHECK = 'kn_dev_mode_openclaw_check'
+
+/** How often to re-check for OpenClaw updates (hours) */
+const OPENCLAW_CHECK_INTERVAL_HOURS = 12
+
+/** Bundled OpenClaw version — read from the bundled package */
+const BUNDLED_OPENCLAW_VERSION = '2026.2.13'
+
+/** npm registry URL for openclaw */
+const OPENCLAW_NPM_REGISTRY = 'https://registry.npmjs.org/openclaw'
+
+interface OpenClawUpdateInfo {
+  currentVersion: string
+  latestVersion: string | null
+  availableVersions: string[]
+  lastChecked: number
+  status: 'checking' | 'up-to-date' | 'update-available' | 'major-update' | 'error'
+  changelog?: string
+  error?: string
+}
+
+/** Compare semver-ish versions: returns -1 (a<b), 0 (equal), 1 (a>b) */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0
+    const nb = pb[i] || 0
+    if (na < nb) return -1
+    if (na > nb) return 1
+  }
+  return 0
+}
+
+/** Determine if an update is a major bump (first segment differs) */
+function isMajorUpdate(current: string, latest: string): boolean {
+  const ca = current.split('.')[0]
+  const la = latest.split('.')[0]
+  return ca !== la
+}
+
 /** Sentry search queries to find error notification emails */
 const SENTRY_SEARCH_QUERIES = [
   'from:noreply@md.getsentry.com subject:Error',
@@ -310,6 +352,13 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
   const [autoFixLog, setAutoFixLog] = useState<string[]>([])
   const [autoFixScope, setAutoFixScope] = useState<AutoFixScope>(() => {
     return (localStorage.getItem(KN_DEV_AUTOFIX_SCOPE) as AutoFixScope) || 'critical'
+  })
+  const [openclawUpdate, setOpenclawUpdate] = useState<OpenClawUpdateInfo | null>(() => {
+    try {
+      const stored = localStorage.getItem(KN_DEV_OPENCLAW_CHECK)
+      if (stored) return JSON.parse(stored)
+    } catch { /* ignore */ }
+    return null
   })
   const pendingAutoFixRef = useRef<SuggestedAction[]>([])
   const autoFixInProgressRef = useRef(false)
@@ -610,6 +659,9 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         fetchAllErrorLogs(),
       ])
 
+      // Also check for OpenClaw updates during scans
+      checkOpenClawUpdates()
+
       const suggested = generateSuggestedActions(sentryEmails, errorLogs)
       result.sentryIssues = sentryEmails
       result.errorLogEntries = errorLogs
@@ -749,6 +801,118 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
     setAutoFixScope(scope)
     localStorage.setItem(KN_DEV_AUTOFIX_SCOPE, scope)
   }, [])
+
+  // ── OpenClaw library update check ──
+  const checkOpenClawUpdates = useCallback(async (force = false) => {
+    // Throttle: don't re-check if we checked recently
+    if (!force && openclawUpdate?.lastChecked) {
+      const hoursSince = (Date.now() - openclawUpdate.lastChecked) / (1000 * 60 * 60)
+      if (hoursSince < OPENCLAW_CHECK_INTERVAL_HOURS && openclawUpdate.status !== 'error') return
+    }
+
+    setOpenclawUpdate(prev => ({
+      currentVersion: BUNDLED_OPENCLAW_VERSION,
+      latestVersion: prev?.latestVersion || null,
+      availableVersions: prev?.availableVersions || [],
+      lastChecked: Date.now(),
+      status: 'checking',
+    }))
+
+    try {
+      const resp = await fetch(OPENCLAW_NPM_REGISTRY, {
+        headers: { Accept: 'application/json' },
+      })
+      if (!resp.ok) throw new Error(`npm registry returned ${resp.status}`)
+      const data = await resp.json()
+
+      const latestVersion = data['dist-tags']?.latest || null
+      const allVersions = Object.keys(data.versions || {})
+        .sort((a, b) => compareVersions(b, a)) // newest first
+
+      // Get recent versions newer than current
+      const newerVersions = allVersions.filter(v => compareVersions(v, BUNDLED_OPENCLAW_VERSION) > 0)
+
+      // Collect changelog notes from newer versions
+      let changelog = ''
+      for (const ver of newerVersions.slice(0, 5)) {
+        const versionData = data.versions[ver]
+        if (versionData?.description || versionData?.gitHead) {
+          changelog += `**${ver}**: ${versionData.description || 'No description'}\n`
+        }
+      }
+
+      let status: OpenClawUpdateInfo['status'] = 'up-to-date'
+      if (latestVersion && compareVersions(BUNDLED_OPENCLAW_VERSION, latestVersion) < 0) {
+        status = isMajorUpdate(BUNDLED_OPENCLAW_VERSION, latestVersion) ? 'major-update' : 'update-available'
+      }
+
+      const info: OpenClawUpdateInfo = {
+        currentVersion: BUNDLED_OPENCLAW_VERSION,
+        latestVersion,
+        availableVersions: newerVersions.slice(0, 10),
+        lastChecked: Date.now(),
+        status,
+        changelog: changelog || undefined,
+      }
+      setOpenclawUpdate(info)
+      localStorage.setItem(KN_DEV_OPENCLAW_CHECK, JSON.stringify(info))
+
+      // Notify on major updates when proactive mode is on
+      if (proactiveMode && status === 'major-update' && latestVersion) {
+        try {
+          sendNotification({
+            title: 'OpenClaw major update available',
+            body: `${BUNDLED_OPENCLAW_VERSION} → ${latestVersion} (${newerVersions.length} versions behind)`,
+          })
+        } catch { /* notification permission may not be granted */ }
+      }
+    } catch (e) {
+      const info: OpenClawUpdateInfo = {
+        currentVersion: BUNDLED_OPENCLAW_VERSION,
+        latestVersion: null,
+        availableVersions: [],
+        lastChecked: Date.now(),
+        status: 'error',
+        error: e instanceof Error ? e.message : 'Unknown error',
+      }
+      setOpenclawUpdate(info)
+      localStorage.setItem(KN_DEV_OPENCLAW_CHECK, JSON.stringify(info))
+    }
+  }, [openclawUpdate, proactiveMode])
+
+  // Check for OpenClaw updates on mount and during auto-scan
+  useEffect(() => {
+    checkOpenClawUpdates()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleInitiateOpenClawUpdate = useCallback(() => {
+    const info = openclawUpdate
+    if (!info || !info.latestVersion) return
+
+    const reviewer = REPO_REVIEWERS[activeRepo]
+    const prompt = [
+      `The bundled OpenClaw library needs to be updated:`,
+      ``,
+      `**Current version:** ${info.currentVersion}`,
+      `**Latest version:** ${info.latestVersion}`,
+      `**Newer versions available:** ${info.availableVersions.join(', ')}`,
+      info.changelog ? `\n**Recent changes:**\n${info.changelog}` : '',
+      ``,
+      `**Target repo:** ${activeRepo}`,
+      ``,
+      `Please update the OpenClaw dependency in the ${activeRepo} repository:`,
+      `1. The bundled OpenClaw package is at \`src/src-tauri/resources/clawdbot/\``,
+      `2. Update the version in \`src/src-tauri/resources/clawdbot/package.json\``,
+      `3. Run \`cd src/src-tauri/resources/clawdbot && npm install\` to update dependencies`,
+      `4. Run \`bash src/scripts/prune-clawdbot.sh\` to prune unused packages`,
+      `5. Check for any breaking changes or config migration needed`,
+      `6. Test that the gateway starts correctly`,
+      `7. Create a PR with the update in the ${activeRepo} repository`,
+      reviewer ? `8. Request review from @${reviewer} on the PR` : '',
+    ].filter(Boolean).join('\n')
+
+    onInitiateSession(prompt)
+  }, [openclawUpdate, activeRepo, onInitiateSession])
 
   const handleInitiateSession = useCallback(
     (issue: SentryEmail) => {
@@ -979,6 +1143,70 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* OpenClaw library update status */}
+      {openclawUpdate && (
+        <div className={`DevModePanel__openclawStatus DevModePanel__openclawStatus--${openclawUpdate.status}`}>
+          <div className="DevModePanel__openclawHeader">
+            <span className="DevModePanel__sourcesTitle">OpenClaw Library</span>
+            <button
+              className="DevModePanel__openclawRefresh"
+              onClick={() => checkOpenClawUpdates(true)}
+              disabled={openclawUpdate.status === 'checking'}
+              title="Check for updates"
+            >
+              {openclawUpdate.status === 'checking' ? '...' : 'Check'}
+            </button>
+          </div>
+          <div className="DevModePanel__openclawVersionRow">
+            <span className="DevModePanel__openclawLabel">Bundled:</span>
+            <span className="DevModePanel__openclawVersion">{openclawUpdate.currentVersion}</span>
+            {openclawUpdate.latestVersion && (
+              <>
+                <span className="DevModePanel__openclawLabel">Latest:</span>
+                <span className={`DevModePanel__openclawVersion ${openclawUpdate.status === 'update-available' || openclawUpdate.status === 'major-update' ? 'DevModePanel__openclawVersion--newer' : ''}`}>
+                  {openclawUpdate.latestVersion}
+                </span>
+              </>
+            )}
+          </div>
+          {openclawUpdate.status === 'up-to-date' && (
+            <div className="DevModePanel__settingHint">Up to date</div>
+          )}
+          {openclawUpdate.status === 'error' && (
+            <div className="DevModePanel__settingHint">Could not check: {openclawUpdate.error}</div>
+          )}
+          {(openclawUpdate.status === 'update-available' || openclawUpdate.status === 'major-update') && (
+            <div className="DevModePanel__openclawUpdateInfo">
+              <div className={`DevModePanel__openclawBadge ${openclawUpdate.status === 'major-update' ? 'DevModePanel__openclawBadge--major' : ''}`}>
+                {openclawUpdate.status === 'major-update' ? 'MAJOR UPDATE' : 'UPDATE AVAILABLE'}
+              </div>
+              {openclawUpdate.availableVersions.length > 0 && (
+                <div className="DevModePanel__settingHint">
+                  {openclawUpdate.availableVersions.length} newer version{openclawUpdate.availableVersions.length !== 1 ? 's' : ''}: {openclawUpdate.availableVersions.slice(0, 5).join(', ')}
+                </div>
+              )}
+              {openclawUpdate.changelog && (
+                <details className="DevModePanel__stackDetails">
+                  <summary>Version notes</summary>
+                  <pre className="DevModePanel__stackTrace">{openclawUpdate.changelog}</pre>
+                </details>
+              )}
+              <button
+                className="DevModePanel__fixBtn"
+                onClick={handleInitiateOpenClawUpdate}
+              >
+                Create Update PR
+              </button>
+            </div>
+          )}
+          {openclawUpdate.lastChecked > 0 && openclawUpdate.status !== 'checking' && (
+            <div className="DevModePanel__settingHint">
+              Last checked: {formatRelativeTime(openclawUpdate.lastChecked)}
+            </div>
+          )}
         </div>
       )}
 

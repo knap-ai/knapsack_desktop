@@ -679,6 +679,100 @@
     }
   }
 
+  &__openclawStatus {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fafafa;
+
+    &--up-to-date {
+      border-color: rgba(22, 163, 74, 0.2);
+      background: rgba(22, 163, 74, 0.03);
+    }
+
+    &--update-available {
+      border-color: rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.03);
+    }
+
+    &--major-update {
+      border-color: rgba(220, 38, 38, 0.3);
+      background: rgba(220, 38, 38, 0.03);
+    }
+  }
+
+  &__openclawHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__openclawRefresh {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: rgba(139, 92, 246, 0.15);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__openclawVersionRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  &__openclawLabel {
+    color: #888;
+  }
+
+  &__openclawVersion {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-weight: 600;
+    color: #333;
+
+    &--newer {
+      color: #f59e0b;
+    }
+  }
+
+  &__openclawUpdateInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__openclawBadge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    align-self: flex-start;
+    color: #92400e;
+    background: rgba(245, 158, 11, 0.15);
+
+    &--major {
+      color: #fff;
+      background: #dc2626;
+    }
+  }
+
   &__statusDot {
     width: 8px;
     height: 8px;
