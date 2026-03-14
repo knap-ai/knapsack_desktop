@@ -76,7 +76,10 @@ fn gemini_pricing(model: &str) -> ModelPricing {
 }
 
 fn groq_pricing(model: &str) -> ModelPricing {
-    if model.contains("llama") {
+    if model.contains("kimi") {
+        // Kimi K2 on Groq: $0.20/M input, $0.40/M output
+        ModelPricing { input_per_1k: 0.0002, output_per_1k: 0.0004 }
+    } else if model.contains("llama") {
         ModelPricing { input_per_1k: 0.0002, output_per_1k: 0.0002 }
     } else if model.contains("mixtral") {
         ModelPricing { input_per_1k: 0.00024, output_per_1k: 0.00024 }
