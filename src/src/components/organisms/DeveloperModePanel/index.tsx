@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
+import { sendNotification } from '@tauri-apps/api/notification'
 import './style.scss'
 
 const API_BASE = 'http://localhost:8897'
@@ -49,7 +50,22 @@ interface ErrorLogEntry {
 interface DeveloperModePanelProps {
   onInitiateSession: (prompt: string) => void
   userEmail?: string
+  proactiveMode?: boolean
 }
+
+/** Maps repo → default reviewer for auto-created PRs */
+const REPO_REVIEWERS: Record<string, string> = {
+  'knap-ai/knapsack_desktop': 'heynenm',
+}
+
+/** Max auto-initiated PR sessions per scan cycle (prevent runaway) */
+const MAX_AUTO_SESSIONS_PER_SCAN = 2
+
+/** localStorage key to track last auto-fix timestamp to throttle */
+const KN_DEV_LAST_AUTOFIX = 'kn_dev_mode_last_autofix'
+
+/** Minimum minutes between auto-initiated PR sessions */
+const AUTOFIX_THROTTLE_MINUTES = 30
 
 /** Sentry search queries to find error notification emails */
 const SENTRY_SEARCH_QUERIES = [
@@ -268,7 +284,7 @@ function saveActiveRepo(repo: string) {
   localStorage.setItem('kn_dev_mode_active_repo', repo)
 }
 
-export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }: DeveloperModePanelProps) => {
+export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, proactiveMode }: DeveloperModePanelProps) => {
   const [scanning, setScanning] = useState(false)
   const [scanResults, setScanResults] = useState<DevScanResult[]>([])
   const [autoScanEnabled, setAutoScanEnabled] = useState(() => {
@@ -286,6 +302,9 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
   const [activeRepo, setActiveRepo] = useState<string>(loadActiveRepo)
   const [newRepoInput, setNewRepoInput] = useState('')
   const [showRepoInput, setShowRepoInput] = useState(false)
+  const [autoFixLog, setAutoFixLog] = useState<string[]>([])
+  const pendingAutoFixRef = useRef<SuggestedAction[]>([])
+  const autoFixInProgressRef = useRef(false)
 
   // ── Email scanning: search for Sentry alerts ──
   const searchSentryEmails = useCallback(async (): Promise<SentryEmail[]> => {
@@ -597,6 +616,14 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
       setScanResults(prev =>
         prev.map(r => (r.id === scanId ? { ...result } : r)),
       )
+
+      // ── Proactive auto-fix: if proactive mode is on, auto-initiate sessions for critical issues ──
+      if (proactiveMode && autoScanEnabled && suggested.length > 0) {
+        const criticalActions = suggested.filter(a => a.severity === 'critical')
+        if (criticalActions.length > 0) {
+          handleProactiveAutoFix(criticalActions)
+        }
+      }
     } catch (e) {
       result.status = 'error'
       result.summary = `Scan failed: ${e instanceof Error ? e.message : 'Unknown error'}`
@@ -607,7 +634,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
     } finally {
       setScanning(false)
     }
-  }, [searchSentryEmails, fetchAllErrorLogs])
+  }, [searchSentryEmails, fetchAllErrorLogs, proactiveMode, autoScanEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scan interval
   useEffect(() => {
@@ -711,6 +738,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
       setInitiatingPR(issue.id)
 
       const repoName = activeRepo.split('/').pop() || activeRepo
+      const reviewer = REPO_REVIEWERS[activeRepo]
       const prompt = [
         `I found a Sentry error report that needs investigation and a fix:`,
         ``,
@@ -729,9 +757,10 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
         `2. Identify the root cause`,
         `3. Implement a fix`,
         `4. Create a PR with the fix in the ${activeRepo} repository`,
+        reviewer ? `5. Request review from @${reviewer} on the PR` : '',
         ``,
         `Use Advanced mode shell commands if needed to search the codebase and run tests.`,
-      ].join('\n')
+      ].filter(Boolean).join('\n')
 
       onInitiateSession(prompt)
       setTimeout(() => setInitiatingPR(null), 2000)
@@ -742,6 +771,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
   const handleInitiateFromLog = useCallback(
     (entry: ErrorLogEntry) => {
       const repoName = activeRepo.split('/').pop() || activeRepo
+      const reviewer = REPO_REVIEWERS[activeRepo]
       const prompt = [
         `I found an error in the application logs that needs investigation:`,
         ``,
@@ -757,7 +787,8 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
         `2. Identify the root cause`,
         `3. Implement a fix`,
         `4. Create a PR with the fix in the ${activeRepo} repository`,
-      ].join('\n')
+        reviewer ? `5. Request review from @${reviewer} on the PR` : '',
+      ].filter(Boolean).join('\n')
 
       onInitiateSession(prompt)
     },
@@ -773,6 +804,64 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
       }
     },
     [handleInitiateSession, handleInitiateFromLog],
+  )
+
+  /**
+   * Proactive auto-fix: when auto-scan detects critical errors and proactive mode is on,
+   * send a native notification and automatically initiate Claude Code sessions to create PRs.
+   * Throttled to avoid runaway session creation.
+   */
+  const handleProactiveAutoFix = useCallback(
+    async (criticalActions: SuggestedAction[]) => {
+      if (autoFixInProgressRef.current) return
+
+      // Throttle: don't auto-fix more frequently than AUTOFIX_THROTTLE_MINUTES
+      const lastAutoFix = localStorage.getItem(KN_DEV_LAST_AUTOFIX)
+      if (lastAutoFix) {
+        const minutesSince = (Date.now() - parseInt(lastAutoFix, 10)) / (1000 * 60)
+        if (minutesSince < AUTOFIX_THROTTLE_MINUTES) return
+      }
+
+      autoFixInProgressRef.current = true
+      localStorage.setItem(KN_DEV_LAST_AUTOFIX, String(Date.now()))
+
+      const reviewer = REPO_REVIEWERS[activeRepo]
+      const actionsToFix = criticalActions.slice(0, MAX_AUTO_SESSIONS_PER_SCAN)
+
+      // Send native notification about the auto-fix
+      try {
+        const titles = actionsToFix.map(a => a.title.slice(0, 60)).join(', ')
+        sendNotification({
+          title: `Developer Mode: ${actionsToFix.length} critical error${actionsToFix.length > 1 ? 's' : ''} found`,
+          body: `Auto-creating PR${actionsToFix.length > 1 ? 's' : ''} for: ${titles}${reviewer ? ` — will request review from @${reviewer}` : ''}`,
+        })
+      } catch {
+        // Notification permission may not be granted — continue anyway
+      }
+
+      const logEntries: string[] = []
+
+      for (const action of actionsToFix) {
+        const logMsg = `[${new Date().toLocaleTimeString()}] Auto-initiating fix for: ${action.title.slice(0, 80)}`
+        logEntries.push(logMsg)
+
+        // Initiate the session (this sends the prompt to the AI)
+        if (action.sourceType === 'sentry') {
+          handleInitiateSession(action.sourceEntry as SentryEmail)
+        } else {
+          handleInitiateFromLog(action.sourceEntry as ErrorLogEntry)
+        }
+
+        // Small delay between sessions to avoid overwhelming the system
+        if (actionsToFix.indexOf(action) < actionsToFix.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
+      }
+
+      setAutoFixLog(prev => [...logEntries, ...prev].slice(0, 20))
+      autoFixInProgressRef.current = false
+    },
+    [activeRepo, handleInitiateSession, handleInitiateFromLog],
   )
 
   const latestScan = scanResults[0]
@@ -906,6 +995,33 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail }:
             <option value="60">1 hour</option>
             <option value="120">2 hours</option>
           </select>
+        </div>
+      )}
+
+      {/* Proactive auto-fix status */}
+      {autoScanEnabled && (
+        <div className="DevModePanel__setting">
+          <div className="DevModePanel__settingInfo">
+            <span className="DevModePanel__settingLabel">
+              Proactive auto-fix {proactiveMode ? '(active)' : '(requires Proactive mode)'}
+            </span>
+            <span className="DevModePanel__settingHint">
+              {proactiveMode
+                ? `Critical errors auto-create PRs${REPO_REVIEWERS[activeRepo] ? ` with @${REPO_REVIEWERS[activeRepo]} as reviewer` : ''}`
+                : 'Enable Proactive mode to auto-create PRs for critical errors'}
+            </span>
+          </div>
+          <span className={`DevModePanel__statusDot ${proactiveMode ? 'DevModePanel__statusDot--active' : 'DevModePanel__statusDot--inactive'}`} />
+        </div>
+      )}
+
+      {/* Auto-fix activity log */}
+      {autoFixLog.length > 0 && (
+        <div className="DevModePanel__autoFixLog">
+          <div className="DevModePanel__sourcesTitle">Auto-fix Activity</div>
+          {autoFixLog.slice(0, 5).map((log, idx) => (
+            <div key={idx} className="DevModePanel__autoFixEntry">{log}</div>
+          ))}
         </div>
       )}
 

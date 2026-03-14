@@ -679,6 +679,38 @@
     }
   }
 
+  &__statusDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+
+    &--active {
+      background: #16a34a;
+      box-shadow: 0 0 6px rgba(22, 163, 74, 0.4);
+    }
+
+    &--inactive {
+      background: #d1d5db;
+    }
+  }
+
+  &__autoFixLog {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__autoFixEntry {
+    font-size: 10px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: #16a34a;
+    padding: 3px 8px;
+    background: rgba(22, 163, 74, 0.06);
+    border-radius: 4px;
+    line-height: 1.4;
+  }
+
   &__history {
     display: flex;
     flex-direction: column;

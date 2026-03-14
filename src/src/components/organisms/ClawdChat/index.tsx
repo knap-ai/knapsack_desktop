@@ -3954,6 +3954,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <DeveloperModePanel
             onInitiateSession={handleDevSessionInitiate}
             userEmail={userEmail}
+            proactiveMode={proactiveMode}
           />
         </div>
       )}
