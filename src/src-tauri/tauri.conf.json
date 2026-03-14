@@ -159,9 +159,19 @@
       "shortDescription": "",
       "targets": "all",
       "windows": {
-        "certificateThumbprint": "89E7C3D69DD67DE96447AA615400B32F8CAE1381",
         "digestAlgorithm": "sha256",
-        "timestampUrl": "http://timestamp.comodoca.com"
+        "timestampUrl": "http://timestamp.comodoca.com",
+        "wix": {
+          "language": "en-US"
+        },
+        "nsis": {
+          "oneClick": false,
+          "perMachine": false,
+          "allowElevation": true,
+          "createDesktopShortcut": true,
+          "createStartMenuShortcut": true,
+          "shortcutName": "Knapsack"
+        }
       }
     },
     "security": {

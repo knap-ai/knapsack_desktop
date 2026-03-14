@@ -6,11 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "bash scripts/sync-version.sh && bash scripts/prepare-node.sh && bash scripts/prune-clawdbot.sh",
+    "prebuild": "node scripts/sync-version.cjs && node scripts/prepare-node.cjs && node scripts/prune-clawdbot.cjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "source .env && tauri",
-    "tauri-windows": "tauri",
+    "tauri": "node scripts/load-env-and-run.cjs tauri",
     "release": "bash scripts/release.sh"
   },
   "dependencies": {
