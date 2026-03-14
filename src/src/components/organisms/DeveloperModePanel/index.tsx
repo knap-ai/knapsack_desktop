@@ -5,6 +5,8 @@ import './style.scss'
 
 const API_BASE = 'http://localhost:8897'
 const KN_GMAIL_SEARCH = API_BASE + '/api/knapsack/gmail_search'
+const KN_API_THREADS = API_BASE + '/api/knapsack/threads'
+const KN_API_TRANSCRIPT = API_BASE + '/api/knapsack/transcript'
 
 interface SentryEmail {
   id: string
@@ -61,6 +63,47 @@ const REPO_REVIEWERS: Record<string, string> = {
 /** Max auto-initiated PR sessions per scan cycle (prevent runaway) */
 const MAX_AUTO_SESSIONS_PER_SCAN = 2
 
+/**
+ * Safety gate: patterns that should NEVER be auto-fixed proactively because
+ * they could introduce security vulnerabilities or harm users.
+ * These are filtered out before the AI even sees them.
+ */
+const UNSAFE_AUTOFIX_PATTERNS = [
+  /\b(auth|authentication|authorization|oauth|jwt|token|credential|password|secret|api.?key|private.?key)\b/i,
+  /\b(sql.?inject|xss|csrf|cors|injection|sanitiz|escap|encrypt|decrypt|hash|salt)\b/i,
+  /\b(permission|privilege|escalat|admin|root|sudo|chmod|chown)\b/i,
+  /\b(certificate|ssl|tls|https|cert.?pin)\b/i,
+  /\b(eval|exec|spawn|child.?process|require\(.*\+|\.call\(|\.apply\()\b/i,
+]
+
+/** Pre-flight safety check: returns true if action is safe to auto-fix */
+function isActionSafeForAutoFix(action: SuggestedAction): { safe: boolean; reason?: string } {
+  const text = action.title + ' ' + action.description
+  const entry = action.sourceEntry
+  const fullText = text + ' ' + ('message' in entry ? entry.message : '') + ' ' + ('stackTrace' in entry && entry.stackTrace ? entry.stackTrace : '')
+
+  for (const pattern of UNSAFE_AUTOFIX_PATTERNS) {
+    if (pattern.test(fullText)) {
+      return { safe: false, reason: `Touches security-sensitive area: ${pattern.source.slice(0, 40)}` }
+    }
+  }
+  return { safe: true }
+}
+
+/**
+ * Safety preamble injected into all auto-initiated PR prompts.
+ * Forces the AI to answer these questions before proceeding.
+ */
+const SAFETY_GATE_PREAMBLE = `
+**IMPORTANT — Before creating any PR, you MUST answer these two questions:**
+
+1. **Is this good for the user?** — Will this fix genuinely improve the user experience, fix a real bug, or add real value? If the error is transient, expected, or cosmetic with no user impact, do NOT create a PR — just report your findings.
+
+2. **Does this introduce security vulnerabilities?** — Could this fix introduce SQL injection, XSS, CSRF, authentication bypasses, credential exposure, command injection, or any other security vulnerability? If yes, do NOT create the PR — report the security concern instead.
+
+If either answer is negative, explain why and stop. Do NOT create a PR that could harm users or compromise security.
+`
+
 /** localStorage key to track last auto-fix timestamp to throttle */
 const KN_DEV_LAST_AUTOFIX = 'kn_dev_mode_last_autofix'
 
@@ -82,6 +125,7 @@ interface SocialScanConfig {
   twitter: boolean
   reddit: boolean
   github: boolean
+  meetings: boolean
   keywords: string[]
 }
 
@@ -120,6 +164,17 @@ interface SocialScanResult {
   lastChecked: number
   status: 'checking' | 'done' | 'error'
   error?: string
+}
+
+interface MeetingNoteInsight {
+  id: string
+  meetingTitle: string
+  threadId: number
+  timestamp: string
+  actionItems: string[]
+  featureIdeas: string[]
+  bugsMentioned: string[]
+  raw: string
 }
 
 interface OpenClawUpdateInfo {
@@ -403,9 +458,10 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
       const stored = localStorage.getItem(KN_DEV_SOCIAL_SCAN)
       if (stored) return JSON.parse(stored)
     } catch { /* ignore */ }
-    return { enabled: false, twitter: true, reddit: true, github: true, keywords: [] }
+    return { enabled: false, twitter: true, reddit: true, github: true, meetings: true, keywords: [] }
   })
   const [socialResults, setSocialResults] = useState<SocialScanResult | null>(null)
+  const [meetingInsights, setMeetingInsights] = useState<MeetingNoteInsight[]>([])
   const [openclawUpdate, setOpenclawUpdate] = useState<OpenClawUpdateInfo | null>(() => {
     try {
       const stored = localStorage.getItem(KN_DEV_OPENCLAW_CHECK)
@@ -714,7 +770,10 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
 
       // Also check for OpenClaw updates and social media during scans
       checkOpenClawUpdates()
-      if (socialScan.enabled) scanSocialMedia()
+      if (socialScan.enabled) {
+        scanSocialMedia()
+        scanMeetingNotes()
+      }
 
       const suggested = generateSuggestedActions(sentryEmails, errorLogs)
       result.sentryIssues = sentryEmails
@@ -865,6 +924,82 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
     })
   }, [])
 
+  // ── Meeting notes scanning ──
+  const scanMeetingNotes = useCallback(async () => {
+    if (!socialScan.enabled || !socialScan.meetings) return
+
+    try {
+      // Fetch recent threads of type MEETING_NOTES
+      const resp = await fetch(`${KN_API_THREADS}?limit=20`)
+      if (!resp.ok) return
+      const data = await resp.json()
+      if (!data?.success) return
+
+      const threads = (data.data || data.threads || []).filter(
+        (t: any) => t.thread_type === 'MEETING_NOTES' || t.threadType === 'MEETING_NOTES',
+      )
+
+      // Only look at meetings from the last 7 days
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+      const recentThreads = threads.filter((t: any) => {
+        const ts = t.timestamp || t.date || t.created_at
+        return ts ? new Date(typeof ts === 'number' ? ts * 1000 : ts).getTime() > sevenDaysAgo : true
+      }).slice(0, 10)
+
+      const insights: MeetingNoteInsight[] = []
+
+      for (const thread of recentThreads) {
+        try {
+          const tResp = await fetch(`${KN_API_TRANSCRIPT}/${thread.id}`)
+          if (!tResp.ok) continue
+          const tData = await tResp.json()
+          if (!tData?.success || !tData?.data?.content) continue
+
+          const content = tData.data.content
+          const title = thread.title || thread.subtitle || `Meeting ${thread.id}`
+
+          // Extract action items, feature ideas, and bug mentions from transcript
+          const actionItems: string[] = []
+          const featureIdeas: string[] = []
+          const bugsMentioned: string[] = []
+
+          const lines = content.split('\n')
+          for (const line of lines) {
+            const trimmed = line.trim()
+            // Action items: "TODO", "action item", "we need to", "let's", "should"
+            if (/\b(TODO|action item|we need to|let's|we should|follow up|next step|assigned to)\b/i.test(trimmed)) {
+              actionItems.push(trimmed.slice(0, 200))
+            }
+            // Feature ideas: "feature", "it would be nice", "we could add", "idea"
+            if (/\b(feature|it would be (nice|great|cool)|we could add|idea|how about|what if we|wouldn't it be|enhancement|improvement)\b/i.test(trimmed)) {
+              featureIdeas.push(trimmed.slice(0, 200))
+            }
+            // Bug mentions: "bug", "broken", "not working", "error", "fix"
+            if (/\b(bug|broken|not working|keeps crashing|error|issue with|fix|regression|fails|failing)\b/i.test(trimmed) &&
+                !/\b(no bugs?|0 errors?|bug free)\b/i.test(trimmed)) {
+              bugsMentioned.push(trimmed.slice(0, 200))
+            }
+          }
+
+          if (actionItems.length > 0 || featureIdeas.length > 0 || bugsMentioned.length > 0) {
+            insights.push({
+              id: `meeting-${thread.id}`,
+              meetingTitle: title,
+              threadId: thread.id,
+              timestamp: thread.timestamp || thread.date || '',
+              actionItems: [...new Set(actionItems)].slice(0, 10),
+              featureIdeas: [...new Set(featureIdeas)].slice(0, 10),
+              bugsMentioned: [...new Set(bugsMentioned)].slice(0, 10),
+              raw: content.slice(0, 2000),
+            })
+          }
+        } catch { /* failed to fetch transcript for this thread */ }
+      }
+
+      setMeetingInsights(insights)
+    } catch { /* meeting notes scan failed */ }
+  }, [socialScan])
+
   // ── OpenClaw library update check ──
   const checkOpenClawUpdates = useCallback(async (force = false) => {
     // Throttle: don't re-check if we checked recently
@@ -972,6 +1107,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
       `6. Test that the gateway starts correctly`,
       `7. Create a PR with the update in the ${activeRepo} repository`,
       reviewer ? `8. Request review from @${reviewer} on the PR` : '',
+      SAFETY_GATE_PREAMBLE,
     ].filter(Boolean).join('\n')
 
     onInitiateSession(prompt)
@@ -1255,6 +1391,38 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         `3. Implement the changes`,
         `4. Create a PR with the implementation in the ${activeRepo} repository`,
         reviewer ? `5. Request review from @${reviewer} on the PR` : '',
+        SAFETY_GATE_PREAMBLE,
+      ].filter(Boolean).join('\n')
+
+      onInitiateSession(prompt)
+    },
+    [activeRepo, onInitiateSession],
+  )
+
+  const handleInitiateFromMeeting = useCallback(
+    (insight: MeetingNoteInsight, type: 'action' | 'feature' | 'bug', text: string) => {
+      const repoName = activeRepo.split('/').pop() || activeRepo
+      const reviewer = REPO_REVIEWERS[activeRepo]
+      const typeLabel = type === 'feature' ? 'feature idea' : type === 'bug' ? 'bug report' : 'action item'
+      const prompt = [
+        `From a recent meeting ("${insight.meetingTitle}"), the following ${typeLabel} was discussed:`,
+        ``,
+        `**Item:** ${text}`,
+        `**Meeting:** ${insight.meetingTitle}`,
+        `**Date:** ${insight.timestamp ? new Date(typeof insight.timestamp === 'number' ? (insight.timestamp as number) * 1000 : insight.timestamp).toLocaleDateString() : 'Recent'}`,
+        `**Target repo:** ${activeRepo}`,
+        ``,
+        `**Relevant meeting context:**`,
+        '```',
+        insight.raw.slice(0, 1000),
+        '```',
+        ``,
+        `Please ${type === 'bug' ? 'investigate and fix' : 'implement'} this in the ${repoName} codebase (${activeRepo}):`,
+        `1. ${type === 'bug' ? 'Search for the relevant code and identify the root cause' : 'Assess feasibility and design a minimal implementation'}`,
+        `2. Implement the changes`,
+        `3. Create a PR in the ${activeRepo} repository`,
+        reviewer ? `4. Request review from @${reviewer} on the PR` : '',
+        SAFETY_GATE_PREAMBLE,
       ].filter(Boolean).join('\n')
 
       onInitiateSession(prompt)
@@ -1289,6 +1457,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         reviewer ? `5. Request review from @${reviewer} on the PR` : '',
         ``,
         `Use Advanced mode shell commands if needed to search the codebase and run tests.`,
+        SAFETY_GATE_PREAMBLE,
       ].filter(Boolean).join('\n')
 
       onInitiateSession(prompt)
@@ -1317,6 +1486,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         `3. Implement a fix`,
         `4. Create a PR with the fix in the ${activeRepo} repository`,
         reviewer ? `5. Request review from @${reviewer} on the PR` : '',
+        SAFETY_GATE_PREAMBLE,
       ].filter(Boolean).join('\n')
 
       onInitiateSession(prompt)
@@ -1355,7 +1525,39 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
       localStorage.setItem(KN_DEV_LAST_AUTOFIX, String(Date.now()))
 
       const reviewer = REPO_REVIEWERS[activeRepo]
-      const actionsToFix = criticalActions.slice(0, MAX_AUTO_SESSIONS_PER_SCAN)
+
+      // Pre-flight safety gate: filter out actions that touch security-sensitive areas
+      const safeActions: SuggestedAction[] = []
+      const blockedActions: { action: SuggestedAction; reason: string }[] = []
+      for (const action of criticalActions) {
+        const check = isActionSafeForAutoFix(action)
+        if (check.safe) {
+          safeActions.push(action)
+        } else {
+          blockedActions.push({ action, reason: check.reason || 'Security concern' })
+        }
+      }
+
+      if (blockedActions.length > 0) {
+        const blockedLog = blockedActions.map(b =>
+          `[${new Date().toLocaleTimeString()}] BLOCKED auto-fix (${b.reason}): ${b.action.title.slice(0, 60)}`,
+        )
+        setAutoFixLog(prev => [...blockedLog, ...prev].slice(0, 20))
+
+        try {
+          sendNotification({
+            title: `${blockedActions.length} fix${blockedActions.length > 1 ? 'es' : ''} blocked by safety gate`,
+            body: `Security-sensitive: ${blockedActions.map(b => b.action.title.slice(0, 40)).join(', ')}. Manual review required.`,
+          })
+        } catch { /* ignore */ }
+      }
+
+      if (safeActions.length === 0) {
+        autoFixInProgressRef.current = false
+        return
+      }
+
+      const actionsToFix = safeActions.slice(0, MAX_AUTO_SESSIONS_PER_SCAN)
 
       // Send native notification about the auto-fix
       try {
@@ -1648,6 +1850,11 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
           {socialScan.enabled && (
             <>
               <label className="DevModePanel__checkbox">
+                <input type="checkbox" checked={socialScan.meetings} onChange={e => updateSocialScan({ meetings: e.target.checked })} />
+                <span>Meeting Notes</span>
+                <span className="DevModePanel__checkboxHint">action items, ideas, bugs from meetings</span>
+              </label>
+              <label className="DevModePanel__checkbox">
                 <input type="checkbox" checked={socialScan.github} onChange={e => updateSocialScan({ github: e.target.checked })} />
                 <span>GitHub Issues</span>
                 <span className="DevModePanel__checkboxHint">open issues, feature requests, enhancements</span>
@@ -1853,6 +2060,59 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
               No Sentry issues or error logs found across any source. Looking good!
             </div>
           )}
+        </div>
+      )}
+
+      {/* Meeting notes insights */}
+      {meetingInsights.length > 0 && (
+        <div className="DevModePanel__section">
+          <div className="DevModePanel__sectionTitle">
+            Meeting Insights ({meetingInsights.length} meeting{meetingInsights.length !== 1 ? 's' : ''})
+          </div>
+          {meetingInsights.map(insight => (
+            <div key={insight.id} className="DevModePanel__meetingInsight">
+              <div className="DevModePanel__meetingTitle">{insight.meetingTitle}</div>
+              {insight.actionItems.length > 0 && (
+                <div className="DevModePanel__meetingItems">
+                  <span className="DevModePanel__meetingLabel">Action items:</span>
+                  {insight.actionItems.slice(0, 3).map((item, idx) => (
+                    <div key={idx} className="DevModePanel__meetingItem">
+                      <span className="DevModePanel__meetingItemText">{item.slice(0, 100)}</span>
+                      <button className="DevModePanel__fixBtnSmall" onClick={() => handleInitiateFromMeeting(insight, 'action', item)}>
+                        Implement
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {insight.featureIdeas.length > 0 && (
+                <div className="DevModePanel__meetingItems">
+                  <span className="DevModePanel__meetingLabel">Feature ideas:</span>
+                  {insight.featureIdeas.slice(0, 3).map((idea, idx) => (
+                    <div key={idx} className="DevModePanel__meetingItem">
+                      <span className="DevModePanel__meetingItemText">{idea.slice(0, 100)}</span>
+                      <button className="DevModePanel__fixBtnSmall" onClick={() => handleInitiateFromMeeting(insight, 'feature', idea)}>
+                        Implement
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {insight.bugsMentioned.length > 0 && (
+                <div className="DevModePanel__meetingItems">
+                  <span className="DevModePanel__meetingLabel">Bugs discussed:</span>
+                  {insight.bugsMentioned.slice(0, 3).map((bug, idx) => (
+                    <div key={idx} className="DevModePanel__meetingItem">
+                      <span className="DevModePanel__meetingItemText">{bug.slice(0, 100)}</span>
+                      <button className="DevModePanel__fixBtnSmall" onClick={() => handleInitiateFromMeeting(insight, 'bug', bug)}>
+                        Fix
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
