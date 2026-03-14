@@ -79,9 +79,19 @@ pub struct OaiChatReq {
   pub temperature: Option<f32>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct OaiUsage {
+  #[serde(default)]
+  pub prompt_tokens: i64,
+  #[serde(default)]
+  pub completion_tokens: i64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OaiChatResp {
   pub choices: Vec<OaiChoice>,
+  #[serde(default)]
+  pub usage: Option<OaiUsage>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -608,6 +618,7 @@ pub async fn openai_compatible_chat(
                   tool_calls: vec![],
                 },
               }],
+              usage: None,
             });
           }
         }
@@ -792,6 +803,12 @@ pub async fn anthropic_chat(
         }
       }
 
+      // Extract usage from Anthropic response (input_tokens / output_tokens)
+      let anth_usage = parsed.get("usage").map(|u| OaiUsage {
+        prompt_tokens: u["input_tokens"].as_i64().unwrap_or(0),
+        completion_tokens: u["output_tokens"].as_i64().unwrap_or(0),
+      });
+
       return Ok(OaiChatResp {
         choices: vec![OaiChoice {
           message: OaiChoiceMsg {
@@ -799,6 +816,7 @@ pub async fn anthropic_chat(
             tool_calls,
           },
         }],
+        usage: anth_usage,
       });
     }
 
@@ -1001,6 +1019,12 @@ pub async fn gemini_chat(
         }
       }
 
+      // Extract usage from Gemini usageMetadata
+      let gemini_usage = parsed.get("usageMetadata").map(|u| OaiUsage {
+        prompt_tokens: u["promptTokenCount"].as_i64().unwrap_or(0),
+        completion_tokens: u["candidatesTokenCount"].as_i64().unwrap_or(0),
+      });
+
       return Ok(OaiChatResp {
         choices: vec![OaiChoice {
           message: OaiChoiceMsg {
@@ -1008,6 +1032,7 @@ pub async fn gemini_chat(
             tool_calls,
           },
         }],
+        usage: gemini_usage,
       });
     }
 

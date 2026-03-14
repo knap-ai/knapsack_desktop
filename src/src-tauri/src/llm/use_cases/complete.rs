@@ -80,6 +80,17 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
       is_anthropic: false,
     }),
+    "groq" if groq_key.is_some() => {
+      let groq_model = std::env::var("KNAPSACK_GROQ_MODEL")
+        .unwrap_or_else(|_| "meta-llama/llama-4-maverick-17b-128e-instruct".to_string());
+      return Ok(ResolvedProvider {
+        name: "groq".into(),
+        api_key: groq_key.unwrap(),
+        model: groq_model,
+        base_url: "https://api.groq.com/openai/v1".into(),
+        is_anthropic: false,
+      });
+    }
     "openrouter" if openrouter_key.is_some() => {
       let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
         .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());

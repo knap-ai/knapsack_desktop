@@ -14,6 +14,48 @@ use std::sync::Mutex;
 use crate::clawd::chat_agent;
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
+use crate::db::models::token_usage::TokenUsage;
+use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
+
+/// Record token usage from a chat API response (best-effort, never panics).
+fn record_chat_usage(provider: &str, model: &str, resp: &chat_agent::OaiChatResp, input_text: &str) {
+  let (input_tokens, output_tokens) = if let Some(ref usage) = resp.usage {
+    (usage.prompt_tokens, usage.completion_tokens)
+  } else {
+    // Estimate tokens from text when the API doesn't return usage
+    let input_est = estimate_tokens(input_text);
+    let output_est = resp.choices.first()
+      .and_then(|c| c.message.content.as_deref())
+      .map(|t| estimate_tokens(t))
+      .unwrap_or(0);
+    (input_est, output_est)
+  };
+
+  if input_tokens == 0 && output_tokens == 0 {
+    return;
+  }
+
+  let pricing = get_pricing(provider, model);
+  let cost = calculate_cost(input_tokens, output_tokens, &pricing);
+
+  let mut record = TokenUsage::new(
+    provider.to_string(),
+    model.to_string(),
+    input_tokens,
+    output_tokens,
+    cost,
+    "chat".to_string(),
+  );
+
+  if let Err(e) = record.create() {
+    log::warn!("[clawd/chat] Failed to record token usage: {:?}", e);
+  } else {
+    log::info!(
+      "[clawd/chat] Recorded: provider={}, model={}, in={}, out={}, cost=${:.6}",
+      provider, model, input_tokens, output_tokens, cost
+    );
+  }
+}
 
 // --- local token storage (shared with service.rs) ---
 
@@ -3491,6 +3533,9 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
         }
       }
     };
+
+    // Record token usage for this chat API call
+    record_chat_usage(&current_provider, &current_model, &resp, &full_text);
 
     let choice = match resp.choices.first() {
       Some(c) => c,
