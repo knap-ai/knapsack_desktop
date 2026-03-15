@@ -183,7 +183,7 @@
         "https://github.com/knap-ai/knapsack_desktop/releases/latest/download/latest.json"
       ],
       "dialog": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMyMDY2QjhCQzRFOUJBNjgKUldSb3V1bkVpMnNHTXA1c1N1WHhCS0VqMXhtWmpTYWFWNGdRMTFVYXQ2N3NGZWVtN0RNTUJrSW8K"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBQ0JCMjk5MkQ0NkMwNDQKUldSRXdFWXRtYkxMNmlLZ1VjNXZheHVvQ0FoMVlZREM1OFNxV1dHNkd1QWZra2p3bHBiRGJJSmcK"
     },
     "systemTray": {
       "iconPath": "icons/icon.ico",
