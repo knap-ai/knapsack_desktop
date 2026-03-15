@@ -3316,6 +3316,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // carries a text message string and cannot forward images/files.
         // Go straight to direct /api/clawd/chat which has full vision support.
         let useDirectChat = currentAttachments.length > 0
+
+        if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
         const agentTimerId = agentTimeout ? setTimeout(() => {
           console.warn('[chat] agent-chat timed out after 90s, falling back to direct chat')
@@ -3364,6 +3366,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           console.warn('[chat] Gateway agent-chat unavailable, using direct chat:', agentErr.message)
           useDirectChat = true
         }
+        } // end if (!useDirectChat)
 
         // Fallback: direct LLM chat (no shared session with channels)
         const maxRetries = 3
