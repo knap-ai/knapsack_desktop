@@ -135,3 +135,38 @@ AFTER_EXT=$(du -sm "$CLAWDBOT_DIR/extensions" 2>/dev/null | cut -f1 || echo 0)
 TOTAL_SAVED=$(( (BEFORE + BEFORE_EXT) - (AFTER + AFTER_EXT) ))
 echo "[prune-clawdbot] ✓ Pruned: node_modules ${BEFORE} MB → ${AFTER} MB, extensions ${BEFORE_EXT} MB → ${AFTER_EXT} MB"
 echo "[prune-clawdbot] ✓ Total saved: ~${TOTAL_SAVED} MB"
+
+# ── Step 4: Verify critical runtime packages still exist ──────────────
+# These packages are statically imported in the dist bundle. If any are
+# missing, the gateway will crash at startup with ERR_MODULE_NOT_FOUND.
+# Fail the build loudly rather than shipping a broken DMG.
+
+CRITICAL_PACKAGES=(
+  "@buape/carbon"
+  "@line/bot-sdk"
+  "@homebridge/ciao"
+  "@mariozechner/pi-tui"
+  "@whiskeysockets/baileys"
+  "long"
+  "proper-lockfile"
+)
+
+MISSING=()
+for pkg in "${CRITICAL_PACKAGES[@]}"; do
+  pkg_dir="$CLAWDBOT_DIR/node_modules/$pkg"
+  if [ ! -d "$pkg_dir" ] || [ ! -f "$pkg_dir/package.json" ]; then
+    MISSING+=("$pkg")
+  fi
+done
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+  echo ""
+  echo "[prune-clawdbot] ✗ FATAL: Critical runtime packages are missing!"
+  echo "[prune-clawdbot]   Missing: ${MISSING[*]}"
+  echo "[prune-clawdbot]   The gateway will crash at startup without these."
+  echo "[prune-clawdbot]   Run: git checkout -- src/src-tauri/resources/clawdbot/node_modules/"
+  echo "[prune-clawdbot]   or:  cd src/src-tauri/resources/clawdbot && npm install"
+  exit 1
+fi
+
+echo "[prune-clawdbot] ✓ All critical runtime packages verified."
