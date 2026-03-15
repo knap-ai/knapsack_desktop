@@ -20,7 +20,16 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VERSION=$(node -p "require('$PROJECT_DIR/package.json').version")
 TAG="v$VERSION"
 
-BUNDLE_DIR="$PROJECT_DIR/src-tauri/target/release/bundle"
+# Use universal build output if available, otherwise fall back to standard release
+UNIVERSAL_BUNDLE_DIR="$PROJECT_DIR/src-tauri/target/universal-apple-darwin/release/bundle"
+STANDARD_BUNDLE_DIR="$PROJECT_DIR/src-tauri/target/release/bundle"
+
+if [ -d "$UNIVERSAL_BUNDLE_DIR" ]; then
+  BUNDLE_DIR="$UNIVERSAL_BUNDLE_DIR"
+  echo "[release] Using universal binary bundle from $BUNDLE_DIR"
+else
+  BUNDLE_DIR="$STANDARD_BUNDLE_DIR"
+fi
 GITHUB_REPO="knap-ai/knapsack_desktop"
 
 # Collect artifacts
