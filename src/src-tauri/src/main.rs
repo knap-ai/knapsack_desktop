@@ -647,14 +647,15 @@ async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>
         .app_log_dir()
         .ok_or("Could not resolve log directory")?;
 
-    let filename = match log_type.as_str() {
-        "error" => "ks_error.log",
-        _ => "ks.log",
+    let log_path = match log_type.as_str() {
+        "error" => log_dir.join("ks_error.log"),
+        "clawdbot_err" => std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log"),
+        "clawdbot_out" => std::path::PathBuf::from("/tmp/knapsack-clawdbot.out.log"),
+        _ => log_dir.join("ks.log"),
     };
 
-    let log_path = log_dir.join(filename);
     let content = std::fs::read_to_string(&log_path)
-        .map_err(|e| format!("Failed to read log file: {}", e))?;
+        .map_err(|e| format!("Failed to read log file {}: {}", log_path.display(), e))?;
 
     let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
     let max = max_lines.unwrap_or(500);
