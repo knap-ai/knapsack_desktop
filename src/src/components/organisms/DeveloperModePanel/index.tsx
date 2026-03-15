@@ -469,7 +469,6 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
     } catch { /* ignore */ }
     return null
   })
-  const pendingAutoFixRef = useRef<SuggestedAction[]>([])
   const autoFixInProgressRef = useRef(false)
 
   // ── Email scanning: search for Sentry alerts ──
