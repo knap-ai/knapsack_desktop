@@ -2028,6 +2028,10 @@ pub async fn set_service_enabled(
       let clawdbot_home = app_clawdbot_home(&app_handle);
       let clawdbot_home_str = clawdbot_home.to_string_lossy().to_string();
 
+      // Resolve bundled plugins directory early — needed both for config
+      // patching (plugins.load.paths) and for the env var passed to the gateway.
+      let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/extensions");
+
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
       // Without this, OpenClaw refuses to start on a fresh machine.
       // NOTE: plugins.slots.memory must be set to "none" explicitly — if omitted,
@@ -2058,6 +2062,9 @@ pub async fn set_service_enabled(
           "plugins": {
             "slots": {
               "memory": "none"
+            },
+            "load": {
+              "paths": [bundled_plugins_dir.to_string_lossy().to_string()]
             }
           },
           "tools": {
@@ -2129,6 +2136,55 @@ pub async fn set_service_enabled(
                 .insert("memory".to_string(), serde_json::json!("none"));
               eprintln!("[clawd/service] Patched plugins.slots.memory to \"none\"");
               patched = true;
+            }
+
+            // Ensure plugins.load.paths includes the bundled extensions directory.
+            // The config validator runs plugin discovery to check that every entry
+            // in plugins.entries actually exists.  Even though we pass
+            // OPENCLAW_BUNDLED_PLUGINS_DIR as an env var, the validator may not
+            // pick it up in all contexts (e.g. macOS app translocation, path
+            // resolution edge cases).  Writing the path directly into
+            // plugins.load.paths guarantees the validator can always find
+            // bundled plugins like telegram, imessage, whatsapp, etc.
+            //
+            // We also remove stale bundled paths from previous app installs
+            // (e.g. after update the .app bundle path may change).
+            {
+              let bundled_dir = bundled_plugins_dir.to_string_lossy().to_string();
+              let load_paths = cfg
+                .pointer("/plugins/load/paths")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
+              // Remove stale bundled extension paths (contain "clawdbot/extensions"
+              // but don't match the current bundled dir).
+              let mut cleaned: Vec<serde_json::Value> = load_paths.into_iter().filter(|v| {
+                match v.as_str() {
+                  Some(s) if s.contains("clawdbot/extensions") || s.contains("clawdbot\\extensions") => s == bundled_dir,
+                  _ => true,
+                }
+              }).collect();
+              let already_present = cleaned.iter().any(|v| {
+                v.as_str().map(|s| s == bundled_dir).unwrap_or(false)
+              });
+              if !already_present {
+                cleaned.push(serde_json::json!(bundled_dir));
+              }
+              let needs_update = !already_present || cleaned.len() != cfg
+                .pointer("/plugins/load/paths")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0);
+              if needs_update {
+                if cfg.pointer("/plugins/load").is_none() {
+                  cfg.pointer_mut("/plugins").unwrap().as_object_mut().unwrap()
+                    .insert("load".to_string(), serde_json::json!({}));
+                }
+                cfg.pointer_mut("/plugins/load").unwrap().as_object_mut().unwrap()
+                  .insert("paths".to_string(), serde_json::json!(cleaned));
+                eprintln!("[clawd/service] Updated plugins.load.paths with bundled extensions dir");
+                patched = true;
+              }
             }
 
             // Ensure browser.enabled is true so the browser control HTTP server
@@ -2574,8 +2630,7 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         "18789".to_string(),
       ];
 
-      // Resolve bundled plugins directory (extensions are shipped with the app)
-      let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/extensions");
+      // bundled_plugins_dir was resolved earlier (before config patching)
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
 
       // Build a PATH that includes the directory where we found node (so npm
