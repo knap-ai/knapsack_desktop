@@ -19,8 +19,25 @@ pub fn open_microphone_settings() -> Result<serde_json::Value, String> {
         }
     }
     
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
-        Ok(json!({ "success": false, "error": "This command is only supported on macOS" }))
+        use std::process::Command;
+
+        let output = Command::new("cmd")
+            .args(["/C", "start", "ms-settings:privacy-microphone"])
+            .output();
+
+        match output {
+            Ok(_) => Ok(json!({ "success": true })),
+            Err(e) => Ok(json!({
+                "success": false,
+                "error": format!("Failed to open settings: {}", e)
+            }))
+        }
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        Ok(json!({ "success": false, "error": "This command is only supported on macOS and Windows" }))
     }
 }

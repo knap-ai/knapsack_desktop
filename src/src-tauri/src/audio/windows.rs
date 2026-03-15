@@ -128,7 +128,7 @@ impl AudioRecorder {
           return Ok(());
         }
       }
-      sleep(Duration::from_millis(100));
+      std::thread::sleep(std::time::Duration::from_millis(100));
       if !self.is_recording.load(Ordering::SeqCst) {
         log::info!("################ stopping writing of speaker recording");
         break;
