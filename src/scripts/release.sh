@@ -117,7 +117,7 @@ read_sig() {
 PLATFORMS=()
 
 # macOS (darwin-x86_64 and darwin-aarch64 use the same universal .app.tar.gz)
-MACOS_TAR=$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz" 2>/dev/null | head -1)
+MACOS_TAR=$(find "$BUNDLE_DIR/macos" -name "*.app.tar.gz" 2>/dev/null | head -1 || true)
 if [ -n "$MACOS_TAR" ] && [ -f "$MACOS_TAR" ]; then
   MACOS_TAR_NAME=$(basename "$MACOS_TAR")
   MACOS_SIG=$(read_sig "$MACOS_TAR.sig")
@@ -136,7 +136,7 @@ ENTRY
 fi
 
 # Linux (AppImage.tar.gz)
-LINUX_TAR=$(find "$BUNDLE_DIR/appimage" -name "*.AppImage.tar.gz" 2>/dev/null | head -1)
+LINUX_TAR=$(find "$BUNDLE_DIR/appimage" -name "*.AppImage.tar.gz" 2>/dev/null | head -1 || true)
 if [ -n "$LINUX_TAR" ] && [ -f "$LINUX_TAR" ]; then
   LINUX_TAR_NAME=$(basename "$LINUX_TAR")
   LINUX_SIG=$(read_sig "$LINUX_TAR.sig")
@@ -151,7 +151,7 @@ ENTRY
 fi
 
 # Windows NSIS (.nsis.zip)
-WIN_NSIS_ZIP=$(find "$BUNDLE_DIR/nsis" -name "*.nsis.zip" 2>/dev/null | head -1)
+WIN_NSIS_ZIP=$(find "$BUNDLE_DIR/nsis" -name "*.nsis.zip" 2>/dev/null | head -1 || true)
 if [ -n "$WIN_NSIS_ZIP" ] && [ -f "$WIN_NSIS_ZIP" ]; then
   WIN_NSIS_NAME=$(basename "$WIN_NSIS_ZIP")
   WIN_NSIS_SIG=$(read_sig "$WIN_NSIS_ZIP.sig")
