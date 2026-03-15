@@ -101,7 +101,7 @@ done
 
 RELEASE_URL="https://github.com/$GITHUB_REPO/releases/download/$TAG"
 LATEST_JSON="$BUNDLE_DIR/latest.json"
-PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S%.3NZ")
+PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Helper: read a .sig file's contents (single-line base64 signature)
 read_sig() {
