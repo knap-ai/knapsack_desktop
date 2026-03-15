@@ -321,40 +321,43 @@ type AnthropicModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for agents and coding' },
-  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Best balance of speed and intelligence' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost' },
-  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet, still excellent' },
-  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous flagship, excellent for long tasks' },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for agents and coding', vision: true },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Best balance of speed and intelligence', vision: true },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost', vision: true },
+  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet, still excellent', vision: true },
+  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous flagship, excellent for long tasks', vision: true },
 ]
 
 type GeminiModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const GEMINI_MODELS: GeminiModelOption[] = [
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning' },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance' },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking' },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning', vision: true },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance', vision: true },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks', vision: true },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding', vision: true },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking', vision: true },
 ]
 
 type GroqModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const GROQ_MODELS: GroqModelOption[] = [
   { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', description: 'OpenAI open-weight flagship, tools built-in' },
-  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Multimodal MoE, 10M context window' },
-  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, 128 experts, 1M context' },
+  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Multimodal MoE, 10M context window', vision: true },
+  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, 128 experts, 1M context', vision: true },
   { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2', description: '1T params, agentic coding, 256K context' },
   { id: 'qwen/qwen-3-32b', name: 'Qwen 3 32B', description: 'Latest Qwen, strong reasoning' },
   { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill', description: 'Reasoning model, great for logic' },
@@ -366,15 +369,16 @@ type OpenRouterModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const OPENROUTER_MODELS: OpenRouterModelOption[] = [
-  { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request' },
+  { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request', vision: true },
   { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
   { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', description: 'Free, fast and capable' },
   { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 (Free)', description: 'Free, good for coding and reasoning' },
-  { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits' },
-  { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'Paid, use your OpenRouter credits' },
+  { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits', vision: true },
+  { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'Paid, use your OpenRouter credits', vision: true },
 ]
 
 // Recommended models to offer for download when Ollama has none installed
@@ -441,6 +445,7 @@ type OpenAIModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const OPENAI_MODELS: OpenAIModelOption[] = [
@@ -448,21 +453,25 @@ const OPENAI_MODELS: OpenAIModelOption[] = [
     id: 'gpt-5.4',
     name: 'GPT-5.4',
     description: 'Most intelligent model, best for complex tasks',
+    vision: true,
   },
   {
     id: 'gpt-5.4-pro',
     name: 'GPT-5.4 Pro',
     description: 'Extended thinking for harder problems',
+    vision: true,
   },
   {
     id: 'o3',
     name: 'o3 (Reasoning)',
     description: 'Reasoning model for complex logic',
+    vision: true,
   },
   {
     id: 'gpt-5-mini',
     name: 'GPT-5 Mini',
     description: 'Fast and affordable',
+    vision: true,
   },
 ]
 
@@ -1906,6 +1915,29 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
+  // Check whether the currently selected model supports vision (image attachments)
+  const currentModelSupportsVision = useCallback((): { supported: boolean; modelName: string; visionModels: string[] } => {
+    const allModels = selectedProvider === 'openai' ? OPENAI_MODELS
+      : selectedProvider === 'anthropic' ? ANTHROPIC_MODELS
+      : selectedProvider === 'gemini' ? GEMINI_MODELS
+      : selectedProvider === 'groq' ? GROQ_MODELS
+      : selectedProvider === 'openrouter' ? OPENROUTER_MODELS
+      : []
+    const currentId = selectedProvider === 'openai' ? selectedModel
+      : selectedProvider === 'anthropic' ? selectedAnthropicModel
+      : selectedProvider === 'gemini' ? selectedGeminiModel
+      : selectedProvider === 'groq' ? selectedGroqModel
+      : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+      : ''
+    const current = allModels.find(m => m.id === currentId)
+    // Ollama: we don't know model capabilities, assume supported
+    if (selectedProvider === 'ollama') return { supported: true, modelName: '', visionModels: [] }
+    const modelName = current?.name || currentId
+    const supported = current?.vision ?? false
+    const visionModels = allModels.filter(m => m.vision).map(m => m.name)
+    return { supported, modelName, visionModels }
+  }, [selectedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOpenRouterModel])
+
   // File upload handlers
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -1957,9 +1989,22 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
 
     setAttachedFiles(prev => [...prev, ...newFiles])
+
+    // Warn if attaching images with a model that doesn't support vision
+    const hasImages = newFiles.some(f => f.type.startsWith('image/'))
+    if (hasImages) {
+      const { supported, modelName, visionModels } = currentModelSupportsVision()
+      if (!supported) {
+        const suggestion = visionModels.length > 0
+          ? ` Try switching to ${visionModels[0]}.`
+          : ''
+        pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+      }
+    }
+
     // Reset input
     if (e.target) e.target.value = ''
-  }, [])
+  }, [currentModelSupportsVision])
 
   const readFileAsDataURL = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -2039,7 +2084,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
 
     setAttachedFiles(prev => [...prev, ...newFiles])
-  }, [])
+
+    // Warn if dropping images with a model that doesn't support vision
+    const hasImages = newFiles.some(f => f.type.startsWith('image/'))
+    if (hasImages) {
+      const { supported, modelName, visionModels } = currentModelSupportsVision()
+      if (!supported) {
+        const suggestion = visionModels.length > 0
+          ? ` Try switching to ${visionModels[0]}.`
+          : ''
+        pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+      }
+    }
+  }, [currentModelSupportsVision])
 
   // Listen for Tauri native file-drop events — the webview in Tauri does not
   // forward file data through the browser's drop event, so we handle drops
@@ -2092,6 +2149,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         if (newFiles.length > 0) {
           setAttachedFiles(prev => [...prev, ...newFiles])
+
+          // Warn if dropping images with a model that doesn't support vision
+          const hasImages = newFiles.some(f => f.type.startsWith('image/'))
+          if (hasImages) {
+            const { supported, modelName, visionModels } = currentModelSupportsVision()
+            if (!supported) {
+              const suggestion = visionModels.length > 0
+                ? ` Try switching to ${visionModels[0]}.`
+                : ''
+              pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+            }
+          }
         }
       })
       cleanups.push(unlistenDrop)
@@ -3316,6 +3385,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // carries a text message string and cannot forward images/files.
         // Go straight to direct /api/clawd/chat which has full vision support.
         let useDirectChat = currentAttachments.length > 0
+
+        if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
         const agentTimerId = agentTimeout ? setTimeout(() => {
           console.warn('[chat] agent-chat timed out after 90s, falling back to direct chat')
@@ -3364,6 +3435,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           console.warn('[chat] Gateway agent-chat unavailable, using direct chat:', agentErr.message)
           useDirectChat = true
         }
+        } // end if (!useDirectChat)
 
         // Fallback: direct LLM chat (no shared session with channels)
         const maxRetries = 3
