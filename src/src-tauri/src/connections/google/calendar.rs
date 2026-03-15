@@ -1,6 +1,7 @@
 use actix_web::web::Data;
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use google_calendar3::{hyper, hyper_rustls, CalendarHub};
+use super::https_client::get_https_client;
 use serde::{Deserialize, Serialize};
 use serde_json::Map;
 use serde_json::Value;
@@ -90,14 +91,7 @@ pub async fn fetch_calendar(
 
   tauri::async_runtime::spawn(async move {
     let hub = CalendarHub::new(
-      hyper::Client::builder().build(
-        hyper_rustls::HttpsConnectorBuilder::new()
-          .with_native_roots()
-          .unwrap()
-          .https_or_http()
-          .enable_http1()
-          .build(),
-      ),
+      get_https_client(),
       access_token,
     );
 
