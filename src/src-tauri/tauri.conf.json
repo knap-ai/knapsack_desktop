@@ -169,8 +169,7 @@
           "perMachine": false,
           "allowElevation": true,
           "createDesktopShortcut": true,
-          "createStartMenuShortcut": true,
-          "shortcutName": "Knapsack"
+          "createStartMenuShortcut": true
         }
       }
     },
