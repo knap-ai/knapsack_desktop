@@ -163,13 +163,6 @@
         "timestampUrl": "http://timestamp.comodoca.com",
         "wix": {
           "language": "en-US"
-        },
-        "nsis": {
-          "oneClick": false,
-          "perMachine": false,
-          "allowElevation": true,
-          "createDesktopShortcut": true,
-          "createStartMenuShortcut": true
         }
       }
     },
