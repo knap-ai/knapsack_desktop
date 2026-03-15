@@ -438,7 +438,7 @@ const ACTIVE_PROVIDER_STORAGE = 'moltbot_active_provider'
 const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
 // The current app version — bump this when you want to re-show the key prompt
-const APP_VERSION = '0.9.536'
+const APP_VERSION = '0.9.600'
 
 // Available OpenAI models
 type OpenAIModelOption = {
