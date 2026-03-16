@@ -542,7 +542,7 @@ fn platform_spawn(
   use std::mem::{size_of, zeroed};
   use std::ptr;
 
-  let (out_read, proc_send, write_h, process_h, hpc_val) = unsafe {
+  let (out_read_usize, proc_usize, write_usize, process_usize, hpc_val) = unsafe {
     // Create pipes: pty_in_read  → PTY stdin,  app writes to pty_in_write
     //               pty_out_read ← PTY stdout, app reads from pty_out_read
     let mut pty_in_read: HANDLE = ptr::null_mut();
@@ -650,14 +650,15 @@ fn platform_spawn(
     CloseHandle(pty_out_write);
     CloseHandle(pi.hThread);
 
-    // Save values needed outside the unsafe block
-    let out_read = SendHandle(pty_out_read);
-    let proc_send = SendHandle(pi.hProcess);
-    let write_h = pty_in_write;
-    let process_h = pi.hProcess;
+    // Cast ALL raw pointers to usize so no *mut c_void exists outside
+    // the unsafe block (usize is Send, *mut c_void is not).
+    let out_read_usize = pty_out_read as usize;
+    let proc_usize = pi.hProcess as usize;
+    let write_usize = pty_in_write as usize;
+    let process_usize = pi.hProcess as usize;
     let hpc_val = hpc;
 
-    (out_read, proc_send, write_h, process_h, hpc_val)
+    (out_read_usize, proc_usize, write_usize, process_usize, hpc_val)
   };
   // ── Now outside the unsafe block ──
 
@@ -670,8 +671,8 @@ fn platform_spawn(
   std::thread::Builder::new()
     .name(format!("pty-read-{}", session_id))
     .spawn(move || {
-      let read_handle = out_read.0;
-      let proc_handle = proc_send.0;
+      let read_handle = out_read_usize as *mut std::ffi::c_void;
+      let proc_handle = proc_usize as *mut std::ffi::c_void;
       let mut buf = [0u8; 4096];
       loop {
         if !alive_reader.load(Ordering::Relaxed) {
@@ -723,8 +724,8 @@ fn platform_spawn(
 
   Ok(PtyHandle {
     alive,
-    write_handle: write_h,
-    process_handle: process_h,
+    write_handle: write_usize as *mut std::ffi::c_void,
+    process_handle: process_usize as *mut std::ffi::c_void,
     hpc: hpc_val,
   })
 }
