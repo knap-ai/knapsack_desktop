@@ -75,6 +75,21 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "`n=== Build Complete ===" -ForegroundColor Green
-Write-Host "Output files are in: src-tauri\target\release\bundle\" -ForegroundColor Cyan
-Write-Host "  MSI installer:  src-tauri\target\release\bundle\msi\" -ForegroundColor Cyan
-Write-Host "  NSIS installer: src-tauri\target\release\bundle\nsis\" -ForegroundColor Cyan
+
+$bundleDir = Join-Path (Get-Location) "src-tauri\target\release\bundle"
+Write-Host "Output files are in: $bundleDir" -ForegroundColor Cyan
+
+# Try to launch the NSIS installer (.exe), fall back to MSI, fall back to opening the folder
+$nsisExe = Get-ChildItem -Path "$bundleDir\nsis\*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+$msiFile = Get-ChildItem -Path "$bundleDir\msi\*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+if ($nsisExe) {
+    Write-Host "Launching installer: $($nsisExe.FullName)" -ForegroundColor Green
+    Invoke-Item $nsisExe.FullName
+} elseif ($msiFile) {
+    Write-Host "Launching installer: $($msiFile.FullName)" -ForegroundColor Green
+    Invoke-Item $msiFile.FullName
+} else {
+    Write-Host "No installer found — opening bundle folder..." -ForegroundColor Yellow
+    explorer.exe $bundleDir
+}
