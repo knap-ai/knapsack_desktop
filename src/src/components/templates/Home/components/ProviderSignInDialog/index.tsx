@@ -8,7 +8,7 @@ import { Dialog } from 'src/components/molecules/Dialog'
 
 import styles from './styles.module.scss'
 
-const API_BASE = 'http://localhost:8897'
+const API_BASE = 'http://127.0.0.1:8897'
 
 type Provider = 'openai' | 'anthropic' | 'openrouter'
 

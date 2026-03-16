@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 import './style.scss'
 
-const API_BASE = 'http://localhost:8897'
+const API_BASE = 'http://127.0.0.1:8897'
 const KN_GMAIL_SEARCH = API_BASE + '/api/knapsack/gmail_search'
 
 interface SentryEmail {

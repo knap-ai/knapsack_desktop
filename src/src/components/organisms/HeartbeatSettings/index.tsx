@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-const API_BASE = 'http://localhost:8897/api/knapsack/heartbeat'
+const API_BASE = 'http://127.0.0.1:8897/api/knapsack/heartbeat'
 
 interface HeartbeatConfig {
   id: number

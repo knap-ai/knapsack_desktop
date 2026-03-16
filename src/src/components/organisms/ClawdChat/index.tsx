@@ -390,7 +390,7 @@ const OLLAMA_SUGGESTED_MODELS: OllamaModelSuggestion[] = [
 
 // In Tauri dev, the UI runs on Vite (1420) while the Rust server listens on 8897.
 // In production, the UI is loaded from file:// but the Rust server is still 8897.
-const API_BASE = 'http://localhost:8897'
+const API_BASE = 'http://127.0.0.1:8897'
 
 
 // API key is now stored server-side in tokens.json (not localStorage) for security.
@@ -1568,7 +1568,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     )
 
     // Sync heartbeat config with proactive mode
-    fetch('http://localhost:8897/api/knapsack/heartbeat/config', {
+    fetch('http://127.0.0.1:8897/api/knapsack/heartbeat/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: pendingProactiveState }),
@@ -2416,7 +2416,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           // Wait for gateway to become healthy (with exponential backoff on backend).
           // The startup-ready endpoint polls until the gateway responds or 30s elapses.
           try {
-            await fetch('http://localhost:8897/api/clawd/service/startup-ready')
+            await fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready')
           } catch {
             // Backend might not be reachable yet — fall back to a short delay
             await new Promise(resolve => setTimeout(resolve, 4000))
@@ -2473,7 +2473,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               // After 3 consecutive down polls (~15s), try to trigger a restart
               // via the startup-ready endpoint which calls ensure_gateway_running.
               if (consecutiveDownPolls === 3) {
-                fetch('http://localhost:8897/api/clawd/service/startup-ready').catch(() => {})
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
               setTimeout(pollGateway, 2000)
             } else if (!isHealthy && gatewayAttempts < maxFastAttempts) {
@@ -2483,14 +2483,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               // not just after a healthy→down transition. This handles the case
               // where the gateway never started successfully.
               if (consecutiveDownPolls === 6) {
-                fetch('http://localhost:8897/api/clawd/service/startup-ready').catch(() => {})
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
               setTimeout(pollGateway, 1500)
             } else {
               // Slow poll fallback — still try restart periodically
               consecutiveDownPolls++
               if (consecutiveDownPolls % 6 === 0) {
-                fetch('http://localhost:8897/api/clawd/service/startup-ready').catch(() => {})
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
               setTimeout(pollGateway, 10000)
             }

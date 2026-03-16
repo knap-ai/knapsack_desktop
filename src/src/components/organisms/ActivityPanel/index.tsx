@@ -681,8 +681,8 @@ const TerminalView: React.FC = () => {
       addLine('clawdbot', 'system', 'Fetching backend service status...')
       try {
         const [statusRes, healthRes] = await Promise.all([
-          fetch('http://localhost:8897/api/clawd/service/status').catch(() => null),
-          fetch('http://localhost:8897/api/clawd/service/health').catch(() => null),
+          fetch('http://127.0.0.1:8897/api/clawd/service/status').catch(() => null),
+          fetch('http://127.0.0.1:8897/api/clawd/service/health').catch(() => null),
         ])
         if (statusRes?.ok) {
           const data = await statusRes.json()
@@ -958,8 +958,8 @@ const TerminalView: React.FC = () => {
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
           const [statusRes, healthRes] = await Promise.all([
-            fetch('http://localhost:8897/api/clawd/service/status').catch(() => null),
-            fetch('http://localhost:8897/api/clawd/service/health').catch(() => null),
+            fetch('http://127.0.0.1:8897/api/clawd/service/status').catch(() => null),
+            fetch('http://127.0.0.1:8897/api/clawd/service/health').catch(() => null),
           ])
           if (statusRes?.ok) {
             const data = await statusRes.json()
@@ -991,7 +991,7 @@ const TerminalView: React.FC = () => {
       if (trimmed === 'skills list' || trimmed === 'skills status' || trimmed === 'skills check') {
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
-          const resp = await fetch('http://localhost:8897/api/clawd/skills/status')
+          const resp = await fetch('http://127.0.0.1:8897/api/clawd/skills/status')
           const data = await resp.json()
           if (data.success && data.skills) {
             const skills: { name: string; eligible?: boolean; enabled?: boolean; source?: string; description?: string; missing?: string[] }[] = data.skills
@@ -1036,7 +1036,7 @@ const TerminalView: React.FC = () => {
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
           addLine(sessionId, 'system', `Installing ${skillName}...`)
-          const resp = await fetch('http://localhost:8897/api/clawd/skills/install', {
+          const resp = await fetch('http://127.0.0.1:8897/api/clawd/skills/install', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: skillName, installId: 'default' }),
@@ -1060,7 +1060,7 @@ const TerminalView: React.FC = () => {
         const skillName = enableMatch[1].trim()
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
-          const resp = await fetch('http://localhost:8897/api/clawd/skills/update', {
+          const resp = await fetch('http://127.0.0.1:8897/api/clawd/skills/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ skillKey: skillName, enabled: true }),
@@ -1080,7 +1080,7 @@ const TerminalView: React.FC = () => {
         const skillName = disableMatch[1].trim()
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
-          const resp = await fetch('http://localhost:8897/api/clawd/skills/update', {
+          const resp = await fetch('http://127.0.0.1:8897/api/clawd/skills/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ skillKey: skillName, enabled: false }),
