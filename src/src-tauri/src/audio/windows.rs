@@ -47,13 +47,10 @@ impl AudioRecorder {
   }
 
   pub fn start_recording(&self) -> Result<(), Error> {
-    let _res = match initialize_mta() {
-      Ok(_) => Some(()),
-      Err(_) => {
-        log::error!("Error initializing mta");
-        None
-      }
-    };
+    let hr = initialize_mta();
+    if hr.is_err() {
+      log::error!("Error initializing mta: {:?}", hr);
+    }
 
     let (tx_capt, rx_capt): (
       std::sync::mpsc::SyncSender<Vec<f32>>,
