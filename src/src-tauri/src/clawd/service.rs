@@ -782,35 +782,56 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     };
 
     if !gateway_ok {
-      // Diagnostic: check if the LaunchAgent plist exists
-      match launch_agent_plist_path() {
-        Ok(plist) => {
-          if !plist.exists() {
-            message.push_str("\n[diagnostic] LaunchAgent plist not found — service may not be enabled. Try toggling Enable in Settings.");
-            eprintln!("[clawd/service] gateway down: plist not found at {}", plist.display());
-          } else {
-            // Check if the service is loaded in launchctl
-            let uid = unsafe { libc::getuid() };
-            let domain = format!("gui/{}/{}", uid, LAUNCH_AGENT_LABEL);
-            let loaded = std::process::Command::new("launchctl")
-              .args(["print", &domain])
-              .output()
-              .map(|o| o.status.success())
-              .unwrap_or(false);
-            if !loaded {
-              message.push_str("\n[diagnostic] LaunchAgent plist exists but service is not loaded. Try disabling and re-enabling in Settings.");
-              eprintln!("[clawd/service] gateway down: plist exists but service not loaded (label={})", LAUNCH_AGENT_LABEL);
+      // macOS-specific diagnostics: check LaunchAgent plist and launchctl status
+      #[cfg(target_os = "macos")]
+      {
+        match launch_agent_plist_path() {
+          Ok(plist) => {
+            if !plist.exists() {
+              message.push_str("\n[diagnostic] LaunchAgent plist not found — service may not be enabled. Try toggling Enable in Settings.");
+              eprintln!("[clawd/service] gateway down: plist not found at {}", plist.display());
             } else {
-              eprintln!("[clawd/service] gateway down: service is loaded but not responding on port 18789");
+              let uid = unsafe { libc::getuid() };
+              let domain = format!("gui/{}/{}", uid, LAUNCH_AGENT_LABEL);
+              let loaded = std::process::Command::new("launchctl")
+                .args(["print", &domain])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+              if !loaded {
+                message.push_str("\n[diagnostic] LaunchAgent plist exists but service is not loaded. Try disabling and re-enabling in Settings.");
+                eprintln!("[clawd/service] gateway down: plist exists but service not loaded (label={})", LAUNCH_AGENT_LABEL);
+              } else {
+                eprintln!("[clawd/service] gateway down: service is loaded but not responding on port 18789");
+              }
             }
           }
-        }
-        Err(e) => {
-          message.push_str(&format!("\n[diagnostic] Could not resolve LaunchAgent path: {}", e));
+          Err(e) => {
+            message.push_str(&format!("\n[diagnostic] Could not resolve LaunchAgent path: {}", e));
+          }
         }
       }
 
-      let err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+      // Windows-specific diagnostics: check tracked PID
+      #[cfg(target_os = "windows")]
+      {
+        let pid = GATEWAY_PID.load(Ordering::Relaxed);
+        if pid == 0 {
+          message.push_str("\n[diagnostic] No gateway process tracked — service may not be enabled. Try toggling Enable.");
+          eprintln!("[clawd/service] gateway down: no PID tracked");
+        } else if !is_pid_alive(pid) {
+          message.push_str(&format!("\n[diagnostic] Gateway process (pid {}) is no longer running. Try re-enabling.", pid));
+          eprintln!("[clawd/service] gateway down: tracked pid {} is dead", pid);
+        } else {
+          eprintln!("[clawd/service] gateway down: process pid {} alive but not responding on port 18789", pid);
+        }
+      }
+
+      let err_path = if cfg!(target_os = "windows") {
+        std::env::temp_dir().join("knapsack-clawdbot.err.log")
+      } else {
+        std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log")
+      };
       if let Ok(content) = std::fs::read_to_string(&err_path) {
         let tail: Vec<&str> = content.lines().rev().take(25).collect();
         if !tail.is_empty() {
@@ -820,7 +841,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           message.push_str(&tail_lines.join("\n"));
         }
       } else {
-        message.push_str("\n[diagnostic] No stderr log found at /tmp/knapsack-clawdbot.err.log — gateway may have never started.");
+        message.push_str(&format!("\n[diagnostic] No stderr log found at {} — gateway may have never started.", err_path.display()));
       }
     }
 
