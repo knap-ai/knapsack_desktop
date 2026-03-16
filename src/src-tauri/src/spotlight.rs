@@ -52,7 +52,7 @@ fn register_shortcut(app_handle: AppHandle<Wry>) {
   let window = app_handle.get_window(WINDOW_LABEL).unwrap();
   window.show().expect("Failed to show window");
   // let panel = panel!(app_handle);
-  shortcut_manager
+  if let Err(e) = shortcut_manager
     .register("Option+k", move || {
       if window.is_visible().unwrap_or(false) {
         window.hide().expect("Failed to hide window");
@@ -61,12 +61,16 @@ fn register_shortcut(app_handle: AppHandle<Wry>) {
         window.show().expect("Failed to show window");
       };
     })
-  .unwrap();
+  {
+    log::warn!("Failed to register Option+k shortcut: {}", e);
+  }
 
   // Register overlay (Quick Chat) shortcut: Option+Space (Alt+Space on Windows/Linux)
+  // Note: Alt+Space is reserved by Windows for the system menu, so use Ctrl+Space instead.
   let overlay_handle = app_handle.clone();
-  shortcut_manager
-    .register("Option+Space", move || {
+  let overlay_shortcut = if cfg!(windows) { "Ctrl+Space" } else { "Option+Space" };
+  if let Err(e) = shortcut_manager
+    .register(overlay_shortcut, move || {
       if let Some(overlay_window) = overlay_handle.get_window("overlay") {
         if overlay_window.is_visible().unwrap_or(false) {
           overlay_window.hide().expect("Failed to hide overlay window");
@@ -76,7 +80,9 @@ fn register_shortcut(app_handle: AppHandle<Wry>) {
         }
       }
     })
-  .unwrap();
+  {
+    log::warn!("Failed to register {} shortcut: {}", overlay_shortcut, e);
+  }
 }
 
 #[tauri::command]
