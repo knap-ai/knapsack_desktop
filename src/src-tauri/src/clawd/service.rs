@@ -9,6 +9,60 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
+// ── Windows process management ──────────────────────────────────────────
+// On Windows we spawn the gateway as a child process (no launchd/launchctl).
+// Track the PID so we can check status and kill it on disable.
+#[cfg(target_os = "windows")]
+static GATEWAY_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+#[cfg(target_os = "windows")]
+fn windows_log_path(stream: &str) -> PathBuf {
+  let temp = std::env::temp_dir();
+  match stream {
+    "stdout" => temp.join("knapsack-clawdbot.out.log"),
+    _ => temp.join("knapsack-clawdbot.err.log"),
+  }
+}
+
+/// On Windows, kill a process listening on the given TCP port.
+#[cfg(target_os = "windows")]
+fn kill_process_on_port(port: u16) {
+  let output = std::process::Command::new("netstat")
+    .args(["-ano", "-p", "tcp"])
+    .output();
+  if let Ok(out) = output {
+    let text = String::from_utf8_lossy(&out.stdout);
+    for line in text.lines() {
+      if line.contains(&format!(":{} ", port)) && line.to_uppercase().contains("LISTENING") {
+        if let Some(pid_str) = line.split_whitespace().last() {
+          if let Ok(pid) = pid_str.parse::<u32>() {
+            if pid > 0 {
+              eprintln!("[clawd/service] killing process on port {} (pid {})", port, pid);
+              let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .status();
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/// Check if a process with the given PID is still running (Windows).
+#[cfg(target_os = "windows")]
+fn is_pid_alive(pid: u32) -> bool {
+  if pid == 0 { return false; }
+  std::process::Command::new("tasklist")
+    .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+    .output()
+    .map(|o| {
+      let out = String::from_utf8_lossy(&o.stdout);
+      out.contains(&pid.to_string()) && !out.contains("No tasks")
+    })
+    .unwrap_or(false)
+}
+
 /// Whether we've already sent a one-shot `/start` nudge to the gateway's
 /// browser control.  Reset when the gateway transitions from down to up,
 /// or when the browser transitions from healthy to down, so the nudge
@@ -118,6 +172,19 @@ fn remove_stale_standalone_gateway() {
 
   // Give the old gateway a moment to exit
   std::thread::sleep(std::time::Duration::from_millis(1000));
+}
+
+#[cfg(target_os = "windows")]
+fn kill_stale_clawdbot_chromes() {
+  // Best effort: kill any Chrome holding the CDP port (18800).
+  kill_process_on_port(18800);
+  // Give Chrome a moment to exit so the port is released.
+  std::thread::sleep(std::time::Duration::from_millis(500));
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn kill_stale_clawdbot_chromes() {
+  // No-op on other platforms
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -516,10 +583,9 @@ pub struct ServiceHealthResponse {
 
 #[get("/api/clawd/service/health")]
 pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
-  #[cfg(not(target_os = "macos"))]
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
   {
-    // On non-macOS, still check if the gateway happens to be running (e.g.
-    // started manually or via systemd) before giving up.
+    // On unsupported platforms, still check if the gateway happens to be running.
     let gateway_ok = reqwest::Client::builder()
       .timeout(std::time::Duration::from_millis(800))
       .build()
@@ -532,7 +598,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     let message = if gateway_ok {
       "Gateway is reachable (started externally). Auto-management not available on this platform.".to_string()
     } else {
-      "Gateway not reachable. On Linux, the gateway must be started manually (e.g. `node entry.js`). LaunchAgent auto-management is macOS-only.".to_string()
+      "Gateway not reachable. Service management is not available on this platform.".to_string()
     };
     return HttpResponse::Ok().json(ServiceHealthResponse {
       success: gateway_ok,
@@ -542,7 +608,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     });
   }
 
-  #[cfg(target_os = "macos")]
+  #[cfg(any(target_os = "macos", target_os = "windows"))]
   {
     let tokens = match load_or_create_tokens(&app_handle) {
       Ok(t) => t,
@@ -590,7 +656,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // Kill stale managed Chrome processes from the previous gateway
         // session.  They may still hold the CDP port (18800), preventing
         // the new gateway from launching its own browser.
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
         kill_stale_clawdbot_chromes();
         // Invalidate the pooled WebSocket connection — the old one is dead.
         gateway_client::invalidate();
@@ -612,7 +678,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // When the gateway exits, its Chrome child survives and holds the
         // CDP port (18800).  Without cleanup the new gateway can't launch
         // its own browser and browser control stays permanently down.
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
         kill_stale_clawdbot_chromes();
 
         use crate::clawd::gateway_supervisor;
@@ -827,13 +893,35 @@ pub struct ServiceLogsResponse {
 
 #[get("/api/clawd/service/logs")]
 pub async fn service_logs(query: web::Query<ServiceLogsParams>) -> impl Responder {
-  #[cfg(not(target_os = "macos"))]
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
   {
     return HttpResponse::NotImplemented().json(ServiceLogsResponse {
       success: false,
       stream: query.stream.clone().unwrap_or("stderr".to_string()),
       lines: query.lines.unwrap_or(200),
-      text: "Service management is only implemented for macOS right now".to_string(),
+      text: "Service management is not implemented for this platform".to_string(),
+    });
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    let stream = query.stream.clone().unwrap_or("stderr".to_string());
+    let lines = query.lines.unwrap_or(200).min(2000);
+    let path = windows_log_path(&stream);
+
+    let mut s = String::new();
+    if let Ok(mut f) = fs::File::open(&path) {
+      let _ = f.read_to_string(&mut s);
+    }
+
+    let mut out_lines = s.lines().rev().take(lines).collect::<Vec<_>>();
+    out_lines.reverse();
+
+    return HttpResponse::Ok().json(ServiceLogsResponse {
+      success: true,
+      stream,
+      lines,
+      text: out_lines.join("\n"),
     });
   }
 
@@ -867,14 +955,45 @@ pub async fn service_logs(query: web::Query<ServiceLogsParams>) -> impl Responde
 
 #[get("/api/clawd/service/status")]
 pub async fn service_status() -> impl Responder {
-  #[cfg(not(target_os = "macos"))]
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
   {
     return HttpResponse::NotImplemented().json(ServiceStatusResponse {
       success: false,
       installed: false,
       running: false,
       label: LAUNCH_AGENT_LABEL.to_string(),
-      message: "Service management is only implemented for macOS right now".to_string(),
+      message: "Service management is not implemented for this platform".to_string(),
+    });
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    // Check if the tracked process is alive, or if the gateway port is responding
+    let pid = GATEWAY_PID.load(Ordering::Relaxed);
+    let pid_alive = is_pid_alive(pid);
+
+    // Fallback: check if port 18789 is open (gateway may have been started externally)
+    let port_open = if !pid_alive {
+      std::net::TcpStream::connect_timeout(
+        &std::net::SocketAddr::from(([127, 0, 0, 1], 18789u16)),
+        std::time::Duration::from_millis(500),
+      ).is_ok()
+    } else {
+      true
+    };
+
+    let running = pid_alive || port_open;
+
+    return HttpResponse::Ok().json(ServiceStatusResponse {
+      success: true,
+      installed: true,
+      running,
+      label: LAUNCH_AGENT_LABEL.to_string(),
+      message: if running {
+        "Clawdbot service is running".to_string()
+      } else {
+        "Clawdbot service is not running".to_string()
+      },
     });
   }
 
@@ -1873,6 +1992,657 @@ pub async fn set_llm_keys(
   })
 }
 
+// ── Shared gateway config setup (used by both macOS and Windows) ────────
+
+struct ServiceSetup {
+  node_path: PathBuf,
+  is_bundled_node: bool,
+  program_args: Vec<String>,
+  env: Vec<(String, String)>,
+  app_version: String,
+  os_info: String,
+}
+
+/// Platform-agnostic gateway configuration setup.
+/// Finds Node.js, resolves paths, creates/patches config files, builds env vars.
+/// Returns everything needed to spawn the gateway process.
+async fn prepare_gateway_config(
+  app_handle: &tauri::AppHandle,
+  cfg: &SharedClawdbotConfig,
+) -> Result<ServiceSetup, String> {
+  let tokens = load_or_create_tokens(app_handle)?;
+
+  fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
+    paths.iter().find(|p| p.exists()).cloned()
+  }
+
+  // ── Find Node.js binary ──────────────────────────────────────────────
+  let bundled_node = resource_path(app_handle, if cfg!(target_os = "windows") {
+    "resources/node/node.exe"
+  } else {
+    "resources/node/node"
+  });
+
+  let node_candidates: Vec<PathBuf> = if cfg!(target_os = "windows") {
+    let mut candidates = Vec::new();
+    if !cfg!(debug_assertions) {
+      candidates.push(bundled_node.clone());
+    }
+    // Search PATH for node.exe
+    if let Ok(path_var) = std::env::var("PATH") {
+      for dir in path_var.split(';') {
+        let candidate = PathBuf::from(dir).join("node.exe");
+        if candidate.exists() && !candidates.contains(&candidate) {
+          candidates.push(candidate);
+        }
+      }
+    }
+    candidates.push(PathBuf::from(r"C:\Program Files\nodejs\node.exe"));
+    if cfg!(debug_assertions) {
+      candidates.push(bundled_node.clone());
+    }
+    candidates
+  } else if cfg!(debug_assertions) {
+    vec![
+      PathBuf::from("/opt/homebrew/bin/node"),
+      PathBuf::from("/usr/local/bin/node"),
+      PathBuf::from("/usr/bin/node"),
+      bundled_node.clone(),
+    ]
+  } else {
+    vec![
+      bundled_node.clone(),
+      PathBuf::from("/opt/homebrew/bin/node"),
+      PathBuf::from("/usr/local/bin/node"),
+      PathBuf::from("/usr/bin/node"),
+    ]
+  };
+
+  let bundled_node_path = resource_path(app_handle, if cfg!(target_os = "windows") {
+    "resources/node/node.exe"
+  } else {
+    "resources/node/node"
+  });
+
+  let node_path = match first_existing(&node_candidates) {
+    Some(p) => {
+      let is_bundled = p == bundled_node_path;
+      eprintln!(
+        "[clawd/service] Using Node.js: {} ({})",
+        p.display(),
+        if is_bundled { "bundled" } else { "system" }
+      );
+      p
+    }
+    None => {
+      eprintln!("[clawd/service] ERROR: No Node.js found. Checked: {:?}", node_candidates);
+      return Err("Node.js not found. The bundled Node.js binary is missing and no system Node.js was found. Please reinstall Knapsack or install Node.js (https://nodejs.org).".to_string());
+    }
+  };
+
+  // ── Find clawdbot entry ────────────────────────────────────────────
+  let clawdbot_entry = if cfg!(debug_assertions) {
+    if cfg!(target_os = "windows") {
+      // Dev on Windows: look for workspace entry
+      let ws_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("clawdbot")
+        .join("dist")
+        .join("entry.js");
+      ws_entry
+    } else {
+      let sys_entry = PathBuf::from("/opt/homebrew/lib/node_modules/clawdbot/dist/entry.js");
+      let ws_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("clawdbot")
+        .join("dist")
+        .join("entry.js");
+      if sys_entry.exists() { sys_entry } else { ws_entry }
+    }
+  } else {
+    resource_path(app_handle, "resources/clawdbot/dist/entry.js")
+  };
+
+  if !clawdbot_entry.exists() {
+    eprintln!("[clawd/service] ERROR: Clawdbot entry not found at {}", clawdbot_entry.display());
+    return Err(format!("Clawdbot not found at {}. Please reinstall Knapsack.", clawdbot_entry.display()));
+  }
+  eprintln!("[clawd/service] Using Clawdbot entry: {}", clawdbot_entry.display());
+
+  let clawdbot_home = app_clawdbot_home(app_handle);
+  let clawdbot_home_str = clawdbot_home.to_string_lossy().to_string();
+
+  // ── Config file setup ──────────────────────────────────────────────
+  // Ensure OpenClaw config exists with gateway.mode=local for first-run.
+  let config_path = clawdbot_home.join("openclaw.json");
+  let legacy_config_path = clawdbot_home.join("clawdbot.json");
+  if legacy_config_path.exists() && !config_path.exists() {
+    match fs::rename(&legacy_config_path, &config_path) {
+      Ok(_) => eprintln!("[clawd/service] Migrated config from clawdbot.json to openclaw.json"),
+      Err(e) => eprintln!("[clawd/service] WARNING: Failed to migrate config: {}. Will create new.", e),
+    }
+  }
+  if !config_path.exists() {
+    let _ = ensure_dir(&clawdbot_home);
+    let default_config = serde_json::json!({
+      "gateway": {
+        "mode": "local",
+        "auth": {
+          "token": tokens.gateway_token.clone()
+        }
+      },
+      "browser": {
+        "enabled": true
+      },
+      "plugins": {
+        "slots": {
+          "memory": "none"
+        }
+      },
+      "tools": {
+        "allow": ["browser", "group:web", "exec", "process", "read", "write", "edit", "apply_patch"],
+        "deny": ["canvas", "nodes", "cron", "gateway"],
+        "media": {"image": {"enabled": true}},
+        "sandbox": {
+          "tools": {
+            "deny": ["canvas", "nodes", "cron", "gateway"],
+            "allow": [
+              "exec", "process", "read", "write", "edit", "apply_patch",
+              "image", "sessions_list", "sessions_history",
+              "sessions_send", "sessions_spawn", "session_status",
+              "browser", "group:web"
+            ]
+          }
+        }
+      }
+    });
+    match fs::write(&config_path, serde_json::to_string_pretty(&default_config).unwrap_or_default()) {
+      Ok(_) => eprintln!("[clawd/service] Created default config at {}", config_path.display()),
+      Err(e) => eprintln!("[clawd/service] WARNING: Failed to create config at {}: {}", config_path.display(), e),
+    }
+  } else {
+    // Patch existing configs to ensure required fields are present.
+    if let Ok(existing) = fs::read_to_string(&config_path) {
+      if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&existing) {
+        let mut patched = false;
+
+        // Ensure gateway.auth.token matches tokens.json
+        let config_token = cfg_val
+          .pointer("/gateway/auth/token")
+          .and_then(|v| v.as_str())
+          .unwrap_or("");
+        if config_token != tokens.gateway_token.trim() {
+          if cfg_val.get("gateway").is_none() {
+            cfg_val.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+          }
+          if cfg_val.pointer("/gateway/auth").is_none() {
+            cfg_val.pointer_mut("/gateway").unwrap().as_object_mut().unwrap()
+              .insert("auth".to_string(), serde_json::json!({}));
+          }
+          cfg_val.pointer_mut("/gateway/auth").unwrap().as_object_mut().unwrap()
+            .insert("token".to_string(), serde_json::json!(tokens.gateway_token.trim()));
+          eprintln!("[clawd/service] Synced gateway.auth.token in config to match tokens.json");
+          patched = true;
+        }
+
+        // Ensure plugins.slots.memory is set to "none"
+        let current_memory = cfg_val
+          .pointer("/plugins/slots/memory")
+          .and_then(|v| v.as_str())
+          .unwrap_or("");
+        if current_memory != "none" {
+          if cfg_val.get("plugins").is_none() {
+            cfg_val.as_object_mut().unwrap().insert("plugins".to_string(), serde_json::json!({}));
+          }
+          if cfg_val.pointer("/plugins/slots").is_none() {
+            cfg_val.pointer_mut("/plugins").unwrap().as_object_mut().unwrap()
+              .insert("slots".to_string(), serde_json::json!({}));
+          }
+          cfg_val.pointer_mut("/plugins/slots").unwrap().as_object_mut().unwrap()
+            .insert("memory".to_string(), serde_json::json!("none"));
+          eprintln!("[clawd/service] Patched plugins.slots.memory to \"none\"");
+          patched = true;
+        }
+
+        // Ensure browser.enabled is true
+        let browser_enabled = cfg_val
+          .pointer("/browser/enabled")
+          .and_then(|v| v.as_bool())
+          .unwrap_or(false);
+        if !browser_enabled {
+          if cfg_val.get("browser").is_none() {
+            cfg_val.as_object_mut().unwrap().insert("browser".to_string(), serde_json::json!({}));
+          }
+          cfg_val.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+            .insert("enabled".to_string(), serde_json::json!(true));
+          eprintln!("[clawd/service] Patched browser.enabled to true");
+          patched = true;
+        }
+
+        // Ensure browser is NOT headless
+        let browser_headless = cfg_val
+          .pointer("/browser/headless")
+          .and_then(|v| v.as_bool());
+        if browser_headless != Some(false) {
+          cfg_val.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+            .insert("headless".to_string(), serde_json::json!(false));
+          eprintln!("[clawd/service] Patched browser.headless to false");
+          patched = true;
+        }
+
+        // Set default profile to "openclaw"
+        let current_profile = cfg_val
+          .pointer("/browser/defaultProfile")
+          .and_then(|v| v.as_str())
+          .unwrap_or("chrome")
+          .to_string();
+        if current_profile == "chrome" || current_profile == "knapsack" || current_profile.is_empty() {
+          cfg_val.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+            .insert("defaultProfile".to_string(), serde_json::json!("openclaw"));
+          eprintln!("[clawd/service] Patched browser.defaultProfile from {:?} to openclaw", current_profile);
+          patched = true;
+        }
+
+        // Clean up browser.hideAutomationBanner
+        if cfg_val.pointer("/browser/hideAutomationBanner").is_some() {
+          cfg_val.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+            .remove("hideAutomationBanner");
+          eprintln!("[clawd/service] Removed invalid browser.hideAutomationBanner key from config");
+          patched = true;
+        }
+
+        // On Linux, set browser.noSandbox = true
+        if cfg!(target_os = "linux") {
+          let no_sandbox = cfg_val
+            .pointer("/browser/noSandbox")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+          if !no_sandbox {
+            cfg_val.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
+              .insert("noSandbox".to_string(), serde_json::json!(true));
+            eprintln!("[clawd/service] Patched browser.noSandbox to true (Linux)");
+            patched = true;
+          }
+        }
+
+        // Ensure browser tool is allowed in normal mode
+        if cfg_val.get("tools").is_none() {
+          cfg_val.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+        }
+        let deny_exists = cfg_val.pointer("/tools/deny").and_then(|v| v.as_array()).is_some();
+        if deny_exists {
+          let browser_denied = cfg_val
+            .pointer("/tools/deny")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+            .unwrap_or(false);
+          if browser_denied {
+            if let Some(deny_arr) = cfg_val.pointer_mut("/tools/deny").and_then(|v| v.as_array_mut()) {
+              deny_arr.retain(|item| item.as_str() != Some("browser"));
+              eprintln!("[clawd/service] Removed browser from tools.deny");
+              patched = true;
+            }
+          }
+        } else {
+          cfg_val.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+            .insert("deny".to_string(), serde_json::json!(["canvas", "nodes", "cron", "gateway"]));
+          eprintln!("[clawd/service] Created tools.deny (without browser)");
+          patched = true;
+        }
+
+        // Ensure "browser" is in tools.allow
+        let browser_tool_allowed = cfg_val
+          .pointer("/tools/allow")
+          .and_then(|v| v.as_array())
+          .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
+          .unwrap_or(false);
+        if !browser_tool_allowed {
+          let tools = cfg_val.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
+          if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
+            allow.push(serde_json::json!("browser"));
+          } else {
+            tools.insert("allow".to_string(), serde_json::json!(["browser"]));
+          }
+          eprintln!("[clawd/service] Added browser to tools.allow");
+          patched = true;
+        }
+
+        // Enable image understanding
+        let image_understanding_enabled = cfg_val
+          .pointer("/tools/media/image/enabled")
+          .and_then(|v| v.as_bool())
+          .unwrap_or(false);
+        if !image_understanding_enabled {
+          if cfg_val.get("tools").is_none() {
+            cfg_val.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+          }
+          let tools = cfg_val.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
+          if !tools.contains_key("media") {
+            tools.insert("media".to_string(), serde_json::json!({}));
+          }
+          let media = cfg_val.pointer_mut("/tools/media").unwrap().as_object_mut().unwrap();
+          if !media.contains_key("image") {
+            media.insert("image".to_string(), serde_json::json!({}));
+          }
+          cfg_val.pointer_mut("/tools/media/image").unwrap().as_object_mut().unwrap()
+            .insert("enabled".to_string(), serde_json::json!(true));
+          eprintln!("[clawd/service] Enabled tools.media.image for photo understanding");
+          patched = true;
+        }
+
+        // Ensure web_fetch and web_search are allowed
+        if let Some(allow_arr) = cfg_val.pointer("/tools/allow").and_then(|v| v.as_array()) {
+          let has_web_fetch = allow_arr.iter().any(|item| item.as_str() == Some("web_fetch"));
+          let has_web_search = allow_arr.iter().any(|item| item.as_str() == Some("web_search"));
+          let has_group_web = allow_arr.iter().any(|item| item.as_str() == Some("group:web"));
+          if !has_web_fetch || !has_web_search {
+            if !has_group_web {
+              if let Some(arr) = cfg_val.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+                arr.push(serde_json::json!("group:web"));
+              }
+              eprintln!("[clawd/service] Added group:web to tools.allow");
+              patched = true;
+            }
+          }
+        }
+
+        // Ensure exec/process/file tools are in allow
+        let exec_tools = ["exec", "process", "read", "write", "edit", "apply_patch"];
+        if let Some(allow_arr) = cfg_val.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+          for tool_name in &exec_tools {
+            let already = allow_arr.iter().any(|item| item.as_str() == Some(tool_name));
+            if !already {
+              allow_arr.push(serde_json::json!(tool_name));
+              eprintln!("[clawd/service] Added {} to tools.allow", tool_name);
+              patched = true;
+            }
+          }
+        }
+
+        // Ensure sandbox tools path exists
+        if cfg_val.get("tools").is_none() {
+          cfg_val.as_object_mut().unwrap().insert("tools".to_string(), serde_json::json!({}));
+        }
+        if cfg_val.pointer("/tools/sandbox").is_none() {
+          cfg_val.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+            .insert("sandbox".to_string(), serde_json::json!({}));
+        }
+        if cfg_val.pointer("/tools/sandbox/tools").is_none() {
+          cfg_val.pointer_mut("/tools/sandbox").unwrap().as_object_mut().unwrap()
+            .insert("tools".to_string(), serde_json::json!({}));
+        }
+
+        // Sandbox deny list
+        let sandbox_tools_to_unblock = ["browser", "web_fetch", "web_search", "group:web"];
+        if let Some(deny_arr) = cfg_val
+          .pointer("/tools/sandbox/tools/deny")
+          .and_then(|v| v.as_array())
+        {
+          let has_blocked = deny_arr.iter().any(|item| {
+            item.as_str().map(|s| sandbox_tools_to_unblock.contains(&s)).unwrap_or(false)
+          });
+          if has_blocked {
+            if let Some(deny_arr_mut) = cfg_val.pointer_mut("/tools/sandbox/tools/deny")
+              .and_then(|v| v.as_array_mut())
+            {
+              deny_arr_mut.retain(|item| {
+                item.as_str().map(|s| !sandbox_tools_to_unblock.contains(&s)).unwrap_or(true)
+              });
+              eprintln!("[clawd/service] Removed browser/web tools from tools.sandbox.tools.deny");
+              patched = true;
+            }
+          }
+        } else {
+          cfg_val.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+            .insert("deny".to_string(), serde_json::json!(["canvas", "nodes", "cron", "gateway"]));
+          eprintln!("[clawd/service] Created tools.sandbox.tools.deny (without browser)");
+          patched = true;
+        }
+
+        // Sandbox allow list
+        if let Some(allow_arr) = cfg_val.pointer("/tools/sandbox/tools/allow").and_then(|v| v.as_array()) {
+          let has_browser = allow_arr.iter().any(|item| item.as_str() == Some("browser"));
+          let has_group_web = allow_arr.iter().any(|item| item.as_str() == Some("group:web"));
+          let mut needs_add = Vec::new();
+          if !has_browser { needs_add.push("browser"); }
+          if !has_group_web { needs_add.push("group:web"); }
+          if !needs_add.is_empty() {
+            if let Some(arr) = cfg_val.pointer_mut("/tools/sandbox/tools/allow").and_then(|v| v.as_array_mut()) {
+              for tool in &needs_add {
+                arr.push(serde_json::json!(tool));
+              }
+              eprintln!("[clawd/service] Added {:?} to tools.sandbox.tools.allow", needs_add);
+              patched = true;
+            }
+          }
+        } else {
+          cfg_val.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
+            .insert("allow".to_string(), serde_json::json!([
+              "exec", "process", "read", "write", "edit", "apply_patch",
+              "image", "sessions_list", "sessions_history",
+              "sessions_send", "sessions_spawn", "session_status",
+              "browser", "group:web"
+            ]));
+          eprintln!("[clawd/service] Created tools.sandbox.tools.allow (with browser + group:web)");
+          patched = true;
+        }
+
+        if patched {
+          match fs::write(&config_path, serde_json::to_string_pretty(&cfg_val).unwrap_or_default()) {
+            Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
+            Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
+          }
+        }
+      }
+    }
+  }
+
+  // ── TOOLS.md workspace setup ──────────────────────────────────────
+  let workspace_path = {
+    let cfg_str = fs::read_to_string(&config_path).unwrap_or_default();
+    let cfg_val: serde_json::Value = serde_json::from_str(&cfg_str).unwrap_or(serde_json::json!({}));
+    cfg_val
+      .pointer("/agents/defaults/workspace")
+      .and_then(|v| v.as_str())
+      .map(|s| {
+        if s.starts_with("~/") {
+          let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+          home.join(&s[2..])
+        } else {
+          PathBuf::from(s)
+        }
+      })
+      .unwrap_or_else(|| {
+        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+        home.join(".openclaw").join("workspace")
+      })
+  };
+
+  if let Err(e) = ensure_dir(&workspace_path) {
+    eprintln!("[clawd/service] WARNING: Failed to create workspace dir: {}", e);
+  }
+
+  let tools_md_path = workspace_path.join("TOOLS.md");
+  let should_write_tools_md = if tools_md_path.exists() {
+    fs::read_to_string(&tools_md_path)
+      .map(|content| !content.contains("## Shell & Command Execution"))
+      .unwrap_or(true)
+  } else {
+    true
+  };
+  if should_write_tools_md {
+    let tools_md_content = include_str!("tools_md_content.txt");
+    match fs::write(&tools_md_path, tools_md_content) {
+      Ok(_) => eprintln!("[clawd/service] Created workspace TOOLS.md at {}", tools_md_path.display()),
+      Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
+    }
+  }
+
+  // ── Build program args ────────────────────────────────────────────
+  let program_args = vec![
+    node_path.to_string_lossy().to_string(),
+    clawdbot_entry.to_string_lossy().to_string(),
+    "gateway".to_string(),
+    "run".to_string(),
+    "--allow-unconfigured".to_string(),
+    "--bind".to_string(),
+    "loopback".to_string(),
+    "--auth".to_string(),
+    "token".to_string(),
+    "--token".to_string(),
+    tokens.gateway_token.clone(),
+    "--port".to_string(),
+    "18789".to_string(),
+  ];
+
+  // ── Build environment variables ───────────────────────────────────
+  let bundled_plugins_dir = resource_path(app_handle, "resources/clawdbot/extensions");
+  let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
+
+  let node_dir = node_path.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+  let path_separator = if cfg!(target_os = "windows") { ";" } else { ":" };
+  let mut path_parts: Vec<String> = Vec::new();
+  if !node_dir.is_empty() {
+    path_parts.push(node_dir);
+  }
+  if cfg!(target_os = "windows") {
+    // Add common Windows paths
+    if let Ok(sys_path) = std::env::var("PATH") {
+      for p in sys_path.split(';') {
+        let s = p.to_string();
+        if !s.is_empty() && !path_parts.contains(&s) {
+          path_parts.push(s);
+        }
+      }
+    }
+  } else {
+    for p in &["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
+      let s = p.to_string();
+      if !path_parts.contains(&s) {
+        path_parts.push(s);
+      }
+    }
+  }
+  let clawdbot_path = path_parts.join(path_separator);
+
+  let user_home = dirs::home_dir()
+    .map(|p| p.to_string_lossy().to_string())
+    .unwrap_or_default();
+
+  let mut env = vec![
+    ("PATH".to_string(), clawdbot_path),
+    ("HOME".to_string(), user_home.clone()),
+    ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
+    ("CLAWDBOT_STATE_DIR".to_string(), clawdbot_home_str),
+    ("CLAWDBOT_GATEWAY_TOKEN".to_string(), tokens.gateway_token.clone()),
+    ("OPENCLAW_GATEWAY_TOKEN".to_string(), tokens.gateway_token.clone()),
+    ("CLAWDBOT_GATEWAY_PORT".to_string(), "18789".to_string()),
+    ("OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
+    ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
+  ];
+
+  // On Windows, also set USERPROFILE and APPDATA for Node.js compatibility
+  if cfg!(target_os = "windows") {
+    env.push(("USERPROFILE".to_string(), user_home));
+    if let Ok(appdata) = std::env::var("APPDATA") {
+      env.push(("APPDATA".to_string(), appdata));
+    }
+    if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
+      env.push(("LOCALAPPDATA".to_string(), localappdata));
+    }
+  }
+
+  // Propagate LLM keys
+  if let Some(k) = tokens.groq_api_key.clone() {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      std::env::set_var("GROQ_API_KEY", &k);
+      env.push(("GROQ_API_KEY".to_string(), k));
+    }
+  }
+  if let Some(k) = tokens.openai_api_key.clone() {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      std::env::set_var("OPENAI_API_KEY", &k);
+      env.push(("OPENAI_API_KEY".to_string(), k));
+    }
+  }
+  if let Some(k) = tokens.anthropic_api_key.clone() {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      std::env::set_var("ANTHROPIC_API_KEY", &k);
+      env.push(("ANTHROPIC_API_KEY".to_string(), k));
+    }
+  }
+  if let Some(k) = tokens.gemini_api_key.clone() {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      std::env::set_var("GEMINI_API_KEY", &k);
+      env.push(("GEMINI_API_KEY".to_string(), k));
+    }
+  }
+  if tokens.ollama_enabled.unwrap_or(false) {
+    std::env::set_var("OLLAMA_API_KEY", "ollama-local");
+    env.push(("OLLAMA_API_KEY".to_string(), "ollama-local".to_string()));
+    if let Some(m) = tokens.ollama_model.clone() {
+      let m = m.trim().to_string();
+      if !m.is_empty() {
+        std::env::set_var("KNAPSACK_OLLAMA_MODEL", &m);
+        env.push(("KNAPSACK_OLLAMA_MODEL".to_string(), m));
+      }
+    }
+    if let Some(u) = tokens.ollama_base_url.clone() {
+      let u = u.trim().to_string();
+      if !u.is_empty() {
+        std::env::set_var("OLLAMA_HOST", &u);
+        env.push(("OLLAMA_HOST".to_string(), u));
+      }
+    }
+  }
+  if let Some(extra) = &tokens.extra_provider_keys {
+    for (env_var, key) in extra {
+      let key = key.trim().to_string();
+      if !key.is_empty() && is_allowed_extra_env_var(env_var) {
+        std::env::set_var(env_var, &key);
+        env.push((env_var.clone(), key));
+      }
+    }
+  }
+
+  // Set gateway token in current process
+  {
+    let gw = tokens.gateway_token.trim();
+    if !gw.is_empty() {
+      std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
+      std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw);
+    }
+  }
+
+  // Set browser base_url
+  {
+    let mut cfg_guard = cfg.write().await;
+    cfg_guard.base_url = Some("http://127.0.0.1:18791".to_string());
+  }
+
+  let is_bundled_node = node_path == bundled_node_path;
+  let app_version = app_handle.package_info().version.to_string();
+  let os_info = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
+
+  eprintln!(
+    "[clawd/service] Knapsack v{} on {} — starting service ({})",
+    app_version, os_info, LAUNCH_AGENT_LABEL
+  );
+
+  Ok(ServiceSetup {
+    node_path,
+    is_bundled_node,
+    program_args,
+    env,
+    app_version,
+    os_info,
+  })
+}
+
 /// Enable/disable the background Clawdbot LaunchAgent.
 ///
 /// On enable:
@@ -1885,13 +2655,120 @@ pub async fn set_service_enabled(
   cfg: web::Data<SharedClawdbotConfig>,
   payload: web::Json<EnableServiceRequest>,
 ) -> impl Responder {
-  #[cfg(not(target_os = "macos"))]
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
   {
     return HttpResponse::NotImplemented().json(EnableServiceResponse {
       success: false,
       enabled: payload.enabled,
-      message: "Service management is only implemented for macOS right now".to_string(),
+      message: "Service management is not implemented for this platform".to_string(),
     });
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    let enabled = payload.enabled;
+
+    if enabled {
+      let setup = match prepare_gateway_config(&app_handle, &cfg).await {
+        Ok(s) => s,
+        Err(e) => {
+          return HttpResponse::InternalServerError().json(EnableServiceResponse {
+            success: false,
+            enabled,
+            message: e,
+          })
+        }
+      };
+
+      // Kill stale Chrome processes holding the CDP port
+      kill_stale_clawdbot_chromes();
+
+      // Kill any existing gateway on port 18789
+      kill_process_on_port(18789);
+      // Brief pause to let ports release
+      std::thread::sleep(std::time::Duration::from_millis(500));
+
+      // Spawn the gateway process
+      let stdout_log = windows_log_path("stdout");
+      let stderr_log = windows_log_path("stderr");
+
+      let stdout_file = match fs::File::create(&stdout_log) {
+        Ok(f) => f,
+        Err(e) => {
+          return HttpResponse::InternalServerError().json(EnableServiceResponse {
+            success: false,
+            enabled,
+            message: format!("Failed to create stdout log: {}", e),
+          })
+        }
+      };
+      let stderr_file = match fs::File::create(&stderr_log) {
+        Ok(f) => f,
+        Err(e) => {
+          return HttpResponse::InternalServerError().json(EnableServiceResponse {
+            success: false,
+            enabled,
+            message: format!("Failed to create stderr log: {}", e),
+          })
+        }
+      };
+
+      use std::os::windows::process::CommandExt;
+      const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+      let child = std::process::Command::new(&setup.program_args[0])
+        .args(&setup.program_args[1..])
+        .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        .stdout(stdout_file)
+        .stderr(stderr_file)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn();
+
+      match child {
+        Ok(child) => {
+          let pid = child.id();
+          GATEWAY_PID.store(pid, Ordering::Relaxed);
+          eprintln!("[clawd/service] Spawned gateway process (pid {})", pid);
+        }
+        Err(e) => {
+          return HttpResponse::InternalServerError().json(EnableServiceResponse {
+            success: false,
+            enabled,
+            message: format!("Failed to spawn gateway process: {}", e),
+          })
+        }
+      }
+
+      return HttpResponse::Ok().json(EnableServiceResponse {
+        success: true,
+        enabled,
+        message: format!(
+          "Enabled background service ({}) using {} Node.js — Knapsack v{} on {}",
+          LAUNCH_AGENT_LABEL,
+          if setup.is_bundled_node { "bundled" } else { "system" },
+          setup.app_version,
+          setup.os_info
+        ),
+      });
+    } else {
+      // Disable: kill the gateway process
+      let pid = GATEWAY_PID.load(Ordering::Relaxed);
+      if pid > 0 {
+        eprintln!("[clawd/service] Killing gateway process (pid {})", pid);
+        let _ = std::process::Command::new("taskkill")
+          .args(["/PID", &pid.to_string(), "/F", "/T"])
+          .status();
+        GATEWAY_PID.store(0, Ordering::Relaxed);
+      }
+      // Also kill by port as fallback
+      kill_process_on_port(18789);
+
+      return HttpResponse::Ok().json(EnableServiceResponse {
+        success: true,
+        enabled,
+        message: format!("Disabled background service ({})", LAUNCH_AGENT_LABEL),
+      });
+    }
   }
 
   #[cfg(target_os = "macos")]
@@ -2829,9 +3706,32 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
   eprintln!("[clawd/service] Service cycle complete — waiting for browser to start.");
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
-  // No-op on non-macOS platforms
+  eprintln!("[clawd/service] Auto-cycling service on Windows...");
+
+  // Kill the current gateway process
+  let pid = GATEWAY_PID.load(Ordering::Relaxed);
+  if pid > 0 {
+    let _ = std::process::Command::new("taskkill")
+      .args(["/PID", &pid.to_string(), "/F", "/T"])
+      .status();
+    GATEWAY_PID.store(0, Ordering::Relaxed);
+  }
+  kill_process_on_port(18789);
+
+  // Brief pause before restarting
+  tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+  // Note: We can't easily respawn the gateway here without the full config.
+  // The health check loop in the frontend will call /api/clawd/service/enable
+  // to restart the service if it detects the gateway is down.
+  eprintln!("[clawd/service] Service killed — frontend will re-enable if needed.");
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
+  // No-op on other platforms
 }
 
 // --- Skills API endpoint (static catalog) ---

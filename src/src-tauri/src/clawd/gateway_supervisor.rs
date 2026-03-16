@@ -126,7 +126,24 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
   }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
+  // On Windows, we can't kickstart a LaunchAgent. The health check will
+  // trigger a re-enable via the /api/clawd/service/enable endpoint.
+  // For now, just check if the gateway port is already occupied.
+  let port_open = std::net::TcpStream::connect_timeout(
+    &std::net::SocketAddr::from(([127, 0, 0, 1], 18789u16)),
+    std::time::Duration::from_millis(500),
+  ).is_ok();
+
+  if port_open {
+    Ok(())
+  } else {
+    Err("Gateway not running on Windows — re-enable via the UI".to_string())
+  }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
   Err("kickstart not supported on this OS".to_string())
 }
@@ -175,7 +192,11 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
 
   // Dump the last few lines of the gateway's stderr log so we can see
   // why the process is failing to start.
-  let err_log = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+  let err_log = if cfg!(target_os = "windows") {
+    std::env::temp_dir().join("knapsack-clawdbot.err.log")
+  } else {
+    std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log")
+  };
   if let Ok(content) = std::fs::read_to_string(&err_log) {
     let tail: Vec<&str> = content.lines().rev().take(25).collect();
     if !tail.is_empty() {
