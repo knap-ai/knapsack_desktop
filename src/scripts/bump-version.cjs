@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * bump-version.cjs — Bumps the patch version across all config files.
+ * bump-version.cjs — Bumps the version across all config files.
+ *
+ * Versioning scheme: 0.9.6 → 0.9.7 → 0.9.8 → 0.9.9 → 1.0.0
  *
  * Usage:
- *   node scripts/bump-version.cjs           # bump patch: 0.9.600 → 0.9.601
- *   node scripts/bump-version.cjs minor     # bump minor: 0.9.600 → 0.10.0
- *   node scripts/bump-version.cjs major     # bump major: 0.9.600 → 1.0.0
- *   node scripts/bump-version.cjs 0.9.700   # set exact version
+ *   node scripts/bump-version.cjs           # bump: 0.9.6 → 0.9.7, or 0.9.9 → 1.0.0
+ *   node scripts/bump-version.cjs 0.9.8     # set exact version
  *
  * Updates: package.json, package-lock.json, src-tauri/tauri.conf.json
  */
@@ -24,19 +24,23 @@ const pkg = JSON.parse(fs.readFileSync(files.pkg, 'utf8'));
 const currentVersion = pkg.version;
 const [major, minor, patch] = currentVersion.split('.').map(Number);
 
-const arg = process.argv[2] || 'patch';
+const arg = process.argv[2];
 let newVersion;
 
-if (/^\d+\.\d+\.\d+$/.test(arg)) {
+if (arg && /^\d+\.\d+\.\d+$/.test(arg)) {
+  // Exact version specified
   newVersion = arg;
-} else if (arg === 'patch') {
-  newVersion = `${major}.${minor}.${patch + 1}`;
-} else if (arg === 'minor') {
-  newVersion = `${major}.${minor + 1}.0`;
-} else if (arg === 'major') {
-  newVersion = `${major + 1}.0.0`;
+} else if (!arg || arg === 'bump') {
+  // Auto-bump: increment patch, but roll over to next major at X.9.9
+  if (minor === 9 && patch === 9) {
+    newVersion = `${major + 1}.0.0`;
+  } else if (patch === 9) {
+    newVersion = `${major}.${minor + 1}.0`;
+  } else {
+    newVersion = `${major}.${minor}.${patch + 1}`;
+  }
 } else {
-  console.error(`ERROR: Unknown bump type "${arg}". Use patch, minor, major, or an exact version.`);
+  console.error(`ERROR: Unknown argument "${arg}". Use no argument to bump, or provide an exact version (e.g. 0.9.8).`);
   process.exit(1);
 }
 

@@ -2,16 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump type"
-        required: true
-        default: "patch"
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 permissions:
   contents: write
@@ -38,7 +28,7 @@ jobs:
       - name: Bump version
         id: bump
         working-directory: src
-        run: node scripts/bump-version.cjs ${{ github.event.inputs.bump }}
+        run: node scripts/bump-version.cjs
 
       - name: Commit and tag
         run: |
