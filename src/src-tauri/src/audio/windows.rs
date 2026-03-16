@@ -47,10 +47,10 @@ impl AudioRecorder {
   }
 
   pub fn start_recording(&self) -> Result<(), Error> {
-    let _res = match initialize_mta().ok() {
+    let _res = match initialize_mta() {
       Ok(_) => Some(()),
       Err(_) => {
-        log::error!("Error initializting mta");
+        log::error!("Error initializing mta");
         None
       }
     };

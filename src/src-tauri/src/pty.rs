@@ -120,6 +120,15 @@ pub struct PtyHandle {
 unsafe impl Send for PtyHandle {}
 unsafe impl Sync for PtyHandle {}
 
+/// Wrapper around a raw `*mut c_void` handle so it can be moved into a
+/// `std::thread::spawn` closure.  The wrapped handles are Windows kernel
+/// objects (pipes, processes) which are safe to use from any thread.
+#[cfg(windows)]
+struct SendHandle(*mut std::ffi::c_void);
+
+#[cfg(windows)]
+unsafe impl Send for SendHandle {}
+
 // ── Tauri commands ─────────────────────────────────────────────────────
 
 /// Spawn a new PTY session and start streaming its output.
@@ -645,13 +654,16 @@ fn platform_spawn(
     let alive_reader = alive.clone();
     let app_clone = app.clone();
     let sid = session_id.to_string();
-    let read_handle = pty_out_read;
-    let proc_handle = pi.hProcess;
+    // Wrap raw pointers in SendHandle so they can cross the thread boundary.
+    let read_handle = SendHandle(pty_out_read);
+    let proc_handle = SendHandle(pi.hProcess);
 
     // Background thread: read output from ConPTY
     std::thread::Builder::new()
       .name(format!("pty-read-{}", session_id))
       .spawn(move || {
+        let read_handle = read_handle.0;
+        let proc_handle = proc_handle.0;
         let mut buf = [0u8; 4096];
         loop {
           if !alive_reader.load(Ordering::Relaxed) {

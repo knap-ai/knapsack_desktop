@@ -65,9 +65,10 @@ node scripts/sync-version.cjs
 node scripts/prepare-node.cjs
 node scripts/prune-clawdbot.cjs
 
-# Build the Tauri app
+# Build the Tauri app (use load-env-and-run.cjs so .env vars are available
+# to the Rust env!() macro at compile time)
 Write-Host "`n[5/5] Building Tauri app for Windows..." -ForegroundColor Yellow
-npx tauri build
+node scripts/load-env-and-run.cjs tauri build
 
 Write-Host "`n=== Build Complete ===" -ForegroundColor Green
 Write-Host "Output files are in: src-tauri\target\release\bundle\" -ForegroundColor Cyan
