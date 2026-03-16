@@ -1,4 +1,4 @@
-# build-windows.ps1 — Build Knapsack for Windows
+# build-windows.ps1 -Build Knapsack for Windows
 #
 # Prerequisites:
 #   1. Rust toolchain: https://rustup.rs/
@@ -90,6 +90,6 @@ if ($nsisExe) {
     Write-Host "Launching installer: $($msiFile.FullName)" -ForegroundColor Green
     Invoke-Item $msiFile.FullName
 } else {
-    Write-Host "No installer found — opening bundle folder..." -ForegroundColor Yellow
+    Write-Host "No installer found - opening bundle folder..." -ForegroundColor Yellow
     explorer.exe $bundleDir
 }
