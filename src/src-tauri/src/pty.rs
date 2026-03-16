@@ -542,7 +542,7 @@ fn platform_spawn(
   use std::mem::{size_of, zeroed};
   use std::ptr;
 
-  unsafe {
+  let (out_read, proc_send, write_h, process_h, hpc_val) = unsafe {
     // Create pipes: pty_in_read  → PTY stdin,  app writes to pty_in_write
     //               pty_out_read ← PTY stdout, app reads from pty_out_read
     let mut pty_in_read: HANDLE = ptr::null_mut();
@@ -650,72 +650,83 @@ fn platform_spawn(
     CloseHandle(pty_out_write);
     CloseHandle(pi.hThread);
 
-    let alive = Arc::new(AtomicBool::new(true));
-    let alive_reader = alive.clone();
-    let app_clone = app.clone();
-    let sid = session_id.to_string();
-    // Wrap raw pointers in SendHandle so they can cross the thread boundary.
-    let read_handle = SendHandle(pty_out_read);
-    let proc_handle = SendHandle(pi.hProcess);
+    // Save values needed outside the unsafe block
+    let out_read = SendHandle(pty_out_read);
+    let proc_send = SendHandle(pi.hProcess);
+    let write_h = pty_in_write;
+    let process_h = pi.hProcess;
+    let hpc_val = hpc;
 
-    // Background thread: read output from ConPTY
-    std::thread::Builder::new()
-      .name(format!("pty-read-{}", session_id))
-      .spawn(move || {
-        let read_handle = read_handle.0;
-        let proc_handle = proc_handle.0;
-        let mut buf = [0u8; 4096];
-        loop {
-          if !alive_reader.load(Ordering::Relaxed) {
-            break;
-          }
-          let mut bytes_read: DWORD = 0;
-          let ok = ReadFile(
+    (out_read, proc_send, write_h, process_h, hpc_val)
+  };
+  // ── Now outside the unsafe block ──
+
+  let alive = Arc::new(AtomicBool::new(true));
+  let alive_reader = alive.clone();
+  let app_clone = app.clone();
+  let sid = session_id.to_string();
+
+  // Background thread: read output from ConPTY
+  std::thread::Builder::new()
+    .name(format!("pty-read-{}", session_id))
+    .spawn(move || {
+      let read_handle = out_read.0;
+      let proc_handle = proc_send.0;
+      let mut buf = [0u8; 4096];
+      loop {
+        if !alive_reader.load(Ordering::Relaxed) {
+          break;
+        }
+        let mut bytes_read: u32 = 0;
+        let ok = unsafe {
+          conpty::ReadFile(
             read_handle,
             buf.as_mut_ptr() as *mut _,
-            buf.len() as DWORD,
+            buf.len() as u32,
             &mut bytes_read,
-            ptr::null_mut(),
-          );
-          if ok == 0 || bytes_read == 0 {
-            break;
-          }
-          let text = String::from_utf8_lossy(&buf[..bytes_read as usize]).to_string();
-
-          // Push to global ring buffer so chat AI can read terminal output
-          for line in text.lines() {
-            push_terminal_line(&sid, line);
-          }
-
-          let _ = app_clone.emit_all(
-            "pty-output",
-            json!({
-                "sessionId": sid,
-                "data": text,
-            }),
-          );
+            std::ptr::null_mut(),
+          )
+        };
+        if ok == 0 || bytes_read == 0 {
+          break;
         }
-        alive_reader.store(false, Ordering::Relaxed);
+        let text = String::from_utf8_lossy(&buf[..bytes_read as usize]).to_string();
+
+        // Push to global ring buffer so chat AI can read terminal output
+        for line in text.lines() {
+          push_terminal_line(&sid, line);
+        }
+
         let _ = app_clone.emit_all(
-          "pty-exit",
+          "pty-output",
           json!({
               "sessionId": sid,
+              "data": text,
           }),
         );
-        CloseHandle(read_handle);
-        WaitForSingleObject(proc_handle, 5000);
-        CloseHandle(proc_handle);
-        info!("[pty] session {} exited", sid);
-      })
-      .map_err(|e| format!("Failed to spawn reader thread: {}", e))?;
-
-    Ok(PtyHandle {
-      alive,
-      write_handle: pty_in_write,
-      process_handle: pi.hProcess,
-      hpc,
+      }
+      alive_reader.store(false, Ordering::Relaxed);
+      let _ = app_clone.emit_all(
+        "pty-exit",
+        json!({
+            "sessionId": sid,
+        }),
+      );
+      unsafe {
+        conpty::CloseHandle(read_handle);
+        conpty::WaitForSingleObject(proc_handle, 5000);
+        conpty::CloseHandle(proc_handle);
+      }
+      info!("[pty] session {} exited", sid);
     })
-  }
+    .map_err(|e| format!("Failed to spawn reader thread: {}", e))?;
+
+  Ok(PtyHandle {
+    alive,
+    write_handle: write_h,
+    process_handle: process_h,
+    hpc: hpc_val,
+  })
 }
 
 #[cfg(windows)]
