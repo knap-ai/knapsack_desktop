@@ -1,26 +1,65 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Tag to release (e.g. v0.9.601). Leave empty to use the version from package.json."
-        required: false
+      bump:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Bump version, commit, and tag
+  # ---------------------------------------------------------------------------
+  bump-version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bump version
+        id: bump
+        working-directory: src
+        run: node scripts/bump-version.cjs ${{ github.event.inputs.bump }}
+
+      - name: Commit and tag
+        run: |
+          TAG="${{ steps.bump.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "release: $TAG"
+          git tag "$TAG"
+          git push origin HEAD --tags
+
+  # ---------------------------------------------------------------------------
   # macOS — Universal binary (arm64 + x86_64), signed & notarized
   # ---------------------------------------------------------------------------
   build-macos:
+    needs: bump-version
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
 
       - name: Install Rust stable with targets
         uses: dtolnay/rust-toolchain@stable
@@ -117,9 +156,12 @@ jobs:
   # Windows — MSI + NSIS installer
   # ---------------------------------------------------------------------------
   build-windows:
+    needs: bump-version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -179,27 +221,10 @@ jobs:
   # Create GitHub Release with all artifacts + latest.json for auto-updater
   # ---------------------------------------------------------------------------
   publish-release:
-    needs: [build-macos, build-windows]
+    needs: [bump-version, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Determine version and tag
-        id: version
-        run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
-          VERSION="${TAG#v}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -211,7 +236,7 @@ jobs:
 
       - name: Generate latest.json for Tauri auto-updater
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ needs.bump-version.outputs.tag }}
         run: |
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/download/$TAG"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -278,7 +303,7 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ needs.bump-version.outputs.tag }}
         run: |
           gh release create "$TAG" \
             --title "$TAG" \
