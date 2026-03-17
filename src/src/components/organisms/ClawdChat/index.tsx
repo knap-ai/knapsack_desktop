@@ -2328,6 +2328,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         },
       )
       cleanups.push(unlistenExit)
+
+      // Listen for open-activity-panel events from the AI agent
+      const unlistenOpenPanel = await tauriListen<Record<string, never>>(
+        'open-activity-panel',
+        () => {
+          if (cancelled) return
+          if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
+            onToggleActivityRef.current()
+          }
+        },
+      )
+      cleanups.push(unlistenOpenPanel)
     })()
 
     return () => {
