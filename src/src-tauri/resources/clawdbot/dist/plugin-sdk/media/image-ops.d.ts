@@ -2,6 +2,8 @@ export type ImageMetadata = {
     width: number;
     height: number;
 };
+export declare const IMAGE_REDUCE_QUALITY_STEPS: readonly [85, 75, 65, 55, 45, 35];
+export declare function buildImageResizeSideGrid(maxSide: number, sideStart: number): number[];
 export declare function getImageMetadata(buffer: Buffer): Promise<ImageMetadata | null>;
 /**
  * Normalizes EXIF orientation in an image buffer.

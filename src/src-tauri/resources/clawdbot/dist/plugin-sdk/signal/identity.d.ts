@@ -6,6 +6,7 @@ export type SignalSender = {
     kind: "uuid";
     raw: string;
 };
+export declare function looksLikeUuid(value: string): boolean;
 export declare function resolveSignalSender(params: {
     sourceNumber?: string | null;
     sourceUuid?: string | null;
@@ -15,6 +16,7 @@ export declare function formatSignalSenderDisplay(sender: SignalSender): string;
 export declare function formatSignalPairingIdLine(sender: SignalSender): string;
 export declare function resolveSignalRecipient(sender: SignalSender): string;
 export declare function resolveSignalPeerId(sender: SignalSender): string;
+export declare function normalizeSignalAllowRecipient(entry: string): string | undefined;
 export declare function isSignalSenderAllowed(sender: SignalSender, allowFrom: string[]): boolean;
 export declare function isSignalGroupAllowed(params: {
     groupPolicy: "open" | "disabled" | "allowlist";

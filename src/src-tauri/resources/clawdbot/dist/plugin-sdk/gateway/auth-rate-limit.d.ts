@@ -24,10 +24,13 @@ export interface RateLimitConfig {
     lockoutMs?: number;
     /** Exempt loopback (localhost) addresses from rate limiting.  @default true */
     exemptLoopback?: boolean;
+    /** Background prune interval in milliseconds; set <= 0 to disable auto-prune.  @default 60_000 */
+    pruneIntervalMs?: number;
 }
 export declare const AUTH_RATE_LIMIT_SCOPE_DEFAULT = "default";
 export declare const AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET = "shared-secret";
 export declare const AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN = "device-token";
+export declare const AUTH_RATE_LIMIT_SCOPE_HOOK_AUTH = "hook-auth";
 export interface RateLimitEntry {
     /** Timestamps (epoch ms) of recent failed attempts inside the window. */
     attempts: number[];
@@ -56,4 +59,9 @@ export interface AuthRateLimiter {
     /** Dispose the limiter and cancel periodic cleanup timers. */
     dispose(): void;
 }
+/**
+ * Canonicalize client IPs used for auth throttling so all call sites
+ * share one representation (including IPv4-mapped IPv6 forms).
+ */
+export declare function normalizeRateLimitClientIp(ip: string | undefined): string;
 export declare function createAuthRateLimiter(config?: RateLimitConfig): AuthRateLimiter;

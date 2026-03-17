@@ -1,6 +1,9 @@
 import type { OpenClawConfig, HumanDelayConfig, IdentityConfig } from "../config/config.js";
 export declare function resolveAgentIdentity(cfg: OpenClawConfig, agentId: string): IdentityConfig | undefined;
-export declare function resolveAckReaction(cfg: OpenClawConfig, agentId: string): string;
+export declare function resolveAckReaction(cfg: OpenClawConfig, agentId: string, opts?: {
+    channel?: string;
+    accountId?: string;
+}): string;
 export declare function resolveIdentityNamePrefix(cfg: OpenClawConfig, agentId: string): string | undefined;
 /** Returns just the identity name (without brackets) for template context. */
 export declare function resolveIdentityName(cfg: OpenClawConfig, agentId: string): string | undefined;

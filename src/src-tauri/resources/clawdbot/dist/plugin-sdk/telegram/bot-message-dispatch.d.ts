@@ -3,8 +3,17 @@ import type { OpenClawConfig, ReplyToMode, TelegramAccountConfig } from "../conf
 import type { RuntimeEnv } from "../runtime.js";
 import type { TelegramMessageContext } from "./bot-message-context.js";
 import type { TelegramBotOptions } from "./bot.js";
-import type { TelegramStreamMode, TelegramContext } from "./bot/types.js";
-type ResolveBotTopicsEnabled = (ctx: TelegramContext) => boolean | Promise<boolean>;
+import type { TelegramStreamMode } from "./bot/types.js";
+export declare function pruneStickerMediaFromContext(ctxPayload: {
+    MediaPath?: string;
+    MediaUrl?: string;
+    MediaType?: string;
+    MediaPaths?: string[];
+    MediaUrls?: string[];
+    MediaTypes?: string[];
+}, opts?: {
+    stickerMediaIncluded?: boolean;
+}): void;
 type DispatchTelegramMessageParams = {
     context: TelegramMessageContext;
     bot: Bot;
@@ -15,7 +24,6 @@ type DispatchTelegramMessageParams = {
     textLimit: number;
     telegramCfg: TelegramAccountConfig;
     opts: Pick<TelegramBotOptions, "token">;
-    resolveBotTopicsEnabled: ResolveBotTopicsEnabled;
 };
-export declare const dispatchTelegramMessage: ({ context, bot, cfg, runtime, replyToMode, streamMode, textLimit, telegramCfg, opts, resolveBotTopicsEnabled, }: DispatchTelegramMessageParams) => Promise<void>;
+export declare const dispatchTelegramMessage: ({ context, bot, cfg, runtime, replyToMode, streamMode, textLimit, telegramCfg, opts, }: DispatchTelegramMessageParams) => Promise<void>;
 export {};

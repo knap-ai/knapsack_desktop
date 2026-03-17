@@ -1,9 +1,8 @@
 import type { ChannelMeta } from "./plugins/types.js";
 import type { ChannelId } from "./plugins/types.js";
-export declare const CHAT_CHANNEL_ORDER: readonly ["telegram", "whatsapp", "discord", "irc", "googlechat", "slack", "signal", "imessage"];
+export declare const CHAT_CHANNEL_ORDER: readonly ["telegram", "whatsapp", "discord", "irc", "googlechat", "slack", "signal", "imessage", "line"];
 export type ChatChannelId = (typeof CHAT_CHANNEL_ORDER)[number];
-export declare const CHANNEL_IDS: readonly ["telegram", "whatsapp", "discord", "irc", "googlechat", "slack", "signal", "imessage"];
-export declare const DEFAULT_CHAT_CHANNEL: ChatChannelId;
+export declare const CHANNEL_IDS: readonly ["telegram", "whatsapp", "discord", "irc", "googlechat", "slack", "signal", "imessage", "line"];
 export type ChatChannelMeta = ChannelMeta;
 export declare const CHAT_CHANNEL_ALIASES: Record<string, ChatChannelId>;
 export declare function listChatChannels(): ChatChannelMeta[];

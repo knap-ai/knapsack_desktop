@@ -1,7 +1,6 @@
-export type DiscordProbe = {
-    ok: boolean;
+import type { BaseProbeResult } from "../channels/plugins/types.js";
+export type DiscordProbe = BaseProbeResult & {
     status?: number | null;
-    error?: string | null;
     elapsedMs: number;
     bot?: {
         id?: string | null;
@@ -26,4 +25,13 @@ export declare function probeDiscord(token: string, timeoutMs: number, opts?: {
     fetcher?: typeof fetch;
     includeApplication?: boolean;
 }): Promise<DiscordProbe>;
+/**
+ * Extract the application (bot user) ID from a Discord bot token by
+ * base64-decoding the first segment.  Discord tokens have the format:
+ *   base64(user_id) . timestamp . hmac
+ * The decoded first segment is the numeric snowflake ID as a plain string,
+ * so we keep it as a string to avoid precision loss for IDs that exceed
+ * Number.MAX_SAFE_INTEGER.
+ */
+export declare function parseApplicationIdFromToken(token: string): string | undefined;
 export declare function fetchDiscordApplicationId(token: string, timeoutMs: number, fetcher?: typeof fetch): Promise<string | undefined>;

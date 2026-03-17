@@ -1,14 +1,20 @@
 import type { InlineKeyboardMarkup } from "@grammyjs/types";
 import { Bot } from "grammy";
-import type { RetryConfig } from "../infra/retry.js";
 import { loadConfig } from "../config/config.js";
+import type { RetryConfig } from "../infra/retry.js";
+import { type PollInput } from "../polls.js";
+import type { TelegramInlineButtons } from "./button-types.js";
+type TelegramApi = Bot["api"];
+type TelegramApiOverride = Partial<TelegramApi>;
 type TelegramSendOpts = {
+    cfg?: ReturnType<typeof loadConfig>;
     token?: string;
     accountId?: string;
     verbose?: boolean;
     mediaUrl?: string;
+    mediaLocalRoots?: readonly string[];
     maxBytes?: number;
-    api?: Bot["api"];
+    api?: TelegramApiOverride;
     retry?: RetryConfig;
     textMode?: "markdown" | "html";
     plainText?: string;
@@ -25,25 +31,36 @@ type TelegramSendOpts = {
     /** Forum topic thread ID (for forum supergroups) */
     messageThreadId?: number;
     /** Inline keyboard buttons (reply markup). */
-    buttons?: Array<Array<{
-        text: string;
-        callback_data: string;
-    }>>;
+    buttons?: TelegramInlineButtons;
 };
 type TelegramSendResult = {
     messageId: string;
     chatId: string;
 };
 type TelegramReactionOpts = {
+    cfg?: ReturnType<typeof loadConfig>;
     token?: string;
     accountId?: string;
-    api?: Bot["api"];
+    api?: TelegramApiOverride;
     remove?: boolean;
     verbose?: boolean;
     retry?: RetryConfig;
 };
+type TelegramTypingOpts = {
+    cfg?: ReturnType<typeof loadConfig>;
+    token?: string;
+    accountId?: string;
+    verbose?: boolean;
+    api?: TelegramApiOverride;
+    retry?: RetryConfig;
+    messageThreadId?: number;
+};
+export declare function resetTelegramClientOptionsCacheForTests(): void;
 export declare function buildInlineKeyboard(buttons?: TelegramSendOpts["buttons"]): InlineKeyboardMarkup | undefined;
 export declare function sendMessageTelegram(to: string, text: string, opts?: TelegramSendOpts): Promise<TelegramSendResult>;
+export declare function sendTypingTelegram(to: string, opts?: TelegramTypingOpts): Promise<{
+    ok: true;
+}>;
 export declare function reactMessageTelegram(chatIdInput: string | number, messageIdInput: string | number, emoji: string, opts?: TelegramReactionOpts): Promise<{
     ok: true;
 } | {
@@ -51,10 +68,11 @@ export declare function reactMessageTelegram(chatIdInput: string | number, messa
     warning: string;
 }>;
 type TelegramDeleteOpts = {
+    cfg?: ReturnType<typeof loadConfig>;
     token?: string;
     accountId?: string;
     verbose?: boolean;
-    api?: Bot["api"];
+    api?: TelegramApiOverride;
     retry?: RetryConfig;
 };
 export declare function deleteMessageTelegram(chatIdInput: string | number, messageIdInput: string | number, opts?: TelegramDeleteOpts): Promise<{
@@ -64,27 +82,43 @@ type TelegramEditOpts = {
     token?: string;
     accountId?: string;
     verbose?: boolean;
-    api?: Bot["api"];
+    api?: TelegramApiOverride;
     retry?: RetryConfig;
     textMode?: "markdown" | "html";
+    /** Controls whether link previews are shown in the edited message. */
+    linkPreview?: boolean;
     /** Inline keyboard buttons (reply markup). Pass empty array to remove buttons. */
-    buttons?: Array<Array<{
-        text: string;
-        callback_data: string;
-    }>>;
+    buttons?: TelegramInlineButtons;
     /** Optional config injection to avoid global loadConfig() (improves testability). */
     cfg?: ReturnType<typeof loadConfig>;
 };
+type TelegramEditReplyMarkupOpts = {
+    token?: string;
+    accountId?: string;
+    verbose?: boolean;
+    api?: TelegramApiOverride;
+    retry?: RetryConfig;
+    /** Inline keyboard buttons (reply markup). Pass empty array to remove buttons. */
+    buttons?: TelegramInlineButtons;
+    /** Optional config injection to avoid global loadConfig() (improves testability). */
+    cfg?: ReturnType<typeof loadConfig>;
+};
+export declare function editMessageReplyMarkupTelegram(chatIdInput: string | number, messageIdInput: string | number, buttons: TelegramInlineButtons, opts?: TelegramEditReplyMarkupOpts): Promise<{
+    ok: true;
+    messageId: string;
+    chatId: string;
+}>;
 export declare function editMessageTelegram(chatIdInput: string | number, messageIdInput: string | number, text: string, opts?: TelegramEditOpts): Promise<{
     ok: true;
     messageId: string;
     chatId: string;
 }>;
 type TelegramStickerOpts = {
+    cfg?: ReturnType<typeof loadConfig>;
     token?: string;
     accountId?: string;
     verbose?: boolean;
-    api?: Bot["api"];
+    api?: TelegramApiOverride;
     retry?: RetryConfig;
     /** Message ID to reply to (for threading) */
     replyToMessageId?: number;
@@ -98,4 +132,57 @@ type TelegramStickerOpts = {
  * @param opts - Optional configuration
  */
 export declare function sendStickerTelegram(to: string, fileId: string, opts?: TelegramStickerOpts): Promise<TelegramSendResult>;
+type TelegramPollOpts = {
+    cfg?: ReturnType<typeof loadConfig>;
+    token?: string;
+    accountId?: string;
+    verbose?: boolean;
+    api?: TelegramApiOverride;
+    retry?: RetryConfig;
+    /** Message ID to reply to (for threading) */
+    replyToMessageId?: number;
+    /** Forum topic thread ID (for forum supergroups) */
+    messageThreadId?: number;
+    /** Send message silently (no notification). Defaults to false. */
+    silent?: boolean;
+    /** Whether votes are anonymous. Defaults to true (Telegram default). */
+    isAnonymous?: boolean;
+};
+/**
+ * Send a poll to a Telegram chat.
+ * @param to - Chat ID or username (e.g., "123456789" or "@username")
+ * @param poll - Poll input with question, options, maxSelections, and optional durationHours
+ * @param opts - Optional configuration
+ */
+export declare function sendPollTelegram(to: string, poll: PollInput, opts?: TelegramPollOpts): Promise<{
+    messageId: string;
+    chatId: string;
+    pollId?: string;
+}>;
+type TelegramCreateForumTopicOpts = {
+    cfg?: ReturnType<typeof loadConfig>;
+    token?: string;
+    accountId?: string;
+    api?: TelegramApiOverride;
+    verbose?: boolean;
+    retry?: RetryConfig;
+    /** Icon color for the topic (must be one of 0x6FB9F0, 0xFFD67E, 0xCB86DB, 0x8EEE98, 0xFF93B2, 0xFB6F5F). */
+    iconColor?: number;
+    /** Custom emoji ID for the topic icon. */
+    iconCustomEmojiId?: string;
+};
+export type TelegramCreateForumTopicResult = {
+    topicId: number;
+    name: string;
+    chatId: string;
+};
+/**
+ * Create a forum topic in a Telegram supergroup.
+ * Requires the bot to have `can_manage_topics` permission.
+ *
+ * @param chatId - Supergroup chat ID
+ * @param name - Topic name (1-128 characters)
+ * @param opts - Optional configuration
+ */
+export declare function createForumTopicTelegram(chatId: string, name: string, opts?: TelegramCreateForumTopicOpts): Promise<TelegramCreateForumTopicResult>;
 export {};

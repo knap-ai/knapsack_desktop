@@ -1,5 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
-import type { ChannelCapabilities, ChannelCommandAdapter, ChannelElevatedAdapter, ChannelGroupAdapter, ChannelId, ChannelAgentPromptAdapter, ChannelMentionAdapter, ChannelThreadingAdapter } from "./plugins/types.js";
+import type { ChannelCapabilities, ChannelCommandAdapter, ChannelConfigAdapter, ChannelElevatedAdapter, ChannelGroupAdapter, ChannelId, ChannelAgentPromptAdapter, ChannelMentionAdapter, ChannelThreadingAdapter } from "./plugins/types.js";
 export type ChannelDock = {
     id: ChannelId;
     capabilities: ChannelCapabilities;
@@ -9,17 +8,7 @@ export type ChannelDock = {
     };
     streaming?: ChannelDockStreaming;
     elevated?: ChannelElevatedAdapter;
-    config?: {
-        resolveAllowFrom?: (params: {
-            cfg: OpenClawConfig;
-            accountId?: string | null;
-        }) => Array<string | number> | undefined;
-        formatAllowFrom?: (params: {
-            cfg: OpenClawConfig;
-            accountId?: string | null;
-            allowFrom: Array<string | number>;
-        }) => string[];
-    };
+    config?: Pick<ChannelConfigAdapter<unknown>, "resolveAllowFrom" | "formatAllowFrom" | "resolveDefaultTo">;
     groups?: ChannelGroupAdapter;
     mentions?: ChannelMentionAdapter;
     threading?: ChannelThreadingAdapter;

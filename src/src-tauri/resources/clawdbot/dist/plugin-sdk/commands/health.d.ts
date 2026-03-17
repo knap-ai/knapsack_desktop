@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { type HeartbeatSummary } from "../infra/heartbeat-runner.js";
+import type { RuntimeEnv } from "../runtime.js";
 export type ChannelAccountHealthSummary = {
     accountId: string;
     configured?: boolean;

@@ -10,7 +10,8 @@ export type TranscriptPolicy = {
         allowBase64Only?: boolean;
         includeCamelCase?: boolean;
     };
-    normalizeAntigravityThinkingBlocks: boolean;
+    sanitizeThinkingSignatures: boolean;
+    dropThinkingBlocks: boolean;
     applyGoogleTurnOrdering: boolean;
     validateGeminiTurns: boolean;
     validateAnthropicTurns: boolean;

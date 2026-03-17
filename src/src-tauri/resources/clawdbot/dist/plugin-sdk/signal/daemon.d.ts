@@ -13,6 +13,14 @@ export type SignalDaemonOpts = {
 export type SignalDaemonHandle = {
     pid?: number;
     stop: () => void;
+    exited: Promise<SignalDaemonExitEvent>;
+    isExited: () => boolean;
 };
+export type SignalDaemonExitEvent = {
+    source: "process" | "spawn-error";
+    code: number | null;
+    signal: NodeJS.Signals | null;
+};
+export declare function formatSignalDaemonExit(exit: SignalDaemonExitEvent): string;
 export declare function classifySignalCliLogLine(line: string): "log" | "error" | null;
 export declare function spawnSignalDaemon(opts: SignalDaemonOpts): SignalDaemonHandle;

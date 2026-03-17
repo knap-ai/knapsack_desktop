@@ -1,5 +1,13 @@
 import type { OpenClawConfig } from "../../config/config.js";
-import type { SandboxContext, SandboxWorkspaceInfo } from "./types.js";
+import type { SandboxContext, SandboxDockerConfig, SandboxWorkspaceInfo } from "./types.js";
+export declare function resolveSandboxDockerUser(params: {
+    docker: SandboxDockerConfig;
+    workspaceDir: string;
+    stat?: (workspaceDir: string) => Promise<{
+        uid: number;
+        gid: number;
+    }>;
+}): Promise<SandboxDockerConfig>;
 export declare function resolveSandboxContext(params: {
     config?: OpenClawConfig;
     sessionKey?: string;

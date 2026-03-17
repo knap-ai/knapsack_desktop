@@ -1,8 +1,9 @@
 import type { AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import type { TSchema } from "@sinclair/typebox";
+import type { OpenClawConfig } from "../../config/config.js";
 import type { TranscriptPolicy } from "../transcript-policy.js";
-export declare function sanitizeAntigravityThinkingBlocks(messages: AgentMessage[]): AgentMessage[];
+export declare function findUnsupportedSchemaKeywords(schema: unknown, path: string): string[];
 export declare function sanitizeToolsForGoogle<TSchemaType extends TSchema = TSchema, TResult = unknown>(params: {
     tools: AgentTool<TSchemaType, TResult>[];
     provider: string;
@@ -34,6 +35,8 @@ export declare function sanitizeSessionHistory(params: {
     modelApi?: string | null;
     modelId?: string;
     provider?: string;
+    allowedToolNames?: Iterable<string>;
+    config?: OpenClawConfig;
     sessionManager: SessionManager;
     sessionId: string;
     policy?: TranscriptPolicy;

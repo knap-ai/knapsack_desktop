@@ -1,4 +1,5 @@
 import { messagingApi } from "@line/bot-sdk";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { LineSendResult } from "./types.js";
 type Message = messagingApi.Message;
 type TextMessage = messagingApi.TextMessage;
@@ -8,12 +9,14 @@ type FlexContainer = messagingApi.FlexContainer;
 type TemplateMessage = messagingApi.TemplateMessage;
 type QuickReply = messagingApi.QuickReply;
 interface LineSendOpts {
+    cfg?: OpenClawConfig;
     channelAccessToken?: string;
     accountId?: string;
     verbose?: boolean;
     mediaUrl?: string;
     replyToken?: string;
 }
+type LinePushOpts = Pick<LineSendOpts, "cfg" | "channelAccessToken" | "accountId" | "verbose">;
 export declare function createImageMessage(originalContentUrl: string, previewImageUrl?: string): ImageMessage;
 export declare function createLocationMessage(location: {
     title: string;
@@ -23,25 +26,13 @@ export declare function createLocationMessage(location: {
 }): LocationMessage;
 export declare function sendMessageLine(to: string, text: string, opts?: LineSendOpts): Promise<LineSendResult>;
 export declare function pushMessageLine(to: string, text: string, opts?: LineSendOpts): Promise<LineSendResult>;
-export declare function replyMessageLine(replyToken: string, messages: Message[], opts?: {
-    channelAccessToken?: string;
-    accountId?: string;
-    verbose?: boolean;
-}): Promise<void>;
-export declare function pushMessagesLine(to: string, messages: Message[], opts?: {
-    channelAccessToken?: string;
-    accountId?: string;
-    verbose?: boolean;
-}): Promise<LineSendResult>;
+export declare function replyMessageLine(replyToken: string, messages: Message[], opts?: LinePushOpts): Promise<void>;
+export declare function pushMessagesLine(to: string, messages: Message[], opts?: LinePushOpts): Promise<LineSendResult>;
 export declare function createFlexMessage(altText: string, contents: messagingApi.FlexContainer): messagingApi.FlexMessage;
 /**
  * Push an image message to a user/group
  */
-export declare function pushImageMessage(to: string, originalContentUrl: string, previewImageUrl?: string, opts?: {
-    channelAccessToken?: string;
-    accountId?: string;
-    verbose?: boolean;
-}): Promise<LineSendResult>;
+export declare function pushImageMessage(to: string, originalContentUrl: string, previewImageUrl?: string, opts?: LinePushOpts): Promise<LineSendResult>;
 /**
  * Push a location message to a user/group
  */
@@ -50,35 +41,19 @@ export declare function pushLocationMessage(to: string, location: {
     address: string;
     latitude: number;
     longitude: number;
-}, opts?: {
-    channelAccessToken?: string;
-    accountId?: string;
-    verbose?: boolean;
-}): Promise<LineSendResult>;
+}, opts?: LinePushOpts): Promise<LineSendResult>;
 /**
  * Push a Flex Message to a user/group
  */
-export declare function pushFlexMessage(to: string, altText: string, contents: FlexContainer, opts?: {
-    channelAccessToken?: string;
-    accountId?: string;
-    verbose?: boolean;
-}): Promise<LineSendResult>;
+export declare function pushFlexMessage(to: string, altText: string, contents: FlexContainer, opts?: LinePushOpts): Promise<LineSendResult>;
 /**
  * Push a Template Message to a user/group
  */
-export declare function pushTemplateMessage(to: string, template: TemplateMessage, opts?: {
-    channelAccessToken?: string;
-    accountId?: string;
-    verbose?: boolean;
-}): Promise<LineSendResult>;
+export declare function pushTemplateMessage(to: string, template: TemplateMessage, opts?: LinePushOpts): Promise<LineSendResult>;
 /**
  * Push a text message with quick reply buttons
  */
-export declare function pushTextMessageWithQuickReplies(to: string, text: string, quickReplyLabels: string[], opts?: {
-    channelAccessToken?: string;
-    accountId?: string;
-    verbose?: boolean;
-}): Promise<LineSendResult>;
+export declare function pushTextMessageWithQuickReplies(to: string, text: string, quickReplyLabels: string[], opts?: LinePushOpts): Promise<LineSendResult>;
 /**
  * Create quick reply buttons to attach to a message
  */

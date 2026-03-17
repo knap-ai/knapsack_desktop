@@ -10,6 +10,9 @@ export type NormalizedPluginsConfig = {
     };
     entries: Record<string, {
         enabled?: boolean;
+        hooks?: {
+            allowPromptInjection?: boolean;
+        };
         config?: unknown;
     }>;
 };
@@ -18,6 +21,16 @@ export declare const normalizePluginsConfig: (config?: OpenClawConfig["plugins"]
 export declare function applyTestPluginDefaults(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv): OpenClawConfig;
 export declare function isTestDefaultMemorySlotDisabled(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv): boolean;
 export declare function resolveEnableState(id: string, origin: PluginRecord["origin"], config: NormalizedPluginsConfig): {
+    enabled: boolean;
+    reason?: string;
+};
+export declare function isBundledChannelEnabledByChannelConfig(cfg: OpenClawConfig | undefined, pluginId: string): boolean;
+export declare function resolveEffectiveEnableState(params: {
+    id: string;
+    origin: PluginRecord["origin"];
+    config: NormalizedPluginsConfig;
+    rootConfig?: OpenClawConfig;
+}): {
     enabled: boolean;
     reason?: string;
 };

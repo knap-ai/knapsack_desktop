@@ -28,6 +28,7 @@ export declare function getShellPathFromLoginShell(opts: {
     env: NodeJS.ProcessEnv;
     timeoutMs?: number;
     exec?: typeof execFileSync;
+    platform?: NodeJS.Platform;
 }): string | null;
 export declare function resetShellPathCacheForTests(): void;
 export declare function getShellEnvAppliedKeys(): string[];

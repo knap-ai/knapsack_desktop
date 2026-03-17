@@ -4,6 +4,7 @@ export type GatewayCallOptions = {
     gatewayToken?: string;
     timeoutMs?: number;
 };
+export declare function readGatewayCallOptions(params: Record<string, unknown>): GatewayCallOptions;
 export declare function resolveGatewayOptions(opts?: GatewayCallOptions): {
     url: string | undefined;
     token: string | undefined;

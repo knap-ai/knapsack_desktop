@@ -1,353 +1,455 @@
-export declare const CronScheduleSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"at">;
-    at: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-}>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"every">;
-    everyMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-    anchorMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-}>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cron">;
-    expr: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    tz: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+import { type TSchema } from "@sinclair/typebox";
+export declare const CronScheduleSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+    kind: import("@sinclair/typebox").TLiteral<"at">;
+    at: import("@sinclair/typebox").TString;
+}>, import("@sinclair/typebox").TObject<{
+    kind: import("@sinclair/typebox").TLiteral<"every">;
+    everyMs: import("@sinclair/typebox").TInteger;
+    anchorMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+}>, import("@sinclair/typebox").TObject<{
+    kind: import("@sinclair/typebox").TLiteral<"cron">;
+    expr: import("@sinclair/typebox").TString;
+    tz: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    staggerMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
 }>]>;
-export declare const CronPayloadSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"systemEvent">;
-    text: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-}>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"agentTurn">;
-    message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    model: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    thinking: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    timeoutSeconds: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    allowUnsafeExternalContent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    deliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    bestEffortDeliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const CronPayloadSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+    kind: import("@sinclair/typebox").TLiteral<"systemEvent">;
+    text: import("@sinclair/typebox").TString;
+}>, import("@sinclair/typebox").TObject<{
+    kind: import("@sinclair/typebox").TLiteral<"agentTurn">;
+    message: TSchema;
+    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
 }>]>;
-export declare const CronPayloadPatchSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"systemEvent">;
-    text: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-}>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"agentTurn">;
-    message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    model: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    thinking: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    timeoutSeconds: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    allowUnsafeExternalContent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    deliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    bestEffortDeliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const CronPayloadPatchSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+    kind: import("@sinclair/typebox").TLiteral<"systemEvent">;
+    text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+}>, import("@sinclair/typebox").TObject<{
+    kind: import("@sinclair/typebox").TLiteral<"agentTurn">;
+    message: TSchema;
+    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
 }>]>;
-export declare const CronDeliverySchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"none">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"announce">]>;
-    channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"last">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString]>>;
-    to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    bestEffort: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const CronFailureAlertSchema: import("@sinclair/typebox").TObject<{
+    after: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    cooldownMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const CronDeliveryPatchSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"none">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"announce">]>>;
-    channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"last">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString]>>;
-    to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    bestEffort: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const CronFailureDestinationSchema: import("@sinclair/typebox").TObject<{
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
 }>;
-export declare const CronJobStateSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    nextRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    runningAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lastRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lastStatus: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"ok">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"skipped">]>>;
-    lastError: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    lastDurationMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    consecutiveErrors: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-}>;
-export declare const CronJobSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    agentId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    name: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    description: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    enabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean;
-    deleteAfterRun: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    createdAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-    updatedAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-    schedule: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"at">;
-        at: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"every">;
-        everyMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-        anchorMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cron">;
-        expr: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        tz: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    }>]>;
-    sessionTarget: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"main">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"isolated">]>;
-    wakeMode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"next-heartbeat">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"now">]>;
-    payload: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"systemEvent">;
-        text: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"agentTurn">;
-        message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        model: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        thinking: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        timeoutSeconds: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        allowUnsafeExternalContent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        deliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        bestEffortDeliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    }>]>;
-    delivery: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"none">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"announce">]>;
-        channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"last">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString]>>;
-        to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        bestEffort: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const CronDeliverySchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
     }>>;
-    state: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        nextRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        runningAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastStatus: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"ok">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"skipped">]>>;
-        lastError: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        lastDurationMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        consecutiveErrors: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    }>;
-}>;
-export declare const CronListParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    includeDisabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-}>;
-export declare const CronStatusParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{}>;
-export declare const CronAddParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    name: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    agentId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-    description: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    enabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    deleteAfterRun: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    schedule: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"at">;
-        at: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"every">;
-        everyMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-        anchorMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cron">;
-        expr: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        tz: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    }>]>;
-    sessionTarget: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"main">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"isolated">]>;
-    wakeMode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"next-heartbeat">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"now">]>;
-    payload: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"systemEvent">;
-        text: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"agentTurn">;
-        message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        model: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        thinking: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        timeoutSeconds: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        allowUnsafeExternalContent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        deliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        bestEffortDeliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    }>]>;
-    delivery: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"none">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"announce">]>;
-        channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"last">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString]>>;
-        to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        bestEffort: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+    mode: import("@sinclair/typebox").TLiteral<"none">;
+}>, import("@sinclair/typebox").TObject<{
+    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
     }>>;
+    mode: import("@sinclair/typebox").TLiteral<"announce">;
+}>, import("@sinclair/typebox").TObject<{
+    to: import("@sinclair/typebox").TString;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+    }>>;
+    mode: import("@sinclair/typebox").TLiteral<"webhook">;
+}>]>;
+export declare const CronDeliveryPatchSchema: import("@sinclair/typebox").TObject<{
+    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+    }>>;
+    mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"none">, import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
 }>;
-export declare const CronJobPatchSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    name: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    agentId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-    description: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    enabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    deleteAfterRun: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    schedule: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"at">;
-        at: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"every">;
-        everyMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-        anchorMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cron">;
-        expr: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        tz: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const CronJobStateSchema: import("@sinclair/typebox").TObject<{
+    nextRunAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    runningAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastRunAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastRunStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>;
+    lastStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>;
+    lastError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    lastErrorReason: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"auth">, import("@sinclair/typebox").TLiteral<"format">, import("@sinclair/typebox").TLiteral<"rate_limit">, import("@sinclair/typebox").TLiteral<"billing">, import("@sinclair/typebox").TLiteral<"timeout">, import("@sinclair/typebox").TLiteral<"model_not_found">, import("@sinclair/typebox").TLiteral<"unknown">]>>;
+    lastDurationMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    consecutiveErrors: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastDelivered: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    lastDeliveryStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delivered">, import("@sinclair/typebox").TLiteral<"not-delivered">, import("@sinclair/typebox").TLiteral<"unknown">, import("@sinclair/typebox").TLiteral<"not-requested">]>>;
+    lastDeliveryError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    lastFailureAlertAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+}>;
+export declare const CronJobSchema: import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    name: import("@sinclair/typebox").TString;
+    description: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    enabled: import("@sinclair/typebox").TBoolean;
+    deleteAfterRun: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    createdAtMs: import("@sinclair/typebox").TInteger;
+    updatedAtMs: import("@sinclair/typebox").TInteger;
+    schedule: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"at">;
+        at: import("@sinclair/typebox").TString;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"every">;
+        everyMs: import("@sinclair/typebox").TInteger;
+        anchorMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"cron">;
+        expr: import("@sinclair/typebox").TString;
+        tz: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        staggerMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>]>;
+    sessionTarget: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"main">, import("@sinclair/typebox").TLiteral<"isolated">]>;
+    wakeMode: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"next-heartbeat">, import("@sinclair/typebox").TLiteral<"now">]>;
+    payload: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"systemEvent">;
+        text: import("@sinclair/typebox").TString;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"agentTurn">;
+        message: TSchema;
+        model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+        thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    }>]>;
+    delivery: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+        }>>;
+        mode: import("@sinclair/typebox").TLiteral<"none">;
+    }>, import("@sinclair/typebox").TObject<{
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+        }>>;
+        mode: import("@sinclair/typebox").TLiteral<"announce">;
+    }>, import("@sinclair/typebox").TObject<{
+        to: import("@sinclair/typebox").TString;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+        }>>;
+        mode: import("@sinclair/typebox").TLiteral<"webhook">;
     }>]>>;
-    sessionTarget: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"main">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"isolated">]>>;
-    wakeMode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"next-heartbeat">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"now">]>>;
-    payload: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"systemEvent">;
-        text: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"agentTurn">;
-        message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        model: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        thinking: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        timeoutSeconds: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        allowUnsafeExternalContent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        deliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        bestEffortDeliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+    failureAlert: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<false>, import("@sinclair/typebox").TObject<{
+        after: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        cooldownMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>]>>;
-    delivery: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"none">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"announce">]>>;
-        channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"last">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString]>>;
-        to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        bestEffort: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    }>>;
-    state: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        nextRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        runningAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastStatus: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"ok">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"skipped">]>>;
-        lastError: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        lastDurationMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        consecutiveErrors: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    }>>;
+    state: import("@sinclair/typebox").TObject<{
+        nextRunAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        runningAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastRunAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastRunStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>;
+        lastStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>;
+        lastError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        lastErrorReason: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"auth">, import("@sinclair/typebox").TLiteral<"format">, import("@sinclair/typebox").TLiteral<"rate_limit">, import("@sinclair/typebox").TLiteral<"billing">, import("@sinclair/typebox").TLiteral<"timeout">, import("@sinclair/typebox").TLiteral<"model_not_found">, import("@sinclair/typebox").TLiteral<"unknown">]>>;
+        lastDurationMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        consecutiveErrors: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastDelivered: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        lastDeliveryStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delivered">, import("@sinclair/typebox").TLiteral<"not-delivered">, import("@sinclair/typebox").TLiteral<"unknown">, import("@sinclair/typebox").TLiteral<"not-requested">]>>;
+        lastDeliveryError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        lastFailureAlertAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>;
 }>;
-export declare const CronUpdateParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    patch: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        name: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        agentId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-        description: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        enabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        deleteAfterRun: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        schedule: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"at">;
-            at: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"every">;
-            everyMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-            anchorMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cron">;
-            expr: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-            tz: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        }>]>>;
-        sessionTarget: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"main">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"isolated">]>>;
-        wakeMode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"next-heartbeat">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"now">]>>;
-        payload: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"systemEvent">;
-            text: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"agentTurn">;
-            message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            model: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            thinking: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            timeoutSeconds: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            allowUnsafeExternalContent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-            deliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-            channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            bestEffortDeliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        }>]>>;
-        delivery: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"none">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"announce">]>>;
-            channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"last">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString]>>;
-            to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            bestEffort: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const CronListParamsSchema: import("@sinclair/typebox").TObject<{
+    includeDisabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    offset: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    query: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"all">, import("@sinclair/typebox").TLiteral<"enabled">, import("@sinclair/typebox").TLiteral<"disabled">]>>;
+    sortBy: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"nextRunAtMs">, import("@sinclair/typebox").TLiteral<"updatedAtMs">, import("@sinclair/typebox").TLiteral<"name">]>>;
+    sortDir: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"asc">, import("@sinclair/typebox").TLiteral<"desc">]>>;
+}>;
+export declare const CronStatusParamsSchema: import("@sinclair/typebox").TObject<{}>;
+export declare const CronAddParamsSchema: import("@sinclair/typebox").TObject<{
+    schedule: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"at">;
+        at: import("@sinclair/typebox").TString;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"every">;
+        everyMs: import("@sinclair/typebox").TInteger;
+        anchorMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"cron">;
+        expr: import("@sinclair/typebox").TString;
+        tz: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        staggerMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>]>;
+    sessionTarget: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"main">, import("@sinclair/typebox").TLiteral<"isolated">]>;
+    wakeMode: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"next-heartbeat">, import("@sinclair/typebox").TLiteral<"now">]>;
+    payload: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"systemEvent">;
+        text: import("@sinclair/typebox").TString;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"agentTurn">;
+        message: TSchema;
+        model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+        thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    }>]>;
+    delivery: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
         }>>;
-        state: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            nextRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            runningAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            lastRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            lastStatus: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"ok">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"skipped">]>>;
-            lastError: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            lastDurationMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            consecutiveErrors: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
+        mode: import("@sinclair/typebox").TLiteral<"none">;
+    }>, import("@sinclair/typebox").TObject<{
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
         }>>;
-    }>;
-}>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    jobId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    patch: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        name: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        agentId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-        description: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        enabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        deleteAfterRun: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        schedule: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"at">;
-            at: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"every">;
-            everyMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-            anchorMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cron">;
-            expr: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-            tz: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        }>]>>;
-        sessionTarget: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"main">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"isolated">]>>;
-        wakeMode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"next-heartbeat">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"now">]>>;
-        payload: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"systemEvent">;
-            text: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        }>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"agentTurn">;
-            message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            model: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            thinking: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            timeoutSeconds: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            allowUnsafeExternalContent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-            deliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-            channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            bestEffortDeliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        }>]>>;
-        delivery: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"none">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"announce">]>>;
-            channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"last">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString]>>;
-            to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            bestEffort: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+        mode: import("@sinclair/typebox").TLiteral<"announce">;
+    }>, import("@sinclair/typebox").TObject<{
+        to: import("@sinclair/typebox").TString;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
         }>>;
-        state: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            nextRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            runningAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            lastRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            lastStatus: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"ok">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"skipped">]>>;
-            lastError: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            lastDurationMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-            consecutiveErrors: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
+        mode: import("@sinclair/typebox").TLiteral<"webhook">;
+    }>]>>;
+    failureAlert: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<false>, import("@sinclair/typebox").TObject<{
+        after: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        cooldownMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    }>]>>;
+    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+    description: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    deleteAfterRun: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    name: import("@sinclair/typebox").TString;
+}>;
+export declare const CronJobPatchSchema: import("@sinclair/typebox").TObject<{
+    schedule: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"at">;
+        at: import("@sinclair/typebox").TString;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"every">;
+        everyMs: import("@sinclair/typebox").TInteger;
+        anchorMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"cron">;
+        expr: import("@sinclair/typebox").TString;
+        tz: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        staggerMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>]>>;
+    sessionTarget: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"main">, import("@sinclair/typebox").TLiteral<"isolated">]>>;
+    wakeMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"next-heartbeat">, import("@sinclair/typebox").TLiteral<"now">]>>;
+    payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"systemEvent">;
+        text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    }>, import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TLiteral<"agentTurn">;
+        message: TSchema;
+        model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+        thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    }>]>>;
+    delivery: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
         }>>;
-    }>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"none">, import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+    }>>;
+    failureAlert: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<false>, import("@sinclair/typebox").TObject<{
+        after: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"last">, import("@sinclair/typebox").TString]>>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        cooldownMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"announce">, import("@sinclair/typebox").TLiteral<"webhook">]>>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    }>]>>;
+    state: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        nextRunAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        runningAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastRunAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastRunStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>;
+        lastStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>;
+        lastError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        lastErrorReason: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"auth">, import("@sinclair/typebox").TLiteral<"format">, import("@sinclair/typebox").TLiteral<"rate_limit">, import("@sinclair/typebox").TLiteral<"billing">, import("@sinclair/typebox").TLiteral<"timeout">, import("@sinclair/typebox").TLiteral<"model_not_found">, import("@sinclair/typebox").TLiteral<"unknown">]>>;
+        lastDurationMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        consecutiveErrors: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastDelivered: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        lastDeliveryStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delivered">, import("@sinclair/typebox").TLiteral<"not-delivered">, import("@sinclair/typebox").TLiteral<"unknown">, import("@sinclair/typebox").TLiteral<"not-requested">]>>;
+        lastDeliveryError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        lastFailureAlertAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>>;
+    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+    description: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    deleteAfterRun: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+}>;
+export declare const CronUpdateParamsSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+}>, import("@sinclair/typebox").TObject<{
+    jobId: import("@sinclair/typebox").TString;
 }>]>;
-export declare const CronRemoveParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-}>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    jobId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const CronRemoveParamsSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+}>, import("@sinclair/typebox").TObject<{
+    jobId: import("@sinclair/typebox").TString;
 }>]>;
-export declare const CronRunParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"due">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"force">]>>;
-}>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    jobId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"due">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"force">]>>;
+export declare const CronRunParamsSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+}>, import("@sinclair/typebox").TObject<{
+    jobId: import("@sinclair/typebox").TString;
 }>]>;
-export declare const CronRunsParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    limit: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-}>, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    jobId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    limit: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-}>]>;
-export declare const CronRunLogEntrySchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    ts: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-    jobId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    action: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"finished">;
-    status: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"ok">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"skipped">]>>;
-    error: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    summary: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    sessionId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    sessionKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    runAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    durationMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    nextRunAtMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
+export declare const CronRunsParamsSchema: import("@sinclair/typebox").TObject<{
+    scope: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"job">, import("@sinclair/typebox").TLiteral<"all">]>>;
+    id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    jobId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    offset: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    statuses: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>>;
+    status: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"all">, import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>;
+    deliveryStatuses: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delivered">, import("@sinclair/typebox").TLiteral<"not-delivered">, import("@sinclair/typebox").TLiteral<"unknown">, import("@sinclair/typebox").TLiteral<"not-requested">]>>>;
+    deliveryStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delivered">, import("@sinclair/typebox").TLiteral<"not-delivered">, import("@sinclair/typebox").TLiteral<"unknown">, import("@sinclair/typebox").TLiteral<"not-requested">]>>;
+    query: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sortDir: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"asc">, import("@sinclair/typebox").TLiteral<"desc">]>>;
+}>;
+export declare const CronRunLogEntrySchema: import("@sinclair/typebox").TObject<{
+    ts: import("@sinclair/typebox").TInteger;
+    jobId: import("@sinclair/typebox").TString;
+    action: import("@sinclair/typebox").TLiteral<"finished">;
+    status: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"ok">, import("@sinclair/typebox").TLiteral<"error">, import("@sinclair/typebox").TLiteral<"skipped">]>>;
+    error: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    delivered: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    deliveryStatus: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delivered">, import("@sinclair/typebox").TLiteral<"not-delivered">, import("@sinclair/typebox").TLiteral<"unknown">, import("@sinclair/typebox").TLiteral<"not-requested">]>>;
+    deliveryError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    runAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    durationMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    nextRunAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    provider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    usage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        input_tokens: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+        output_tokens: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+        total_tokens: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+        cache_read_tokens: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+        cache_write_tokens: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+    }>>;
+    jobName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;

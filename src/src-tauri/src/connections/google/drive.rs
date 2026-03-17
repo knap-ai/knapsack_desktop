@@ -7,6 +7,7 @@ use actix_web::{error, get, post, web::Json, HttpRequest, HttpResponse, Responde
 use chrono::{Duration, Utc};
 use google_calendar3::hyper;
 use google_calendar3::hyper_rustls;
+use super::https_client::get_https_client;
 use google_drive3::api::File;
 use google_drive3::DriveHub;
 use serde::{Deserialize, Serialize};
@@ -333,14 +334,7 @@ pub async fn fetch_drive(
 ) -> Result<(), Error> {
   let mut maybe_next_page_token: Option<String> = None;
   let hub = DriveHub::new(
-    hyper::Client::builder().build(
-      hyper_rustls::HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .unwrap()
-        .https_or_http()
-        .enable_http1()
-        .build(),
-    ),
+    get_https_client(),
     access_token,
   );
   let days_in_month = 30;
@@ -527,14 +521,7 @@ async fn create_temp_drive_file(
   .await
   .ok()?;
   let hub = DriveHub::new(
-    hyper::Client::builder().build(
-      hyper_rustls::HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .unwrap()
-        .https_or_http()
-        .enable_http1()
-        .build(),
-    ),
+    get_https_client(),
     access_token,
   );
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
@@ -600,14 +587,7 @@ async fn fetch_google_drive_files(
   .await
   .unwrap();
   let hub = DriveHub::new(
-    hyper::Client::builder().build(
-      hyper_rustls::HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .unwrap()
-        .https_or_http()
-        .enable_http1()
-        .build(),
-    ),
+    get_https_client(),
     access_token,
   );
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
@@ -708,14 +688,7 @@ async fn fetch_files_id_shared_between_users(
   .unwrap();
 
   let hub = DriveHub::new(
-    hyper::Client::builder().build(
-      hyper_rustls::HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .unwrap()
-        .https_or_http()
-        .enable_http1()
-        .build(),
-    ),
+    get_https_client(),
     access_token,
   );
 

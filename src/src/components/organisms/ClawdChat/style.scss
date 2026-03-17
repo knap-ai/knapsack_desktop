@@ -2876,7 +2876,7 @@
 }
 
 // Toolbar button highlight for channels state
-.ClawdChatActions .channels-disconnected:not(.toggle-on) {
+.ClawdChatActions .channels-none:not(.toggle-on) {
   animation: channels-pulse 2s ease-in-out 3;
 }
 
@@ -2887,6 +2887,15 @@
 
 .ClawdChatActions .channels-connected {
   color: #16a34a;
+}
+
+.ClawdChatActions .channels-starting {
+  color: rgba(180, 130, 0, 0.8);
+}
+
+.ClawdChatActions .channels-error {
+  color: rgba(200, 40, 40, 0.8);
+  font-weight: 600;
 }
 
 // Activity Monitor Panel — flex sibling of main content, pushes chat left

@@ -1,8 +1,8 @@
+import type { SessionEntry } from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
 import type { GetReplyOptions } from "../types.js";
 import type { FollowupRun } from "./queue.js";
 import type { TypingController } from "./typing.js";
-import { type SessionEntry } from "../../config/sessions.js";
 export declare function createFollowupRunner(params: {
     opts?: GetReplyOptions;
     typing: TypingController;

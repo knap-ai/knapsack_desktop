@@ -58,7 +58,16 @@ fi
 # ---------------------------------------------------------------------------
 APP_ENTITLEMENTS="$PROJECT_DIR/src-tauri/tauri.entitlements"
 NODE_ENTITLEMENTS="$PROJECT_DIR/../build/entitlements/node.entitlements.plist"
-BUNDLE_DIR="$PROJECT_DIR/src-tauri/target/release/bundle/macos"
+# Check for universal build first, then fall back to standard
+UNIVERSAL_BUNDLE="$PROJECT_DIR/src-tauri/target/universal-apple-darwin/release/bundle/macos"
+STANDARD_BUNDLE="$PROJECT_DIR/src-tauri/target/release/bundle/macos"
+
+if [ -d "$UNIVERSAL_BUNDLE" ]; then
+  BUNDLE_DIR="$UNIVERSAL_BUNDLE"
+  echo "[sign] Using universal binary bundle"
+else
+  BUNDLE_DIR="$STANDARD_BUNDLE"
+fi
 
 # ---------------------------------------------------------------------------
 # Locate the .app bundle
@@ -273,7 +282,7 @@ if [ "$DO_NOTARIZE" = true ]; then
   xcrun stapler staple "$APP_PATH"
 
   # Recreate DMG with the stapled .app, then notarize & staple the DMG
-  DMG_DIR="$BUNDLE_DIR/../dmg"
+  DMG_DIR="$(dirname "$BUNDLE_DIR")/dmg"
   if [ -d "$DMG_DIR" ]; then
     # Find the architecture suffix from the existing DMG filename
     EXISTING_DMG=$(find "$DMG_DIR" -name "*.dmg" -print -quit 2>/dev/null || true)

@@ -1,7 +1,7 @@
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/config.js";
-import type { MediaUnderstandingDecision, MediaUnderstandingOutput, MediaUnderstandingProvider } from "./types.js";
 import { type ActiveMediaModel } from "./runner.js";
+import type { MediaUnderstandingDecision, MediaUnderstandingOutput, MediaUnderstandingProvider } from "./types.js";
 export type ApplyMediaUnderstandingResult = {
     outputs: MediaUnderstandingOutput[];
     decisions: MediaUnderstandingDecision[];

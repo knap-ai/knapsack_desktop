@@ -1,5 +1,9 @@
 import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
 import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
+export declare function resolveSilentReplyFallbackText(params: {
+    text: string;
+    messagingToolSentTexts: string[];
+}): string;
 export declare function handleMessageStart(ctx: EmbeddedPiSubscribeContext, evt: AgentEvent & {
     message: AgentMessage;
 }): void;

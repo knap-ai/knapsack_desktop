@@ -4,6 +4,7 @@ export type DevicePairingPendingRequest = {
     publicKey: string;
     displayName?: string;
     platform?: string;
+    deviceFamily?: string;
     clientId?: string;
     clientMode?: string;
     role?: string;
@@ -36,11 +37,13 @@ export type PairedDevice = {
     publicKey: string;
     displayName?: string;
     platform?: string;
+    deviceFamily?: string;
     clientId?: string;
     clientMode?: string;
     role?: string;
     roles?: string[];
     scopes?: string[];
+    approvedScopes?: string[];
     remoteIp?: string;
     tokens?: Record<string, DeviceAuthToken>;
     createdAtMs: number;
@@ -65,7 +68,10 @@ export declare function rejectDevicePairing(requestId: string, baseDir?: string)
     requestId: string;
     deviceId: string;
 } | null>;
-export declare function updatePairedDeviceMetadata(deviceId: string, patch: Partial<Omit<PairedDevice, "deviceId" | "createdAtMs" | "approvedAtMs">>, baseDir?: string): Promise<void>;
+export declare function removePairedDevice(deviceId: string, baseDir?: string): Promise<{
+    deviceId: string;
+} | null>;
+export declare function updatePairedDeviceMetadata(deviceId: string, patch: Partial<Omit<PairedDevice, "deviceId" | "createdAtMs" | "approvedAtMs" | "approvedScopes">>, baseDir?: string): Promise<void>;
 export declare function summarizeDeviceTokens(tokens: Record<string, DeviceAuthToken> | undefined): DeviceAuthTokenSummary[] | undefined;
 export declare function verifyDeviceToken(params: {
     deviceId: string;
@@ -94,3 +100,4 @@ export declare function revokeDeviceToken(params: {
     role: string;
     baseDir?: string;
 }): Promise<DeviceAuthToken | null>;
+export declare function clearDevicePairing(deviceId: string, baseDir?: string): Promise<boolean>;

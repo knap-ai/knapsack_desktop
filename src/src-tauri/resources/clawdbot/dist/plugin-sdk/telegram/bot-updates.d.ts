@@ -13,9 +13,13 @@ export type TelegramUpdateKeyContext = {
         update_id?: number;
         message?: Message;
         edited_message?: Message;
+        channel_post?: Message;
+        edited_channel_post?: Message;
     };
     update_id?: number;
     message?: Message;
+    channelPost?: Message;
+    editedChannelPost?: Message;
     callbackQuery?: {
         id?: string;
         message?: Message;

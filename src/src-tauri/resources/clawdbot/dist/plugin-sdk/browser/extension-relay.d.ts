@@ -1,5 +1,6 @@
 export type ChromeExtensionRelayServer = {
     host: string;
+    bindHost: string;
     port: number;
     baseUrl: string;
     cdpWsUrl: string;
@@ -9,6 +10,7 @@ export type ChromeExtensionRelayServer = {
 export declare function getChromeExtensionRelayAuthHeaders(url: string): Record<string, string>;
 export declare function ensureChromeExtensionRelayServer(opts: {
     cdpUrl: string;
+    bindHost?: string;
 }): Promise<ChromeExtensionRelayServer>;
 export declare function stopChromeExtensionRelayServer(opts: {
     cdpUrl: string;

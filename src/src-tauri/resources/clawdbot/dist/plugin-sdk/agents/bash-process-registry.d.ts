@@ -12,6 +12,7 @@ export interface ProcessSession {
     scopeKey?: string;
     sessionKey?: string;
     notifyOnExit?: boolean;
+    notifyOnExitEmptySuccess?: boolean;
     exitNotified?: boolean;
     child?: ChildProcessWithoutNullStreams;
     stdin?: SessionStdin;

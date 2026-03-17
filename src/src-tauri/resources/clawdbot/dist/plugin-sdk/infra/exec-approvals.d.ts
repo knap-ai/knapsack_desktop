@@ -3,6 +3,63 @@ export * from "./exec-approvals-allowlist.js";
 export type ExecHost = "sandbox" | "gateway" | "node";
 export type ExecSecurity = "deny" | "allowlist" | "full";
 export type ExecAsk = "off" | "on-miss" | "always";
+export declare function normalizeExecHost(value?: string | null): ExecHost | null;
+export declare function normalizeExecSecurity(value?: string | null): ExecSecurity | null;
+export declare function normalizeExecAsk(value?: string | null): ExecAsk | null;
+export type SystemRunApprovalBinding = {
+    argv: string[];
+    cwd: string | null;
+    agentId: string | null;
+    sessionKey: string | null;
+    envHash: string | null;
+};
+export type SystemRunApprovalFileOperand = {
+    argvIndex: number;
+    path: string;
+    sha256: string;
+};
+export type SystemRunApprovalPlan = {
+    argv: string[];
+    cwd: string | null;
+    commandText: string;
+    commandPreview?: string | null;
+    agentId: string | null;
+    sessionKey: string | null;
+    mutableFileOperand?: SystemRunApprovalFileOperand | null;
+};
+export type ExecApprovalRequestPayload = {
+    command: string;
+    commandPreview?: string | null;
+    commandArgv?: string[];
+    envKeys?: string[];
+    systemRunBinding?: SystemRunApprovalBinding | null;
+    systemRunPlan?: SystemRunApprovalPlan | null;
+    cwd?: string | null;
+    nodeId?: string | null;
+    host?: string | null;
+    security?: string | null;
+    ask?: string | null;
+    agentId?: string | null;
+    resolvedPath?: string | null;
+    sessionKey?: string | null;
+    turnSourceChannel?: string | null;
+    turnSourceTo?: string | null;
+    turnSourceAccountId?: string | null;
+    turnSourceThreadId?: string | number | null;
+};
+export type ExecApprovalRequest = {
+    id: string;
+    request: ExecApprovalRequestPayload;
+    createdAtMs: number;
+    expiresAtMs: number;
+};
+export type ExecApprovalResolved = {
+    id: string;
+    decision: ExecApprovalDecision;
+    resolvedBy?: string | null;
+    ts: number;
+    request?: ExecApprovalRequest["request"];
+};
 export type ExecApprovalsDefaults = {
     security?: ExecSecurity;
     ask?: ExecAsk;
@@ -44,9 +101,14 @@ export type ExecApprovalsResolved = {
     allowlist: ExecAllowlistEntry[];
     file: ExecApprovalsFile;
 };
+export declare const DEFAULT_EXEC_APPROVAL_TIMEOUT_MS = 120000;
 export declare function resolveExecApprovalsPath(): string;
 export declare function resolveExecApprovalsSocketPath(): string;
 export declare function normalizeExecApprovals(file: ExecApprovalsFile): ExecApprovalsFile;
+export declare function mergeExecApprovalsSocketDefaults(params: {
+    normalized: ExecApprovalsFile;
+    current?: ExecApprovalsFile;
+}): ExecApprovalsFile;
 export declare function readExecApprovalsSnapshot(): ExecApprovalsSnapshot;
 export declare function loadExecApprovals(): ExecApprovalsFile;
 export declare function saveExecApprovals(file: ExecApprovalsFile): void;

@@ -1,8 +1,7 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/whatsapp";
+import { emptyPluginConfigSchema } from "openclaw/plugin-sdk/whatsapp";
 import { whatsappPlugin } from "./src/channel.js";
 import { setWhatsAppRuntime } from "./src/runtime.js";
-import { handleLoginWithPhone } from "./src/login-phone.js";
 
 const plugin = {
   id: "whatsapp",
@@ -12,7 +11,6 @@ const plugin = {
   register(api: OpenClawPluginApi) {
     setWhatsAppRuntime(api.runtime);
     api.registerChannel({ plugin: whatsappPlugin });
-    api.registerGatewayMethod("web.login.phone", handleLoginWithPhone);
   },
 };
 

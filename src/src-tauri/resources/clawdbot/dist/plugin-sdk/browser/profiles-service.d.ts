@@ -3,13 +3,14 @@ export type CreateProfileParams = {
     name: string;
     color?: string;
     cdpUrl?: string;
-    driver?: "openclaw" | "extension";
+    driver?: "openclaw" | "extension" | "existing-session";
 };
 export type CreateProfileResult = {
     ok: true;
     profile: string;
-    cdpPort: number;
-    cdpUrl: string;
+    transport: "cdp" | "chrome-mcp";
+    cdpPort: number | null;
+    cdpUrl: string | null;
     color: string;
     isRemote: boolean;
 };

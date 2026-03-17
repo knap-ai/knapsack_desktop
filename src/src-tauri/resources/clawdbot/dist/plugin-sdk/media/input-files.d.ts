@@ -1,9 +1,6 @@
 import type { SsrFPolicy } from "../infra/net/ssrf.js";
-export type InputImageContent = {
-    type: "image";
-    data: string;
-    mimeType: string;
-};
+import { type PdfExtractedImage } from "./pdf-extract.js";
+export type InputImageContent = PdfExtractedImage;
 export type InputFileExtractResult = {
     filename: string;
     text?: string;
@@ -24,6 +21,19 @@ export type InputFileLimits = {
     timeoutMs: number;
     pdf: InputPdfLimits;
 };
+export type InputFileLimitsConfig = {
+    allowUrl?: boolean;
+    allowedMimes?: string[];
+    maxBytes?: number;
+    maxChars?: number;
+    maxRedirects?: number;
+    timeoutMs?: number;
+    pdf?: {
+        maxPages?: number;
+        maxPixels?: number;
+        minTextChars?: number;
+    };
+};
 export type InputImageLimits = {
     allowUrl: boolean;
     urlAllowlist?: string[];
@@ -33,15 +43,22 @@ export type InputImageLimits = {
     timeoutMs: number;
 };
 export type InputImageSource = {
-    type: "base64" | "url";
-    data?: string;
-    url?: string;
+    type: "base64";
+    data: string;
+    mediaType?: string;
+} | {
+    type: "url";
+    url: string;
     mediaType?: string;
 };
 export type InputFileSource = {
-    type: "base64" | "url";
-    data?: string;
-    url?: string;
+    type: "base64";
+    data: string;
+    mediaType?: string;
+    filename?: string;
+} | {
+    type: "url";
+    url: string;
     mediaType?: string;
     filename?: string;
 };
@@ -66,6 +83,7 @@ export declare function parseContentType(value: string | undefined): {
     charset?: string;
 };
 export declare function normalizeMimeList(values: string[] | undefined, fallback: string[]): Set<string>;
+export declare function resolveInputFileLimits(config?: InputFileLimitsConfig): InputFileLimits;
 export declare function fetchWithGuard(params: {
     url: string;
     maxBytes: number;

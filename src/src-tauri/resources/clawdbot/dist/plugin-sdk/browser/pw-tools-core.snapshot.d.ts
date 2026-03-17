@@ -1,3 +1,4 @@
+import type { SsrFPolicy } from "../infra/net/ssrf.js";
 import { type AriaSnapshotNode } from "./cdp.js";
 import { type RoleSnapshotOptions, type RoleRefMap } from "./pw-role-snapshot.js";
 export declare function snapshotAriaViaPlaywright(opts: {
@@ -43,6 +44,7 @@ export declare function navigateViaPlaywright(opts: {
     targetId?: string;
     url: string;
     timeoutMs?: number;
+    ssrfPolicy?: SsrFPolicy;
 }): Promise<{
     url: string;
 }>;

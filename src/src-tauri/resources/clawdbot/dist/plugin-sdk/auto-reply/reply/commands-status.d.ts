@@ -9,12 +9,14 @@ export declare function buildStatusReply(params: {
     command: CommandContext;
     sessionEntry?: SessionEntry;
     sessionKey: string;
+    parentSessionKey?: string;
     sessionScope?: SessionScope;
     storePath?: string;
     provider: string;
     model: string;
     contextTokens: number;
     resolvedThinkLevel?: ThinkLevel;
+    resolvedFastMode?: boolean;
     resolvedVerboseLevel: VerboseLevel;
     resolvedReasoningLevel: ReasoningLevel;
     resolvedElevatedLevel?: ElevatedLevel;

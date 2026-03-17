@@ -7,8 +7,8 @@ export type ResolvedIMessageAccount = {
     config: IMessageAccountConfig;
     configured: boolean;
 };
-export declare function listIMessageAccountIds(cfg: OpenClawConfig): string[];
-export declare function resolveDefaultIMessageAccountId(cfg: OpenClawConfig): string;
+export declare const listIMessageAccountIds: (cfg: OpenClawConfig) => string[];
+export declare const resolveDefaultIMessageAccountId: (cfg: OpenClawConfig) => string;
 export declare function resolveIMessageAccount(params: {
     cfg: OpenClawConfig;
     accountId?: string | null;

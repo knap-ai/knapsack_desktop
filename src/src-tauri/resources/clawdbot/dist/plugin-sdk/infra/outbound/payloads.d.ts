@@ -10,7 +10,9 @@ export type OutboundPayloadJson = {
     mediaUrls?: string[];
     channelData?: Record<string, unknown>;
 };
-export declare function normalizeReplyPayloadsForDelivery(payloads: ReplyPayload[]): ReplyPayload[];
-export declare function normalizeOutboundPayloads(payloads: ReplyPayload[]): NormalizedOutboundPayload[];
-export declare function normalizeOutboundPayloadsForJson(payloads: ReplyPayload[]): OutboundPayloadJson[];
-export declare function formatOutboundPayloadLog(payload: NormalizedOutboundPayload): string;
+export declare function normalizeReplyPayloadsForDelivery(payloads: readonly ReplyPayload[]): ReplyPayload[];
+export declare function normalizeOutboundPayloads(payloads: readonly ReplyPayload[]): NormalizedOutboundPayload[];
+export declare function normalizeOutboundPayloadsForJson(payloads: readonly ReplyPayload[]): OutboundPayloadJson[];
+export declare function formatOutboundPayloadLog(payload: Pick<NormalizedOutboundPayload, "text" | "channelData"> & {
+    mediaUrls: readonly string[];
+}): string;

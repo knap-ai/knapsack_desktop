@@ -14,6 +14,10 @@ export type UsageLike = {
     completion_tokens?: number;
     cache_read_input_tokens?: number;
     cache_creation_input_tokens?: number;
+    cached_tokens?: number;
+    prompt_tokens_details?: {
+        cached_tokens?: number;
+    };
     totalTokens?: number;
     total_tokens?: number;
     cache_read?: number;
@@ -26,6 +30,21 @@ export type NormalizedUsage = {
     cacheWrite?: number;
     total?: number;
 };
+export type AssistantUsageSnapshot = {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    totalTokens: number;
+    cost: {
+        input: number;
+        output: number;
+        cacheRead: number;
+        cacheWrite: number;
+        total: number;
+    };
+};
+export declare function makeZeroUsageSnapshot(): AssistantUsageSnapshot;
 export declare function hasNonzeroUsage(usage?: NormalizedUsage | null): usage is NormalizedUsage;
 export declare function normalizeUsage(raw?: UsageLike | null): NormalizedUsage | undefined;
 export declare function derivePromptTokens(usage?: {
@@ -36,6 +55,7 @@ export declare function derivePromptTokens(usage?: {
 export declare function deriveSessionTotalTokens(params: {
     usage?: {
         input?: number;
+        output?: number;
         total?: number;
         cacheRead?: number;
         cacheWrite?: number;

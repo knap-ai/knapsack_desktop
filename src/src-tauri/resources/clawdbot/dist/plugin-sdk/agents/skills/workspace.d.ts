@@ -1,16 +1,10 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SkillEligibilityContext, SkillCommandSpec, SkillEntry, SkillSnapshot } from "./types.js";
-export declare function buildWorkspaceSkillSnapshot(workspaceDir: string, opts?: {
-    config?: OpenClawConfig;
-    managedSkillsDir?: string;
-    bundledSkillsDir?: string;
-    entries?: SkillEntry[];
-    /** If provided, only include skills with these names */
-    skillFilter?: string[];
-    eligibility?: SkillEligibilityContext;
+export declare function buildWorkspaceSkillSnapshot(workspaceDir: string, opts?: WorkspaceSkillBuildOptions & {
     snapshotVersion?: number;
 }): SkillSnapshot;
-export declare function buildWorkspaceSkillsPrompt(workspaceDir: string, opts?: {
+export declare function buildWorkspaceSkillsPrompt(workspaceDir: string, opts?: WorkspaceSkillBuildOptions): string;
+type WorkspaceSkillBuildOptions = {
     config?: OpenClawConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
@@ -18,7 +12,7 @@ export declare function buildWorkspaceSkillsPrompt(workspaceDir: string, opts?: 
     /** If provided, only include skills with these names */
     skillFilter?: string[];
     eligibility?: SkillEligibilityContext;
-}): string;
+};
 export declare function resolveSkillsPromptForRun(params: {
     skillsSnapshot?: SkillSnapshot;
     entries?: SkillEntry[];
@@ -47,3 +41,4 @@ export declare function buildWorkspaceSkillCommandSpecs(workspaceDir: string, op
     eligibility?: SkillEligibilityContext;
     reservedNames?: Set<string>;
 }): SkillCommandSpec[];
+export {};

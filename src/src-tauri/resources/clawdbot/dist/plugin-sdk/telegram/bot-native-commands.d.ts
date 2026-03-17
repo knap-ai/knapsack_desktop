@@ -2,19 +2,23 @@ import type { Bot } from "grammy";
 import type { OpenClawConfig } from "../config/config.js";
 import type { ChannelGroupPolicy } from "../config/group-policy.js";
 import type { ReplyToMode, TelegramAccountConfig, TelegramGroupConfig, TelegramTopicConfig } from "../config/types.js";
-import type { RuntimeEnv } from "../runtime.js";
-import type { TelegramContext } from "./bot/types.js";
 import { getChildLogger } from "../logging.js";
+import type { RuntimeEnv } from "../runtime.js";
+import type { TelegramMediaRef } from "./bot-message-context.js";
 import { TelegramUpdateKeyContext } from "./bot-updates.js";
 import { TelegramBotOptions } from "./bot.js";
+import type { TelegramContext } from "./bot/types.js";
+import type { TelegramTransport } from "./fetch.js";
 export type RegisterTelegramHandlerParams = {
     cfg: OpenClawConfig;
     accountId: string;
     bot: Bot;
     mediaMaxBytes: number;
     opts: TelegramBotOptions;
+    telegramTransport?: TelegramTransport;
     runtime: RuntimeEnv;
     telegramCfg: TelegramAccountConfig;
+    allowFrom?: Array<string | number>;
     groupAllowFrom?: Array<string | number>;
     resolveGroupPolicy: (chatId: string | number) => ChannelGroupPolicy;
     resolveTelegramGroupConfig: (chatId: string | number, messageThreadId?: number) => {
@@ -22,13 +26,10 @@ export type RegisterTelegramHandlerParams = {
         topicConfig?: TelegramTopicConfig;
     };
     shouldSkipUpdate: (ctx: TelegramUpdateKeyContext) => boolean;
-    processMessage: (ctx: TelegramContext, allMedia: Array<{
-        path: string;
-        contentType?: string;
-    }>, storeAllowFrom: string[], options?: {
+    processMessage: (ctx: TelegramContext, allMedia: TelegramMediaRef[], storeAllowFrom: string[], options?: {
         messageIdOverride?: string;
         forceWasMentioned?: boolean;
-    }) => Promise<void>;
+    }, replyMedia?: TelegramMediaRef[]) => Promise<void>;
     logger: ReturnType<typeof getChildLogger>;
 };
 type RegisterTelegramNativeCommandsParams = {

@@ -1,9 +1,12 @@
 import type { ChatType } from "../channels/chat-type.js";
-export { isAcpSessionKey, isSubagentSessionKey, parseAgentSessionKey, type ParsedAgentSessionKey, } from "../sessions/session-key-utils.js";
+export { getSubagentDepth, isCronSessionKey, isAcpSessionKey, isSubagentSessionKey, parseAgentSessionKey, type ParsedAgentSessionKey, } from "../sessions/session-key-utils.js";
+export { DEFAULT_ACCOUNT_ID, normalizeAccountId, normalizeOptionalAccountId, } from "./account-id.js";
 export declare const DEFAULT_AGENT_ID = "main";
 export declare const DEFAULT_MAIN_KEY = "main";
-export declare const DEFAULT_ACCOUNT_ID = "default";
 export type SessionKeyShape = "missing" | "agent" | "legacy_or_alias" | "malformed_agent";
+export declare function scopedHeartbeatWakeOptions<T extends object>(sessionKey: string, wakeOptions: T): T | (T & {
+    sessionKey: string;
+});
 export declare function normalizeMainKey(value: string | undefined | null): string;
 export declare function toAgentRequestSessionKey(storeKey: string | undefined | null): string | undefined;
 export declare function toAgentStoreSessionKey(params: {
@@ -14,8 +17,8 @@ export declare function toAgentStoreSessionKey(params: {
 export declare function resolveAgentIdFromSessionKey(sessionKey: string | undefined | null): string;
 export declare function classifySessionKeyShape(sessionKey: string | undefined | null): SessionKeyShape;
 export declare function normalizeAgentId(value: string | undefined | null): string;
+export declare function isValidAgentId(value: string | undefined | null): boolean;
 export declare function sanitizeAgentId(value: string | undefined | null): string;
-export declare function normalizeAccountId(value: string | undefined | null): string;
 export declare function buildAgentMainSessionKey(params: {
     agentId: string;
     mainKey?: string | undefined;
@@ -42,6 +45,7 @@ export declare function resolveThreadSessionKeys(params: {
     threadId?: string | null;
     parentSessionKey?: string;
     useSuffix?: boolean;
+    normalizeThreadId?: (threadId: string) => string;
 }): {
     sessionKey: string;
     parentSessionKey?: string;

@@ -9,6 +9,7 @@ import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { QRCodeSVG } from 'qrcode.react'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
+import type { ChannelStatus } from 'src/api/channels'
 import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist } from 'src/api/channels'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
@@ -176,6 +177,9 @@ function friendlyError(raw: string): string {
     return '🌐 **Browser failed to start.** Chrome could not launch. Check the logs for details or try restarting.'
   }
   // Network / connection errors
+  if (lower.includes('load failed') && !lower.includes('model')) {
+    return '🌐 **Request too large.** The image attachment may be too large to send. Try a smaller image or send without the attachment.'
+  }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
     return '🌐 **Connection error.** Unable to reach the AI service. Check your internet connection and try again.'
   }
@@ -186,6 +190,10 @@ function friendlyError(raw: string): string {
   // Tool loop exceeded
   if (lower.includes('tool loop exceeded')) {
     return '🔄 **Task too complex.** The AI hit its action limit for this request. Try breaking it into smaller steps.'
+  }
+  // Image/vision not supported by model (e.g. Groq non-vision models)
+  if (lower.includes('content must be a string') || lower.includes('does not support images')) {
+    return '🖼️ **This model does not support image attachments.** Switch to a vision-capable model (e.g. Llama 4 Scout) in Settings, or send your message without the image.'
   }
   // If it looks like raw JSON, extract the meaningful part
   if (raw.includes('"message"') && raw.includes('"error"')) {
@@ -206,6 +214,9 @@ function friendlyError(raw: string): string {
     .replace(/^Gemini error:?\s*/i, '')
     .replace(/^Gemini error after \d+ retries:?\s*/i, '')
     .replace(/^Gemini HTTP \d+[^:]*:?\s*/i, '')
+    .replace(/^groq error:?\s*/i, '')
+    .replace(/^groq error after \d+ retries:?\s*/i, '')
+    .replace(/^groq HTTP \d+[^:]*:?\s*/i, '')
   // After prefix stripping, the remainder may be parseable JSON from the provider
   if (cleaned.includes('{')) {
     try {
@@ -321,40 +332,43 @@ type AnthropicModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for agents and coding' },
-  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Best balance of speed and intelligence' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost' },
-  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet, still excellent' },
-  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous flagship, excellent for long tasks' },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for agents and coding', vision: true },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Best balance of speed and intelligence', vision: true },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost', vision: true },
+  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet, still excellent', vision: true },
+  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous flagship, excellent for long tasks', vision: true },
 ]
 
 type GeminiModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const GEMINI_MODELS: GeminiModelOption[] = [
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning' },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance' },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking' },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning', vision: true },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance', vision: true },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks', vision: true },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding', vision: true },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking', vision: true },
 ]
 
 type GroqModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const GROQ_MODELS: GroqModelOption[] = [
   { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', description: 'OpenAI open-weight flagship, tools built-in' },
-  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Multimodal MoE, 10M context window' },
-  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, 128 experts, 1M context' },
+  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Multimodal MoE, 10M context window', vision: true },
+  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, 128 experts, 1M context', vision: true },
   { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2', description: '1T params, agentic coding, 256K context' },
   { id: 'qwen/qwen-3-32b', name: 'Qwen 3 32B', description: 'Latest Qwen, strong reasoning' },
   { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill', description: 'Reasoning model, great for logic' },
@@ -366,15 +380,16 @@ type OpenRouterModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const OPENROUTER_MODELS: OpenRouterModelOption[] = [
-  { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request' },
+  { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request', vision: true },
   { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
   { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', description: 'Free, fast and capable' },
   { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 (Free)', description: 'Free, good for coding and reasoning' },
-  { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits' },
-  { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'Paid, use your OpenRouter credits' },
+  { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits', vision: true },
+  { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'Paid, use your OpenRouter credits', vision: true },
 ]
 
 // Recommended models to offer for download when Ollama has none installed
@@ -434,13 +449,14 @@ const ACTIVE_PROVIDER_STORAGE = 'moltbot_active_provider'
 const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
 // The current app version — bump this when you want to re-show the key prompt
-const APP_VERSION = '0.9.536'
+const APP_VERSION = '0.9.600'
 
 // Available OpenAI models
 type OpenAIModelOption = {
   id: string
   name: string
   description: string
+  vision?: boolean
 }
 
 const OPENAI_MODELS: OpenAIModelOption[] = [
@@ -448,21 +464,25 @@ const OPENAI_MODELS: OpenAIModelOption[] = [
     id: 'gpt-5.4',
     name: 'GPT-5.4',
     description: 'Most intelligent model, best for complex tasks',
+    vision: true,
   },
   {
     id: 'gpt-5.4-pro',
     name: 'GPT-5.4 Pro',
     description: 'Extended thinking for harder problems',
+    vision: true,
   },
   {
     id: 'o3',
     name: 'o3 (Reasoning)',
     description: 'Reasoning model for complex logic',
+    vision: true,
   },
   {
     id: 'gpt-5-mini',
     name: 'GPT-5 Mini',
     description: 'Fast and affordable',
+    vision: true,
   },
 ]
 
@@ -1398,7 +1418,68 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
   const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
-  const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel
+  const hasAnyGenericChannel = !!(
+    channelStatus.genericChannels.slack?.configured ||
+    channelStatus.genericChannels.discord?.configured ||
+    channelStatus.genericChannels.signal?.configured ||
+    channelStatus.genericChannels.irc?.configured ||
+    channelStatus.genericChannels.googlechat?.configured
+  )
+  const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
+
+  // Build channel status tooltip and button color class
+  const channelButtonInfo = useMemo(() => {
+    const lines: string[] = []
+    let hasError = false
+    let hasConnected = false
+
+    // Gateway status
+    if (channelStatus.gatewayHealthy === false) {
+      lines.push(channelStatus.gatewayStarting ? 'Gateway: starting...' : 'Gateway: down')
+      if (!channelStatus.gatewayStarting) hasError = true
+    } else if (channelStatus.gatewayHealthy === true) {
+      lines.push('Gateway: OK')
+    }
+
+    // Per-channel status
+    const addChannel = (name: string, status: ChannelStatus | null, errorKey: string, connectedKey: 'linked' | 'configured') => {
+      if (!status) return
+      const err = channelStatus.channelErrors[errorKey]
+      if (status[connectedKey]) {
+        lines.push(`${name}: connected`)
+        hasConnected = true
+        if (err) { lines.push(`  ⚠ ${err}`); hasError = true }
+      } else if (status.enabled) {
+        lines.push(`${name}: enabled — not linked`)
+      }
+    }
+
+    addChannel('WhatsApp', channelStatus.whatsapp, 'whatsapp', 'linked')
+    addChannel('iMessage', channelStatus.imessage, 'imessage', 'configured')
+    addChannel('Telegram', channelStatus.telegram, 'telegram', 'configured')
+
+    const genericNames: Record<string, string> = { slack: 'Slack', discord: 'Discord', signal: 'Signal', irc: 'IRC', googlechat: 'Google Chat' }
+    for (const [key, label] of Object.entries(genericNames)) {
+      const gs = channelStatus.genericChannels[key as keyof typeof channelStatus.genericChannels]
+      addChannel(label, gs, key, 'configured')
+    }
+
+    if (!hasConnected && !hasError && channelStatus.gatewayHealthy !== false) {
+      lines.push('No channels connected')
+    }
+
+    // Determine color class: ok (green), warn (orange), down (red)
+    let colorClass = 'channels-none'
+    if (hasError || channelStatus.gatewayHealthy === false && !channelStatus.gatewayStarting) {
+      colorClass = 'channels-error'
+    } else if (channelStatus.gatewayStarting) {
+      colorClass = 'channels-starting'
+    } else if (hasConnected) {
+      colorClass = 'channels-connected'
+    }
+
+    return { tooltip: lines.join('\n'), colorClass }
+  }, [channelStatus.whatsapp, channelStatus.imessage, channelStatus.telegram, channelStatus.genericChannels, channelStatus.channelErrors, channelStatus.gatewayHealthy, channelStatus.gatewayStarting])
 
   const welcomeMessages = useMemo(
     () => [
@@ -1906,6 +1987,29 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
+  // Check whether the currently selected model supports vision (image attachments)
+  const currentModelSupportsVision = useCallback((): { supported: boolean; modelName: string; visionModels: string[] } => {
+    const allModels = selectedProvider === 'openai' ? OPENAI_MODELS
+      : selectedProvider === 'anthropic' ? ANTHROPIC_MODELS
+      : selectedProvider === 'gemini' ? GEMINI_MODELS
+      : selectedProvider === 'groq' ? GROQ_MODELS
+      : selectedProvider === 'openrouter' ? OPENROUTER_MODELS
+      : []
+    const currentId = selectedProvider === 'openai' ? selectedModel
+      : selectedProvider === 'anthropic' ? selectedAnthropicModel
+      : selectedProvider === 'gemini' ? selectedGeminiModel
+      : selectedProvider === 'groq' ? selectedGroqModel
+      : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+      : ''
+    const current = allModels.find(m => m.id === currentId)
+    // Ollama: we don't know model capabilities, assume supported
+    if (selectedProvider === 'ollama') return { supported: true, modelName: '', visionModels: [] }
+    const modelName = current?.name || currentId
+    const supported = current?.vision ?? false
+    const visionModels = allModels.filter(m => m.vision).map(m => m.name)
+    return { supported, modelName, visionModels }
+  }, [selectedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOpenRouterModel])
+
   // File upload handlers
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -1916,11 +2020,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     for (const file of Array.from(files)) {
       try {
         if (file.type.startsWith('image/')) {
-          // For images, create a base64 data URL for preview and content
-          const dataUrl = await readFileAsDataURL(file)
+          // For images, read as data URL then compress to avoid oversized payloads
+          const rawDataUrl = await readFileAsDataURL(file)
+          const dataUrl = await compressImage(rawDataUrl)
           newFiles.push({
             name: file.name,
-            type: file.type,
+            type: dataUrl.startsWith('data:image/jpeg') ? 'image/jpeg' : file.type,
             content: dataUrl,
             preview: dataUrl,
           })
@@ -1957,9 +2062,22 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
 
     setAttachedFiles(prev => [...prev, ...newFiles])
+
+    // Warn if attaching images with a model that doesn't support vision
+    const hasImages = newFiles.some(f => f.type.startsWith('image/'))
+    if (hasImages) {
+      const { supported, modelName, visionModels } = currentModelSupportsVision()
+      if (!supported) {
+        const suggestion = visionModels.length > 0
+          ? ` Try switching to ${visionModels[0]}.`
+          : ''
+        pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+      }
+    }
+
     // Reset input
     if (e.target) e.target.value = ''
-  }, [])
+  }, [currentModelSupportsVision])
 
   const readFileAsDataURL = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -1967,6 +2085,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       reader.onload = () => resolve(reader.result as string)
       reader.onerror = () => reject(reader.error)
       reader.readAsDataURL(file)
+    })
+  }
+
+  // Resize large images to prevent "Load failed" errors from oversized fetch payloads.
+  // macOS screenshots (Retina) can be 5-10+ MB; this resizes to max 1600px and
+  // re-encodes as JPEG to keep the base64 payload under ~1 MB.
+  const compressImage = (dataUrl: string, maxDim = 1600, quality = 0.8): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        // Skip compression for small images (< 500 KB base64 ≈ 375 KB raw)
+        if (dataUrl.length < 500_000) {
+          resolve(dataUrl)
+          return
+        }
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height)
+          width = Math.round(width * scale)
+          height = Math.round(height * scale)
+        }
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = () => resolve(dataUrl) // Fall back to original on error
+      img.src = dataUrl
     })
   }
 
@@ -2021,8 +2169,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     for (const file of Array.from(files)) {
       try {
         if (file.type.startsWith('image/')) {
-          const dataUrl = await readFileAsDataURL(file)
-          newFiles.push({ name: file.name, type: file.type, content: dataUrl, preview: dataUrl })
+          const rawDataUrl = await readFileAsDataURL(file)
+          const dataUrl = await compressImage(rawDataUrl)
+          newFiles.push({ name: file.name, type: dataUrl.startsWith('data:image/jpeg') ? 'image/jpeg' : file.type, content: dataUrl, preview: dataUrl })
         } else if (file.type === 'application/pdf') {
           const dataUrl = await readFileAsDataURL(file)
           newFiles.push({ name: file.name, type: file.type, content: dataUrl })
@@ -2039,7 +2188,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
 
     setAttachedFiles(prev => [...prev, ...newFiles])
-  }, [])
+
+    // Warn if dropping images with a model that doesn't support vision
+    const hasImages = newFiles.some(f => f.type.startsWith('image/'))
+    if (hasImages) {
+      const { supported, modelName, visionModels } = currentModelSupportsVision()
+      if (!supported) {
+        const suggestion = visionModels.length > 0
+          ? ` Try switching to ${visionModels[0]}.`
+          : ''
+        pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+      }
+    }
+  }, [currentModelSupportsVision])
 
   // Listen for Tauri native file-drop events — the webview in Tauri does not
   // forward file data through the browser's drop event, so we handle drops
@@ -2080,7 +2241,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 reader.readAsDataURL(blob)
               })
               if (mimeType.startsWith('image/')) {
-                newFiles.push({ name: fileName, type: mimeType, content: dataUrl, preview: dataUrl })
+                const compressed = await compressImage(dataUrl)
+                newFiles.push({ name: fileName, type: compressed.startsWith('data:image/jpeg') ? 'image/jpeg' : mimeType, content: compressed, preview: compressed })
               } else {
                 newFiles.push({ name: fileName, type: mimeType, content: dataUrl })
               }
@@ -2092,6 +2254,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         if (newFiles.length > 0) {
           setAttachedFiles(prev => [...prev, ...newFiles])
+
+          // Warn if dropping images with a model that doesn't support vision
+          const hasImages = newFiles.some(f => f.type.startsWith('image/'))
+          if (hasImages) {
+            const { supported, modelName, visionModels } = currentModelSupportsVision()
+            if (!supported) {
+              const suggestion = visionModels.length > 0
+                ? ` Try switching to ${visionModels[0]}.`
+                : ''
+              pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+            }
+          }
         }
       })
       cleanups.push(unlistenDrop)
@@ -2406,13 +2580,34 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // Start the service on launch — only enable if not already running.
       // Avoid cycling (disable+enable) because SIGTERMing a healthy gateway
       // causes the browser to disconnect and triggers the restart loop.
+      // Retry up to 3 times with backoff because in dev mode the Rust backend
+      // may not be ready when the React app mounts.
       try {
-        const s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+        let s: ServiceStatus | null = null
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+            break
+          } catch {
+            // Backend not ready yet — wait and retry
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+          }
+        }
+        if (!s) {
+          // All retries failed — try one last time without catching
+          s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+        }
         setStatus(s)
 
         if (!s.running) {
-          // Service is not running — start it
-          await apiPost('/api/clawd/service/enable', { enabled: true })
+          // Service is not running — start it (retry once on failure)
+          try {
+            await apiPost('/api/clawd/service/enable', { enabled: true })
+          } catch {
+            // First enable attempt failed — wait and retry
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            await apiPost('/api/clawd/service/enable', { enabled: true })
+          }
           // Wait for gateway to become healthy (with exponential backoff on backend).
           // The startup-ready endpoint polls until the gateway responds or 30s elapses.
           try {
@@ -3316,6 +3511,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // carries a text message string and cannot forward images/files.
         // Go straight to direct /api/clawd/chat which has full vision support.
         let useDirectChat = currentAttachments.length > 0
+
+        if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
         const agentTimerId = agentTimeout ? setTimeout(() => {
           console.warn('[chat] agent-chat timed out after 90s, falling back to direct chat')
@@ -3364,6 +3561,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           console.warn('[chat] Gateway agent-chat unavailable, using direct chat:', agentErr.message)
           useDirectChat = true
         }
+        } // end if (!useDirectChat)
 
         // Fallback: direct LLM chat (no shared session with channels)
         const maxRetries = 3
@@ -3527,22 +3725,39 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     if (health) {
       const gwStarting = channelStatus.gatewayStarting
+      // Extract a short diagnostic hint from the health message when gateway is down.
+      // The full message (with stderr tail) is still available in the tooltip.
+      let gwLabel = 'Gateway: OK'
+      if (!health.gateway_ok) {
+        if (gwStarting) {
+          gwLabel = 'Gateway: starting...'
+        } else if (health.message?.includes('plist not found')) {
+          gwLabel = 'Gateway: not enabled'
+        } else if (health.message?.includes('not loaded')) {
+          gwLabel = 'Gateway: not loaded — re-enable in Settings'
+        } else {
+          gwLabel = 'Gateway: reconnecting...'
+        }
+      }
       parts.push(
         <span key="gw" className={health.gateway_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
           title={!health.gateway_ok && health.message ? health.message : undefined}>
-          {health.gateway_ok ? 'Gateway: OK' : gwStarting ? 'Gateway: starting...' : 'Gateway: reconnecting...'}
+          {gwLabel}
         </span>,
       )
       parts.push(
         <span key="br" className={health.browser_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
           title={!health.browser_ok && health.message ? health.message : undefined}>
-          {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : 'Browser: reconnecting...'}
+          {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : health.gateway_ok ? 'Browser: starting...' : 'Browser: waiting for gateway'}
         </span>,
       )
     } else if (status?.running) {
       // Health not loaded yet but service is running — show checking state
       parts.push(<span key="gw" className="status-warn">Gateway: starting...</span>)
       parts.push(<span key="br" className="status-warn">Browser: starting...</span>)
+    } else if (!status?.running && !status?.installed) {
+      // Service not installed — give clear direction
+      parts.push(<span key="gw" className="status-down">Gateway: not installed</span>)
     }
     if (currentTargetId) parts.push(<span key="tab">Tab: {currentTargetId.slice(0, 12)}...</span>)
     return parts.reduce<ReactNode[]>((acc, part, i) => {
@@ -3586,10 +3801,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </button>
           <button
             onClick={() => { setShowChannelsPanel(prev => !prev); setShowSkillsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity() }}
-            className={`${showChannelsPanel ? 'toggle-on' : ''} ${hasAnyChannel ? 'channels-connected' : 'channels-disconnected'}`}
-            title="Connect WhatsApp, iMessage, or Telegram"
+            className={`${showChannelsPanel ? 'toggle-on' : ''} ${channelButtonInfo.colorClass}`}
+            title={channelButtonInfo.tooltip}
           >
-            {hasAnyChannel ? '💬 Channels' : '💬 Channels'}
+            💬 Channels
           </button>
           <button
             disabled={busy}
@@ -3954,6 +4169,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           <DeveloperModePanel
             onInitiateSession={handleDevSessionInitiate}
             userEmail={userEmail}
+            proactiveMode={proactiveMode}
           />
         </div>
       )}

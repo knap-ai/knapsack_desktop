@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../../config/config.js";
+import type { RuntimeWebFetchFirecrawlMetadata } from "../../secrets/runtime-web-tools.js";
 import type { AnyAgentTool } from "./common.js";
 import { type ExtractMode } from "./web-fetch-utils.js";
 export { extractReadableContent } from "./web-fetch-utils.js";
@@ -22,4 +23,5 @@ export declare function fetchFirecrawlContent(params: {
 export declare function createWebFetchTool(options?: {
     config?: OpenClawConfig;
     sandboxed?: boolean;
+    runtimeFirecrawl?: RuntimeWebFetchFirecrawlMetadata;
 }): AnyAgentTool | null;

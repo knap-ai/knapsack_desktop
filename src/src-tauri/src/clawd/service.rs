@@ -84,6 +84,36 @@ static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
+/// Resolve the directory for gateway service logs.
+///
+/// On macOS this is `~/Library/Logs/Knapsack/` (the conventional location for
+/// application logs; survives reboots, unlike `/tmp`).
+/// On other platforms we fall back to `~/.knapsack/logs/`.
+/// The directory is created if it doesn't exist yet.
+pub fn gateway_log_dir() -> PathBuf {
+  let base = if cfg!(target_os = "macos") {
+    dirs::home_dir()
+      .map(|h| h.join("Library/Logs/Knapsack"))
+      .unwrap_or_else(|| PathBuf::from("/tmp"))
+  } else {
+    dirs::home_dir()
+      .map(|h| h.join(".knapsack/logs"))
+      .unwrap_or_else(|| PathBuf::from("/tmp"))
+  };
+  let _ = std::fs::create_dir_all(&base);
+  base
+}
+
+/// Path to the gateway stdout log file.
+pub fn gateway_stdout_log() -> PathBuf {
+  gateway_log_dir().join("knapsack-clawdbot.out.log")
+}
+
+/// Path to the gateway stderr log file.
+pub fn gateway_stderr_log() -> PathBuf {
+  gateway_log_dir().join("knapsack-clawdbot.err.log")
+}
+
 /// Kill any Chrome processes that were launched by clawdbot/openclaw and may
 /// still be holding the CDP debug port (18800).  This happens when the service
 /// is restarted (the gateway exits but the Chrome child survives because it's a
@@ -551,8 +581,8 @@ fn generate_plist(program_args: &[String], env: &[(String, String)]) -> String {
     label = LAUNCH_AGENT_LABEL,
     args_xml = args_xml,
     env_xml = env_xml,
-    stdout = "/tmp/knapsack-clawdbot.out.log",
-    stderr = "/tmp/knapsack-clawdbot.err.log"
+    stdout = gateway_stdout_log().to_string_lossy(),
+    stderr = gateway_stderr_log().to_string_lossy()
   )
 }
 
@@ -827,12 +857,12 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         }
       }
 
-      let err_path = if cfg!(target_os = "windows") {
-        std::env::temp_dir().join("knapsack-clawdbot.err.log")
-      } else {
-        std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log")
-      };
-      if let Ok(content) = std::fs::read_to_string(&err_path) {
+      let err_path = gateway_stderr_log();
+      // Also check legacy /tmp path for users who haven't restarted the service yet.
+      let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+      let log_content = std::fs::read_to_string(&err_path)
+        .or_else(|_| std::fs::read_to_string(&legacy_err_path));
+      if let Ok(content) = log_content {
         let tail: Vec<&str> = content.lines().rev().take(25).collect();
         if !tail.is_empty() {
           let mut tail_lines: Vec<&str> = tail.into_iter().collect();
@@ -952,8 +982,8 @@ pub async fn service_logs(query: web::Query<ServiceLogsParams>) -> impl Responde
     let lines = query.lines.unwrap_or(200).min(2000);
 
     let path = match stream.as_str() {
-      "stdout" => PathBuf::from("/tmp/knapsack-clawdbot.out.log"),
-      _ => PathBuf::from("/tmp/knapsack-clawdbot.err.log"),
+      "stdout" => gateway_stdout_log(),
+      _ => gateway_stderr_log(),
     };
 
     let mut s = String::new();
@@ -2926,6 +2956,10 @@ pub async fn set_service_enabled(
       let clawdbot_home = app_clawdbot_home(&app_handle);
       let clawdbot_home_str = clawdbot_home.to_string_lossy().to_string();
 
+      // Resolve bundled plugins directory early — needed both for config
+      // patching (plugins.load.paths) and for the env var passed to the gateway.
+      let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/extensions");
+
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
       // Without this, OpenClaw refuses to start on a fresh machine.
       // NOTE: plugins.slots.memory must be set to "none" explicitly — if omitted,
@@ -2956,17 +2990,21 @@ pub async fn set_service_enabled(
           "plugins": {
             "slots": {
               "memory": "none"
+            },
+            "load": {
+              "paths": [bundled_plugins_dir.to_string_lossy().to_string()]
             }
           },
           "tools": {
-            "allow": ["browser", "group:web", "exec", "process", "read", "write", "edit", "apply_patch"],
+            "allow": ["browser", "group:web", "exec", "process", "group:fs"],
             "deny": ["canvas", "nodes", "cron", "gateway"],
+            "exec": {"applyPatch": {"enabled": true}},
             "media": {"image": {"enabled": true}},
             "sandbox": {
               "tools": {
                 "deny": ["canvas", "nodes", "cron", "gateway"],
                 "allow": [
-                  "exec", "process", "read", "write", "edit", "apply_patch",
+                  "exec", "process", "group:fs",
                   "image", "sessions_list", "sessions_history",
                   "sessions_send", "sessions_spawn", "session_status",
                   "browser", "group:web"
@@ -3027,6 +3065,55 @@ pub async fn set_service_enabled(
                 .insert("memory".to_string(), serde_json::json!("none"));
               eprintln!("[clawd/service] Patched plugins.slots.memory to \"none\"");
               patched = true;
+            }
+
+            // Ensure plugins.load.paths includes the bundled extensions directory.
+            // The config validator runs plugin discovery to check that every entry
+            // in plugins.entries actually exists.  Even though we pass
+            // OPENCLAW_BUNDLED_PLUGINS_DIR as an env var, the validator may not
+            // pick it up in all contexts (e.g. macOS app translocation, path
+            // resolution edge cases).  Writing the path directly into
+            // plugins.load.paths guarantees the validator can always find
+            // bundled plugins like telegram, imessage, whatsapp, etc.
+            //
+            // We also remove stale bundled paths from previous app installs
+            // (e.g. after update the .app bundle path may change).
+            {
+              let bundled_dir = bundled_plugins_dir.to_string_lossy().to_string();
+              let load_paths = cfg
+                .pointer("/plugins/load/paths")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
+              // Remove stale bundled extension paths (contain "clawdbot/extensions"
+              // but don't match the current bundled dir).
+              let mut cleaned: Vec<serde_json::Value> = load_paths.into_iter().filter(|v| {
+                match v.as_str() {
+                  Some(s) if s.contains("clawdbot/extensions") || s.contains("clawdbot\\extensions") => s == bundled_dir,
+                  _ => true,
+                }
+              }).collect();
+              let already_present = cleaned.iter().any(|v| {
+                v.as_str().map(|s| s == bundled_dir).unwrap_or(false)
+              });
+              if !already_present {
+                cleaned.push(serde_json::json!(bundled_dir));
+              }
+              let needs_update = !already_present || cleaned.len() != cfg
+                .pointer("/plugins/load/paths")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0);
+              if needs_update {
+                if cfg.pointer("/plugins/load").is_none() {
+                  cfg.pointer_mut("/plugins").unwrap().as_object_mut().unwrap()
+                    .insert("load".to_string(), serde_json::json!({}));
+                }
+                cfg.pointer_mut("/plugins/load").unwrap().as_object_mut().unwrap()
+                  .insert("paths".to_string(), serde_json::json!(cleaned));
+                eprintln!("[clawd/service] Updated plugins.load.paths with bundled extensions dir");
+                patched = true;
+              }
             }
 
             // Ensure browser.enabled is true so the browser control HTTP server
@@ -3206,8 +3293,21 @@ pub async fn set_service_enabled(
             // ── Ensure exec/process/file tools are in normal-mode allow ─────
             // These are the same tools granted in sandbox mode (Telegram/etc.)
             // but desktop webchat also needs them for Advanced Mode shell access.
-            let exec_tools = ["exec", "process", "read", "write", "edit", "apply_patch"];
+            // Use group:fs instead of individual file tool names to avoid
+            // "unknown entries (apply_patch)" warnings from the gateway validator.
+            let exec_tools = ["exec", "process", "group:fs"];
             if let Some(allow_arr) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+              // Remove legacy individual entries now covered by group:fs
+              let covered_by_group_fs = ["read", "write", "edit", "apply_patch"];
+              let before_len = allow_arr.len();
+              allow_arr.retain(|item| {
+                item.as_str().map(|s| !covered_by_group_fs.contains(&s)).unwrap_or(true)
+              });
+              if allow_arr.len() != before_len {
+                eprintln!("[clawd/service] Cleaned up individual file tool entries (now covered by group:fs)");
+                patched = true;
+              }
+
               for tool_name in &exec_tools {
                 let already = allow_arr.iter().any(|item| item.as_str() == Some(tool_name));
                 if !already {
@@ -3216,6 +3316,23 @@ pub async fn set_service_enabled(
                   patched = true;
                 }
               }
+            }
+
+            // Enable apply_patch tool (gated behind tools.exec.applyPatch.enabled)
+            if cfg.pointer("/tools/exec").is_none() {
+              cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+                .insert("exec".into(), serde_json::json!({}));
+            }
+            if cfg.pointer("/tools/exec/applyPatch").is_none() {
+              cfg.pointer_mut("/tools/exec").unwrap().as_object_mut().unwrap()
+                .insert("applyPatch".into(), serde_json::json!({}));
+            }
+            if !cfg.pointer("/tools/exec/applyPatch/enabled")
+              .and_then(|v| v.as_bool()).unwrap_or(false) {
+              cfg.pointer_mut("/tools/exec/applyPatch").unwrap().as_object_mut().unwrap()
+                .insert("enabled".into(), serde_json::json!(true));
+              eprintln!("[clawd/service] Enabled tools.exec.applyPatch");
+              patched = true;
             }
 
             // ── Ensure browser + web tools are allowed in sandbox mode ─────
@@ -3296,12 +3413,11 @@ pub async fn set_service_enabled(
             } else {
               // Allow list doesn't exist — create it from gateway defaults
               // plus browser and group:web.
-              // Gateway DEFAULT_TOOL_ALLOW: exec, process, read, write, edit,
-              //   apply_patch, image, sessions_list, sessions_history,
-              //   sessions_send, sessions_spawn, session_status
+              // Use group:fs instead of individual file tool names to avoid
+              // "unknown entries" warnings from the gateway validator.
               cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
                 .insert("allow".to_string(), serde_json::json!([
-                  "exec", "process", "read", "write", "edit", "apply_patch",
+                  "exec", "process", "group:fs",
                   "image", "sessions_list", "sessions_history",
                   "sessions_send", "sessions_spawn", "session_status",
                   "browser", "group:web"
@@ -3472,8 +3588,7 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         "18789".to_string(),
       ];
 
-      // Resolve bundled plugins directory (extensions are shipped with the app)
-      let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/extensions");
+      // bundled_plugins_dir was resolved earlier (before config patching)
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
 
       // Build a PATH that includes the directory where we found node (so npm
@@ -3527,6 +3642,17 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         // The gateway logs this on every config read; setting this env var tells it to
         // log the warning only once on startup instead of on every read cycle.
         ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
+        // Ensure Node.js resolves packages from the bundled flat node_modules
+        // directory. Without this, stale nested node_modules (e.g. created by
+        // a local pnpm install) can cause ERR_PACKAGE_PATH_NOT_EXPORTED errors
+        // because Node finds a broken copy before reaching the correct one.
+        ("NODE_PATH".to_string(), {
+          let mut nm = clawdbot_entry.clone();
+          nm.pop(); // remove entry.js
+          nm.pop(); // remove dist/
+          nm.push("node_modules");
+          nm.to_string_lossy().to_string()
+        }),
       ];
 
       // Propagate LLM keys to clawdbot subprocess AND to the current Tauri process
@@ -3612,6 +3738,31 @@ You can create, list, and cancel scheduled tasks (cron jobs).
           enabled,
           message: format!("Failed writing plist {}: {}", plist_path.display(), e),
         });
+      }
+
+      // Run "openclaw doctor --fix" to auto-migrate config for the new
+      // version (e.g. WhatsApp allowFrom validation, Telegram streaming rename).
+      // This is a quick, idempotent command that exits immediately.
+      {
+        let doctor_env: Vec<(String, String)> = env.clone();
+        let mut doctor_cmd = std::process::Command::new(node_path.as_os_str());
+        doctor_cmd
+          .arg(clawdbot_entry.as_os_str())
+          .args(["doctor", "--fix"]);
+        for (k, v) in &doctor_env {
+          doctor_cmd.env(k, v);
+        }
+        match doctor_cmd.output() {
+          Ok(out) => {
+            if !out.status.success() {
+              let stderr = String::from_utf8_lossy(&out.stderr);
+              eprintln!("[clawd/service] openclaw doctor --fix exited with {}: {}", out.status, stderr.chars().take(500).collect::<String>());
+            } else {
+              eprintln!("[clawd/service] openclaw doctor --fix completed successfully");
+            }
+          }
+          Err(e) => eprintln!("[clawd/service] WARNING: failed to run openclaw doctor --fix: {}", e),
+        }
       }
 
       // Kill any stale Chrome processes from a previous clawdbot session so

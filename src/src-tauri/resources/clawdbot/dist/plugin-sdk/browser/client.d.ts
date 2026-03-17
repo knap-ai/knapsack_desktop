@@ -1,12 +1,15 @@
+export type BrowserTransport = "cdp" | "chrome-mcp";
 export type BrowserStatus = {
     enabled: boolean;
     profile?: string;
+    driver?: "openclaw" | "extension" | "existing-session";
+    transport?: BrowserTransport;
     running: boolean;
     cdpReady?: boolean;
     cdpHttp?: boolean;
     pid: number | null;
-    cdpPort: number;
-    cdpUrl?: string;
+    cdpPort: number | null;
+    cdpUrl?: string | null;
     chosenBrowser: string | null;
     detectedBrowser?: string | null;
     detectedExecutablePath?: string | null;
@@ -20,13 +23,17 @@ export type BrowserStatus = {
 };
 export type ProfileStatus = {
     name: string;
-    cdpPort: number;
-    cdpUrl: string;
+    transport?: BrowserTransport;
+    cdpPort: number | null;
+    cdpUrl: string | null;
     color: string;
+    driver: "openclaw" | "extension" | "existing-session";
     running: boolean;
     tabCount: number;
     isDefault: boolean;
     isRemote: boolean;
+    missingFromConfig?: boolean;
+    reconcileReason?: string | null;
 };
 export type BrowserResetProfileResult = {
     ok: true;
@@ -96,8 +103,9 @@ export declare function browserResetProfile(baseUrl?: string, opts?: {
 export type BrowserCreateProfileResult = {
     ok: true;
     profile: string;
-    cdpPort: number;
-    cdpUrl: string;
+    transport?: BrowserTransport;
+    cdpPort: number | null;
+    cdpUrl: string | null;
     color: string;
     isRemote: boolean;
 };
@@ -105,7 +113,7 @@ export declare function browserCreateProfile(baseUrl: string | undefined, opts: 
     name: string;
     color?: string;
     cdpUrl?: string;
-    driver?: "openclaw" | "extension";
+    driver?: "openclaw" | "extension" | "existing-session";
 }): Promise<BrowserCreateProfileResult>;
 export type BrowserDeleteProfileResult = {
     ok: true;
@@ -131,7 +139,7 @@ export declare function browserTabAction(baseUrl: string | undefined, opts: {
     profile?: string;
 }): Promise<unknown>;
 export declare function browserSnapshot(baseUrl: string | undefined, opts: {
-    format: "aria" | "ai";
+    format?: "aria" | "ai";
     targetId?: string;
     limit?: number;
     maxChars?: number;

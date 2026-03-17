@@ -3,6 +3,16 @@ import type { OpenClawConfig } from "../config/config.js";
 import { type AuthProfileStore } from "./auth-profiles.js";
 export { ensureAuthProfileStore, resolveAuthProfileOrder } from "./auth-profiles.js";
 export declare function getCustomProviderApiKey(cfg: OpenClawConfig | undefined, provider: string): string | undefined;
+type ResolvedCustomProviderApiKey = {
+    apiKey: string;
+    source: string;
+};
+export declare function resolveUsableCustomProviderApiKey(params: {
+    cfg: OpenClawConfig | undefined;
+    provider: string;
+    env?: NodeJS.ProcessEnv;
+}): ResolvedCustomProviderApiKey | null;
+export declare function hasUsableCustomProviderApiKey(cfg: OpenClawConfig | undefined, provider: string, env?: NodeJS.ProcessEnv): boolean;
 export declare function resolveAwsSdkEnvVarName(env?: NodeJS.ProcessEnv): string | undefined;
 export type ResolvedProviderAuth = {
     apiKey?: string;
@@ -23,7 +33,7 @@ export type EnvApiKeyResult = {
     source: string;
 };
 export type ModelAuthMode = "api-key" | "oauth" | "token" | "mixed" | "aws-sdk" | "unknown";
-export declare function resolveEnvApiKey(provider: string): EnvApiKeyResult | null;
+export declare function resolveEnvApiKey(provider: string, env?: NodeJS.ProcessEnv): EnvApiKeyResult | null;
 export declare function resolveModelAuthMode(provider?: string, cfg?: OpenClawConfig, store?: AuthProfileStore): ModelAuthMode | undefined;
 export declare function getApiKeyForModel(params: {
     model: Model<Api>;
@@ -34,3 +44,4 @@ export declare function getApiKeyForModel(params: {
     agentDir?: string;
 }): Promise<ResolvedProviderAuth>;
 export declare function requireApiKey(auth: ResolvedProviderAuth, provider: string): string;
+export declare function applyLocalNoAuthHeaderOverride<T extends Model<Api>>(model: T, auth: ResolvedProviderAuth | null | undefined): T;

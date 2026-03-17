@@ -3,6 +3,12 @@ import type { CronServiceState } from "./state.js";
 export declare function assertSupportedJobSpec(job: Pick<CronJob, "sessionTarget" | "payload">): void;
 export declare function findJobOrThrow(state: CronServiceState, id: string): CronJob;
 export declare function computeJobNextRunAtMs(job: CronJob, nowMs: number): number | undefined;
+export declare function computeJobPreviousRunAtMs(job: CronJob, nowMs: number): number | undefined;
+export declare function recordScheduleComputeError(params: {
+    state: CronServiceState;
+    job: CronJob;
+    err: unknown;
+}): boolean;
 export declare function recomputeNextRuns(state: CronServiceState): boolean;
 /**
  * Maintenance-only version of recomputeNextRuns that handles disabled jobs
@@ -11,10 +17,15 @@ export declare function recomputeNextRuns(state: CronServiceState): boolean;
  * to prevent silently advancing past-due nextRunAtMs values without execution
  * (see #13992).
  */
-export declare function recomputeNextRunsForMaintenance(state: CronServiceState): boolean;
+export declare function recomputeNextRunsForMaintenance(state: CronServiceState, opts?: {
+    recomputeExpired?: boolean;
+    nowMs?: number;
+}): boolean;
 export declare function nextWakeAtMs(state: CronServiceState): number | undefined;
 export declare function createJob(state: CronServiceState, input: CronJobCreate): CronJob;
-export declare function applyJobPatch(job: CronJob, patch: CronJobPatch): void;
+export declare function applyJobPatch(job: CronJob, patch: CronJobPatch, opts?: {
+    defaultAgentId?: string;
+}): void;
 export declare function isJobDue(job: CronJob, nowMs: number, opts: {
     forced: boolean;
 }): boolean;

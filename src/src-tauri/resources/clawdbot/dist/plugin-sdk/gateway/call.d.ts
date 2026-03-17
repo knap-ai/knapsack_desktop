@@ -1,6 +1,8 @@
 import type { OpenClawConfig } from "../config/config.js";
 import { type GatewayClientMode, type GatewayClientName } from "../utils/message-channel.js";
-export type CallGatewayOptions = {
+import { type GatewayCredentialMode, type GatewayCredentialPrecedence, type GatewayRemoteCredentialFallback, type GatewayRemoteCredentialPrecedence } from "./credentials.js";
+import { type OperatorScope } from "./method-scopes.js";
+type CallGatewayBaseOptions = {
     url?: string;
     token?: string;
     password?: string;
@@ -18,11 +20,21 @@ export type CallGatewayOptions = {
     instanceId?: string;
     minProtocol?: number;
     maxProtocol?: number;
+    requiredMethods?: string[];
     /**
      * Overrides the config path shown in connection error details.
      * Does not affect config loading; callers still control auth via opts.token/password/env/config.
      */
     configPath?: string;
+};
+export type CallGatewayScopedOptions = CallGatewayBaseOptions & {
+    scopes: OperatorScope[];
+};
+export type CallGatewayCliOptions = CallGatewayBaseOptions & {
+    scopes?: OperatorScope[];
+};
+export type CallGatewayOptions = CallGatewayBaseOptions & {
+    scopes?: OperatorScope[];
 };
 export type GatewayConnectionDetails = {
     url: string;
@@ -38,7 +50,9 @@ export type ExplicitGatewayAuth = {
 export declare function resolveExplicitGatewayAuth(opts?: ExplicitGatewayAuth): ExplicitGatewayAuth;
 export declare function ensureExplicitGatewayAuth(params: {
     urlOverride?: string;
-    auth: ExplicitGatewayAuth;
+    urlOverrideSource?: "cli" | "env";
+    explicitAuth?: ExplicitGatewayAuth;
+    resolvedAuth?: ExplicitGatewayAuth;
     errorHint: string;
     configPath?: string;
 }): void;
@@ -46,6 +60,29 @@ export declare function buildGatewayConnectionDetails(options?: {
     config?: OpenClawConfig;
     url?: string;
     configPath?: string;
+    urlSource?: "cli" | "env";
 }): GatewayConnectionDetails;
+export declare function resolveGatewayCredentialsWithSecretInputs(params: {
+    config: OpenClawConfig;
+    explicitAuth?: ExplicitGatewayAuth;
+    urlOverride?: string;
+    urlOverrideSource?: "cli" | "env";
+    env?: NodeJS.ProcessEnv;
+    modeOverride?: GatewayCredentialMode;
+    includeLegacyEnv?: boolean;
+    localTokenPrecedence?: GatewayCredentialPrecedence;
+    localPasswordPrecedence?: GatewayCredentialPrecedence;
+    remoteTokenPrecedence?: GatewayRemoteCredentialPrecedence;
+    remotePasswordPrecedence?: GatewayRemoteCredentialPrecedence;
+    remoteTokenFallback?: GatewayRemoteCredentialFallback;
+    remotePasswordFallback?: GatewayRemoteCredentialFallback;
+}): Promise<{
+    token?: string;
+    password?: string;
+}>;
+export declare function callGatewayScoped<T = Record<string, unknown>>(opts: CallGatewayScopedOptions): Promise<T>;
+export declare function callGatewayCli<T = Record<string, unknown>>(opts: CallGatewayCliOptions): Promise<T>;
+export declare function callGatewayLeastPrivilege<T = Record<string, unknown>>(opts: CallGatewayBaseOptions): Promise<T>;
 export declare function callGateway<T = Record<string, unknown>>(opts: CallGatewayOptions): Promise<T>;
 export declare function randomIdempotencyKey(): `${string}-${string}-${string}-${string}-${string}`;
+export {};

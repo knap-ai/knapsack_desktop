@@ -1,6 +1,7 @@
 import type { ChannelId, ChannelMessageActionName, ChannelThreadingToolContext } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
-export declare function readBooleanParam(params: Record<string, unknown>, key: string): boolean | undefined;
+import { readBooleanParam as readBooleanParamShared } from "../../plugin-sdk/boolean-param.js";
+export declare const readBooleanParam: typeof readBooleanParamShared;
 export declare function resolveSlackAutoThreadId(params: {
     to: string;
     toolContext?: ChannelThreadingToolContext;
@@ -19,29 +20,34 @@ export declare function resolveTelegramAutoThreadId(params: {
     to: string;
     toolContext?: ChannelThreadingToolContext;
 }): string | undefined;
+export type AttachmentMediaPolicy = {
+    mode: "sandbox";
+    sandboxRoot: string;
+} | {
+    mode: "host";
+    localRoots?: readonly string[];
+};
+export declare function resolveAttachmentMediaPolicy(params: {
+    sandboxRoot?: string;
+    mediaLocalRoots?: readonly string[];
+}): AttachmentMediaPolicy;
 export declare function normalizeSandboxMediaParams(params: {
     args: Record<string, unknown>;
-    sandboxRoot?: string;
+    mediaPolicy: AttachmentMediaPolicy;
 }): Promise<void>;
 export declare function normalizeSandboxMediaList(params: {
     values: string[];
     sandboxRoot?: string;
 }): Promise<string[]>;
-export declare function hydrateSetGroupIconParams(params: {
+export declare function hydrateAttachmentParamsForAction(params: {
     cfg: OpenClawConfig;
     channel: ChannelId;
     accountId?: string | null;
     args: Record<string, unknown>;
     action: ChannelMessageActionName;
     dryRun?: boolean;
-}): Promise<void>;
-export declare function hydrateSendAttachmentParams(params: {
-    cfg: OpenClawConfig;
-    channel: ChannelId;
-    accountId?: string | null;
-    args: Record<string, unknown>;
-    action: ChannelMessageActionName;
-    dryRun?: boolean;
+    mediaPolicy: AttachmentMediaPolicy;
 }): Promise<void>;
 export declare function parseButtonsParam(params: Record<string, unknown>): void;
 export declare function parseCardParam(params: Record<string, unknown>): void;
+export declare function parseComponentsParam(params: Record<string, unknown>): void;

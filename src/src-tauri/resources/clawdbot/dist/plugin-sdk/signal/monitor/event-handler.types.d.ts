@@ -70,6 +70,7 @@ export type SignalEventHandlerDeps = {
     cfg: OpenClawConfig;
     baseUrl: string;
     account?: string;
+    accountUuid?: string;
     accountId: string;
     blockStreaming?: boolean;
     historyLimit: number;

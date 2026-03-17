@@ -4,6 +4,14 @@ export type InboundAccessControlResult = {
     isSelfChat: boolean;
     resolvedAccountId: string;
 };
+declare function resolveWhatsAppRuntimeGroupPolicy(params: {
+    providerConfigPresent: boolean;
+    groupPolicy?: "open" | "allowlist" | "disabled";
+    defaultGroupPolicy?: "open" | "allowlist" | "disabled";
+}): {
+    groupPolicy: "open" | "allowlist" | "disabled";
+    providerMissingFallbackApplied: boolean;
+};
 export declare function checkInboundAccessControl(params: {
     accountId: string;
     from: string;
@@ -22,3 +30,7 @@ export declare function checkInboundAccessControl(params: {
     };
     remoteJid: string;
 }): Promise<InboundAccessControlResult>;
+export declare const __testing: {
+    resolveWhatsAppRuntimeGroupPolicy: typeof resolveWhatsAppRuntimeGroupPolicy;
+};
+export {};

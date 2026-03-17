@@ -1,10 +1,15 @@
+import { Embed, RequestClient, type MessagePayloadFile, type MessagePayloadObject, type TopLevelComponents } from "@buape/carbon";
 import type { RESTAPIPoll } from "discord-api-types/rest/v10";
-import { RequestClient } from "@buape/carbon";
+import { type APIEmbed } from "discord-api-types/v10";
 import type { ChunkMode } from "../auto-reply/chunk.js";
-import type { RetryConfig } from "../infra/retry.js";
-import { type RetryRunner } from "../infra/retry-policy.js";
+import { type OpenClawConfig } from "../config/config.js";
+import type { RetryRunner } from "../infra/retry-policy.js";
 import { type PollInput } from "../polls.js";
+import { createDiscordClient, resolveDiscordRest } from "./client.js";
 type DiscordRequest = RetryRunner;
+export type DiscordSendComponentFactory = (text: string) => TopLevelComponents[];
+export type DiscordSendComponents = TopLevelComponents[] | DiscordSendComponentFactory;
+export type DiscordSendEmbeds = Array<APIEmbed | Embed>;
 type DiscordRecipient = {
     kind: "user";
     id: string;
@@ -12,19 +17,6 @@ type DiscordRecipient = {
     kind: "channel";
     id: string;
 };
-type DiscordClientOpts = {
-    token?: string;
-    accountId?: string;
-    rest?: RequestClient;
-    retry?: RetryConfig;
-    verbose?: boolean;
-};
-declare function createDiscordClient(opts: DiscordClientOpts, cfg?: import("../config/types.openclaw.ts").OpenClawConfig): {
-    token: string;
-    rest: RequestClient;
-    request: RetryRunner;
-};
-declare function resolveDiscordRest(opts: DiscordClientOpts): RequestClient;
 declare function normalizeReactionEmoji(raw: string): string;
 declare function parseRecipient(raw: string): DiscordRecipient;
 /**
@@ -36,7 +28,7 @@ declare function parseRecipient(raw: string): DiscordRecipient;
  * @param accountId - Discord account ID to use for directory lookup
  * @returns Parsed DiscordRecipient with resolved user ID if applicable
  */
-export declare function parseAndResolveRecipient(raw: string, accountId?: string): Promise<DiscordRecipient>;
+export declare function parseAndResolveRecipient(raw: string, accountId?: string, cfg?: OpenClawConfig): Promise<DiscordRecipient>;
 declare function normalizeStickerIds(raw: string[]): string[];
 declare function normalizeEmojiName(raw: string, label: string): string;
 declare function normalizeDiscordPollInput(input: PollInput): RESTAPIPoll;
@@ -50,16 +42,36 @@ declare function resolveChannelId(rest: RequestClient, recipient: DiscordRecipie
     channelId: string;
     dm?: boolean;
 }>;
+export declare function resolveDiscordChannelType(rest: RequestClient, channelId: string): Promise<number | undefined>;
+export declare const SUPPRESS_NOTIFICATIONS_FLAG: number;
 export declare function buildDiscordTextChunks(text: string, opts?: {
     maxLinesPerMessage?: number;
     chunkMode?: ChunkMode;
     maxChars?: number;
 }): string[];
-declare function sendDiscordText(rest: RequestClient, channelId: string, text: string, replyTo: string | undefined, request: DiscordRequest, maxLinesPerMessage?: number, embeds?: unknown[], chunkMode?: ChunkMode, silent?: boolean): Promise<{
+export declare function resolveDiscordSendComponents(params: {
+    components?: DiscordSendComponents;
+    text: string;
+    isFirst: boolean;
+}): TopLevelComponents[] | undefined;
+export declare function resolveDiscordSendEmbeds(params: {
+    embeds?: DiscordSendEmbeds;
+    isFirst: boolean;
+}): Embed[] | undefined;
+export declare function buildDiscordMessagePayload(params: {
+    text: string;
+    components?: TopLevelComponents[];
+    embeds?: Embed[];
+    flags?: number;
+    files?: MessagePayloadFile[];
+}): MessagePayloadObject;
+export declare function stripUndefinedFields<T extends object>(value: T): T;
+export declare function toDiscordFileBlob(data: Blob | Uint8Array): Blob;
+declare function sendDiscordText(rest: RequestClient, channelId: string, text: string, replyTo: string | undefined, request: DiscordRequest, maxLinesPerMessage?: number, components?: DiscordSendComponents, embeds?: DiscordSendEmbeds, chunkMode?: ChunkMode, silent?: boolean): Promise<{
     id: string;
     channel_id: string;
 }>;
-declare function sendDiscordMedia(rest: RequestClient, channelId: string, text: string, mediaUrl: string, replyTo: string | undefined, request: DiscordRequest, maxLinesPerMessage?: number, embeds?: unknown[], chunkMode?: ChunkMode, silent?: boolean): Promise<{
+declare function sendDiscordMedia(rest: RequestClient, channelId: string, text: string, mediaUrl: string, mediaLocalRoots: readonly string[] | undefined, maxBytes: number | undefined, replyTo: string | undefined, request: DiscordRequest, maxLinesPerMessage?: number, components?: DiscordSendComponents, embeds?: DiscordSendEmbeds, chunkMode?: ChunkMode, silent?: boolean): Promise<{
     id: string;
     channel_id: string;
 }>;

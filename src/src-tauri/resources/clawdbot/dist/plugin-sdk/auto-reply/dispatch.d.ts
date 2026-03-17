@@ -1,8 +1,8 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { DispatchFromConfigResult } from "./reply/dispatch-from-config.js";
+import { type ReplyDispatcher, type ReplyDispatcherOptions, type ReplyDispatcherWithTypingOptions } from "./reply/reply-dispatcher.js";
 import type { FinalizedMsgContext, MsgContext } from "./templating.js";
 import type { GetReplyOptions } from "./types.js";
-import { type ReplyDispatcher, type ReplyDispatcherOptions, type ReplyDispatcherWithTypingOptions } from "./reply/reply-dispatcher.js";
 export type DispatchInboundResult = DispatchFromConfigResult;
 export declare function withReplyDispatcher<T>(params: {
     dispatcher: ReplyDispatcher;

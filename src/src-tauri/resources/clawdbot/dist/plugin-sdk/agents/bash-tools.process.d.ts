@@ -3,5 +3,5 @@ export type ProcessToolDefaults = {
     cleanupMs?: number;
     scopeKey?: string;
 };
-export declare function createProcessTool(defaults?: ProcessToolDefaults): AgentTool<any>;
-export declare const processTool: AgentTool<any, any>;
+export declare function createProcessTool(defaults?: ProcessToolDefaults): AgentTool<any, unknown>;
+export declare const processTool: AgentTool<any, unknown>;

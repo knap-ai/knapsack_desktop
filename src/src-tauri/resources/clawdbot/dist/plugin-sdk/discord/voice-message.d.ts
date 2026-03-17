@@ -9,7 +9,7 @@
  * - Message flag 8192 (IS_VOICE_MESSAGE)
  * - No other content (text, embeds, etc.)
  */
-import type { RequestClient } from "@buape/carbon";
+import { type RequestClient } from "@buape/carbon";
 import type { RetryRunner } from "../infra/retry-policy.js";
 export type VoiceMessageMetadata = {
     durationSecs: number;
@@ -44,7 +44,7 @@ export declare function getVoiceMessageMetadata(filePath: string): Promise<Voice
  * 2. Upload the OGG file to the provided URL
  * 3. Send the message with flag 8192 and attachment metadata
  */
-export declare function sendDiscordVoiceMessage(rest: RequestClient, channelId: string, audioBuffer: Buffer, metadata: VoiceMessageMetadata, replyTo: string | undefined, request: RetryRunner, silent?: boolean): Promise<{
+export declare function sendDiscordVoiceMessage(rest: RequestClient, channelId: string, audioBuffer: Buffer, metadata: VoiceMessageMetadata, replyTo: string | undefined, request: RetryRunner, silent?: boolean, token?: string): Promise<{
     id: string;
     channel_id: string;
 }>;

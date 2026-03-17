@@ -21,6 +21,7 @@ use crate::error::Error;
 use crate::db::models::email::Email;
 
 use super::auth::refresh_connection_token;
+use super::https_client::get_https_client;
 
 use tokio::sync::{Mutex, Semaphore};
 
@@ -86,14 +87,7 @@ pub async fn upsert_email_by_uid(email_uid: &str, access_token: &str, flag_updat
   }
   
   let hub = Gmail::new(
-    hyper::Client::builder().build(
-      hyper_rustls::HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .unwrap()
-        .https_or_http()
-        .enable_http1()
-        .build(),
-    ),
+    get_https_client(),
     access_token.to_string(),
   );
   let result = hub.users().messages_get("me", email_uid).doit().await;
@@ -453,14 +447,7 @@ async fn set_email_as_read(payload: Json<SetEmailReadResponseParams>) -> impl Re
   let message_id = payload.message_id.clone();
 
   let hub = Gmail::new(
-    hyper::Client::builder().build(
-      hyper_rustls::HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .unwrap()
-        .https_or_http()
-        .enable_http1()
-        .build(),
-    ),
+    get_https_client(),
     access_token.to_string(),
   );
 
