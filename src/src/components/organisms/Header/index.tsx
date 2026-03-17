@@ -21,14 +21,14 @@ export const Header = ({
 
   return (
     <div
-      className={`Header flex w-full justify-between items-center min-h-[40px] ${leftComponent ? 'pl-[80px]' : ''} pr-[16px] bg-ks-bg-main border-b-[1px] border-[#e2e2e2] rounded-t-[10px] bg-transparent`}
+      className={`Header flex w-full justify-between items-center min-h-[40px] ${leftComponent ? 'pl-[80px]' : ''} pr-[16px] bg-[#FAF8F5] border-b-[1px] border-[#E8E4DE] rounded-t-[10px]`}
       data-tauri-drag-region
     >
       {leftComponent ? leftComponent : <div data-tauri-drag-region> </div>}
 
       <div
         data-tauri-drag-region
-        className="flex-1 min-w-0 text-center font-InterTight text-[#B8B7B7] font-bold text-xxs leading-2 truncate px-2"
+        className="flex-1 min-w-0 text-center font-InterTight text-[#9C9690] font-bold text-xxs leading-2 truncate px-2"
       >
         { title ? title : "KNAPSACK IS PRIVATE"}
       </div>
@@ -36,7 +36,7 @@ export const Header = ({
       <div data-tauri-drag-region className="flex items-center gap-3 flex-shrink-0">
         {middleRightComponent && middleRightComponent}
         {appVersion && (
-          <span data-tauri-drag-region className="text-zinc-400 hidden min-[600px]:block whitespace-nowrap text-xxs font-medium font-InterTight">
+          <span data-tauri-drag-region className="text-[#9C9690] hidden min-[600px]:block whitespace-nowrap text-xxs font-medium font-InterTight">
             v{appVersion}
           </span>
         )}

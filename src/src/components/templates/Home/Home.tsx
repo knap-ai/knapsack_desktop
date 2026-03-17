@@ -25,6 +25,7 @@ import AutomationLabModal from 'src/components/molecules/AutomationLabModal'
 import CenterWorkspace, { SubTabChoices } from 'src/components/organisms/CenterWorkspace'
 import EmailTabView from 'src/components/organisms/EmailTabView'
 import FeedSidebar from 'src/components/organisms/FeedSidebar'
+import GranolaSidebar from 'src/components/organisms/GranolaSidebar'
 import GoogleAuthPopup from 'src/components/organisms/GoogleAuthPopUp'
 import { Header } from 'src/components/organisms/Header'
 import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
@@ -84,7 +85,7 @@ function Home({
   isAnyRecording,
 }: HomeProps) {
   const [fullRelease, setFullRelease] = useState<boolean | null>(null)
-  const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Openclaw)
+  const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Meeting)
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
@@ -161,6 +162,21 @@ function Home({
     })
     return () => {
       unlisten.then(fn => fn())
+    }
+  }, [])
+
+  // Listen for system tray events (Granola-style)
+  useEffect(() => {
+    const unlistenQuickNote = listen('create_quick_note', () => {
+      setCurrentTab(TabChoices.Meeting)
+      feed.createNewMeeting()
+    })
+    const unlistenSettings = listen('open_settings', () => {
+      setIsSettingsDialogOpened(true)
+    })
+    return () => {
+      unlistenQuickNote.then(fn => fn())
+      unlistenSettings.then(fn => fn())
     }
   }, [])
 
@@ -426,11 +442,22 @@ function Home({
         isOpen={showAutomationLabModal}
         onClose={() => setShowAutomationLabModal(false)}
       />
-      <div className="overflow-hidden flex-1 bg-ks-bg-main rounded-b-[10px]">
-        <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-ks-bg-main">
-          <TabBar currentTab={currentTab} setCurrentTab={setCurrentTab} fullRelease={fullRelease} />
+      <div className="overflow-hidden flex-1 bg-granola-bg rounded-b-[10px]">
+        <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-granola-bg">
+          {/* Granola-style sidebar (default view) */}
+          {currentTab === TabChoices.Meeting && (
+            <GranolaSidebar
+              feed={feed}
+              onQuickNote={() => feed.createNewMeeting()}
+              onSettingsClick={() => setIsSettingsDialogOpened(true)}
+            />
+          )}
+          {/* Legacy TabBar for non-meeting tabs */}
+          {currentTab !== TabChoices.Meeting && (
+            <TabBar currentTab={currentTab} setCurrentTab={setCurrentTab} fullRelease={fullRelease} />
+          )}
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
-            <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main">
+            <div className="KNWorkspace overflow-hidden w-full h-full bg-granola-bg">
               {currentTab === TabChoices.Work && (
                 <div className="overflow-hidden w-full h-full flex flex-row">
                   <FeedSidebar feed={feed} isAnyRecording={isAnyRecording} />

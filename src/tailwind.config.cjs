@@ -55,6 +55,14 @@ module.exports = {
       colors: {
         // Colors following site redesign
         'ks-bg-main': '#FAFAFA',
+        'granola-bg': '#FAF8F5',
+        'granola-bg-hover': '#F0EDE8',
+        'granola-bg-selected': '#EDE9E3',
+        'granola-text': '#1A1A1A',
+        'granola-text-secondary': '#6B6560',
+        'granola-text-muted': '#9C9690',
+        'granola-border': '#E8E4DE',
+        'granola-accent': '#C8A951',
         'ks-red-50': '#FCF4F4',
         'ks-red-60': '#FCF4F4',
         'ks-red-100': '#FAE7E6',

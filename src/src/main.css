@@ -60,7 +60,7 @@ html, body {
   height: 100%;
   border: 0;
   padding: 0;
-  background-color: #FAFAFA;
+  background-color: #FAF8F5;
   border-radius: 10px;
   font-family: "Inter";
 }
@@ -246,4 +246,137 @@ html, body {
 
 .ProseMirror:focus {
   outline: none;
+}
+
+/* Granola-style note detail view */
+.granola-note {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.granola-note__container {
+  width: 100%;
+  max-width: 45rem;
+  margin: 0 auto;
+  padding: 32px 40px 16px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.granola-note__title {
+  font-family: 'EB Garamond', 'Lora', serif;
+  font-size: 28px;
+  font-weight: 400;
+  color: #1A1A1A;
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.granola-note__meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.granola-note__meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6B6560;
+  font-family: 'Inter', sans-serif;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.granola-note__meta-item svg {
+  flex-shrink: 0;
+  color: #9C9690;
+}
+
+.granola-note__bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid #E8E4DE;
+  background: #FAF8F5;
+  flex-shrink: 0;
+}
+
+.granola-note__bottom-audio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #9C9690;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.granola-note__bottom-audio:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #6B6560;
+}
+
+.granola-note__bottom-chat {
+  flex: 1;
+}
+
+.granola-note__bottom-chat-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #E8E4DE;
+  border-radius: 8px;
+  background: white;
+  font-size: 13px;
+  color: #1A1A1A;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.granola-note__bottom-chat-input::placeholder {
+  color: #9C9690;
+}
+
+.granola-note__bottom-chat-input:focus {
+  border-color: #C8A951;
+}
+
+.granola-note__bottom-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: #C8A951;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+  transition: background 0.1s ease;
+}
+
+.granola-note__bottom-action:hover {
+  background: #B89840;
+}
+
+.granola-note__bottom-action svg {
+  flex-shrink: 0;
 }

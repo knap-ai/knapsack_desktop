@@ -1276,10 +1276,22 @@ async fn main() {
 
   #[cfg(any(target_os = "windows", target_os = "linux"))]
   {
+    let open_knapsack = CustomMenuItem::new("open_knapsack".to_string(), "Open Knapsack");
+    let quick_note = CustomMenuItem::new("quick_note".to_string(), "Quick Note");
+    let settings = CustomMenuItem::new("settings".to_string(), "Settings");
+    let version_label = CustomMenuItem::new("version".to_string(), format!("Knapsack v{}", env!("CARGO_PKG_VERSION"))).disabled();
+    let check_updates = CustomMenuItem::new("check_updates".to_string(), "Check for updates");
     let quit = CustomMenuItem::new("quit".to_string(), "Quit");
-    let show = CustomMenuItem::new("show".to_string(), "Show");
 
-    let tray_menu = SystemTrayMenu::new().add_item(show).add_item(quit);
+    let tray_menu = SystemTrayMenu::new()
+      .add_item(open_knapsack)
+      .add_item(quick_note)
+      .add_item(settings)
+      .add_native_item(tauri::SystemTrayMenuItem::Separator)
+      .add_item(version_label)
+      .add_item(check_updates)
+      .add_native_item(tauri::SystemTrayMenuItem::Separator)
+      .add_item(quit);
 
     let system_tray = SystemTray::new().with_menu(tray_menu);
     builder = builder
@@ -1298,10 +1310,26 @@ async fn main() {
           "quit" => {
             std::process::exit(0);
           }
-          "show" => {
+          "open_knapsack" => {
             let window = app.get_window("main").unwrap();
             window.show().unwrap();
             window.set_focus().unwrap();
+          }
+          "quick_note" => {
+            let window = app.get_window("main").unwrap();
+            window.show().unwrap();
+            window.set_focus().unwrap();
+            window.emit("create_quick_note", "").unwrap();
+          }
+          "settings" => {
+            let window = app.get_window("main").unwrap();
+            window.show().unwrap();
+            window.set_focus().unwrap();
+            window.emit("open_settings", "").unwrap();
+          }
+          "check_updates" => {
+            let window = app.get_window("main").unwrap();
+            window.emit("check_for_updates", "").unwrap();
           }
           _ => {}
         },
