@@ -133,7 +133,24 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
   }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
+  // On Windows, we can't kickstart a LaunchAgent. The health check will
+  // trigger a re-enable via the /api/clawd/service/enable endpoint.
+  // For now, just check if the gateway port is already occupied.
+  let port_open = std::net::TcpStream::connect_timeout(
+    &std::net::SocketAddr::from(([127, 0, 0, 1], 18789u16)),
+    std::time::Duration::from_millis(500),
+  ).is_ok();
+
+  if port_open {
+    Ok(())
+  } else {
+    Err("Gateway not running on Windows — re-enable via the UI".to_string())
+  }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
   Err("kickstart not supported on this OS".to_string())
 }

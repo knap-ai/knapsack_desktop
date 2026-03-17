@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { sendNotification } from '@tauri-apps/api/notification'
 import './style.scss'
 
-const API_BASE = 'http://localhost:8897'
+const API_BASE = 'http://127.0.0.1:8897'
 const KN_GMAIL_SEARCH = API_BASE + '/api/knapsack/gmail_search'
 const KN_API_THREADS = API_BASE + '/api/knapsack/threads'
 const KN_API_TRANSCRIPT = API_BASE + '/api/knapsack/transcript'

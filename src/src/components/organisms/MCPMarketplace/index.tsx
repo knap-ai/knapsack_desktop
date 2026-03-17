@@ -110,7 +110,7 @@ const ExtensionsView: React.FC = () => {
 
   const fetchSkills = useCallback(async () => {
     try {
-      const resp = await fetch('http://localhost:8897/api/clawd/service/skills/status')
+      const resp = await fetch('http://127.0.0.1:8897/api/clawd/service/skills/status')
       const data = await resp.json()
       if (data.catalog) {
         setSkills(data.catalog)
@@ -179,7 +179,7 @@ const ExtensionsView: React.FC = () => {
   const handleInstallSkill = async (name: string) => {
     setInstallingSkill(name)
     try {
-      await fetch('http://localhost:8897/api/clawd/service/skills/install', {
+      await fetch('http://127.0.0.1:8897/api/clawd/service/skills/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skill: name }),

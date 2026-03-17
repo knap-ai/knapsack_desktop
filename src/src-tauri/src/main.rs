@@ -1060,10 +1060,11 @@ async fn main() {
         let screen_width_logical = screen_size.width as f64 / scale_factor;
         let screen_height_logical = screen_size.height as f64 / scale_factor;
 
-        // Reserve space for the macOS menu bar (~25px) and a small bottom
-        // margin so the window feels grounded rather than flush.
+        // Reserve space for system UI elements:
+        // - macOS: ~25px for the menu bar at the top
+        // - Windows: ~48px for the taskbar at the bottom (default height)
         let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
-        let bottom_margin: f64 = 0.0;
+        let bottom_margin: f64 = if cfg!(target_os = "windows") { 48.0 } else { 0.0 };
         let usable_height = screen_height_logical - menu_bar_height - bottom_margin;
 
         // Cap width so the window doesn't exceed the screen

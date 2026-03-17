@@ -175,7 +175,7 @@ export const SettingsDialog = ({
 
   useEffect(() => {
     if (!isOpen) return
-    fetch('http://localhost:8897/api/clawd/service/api-key-status')
+    fetch('http://127.0.0.1:8897/api/clawd/service/api-key-status')
       .then(r => r.json())
       .then(data => {
         setProviderStatus({
@@ -199,12 +199,12 @@ export const SettingsDialog = ({
   useEffect(() => {
     if (expandedProvider !== 'ollama') return
     setOllamaRunning(null)
-    fetch('http://localhost:8897/api/knapsack/ollama/status')
+    fetch('http://127.0.0.1:8897/api/knapsack/ollama/status')
       .then(r => r.json())
       .then(data => setOllamaRunning(data.running))
       .catch(() => setOllamaRunning(false))
 
-    fetch('http://localhost:8897/api/knapsack/ollama/models')
+    fetch('http://127.0.0.1:8897/api/knapsack/ollama/models')
       .then(r => r.json())
       .then(data => {
         if (data.success) setOllamaModels(data.models)
@@ -293,7 +293,7 @@ export const SettingsDialog = ({
   const handleOllamaToggle = async (enable: boolean) => {
     setOllamaBusy(true)
     try {
-      const resp = await fetch('http://localhost:8897/api/knapsack/ollama/configure', {
+      const resp = await fetch('http://127.0.0.1:8897/api/knapsack/ollama/configure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -321,7 +321,7 @@ export const SettingsDialog = ({
     if (!providerStatus?.ollama_enabled) return
     // Persist model selection
     try {
-      await fetch('http://localhost:8897/api/knapsack/ollama/configure', {
+      await fetch('http://127.0.0.1:8897/api/knapsack/ollama/configure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

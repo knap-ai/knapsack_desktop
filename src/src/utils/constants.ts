@@ -1,4 +1,4 @@
-export const KN_SERVER_HOST = 'http://localhost:8897' // TODO: phil: should this be https?
+export const KN_SERVER_HOST = 'http://127.0.0.1:8897'
 export const KN_API_REST_FUZZY_SEARCH = KN_SERVER_HOST + '/api/knapsack/fuzzy_search'
 export const KN_API_REST_SEMANTIC_SEARCH = KN_SERVER_HOST + '/api/knapsack/semantic_search'
 export const KN_API_STREAM_LLM_COMPLETE = KN_SERVER_HOST + '/api/knapsack/llm_complete'

@@ -96330,6 +96330,32 @@ async function runWebSearch(params) {
 	writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
 	return payload;
 }
+async function runBrowserWebSearch(query) {
+	const start = Date.now();
+	const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+	await browserNavigate(void 0, { url: searchUrl, profile: "openclaw" });
+	await new Promise((r) => setTimeout(r, 2000));
+	const snapshot = await browserSnapshot(void 0, {
+		format: "text",
+		profile: "openclaw",
+		compact: true,
+		maxChars: 8000
+	});
+	const snapshotText = typeof snapshot === "string" ? snapshot : snapshot?.content ?? snapshot?.text ?? JSON.stringify(snapshot);
+	return {
+		query,
+		provider: "browser",
+		tookMs: Date.now() - start,
+		externalContent: {
+			untrusted: true,
+			source: "web_search",
+			provider: "browser",
+			wrapped: true
+		},
+		content: wrapWebContent(snapshotText, "web_search"),
+		note: "Results obtained via managed browser (DuckDuckGo). Configure a Brave Search API key for richer results."
+	};
+}
 function createWebSearchTool(options) {
 	const search = resolveSearchConfig(options?.config);
 	if (!resolveSearchEnabled({
@@ -96346,7 +96372,7 @@ function createWebSearchTool(options) {
 	return {
 		label: "Web Search",
 		name: "web_search",
-		description: provider === "perplexity" ? perplexitySchemaTransportHint === "chat_completions" ? "Search the web using Perplexity Sonar via Perplexity/OpenRouter chat completions. Returns AI-synthesized answers with citations from web-grounded search." : "Search the web using Perplexity. Runtime routing decides between native Search API and Sonar chat-completions compatibility. Structured filters are available on the native Search API path." : provider === "grok" ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search." : provider === "kimi" ? "Search the web using Kimi by Moonshot. Returns AI-synthesized answers with citations from native $web_search." : provider === "gemini" ? "Search the web using Gemini with Google Search grounding. Returns AI-synthesized answers with citations from Google Search." : braveMode === "llm-context" ? "Search the web using Brave Search LLM Context API. Returns pre-extracted page content (text chunks, tables, code blocks) optimized for LLM grounding." : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.",
+		description: provider === "perplexity" ? perplexitySchemaTransportHint === "chat_completions" ? "Search the web using Perplexity Sonar via Perplexity/OpenRouter chat completions. Returns AI-synthesized answers with citations from web-grounded search." : "Search the web using Perplexity. Runtime routing decides between native Search API and Sonar chat-completions compatibility. Structured filters are available on the native Search API path." : provider === "grok" ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search." : provider === "kimi" ? "Search the web using Kimi by Moonshot. Returns AI-synthesized answers with citations from native $web_search." : provider === "gemini" ? "Search the web using Gemini with Google Search grounding. Returns AI-synthesized answers with citations from Google Search." : braveMode === "llm-context" ? "Search the web using Brave Search LLM Context API. Returns pre-extracted page content (text chunks, tables, code blocks) optimized for LLM grounding." : "Search the web. Uses Brave Search API when configured, otherwise falls back to the managed browser via DuckDuckGo. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.",
 		parameters: createWebSearchSchema({
 			provider,
 			perplexityTransport: provider === "perplexity" ? perplexitySchemaTransportHint : void 0
@@ -96354,10 +96380,16 @@ function createWebSearchTool(options) {
 		execute: async (_toolCallId, args) => {
 			const perplexityRuntime = provider === "perplexity" ? resolvePerplexityTransport(perplexityConfig) : void 0;
 			const apiKey = provider === "perplexity" ? perplexityRuntime?.apiKey : provider === "grok" ? resolveGrokApiKey(grokConfig) : provider === "kimi" ? resolveKimiApiKey(kimiConfig) : provider === "gemini" ? resolveGeminiApiKey(geminiConfig) : resolveSearchApiKey(search);
-			if (!apiKey) return jsonResult(missingSearchKeyPayload(provider));
 			const supportsStructuredPerplexityFilters = provider === "perplexity" && perplexityRuntime?.transport === "search_api";
 			const params = args;
 			const query = readStringParam(params, "query", { required: true });
+			if (!apiKey) {
+				try {
+					return jsonResult(await runBrowserWebSearch(query));
+				} catch (browserErr) {
+					return jsonResult(missingSearchKeyPayload(provider));
+				}
+			}
 			const count = readNumberParam(params, "count", { integer: true }) ?? search?.maxResults ?? void 0;
 			const country = readStringParam(params, "country");
 			if (country && provider !== "brave" && !(provider === "perplexity" && supportsStructuredPerplexityFilters)) return jsonResult({

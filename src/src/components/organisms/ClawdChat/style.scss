@@ -245,6 +245,15 @@
   overflow-x: hidden;
   overflow-y: auto;
   padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+
+  // Spacer pushes messages to bottom when there are few messages,
+  // without breaking scroll when content overflows
+  &::before {
+    content: '';
+    flex: 1 1 auto;
+  }
 }
 
 .ClawdScrollToBottom {

@@ -88,6 +88,13 @@ pub async fn start_server<'a>(
         .or_else(|| Some("http://127.0.0.1:18791".to_string())),
     }));
 
+  // Pre-check: warn if something is already listening on this port
+  if let Ok(stream) = std::net::TcpStream::connect(("127.0.0.1", port)) {
+    drop(stream);
+    eprintln!("WARNING: Port {} is already in use! Another Knapsack instance may be running.", port);
+    eprintln!("WARNING: Kill the existing process or the server may not receive requests correctly.");
+  }
+
   println!("actix.rs: start_server: Starting server on port: {}", port);
   HttpServer::new(move || {
     let cors = Cors::permissive();
@@ -274,7 +281,11 @@ pub async fn start_server<'a>(
       .service(mcp_api::add_custom_server)
   })
   .bind(("127.0.0.1", port))
-  .unwrap()
+  .map_err(|e| {
+    eprintln!("FATAL: Failed to bind actix server to 127.0.0.1:{}: {}", port, e);
+    eprintln!("FATAL: Is another instance of Knapsack already running on this port?");
+    e
+  })?
   .run()
   .await
 }

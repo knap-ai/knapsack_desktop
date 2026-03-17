@@ -1,6 +1,6 @@
 /** API helpers for messaging channel endpoints (WhatsApp, iMessage). */
 
-const API_BASE = 'http://localhost:8897'
+const API_BASE = 'http://127.0.0.1:8897'
 
 export interface ChannelStatus {
   success: boolean

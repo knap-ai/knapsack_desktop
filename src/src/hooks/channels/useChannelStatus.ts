@@ -135,7 +135,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       // expensive per-channel status polls which each timeout after 10-20s.
       let gwOk = false
       try {
-        const hRes = await fetch('http://localhost:8897/api/clawd/service/health')
+        const hRes = await fetch('http://127.0.0.1:8897/api/clawd/service/health')
         if (hRes.ok) {
           const hData = await hRes.json()
           gwOk = !!hData.gateway_ok
@@ -300,7 +300,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   const checkHealth = useCallback(async () => {
     setHealthChecking(true)
     try {
-      const res = await fetch('http://localhost:8897/api/clawd/service/health')
+      const res = await fetch('http://127.0.0.1:8897/api/clawd/service/health')
       if (res.ok) {
         const data = await res.json()
         setGatewayHealthy(!!data.gateway_ok)
