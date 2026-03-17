@@ -9,7 +9,7 @@
   },
   "package": {
     "productName": "Knapsack",
-    "version": "0.9.6"
+    "version": "0.9.7"
   },
   "tauri": {
     "allowlist": {
@@ -77,11 +77,15 @@
       "os": {
         "all": true
       },
-      "path": { "all": true },
+      "path": {
+        "all": true
+      },
       "protocol": {
         "asset": true,
         "all": true,
-        "assetScope": ["**"]
+        "assetScope": [
+          "**"
+        ]
       },
       "shell": {
         "all": false,
@@ -126,8 +130,7 @@
       "deb": {
         "depends": []
       },
-      "externalBin": [
-      ],
+      "externalBin": [],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
@@ -145,9 +148,18 @@
         "entitlements": "tauri.entitlements"
       },
       "dmg": {
-        "appPosition": { "x": 180, "y": 170 },
-        "applicationFolderPosition": { "x": 480, "y": 170 },
-        "windowSize": { "width": 660, "height": 400 }
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        },
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        }
       },
       "publisher": "Knap",
       "resources": [
