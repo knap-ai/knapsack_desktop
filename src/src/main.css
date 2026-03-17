@@ -60,7 +60,7 @@ html, body {
   height: 100%;
   border: 0;
   padding: 0;
-  background-color: #FAF8F5;
+  background-color: #FAFAFA;
   border-radius: 10px;
   font-family: "Inter";
 }
@@ -248,7 +248,7 @@ html, body {
   outline: none;
 }
 
-/* Granola-style note detail view */
+/* Granola-layout note detail view */
 .granola-note {
   display: flex;
   flex-direction: column;
@@ -268,19 +268,18 @@ html, body {
 }
 
 .granola-note__title {
-  font-family: 'EB Garamond', 'Lora', serif;
-  font-size: 28px;
-  font-weight: 400;
-  color: #1A1A1A;
+  font-family: 'Lora', serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #333333;
   margin: 0;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .granola-note__meta {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   margin-top: 8px;
   flex-wrap: wrap;
 }
@@ -289,17 +288,44 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
-  color: #6B6560;
+  font-size: 12px;
+  color: #6A6969;
   font-family: 'Inter', sans-serif;
-  background: rgba(0, 0, 0, 0.04);
+  background: #F0EFEF;
   padding: 4px 10px;
   border-radius: 6px;
 }
 
+.granola-note__meta-item--recording {
+  background: #FAE7E6;
+  color: #A23933;
+}
+
+.granola-note__recording-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #C14841;
+  animation: recording-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .granola-note__meta-item svg {
   flex-shrink: 0;
-  color: #9C9690;
+  color: #969595;
+}
+
+.granola-note__editor {
+  border: 1px solid #E3E2E2;
+  border-radius: 8px;
+}
+
+.granola-note__editor--recording {
+  border-color: transparent;
 }
 
 .granola-note__bottom-bar {
@@ -307,8 +333,8 @@ html, body {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-top: 1px solid #E8E4DE;
-  background: #FAF8F5;
+  border-top: 1px solid #E3E2E2;
+  background: #FAFAFA;
   flex-shrink: 0;
 }
 
@@ -321,14 +347,14 @@ html, body {
   border-radius: 6px;
   border: none;
   background: transparent;
-  color: #9C9690;
+  color: #ABA9A9;
   cursor: pointer;
   transition: all 0.1s ease;
 }
 
 .granola-note__bottom-audio:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: #6B6560;
+  background: #F0EFEF;
+  color: #6A6969;
 }
 
 .granola-note__bottom-chat {
@@ -338,22 +364,22 @@ html, body {
 .granola-note__bottom-chat-input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #E8E4DE;
+  border: 1px solid #E3E2E2;
   border-radius: 8px;
   background: white;
   font-size: 13px;
-  color: #1A1A1A;
+  color: #333333;
   font-family: 'Inter', sans-serif;
   outline: none;
   transition: border-color 0.15s ease;
 }
 
 .granola-note__bottom-chat-input::placeholder {
-  color: #9C9690;
+  color: #ABA9A9;
 }
 
 .granola-note__bottom-chat-input:focus {
-  border-color: #C8A951;
+  border-color: #6474AC;
 }
 
 .granola-note__bottom-action {
@@ -362,7 +388,7 @@ html, body {
   gap: 6px;
   padding: 6px 14px;
   border-radius: 8px;
-  background: #C8A951;
+  background: #6474AC;
   color: white;
   font-size: 12px;
   font-weight: 500;
@@ -374,9 +400,59 @@ html, body {
 }
 
 .granola-note__bottom-action:hover {
-  background: #B89840;
+  background: #58649D;
 }
 
 .granola-note__bottom-action svg {
   flex-shrink: 0;
+}
+
+/* Recording-specific bottom bar */
+.granola-note__bottom-waveform {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 4px;
+}
+
+.granola-note__waveform-bar {
+  width: 3px;
+  height: 12px;
+  background: #C14841;
+  border-radius: 2px;
+  animation: waveform-bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes waveform-bounce {
+  0%, 100% { height: 6px; }
+  50% { height: 18px; }
+}
+
+.granola-note__bottom-recording-status {
+  font-size: 12px;
+  color: #6A6969;
+  font-family: 'Inter', sans-serif;
+  font-style: italic;
+}
+
+.granola-note__bottom-stop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: #C14841;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+  transition: background 0.1s ease;
+}
+
+.granola-note__bottom-stop:hover {
+  background: #A23933;
 }

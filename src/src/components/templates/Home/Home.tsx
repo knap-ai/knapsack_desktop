@@ -442,8 +442,8 @@ function Home({
         isOpen={showAutomationLabModal}
         onClose={() => setShowAutomationLabModal(false)}
       />
-      <div className="overflow-hidden flex-1 bg-granola-bg rounded-b-[10px]">
-        <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-granola-bg">
+      <div className="overflow-hidden flex-1 bg-ks-bg-main rounded-b-[10px]">
+        <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-ks-bg-main">
           {/* Granola-style sidebar (default view) */}
           {currentTab === TabChoices.Meeting && (
             <GranolaSidebar
@@ -457,7 +457,7 @@ function Home({
             <TabBar currentTab={currentTab} setCurrentTab={setCurrentTab} fullRelease={fullRelease} />
           )}
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
-            <div className="KNWorkspace overflow-hidden w-full h-full bg-granola-bg">
+            <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main">
               {currentTab === TabChoices.Work && (
                 <div className="overflow-hidden w-full h-full flex flex-row">
                   <FeedSidebar feed={feed} isAnyRecording={isAnyRecording} />

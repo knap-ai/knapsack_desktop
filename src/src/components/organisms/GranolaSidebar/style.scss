@@ -1,13 +1,14 @@
-// Granola-inspired sidebar with warm cream theme
-$granola-bg: #FAF8F5;
-$granola-bg-hover: #F0EDE8;
-$granola-bg-selected: #EDE9E3;
-$granola-text: #1A1A1A;
-$granola-text-secondary: #6B6560;
-$granola-text-muted: #9C9690;
-$granola-border: #E8E4DE;
-$granola-accent: #C8A951;
-$granola-accent-light: #F5EDD3;
+// Granola-layout sidebar using Knapsack color scheme
+$ks-bg: #FAFAFA;
+$ks-bg-hover: #F0EFEF;
+$ks-bg-selected: #E3E2E2;
+$ks-text: #333333;
+$ks-text-secondary: #6A6969;
+$ks-text-muted: #ABA9A9;
+$ks-border: #E3E2E2;
+$ks-accent: #6474AC;
+$ks-accent-light: #E6EBF3;
+$ks-red: #C14841;
 
 .granola-sidebar {
   width: 260px;
@@ -17,8 +18,8 @@ $granola-accent-light: #F5EDD3;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: $granola-bg;
-  border-right: 1px solid $granola-border;
+  background: $ks-bg;
+  border-right: 1px solid $ks-border;
   font-family: 'Inter', -apple-system, sans-serif;
   user-select: none;
 
@@ -39,14 +40,14 @@ $granola-accent-light: #F5EDD3;
 
     &--focused {
       background: white;
-      border-color: $granola-border;
+      border-color: $ks-border;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
   }
 
   &__search-icon {
     flex-shrink: 0;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
   }
 
   &__search-input {
@@ -55,17 +56,17 @@ $granola-accent-light: #F5EDD3;
     background: transparent;
     outline: none;
     font-size: 13px;
-    color: $granola-text;
+    color: $ks-text;
     font-family: inherit;
 
     &::placeholder {
-      color: $granola-text-muted;
+      color: $ks-text-muted;
     }
   }
 
   &__search-shortcut {
     font-size: 10px;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     background: rgba(0, 0, 0, 0.06);
     padding: 1px 5px;
     border-radius: 4px;
@@ -90,7 +91,7 @@ $granola-accent-light: #F5EDD3;
     border-radius: 8px;
     border: none;
     background: transparent;
-    color: $granola-text-secondary;
+    color: $ks-text-secondary;
     font-size: 13px;
     font-weight: 400;
     cursor: pointer;
@@ -100,13 +101,13 @@ $granola-accent-light: #F5EDD3;
     width: 100%;
 
     &:hover {
-      background: $granola-bg-hover;
-      color: $granola-text;
+      background: $ks-bg-hover;
+      color: $ks-text;
     }
 
     &--active {
-      background: $granola-bg-selected;
-      color: $granola-text;
+      background: $ks-bg-selected;
+      color: $ks-text;
       font-weight: 500;
     }
 
@@ -123,7 +124,7 @@ $granola-accent-light: #F5EDD3;
   &__spaces-header {
     font-size: 11px;
     font-weight: 500;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 0 10px 6px;
@@ -137,7 +138,7 @@ $granola-accent-light: #F5EDD3;
     border-radius: 8px;
     border: none;
     background: transparent;
-    color: $granola-text-secondary;
+    color: $ks-text-secondary;
     font-size: 13px;
     font-weight: 400;
     cursor: pointer;
@@ -147,12 +148,12 @@ $granola-accent-light: #F5EDD3;
     transition: all 0.1s ease;
 
     &:hover {
-      background: $granola-bg-hover;
-      color: $granola-text;
+      background: $ks-bg-hover;
+      color: $ks-text;
     }
 
     &--active {
-      color: $granola-text;
+      color: $ks-text;
       font-weight: 500;
     }
 
@@ -181,18 +182,17 @@ $granola-accent-light: #F5EDD3;
   }
 
   &__section-title {
-    font-family: 'EB Garamond', 'Lora', serif;
-    font-size: 22px;
-    font-weight: 400;
-    color: $granola-text;
+    font-family: 'Lora', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: $ks-text;
     margin: 0 0 12px;
-    letter-spacing: -0.01em;
   }
 
   &__calendar-card {
     background: white;
     border-radius: 12px;
-    border: 1px solid $granola-border;
+    border: 1px solid $ks-border;
     overflow: hidden;
   }
 
@@ -200,7 +200,7 @@ $granola-accent-light: #F5EDD3;
     display: flex;
     padding: 12px 16px;
     gap: 16px;
-    border-bottom: 1px solid $granola-border;
+    border-bottom: 1px solid $ks-border;
 
     &:last-child {
       border-bottom: none;
@@ -216,7 +216,7 @@ $granola-accent-light: #F5EDD3;
   &__calendar-date-num {
     font-size: 24px;
     font-weight: 400;
-    color: $granola-text;
+    color: $ks-text;
     line-height: 1;
     display: block;
   }
@@ -230,7 +230,7 @@ $granola-accent-light: #F5EDD3;
 
   &__calendar-month {
     font-size: 11px;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     font-weight: 400;
   }
 
@@ -238,13 +238,13 @@ $granola-accent-light: #F5EDD3;
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #C14841;
+    background: $ks-red;
     flex-shrink: 0;
   }
 
   &__calendar-day-name {
     font-size: 11px;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     font-weight: 400;
   }
 
@@ -266,14 +266,14 @@ $granola-accent-light: #F5EDD3;
     transition: background 0.1s ease;
 
     &:hover {
-      background: $granola-bg-hover;
+      background: $ks-bg-hover;
     }
 
     &--now {
-      background: $granola-accent-light;
+      background: $ks-accent-light;
 
       &:hover {
-        background: darken($granola-accent-light, 3%);
+        background: darken($ks-accent-light, 3%);
       }
     }
   }
@@ -282,7 +282,7 @@ $granola-accent-light: #F5EDD3;
     width: 3px;
     height: 28px;
     border-radius: 2px;
-    background: $granola-accent;
+    background: $ks-accent;
     flex-shrink: 0;
   }
 
@@ -294,7 +294,7 @@ $granola-accent-light: #F5EDD3;
   &__calendar-event-title {
     font-size: 13px;
     font-weight: 500;
-    color: $granola-text;
+    color: $ks-text;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -302,12 +302,12 @@ $granola-accent-light: #F5EDD3;
 
   &__calendar-event-time {
     font-size: 11px;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     white-space: nowrap;
   }
 
   &__now-label {
-    color: $granola-accent;
+    color: $ks-red;
     font-weight: 600;
   }
 
@@ -315,7 +315,7 @@ $granola-accent-light: #F5EDD3;
     flex-shrink: 0;
     padding: 4px 12px;
     border-radius: 6px;
-    background: $granola-text;
+    background: $ks-text;
     color: white;
     font-size: 11px;
     font-weight: 500;
@@ -325,7 +325,7 @@ $granola-accent-light: #F5EDD3;
     transition: background 0.1s ease;
 
     &:hover {
-      background: lighten($granola-text, 15%);
+      background: lighten($ks-text, 15%);
     }
   }
 
@@ -338,7 +338,7 @@ $granola-accent-light: #F5EDD3;
   &__notes-date {
     font-size: 12px;
     font-weight: 500;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     padding: 8px 12px 4px;
   }
 
@@ -352,11 +352,11 @@ $granola-accent-light: #F5EDD3;
     transition: background 0.1s ease;
 
     &:hover {
-      background: $granola-bg-hover;
+      background: $ks-bg-hover;
     }
 
     &--selected {
-      background: $granola-bg-selected;
+      background: $ks-bg-selected;
     }
   }
 
@@ -364,7 +364,7 @@ $granola-accent-light: #F5EDD3;
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: linear-gradient(135deg, #D4A574, #C49A6C);
+    background: linear-gradient(135deg, #B5C4DB, #91A5C9);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -382,7 +382,7 @@ $granola-accent-light: #F5EDD3;
   &__note-title {
     font-size: 13px;
     font-weight: 500;
-    color: $granola-text;
+    color: $ks-text;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -390,7 +390,7 @@ $granola-accent-light: #F5EDD3;
 
   &__note-subtitle {
     font-size: 11px;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -404,19 +404,19 @@ $granola-accent-light: #F5EDD3;
   }
 
   &__note-lock {
-    color: $granola-text-muted;
+    color: $ks-text-muted;
   }
 
   &__note-time {
     font-size: 11px;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     white-space: nowrap;
   }
 
   // Bottom bar
   &__bottom {
     padding: 8px 16px 12px;
-    border-top: 1px solid $granola-border;
+    border-top: 1px solid $ks-border;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -436,19 +436,19 @@ $granola-accent-light: #F5EDD3;
     border-radius: 6px;
     border: none;
     background: transparent;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     cursor: pointer;
     transition: all 0.1s ease;
 
     &:hover {
-      background: $granola-bg-hover;
-      color: $granola-text-secondary;
+      background: $ks-bg-hover;
+      color: $ks-text-secondary;
     }
   }
 
   &__version {
     font-size: 10px;
-    color: $granola-text-muted;
+    color: $ks-text-muted;
     padding: 0 4px;
   }
 }

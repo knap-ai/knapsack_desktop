@@ -604,6 +604,12 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
               </h1>
               {/* Granola-style metadata row */}
               <div className="granola-note__meta">
+                {recordingHandlers.isRecording(thread.id) && (
+                  <span className="granola-note__meta-item granola-note__meta-item--recording">
+                    <span className="granola-note__recording-dot" />
+                    Recording
+                  </span>
+                )}
                 <span className="granola-note__meta-item">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -625,7 +631,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
                 )}
               </div>
             </div>
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 flex items-center gap-2">
               {!thread.recorded && (
                 <RecordControlPanel
                   onClickJoin={() => handleRecordClick(true)}
@@ -665,104 +671,104 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
             </div>
           </div>
         </div>
-        <MeetingNotesTabBar
-          thread={thread}
-          feedItemId={feedItemId}
-          feed={feed}
-          templateLabel={templatePrompt.title}
-          hasActionItems={hasActionItems()}
-          onOpenTemplatesClick={handleOpenTemplates}
-          onViewTranscriptClick={handleOpenTranscript}
-          onTasksButtonClick={handleTasksButtonClick}
-          onCopyClick={() => {
-            if (copyToClipboard) copyToClipboard(notesMarkdown)
-          }}
-          canChangeTemplate={true}
-          isEditing={isEditing}
-          onEditClick={onEditClick}
-        />
+
+        {/* Recording notice - subtle Granola style */}
         {recordingHandlers.isRecording(thread.id) && (
-          <div className="flex flex-col gap-2">
-            <div className="h-[49px] bg-ks-red-100 border-ks-red-200 border rounded-md py-3 px-3 w-full flex items-center">
-              <span className="text-ks-red-800 text-xxs font-semibold ml-2 font-InterTight mr-1 tracking-[0.08em]">
-                RECORDING.
-              </span>
-              <span className="text-ks-red-800 text-xxs font-InterTight tracking-[0.08em]">
-                PLEASE NOTIFY ATTENDEES THAT THIS MEETING IS BEING RECORDED
-              </span>
-            </div>
-            <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
-          </div>
+          <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
         )}
+
+        {/* Tab bar for template, transcript, tasks - hidden during active recording for clean view */}
+        {!recordingHandlers.isRecording(thread.id) && (
+          <MeetingNotesTabBar
+            thread={thread}
+            feedItemId={feedItemId}
+            feed={feed}
+            templateLabel={templatePrompt.title}
+            hasActionItems={hasActionItems()}
+            onOpenTemplatesClick={handleOpenTemplates}
+            onViewTranscriptClick={handleOpenTranscript}
+            onTasksButtonClick={handleTasksButtonClick}
+            onCopyClick={() => {
+              if (copyToClipboard) copyToClipboard(notesMarkdown)
+            }}
+            canChangeTemplate={true}
+            isEditing={isEditing}
+            onEditClick={onEditClick}
+          />
+        )}
+
+        {/* Editor - always shown, focused during recording */}
         {isEditing ? (
-          <div className="border-[1px] rounded-lg">
-            <div className="border-0 border-b-[1px] outline-none mx-3 py-1">
-              <div className="flex flex-wrap gap-1 rounded-md px-2">
-                <div className="flex gap-1 font-RobotoMono">
-                  <MenuButton
-                    onClick={() => editor.chain().focus().toggleBold().run()}
-                    isActive={editor.isActive('bold')}
-                    title="Bold (Cmd + B)"
-                  >
-                    <span className="font-bold">B</span>
-                  </MenuButton>
-                  <MenuButton
-                    onClick={() => editor.chain().focus().toggleItalic().run()}
-                    isActive={editor.isActive('italic')}
-                    title="Italic (Cmd + I)"
-                  >
-                    <span className="italic">I</span>
-                  </MenuButton>
-                  <div className="w-px h-6 bg-gray-200 mt-2 mx-2" />
-
-                  <div className="flex gap-1">
+          <div className={`granola-note__editor ${recordingHandlers.isRecording(thread.id) ? 'granola-note__editor--recording' : ''}`}>
+            {!recordingHandlers.isRecording(thread.id) && (
+              <div className="border-0 border-b-[1px] outline-none mx-3 py-1">
+                <div className="flex flex-wrap gap-1 rounded-md px-2">
+                  <div className="flex gap-1 font-RobotoMono">
                     <MenuButton
-                      onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                      isActive={editor.isActive('heading', { level: 1 })}
-                      title="Heading 1"
+                      onClick={() => editor.chain().focus().toggleBold().run()}
+                      isActive={editor.isActive('bold')}
+                      title="Bold (Cmd + B)"
                     >
-                      H1
+                      <span className="font-bold">B</span>
                     </MenuButton>
-
                     <MenuButton
-                      onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                      isActive={editor.isActive('heading', { level: 2 })}
-                      title="Heading 2"
+                      onClick={() => editor.chain().focus().toggleItalic().run()}
+                      isActive={editor.isActive('italic')}
+                      title="Italic (Cmd + I)"
                     >
-                      H2
+                      <span className="italic">I</span>
                     </MenuButton>
+                    <div className="w-px h-6 bg-gray-200 mt-2 mx-2" />
 
-                    <MenuButton
-                      onClick={() => editor.chain().focus().toggleBulletList().run()}
-                      isActive={editor.isActive('bulletList')}
-                      title="Bullet List"
-                    >
-                      • List
-                    </MenuButton>
+                    <div className="flex gap-1">
+                      <MenuButton
+                        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                        isActive={editor.isActive('heading', { level: 1 })}
+                        title="Heading 1"
+                      >
+                        H1
+                      </MenuButton>
 
-                    <MenuButton
-                      onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                      isActive={editor.isActive('orderedList')}
-                      title="Numbered List"
-                    >
-                      1. List
-                    </MenuButton>
-                  </div>
+                      <MenuButton
+                        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                        isActive={editor.isActive('heading', { level: 2 })}
+                        title="Heading 2"
+                      >
+                        H2
+                      </MenuButton>
 
-                  <div className="w-px h-6 bg-gray-200 mt-2 mx-1" />
+                      <MenuButton
+                        onClick={() => editor.chain().focus().toggleBulletList().run()}
+                        isActive={editor.isActive('bulletList')}
+                        title="Bullet List"
+                      >
+                        • List
+                      </MenuButton>
 
-                  <div className="flex gap-1">
-                    <MenuButton
-                      onClick={() => editor.chain().focus().setHorizontalRule().run()}
-                      isActive={editor.isActive('orderedList')}
-                      title="Horizontal Rule (---)"
-                    >
-                      <span>―</span>
-                    </MenuButton>
+                      <MenuButton
+                        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                        isActive={editor.isActive('orderedList')}
+                        title="Numbered List"
+                      >
+                        1. List
+                      </MenuButton>
+                    </div>
+
+                    <div className="w-px h-6 bg-gray-200 mt-2 mx-1" />
+
+                    <div className="flex gap-1">
+                      <MenuButton
+                        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+                        isActive={editor.isActive('orderedList')}
+                        title="Horizontal Rule (---)"
+                      >
+                        <span>―</span>
+                      </MenuButton>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
             <div className="text-left text-wrap max-w-[85vh] min-h-[320px]">
               <EditorContent editor={editor} />
             </div>
@@ -780,38 +786,62 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
       {/* Granola-style bottom bar */}
       <div className="granola-note__bottom-bar">
-        <button className="granola-note__bottom-audio" title="Audio waveform">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="4" y1="8" x2="4" y2="16" />
-            <line x1="8" y1="5" x2="8" y2="19" />
-            <line x1="12" y1="2" x2="12" y2="22" />
-            <line x1="16" y1="5" x2="16" y2="19" />
-            <line x1="20" y1="8" x2="20" y2="16" />
-          </svg>
-        </button>
-        <div className="granola-note__bottom-chat">
-          <input
-            type="text"
-            placeholder="Continue chat"
-            className="granola-note__bottom-chat-input"
-            readOnly
-          />
-        </div>
-        {thread.recorded && (
-          <button
-            className="granola-note__bottom-action"
-            onClick={() => {
-              if (copyToClipboard) copyToClipboard(notesMarkdown)
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
-              <path d="M9 13h6" />
-              <path d="M9 17h3" />
-              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-            </svg>
-            Write follow up email
-          </button>
+        {recordingHandlers.isRecording(thread.id) ? (
+          <>
+            <div className="granola-note__bottom-waveform">
+              <span className="granola-note__waveform-bar" style={{animationDelay: '0ms'}} />
+              <span className="granola-note__waveform-bar" style={{animationDelay: '150ms'}} />
+              <span className="granola-note__waveform-bar" style={{animationDelay: '300ms'}} />
+              <span className="granola-note__waveform-bar" style={{animationDelay: '450ms'}} />
+              <span className="granola-note__waveform-bar" style={{animationDelay: '600ms'}} />
+            </div>
+            <div className="granola-note__bottom-recording-status">
+              Privately transcribing...
+            </div>
+            <div className="flex-1" />
+            <button
+              className="granola-note__bottom-stop"
+              onClick={() => handleStopRecording('Manually')}
+            >
+              Stop recording
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="granola-note__bottom-audio" title="Audio waveform">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="8" x2="4" y2="16" />
+                <line x1="8" y1="5" x2="8" y2="19" />
+                <line x1="12" y1="2" x2="12" y2="22" />
+                <line x1="16" y1="5" x2="16" y2="19" />
+                <line x1="20" y1="8" x2="20" y2="16" />
+              </svg>
+            </button>
+            <div className="granola-note__bottom-chat">
+              <input
+                type="text"
+                placeholder="Continue chat"
+                className="granola-note__bottom-chat-input"
+                readOnly
+              />
+            </div>
+            {thread.recorded && (
+              <button
+                className="granola-note__bottom-action"
+                onClick={() => {
+                  if (copyToClipboard) copyToClipboard(notesMarkdown)
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
+                  <path d="M9 13h6" />
+                  <path d="M9 17h3" />
+                  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                </svg>
+                Write follow up email
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
