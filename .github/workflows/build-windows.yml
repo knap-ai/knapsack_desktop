@@ -11,7 +11,7 @@ jobs:
   build-windows:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -22,7 +22,7 @@ jobs:
           workspaces: src/src-tauri
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -60,14 +60,14 @@ jobs:
           VITE_GOOGLE_DEVELOPER_KEY: ""
 
       - name: Upload MSI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: knapsack-windows-msi
           path: src/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: warn
 
       - name: Upload NSIS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: knapsack-windows-nsis
           path: src/src-tauri/target/release/bundle/nsis/*.exe

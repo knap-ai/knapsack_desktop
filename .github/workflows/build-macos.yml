@@ -11,7 +11,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust stable with targets
         uses: dtolnay/rust-toolchain@stable
@@ -24,7 +24,7 @@ jobs:
           workspaces: src/src-tauri
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -57,14 +57,14 @@ jobs:
           VITE_GOOGLE_DEVELOPER_KEY: ""
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: knapsack-macos-dmg
           path: src/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: warn
 
       - name: Upload updater artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: knapsack-macos-updater
           path: |
