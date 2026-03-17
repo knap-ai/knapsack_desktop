@@ -10,6 +10,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 use crate::connections::utils::FetchUuidError;
 
 #[derive(Debug, From)]
+#[allow(dead_code)]
 pub enum Error {
 
   #[from]
