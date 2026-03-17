@@ -175,7 +175,7 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
 
   // Dump the last few lines of the gateway's stderr log so we can see
   // why the process is failing to start.
-  let err_log = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+  let err_log = super::service::gateway_stderr_log();
   if let Ok(content) = std::fs::read_to_string(&err_log) {
     let tail: Vec<&str> = content.lines().rev().take(25).collect();
     if !tail.is_empty() {

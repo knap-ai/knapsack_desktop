@@ -286,7 +286,7 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
                 "tools": {
                     "deny": ["canvas", "nodes", "cron", "gateway"],
                     "allow": [
-                        "exec", "process", "read", "write", "edit", "apply_patch",
+                        "exec", "process", "group:fs",
                         "image", "sessions_list", "sessions_history",
                         "sessions_send", "sessions_spawn", "session_status",
                         "browser", "group:web"
@@ -296,8 +296,9 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
         });
         // Also ensure normal-mode tools.allow includes browser + group:web
         let mut tools_val = serde_json::json!({
-            "allow": ["browser", "group:web", "exec", "process", "read", "write", "edit", "apply_patch"],
+            "allow": ["browser", "group:web", "exec", "process", "group:fs"],
             "deny": ["canvas", "nodes", "cron", "gateway"],
+            "exec": {"applyPatch": {"enabled": true}},
             "media": {"image": {"enabled": true}}
         });
         // Merge sandbox into tools
@@ -1194,7 +1195,12 @@ pub async fn telegram_configure(
                 "channels": {
                     "telegram": {
                         "botToken": token,
-                        "dmPolicy": "allowlist"
+                        "dmPolicy": "allowlist",
+                        // Grammy's default HTTP timeout is 500 seconds, which causes
+                        // long-running getUpdates requests and AbortError spam in logs.
+                        // 60s is generous for Telegram API calls; the polling interval
+                        // (fetch.timeout in runner options) is separate and already 30s.
+                        "timeoutSeconds": 60
                     }
                 }
             });
@@ -2678,14 +2684,15 @@ pub async fn channel_diagnostics() -> impl Responder {
                     let bh = extract_base_hash(&snap);
                     let sandbox_patch = serde_json::json!({
                         "tools": {
-                            "allow": ["browser", "group:web", "exec", "process", "read", "write", "edit", "apply_patch"],
+                            "allow": ["browser", "group:web", "exec", "process", "group:fs"],
                             "deny": ["canvas", "nodes", "cron", "gateway"],
+                            "exec": {"applyPatch": {"enabled": true}},
                             "media": {"image": {"enabled": true}},
                             "sandbox": {
                                 "tools": {
                                     "deny": ["canvas", "nodes", "cron", "gateway"],
                                     "allow": [
-                                        "exec", "process", "read", "write", "edit", "apply_patch",
+                                        "exec", "process", "group:fs",
                                         "image", "sessions_list", "sessions_history",
                                         "sessions_send", "sessions_spawn", "session_status",
                                         "browser", "group:web"

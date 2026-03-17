@@ -3599,22 +3599,39 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     if (health) {
       const gwStarting = channelStatus.gatewayStarting
+      // Extract a short diagnostic hint from the health message when gateway is down.
+      // The full message (with stderr tail) is still available in the tooltip.
+      let gwLabel = 'Gateway: OK'
+      if (!health.gateway_ok) {
+        if (gwStarting) {
+          gwLabel = 'Gateway: starting...'
+        } else if (health.message?.includes('plist not found')) {
+          gwLabel = 'Gateway: not enabled'
+        } else if (health.message?.includes('not loaded')) {
+          gwLabel = 'Gateway: not loaded — re-enable in Settings'
+        } else {
+          gwLabel = 'Gateway: reconnecting...'
+        }
+      }
       parts.push(
         <span key="gw" className={health.gateway_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
           title={!health.gateway_ok && health.message ? health.message : undefined}>
-          {health.gateway_ok ? 'Gateway: OK' : gwStarting ? 'Gateway: starting...' : 'Gateway: reconnecting...'}
+          {gwLabel}
         </span>,
       )
       parts.push(
         <span key="br" className={health.browser_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
           title={!health.browser_ok && health.message ? health.message : undefined}>
-          {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : 'Browser: reconnecting...'}
+          {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : health.gateway_ok ? 'Browser: starting...' : 'Browser: waiting for gateway'}
         </span>,
       )
     } else if (status?.running) {
       // Health not loaded yet but service is running — show checking state
       parts.push(<span key="gw" className="status-warn">Gateway: starting...</span>)
       parts.push(<span key="br" className="status-warn">Browser: starting...</span>)
+    } else if (!status?.running && !status?.installed) {
+      // Service not installed — give clear direction
+      parts.push(<span key="gw" className="status-down">Gateway: not installed</span>)
     }
     if (currentTargetId) parts.push(<span key="tab">Tab: {currentTargetId.slice(0, 12)}...</span>)
     return parts.reduce<ReactNode[]>((acc, part, i) => {

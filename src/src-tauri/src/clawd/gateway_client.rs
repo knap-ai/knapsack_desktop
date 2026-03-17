@@ -489,10 +489,28 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   // can execute shell commands and edit files when Advanced Mode is on.
   // The gateway controls whether the agent actually *uses* them via the system
   // prompt and TOOLS.md; having them in the allow list just makes them available.
+  //
+  // Use group aliases (group:fs, group:runtime) instead of individual tool names
+  // where possible.  The gateway validates the allowlist against registered core
+  // tools; "apply_patch" is only registered when tools.exec.applyPatch.enabled
+  // is true, so listing it individually causes a spurious "unknown entries"
+  // warning.  group:fs expands to [read, write, edit, apply_patch] and is
+  // always recognised by the validator.
   let exec_tools: Vec<&str> = vec![
-    "exec", "process", "read", "write", "edit", "apply_patch",
+    "exec", "process", "group:fs",
   ];
   if let Some(allow) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+    // Remove legacy individual entries that are now covered by group:fs
+    let covered_by_group_fs = ["read", "write", "edit", "apply_patch"];
+    let before_len = allow.len();
+    allow.retain(|item| {
+      item.as_str().map(|s| !covered_by_group_fs.contains(&s)).unwrap_or(true)
+    });
+    if allow.len() != before_len {
+      eprintln!("[gateway_client] Cleaned up individual file tool entries (now covered by group:fs)");
+      patched = true;
+    }
+
     for tool_name in &exec_tools {
       let already = allow.iter().any(|item| item.as_str() == Some(tool_name));
       if !already {
@@ -501,6 +519,29 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
         patched = true;
       }
     }
+  }
+
+  // ── Enable apply_patch tool ──────────────────────────────────────────────
+  //
+  // apply_patch is gated behind tools.exec.applyPatch.enabled.  Without this
+  // flag the tool isn't registered, and adding it to tools.allow causes a
+  // "unknown entries (apply_patch)" warning on every config reload.
+  if cfg.pointer("/tools/exec").is_none() {
+    cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+      .insert("exec".into(), serde_json::json!({}));
+  }
+  if cfg.pointer("/tools/exec/applyPatch").is_none() {
+    cfg.pointer_mut("/tools/exec").unwrap().as_object_mut().unwrap()
+      .insert("applyPatch".into(), serde_json::json!({}));
+  }
+  let apply_patch_enabled = cfg.pointer("/tools/exec/applyPatch/enabled")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
+  if !apply_patch_enabled {
+    cfg.pointer_mut("/tools/exec/applyPatch").unwrap().as_object_mut().unwrap()
+      .insert("enabled".into(), serde_json::json!(true));
+    eprintln!("[gateway_client] Enabled tools.exec.applyPatch");
+    patched = true;
   }
 
   // ── Ensure browser tool is allowed in SANDBOX mode (Telegram/WhatsApp/etc.) ─
@@ -550,7 +591,7 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     } else {
       cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
         .insert("allow".into(), serde_json::json!([
-          "exec", "process", "read", "write", "edit", "apply_patch",
+          "exec", "process", "group:fs",
           "image", "sessions_list", "sessions_history",
           "sessions_send", "sessions_spawn", "session_status",
           "browser", "group:web"
@@ -558,6 +599,32 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     }
     eprintln!("[gateway_client] Added browser + group:web to tools.sandbox.tools.allow");
     patched = true;
+  }
+
+  // ── Telegram: cap the HTTP client timeout ────────────────────────────────
+  //
+  // Grammy's default timeoutSeconds is 500 (≈8 min).  getUpdates long-polls
+  // block for that entire duration, and when they do time out the resulting
+  // AbortError floods the log.  Set a reasonable 60s cap if Telegram is
+  // configured but no explicit timeout is set.
+  let tg_has_token = cfg
+    .pointer("/channels/telegram/botToken")
+    .and_then(|v| v.as_str())
+    .map(|s| !s.trim().is_empty())
+    .unwrap_or(false);
+  if tg_has_token {
+    let tg_has_timeout = cfg
+      .pointer("/channels/telegram/timeoutSeconds")
+      .and_then(|v| v.as_u64())
+      .is_some();
+    if !tg_has_timeout {
+      if cfg.pointer("/channels/telegram").is_some() {
+        cfg.pointer_mut("/channels/telegram").unwrap().as_object_mut().unwrap()
+          .insert("timeoutSeconds".into(), serde_json::json!(60));
+        eprintln!("[gateway_client] Set channels.telegram.timeoutSeconds to 60 (was Grammy default 500)");
+        patched = true;
+      }
+    }
   }
 
   if patched {
@@ -748,12 +815,15 @@ async fn apply_runtime_browser_config(token: &str) {
     },
     "tools": {
       "deny": ["canvas", "nodes", "cron", "gateway"],
-      "allow": ["browser", "group:web"],
+      "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+      "exec": {
+        "applyPatch": { "enabled": true }
+      },
       "sandbox": {
         "tools": {
           "deny": ["canvas", "nodes", "cron", "gateway"],
           "allow": [
-            "exec", "process", "read", "write", "edit", "apply_patch",
+            "exec", "process", "group:fs",
             "image", "sessions_list", "sessions_history",
             "sessions_send", "sessions_spawn", "session_status",
             "browser", "group:web"

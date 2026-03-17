@@ -649,8 +649,8 @@ async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>
 
     let log_path = match log_type.as_str() {
         "error" => log_dir.join("ks_error.log"),
-        "clawdbot_err" => std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log"),
-        "clawdbot_out" => std::path::PathBuf::from("/tmp/knapsack-clawdbot.out.log"),
+        "clawdbot_err" => crate::clawd::service::gateway_stderr_log(),
+        "clawdbot_out" => crate::clawd::service::gateway_stdout_log(),
         _ => log_dir.join("ks.log"),
     };
 
