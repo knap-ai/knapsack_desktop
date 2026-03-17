@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +42,13 @@ jobs:
           node scripts/sync-version.cjs
           node scripts/prepare-node.cjs
           node scripts/prune-clawdbot.cjs
+
+      - name: Clean Tauri NSIS cache
+        run: |
+          if (Test-Path "$env:LOCALAPPDATA\tauri\NSIS") {
+            Remove-Item -Recurse -Force "$env:LOCALAPPDATA\tauri\NSIS"
+            Write-Host "Cleared stale NSIS cache"
+          }
 
       - name: Build Tauri app
         working-directory: src

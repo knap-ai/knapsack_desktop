@@ -773,7 +773,7 @@ fn delete_transcript_file(thread_id: u64) -> Result<(), Error> {
       return Error::KSError(format!("Failed to delete transcript file: {:?}", e));
     })?;
   }
-  transcript.delete().map_err(|e| {
+  let _ = transcript.delete().map_err(|e| {
     log::error!("Failed to delete transcript record: {:?}", e);
     return Error::KSError(format!("Failed to delete transcript record: {:?}", e));
   });
