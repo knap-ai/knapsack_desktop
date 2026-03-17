@@ -16,10 +16,13 @@ interface GranolaSidebarProps {
   onQuickNote: () => void
   onSettingsClick: () => void
   onChatClick?: () => void
+  onHomeClick?: () => void
+  activeView?: GranolaView
 }
 
-function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick }: GranolaSidebarProps) {
-  const [activeView, setActiveView] = useState<GranolaView>('home')
+function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onHomeClick, activeView: controlledView }: GranolaSidebarProps) {
+  const [internalView, setInternalView] = useState<GranolaView>('home')
+  const activeView = controlledView ?? internalView
   const [searchQuery, setSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
@@ -170,7 +173,7 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick }: Gra
       <nav className="granola-sidebar__nav">
         <button
           className={`granola-sidebar__nav-item ${activeView === 'home' ? 'granola-sidebar__nav-item--active' : ''}`}
-          onClick={() => setActiveView('home')}
+          onClick={() => { setInternalView('home'); onHomeClick?.() }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -179,8 +182,8 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick }: Gra
           Home
         </button>
         <button
-          className="granola-sidebar__nav-item"
-          onClick={() => onChatClick?.()}
+          className={`granola-sidebar__nav-item ${activeView === 'chat' ? 'granola-sidebar__nav-item--active' : ''}`}
+          onClick={() => { setInternalView('chat'); onChatClick?.() }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />

@@ -97,6 +97,7 @@ function Home({
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
+  const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const isResizingRef = useRef(false)
 
@@ -169,6 +170,7 @@ function Home({
   useEffect(() => {
     const unlistenQuickNote = listen('create_quick_note', () => {
       setCurrentTab(TabChoices.Meeting)
+      setMeetingSubView('meetings')
       feed.createNewMeeting()
     })
     const unlistenSettings = listen('open_settings', () => {
@@ -450,7 +452,9 @@ function Home({
               feed={feed}
               onQuickNote={() => feed.createNewMeeting()}
               onSettingsClick={() => setIsSettingsDialogOpened(true)}
-              onChatClick={() => setCurrentTab(TabChoices.Openclaw)}
+              onChatClick={() => setMeetingSubView('chat')}
+              onHomeClick={() => setMeetingSubView('meetings')}
+              activeView={meetingSubView === 'chat' ? 'chat' : 'home'}
             />
           )}
           {/* Legacy TabBar for non-meeting tabs */}
@@ -578,7 +582,7 @@ function Home({
                 />
               )}
 
-              {currentTab === TabChoices.Meeting && (
+              {currentTab === TabChoices.Meeting && meetingSubView === 'meetings' && (
                 <MeetingsTabView
                   feed={feed}
                   addToLLMQueue={addToLLMQueue}
@@ -588,6 +592,22 @@ function Home({
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
                 />
+              )}
+
+              {currentTab === TabChoices.Meeting && meetingSubView === 'chat' && (
+                <div className="overflow-hidden w-full h-full flex flex-row relative">
+                  <div className="overflow-hidden flex-1 h-full min-w-0">
+                    <ClawdChat
+                      showActivityPanel={false}
+                      onToggleActivity={() => {}}
+                      onCloseActivity={() => {}}
+                      userEmail={userEmail}
+                      userName={userName}
+                      onBusyChange={setIsChatBusy}
+                      openProviderPanel={openProviderPanelTrigger}
+                    />
+                  </div>
+                </div>
               )}
 
               {currentTab === TabChoices.Workspaces && (
