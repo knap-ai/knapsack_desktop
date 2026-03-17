@@ -9,15 +9,16 @@ import { getAppVersion } from 'src/utils/app'
 
 import './style.scss'
 
-export type GranolaView = 'home' | 'shared' | 'chat'
+export type GranolaView = 'home' | 'chat'
 
 interface GranolaSidebarProps {
   feed: IFeed
   onQuickNote: () => void
   onSettingsClick: () => void
+  onChatClick?: () => void
 }
 
-function GranolaSidebar({ feed, onQuickNote, onSettingsClick }: GranolaSidebarProps) {
+function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick }: GranolaSidebarProps) {
   const [activeView, setActiveView] = useState<GranolaView>('home')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
@@ -178,20 +179,8 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick }: GranolaSidebarPr
           Home
         </button>
         <button
-          className={`granola-sidebar__nav-item ${activeView === 'shared' ? 'granola-sidebar__nav-item--active' : ''}`}
-          onClick={() => setActiveView('shared')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          Shared with me
-        </button>
-        <button
-          className={`granola-sidebar__nav-item ${activeView === 'chat' ? 'granola-sidebar__nav-item--active' : ''}`}
-          onClick={() => setActiveView('chat')}
+          className="granola-sidebar__nav-item"
+          onClick={() => onChatClick?.()}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -199,18 +188,6 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick }: GranolaSidebarPr
           Chat
         </button>
       </nav>
-
-      {/* Spaces */}
-      <div className="granola-sidebar__spaces">
-        <div className="granola-sidebar__spaces-header">Spaces</div>
-        <button className="granola-sidebar__space-item granola-sidebar__space-item--active">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          My notes
-        </button>
-      </div>
 
       {/* Scrollable content */}
       <div className="granola-sidebar__content">
@@ -390,16 +367,6 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick }: GranolaSidebarPr
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-          <button
-            className="granola-sidebar__bottom-btn"
-            onClick={() => {}}
-            title="People"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
             </svg>
           </button>
           <button

@@ -11,9 +11,9 @@ $ks-accent-light: #E6EBF3;
 $ks-red: #C14841;
 
 .granola-sidebar {
-  width: 260px;
-  min-width: 220px;
-  max-width: 280px;
+  width: 300px;
+  min-width: 260px;
+  max-width: 340px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -258,9 +258,9 @@ $ks-red: #C14841;
 
   &__calendar-event {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 8px;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 8px;
     border-radius: 6px;
     cursor: pointer;
     transition: background 0.1s ease;
@@ -295,15 +295,12 @@ $ks-red: #C14841;
     font-size: 13px;
     font-weight: 500;
     color: $ks-text;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
   }
 
   &__calendar-event-time {
     font-size: 11px;
     color: $ks-text-muted;
-    white-space: nowrap;
   }
 
   &__now-label {
@@ -383,9 +380,7 @@ $ks-red: #C14841;
     font-size: 13px;
     font-weight: 500;
     color: $ks-text;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
   }
 
   &__note-subtitle {

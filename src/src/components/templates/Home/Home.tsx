@@ -85,7 +85,7 @@ function Home({
   isAnyRecording,
 }: HomeProps) {
   const [fullRelease, setFullRelease] = useState<boolean | null>(null)
-  const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Meeting)
+  const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Openclaw)
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
@@ -450,6 +450,7 @@ function Home({
               feed={feed}
               onQuickNote={() => feed.createNewMeeting()}
               onSettingsClick={() => setIsSettingsDialogOpened(true)}
+              onChatClick={() => setCurrentTab(TabChoices.Openclaw)}
             />
           )}
           {/* Legacy TabBar for non-meeting tabs */}
