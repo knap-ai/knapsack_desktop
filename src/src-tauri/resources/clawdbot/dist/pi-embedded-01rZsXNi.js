@@ -35292,6 +35292,32 @@ async function runWebSearch(params) {
 	writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
 	return payload;
 }
+async function runBrowserWebSearch(query) {
+	const start = Date.now();
+	const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+	await browserNavigate(void 0, { url: searchUrl, profile: "openclaw" });
+	await new Promise((r) => setTimeout(r, 2000));
+	const snapshot = await browserSnapshot(void 0, {
+		format: "text",
+		profile: "openclaw",
+		compact: true,
+		maxChars: 8000
+	});
+	const snapshotText = typeof snapshot === "string" ? snapshot : snapshot?.content ?? snapshot?.text ?? JSON.stringify(snapshot);
+	return {
+		query,
+		provider: "browser",
+		tookMs: Date.now() - start,
+		externalContent: {
+			untrusted: true,
+			source: "web_search",
+			provider: "browser",
+			wrapped: true
+		},
+		content: wrapWebContent(snapshotText, "web_search"),
+		note: "Results obtained via managed browser (DuckDuckGo). Configure a Brave Search API key for richer results."
+	};
+}
 function createWebSearchTool(options) {
 	const search = resolveSearchConfig(options?.config);
 	if (!resolveSearchEnabled({
@@ -35304,14 +35330,20 @@ function createWebSearchTool(options) {
 	return {
 		label: "Web Search",
 		name: "web_search",
-		description: provider === "perplexity" ? "Search the web using Perplexity Sonar (direct or via OpenRouter). Returns AI-synthesized answers with citations from real-time web search." : provider === "grok" ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search." : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.",
+		description: provider === "perplexity" ? "Search the web using Perplexity Sonar (direct or via OpenRouter). Returns AI-synthesized answers with citations from real-time web search." : provider === "grok" ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search." : "Search the web. Uses Brave Search API when configured, otherwise falls back to the managed browser via DuckDuckGo. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.",
 		parameters: WebSearchSchema,
 		execute: async (_toolCallId, args) => {
 			const perplexityAuth = provider === "perplexity" ? resolvePerplexityApiKey(perplexityConfig) : void 0;
 			const apiKey = provider === "perplexity" ? perplexityAuth?.apiKey : provider === "grok" ? resolveGrokApiKey(grokConfig) : resolveSearchApiKey(search);
-			if (!apiKey) return jsonResult(missingSearchKeyPayload(provider));
 			const params = args;
 			const query = readStringParam(params, "query", { required: true });
+			if (!apiKey) {
+				try {
+					return jsonResult(await runBrowserWebSearch(query));
+				} catch (browserErr) {
+					return jsonResult(missingSearchKeyPayload(provider));
+				}
+			}
 			const count = readNumberParam(params, "count", { integer: true }) ?? search?.maxResults ?? void 0;
 			const country = readStringParam(params, "country");
 			const search_lang = readStringParam(params, "search_lang");
