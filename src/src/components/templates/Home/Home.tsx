@@ -36,6 +36,7 @@ import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
+import { IThread, ThreadType } from 'src/api/threads'
 import { getFeedbacks } from '../../../api/threads'
 import { setHasOnboarded } from '../../../pages/onboarding'
 import { openGoogleAuthScreen } from '../../../utils/permissions/google'
@@ -99,6 +100,11 @@ function Home({
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+
+  // Check if a meeting note is currently selected (for hiding sidebar in full-width note view)
+  const currentItem = feed.currentFeedItem()
+  const hasMeetingNoteSelected = currentTab === TabChoices.Meeting && meetingSubView === 'meetings' &&
+    !!currentItem?.threads?.some((t: IThread) => t.threadType === ThreadType.MEETING_NOTES)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -446,8 +452,8 @@ function Home({
       />
       <div className="overflow-hidden flex-1 bg-ks-bg-main rounded-b-[10px]">
         <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-ks-bg-main">
-          {/* Granola-style sidebar (default view) */}
-          {currentTab === TabChoices.Meeting && (
+          {/* Granola-style sidebar - hidden when viewing a meeting note */}
+          {currentTab === TabChoices.Meeting && !hasMeetingNoteSelected && (
             <GranolaSidebar
               feed={feed}
               onQuickNote={() => feed.createNewMeeting()}

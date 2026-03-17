@@ -44,6 +44,7 @@ interface MeetingsTabViewProps {
   recordingHandlers: RecordingContextProps
   connections?: Record<string, Connection>
   onConnectCalendar?: () => void
+  onBack?: () => void
 }
 
 const MeetingsTabView = ({
@@ -54,6 +55,7 @@ const MeetingsTabView = ({
   recordingHandlers,
   connections,
   onConnectCalendar,
+  onBack,
 }: MeetingsTabViewProps) => {
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true')
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true')
@@ -177,9 +179,81 @@ const MeetingsTabView = ({
   const showPermissionsOverlay = (!micPermission || !screenPermission) && !permissionsDismissed
 
   return (
-    <div className="MeetingsTabView MeetingsTabView--granola w-full h-full overflow-hidden flex flex-row">
-      {/* Main content area (sidebar is now handled by GranolaSidebar) */}
-      <div className="MeetingsTabView__content MeetingsTabView__content--full">
+    <div className="MeetingsTabView MeetingsTabView--granola w-full h-full overflow-hidden flex flex-col">
+      {/* Granola-style top bar when viewing a meeting note */}
+      {selectedMeeting && isSelectedMeetingNote && (
+        <div className="MeetingsTabView__topbar" data-tauri-drag-region>
+          <div className="MeetingsTabView__topbar-left">
+            <button
+              className="MeetingsTabView__topbar-back"
+              onClick={() => {
+                feed.unselectFeedItem()
+                onBack?.()
+              }}
+              title="Back to meetings"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </button>
+          </div>
+          <div className="MeetingsTabView__topbar-center">
+            <button className="MeetingsTabView__topbar-summary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+              Summary
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
+          <div className="MeetingsTabView__topbar-right">
+            <button
+              className="MeetingsTabView__topbar-share"
+              onClick={() => {
+                const notesThread = selectedMeeting.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
+                if (notesThread) handleOpenTranscript(notesThread.id)
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Share
+            </button>
+            <button
+              className="MeetingsTabView__topbar-icon"
+              onClick={() => {
+                if (copyToClipboard) {
+                  const url = window.location.href
+                  copyToClipboard(url)
+                }
+              }}
+              title="Copy link"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            </button>
+            <button className="MeetingsTabView__topbar-icon" title="More options">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+                <circle cx="5" cy="12" r="1" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main content area */}
+      <div className="MeetingsTabView__content MeetingsTabView__content--full flex-1">
         <div className="flex flex-row h-full">
           <div className="flex-grow overflow-y-auto overflow-x-hidden relative">
             {showPermissionsOverlay && (
