@@ -468,11 +468,45 @@ pub async fn groq_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
-  // Pass images through using the OpenAI-compatible vision format.
-  // Groq supports vision on models like llama-3.2-90b-vision-preview and
-  // llama-3.2-11b-vision-preview.  For text-only models the API will
-  // return an error, which is preferable to silently dropping images.
-  openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", messages, tools).await
+  // Groq supports vision only on specific models (llama-4-scout, llama-4-maverick,
+  // llama-3.2-*-vision-preview).  For text-only models like Kimi K2, sending
+  // multi-part content (array with image_url) causes a 400 "content must be a
+  // string" error.  Strip images for non-vision models proactively.
+  let model_lower = model.to_lowercase();
+  let supports_vision = model_lower.contains("llama-4-scout")
+    || model_lower.contains("llama-4-maverick")
+    || model_lower.contains("vision");
+
+  let messages = if supports_vision {
+    messages
+  } else {
+    strip_images(messages)
+  };
+
+  // Try with images first.  If Groq rejects multipart content (e.g. the model
+  // or endpoint doesn't actually support vision), retry with images stripped.
+  let result = openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", messages.clone(), tools.clone()).await;
+  match &result {
+    Err(e) if e.to_string().contains("content must be a string") => {
+      eprintln!("[groq_chat] Multipart content rejected, retrying without images");
+      let stripped = strip_images(messages);
+      openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", stripped, tools).await
+    }
+    _ => result,
+  }
+}
+
+/// Remove all image attachments from messages, keeping text content intact.
+fn strip_images(messages: Vec<OaiMessage>) -> Vec<OaiMessage> {
+  messages
+    .into_iter()
+    .map(|msg| match msg {
+      OaiMessage::User { content, images } if !images.is_empty() => {
+        OaiMessage::User { content, images: Vec::new() }
+      }
+      other => other,
+    })
+    .collect()
 }
 
 pub async fn openai_compatible_chat(
