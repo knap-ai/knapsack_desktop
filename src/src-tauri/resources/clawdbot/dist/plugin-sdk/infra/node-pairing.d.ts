@@ -1,5 +1,4 @@
-export type NodePairingPendingRequest = {
-    requestId: string;
+type NodePairingNodeMetadata = {
     nodeId: string;
     displayName?: string;
     platform?: string;
@@ -12,25 +11,16 @@ export type NodePairingPendingRequest = {
     commands?: string[];
     permissions?: Record<string, boolean>;
     remoteIp?: string;
+};
+export type NodePairingPendingRequest = NodePairingNodeMetadata & {
+    requestId: string;
     silent?: boolean;
     isRepair?: boolean;
     ts: number;
 };
-export type NodePairingPairedNode = {
-    nodeId: string;
+export type NodePairingPairedNode = Omit<NodePairingNodeMetadata, "requestId"> & {
     token: string;
-    displayName?: string;
-    platform?: string;
-    version?: string;
-    coreVersion?: string;
-    uiVersion?: string;
-    deviceFamily?: string;
-    modelIdentifier?: string;
-    caps?: string[];
-    commands?: string[];
     bins?: string[];
-    permissions?: Record<string, boolean>;
-    remoteIp?: string;
     createdAtMs: number;
     approvedAtMs: number;
     lastConnectedAtMs?: number;
@@ -60,3 +50,4 @@ export declare function verifyNodeToken(nodeId: string, token: string, baseDir?:
 }>;
 export declare function updatePairedNodeMetadata(nodeId: string, patch: Partial<Omit<NodePairingPairedNode, "nodeId" | "token" | "createdAtMs" | "approvedAtMs">>, baseDir?: string): Promise<void>;
 export declare function renamePairedNode(nodeId: string, displayName: string, baseDir?: string): Promise<NodePairingPairedNode | null>;
+export {};

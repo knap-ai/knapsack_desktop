@@ -1,4 +1,6 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { AssistantMessage } from "@mariozechner/pi-ai";
+export declare function isAssistantMessage(msg: AgentMessage | undefined): msg is AssistantMessage;
 /**
  * Strip malformed Minimax tool invocations that leak into text content.
  * Minimax sometimes embeds tool calls as XML in text blocks instead of
@@ -7,6 +9,7 @@ import type { AssistantMessage } from "@mariozechner/pi-ai";
  * - </minimax:tool_call> closing tags
  */
 export declare function stripMinimaxToolCallXml(text: string): string;
+export declare function stripModelSpecialTokens(text: string): string;
 /**
  * Strip downgraded tool call text representations that leak into text content.
  * When replaying history to Gemini, tool calls without `thought_signature` are

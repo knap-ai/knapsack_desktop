@@ -12,6 +12,7 @@ export declare function renderTelegramHtmlText(text: string, options?: {
     textMode?: "markdown" | "html";
     tableMode?: MarkdownTableMode;
 }): string;
+export declare function splitTelegramHtmlChunks(html: string, limit: number): string[];
 export declare function markdownToTelegramChunks(markdown: string, limit: number, options?: {
     tableMode?: MarkdownTableMode;
 }): TelegramFormattedChunk[];

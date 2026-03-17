@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
-import type { AgentBinding } from "../config/types.agents.js";
-export declare function listBindings(cfg: OpenClawConfig): AgentBinding[];
+import type { AgentRouteBinding } from "../config/types.agents.js";
+export declare function listBindings(cfg: OpenClawConfig): AgentRouteBinding[];
 export declare function listBoundAccountIds(cfg: OpenClawConfig, channelId: string): string[];
 export declare function resolveDefaultAgentBoundAccountId(cfg: OpenClawConfig, channelId: string): string | null;
 export declare function buildChannelAccountBindings(cfg: OpenClawConfig): Map<string, Map<string, string[]>>;

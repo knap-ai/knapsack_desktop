@@ -1,4 +1,5 @@
 import type { BrowserContext, Page, Request } from "playwright-core";
+import type { SsrFPolicy } from "../infra/net/ssrf.js";
 export type BrowserConsoleMessage = {
     type: string;
     text: string;
@@ -88,8 +89,10 @@ export declare function getPageForTargetId(opts: {
     cdpUrl: string;
     targetId?: string;
 }): Promise<Page>;
-export declare function refLocator(page: Page, ref: string): import("node_modules/playwright-core/index.js").Locator;
-export declare function closePlaywrightBrowserConnection(): Promise<void>;
+export declare function refLocator(page: Page, ref: string): import("playwright-core").Locator;
+export declare function closePlaywrightBrowserConnection(opts?: {
+    cdpUrl?: string;
+}): Promise<void>;
 /**
  * Best-effort cancellation for stuck page operations.
  *
@@ -135,6 +138,7 @@ export declare function listPagesViaPlaywright(opts: {
 export declare function createPageViaPlaywright(opts: {
     cdpUrl: string;
     url: string;
+    ssrfPolicy?: SsrFPolicy;
 }): Promise<{
     targetId: string;
     title: string;

@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import type { MsgContext } from "../templating.js";
+export { formatElevatedUnavailableMessage } from "./elevated-unavailable.js";
 export declare function resolveElevatedPermissions(params: {
     cfg: OpenClawConfig;
     agentId: string;
@@ -13,11 +14,3 @@ export declare function resolveElevatedPermissions(params: {
         key: string;
     }>;
 };
-export declare function formatElevatedUnavailableMessage(params: {
-    runtimeSandboxed: boolean;
-    failures: Array<{
-        gate: string;
-        key: string;
-    }>;
-    sessionKey?: string;
-}): string;

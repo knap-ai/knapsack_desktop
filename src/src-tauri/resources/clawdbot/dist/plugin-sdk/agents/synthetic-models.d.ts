@@ -1,7 +1,7 @@
 import type { ModelDefinitionConfig } from "../config/types.js";
 export declare const SYNTHETIC_BASE_URL = "https://api.synthetic.new/anthropic";
-export declare const SYNTHETIC_DEFAULT_MODEL_ID = "hf:MiniMaxAI/MiniMax-M2.1";
-export declare const SYNTHETIC_DEFAULT_MODEL_REF = "synthetic/hf:MiniMaxAI/MiniMax-M2.1";
+export declare const SYNTHETIC_DEFAULT_MODEL_ID = "hf:MiniMaxAI/MiniMax-M2.5";
+export declare const SYNTHETIC_DEFAULT_MODEL_REF = "synthetic/hf:MiniMaxAI/MiniMax-M2.5";
 export declare const SYNTHETIC_DEFAULT_COST: {
     input: number;
     output: number;
@@ -9,8 +9,8 @@ export declare const SYNTHETIC_DEFAULT_COST: {
     cacheWrite: number;
 };
 export declare const SYNTHETIC_MODEL_CATALOG: readonly [{
-    readonly id: "hf:MiniMaxAI/MiniMax-M2.1";
-    readonly name: "MiniMax M2.1";
+    readonly id: "hf:MiniMaxAI/MiniMax-M2.5";
+    readonly name: "MiniMax M2.5";
     readonly reasoning: false;
     readonly input: readonly ["text"];
     readonly contextWindow: 192000;
@@ -89,7 +89,7 @@ export declare const SYNTHETIC_MODEL_CATALOG: readonly [{
     readonly id: "hf:moonshotai/Kimi-K2.5";
     readonly name: "Kimi K2.5";
     readonly reasoning: true;
-    readonly input: readonly ["text"];
+    readonly input: readonly ["text", "image"];
     readonly contextWindow: 256000;
     readonly maxTokens: 8192;
 }, {

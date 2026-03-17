@@ -12,6 +12,12 @@ export declare function extractVerboseDirective(body?: string): {
     rawLevel?: string;
     hasDirective: boolean;
 };
+export declare function extractFastDirective(body?: string): {
+    cleaned: string;
+    fastMode?: boolean;
+    rawLevel?: string;
+    hasDirective: boolean;
+};
 export declare function extractNoticeDirective(body?: string): {
     cleaned: string;
     noticeLevel?: NoticeLevel;

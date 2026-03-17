@@ -18,3 +18,15 @@ export declare function resolveControlCommandGate(params: {
     commandAuthorized: boolean;
     shouldBlock: boolean;
 };
+export declare function resolveDualTextControlCommandGate(params: {
+    useAccessGroups: boolean;
+    primaryConfigured: boolean;
+    primaryAllowed: boolean;
+    secondaryConfigured: boolean;
+    secondaryAllowed: boolean;
+    hasControlCommand: boolean;
+    modeWhenAccessGroupsOff?: CommandGatingModeWhenAccessGroupsOff;
+}): {
+    commandAuthorized: boolean;
+    shouldBlock: boolean;
+};

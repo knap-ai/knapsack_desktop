@@ -1,13 +1,4 @@
 /**
- * Security utilities for handling untrusted external content.
- *
- * This module provides functions to safely wrap and process content from
- * external sources (emails, webhooks, web tools, etc.) before passing to LLM agents.
- *
- * SECURITY: External content should NEVER be directly interpolated into
- * system prompts or treated as trusted instructions.
- */
-/**
  * Check if content contains suspicious patterns that may indicate injection.
  */
 export declare function detectSuspiciousPatterns(content: string): string[];

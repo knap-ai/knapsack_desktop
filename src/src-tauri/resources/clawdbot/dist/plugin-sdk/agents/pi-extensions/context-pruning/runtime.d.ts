@@ -5,5 +5,5 @@ export type ContextPruningRuntimeValue = {
     isToolPrunable: (toolName: string) => boolean;
     lastCacheTouchAt?: number | null;
 };
-export declare function setContextPruningRuntime(sessionManager: unknown, value: ContextPruningRuntimeValue | null): void;
-export declare function getContextPruningRuntime(sessionManager: unknown): ContextPruningRuntimeValue | null;
+export declare const setContextPruningRuntime: (sessionManager: unknown, value: ContextPruningRuntimeValue | null) => void;
+export declare const getContextPruningRuntime: (sessionManager: unknown) => ContextPruningRuntimeValue | null;

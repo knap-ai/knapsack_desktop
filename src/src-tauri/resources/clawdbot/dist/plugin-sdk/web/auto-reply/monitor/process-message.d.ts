@@ -1,7 +1,7 @@
 import type { getReplyFromConfig } from "../../../auto-reply/reply.js";
 import type { loadConfig } from "../../../config/config.js";
 import type { getChildLogger } from "../../../logging.js";
-import type { resolveAgentRoute } from "../../../routing/resolve-route.js";
+import { type resolveAgentRoute } from "../../../routing/resolve-route.js";
 import type { WebInboundMsg } from "../types.js";
 export type GroupHistoryEntry = {
     sender: string;

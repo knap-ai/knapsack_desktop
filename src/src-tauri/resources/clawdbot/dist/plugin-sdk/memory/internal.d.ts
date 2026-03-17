@@ -1,23 +1,36 @@
+import { type EmbeddingInput } from "./embedding-inputs.js";
+import { type MemoryMultimodalModality, type MemoryMultimodalSettings } from "./multimodal.js";
 export type MemoryFileEntry = {
     path: string;
     absPath: string;
     mtimeMs: number;
     size: number;
     hash: string;
+    dataHash?: string;
+    kind?: "markdown" | "multimodal";
+    contentText?: string;
+    modality?: MemoryMultimodalModality;
+    mimeType?: string;
 };
 export type MemoryChunk = {
     startLine: number;
     endLine: number;
     text: string;
     hash: string;
+    embeddingInput?: EmbeddingInput;
+};
+export type MultimodalMemoryChunk = {
+    chunk: MemoryChunk;
+    structuredInputBytes: number;
 };
 export declare function ensureDir(dir: string): string;
 export declare function normalizeRelPath(value: string): string;
 export declare function normalizeExtraMemoryPaths(workspaceDir: string, extraPaths?: string[]): string[];
 export declare function isMemoryPath(relPath: string): boolean;
-export declare function listMemoryFiles(workspaceDir: string, extraPaths?: string[]): Promise<string[]>;
+export declare function listMemoryFiles(workspaceDir: string, extraPaths?: string[], multimodal?: MemoryMultimodalSettings): Promise<string[]>;
 export declare function hashText(value: string): string;
-export declare function buildFileEntry(absPath: string, workspaceDir: string): Promise<MemoryFileEntry>;
+export declare function buildFileEntry(absPath: string, workspaceDir: string, multimodal?: MemoryMultimodalSettings): Promise<MemoryFileEntry | null>;
+export declare function buildMultimodalChunkForIndexing(entry: Pick<MemoryFileEntry, "absPath" | "contentText" | "mimeType" | "kind" | "hash" | "size" | "dataHash">): Promise<MultimodalMemoryChunk | null>;
 export declare function chunkMarkdown(content: string, chunking: {
     tokens: number;
     overlap: number;

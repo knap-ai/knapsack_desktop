@@ -1,9 +1,9 @@
 // Legacy shim for pre-tsdown update-cli imports.
-import * as daemonCli from "../daemon-cli-BS_4J_PM.js";
+import * as daemonCli from "../daemon-cli-BZYU0J1V.js";
 export const registerDaemonCli = daemonCli.t.registerDaemonCli;
 export const runDaemonInstall = daemonCli.s;
 export const runDaemonRestart = daemonCli.r;
-export const runDaemonStart = daemonCli.i;
-export const runDaemonStatus = daemonCli.n;
-export const runDaemonStop = daemonCli.a;
-export const runDaemonUninstall = daemonCli.o;
+export const runDaemonStart = async () => { throw new Error("Legacy daemon CLI export \"runDaemonStart\" is unavailable in this build. Please upgrade OpenClaw."); };
+export const runDaemonStatus = async () => { throw new Error("Legacy daemon CLI export \"runDaemonStatus\" is unavailable in this build. Please upgrade OpenClaw."); };
+export const runDaemonStop = async () => { throw new Error("Legacy daemon CLI export \"runDaemonStop\" is unavailable in this build. Please upgrade OpenClaw."); };
+export const runDaemonUninstall = async () => { throw new Error("Legacy daemon CLI export \"runDaemonUninstall\" is unavailable in this build. Please upgrade OpenClaw."); };

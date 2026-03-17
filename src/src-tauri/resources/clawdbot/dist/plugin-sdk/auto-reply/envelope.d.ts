@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
 import { type SenderLabelParams } from "../channels/sender-label.js";
+import type { OpenClawConfig } from "../config/config.js";
 export type AgentEnvelopeParams = {
     channel: string;
     from?: string;
@@ -40,6 +40,7 @@ export declare function formatInboundEnvelope(params: {
     sender?: SenderLabelParams;
     previousTimestamp?: number | Date;
     envelope?: EnvelopeFormatOptions;
+    fromMe?: boolean;
 }): string;
 export declare function formatInboundFromLabel(params: {
     isGroup: boolean;

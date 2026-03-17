@@ -1,1 +1,1 @@
-export declare function resolveBundledPluginsDir(): string | undefined;
+export declare function resolveBundledPluginsDir(env?: NodeJS.ProcessEnv): string | undefined;

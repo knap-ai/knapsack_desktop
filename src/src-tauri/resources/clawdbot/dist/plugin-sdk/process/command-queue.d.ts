@@ -6,6 +6,18 @@
 export declare class CommandLaneClearedError extends Error {
     constructor(lane?: string);
 }
+/**
+ * Dedicated error type thrown when a new command is rejected because the
+ * gateway is currently draining for restart.
+ */
+export declare class GatewayDrainingError extends Error {
+    constructor();
+}
+/**
+ * Mark gateway as draining for restart so new enqueues fail fast with
+ * `GatewayDrainingError` instead of being silently killed on shutdown.
+ */
+export declare function markGatewayDraining(): void;
 export declare function setCommandLaneConcurrency(lane: string, maxConcurrent: number): void;
 export declare function enqueueCommandInLane<T>(lane: string, task: () => Promise<T>, opts?: {
     warnAfterMs?: number;

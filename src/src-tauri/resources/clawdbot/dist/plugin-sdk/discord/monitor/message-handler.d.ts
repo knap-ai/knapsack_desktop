@@ -1,26 +1,13 @@
-import type { HistoryEntry } from "../../auto-reply/reply/history.js";
-import type { ReplyToMode } from "../../config/config.js";
-import type { RuntimeEnv } from "../../runtime.js";
-import type { DiscordGuildEntryResolved } from "./allow-list.js";
 import type { DiscordMessageHandler } from "./listeners.js";
-type LoadedConfig = ReturnType<typeof import("../../config/config.js").loadConfig>;
-type DiscordConfig = NonNullable<import("../../config/config.js").OpenClawConfig["channels"]>["discord"];
-export declare function createDiscordMessageHandler(params: {
-    cfg: LoadedConfig;
-    discordConfig: DiscordConfig;
-    accountId: string;
-    token: string;
-    runtime: RuntimeEnv;
-    botUserId?: string;
-    guildHistories: Map<string, HistoryEntry[]>;
-    historyLimit: number;
-    mediaMaxBytes: number;
-    textLimit: number;
-    replyToMode: ReplyToMode;
-    dmEnabled: boolean;
-    groupDmEnabled: boolean;
-    groupDmChannels?: Array<string | number>;
-    allowFrom?: Array<string | number>;
-    guildEntries?: Record<string, DiscordGuildEntryResolved>;
-}): DiscordMessageHandler;
+import type { DiscordMessagePreflightParams } from "./message-handler.preflight.types.js";
+import type { DiscordMonitorStatusSink } from "./status.js";
+type DiscordMessageHandlerParams = Omit<DiscordMessagePreflightParams, "ackReactionScope" | "groupPolicy" | "data" | "client"> & {
+    setStatus?: DiscordMonitorStatusSink;
+    abortSignal?: AbortSignal;
+    workerRunTimeoutMs?: number;
+};
+export type DiscordMessageHandlerWithLifecycle = DiscordMessageHandler & {
+    deactivate: () => void;
+};
+export declare function createDiscordMessageHandler(params: DiscordMessageHandlerParams): DiscordMessageHandlerWithLifecycle;
 export {};

@@ -3,6 +3,7 @@ export declare const loggingState: {
     cachedSettings: unknown;
     cachedConsoleSettings: unknown;
     overrideSettings: unknown;
+    invalidEnvLogLevelValue: string | null;
     consolePatched: boolean;
     forceConsoleToStderr: boolean;
     consoleTimestampPrefix: boolean;

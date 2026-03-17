@@ -1,4 +1,4 @@
-import { type RunOptions } from "@grammyjs/runner";
+import type { RunOptions } from "@grammyjs/runner";
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 export type MonitorTelegramOpts = {
@@ -14,6 +14,7 @@ export type MonitorTelegramOpts = {
     webhookHost?: string;
     proxyFetch?: typeof fetch;
     webhookUrl?: string;
+    webhookCertPath?: string;
 };
 export declare function createTelegramRunnerOptions(cfg: OpenClawConfig): RunOptions<unknown>;
 export declare function monitorTelegramProvider(opts?: MonitorTelegramOpts): Promise<void>;

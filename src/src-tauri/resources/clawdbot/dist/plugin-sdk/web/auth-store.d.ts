@@ -1,10 +1,11 @@
-import type { WebChannel } from "../utils.js";
 import { type RuntimeEnv } from "../runtime.js";
+import type { WebChannel } from "../utils.js";
 export declare function resolveDefaultWebAuthDir(): string;
 export declare const WA_WEB_AUTH_DIR: string;
 export declare function resolveWebCredsPath(authDir: string): string;
 export declare function resolveWebCredsBackupPath(authDir: string): string;
 export declare function hasWebCredsSync(authDir: string): boolean;
+export declare function readCredsJsonRaw(filePath: string): string | null;
 export declare function maybeRestoreCredsFromBackup(authDir: string): void;
 export declare function webAuthExists(authDir?: string): Promise<boolean>;
 export declare function logoutWeb(params: {

@@ -1,8 +1,8 @@
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { MediaUnderstandingConfig, MediaUnderstandingModelConfig } from "../config/types.tools.js";
-import type { MediaUnderstandingCapability, MediaUnderstandingDecision, MediaUnderstandingModelDecision, MediaUnderstandingOutput, MediaUnderstandingProvider } from "./types.js";
 import { MediaAttachmentCache } from "./attachments.js";
+import type { MediaUnderstandingCapability, MediaUnderstandingDecision, MediaUnderstandingModelDecision, MediaUnderstandingOutput, MediaUnderstandingProvider } from "./types.js";
 export type ProviderRegistry = Map<string, MediaUnderstandingProvider>;
 export declare function buildModelDecision(params: {
     entry: MediaUnderstandingModelConfig;

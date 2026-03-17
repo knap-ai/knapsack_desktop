@@ -1,8 +1,7 @@
+import type { BaseProbeResult } from "../channels/plugins/types.js";
 import type { RuntimeEnv } from "../runtime.js";
 export { DEFAULT_IMESSAGE_PROBE_TIMEOUT_MS } from "./constants.js";
-export type IMessageProbe = {
-    ok: boolean;
-    error?: string | null;
+export type IMessageProbe = BaseProbeResult & {
     fatal?: boolean;
 };
 export type IMessageProbeOptions = {

@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { ImageSanitizationLimits } from "../image-sanitization.js";
 import type { ToolCallIdMode } from "../tool-call-id.js";
 export declare function isEmptyAssistantMessageContent(message: Extract<AgentMessage, {
     role: "assistant";
@@ -17,4 +18,4 @@ export declare function sanitizeSessionMessagesImages(messages: AgentMessage[], 
         allowBase64Only?: boolean;
         includeCamelCase?: boolean;
     };
-}): Promise<AgentMessage[]>;
+} & ImageSanitizationLimits): Promise<AgentMessage[]>;

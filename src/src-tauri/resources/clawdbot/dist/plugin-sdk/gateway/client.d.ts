@@ -5,13 +5,17 @@ export type GatewayClientOptions = {
     url?: string;
     connectDelayMs?: number;
     tickWatchMinIntervalMs?: number;
+    requestTimeoutMs?: number;
     token?: string;
+    bootstrapToken?: string;
+    deviceToken?: string;
     password?: string;
     instanceId?: string;
     clientName?: GatewayClientName;
     clientDisplayName?: string;
     clientVersion?: string;
     platform?: string;
+    deviceFamily?: string;
     mode?: GatewayClientMode;
     role?: string;
     scopes?: string[];
@@ -19,7 +23,7 @@ export type GatewayClientOptions = {
     commands?: string[];
     permissions?: Record<string, boolean>;
     pathEnv?: string;
-    deviceIdentity?: DeviceIdentity;
+    deviceIdentity?: DeviceIdentity | null;
     minProtocol?: number;
     maxProtocol?: number;
     tlsFingerprint?: string;
@@ -44,13 +48,21 @@ export declare class GatewayClient {
     private connectNonce;
     private connectSent;
     private connectTimer;
+    private pendingDeviceTokenRetry;
+    private deviceTokenRetryBudgetUsed;
+    private pendingConnectErrorDetailCode;
     private lastTick;
     private tickIntervalMs;
     private tickTimer;
+    private readonly requestTimeoutMs;
     constructor(opts: GatewayClientOptions);
     start(): void;
     stop(): void;
     private sendConnect;
+    private shouldPauseReconnectAfterAuthFailure;
+    private shouldRetryWithStoredDeviceToken;
+    private isTrustedDeviceRetryEndpoint;
+    private selectConnectAuth;
     private handleMessage;
     private queueConnect;
     private scheduleReconnect;
@@ -59,5 +71,6 @@ export declare class GatewayClient {
     private validateTlsFingerprint;
     request<T = Record<string, unknown>>(method: string, params?: unknown, opts?: {
         expectFinal?: boolean;
+        timeoutMs?: number | null;
     }): Promise<T>;
 }

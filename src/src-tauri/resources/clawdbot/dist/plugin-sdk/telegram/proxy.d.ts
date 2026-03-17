@@ -1,1 +1,1 @@
-export declare function makeProxyFetch(proxyUrl: string): typeof fetch;
+export { getProxyUrlFromFetch, makeProxyFetch } from "../infra/net/proxy-fetch.js";

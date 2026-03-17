@@ -20,6 +20,7 @@ export declare function createAudioAsVoiceBuffer(params: {
     isAudioPayload: (payload: ReplyPayload) => boolean;
 }): BlockReplyBuffer;
 export declare function createBlockReplyPayloadKey(payload: ReplyPayload): string;
+export declare function createBlockReplyContentKey(payload: ReplyPayload): string;
 export declare function createBlockReplyPipeline(params: {
     onBlockReply: (payload: ReplyPayload, options?: {
         abortSignal?: AbortSignal;

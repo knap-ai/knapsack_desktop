@@ -1,8 +1,16 @@
+import { findGatewayPidsOnPortSync } from "./restart-stale-pids.js";
 export type RestartAttempt = {
     ok: boolean;
-    method: "launchctl" | "systemd" | "supervisor";
+    method: "launchctl" | "systemd" | "schtasks" | "supervisor";
     detail?: string;
     tried?: string[];
+};
+export { findGatewayPidsOnPortSync };
+export type RestartAuditInfo = {
+    actor?: string;
+    deviceId?: string;
+    clientIp?: string;
+    changedPaths?: string[];
 };
 /**
  * Register a callback that scheduleGatewaySigusr1Restart checks before emitting SIGUSR1.
@@ -51,10 +59,13 @@ export type ScheduledRestart = {
     delayMs: number;
     reason?: string;
     mode: "emit" | "signal";
+    coalesced: boolean;
+    cooldownMsApplied: number;
 };
 export declare function scheduleGatewaySigusr1Restart(opts?: {
     delayMs?: number;
     reason?: string;
+    audit?: RestartAuditInfo;
 }): ScheduledRestart;
 export declare const __testing: {
     resetSigusr1State(): void;

@@ -3,4 +3,8 @@ export declare const DEFAULT_CRON_DIR: string;
 export declare const DEFAULT_CRON_STORE_PATH: string;
 export declare function resolveCronStorePath(storePath?: string): string;
 export declare function loadCronStore(storePath: string): Promise<CronStoreFile>;
-export declare function saveCronStore(storePath: string, store: CronStoreFile): Promise<void>;
+type SaveCronStoreOptions = {
+    skipBackup?: boolean;
+};
+export declare function saveCronStore(storePath: string, store: CronStoreFile, opts?: SaveCronStoreOptions): Promise<void>;
+export {};

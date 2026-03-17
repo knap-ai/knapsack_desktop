@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import { type GatewayClientMode, type GatewayClientName } from "../../utils/message-channel.js";
 import { type OutboundDeliveryResult, type OutboundSendDeps } from "./deliver.js";
+import type { OutboundMirror } from "./mirror.js";
 export type MessageGatewayOptions = {
     url?: string;
     token?: string;
@@ -12,6 +13,8 @@ export type MessageGatewayOptions = {
 type MessageSendParams = {
     to: string;
     content: string;
+    /** Active agent id for per-agent outbound media root scoping. */
+    agentId?: string;
     channel?: string;
     mediaUrl?: string;
     mediaUrls?: string[];
@@ -25,12 +28,7 @@ type MessageSendParams = {
     cfg?: OpenClawConfig;
     gateway?: MessageGatewayOptions;
     idempotencyKey?: string;
-    mirror?: {
-        sessionKey: string;
-        agentId?: string;
-        text?: string;
-        mediaUrls?: string[];
-    };
+    mirror?: OutboundMirror;
     abortSignal?: AbortSignal;
     silent?: boolean;
 };
@@ -50,8 +48,13 @@ type MessagePollParams = {
     question: string;
     options: string[];
     maxSelections?: number;
+    durationSeconds?: number;
     durationHours?: number;
     channel?: string;
+    accountId?: string;
+    threadId?: string;
+    silent?: boolean;
+    isAnonymous?: boolean;
     dryRun?: boolean;
     cfg?: OpenClawConfig;
     gateway?: MessageGatewayOptions;
@@ -63,6 +66,7 @@ export type MessagePollResult = {
     question: string;
     options: string[];
     maxSelections: number;
+    durationSeconds: number | null;
     durationHours: number | null;
     via: "gateway";
     result?: {

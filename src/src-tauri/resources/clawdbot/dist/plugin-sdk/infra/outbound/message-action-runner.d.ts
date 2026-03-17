@@ -1,9 +1,9 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { ChannelId, ChannelMessageActionName, ChannelThreadingToolContext } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { type GatewayClientMode, type GatewayClientName } from "../../utils/message-channel.js";
 import type { OutboundSendDeps } from "./deliver.js";
 import type { MessagePollResult, MessageSendResult } from "./message.js";
-import { type GatewayClientMode, type GatewayClientName } from "../../utils/message-channel.js";
 export type MessageActionRunnerGateway = {
     url?: string;
     token?: string;
@@ -17,6 +17,7 @@ export type RunMessageActionParams = {
     action: ChannelMessageActionName;
     params: Record<string, unknown>;
     defaultAccountId?: string;
+    requesterSenderId?: string | null;
     toolContext?: ChannelThreadingToolContext;
     gateway?: MessageActionRunnerGateway;
     deps?: OutboundSendDeps;

@@ -1,9 +1,9 @@
 import type { getReplyFromConfig } from "../../../auto-reply/reply.js";
+import { loadConfig } from "../../../config/config.js";
 import type { MentionConfig } from "../mentions.js";
 import type { WebInboundMsg } from "../types.js";
 import type { EchoTracker } from "./echo.js";
 import type { GroupHistoryEntry } from "./group-gating.js";
-import { loadConfig } from "../../../config/config.js";
 export declare function createWebOnMessageHandler(params: {
     cfg: ReturnType<typeof loadConfig>;
     verbose: boolean;

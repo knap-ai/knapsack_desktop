@@ -1,5 +1,6 @@
 import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
 import type { OpenClawConfig } from "../config/config.js";
+import { type QueuedFileWriter } from "./queued-file-writer.js";
 export type CacheTraceStage = "session:loaded" | "session:sanitized" | "session:limited" | "prompt:before" | "prompt:images" | "stream:context" | "session:after";
 export type CacheTraceEvent = {
     ts: string;
@@ -43,9 +44,6 @@ type CacheTraceInit = {
     workspaceDir?: string;
     writer?: CacheTraceWriter;
 };
-type CacheTraceWriter = {
-    filePath: string;
-    write: (line: string) => void;
-};
+type CacheTraceWriter = QueuedFileWriter;
 export declare function createCacheTrace(params: CacheTraceInit): CacheTrace | null;
 export {};

@@ -1,8 +1,8 @@
 import { ChannelType, type Client } from "@buape/carbon";
+import { createReplyReferencePlanner } from "../../auto-reply/reply/reply-reference.js";
 import type { ReplyToMode } from "../../config/config.js";
 import type { DiscordChannelConfigResolved } from "./allow-list.js";
 import type { DiscordMessageEvent } from "./listeners.js";
-import { createReplyReferencePlanner } from "../../auto-reply/reply/reply-reference.js";
 export type DiscordThreadChannel = {
     id: string;
     name?: string | null;
@@ -28,6 +28,7 @@ export declare function resolveDiscordThreadChannel(params: {
     isGuildMessage: boolean;
     message: DiscordMessageEvent["message"];
     channelInfo: import("./message-utils.js").DiscordChannelInfo | null;
+    messageChannelId?: string;
 }): DiscordThreadChannel | null;
 export declare function resolveDiscordThreadParentInfo(params: {
     client: Client;
@@ -70,27 +71,23 @@ export type DiscordAutoThreadReplyPlan = DiscordReplyDeliveryPlan & {
     createdThreadId?: string;
     autoThreadContext: DiscordAutoThreadContext | null;
 };
-export declare function resolveDiscordAutoThreadReplyPlan(params: {
+type MaybeCreateDiscordAutoThreadParams = {
     client: Client;
     message: DiscordMessageEvent["message"];
+    messageChannelId?: string;
     isGuildMessage: boolean;
     channelConfig?: DiscordChannelConfigResolved | null;
     threadChannel?: DiscordThreadChannel | null;
+    channelType?: ChannelType;
     baseText: string;
     combinedBody: string;
+};
+export declare function resolveDiscordAutoThreadReplyPlan(params: MaybeCreateDiscordAutoThreadParams & {
     replyToMode: ReplyToMode;
     agentId: string;
     channel: string;
 }): Promise<DiscordAutoThreadReplyPlan>;
-export declare function maybeCreateDiscordAutoThread(params: {
-    client: Client;
-    message: DiscordMessageEvent["message"];
-    isGuildMessage: boolean;
-    channelConfig?: DiscordChannelConfigResolved | null;
-    threadChannel?: DiscordThreadChannel | null;
-    baseText: string;
-    combinedBody: string;
-}): Promise<string | undefined>;
+export declare function maybeCreateDiscordAutoThread(params: MaybeCreateDiscordAutoThreadParams): Promise<string | undefined>;
 export declare function resolveDiscordReplyDeliveryPlan(params: {
     replyTarget: string;
     replyToMode: ReplyToMode;

@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
-import type { PluginConfigUiHint, PluginDiagnostic, PluginKind, PluginOrigin } from "./types.js";
 import { type PluginCandidate } from "./discovery.js";
+import type { PluginConfigUiHint, PluginDiagnostic, PluginKind, PluginOrigin } from "./types.js";
 export type PluginManifestRecord = {
     id: string;
     name?: string;
@@ -23,6 +23,7 @@ export type PluginManifestRegistry = {
     plugins: PluginManifestRecord[];
     diagnostics: PluginDiagnostic[];
 };
+export declare function clearPluginManifestRegistryCache(): void;
 export declare function loadPluginManifestRegistry(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;

@@ -7,4 +7,22 @@ export declare function fetchWithTimeoutGuarded(url: string, init: RequestInit, 
     lookupFn?: LookupFn;
     pinDns?: boolean;
 }): Promise<GuardedFetchResult>;
+export declare function postTranscriptionRequest(params: {
+    url: string;
+    headers: Headers;
+    body: BodyInit;
+    timeoutMs: number;
+    fetchFn: typeof fetch;
+    allowPrivateNetwork?: boolean;
+}): Promise<GuardedFetchResult>;
+export declare function postJsonRequest(params: {
+    url: string;
+    headers: Headers;
+    body: unknown;
+    timeoutMs: number;
+    fetchFn: typeof fetch;
+    allowPrivateNetwork?: boolean;
+}): Promise<GuardedFetchResult>;
 export declare function readErrorResponse(res: Response): Promise<string | undefined>;
+export declare function assertOkOrThrowHttpError(res: Response, label: string): Promise<void>;
+export declare function requireTranscriptionText(value: string | undefined, missingMessage: string): string;

@@ -1,6 +1,10 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 export declare const OLLAMA_NATIVE_BASE_URL = "http://127.0.0.1:11434";
+export declare function resolveOllamaBaseUrlForRun(params: {
+    modelBaseUrl?: string;
+    providerBaseUrl?: string;
+}): string;
 interface OllamaChatMessage {
     role: "system" | "user" | "assistant" | "tool";
     content: string;
@@ -20,6 +24,8 @@ interface OllamaChatResponse {
     message: {
         role: "assistant";
         content: string;
+        thinking?: string;
+        reasoning?: string;
         tool_calls?: OllamaToolCall[];
     };
     done: boolean;
@@ -41,5 +47,12 @@ export declare function buildAssistantMessage(response: OllamaChatResponse, mode
     id: string;
 }): AssistantMessage;
 export declare function parseNdjsonStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<OllamaChatResponse>;
-export declare function createOllamaStreamFn(baseUrl: string): StreamFn;
+export declare function createOllamaStreamFn(baseUrl: string, defaultHeaders?: Record<string, string>): StreamFn;
+export declare function createConfiguredOllamaStreamFn(params: {
+    model: {
+        baseUrl?: string;
+        headers?: unknown;
+    };
+    providerBaseUrl?: string;
+}): StreamFn;
 export {};

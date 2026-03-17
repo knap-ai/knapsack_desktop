@@ -74,7 +74,10 @@ export type SkillSnapshot = {
     skills: Array<{
         name: string;
         primaryEnv?: string;
+        requiredEnv?: string[];
     }>;
+    /** Normalized agent-level filter used to build this snapshot; undefined means unrestricted. */
+    skillFilter?: string[];
     resolvedSkills?: Skill[];
     version?: number;
 };

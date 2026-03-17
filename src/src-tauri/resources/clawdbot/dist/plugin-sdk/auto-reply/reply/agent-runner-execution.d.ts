@@ -1,16 +1,26 @@
+import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
+import { type SessionEntry } from "../../config/sessions.js";
 import type { TemplateContext } from "../templating.js";
 import type { VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
+import { type BlockReplyPipeline } from "./block-reply-pipeline.js";
 import type { FollowupRun } from "./queue.js";
 import type { TypingSignaler } from "./typing-mode.js";
-import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
-import { type SessionEntry } from "../../config/sessions.js";
-import { type BlockReplyPipeline } from "./block-reply-pipeline.js";
+export type RuntimeFallbackAttempt = {
+    provider: string;
+    model: string;
+    error: string;
+    reason?: string;
+    status?: number;
+    code?: string;
+};
 export type AgentRunLoopResult = {
     kind: "success";
+    runId: string;
     runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
     fallbackProvider?: string;
     fallbackModel?: string;
+    fallbackAttempts: RuntimeFallbackAttempt[];
     didLogHeartbeatStrip: boolean;
     autoCompactionCompleted: boolean;
     /** Payload keys sent directly (not via pipeline) during tool flush. */

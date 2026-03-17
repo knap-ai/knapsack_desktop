@@ -7,4 +7,5 @@ export declare function buildCommandsPaginationKeyboard(currentPage: number, tot
 }>>;
 export declare const handleStatusCommand: CommandHandler;
 export declare const handleContextCommand: CommandHandler;
+export declare const handleExportSessionCommand: CommandHandler;
 export declare const handleWhoamiCommand: CommandHandler;

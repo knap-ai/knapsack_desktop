@@ -2,15 +2,19 @@ import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { sendMessageDiscord } from "../../discord/send.js";
 import type { sendMessageIMessage } from "../../imessage/send.js";
+import { sendMessageSignal } from "../../signal/send.js";
 import type { sendMessageSlack } from "../../slack/send.js";
 import type { sendMessageTelegram } from "../../telegram/send.js";
 import type { sendMessageWhatsApp } from "../../web/outbound.js";
+import type { OutboundIdentity } from "./identity.js";
+import type { DeliveryMirror } from "./mirror.js";
 import type { NormalizedOutboundPayload } from "./payloads.js";
+import type { OutboundSessionContext } from "./session-context.js";
 import type { OutboundChannel } from "./targets.js";
-import { sendMessageSignal } from "../../signal/send.js";
 export type { NormalizedOutboundPayload } from "./payloads.js";
 export { normalizeOutboundPayloads } from "./payloads.js";
 type SendMatrixMessage = (to: string, text: string, opts?: {
+    cfg?: OpenClawConfig;
     mediaUrl?: string;
     replyToId?: string;
     threadId?: string;
@@ -29,6 +33,7 @@ export type OutboundSendDeps = {
     sendMatrix?: SendMatrixMessage;
     sendMSTeams?: (to: string, text: string, opts?: {
         mediaUrl?: string;
+        mediaLocalRoots?: readonly string[];
     }) => Promise<{
         messageId: string;
         conversationId: string;
@@ -46,7 +51,7 @@ export type OutboundDeliveryResult = {
     pollId?: string;
     meta?: Record<string, unknown>;
 };
-export declare function deliverOutboundPayloads(params: {
+type DeliverOutboundPayloadsCoreParams = {
     cfg: OpenClawConfig;
     channel: Exclude<OutboundChannel, "none">;
     to: string;
@@ -54,19 +59,20 @@ export declare function deliverOutboundPayloads(params: {
     payloads: ReplyPayload[];
     replyToId?: string | null;
     threadId?: string | number | null;
+    identity?: OutboundIdentity;
     deps?: OutboundSendDeps;
     gifPlayback?: boolean;
     abortSignal?: AbortSignal;
     bestEffort?: boolean;
     onError?: (err: unknown, payload: NormalizedOutboundPayload) => void;
     onPayload?: (payload: NormalizedOutboundPayload) => void;
-    mirror?: {
-        sessionKey: string;
-        agentId?: string;
-        text?: string;
-        mediaUrls?: string[];
-    };
+    /** Session/agent context used for hooks and media local-root scoping. */
+    session?: OutboundSessionContext;
+    mirror?: DeliveryMirror;
     silent?: boolean;
+};
+export type DeliverOutboundPayloadsParams = DeliverOutboundPayloadsCoreParams & {
     /** @internal Skip write-ahead queue (used by crash-recovery to avoid re-enqueueing). */
     skipQueue?: boolean;
-}): Promise<OutboundDeliveryResult[]>;
+};
+export declare function deliverOutboundPayloads(params: DeliverOutboundPayloadsParams): Promise<OutboundDeliveryResult[]>;

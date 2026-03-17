@@ -11,7 +11,7 @@ export declare function resolveReplyContext(message: Message, resolveDiscordMess
 }) => string): DiscordReplyContext | null;
 export declare function buildDirectLabel(author: User, tagOverride?: string): string;
 export declare function buildGuildLabel(params: {
-    guild?: Guild;
+    guild?: Guild<true> | Guild;
     channelName: string;
     channelId: string;
 }): string;

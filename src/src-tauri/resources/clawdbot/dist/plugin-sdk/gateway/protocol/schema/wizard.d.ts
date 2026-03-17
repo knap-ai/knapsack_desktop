@@ -1,86 +1,86 @@
-export declare const WizardStartParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"local">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"remote">]>>;
-    workspace: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const WizardStartParamsSchema: import("@sinclair/typebox").TObject<{
+    mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"local">, import("@sinclair/typebox").TLiteral<"remote">]>>;
+    workspace: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const WizardAnswerSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    stepId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    value: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
+export declare const WizardAnswerSchema: import("@sinclair/typebox").TObject<{
+    stepId: import("@sinclair/typebox").TString;
+    value: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
 }>;
-export declare const WizardNextParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    sessionId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    answer: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        stepId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        value: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
+export declare const WizardNextParamsSchema: import("@sinclair/typebox").TObject<{
+    sessionId: import("@sinclair/typebox").TString;
+    answer: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        stepId: import("@sinclair/typebox").TString;
+        value: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
     }>>;
 }>;
-export declare const WizardCancelParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    sessionId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const WizardCancelParamsSchema: import("@sinclair/typebox").TObject<{
+    sessionId: import("@sinclair/typebox").TString;
 }>;
-export declare const WizardStatusParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    sessionId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const WizardStatusParamsSchema: import("@sinclair/typebox").TObject<{
+    sessionId: import("@sinclair/typebox").TString;
 }>;
-export declare const WizardStepOptionSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    value: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown;
-    label: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    hint: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const WizardStepOptionSchema: import("@sinclair/typebox").TObject<{
+    value: import("@sinclair/typebox").TUnknown;
+    label: import("@sinclair/typebox").TString;
+    hint: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const WizardStepSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    type: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"note">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"select">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"text">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"confirm">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"multiselect">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"progress">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"action">]>;
-    title: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    options: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        value: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown;
-        label: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        hint: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const WizardStepSchema: import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+    type: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"note">, import("@sinclair/typebox").TLiteral<"select">, import("@sinclair/typebox").TLiteral<"text">, import("@sinclair/typebox").TLiteral<"confirm">, import("@sinclair/typebox").TLiteral<"multiselect">, import("@sinclair/typebox").TLiteral<"progress">, import("@sinclair/typebox").TLiteral<"action">]>;
+    title: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    options: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+        value: import("@sinclair/typebox").TUnknown;
+        label: import("@sinclair/typebox").TString;
+        hint: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>>>;
-    initialValue: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-    placeholder: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    sensitive: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    executor: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"gateway">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"client">]>>;
+    initialValue: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+    placeholder: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sensitive: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    executor: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"gateway">, import("@sinclair/typebox").TLiteral<"client">]>>;
 }>;
-export declare const WizardNextResultSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    done: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean;
-    step: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        type: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"note">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"select">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"text">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"confirm">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"multiselect">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"progress">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"action">]>;
-        title: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        options: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            value: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown;
-            label: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-            hint: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const WizardNextResultSchema: import("@sinclair/typebox").TObject<{
+    done: import("@sinclair/typebox").TBoolean;
+    step: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        id: import("@sinclair/typebox").TString;
+        type: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"note">, import("@sinclair/typebox").TLiteral<"select">, import("@sinclair/typebox").TLiteral<"text">, import("@sinclair/typebox").TLiteral<"confirm">, import("@sinclair/typebox").TLiteral<"multiselect">, import("@sinclair/typebox").TLiteral<"progress">, import("@sinclair/typebox").TLiteral<"action">]>;
+        title: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        options: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+            value: import("@sinclair/typebox").TUnknown;
+            label: import("@sinclair/typebox").TString;
+            hint: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         }>>>;
-        initialValue: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-        placeholder: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        sensitive: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        executor: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"gateway">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"client">]>>;
+        initialValue: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+        placeholder: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        sensitive: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        executor: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"gateway">, import("@sinclair/typebox").TLiteral<"client">]>>;
     }>>;
-    status: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"running">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"done">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cancelled">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">]>>;
-    error: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+    status: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"running">, import("@sinclair/typebox").TLiteral<"done">, import("@sinclair/typebox").TLiteral<"cancelled">, import("@sinclair/typebox").TLiteral<"error">]>>;
+    error: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const WizardStartResultSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    sessionId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    done: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean;
-    step: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        type: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"note">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"select">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"text">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"confirm">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"multiselect">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"progress">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"action">]>;
-        title: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        options: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            value: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown;
-            label: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-            hint: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const WizardStartResultSchema: import("@sinclair/typebox").TObject<{
+    done: import("@sinclair/typebox").TBoolean;
+    step: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        id: import("@sinclair/typebox").TString;
+        type: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"note">, import("@sinclair/typebox").TLiteral<"select">, import("@sinclair/typebox").TLiteral<"text">, import("@sinclair/typebox").TLiteral<"confirm">, import("@sinclair/typebox").TLiteral<"multiselect">, import("@sinclair/typebox").TLiteral<"progress">, import("@sinclair/typebox").TLiteral<"action">]>;
+        title: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        options: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+            value: import("@sinclair/typebox").TUnknown;
+            label: import("@sinclair/typebox").TString;
+            hint: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         }>>>;
-        initialValue: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-        placeholder: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        sensitive: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        executor: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"gateway">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"client">]>>;
+        initialValue: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+        placeholder: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        sensitive: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        executor: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"gateway">, import("@sinclair/typebox").TLiteral<"client">]>>;
     }>>;
-    status: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"running">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"done">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cancelled">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">]>>;
-    error: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+    status: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"running">, import("@sinclair/typebox").TLiteral<"done">, import("@sinclair/typebox").TLiteral<"cancelled">, import("@sinclair/typebox").TLiteral<"error">]>>;
+    error: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sessionId: import("@sinclair/typebox").TString;
 }>;
-export declare const WizardStatusResultSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    status: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"running">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"done">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"cancelled">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"error">]>;
-    error: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const WizardStatusResultSchema: import("@sinclair/typebox").TObject<{
+    status: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"running">, import("@sinclair/typebox").TLiteral<"done">, import("@sinclair/typebox").TLiteral<"cancelled">, import("@sinclair/typebox").TLiteral<"error">]>;
+    error: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;

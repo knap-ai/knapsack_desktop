@@ -1,8 +1,8 @@
-import type { OpenClawConfig } from "../../config/config.js";
-import type { ThinkLevel } from "./directives.js";
 import { loadModelCatalog } from "../../agents/model-catalog.js";
 import { type ModelAliasIndex } from "../../agents/model-selection.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry } from "../../config/sessions.js";
+import type { ThinkLevel } from "./directives.js";
 export type ModelDirectiveSelection = {
     provider: string;
     model: string;
@@ -17,6 +17,8 @@ type ModelSelectionState = {
     allowedModelCatalog: ModelCatalog;
     resetModelOverride: boolean;
     resolveDefaultThinkingLevel: () => Promise<ThinkLevel>;
+    /** Default reasoning level from model capability: "on" if model has reasoning, else "off". */
+    resolveDefaultReasoningLevel: () => Promise<"on" | "off">;
     needsModelCatalog: boolean;
 };
 export type StoredModelOverride = {
@@ -32,6 +34,7 @@ export declare function resolveStoredModelOverride(params: {
 }): StoredModelOverride | null;
 export declare function createModelSelectionState(params: {
     cfg: OpenClawConfig;
+    agentId?: string;
     agentCfg: NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]> | undefined;
     sessionEntry?: SessionEntry;
     sessionStore?: Record<string, SessionEntry>;

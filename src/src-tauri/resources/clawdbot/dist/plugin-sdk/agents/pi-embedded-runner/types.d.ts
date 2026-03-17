@@ -34,7 +34,7 @@ export type EmbeddedPiRunMeta = {
     aborted?: boolean;
     systemPromptReport?: SessionSystemPromptReport;
     error?: {
-        kind: "context_overflow" | "compaction_failure" | "role_ordering" | "image_size";
+        kind: "context_overflow" | "compaction_failure" | "role_ordering" | "image_size" | "retry_limit";
         message: string;
     };
     /** Stop reason for the agent run (e.g., "completed", "tool_calls"). */
@@ -57,7 +57,9 @@ export type EmbeddedPiRunResult = {
     meta: EmbeddedPiRunMeta;
     didSendViaMessagingTool?: boolean;
     messagingToolSentTexts?: string[];
+    messagingToolSentMediaUrls?: string[];
     messagingToolSentTargets?: MessagingToolSend[];
+    successfulCronAdds?: number;
 };
 export type EmbeddedPiCompactResult = {
     ok: boolean;
@@ -74,6 +76,7 @@ export type EmbeddedPiCompactResult = {
 export type EmbeddedSandboxInfo = {
     enabled: boolean;
     workspaceDir?: string;
+    containerWorkspaceDir?: string;
     workspaceAccess?: "none" | "ro" | "rw";
     agentWorkspaceMount?: string;
     browserBridgeUrl?: string;

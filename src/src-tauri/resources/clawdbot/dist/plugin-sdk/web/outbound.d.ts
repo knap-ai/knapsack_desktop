@@ -1,7 +1,10 @@
+import { type OpenClawConfig } from "../config/config.js";
 import { type PollInput } from "../polls.js";
 export declare function sendMessageWhatsApp(to: string, body: string, options: {
     verbose: boolean;
+    cfg?: OpenClawConfig;
     mediaUrl?: string;
+    mediaLocalRoots?: readonly string[];
     gifPlayback?: boolean;
     accountId?: string;
 }): Promise<{
@@ -17,6 +20,7 @@ export declare function sendReactionWhatsApp(chatJid: string, messageId: string,
 export declare function sendPollWhatsApp(to: string, poll: PollInput, options: {
     verbose: boolean;
     accountId?: string;
+    cfg?: OpenClawConfig;
 }): Promise<{
     messageId: string;
     toJid: string;

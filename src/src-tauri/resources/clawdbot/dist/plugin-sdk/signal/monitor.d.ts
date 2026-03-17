@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
+import type { BackoffPolicy } from "../infra/backoff.js";
 import { type RuntimeEnv } from "../runtime.js";
 export type MonitorSignalOpts = {
     runtime?: RuntimeEnv;
@@ -19,5 +20,6 @@ export type MonitorSignalOpts = {
     allowFrom?: Array<string | number>;
     groupAllowFrom?: Array<string | number>;
     mediaMaxMb?: number;
+    reconnectPolicy?: Partial<BackoffPolicy>;
 };
 export declare function monitorSignalProvider(opts?: MonitorSignalOpts): Promise<void>;

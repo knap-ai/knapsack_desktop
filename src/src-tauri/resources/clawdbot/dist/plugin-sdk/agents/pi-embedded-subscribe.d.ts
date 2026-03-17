@@ -8,13 +8,19 @@ export declare function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSe
     }[];
     unsubscribe: () => void;
     isCompacting: () => boolean;
+    isCompactionInFlight: () => boolean;
     getMessagingToolSentTexts: () => string[];
+    getMessagingToolSentMediaUrls: () => string[];
     getMessagingToolSentTargets: () => import("./pi-embedded-messaging.ts").MessagingToolSend[];
+    getSuccessfulCronAdds: () => number;
     didSendViaMessagingTool: () => boolean;
+    didSendDeterministicApprovalPrompt: () => boolean;
     getLastToolError: () => {
         toolName: string;
         meta?: string;
         error?: string;
+        mutatingAction?: boolean;
+        actionFingerprint?: string;
     } | undefined;
     getUsageTotals: () => {
         input: number | undefined;

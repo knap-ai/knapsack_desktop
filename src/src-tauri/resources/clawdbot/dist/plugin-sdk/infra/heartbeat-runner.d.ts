@@ -1,16 +1,16 @@
 import type { ChannelHeartbeatDeps } from "../channels/plugins/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentDefaultsConfig } from "../config/types.agent-defaults.js";
-import type { OutboundSendDeps } from "./outbound/deliver.js";
 import { type RuntimeEnv } from "../runtime.js";
 import { isCronSystemEvent } from "./heartbeat-events-filter.js";
-import { type HeartbeatRunResult } from "./heartbeat-wake.js";
-type HeartbeatDeps = OutboundSendDeps & ChannelHeartbeatDeps & {
+import { areHeartbeatsEnabled, type HeartbeatRunResult, setHeartbeatsEnabled } from "./heartbeat-wake.js";
+import type { OutboundSendDeps } from "./outbound/deliver.js";
+export type HeartbeatDeps = OutboundSendDeps & ChannelHeartbeatDeps & {
     runtime?: RuntimeEnv;
     getQueueSize?: (lane?: string) => number;
     nowMs?: () => number;
 };
-export declare function setHeartbeatsEnabled(enabled: boolean): void;
+export { areHeartbeatsEnabled, setHeartbeatsEnabled };
 type HeartbeatConfig = AgentDefaultsConfig["heartbeat"];
 export type HeartbeatSummary = {
     enabled: boolean;
@@ -33,6 +33,7 @@ export declare function resolveHeartbeatPrompt(cfg: OpenClawConfig, heartbeat?: 
 export declare function runHeartbeatOnce(opts: {
     cfg?: OpenClawConfig;
     agentId?: string;
+    sessionKey?: string;
     heartbeat?: HeartbeatConfig;
     reason?: string;
     deps?: HeartbeatDeps;

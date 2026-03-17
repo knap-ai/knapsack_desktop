@@ -8,4 +8,4 @@ export declare function isTelegramInlineButtonsEnabled(params: {
     cfg: OpenClawConfig;
     accountId?: string | null;
 }): boolean;
-export declare function resolveTelegramTargetChatType(target: string): "direct" | "group" | "unknown";
+export { resolveTelegramTargetChatType } from "./targets.js";

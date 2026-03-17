@@ -11,5 +11,7 @@ export type SlackActionContext = {
     hasRepliedRef?: {
         value: boolean;
     };
+    /** Allowed local media directories for file uploads. */
+    mediaLocalRoots?: readonly string[];
 };
 export declare function handleSlackAction(params: Record<string, unknown>, cfg: OpenClawConfig, context?: SlackActionContext): Promise<AgentToolResult<unknown>>;

@@ -1,4 +1,5 @@
-export { appendCdpPath, fetchJson, fetchOk, getHeadersWithAuth } from "./cdp.helpers.js";
+import type { SsrFPolicy } from "../infra/net/ssrf.js";
+export { appendCdpPath, fetchJson, fetchOk, getHeadersWithAuth, isWebSocketUrl, } from "./cdp.helpers.js";
 export declare function normalizeCdpWsUrl(wsUrl: string, cdpUrl: string): string;
 export declare function captureScreenshotPng(opts: {
     wsUrl: string;
@@ -13,6 +14,7 @@ export declare function captureScreenshot(opts: {
 export declare function createTargetViaCdp(opts: {
     cdpUrl: string;
     url: string;
+    ssrfPolicy?: SsrFPolicy;
 }): Promise<{
     targetId: string;
 }>;

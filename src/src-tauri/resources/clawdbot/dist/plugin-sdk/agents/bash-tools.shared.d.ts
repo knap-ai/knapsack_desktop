@@ -1,4 +1,3 @@
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
 export type BashSandboxConfig = {
     containerName: string;
     workspaceDir: string;
@@ -27,10 +26,6 @@ export declare function resolveSandboxWorkdir(params: {
     hostWorkdir: string;
     containerWorkdir: string;
 }>;
-export declare function killSession(session: {
-    pid?: number;
-    child?: ChildProcessWithoutNullStreams;
-}): void;
 export declare function resolveWorkdir(workdir: string, warnings: string[]): string;
 /**
  * Clamp a number within min/max bounds, using defaultValue if undefined or NaN.

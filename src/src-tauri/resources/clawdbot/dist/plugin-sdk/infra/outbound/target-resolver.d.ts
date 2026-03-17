@@ -25,6 +25,13 @@ export declare function resolveChannelTarget(params: {
     preferredKind?: TargetResolveKind;
     runtime?: RuntimeEnv;
 }): Promise<ResolveMessagingTargetResult>;
+export declare function maybeResolveIdLikeTarget(params: {
+    cfg: OpenClawConfig;
+    channel: ChannelId;
+    input: string;
+    accountId?: string | null;
+    preferredKind?: TargetResolveKind;
+}): Promise<ResolvedMessagingTarget | undefined>;
 export declare function resetDirectoryCache(params?: {
     channel?: ChannelId;
     accountId?: string | null;

@@ -9,5 +9,7 @@ export declare function resolvePluginTools(params: {
     context: OpenClawPluginToolContext;
     existingToolNames?: Set<string>;
     toolAllowlist?: string[];
+    suppressNameConflicts?: boolean;
+    env?: NodeJS.ProcessEnv;
 }): AnyAgentTool[];
 export {};

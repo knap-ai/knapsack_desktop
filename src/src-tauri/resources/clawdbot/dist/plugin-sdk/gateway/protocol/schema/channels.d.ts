@@ -1,126 +1,207 @@
-export declare const TalkModeParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    enabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean;
-    phase: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const TalkModeParamsSchema: import("@sinclair/typebox").TObject<{
+    enabled: import("@sinclair/typebox").TBoolean;
+    phase: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const TalkConfigParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    includeSecrets: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const TalkConfigParamsSchema: import("@sinclair/typebox").TObject<{
+    includeSecrets: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
 }>;
-export declare const TalkConfigResultSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    config: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        talk: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            voiceId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            voiceAliases: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-            modelId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            outputFormat: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            apiKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-            interruptOnSpeech: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const TalkConfigResultSchema: import("@sinclair/typebox").TObject<{
+    config: import("@sinclair/typebox").TObject<{
+        talk: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+            interruptOnSpeech: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+            silenceTimeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            voiceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            voiceAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+            modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+                source: import("@sinclair/typebox").TLiteral<"env">;
+                provider: import("@sinclair/typebox").TString;
+                id: import("@sinclair/typebox").TString;
+            }>, import("@sinclair/typebox").TObject<{
+                source: import("@sinclair/typebox").TLiteral<"file">;
+                provider: import("@sinclair/typebox").TString;
+                id: import("@sinclair/typebox").TString;
+            }>, import("@sinclair/typebox").TObject<{
+                source: import("@sinclair/typebox").TLiteral<"exec">;
+                provider: import("@sinclair/typebox").TString;
+                id: import("@sinclair/typebox").TString;
+            }>]>]>>;
+        }>, import("@sinclair/typebox").TObject<{
+            interruptOnSpeech: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+            silenceTimeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            voiceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            voiceAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+            modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+                source: import("@sinclair/typebox").TLiteral<"env">;
+                provider: import("@sinclair/typebox").TString;
+                id: import("@sinclair/typebox").TString;
+            }>, import("@sinclair/typebox").TObject<{
+                source: import("@sinclair/typebox").TLiteral<"file">;
+                provider: import("@sinclair/typebox").TString;
+                id: import("@sinclair/typebox").TString;
+            }>, import("@sinclair/typebox").TObject<{
+                source: import("@sinclair/typebox").TLiteral<"exec">;
+                provider: import("@sinclair/typebox").TString;
+                id: import("@sinclair/typebox").TString;
+            }>]>]>>;
+            provider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            providers: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TObject<{
+                voiceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                voiceAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+                modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+                    source: import("@sinclair/typebox").TLiteral<"env">;
+                    provider: import("@sinclair/typebox").TString;
+                    id: import("@sinclair/typebox").TString;
+                }>, import("@sinclair/typebox").TObject<{
+                    source: import("@sinclair/typebox").TLiteral<"file">;
+                    provider: import("@sinclair/typebox").TString;
+                    id: import("@sinclair/typebox").TString;
+                }>, import("@sinclair/typebox").TObject<{
+                    source: import("@sinclair/typebox").TLiteral<"exec">;
+                    provider: import("@sinclair/typebox").TString;
+                    id: import("@sinclair/typebox").TString;
+                }>]>]>>;
+            }>>>;
+            resolved: import("@sinclair/typebox").TObject<{
+                provider: import("@sinclair/typebox").TString;
+                config: import("@sinclair/typebox").TObject<{
+                    voiceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                    voiceAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+                    modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                    outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                    apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+                        source: import("@sinclair/typebox").TLiteral<"env">;
+                        provider: import("@sinclair/typebox").TString;
+                        id: import("@sinclair/typebox").TString;
+                    }>, import("@sinclair/typebox").TObject<{
+                        source: import("@sinclair/typebox").TLiteral<"file">;
+                        provider: import("@sinclair/typebox").TString;
+                        id: import("@sinclair/typebox").TString;
+                    }>, import("@sinclair/typebox").TObject<{
+                        source: import("@sinclair/typebox").TLiteral<"exec">;
+                        provider: import("@sinclair/typebox").TString;
+                        id: import("@sinclair/typebox").TString;
+                    }>]>]>>;
+                }>;
+            }>;
+        }>]>>;
+        session: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            mainKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         }>>;
-        session: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            mainKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        }>>;
-        ui: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-            seamColor: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+        ui: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            seamColor: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         }>>;
     }>;
 }>;
-export declare const ChannelsStatusParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    probe: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    timeoutMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
+export declare const ChannelsStatusParamsSchema: import("@sinclair/typebox").TObject<{
+    probe: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
 }>;
-export declare const ChannelAccountSnapshotSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    accountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    name: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    enabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    configured: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    linked: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    running: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    connected: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    reconnectAttempts: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lastConnectedAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lastError: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    lastStartAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lastStopAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lastInboundAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lastOutboundAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lastProbeAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    dmPolicy: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    allowFrom: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    tokenSource: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    botTokenSource: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    appTokenSource: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    baseUrl: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    allowUnmentionedGroups: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    cliPath: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-    dbPath: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-    port: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-    probe: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-    audit: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-    application: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
+export declare const ChannelAccountSnapshotSchema: import("@sinclair/typebox").TObject<{
+    accountId: import("@sinclair/typebox").TString;
+    name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    configured: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    linked: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    running: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    connected: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    reconnectAttempts: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastConnectedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    lastStartAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastStopAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastInboundAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastOutboundAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    busy: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    activeRuns: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastRunActivityAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    lastProbeAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    dmPolicy: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    allowFrom: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    tokenSource: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    botTokenSource: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    appTokenSource: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    baseUrl: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    allowUnmentionedGroups: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    cliPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+    dbPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+    port: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TInteger, import("@sinclair/typebox").TNull]>>;
+    probe: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+    audit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+    application: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
 }>;
-export declare const ChannelUiMetaSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    label: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    detailLabel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    systemImage: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const ChannelUiMetaSchema: import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+    label: import("@sinclair/typebox").TString;
+    detailLabel: import("@sinclair/typebox").TString;
+    systemImage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const ChannelsStatusResultSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    ts: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-    channelOrder: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    channelLabels: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    channelDetailLabels: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    channelSystemImages: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    channelMeta: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        label: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        detailLabel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        systemImage: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const ChannelsStatusResultSchema: import("@sinclair/typebox").TObject<{
+    ts: import("@sinclair/typebox").TInteger;
+    channelOrder: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
+    channelLabels: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>;
+    channelDetailLabels: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+    channelSystemImages: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+    channelMeta: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+        id: import("@sinclair/typebox").TString;
+        label: import("@sinclair/typebox").TString;
+        detailLabel: import("@sinclair/typebox").TString;
+        systemImage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>>>;
-    channels: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-    channelAccounts: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        accountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        name: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        enabled: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        configured: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        linked: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        running: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        connected: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        reconnectAttempts: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastConnectedAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastError: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        lastStartAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastStopAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastInboundAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastOutboundAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        lastProbeAt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-        mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        dmPolicy: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        allowFrom: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-        tokenSource: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        botTokenSource: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        appTokenSource: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        baseUrl: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        allowUnmentionedGroups: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-        cliPath: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-        dbPath: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-        port: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNull]>>;
-        probe: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-        audit: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-        application: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
+    channels: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>;
+    channelAccounts: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+        accountId: import("@sinclair/typebox").TString;
+        name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        configured: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        linked: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        running: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        connected: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        reconnectAttempts: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastConnectedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastError: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        lastStartAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastStopAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastInboundAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastOutboundAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        busy: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        activeRuns: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastRunActivityAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        lastProbeAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        dmPolicy: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        allowFrom: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+        tokenSource: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        botTokenSource: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        appTokenSource: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        baseUrl: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        allowUnmentionedGroups: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        cliPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+        dbPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+        port: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TInteger, import("@sinclair/typebox").TNull]>>;
+        probe: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+        audit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+        application: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
     }>>>;
-    channelDefaultAccountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+    channelDefaultAccountId: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>;
 }>;
-export declare const ChannelsLogoutParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    accountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const ChannelsLogoutParamsSchema: import("@sinclair/typebox").TObject<{
+    channel: import("@sinclair/typebox").TString;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const WebLoginStartParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    force: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    timeoutMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    verbose: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    accountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const WebLoginStartParamsSchema: import("@sinclair/typebox").TObject<{
+    force: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    verbose: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const WebLoginWaitParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    timeoutMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    accountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const WebLoginWaitParamsSchema: import("@sinclair/typebox").TObject<{
+    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;

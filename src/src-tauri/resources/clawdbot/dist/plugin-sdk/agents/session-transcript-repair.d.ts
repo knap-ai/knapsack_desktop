@@ -11,8 +11,12 @@ export type ToolCallInputRepairReport = {
     droppedToolCalls: number;
     droppedAssistantMessages: number;
 };
-export declare function repairToolCallInputs(messages: AgentMessage[]): ToolCallInputRepairReport;
-export declare function sanitizeToolCallInputs(messages: AgentMessage[]): AgentMessage[];
+export type ToolCallInputRepairOptions = {
+    allowedToolNames?: Iterable<string>;
+};
+export declare function stripToolResultDetails(messages: AgentMessage[]): AgentMessage[];
+export declare function repairToolCallInputs(messages: AgentMessage[], options?: ToolCallInputRepairOptions): ToolCallInputRepairReport;
+export declare function sanitizeToolCallInputs(messages: AgentMessage[], options?: ToolCallInputRepairOptions): AgentMessage[];
 export declare function sanitizeToolUseResultPairing(messages: AgentMessage[]): AgentMessage[];
 export type ToolUseRepairReport = {
     messages: AgentMessage[];

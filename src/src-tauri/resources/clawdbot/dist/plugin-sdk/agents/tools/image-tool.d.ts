@@ -1,7 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
-import type { SandboxFsBridge } from "../sandbox/fs-bridge.js";
-import type { AnyAgentTool } from "./common.js";
 import { coerceImageAssistantText, decodeDataUrl, type ImageModelConfig } from "./image-tool.helpers.js";
+import { type AnyAgentTool, type SandboxFsBridge, type ToolFsPolicy } from "./tool-runtime.helpers.js";
 export declare const __testing: {
     readonly decodeDataUrl: typeof decodeDataUrl;
     readonly coerceImageAssistantText: typeof coerceImageAssistantText;
@@ -27,7 +26,9 @@ type ImageSandboxConfig = {
 export declare function createImageTool(options?: {
     config?: OpenClawConfig;
     agentDir?: string;
+    workspaceDir?: string;
     sandbox?: ImageSandboxConfig;
+    fsPolicy?: ToolFsPolicy;
     /** If true, the model has native vision capability and images in the prompt are auto-injected */
     modelHasVision?: boolean;
 }): AnyAgentTool | null;

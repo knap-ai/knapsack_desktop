@@ -1,12 +1,12 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry } from "../../config/sessions.js";
-export declare function prependSystemEvents(params: {
+/** Drain queued system events, format as `System:` lines, return the block (or undefined). */
+export declare function drainFormattedSystemEvents(params: {
     cfg: OpenClawConfig;
     sessionKey: string;
     isMainSession: boolean;
     isNewSession: boolean;
-    prefixedBodyBase: string;
-}): Promise<string>;
+}): Promise<string | undefined>;
 export declare function ensureSkillSnapshot(params: {
     sessionEntry?: SessionEntry;
     sessionStore?: Record<string, SessionEntry>;
