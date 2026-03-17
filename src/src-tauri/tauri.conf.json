@@ -126,7 +126,7 @@
     "bundle": {
       "active": true,
       "category": "Productivity",
-      "copyright": "",
+      "copyright": "Knap Inc.",
       "deb": {
         "depends": []
       },
@@ -139,7 +139,7 @@
         "icons/icon.ico"
       ],
       "identifier": "ai.knap.knapsack",
-      "longDescription": "",
+      "longDescription": "Knapsack Desktop",
       "macOS": {
         "exceptionDomain": "",
         "frameworks": [],
@@ -168,13 +168,18 @@
         "resources/node/*",
         "resources/clawdbot/**/*"
       ],
-      "shortDescription": "",
+      "shortDescription": "Knapsack Desktop",
       "targets": "all",
       "windows": {
         "digestAlgorithm": "sha256",
         "timestampUrl": "http://timestamp.comodoca.com",
         "wix": {
           "language": "en-US"
+        },
+        "nsis": {
+          "installMode": "both",
+          "languages": ["English"],
+          "displayLanguageSelector": false
         }
       }
     },
