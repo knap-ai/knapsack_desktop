@@ -8,7 +8,7 @@
 //! is streamed to the frontend via the Tauri event `pty-output` and session
 //! termination is signalled with `pty-exit`.
 
-use log::{error, info, warn};
+use log::info;
 use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};

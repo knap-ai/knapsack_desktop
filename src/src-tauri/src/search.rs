@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::document::DisplayDocument;
 use crate::db::models::{calendar_event::CalendarEvent, document::Document, email::Email};
-use crate::error::Error as CustomError;
+
 use crate::user::UserInfo;
 
 #[derive(Debug, Clone)]
