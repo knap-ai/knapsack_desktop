@@ -25,6 +25,7 @@ import AutomationLabModal from 'src/components/molecules/AutomationLabModal'
 import CenterWorkspace, { SubTabChoices } from 'src/components/organisms/CenterWorkspace'
 import EmailTabView from 'src/components/organisms/EmailTabView'
 import FeedSidebar from 'src/components/organisms/FeedSidebar'
+import GranolaSidebar from 'src/components/organisms/GranolaSidebar'
 import GoogleAuthPopup from 'src/components/organisms/GoogleAuthPopUp'
 import { Header } from 'src/components/organisms/Header'
 import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
@@ -35,6 +36,7 @@ import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
+import { IThread, ThreadType } from 'src/api/threads'
 import { getFeedbacks } from '../../../api/threads'
 import { setHasOnboarded } from '../../../pages/onboarding'
 import { openGoogleAuthScreen } from '../../../utils/permissions/google'
@@ -96,8 +98,14 @@ function Home({
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
+  const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const isResizingRef = useRef(false)
+
+  // Check if a meeting note is currently selected (for hiding sidebar in full-width note view)
+  const currentItem = feed.currentFeedItem()
+  const hasMeetingNoteSelected = currentTab === TabChoices.Meeting && meetingSubView === 'meetings' &&
+    !!currentItem?.threads?.some((t: IThread) => t.threadType === ThreadType.MEETING_NOTES)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
@@ -161,6 +169,22 @@ function Home({
     })
     return () => {
       unlisten.then(fn => fn())
+    }
+  }, [])
+
+  // Listen for system tray events (Granola-style)
+  useEffect(() => {
+    const unlistenQuickNote = listen('create_quick_note', () => {
+      setCurrentTab(TabChoices.Meeting)
+      setMeetingSubView('meetings')
+      feed.createNewMeeting()
+    })
+    const unlistenSettings = listen('open_settings', () => {
+      setIsSettingsDialogOpened(true)
+    })
+    return () => {
+      unlistenQuickNote.then(fn => fn())
+      unlistenSettings.then(fn => fn())
     }
   }, [])
 
@@ -428,7 +452,26 @@ function Home({
       />
       <div className="overflow-hidden flex-1 bg-ks-bg-main rounded-b-[10px]">
         <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-ks-bg-main">
-          <TabBar currentTab={currentTab} setCurrentTab={setCurrentTab} fullRelease={fullRelease} />
+          {/* Granola-style sidebar for Meeting tab - hidden when viewing a meeting note */}
+          {currentTab === TabChoices.Meeting && !hasMeetingNoteSelected && (
+            <GranolaSidebar
+              feed={feed}
+              onQuickNote={() => feed.createNewMeeting()}
+              onSettingsClick={() => setIsSettingsDialogOpened(true)}
+              onChatClick={() => {
+                setCurrentTab(TabChoices.Openclaw)
+              }}
+              onEmailClick={() => {
+                setAutopilotForceOpen(true)
+                setCurrentTab(TabChoices.Openclaw)
+              }}
+              isAnyRecording={isAnyRecording}
+            />
+          )}
+          {/* Legacy TabBar for non-meeting tabs */}
+          {currentTab !== TabChoices.Meeting && (
+            <TabBar currentTab={currentTab} setCurrentTab={setCurrentTab} fullRelease={fullRelease} />
+          )}
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
             <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main">
               {currentTab === TabChoices.Work && (
@@ -550,7 +593,7 @@ function Home({
                 />
               )}
 
-              {currentTab === TabChoices.Meeting && (
+              {currentTab === TabChoices.Meeting && meetingSubView === 'meetings' && (
                 <MeetingsTabView
                   feed={feed}
                   addToLLMQueue={addToLLMQueue}
@@ -559,7 +602,26 @@ function Home({
                   recordingHandlers={recordingHandlers}
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
+                  onBack={() => {
+                    // Back from full-width note view to sidebar
+                  }}
                 />
+              )}
+
+              {currentTab === TabChoices.Meeting && meetingSubView === 'chat' && (
+                <div className="overflow-hidden w-full h-full flex flex-row relative">
+                  <div className="overflow-hidden flex-1 h-full min-w-0">
+                    <ClawdChat
+                      showActivityPanel={false}
+                      onToggleActivity={() => {}}
+                      onCloseActivity={() => {}}
+                      userEmail={userEmail}
+                      userName={userName}
+                      onBusyChange={setIsChatBusy}
+                      openProviderPanel={openProviderPanelTrigger}
+                    />
+                  </div>
+                </div>
               )}
 
               {currentTab === TabChoices.Workspaces && (

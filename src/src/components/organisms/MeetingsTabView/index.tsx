@@ -1,27 +1,25 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
+import { open } from '@tauri-apps/api/shell'
+import dayjs from 'dayjs'
 
-import { FeedItem } from 'src/api/feed_items'
 import { IThread, ThreadType } from 'src/api/threads'
 import { Connection, ConnectionKeys } from 'src/api/connections'
 import { LLMParams } from 'src/App'
 import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
-import KNDateUtils from 'src/utils/KNDateUtils'
 import { MeetingTemplatePrompt } from 'src/utils/template_prompts'
+import { getEventUrl } from 'src/utils/meetingUtils'
+import { FeedItem } from 'src/api/feed_items'
 
 import { Button, ButtonVariant } from 'src/components/atoms/button'
-import { Tooltip, TooltipVariant } from 'src/components/atoms/tooltip'
 import MeetingNotesMode from 'src/components/organisms/MeetingNotesMode'
 import AudioPermissionChecker from 'src/components/molecules/AudioPermissionChecker'
-import ThreadPreviewCard from 'src/components/molecules/ThreadPreviewCard'
 import TemplatesView from 'src/components/organisms/TemplatesView'
 import TranscriptView from 'src/components/organisms/TranscriptView'
 import MeetingTasks from 'src/components/molecules/MeetingTasks'
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 import { TaskItem } from 'src/components/organisms/CenterWorkspace'
 
-import FeedSidebarArrowDown from '/assets/images/icons/FeedSidebarArrowDown.svg'
-import Mic from '/assets/images/icons/mic-grey.svg'
 import CalendarIcon from '/assets/images/dataSources/gcal.svg'
 
 import './style.scss'
@@ -50,6 +48,7 @@ interface MeetingsTabViewProps {
   recordingHandlers: RecordingContextProps
   connections?: Record<string, Connection>
   onConnectCalendar?: () => void
+  onBack?: () => void
 }
 
 const MeetingsTabView = ({
@@ -60,6 +59,7 @@ const MeetingsTabView = ({
   recordingHandlers,
   connections,
   onConnectCalendar,
+  onBack,
 }: MeetingsTabViewProps) => {
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true')
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true')
@@ -67,12 +67,15 @@ const MeetingsTabView = ({
     localStorage.getItem('permissionsDismissed') === 'true'
   )
   const [synthesisState, setSynthesisState] = useState(false)
-  const threadCardRef = useRef<HTMLDivElement>(null)
 
   // Panel state (ported from CenterWorkspace)
   const [transcriptState, setTranscriptState] = useState<TranscriptState>({ isOpen: false })
   const [templatesState, setTemplatesState] = useState<TemplatesState>({ isOpen: false })
   const [tasksState, setTasksState] = useState<TasksState>({ isOpen: false, tasks: [] })
+
+  // Auto-recording countdown
+  const [countdown, setCountdown] = useState<number | null>(null)
+  const [countdownMeeting, setCountdownMeeting] = useState<FeedItem | null>(null)
 
   const onSynthesisFinish = () => setSynthesisState(prev => !prev)
 
@@ -111,140 +114,79 @@ const MeetingsTabView = ({
     checkPermissions()
   }, [])
 
-  // Check if any meeting is currently recording
-  const isAnyRecording = useMemo(() => {
-    if (!feed.feedContent) return false
-    return Object.entries(feed.feedContent).some(([key, feedItems]) => {
-      if (key === STATIONARY_ITEMS) return false
-      return feedItems.some(item =>
-        item.isRecording && item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
-      )
-    })
-  }, [feed.feedContent])
+  // Auto-recording countdown: detect upcoming meetings and start countdown
+  const nextMeeting = useMemo(() => {
+    if (!feed.feedContent) return null
+    const now = Date.now()
+    let closest: FeedItem | null = null
+    let closestDiff = Infinity
 
-  // Build date-grouped meeting items (same pattern as FeedSidebar)
-  const groupedMeetings = useMemo(() => {
-    const groups: Record<string, { key: string; item: FeedItem }[]> = {}
-    // Deduplicate across all date groups by title + start-minute.
-    // We round to the nearest minute because the same meeting can appear as
-    // both a DB feed item and a calendar-injected item whose timestamps
-    // differ by a few seconds.
-    const seenMeetingKeys = new Set<string>()
-
-    if (feed.feedContent) {
-      Object.entries(feed.feedContent).forEach(([key, feedItems]) => {
-        if (key === STATIONARY_ITEMS) return
-
-        feedItems.forEach(item => {
-          const hasMeetingNotes = item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
-          const isUpcomingCalendarEvent = item.calendarEvent && !item.id
-          if (hasMeetingNotes || isUpcomingCalendarEvent) {
-            const startMin = Math.floor(item.timestamp.getTime() / 60000)
-            const meetingKey = `${item.title}_${startMin}`
-            if (seenMeetingKeys.has(meetingKey)) return
-            seenMeetingKeys.add(meetingKey)
-
-            const dateKey = key
-            if (!groups[dateKey]) {
-              groups[dateKey] = []
-            }
-            groups[dateKey].push({ key, item })
-          }
-        })
-      })
-    }
-
-    // Sort items within each group by timestamp
-    Object.keys(groups).forEach(dateKey => {
-      if (dateKey === 'COMING UP') {
-        // Upcoming: soonest first (ascending)
-        groups[dateKey].sort((a, b) => a.item.timestamp.getTime() - b.item.timestamp.getTime())
-      } else {
-        // Past: most recent first (descending)
-        groups[dateKey].sort((a, b) => b.item.timestamp.getTime() - a.item.timestamp.getTime())
-      }
-    })
-
-    return groups
-  }, [feed.feedContent])
-
-  // Get ordered date keys (same as FeedSidebar)
-  const orderedDateKeys = useMemo(() => {
-    const keyTimestamps = Object.entries(groupedMeetings)
-      .filter(([_, items]) => items.length > 0)
-      .map(([key, items]) => ({
-        key,
-        timestamp: items[0].item.timestamp,
-      }))
-
-    return KNDateUtils.sortByTimestamp(keyTimestamps, false).map(kt => kt.key)
-  }, [groupedMeetings])
-
-  // Collapsible sections state (collapse old dates by default, keep Today open)
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
-    const initialState: Record<string, boolean> = {}
-    orderedDateKeys.forEach(key => {
-      if (!key.includes('Today') && !feed.isRecentDate(key, true, true)) {
-        initialState[key] = true
-      }
-    })
-    return initialState
-  })
-
-  const [manuallyToggled, setManuallyToggled] = useState<Record<string, boolean>>({})
-
-  const toggleSection = (key: string) => {
-    setCollapsedSections(prev => ({
-      ...prev,
-      [key]: !prev[key],
-    }))
-    setManuallyToggled(prev => ({
-      ...prev,
-      [key]: true,
-    }))
-  }
-
-  useEffect(() => {
-    if (!feed || !feed.feedContent) return
-
-    setCollapsedSections(prev => {
-      const newState = { ...prev }
-      orderedDateKeys.forEach(key => {
-        if (!manuallyToggled[key]) {
-          // Auto-collapse old past dates, but keep today/yesterday/upcoming expanded
-          if (
-            !key.includes('Today') &&
-            !key.includes('Yesterday') &&
-            !key.includes('COMING UP') &&
-            groupedMeetings[key] &&
-            KNDateUtils.isPastDay(groupedMeetings[key][0]?.item.timestamp) &&
-            !prev[key]
-          ) {
-            newState[key] = true
+    Object.entries(feed.feedContent).forEach(([key, items]) => {
+      if (key === STATIONARY_ITEMS) return
+      items.forEach(item => {
+        if (item.calendarEvent) {
+          const start = item.timestamp.getTime()
+          const diff = start - now
+          // Within 5 minutes
+          if (diff > 0 && diff < 5 * 60 * 1000 && diff < closestDiff) {
+            closest = item
+            closestDiff = diff
           }
         }
       })
-      return newState
     })
-  }, [feed.feedContent, manuallyToggled])
+    return closest
+  }, [feed.feedContent])
+
+  // Countdown timer for next meeting
+  useEffect(() => {
+    if (!nextMeeting) {
+      setCountdown(null)
+      setCountdownMeeting(null)
+      return
+    }
+
+    setCountdownMeeting(nextMeeting)
+
+    const interval = setInterval(() => {
+      const diff = nextMeeting.timestamp.getTime() - Date.now()
+      if (diff <= 0) {
+        setCountdown(0)
+        clearInterval(interval)
+      } else {
+        setCountdown(Math.ceil(diff / 1000))
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [nextMeeting])
+
+  const formatCountdown = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  }
 
   const selectedMeeting = feed.currentFeedItem()
   const isSelectedMeetingNote = selectedMeeting?.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
+
+  // Get the meeting URL for Join button
+  const selectedCalendarEvent = selectedMeeting?.getCalendarEvent?.()
+  const meetingUrl = selectedCalendarEvent ? getEventUrl(selectedCalendarEvent) : null
+  const meetingPlatformLabel = useMemo(() => {
+    if (!selectedCalendarEvent) return 'Join Meeting'
+    switch (selectedCalendarEvent.meeting_platform) {
+      case 'teams': return 'Join Teams'
+      case 'zoom': return 'Join Zoom'
+      case 'google_meet': return 'Join Google Meet'
+      default: return selectedCalendarEvent.google_meet_url ? 'Join Google Meet' : 'Join Meeting'
+    }
+  }, [selectedCalendarEvent])
 
   // Close templates panel when selected meeting changes
   useEffect(() => {
     setTemplatesState({ isOpen: false })
   }, [feed.currentFeedItem])
-
-  // Scroll selected meeting card into view
-  useEffect(() => {
-    if (selectedMeeting) {
-      const threadCard = document.getElementById(`MeetingCard${selectedMeeting.id}`)
-      if (threadCard) {
-        threadCard.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    }
-  }, [selectedMeeting])
 
   // --- Panel handlers (ported from CenterWorkspace) ---
 
@@ -308,180 +250,83 @@ const MeetingsTabView = ({
 
   // --- End panel handlers ---
 
-  const handleTitleChange = useCallback(
-    (key: string, itemId: number, newTitle: string) => {
-      if (feed.updateFeedItemTitle) {
-        feed.updateFeedItemTitle(key, itemId, newTitle)
-      }
-    },
-    [feed],
-  )
-
-  const handleDeleteItem = useCallback(
-    (itemId: number) => {
-      if (feed.deleteFeedItemFromState && itemId !== undefined) {
-        feed
-          .deleteFeedItemFromState(itemId)
-          .then(() => {
-            if (selectedMeeting?.id === itemId) {
-              feed.unselectFeedItem()
-            }
-          })
-          .catch(error => {
-            console.error('Error deleting feed item:', error)
-          })
-      }
-    },
-    [feed, selectedMeeting],
-  )
-
   const showPermissionsOverlay = (!micPermission || !screenPermission) && !permissionsDismissed
 
-  const hasMeetings = orderedDateKeys.length > 0
-
   return (
-    <div className="MeetingsTabView w-full h-full overflow-hidden flex flex-row">
-      {/* Sidebar with date-grouped meeting list */}
-      <div className="MeetingsTabView__sidebar">
-        <div className="MeetingsTabView__sidebar-scroll">
-          {!hasMeetings ? (
-            <div className="MeetingsTabView__empty">
-              <p>No meetings yet</p>
-              <p className="MeetingsTabView__empty-hint">
-                Click "Ad hoc meeting" to start recording
-              </p>
-            </div>
-          ) : (
-            orderedDateKeys.map(dateKey => {
-              const items = groupedMeetings[dateKey]
-              if (!items || items.length === 0) return null
-
-              // Filter to only show recent dates (past + today/yesterday + upcoming)
-              if (!feed.isRecentDate(dateKey, true, true)) return null
-
-              const isCollapsed = collapsedSections[dateKey]
-
-              return (
-                <div
-                  key={`${dateKey}-${items.length}`}
-                  className="MeetingsTabView__date-group"
-                >
-                  {/* Date section header */}
-                  <div
-                    className={`MeetingsTabView__date-header ${dateKey.includes('Today') ? 'MeetingsTabView__date-header--today' : ''}`}
-                    onClick={() => toggleSection(dateKey)}
-                  >
-                    <div className="MeetingsTabView__date-arrow">
-                      <img
-                        src={FeedSidebarArrowDown}
-                        className={`w-4 h-1.5 transition-transform duration-100
-                          ${dateKey.includes('Today') ? '' : 'opacity-70'}
-                          ${isCollapsed ? 'rotate-[-90deg]' : ''}`}
-                        alt="Toggle section"
-                      />
-                    </div>
-                    <div className="MeetingsTabView__date-label">
-                      {dateKey}
-                    </div>
-                  </div>
-
-                  {/* Meeting items in this date group */}
-                  <div
-                    className={`MeetingsTabView__date-items ${isCollapsed ? 'MeetingsTabView__date-items--collapsed' : ''}`}
-                  >
-                    {items.map(({ key, item }) => {
-                      const isSelected = item.id != null && selectedMeeting?.id === item.id
-                      const itemKey = item.id ?? `cal-${item.calendarEvent?.id ?? item.title}`
-
-                      return (
-                        <Fragment key={itemKey}>
-                          <div
-                            className={`flex flex-col w-full text-left border-r border-t border-b rounded-r-md
-                              ${
-                                isSelected
-                                  ? 'bg-ks-warm-grey-100 border-ks-warm-grey-200'
-                                  : 'hover:bg-ks-warm-grey-100 hover:border-ks-warm-grey-200 border-transparent'
-                              }`}
-                            id={`MeetingCard${itemKey}`}
-                            ref={isSelected ? threadCardRef : null}
-                            onClick={() => {
-                              if (item.id != null) {
-                                feed.selectFeedItem(key, item.id)
-                              } else if (item.calendarEvent) {
-                                feed.openCalendarEvent(item.calendarEvent)
-                              }
-                            }}
-                          >
-                            <div className="flex items-center w-full">
-                              <div className="pl-10 w-full">
-                                <ThreadPreviewCard
-                                  title={
-                                    item && typeof item.getTitle === 'function'
-                                      ? item.getTitle()
-                                      : item?.title || ''
-                                  }
-                                  subTitle={item.getSubtitle()}
-                                  executedTime={item.timestamp}
-                                  isSelected={isSelected}
-                                  isRecording={item.isRecording}
-                                  setIsSelected={() => {
-                                    if (item.id != null) {
-                                      feed.selectFeedItem(key, item.id)
-                                    } else if (item.calendarEvent) {
-                                      feed.openCalendarEvent(item.calendarEvent)
-                                    }
-                                  }}
-                                  hasLabel={false}
-                                  showFullDate={dateKey === 'COMING UP'}
-                                  onTitleChange={newTitle => {
-                                    if (item.id !== undefined) {
-                                      handleTitleChange(key, item.id, newTitle)
-                                    }
-                                  }}
-                                  onDelete={item.id !== undefined ? () => handleDeleteItem(item.id!) : undefined}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </Fragment>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })
-          )}
+    <div className="MeetingsTabView MeetingsTabView--granola w-full h-full overflow-hidden flex flex-col">
+      {/* Granola-style top bar when viewing a meeting note */}
+      {selectedMeeting && isSelectedMeetingNote && (
+        <div className="MeetingsTabView__topbar" data-tauri-drag-region>
+          <div className="MeetingsTabView__topbar-left">
+            <button
+              className="MeetingsTabView__topbar-back"
+              onClick={() => {
+                feed.unselectFeedItem()
+                onBack?.()
+              }}
+              title="Back to meetings"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </button>
+          </div>
+          <div className="MeetingsTabView__topbar-center">
+            <button className="MeetingsTabView__topbar-summary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+              Summary
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
+          <div className="MeetingsTabView__topbar-right">
+            {/* Join Meet/Zoom/Teams button */}
+            {meetingUrl && (
+              <button
+                className="MeetingsTabView__topbar-join"
+                onClick={() => open(meetingUrl)}
+                title={meetingPlatformLabel}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="23 7 16 12 23 17 23 7" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                </svg>
+                {meetingPlatformLabel}
+              </button>
+            )}
+            <button
+              className="MeetingsTabView__topbar-share"
+              onClick={() => {
+                const notesThread = selectedMeeting.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
+                if (notesThread) handleOpenTranscript(notesThread.id)
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Share
+            </button>
+            <button className="MeetingsTabView__topbar-icon" title="More options">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+                <circle cx="5" cy="12" r="1" />
+              </svg>
+            </button>
+          </div>
         </div>
-
-        {/* Ad hoc meeting button at bottom */}
-        <div className="MeetingsTabView__sidebar-footer">
-          {isAnyRecording ? (
-            <Tooltip
-              label="Meeting recording in progress"
-              component={
-                <Button
-                  label="Ad hoc meeting"
-                  icon={<img src={Mic} alt="Microphone" />}
-                  variant={ButtonVariant.startMeetingGrey}
-                  onClick={() => feed.createNewMeeting()}
-                  disabled={isAnyRecording}
-                />
-              }
-              variant={TooltipVariant.inProgressMeeting}
-            />
-          ) : (
-            <Button
-              label="Ad hoc meeting"
-              icon={<img src={Mic} alt="Microphone" />}
-              variant={ButtonVariant.startMeetingGrey}
-              onClick={() => feed.createNewMeeting()}
-            />
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Main content area */}
-      <div className="MeetingsTabView__content">
+      <div className="MeetingsTabView__content MeetingsTabView__content--full flex-1">
         <div className="flex flex-row h-full">
           <div className="flex-grow overflow-y-auto overflow-x-hidden relative">
             {showPermissionsOverlay && (
@@ -500,22 +345,28 @@ const MeetingsTabView = ({
             )}
 
             {!selectedMeeting || !isSelectedMeetingNote ? (
-              <div className="MeetingsTabView__welcome">
-                <h1 className="MeetingsTabView__welcome-title">Meeting Notes</h1>
+              <div className="MeetingsTabView__welcome MeetingsTabView__welcome--granola">
+                <div className="MeetingsTabView__welcome-icon">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#C8A951" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </div>
+                <h1 className="MeetingsTabView__welcome-title">Select a meeting to view notes</h1>
                 <p className="MeetingsTabView__welcome-subtitle">
-                  Record meetings and get AI-powered notes, summaries, and action items
+                  Choose a meeting from the sidebar, or start a new recording
                 </p>
-                <div className="MeetingsTabView__welcome-action">
-                  <Button
-                    label="Record a meeting"
-                    icon={<img src={Mic} alt="Microphone" />}
-                    variant={ButtonVariant.startMeetingGrey}
+                <div className="MeetingsTabView__welcome-actions">
+                  <button
+                    className="MeetingsTabView__quick-note-btn"
                     onClick={() => feed.createNewMeeting()}
-                  />
+                  >
+                    + Quick note
+                  </button>
                 </div>
                 {/* Calendar connection prompt */}
                 {connections && !connections[ConnectionKeys.GOOGLE_CALENDAR] && !connections[ConnectionKeys.MICROSOFT_CALENDAR] && onConnectCalendar && (
-                  <div className="MeetingsTabView__calendar-prompt">
+                  <div className="MeetingsTabView__calendar-prompt MeetingsTabView__calendar-prompt--granola">
                     <div className="MeetingsTabView__calendar-prompt-content">
                       <img src={CalendarIcon} alt="Calendar" className="MeetingsTabView__calendar-prompt-icon" />
                       <div className="MeetingsTabView__calendar-prompt-text">
@@ -589,6 +440,59 @@ const MeetingsTabView = ({
           )}
         </div>
       </div>
+
+      {/* Auto-recording countdown bar (Granola-style) */}
+      {countdown !== null && countdown > 0 && countdownMeeting && !selectedMeeting && (
+        <div className="MeetingsTabView__countdown-bar">
+          <div className="MeetingsTabView__countdown-waveform">
+            <span className="MeetingsTabView__waveform-bar" style={{animationDelay: '0ms'}} />
+            <span className="MeetingsTabView__waveform-bar" style={{animationDelay: '150ms'}} />
+            <span className="MeetingsTabView__waveform-bar" style={{animationDelay: '300ms'}} />
+          </div>
+          <span className="MeetingsTabView__countdown-label">
+            Starts {formatCountdown(countdown)}
+          </span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="18 15 12 9 6 15" />
+          </svg>
+          <button
+            className="MeetingsTabView__countdown-start"
+            onClick={() => {
+              if (countdownMeeting.calendarEvent) {
+                feed.openCalendarEvent(countdownMeeting.calendarEvent)
+              }
+            }}
+          >
+            Start now
+          </button>
+        </div>
+      )}
+
+      {/* Join meeting bar when viewing a meeting with a link */}
+      {selectedMeeting && isSelectedMeetingNote && meetingUrl && (
+        <div className="MeetingsTabView__join-bar">
+          <button
+            className="MeetingsTabView__join-bar-btn"
+            onClick={() => open(meetingUrl)}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="23 7 16 12 23 17 23 7" />
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+            </svg>
+            {meetingPlatformLabel}
+          </button>
+          <button
+            className="MeetingsTabView__join-bar-dismiss"
+            onClick={() => {/* dismiss handled by selecting another meeting */}}
+            title="Dismiss"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
