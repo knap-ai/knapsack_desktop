@@ -176,6 +176,9 @@ function friendlyError(raw: string): string {
     return '🌐 **Browser failed to start.** Chrome could not launch. Check the logs for details or try restarting.'
   }
   // Network / connection errors
+  if (lower.includes('load failed') && !lower.includes('model')) {
+    return '🌐 **Request too large.** The image attachment may be too large to send. Try a smaller image or send without the attachment.'
+  }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
     return '🌐 **Connection error.** Unable to reach the AI service. Check your internet connection and try again.'
   }
@@ -186,6 +189,10 @@ function friendlyError(raw: string): string {
   // Tool loop exceeded
   if (lower.includes('tool loop exceeded')) {
     return '🔄 **Task too complex.** The AI hit its action limit for this request. Try breaking it into smaller steps.'
+  }
+  // Image/vision not supported by model (e.g. Groq non-vision models)
+  if (lower.includes('content must be a string') || lower.includes('does not support images')) {
+    return '🖼️ **This model does not support image attachments.** Switch to a vision-capable model (e.g. Llama 4 Scout) in Settings, or send your message without the image.'
   }
   // If it looks like raw JSON, extract the meaningful part
   if (raw.includes('"message"') && raw.includes('"error"')) {
@@ -206,6 +213,9 @@ function friendlyError(raw: string): string {
     .replace(/^Gemini error:?\s*/i, '')
     .replace(/^Gemini error after \d+ retries:?\s*/i, '')
     .replace(/^Gemini HTTP \d+[^:]*:?\s*/i, '')
+    .replace(/^groq error:?\s*/i, '')
+    .replace(/^groq error after \d+ retries:?\s*/i, '')
+    .replace(/^groq HTTP \d+[^:]*:?\s*/i, '')
   // After prefix stripping, the remainder may be parseable JSON from the provider
   if (cleaned.includes('{')) {
     try {
@@ -1948,11 +1958,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     for (const file of Array.from(files)) {
       try {
         if (file.type.startsWith('image/')) {
-          // For images, create a base64 data URL for preview and content
-          const dataUrl = await readFileAsDataURL(file)
+          // For images, read as data URL then compress to avoid oversized payloads
+          const rawDataUrl = await readFileAsDataURL(file)
+          const dataUrl = await compressImage(rawDataUrl)
           newFiles.push({
             name: file.name,
-            type: file.type,
+            type: dataUrl.startsWith('data:image/jpeg') ? 'image/jpeg' : file.type,
             content: dataUrl,
             preview: dataUrl,
           })
@@ -2015,6 +2026,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     })
   }
 
+  // Resize large images to prevent "Load failed" errors from oversized fetch payloads.
+  // macOS screenshots (Retina) can be 5-10+ MB; this resizes to max 1600px and
+  // re-encodes as JPEG to keep the base64 payload under ~1 MB.
+  const compressImage = (dataUrl: string, maxDim = 1600, quality = 0.8): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        // Skip compression for small images (< 500 KB base64 ≈ 375 KB raw)
+        if (dataUrl.length < 500_000) {
+          resolve(dataUrl)
+          return
+        }
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height)
+          width = Math.round(width * scale)
+          height = Math.round(height * scale)
+        }
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = () => resolve(dataUrl) // Fall back to original on error
+      img.src = dataUrl
+    })
+  }
+
   const readFileAsText = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -2066,8 +2107,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     for (const file of Array.from(files)) {
       try {
         if (file.type.startsWith('image/')) {
-          const dataUrl = await readFileAsDataURL(file)
-          newFiles.push({ name: file.name, type: file.type, content: dataUrl, preview: dataUrl })
+          const rawDataUrl = await readFileAsDataURL(file)
+          const dataUrl = await compressImage(rawDataUrl)
+          newFiles.push({ name: file.name, type: dataUrl.startsWith('data:image/jpeg') ? 'image/jpeg' : file.type, content: dataUrl, preview: dataUrl })
         } else if (file.type === 'application/pdf') {
           const dataUrl = await readFileAsDataURL(file)
           newFiles.push({ name: file.name, type: file.type, content: dataUrl })
@@ -2137,7 +2179,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 reader.readAsDataURL(blob)
               })
               if (mimeType.startsWith('image/')) {
-                newFiles.push({ name: fileName, type: mimeType, content: dataUrl, preview: dataUrl })
+                const compressed = await compressImage(dataUrl)
+                newFiles.push({ name: fileName, type: compressed.startsWith('data:image/jpeg') ? 'image/jpeg' : mimeType, content: compressed, preview: compressed })
               } else {
                 newFiles.push({ name: fileName, type: mimeType, content: dataUrl })
               }
