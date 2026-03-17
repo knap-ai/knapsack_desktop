@@ -384,7 +384,7 @@ Rules:
 - Reference specific names, subjects, and times from the context
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
-- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -435,7 +435,7 @@ Rules:
 - Include sender name and subject in your analysis
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
-- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -468,13 +468,14 @@ Your response MUST be a JSON object with this exact format:
 }
 
 Rules:
+- Use natural time expressions (e.g. "in about an hour", "in 20 minutes") — never raw minute counts like "in 239 minutes"
 - Reference specific attendees and any recent email exchanges with them
 - Highlight any unresolved items from previous conversations with these people
 - Suggest concrete talking points based on available context
 - If you have relevant email threads with attendees, summarize them briefly
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
-- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -511,7 +512,7 @@ Rules:
 - If email follow-ups are needed, draft brief outlines of what they should say
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
-- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate - only reference what's in the transcript
 - Output ONLY the JSON object, no other text
 `
@@ -558,9 +559,10 @@ Rules:
 - ONE thing per notification. Never bundle multiple items or offer to help with several things.
 - Only notify about things that are genuinely urgent or time-sensitive RIGHT NOW. Set shouldNotify to false if nothing qualifies.
 - Be conversational and helpful, not alert-like. You're offering, not alarming.
+- Use natural time expressions (e.g. "in about an hour", "in 20 minutes", "this afternoon") — never raw minute counts like "in 239 minutes"
 - Reference specific names, subjects, and times from the context
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
-- The suggestedActionShort must be exactly 2 words (verb + noun)
+- The suggestedActionShort must be exactly 2 words (verb + noun). Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate — only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
