@@ -2748,6 +2748,17 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         // The gateway logs this on every config read; setting this env var tells it to
         // log the warning only once on startup instead of on every read cycle.
         ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
+        // Ensure Node.js resolves packages from the bundled flat node_modules
+        // directory. Without this, stale nested node_modules (e.g. created by
+        // a local pnpm install) can cause ERR_PACKAGE_PATH_NOT_EXPORTED errors
+        // because Node finds a broken copy before reaching the correct one.
+        ("NODE_PATH".to_string(), {
+          let mut nm = clawdbot_entry.clone();
+          nm.pop(); // remove entry.js
+          nm.pop(); // remove dist/
+          nm.push("node_modules");
+          nm.to_string_lossy().to_string()
+        }),
       ];
 
       // Propagate LLM keys to clawdbot subprocess AND to the current Tauri process
@@ -2833,6 +2844,31 @@ You can create, list, and cancel scheduled tasks (cron jobs).
           enabled,
           message: format!("Failed writing plist {}: {}", plist_path.display(), e),
         });
+      }
+
+      // Run "openclaw doctor --fix" to auto-migrate config for the new
+      // version (e.g. WhatsApp allowFrom validation, Telegram streaming rename).
+      // This is a quick, idempotent command that exits immediately.
+      {
+        let doctor_env: Vec<(String, String)> = env.clone();
+        let mut doctor_cmd = std::process::Command::new(node_path.as_os_str());
+        doctor_cmd
+          .arg(clawdbot_entry.as_os_str())
+          .args(["doctor", "--fix"]);
+        for (k, v) in &doctor_env {
+          doctor_cmd.env(k, v);
+        }
+        match doctor_cmd.output() {
+          Ok(out) => {
+            if !out.status.success() {
+              let stderr = String::from_utf8_lossy(&out.stderr);
+              eprintln!("[clawd/service] openclaw doctor --fix exited with {}: {}", out.status, stderr.chars().take(500).collect::<String>());
+            } else {
+              eprintln!("[clawd/service] openclaw doctor --fix completed successfully");
+            }
+          }
+          Err(e) => eprintln!("[clawd/service] WARNING: failed to run openclaw doctor --fix: {}", e),
+        }
       }
 
       // Kill any stale Chrome processes from a previous clawdbot session so
