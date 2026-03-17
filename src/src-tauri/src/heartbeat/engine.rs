@@ -306,11 +306,30 @@ async fn gather_context(config: &HeartbeatConfig) -> GatheredContext {
                             } else {
                                 0
                             };
+                            let time_display = if minutes_until < 2 {
+                                "in about 1 minute".to_string()
+                            } else if minutes_until < 60 {
+                                format!("in {} minutes", minutes_until)
+                            } else {
+                                let hours = minutes_until / 60;
+                                let remaining_mins = minutes_until % 60;
+                                if hours == 1 {
+                                    if remaining_mins > 15 {
+                                        "in about 1.5 hours".to_string()
+                                    } else {
+                                        "in about 1 hour".to_string()
+                                    }
+                                } else if remaining_mins > 15 {
+                                    format!("in about {}.5 hours", hours)
+                                } else {
+                                    format!("in about {} hours", hours)
+                                }
+                            };
                             summaries.push(format!(
-                                "{}. {} (in {} minutes)",
+                                "{}. {} ({})",
                                 i + 1,
                                 title,
-                                minutes_until
+                                time_display
                             ));
                         }
                         if !summaries.is_empty() {
