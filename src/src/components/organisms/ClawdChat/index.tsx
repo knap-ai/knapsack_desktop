@@ -9,6 +9,7 @@ import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { QRCodeSVG } from 'qrcode.react'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
+import type { ChannelStatus } from 'src/api/channels'
 import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist } from 'src/api/channels'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
@@ -1407,7 +1408,68 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
   const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
-  const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel
+  const hasAnyGenericChannel = !!(
+    channelStatus.genericChannels.slack?.configured ||
+    channelStatus.genericChannels.discord?.configured ||
+    channelStatus.genericChannels.signal?.configured ||
+    channelStatus.genericChannels.irc?.configured ||
+    channelStatus.genericChannels.googlechat?.configured
+  )
+  const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
+
+  // Build channel status tooltip and button color class
+  const channelButtonInfo = useMemo(() => {
+    const lines: string[] = []
+    let hasError = false
+    let hasConnected = false
+
+    // Gateway status
+    if (channelStatus.gatewayHealthy === false) {
+      lines.push(channelStatus.gatewayStarting ? 'Gateway: starting...' : 'Gateway: down')
+      if (!channelStatus.gatewayStarting) hasError = true
+    } else if (channelStatus.gatewayHealthy === true) {
+      lines.push('Gateway: OK')
+    }
+
+    // Per-channel status
+    const addChannel = (name: string, status: ChannelStatus | null, errorKey: string, connectedKey: 'linked' | 'configured') => {
+      if (!status) return
+      const err = channelStatus.channelErrors[errorKey]
+      if (status[connectedKey]) {
+        lines.push(`${name}: connected`)
+        hasConnected = true
+        if (err) { lines.push(`  ⚠ ${err}`); hasError = true }
+      } else if (status.enabled) {
+        lines.push(`${name}: enabled — not linked`)
+      }
+    }
+
+    addChannel('WhatsApp', channelStatus.whatsapp, 'whatsapp', 'linked')
+    addChannel('iMessage', channelStatus.imessage, 'imessage', 'configured')
+    addChannel('Telegram', channelStatus.telegram, 'telegram', 'configured')
+
+    const genericNames: Record<string, string> = { slack: 'Slack', discord: 'Discord', signal: 'Signal', irc: 'IRC', googlechat: 'Google Chat' }
+    for (const [key, label] of Object.entries(genericNames)) {
+      const gs = channelStatus.genericChannels[key as keyof typeof channelStatus.genericChannels]
+      addChannel(label, gs, key, 'configured')
+    }
+
+    if (!hasConnected && !hasError && channelStatus.gatewayHealthy !== false) {
+      lines.push('No channels connected')
+    }
+
+    // Determine color class: ok (green), warn (orange), down (red)
+    let colorClass = 'channels-none'
+    if (hasError || channelStatus.gatewayHealthy === false && !channelStatus.gatewayStarting) {
+      colorClass = 'channels-error'
+    } else if (channelStatus.gatewayStarting) {
+      colorClass = 'channels-starting'
+    } else if (hasConnected) {
+      colorClass = 'channels-connected'
+    }
+
+    return { tooltip: lines.join('\n'), colorClass }
+  }, [channelStatus.whatsapp, channelStatus.imessage, channelStatus.telegram, channelStatus.genericChannels, channelStatus.channelErrors, channelStatus.gatewayHealthy, channelStatus.gatewayStarting])
 
   const welcomeMessages = useMemo(
     () => [
@@ -3696,10 +3758,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </button>
           <button
             onClick={() => { setShowChannelsPanel(prev => !prev); setShowSkillsPanel(false); setShowKeyPrompt(false); if (externalActivityPanel && onCloseActivity) onCloseActivity() }}
-            className={`${showChannelsPanel ? 'toggle-on' : ''} ${hasAnyChannel ? 'channels-connected' : 'channels-disconnected'}`}
-            title="Connect WhatsApp, iMessage, or Telegram"
+            className={`${showChannelsPanel ? 'toggle-on' : ''} ${channelButtonInfo.colorClass}`}
+            title={channelButtonInfo.tooltip}
           >
-            {hasAnyChannel ? '💬 Channels' : '💬 Channels'}
+            💬 Channels
           </button>
           <button
             disabled={busy}
