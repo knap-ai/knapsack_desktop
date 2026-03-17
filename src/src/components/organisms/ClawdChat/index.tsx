@@ -2475,13 +2475,34 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // Start the service on launch — only enable if not already running.
       // Avoid cycling (disable+enable) because SIGTERMing a healthy gateway
       // causes the browser to disconnect and triggers the restart loop.
+      // Retry up to 3 times with backoff because in dev mode the Rust backend
+      // may not be ready when the React app mounts.
       try {
-        const s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+        let s: ServiceStatus | null = null
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+            break
+          } catch {
+            // Backend not ready yet — wait and retry
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+          }
+        }
+        if (!s) {
+          // All retries failed — try one last time without catching
+          s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+        }
         setStatus(s)
 
         if (!s.running) {
-          // Service is not running — start it
-          await apiPost('/api/clawd/service/enable', { enabled: true })
+          // Service is not running — start it (retry once on failure)
+          try {
+            await apiPost('/api/clawd/service/enable', { enabled: true })
+          } catch {
+            // First enable attempt failed — wait and retry
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            await apiPost('/api/clawd/service/enable', { enabled: true })
+          }
           // Wait for gateway to become healthy (with exponential backoff on backend).
           // The startup-ready endpoint polls until the gateway responds or 30s elapses.
           try {

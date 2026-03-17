@@ -134,7 +134,7 @@ pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
 /// Best-effort: if gateway isn't healthy, try kickstarting the LaunchAgent.
 ///
 /// This does NOT install/bootstrap the agent; it assumes the service is already enabled.
-/// Uses exponential backoff: retries up to 4 times with delays of 1s, 2s, 4s, 8s.
+/// Uses exponential backoff: retries up to 4 times with delays of 500ms, 1s, 2s, 4s.
 pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureResponse {
   if is_gateway_healthy(token).await {
     return GatewayEnsureResponse {
@@ -144,8 +144,10 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
     };
   }
 
-  // Retry with exponential backoff: 1s, 2s, 4s, 8s
-  let backoff_ms: &[u64] = &[1000, 2000, 4000, 8000];
+  // Retry with exponential backoff: 500ms, 1s, 2s, 4s
+  // Start faster to reduce perceived startup time; the gateway usually
+  // comes up within the first second after kickstart.
+  let backoff_ms: &[u64] = &[500, 1000, 2000, 4000];
 
   for (attempt, &delay) in backoff_ms.iter().enumerate() {
     eprintln!(
