@@ -47,12 +47,20 @@ jobs:
           node scripts/prepare-node.cjs
           node scripts/prune-clawdbot.cjs
 
+      - name: Generate temporary updater signing key (CI only)
+        run: |
+          npx tauri signer generate -w "$RUNNER_TEMP/ci-key.key"
+          DELIM="EOF_$RANDOM"
+          echo "TAURI_PRIVATE_KEY<<$DELIM" >> "$GITHUB_ENV"
+          cat "$RUNNER_TEMP/ci-key.key" >> "$GITHUB_ENV"
+          echo "$DELIM" >> "$GITHUB_ENV"
+          echo "TAURI_KEY_PASSWORD=" >> "$GITHUB_ENV"
+        working-directory: src
+
       - name: Build Tauri app (universal)
         working-directory: src
         run: npx tauri build --target universal-apple-darwin
         env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
           VITE_GOOGLE_CLIENT_ID: ""
