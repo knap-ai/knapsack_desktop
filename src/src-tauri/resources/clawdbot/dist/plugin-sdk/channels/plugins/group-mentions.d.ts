@@ -1,16 +1,6 @@
-import type { OpenClawConfig } from "../../config/config.js";
 import type { GroupToolPolicyConfig } from "../../config/types.tools.js";
-type GroupMentionParams = {
-    cfg: OpenClawConfig;
-    groupId?: string | null;
-    groupChannel?: string | null;
-    groupSpace?: string | null;
-    accountId?: string | null;
-    senderId?: string | null;
-    senderName?: string | null;
-    senderUsername?: string | null;
-    senderE164?: string | null;
-};
+import type { ChannelGroupContext } from "./types.js";
+type GroupMentionParams = ChannelGroupContext;
 export declare function resolveTelegramGroupRequireMention(params: GroupMentionParams): boolean | undefined;
 export declare function resolveWhatsAppGroupRequireMention(params: GroupMentionParams): boolean;
 export declare function resolveIMessageGroupRequireMention(params: GroupMentionParams): boolean;
@@ -25,4 +15,6 @@ export declare function resolveIMessageGroupToolPolicy(params: GroupMentionParam
 export declare function resolveDiscordGroupToolPolicy(params: GroupMentionParams): GroupToolPolicyConfig | undefined;
 export declare function resolveSlackGroupToolPolicy(params: GroupMentionParams): GroupToolPolicyConfig | undefined;
 export declare function resolveBlueBubblesGroupToolPolicy(params: GroupMentionParams): GroupToolPolicyConfig | undefined;
+export declare function resolveLineGroupRequireMention(params: GroupMentionParams): boolean;
+export declare function resolveLineGroupToolPolicy(params: GroupMentionParams): GroupToolPolicyConfig | undefined;
 export {};

@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { ResolvedLineAccount } from "./types.js";
-export declare const DEFAULT_ACCOUNT_ID = "default";
+export { DEFAULT_ACCOUNT_ID } from "../routing/account-id.js";
 export declare function resolveLineAccount(params: {
     cfg: OpenClawConfig;
     accountId?: string;

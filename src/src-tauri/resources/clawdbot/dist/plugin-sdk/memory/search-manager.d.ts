@@ -7,4 +7,6 @@ export type MemorySearchManagerResult = {
 export declare function getMemorySearchManager(params: {
     cfg: OpenClawConfig;
     agentId: string;
+    purpose?: "default" | "status";
 }): Promise<MemorySearchManagerResult>;
+export declare function closeAllMemorySearchManagers(): Promise<void>;

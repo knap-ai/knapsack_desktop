@@ -1,7 +1,7 @@
 import type { ReplyPayload } from "../auto-reply/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { TtsAutoMode, TtsMode, TtsProvider, TtsModelOverrideConfig } from "../config/types.tts.js";
-import { isValidOpenAIModel, isValidOpenAIVoice, isValidVoiceId, parseTtsDirectives, summarizeText } from "./tts-core.js";
+import { isValidOpenAIModel, isValidOpenAIVoice, isValidVoiceId, resolveOpenAITtsInstructions, parseTtsDirectives, summarizeText } from "./tts-core.js";
 export { OPENAI_TTS_MODELS, OPENAI_TTS_VOICES } from "./tts-core.js";
 export type ResolvedTtsConfig = {
     auto: TtsAutoMode;
@@ -28,8 +28,11 @@ export type ResolvedTtsConfig = {
     };
     openai: {
         apiKey?: string;
+        baseUrl: string;
         model: string;
         voice: string;
+        speed?: number;
+        instructions?: string;
     };
     edge: {
         enabled: boolean;
@@ -171,6 +174,7 @@ export declare const _test: {
     isValidOpenAIModel: typeof isValidOpenAIModel;
     OPENAI_TTS_MODELS: readonly ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"];
     OPENAI_TTS_VOICES: readonly ["alloy", "ash", "ballad", "cedar", "coral", "echo", "fable", "juniper", "marin", "onyx", "nova", "sage", "shimmer", "verse"];
+    resolveOpenAITtsInstructions: typeof resolveOpenAITtsInstructions;
     parseTtsDirectives: typeof parseTtsDirectives;
     resolveModelOverridePolicy: typeof resolveModelOverridePolicy;
     summarizeText: typeof summarizeText;

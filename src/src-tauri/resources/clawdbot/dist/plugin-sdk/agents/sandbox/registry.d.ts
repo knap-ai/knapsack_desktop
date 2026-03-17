@@ -15,6 +15,7 @@ export type SandboxBrowserRegistryEntry = {
     createdAtMs: number;
     lastUsedAtMs: number;
     image: string;
+    configHash?: string;
     cdpPort: number;
     noVncPort?: number;
 };

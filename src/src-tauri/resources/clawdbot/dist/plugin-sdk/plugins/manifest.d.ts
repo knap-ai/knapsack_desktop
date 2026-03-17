@@ -1,5 +1,5 @@
-import type { PluginConfigUiHint, PluginKind } from "./types.js";
 import { MANIFEST_KEY } from "../compat/legacy-names.js";
+import type { PluginConfigUiHint, PluginKind } from "./types.js";
 export declare const PLUGIN_MANIFEST_FILENAME = "openclaw.plugin.json";
 export declare const PLUGIN_MANIFEST_FILENAMES: readonly ["openclaw.plugin.json"];
 export type PluginManifest = {
@@ -24,7 +24,7 @@ export type PluginManifestLoadResult = {
     manifestPath: string;
 };
 export declare function resolvePluginManifestPath(rootDir: string): string;
-export declare function loadPluginManifest(rootDir: string): PluginManifestLoadResult;
+export declare function loadPluginManifest(rootDir: string, rejectHardlinks?: boolean): PluginManifestLoadResult;
 export type PluginPackageChannel = {
     id?: string;
     label?: string;
@@ -55,6 +55,17 @@ export type OpenClawPackageManifest = {
     channel?: PluginPackageChannel;
     install?: PluginPackageInstall;
 };
+export declare const DEFAULT_PLUGIN_ENTRY_CANDIDATES: readonly ["index.ts", "index.js", "index.mjs", "index.cjs"];
+export type PackageExtensionResolution = {
+    status: "ok";
+    entries: string[];
+} | {
+    status: "missing";
+    entries: [];
+} | {
+    status: "empty";
+    entries: [];
+};
 export type ManifestKey = typeof MANIFEST_KEY;
 export type PackageManifest = {
     name?: string;
@@ -62,3 +73,4 @@ export type PackageManifest = {
     description?: string;
 } & Partial<Record<ManifestKey, OpenClawPackageManifest>>;
 export declare function getPackageManifestMetadata(manifest: PackageManifest | undefined): OpenClawPackageManifest | undefined;
+export declare function resolvePackageExtensionEntries(manifest: PackageManifest | undefined): PackageExtensionResolution;

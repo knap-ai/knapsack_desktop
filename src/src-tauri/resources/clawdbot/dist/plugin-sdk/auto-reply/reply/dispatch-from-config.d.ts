@@ -1,8 +1,8 @@
 import type { OpenClawConfig } from "../../config/config.js";
+import { getReplyFromConfig } from "../reply.js";
 import type { FinalizedMsgContext } from "../templating.js";
 import type { GetReplyOptions } from "../types.js";
 import type { ReplyDispatcher, ReplyDispatchKind } from "./reply-dispatcher.js";
-import { getReplyFromConfig } from "../reply.js";
 export type DispatchFromConfigResult = {
     queuedFinal: boolean;
     counts: Record<ReplyDispatchKind, number>;

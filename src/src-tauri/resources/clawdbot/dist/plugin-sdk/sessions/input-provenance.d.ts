@@ -3,6 +3,7 @@ export declare const INPUT_PROVENANCE_KIND_VALUES: readonly ["external_user", "i
 export type InputProvenanceKind = (typeof INPUT_PROVENANCE_KIND_VALUES)[number];
 export type InputProvenance = {
     kind: InputProvenanceKind;
+    originSessionId?: string;
     sourceSessionKey?: string;
     sourceChannel?: string;
     sourceTool?: string;

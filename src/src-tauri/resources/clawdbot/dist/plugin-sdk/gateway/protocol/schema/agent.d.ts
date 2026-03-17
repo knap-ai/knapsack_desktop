@@ -1,78 +1,117 @@
-export declare const AgentEventSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    runId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    seq: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-    stream: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    ts: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
-    data: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
+export declare const AgentInternalEventSchema: import("@sinclair/typebox").TObject<{
+    type: import("@sinclair/typebox").TLiteral<"task_completion">;
+    source: import("@sinclair/typebox").TString;
+    childSessionKey: import("@sinclair/typebox").TString;
+    childSessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    announceType: import("@sinclair/typebox").TString;
+    taskLabel: import("@sinclair/typebox").TString;
+    status: import("@sinclair/typebox").TString;
+    statusLabel: import("@sinclair/typebox").TString;
+    result: import("@sinclair/typebox").TString;
+    statsLine: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    replyInstruction: import("@sinclair/typebox").TString;
 }>;
-export declare const SendParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    mediaUrl: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    mediaUrls: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    gifPlayback: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    accountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const AgentEventSchema: import("@sinclair/typebox").TObject<{
+    runId: import("@sinclair/typebox").TString;
+    seq: import("@sinclair/typebox").TInteger;
+    stream: import("@sinclair/typebox").TString;
+    ts: import("@sinclair/typebox").TInteger;
+    data: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>;
+}>;
+export declare const SendParamsSchema: import("@sinclair/typebox").TObject<{
+    to: import("@sinclair/typebox").TString;
+    message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    mediaUrl: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    mediaUrls: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    gifPlayback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    /** Optional agent id for per-agent media root resolution on gateway sends. */
+    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    /** Thread id (channel-specific meaning, e.g. Telegram forum topic id). */
+    threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     /** Optional session key for mirroring delivered output back into the transcript. */
-    sessionKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    idempotencyKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    idempotencyKey: import("@sinclair/typebox").TString;
 }>;
-export declare const PollParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    question: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    options: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    maxSelections: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    durationHours: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    accountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    idempotencyKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const PollParamsSchema: import("@sinclair/typebox").TObject<{
+    to: import("@sinclair/typebox").TString;
+    question: import("@sinclair/typebox").TString;
+    options: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
+    maxSelections: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    /** Poll duration in seconds (channel-specific limits may apply). */
+    durationSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    durationHours: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    /** Send silently (no notification) where supported. */
+    silent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    /** Poll anonymity where supported (e.g. Telegram polls default to anonymous). */
+    isAnonymous: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    /** Thread id (channel-specific meaning, e.g. Telegram forum topic id). */
+    threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    idempotencyKey: import("@sinclair/typebox").TString;
 }>;
-export declare const AgentParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    agentId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    to: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    replyTo: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    sessionId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    sessionKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    thinking: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    deliver: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    attachments: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>>;
-    channel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    replyChannel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    accountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    replyAccountId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    threadId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    groupId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    groupChannel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    groupSpace: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    timeout: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    lane: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    extraSystemPrompt: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    inputProvenance: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        kind: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-        sourceSessionKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        sourceChannel: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        sourceTool: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const AgentParamsSchema: import("@sinclair/typebox").TObject<{
+    message: import("@sinclair/typebox").TString;
+    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    replyTo: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    attachments: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnknown>>;
+    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    replyChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    replyAccountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    groupId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    groupChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    groupSpace: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    timeout: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    lane: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    extraSystemPrompt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    internalEvents: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+        type: import("@sinclair/typebox").TLiteral<"task_completion">;
+        source: import("@sinclair/typebox").TString;
+        childSessionKey: import("@sinclair/typebox").TString;
+        childSessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        announceType: import("@sinclair/typebox").TString;
+        taskLabel: import("@sinclair/typebox").TString;
+        status: import("@sinclair/typebox").TString;
+        statusLabel: import("@sinclair/typebox").TString;
+        result: import("@sinclair/typebox").TString;
+        statsLine: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        replyInstruction: import("@sinclair/typebox").TString;
+    }>>>;
+    inputProvenance: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        kind: import("@sinclair/typebox").TString;
+        originSessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        sourceSessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        sourceChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        sourceTool: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>>;
-    idempotencyKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    label: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    spawnedBy: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+    idempotencyKey: import("@sinclair/typebox").TString;
+    label: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const AgentIdentityParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    agentId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    sessionKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const AgentIdentityParamsSchema: import("@sinclair/typebox").TObject<{
+    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const AgentIdentityResultSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    agentId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    name: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    avatar: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    emoji: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const AgentIdentityResultSchema: import("@sinclair/typebox").TObject<{
+    agentId: import("@sinclair/typebox").TString;
+    name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const AgentWaitParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    runId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    timeoutMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
+export declare const AgentWaitParamsSchema: import("@sinclair/typebox").TObject<{
+    runId: import("@sinclair/typebox").TString;
+    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
 }>;
-export declare const WakeParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    mode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnion<[import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"now">, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TLiteral<"next-heartbeat">]>;
-    text: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const WakeParamsSchema: import("@sinclair/typebox").TObject<{
+    mode: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"now">, import("@sinclair/typebox").TLiteral<"next-heartbeat">]>;
+    text: import("@sinclair/typebox").TString;
 }>;

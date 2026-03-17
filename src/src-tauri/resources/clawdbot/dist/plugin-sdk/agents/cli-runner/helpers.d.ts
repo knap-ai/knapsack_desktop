@@ -4,12 +4,7 @@ import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { CliBackendConfig } from "../../config/types.js";
 import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
-export declare function cleanupResumeProcesses(backend: CliBackendConfig, sessionId: string): Promise<void>;
-/**
- * Cleanup suspended OpenClaw CLI processes that have accumulated.
- * Only cleans up if there are more than the threshold (default: 10).
- */
-export declare function cleanupSuspendedCliProcesses(backend: CliBackendConfig, threshold?: number): Promise<void>;
+export { buildCliSupervisorScopeKey, resolveCliNoOutputTimeoutMs } from "./reliability.js";
 export declare function enqueueCliRun<T>(key: string, task: () => Promise<T>): Promise<T>;
 type CliUsage = {
     input?: number;
@@ -33,6 +28,7 @@ export declare function buildSystemPrompt(params: {
     docsPath?: string;
     tools: AgentTool[];
     contextFiles?: EmbeddedContextFile[];
+    bootstrapTruncationWarningLines?: string[];
     modelDisplay: string;
     agentId?: string;
 }): string;
@@ -73,4 +69,3 @@ export declare function buildCliArgs(params: {
     promptArg?: string;
     useResume: boolean;
 }): string[];
-export {};

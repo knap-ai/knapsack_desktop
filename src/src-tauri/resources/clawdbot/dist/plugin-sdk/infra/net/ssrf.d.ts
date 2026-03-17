@@ -7,11 +7,15 @@ export declare class SsrFBlockedError extends Error {
 export type LookupFn = typeof dnsLookup;
 export type SsrFPolicy = {
     allowPrivateNetwork?: boolean;
+    dangerouslyAllowPrivateNetwork?: boolean;
+    allowRfc2544BenchmarkRange?: boolean;
     allowedHostnames?: string[];
     hostnameAllowlist?: string[];
 };
-export declare function isPrivateIpAddress(address: string): boolean;
+export declare function isPrivateNetworkAllowedByPolicy(policy?: SsrFPolicy): boolean;
+export declare function isPrivateIpAddress(address: string, policy?: SsrFPolicy): boolean;
 export declare function isBlockedHostname(hostname: string): boolean;
+export declare function isBlockedHostnameOrIp(hostname: string, policy?: SsrFPolicy): boolean;
 export declare function createPinnedLookup(params: {
     hostname: string;
     addresses: string[];
@@ -22,11 +26,23 @@ export type PinnedHostname = {
     addresses: string[];
     lookup: typeof dnsLookupCb;
 };
+export type PinnedDispatcherPolicy = {
+    mode: "direct";
+    connect?: Record<string, unknown>;
+} | {
+    mode: "env-proxy";
+    connect?: Record<string, unknown>;
+    proxyTls?: Record<string, unknown>;
+} | {
+    mode: "explicit-proxy";
+    proxyUrl: string;
+    proxyTls?: Record<string, unknown>;
+};
 export declare function resolvePinnedHostnameWithPolicy(hostname: string, params?: {
     lookupFn?: LookupFn;
     policy?: SsrFPolicy;
 }): Promise<PinnedHostname>;
 export declare function resolvePinnedHostname(hostname: string, lookupFn?: LookupFn): Promise<PinnedHostname>;
-export declare function createPinnedDispatcher(pinned: PinnedHostname): Dispatcher;
+export declare function createPinnedDispatcher(pinned: PinnedHostname, policy?: PinnedDispatcherPolicy): Dispatcher;
 export declare function closeDispatcher(dispatcher?: Dispatcher | null): Promise<void>;
 export declare function assertPublicHostname(hostname: string, lookupFn?: LookupFn): Promise<void>;

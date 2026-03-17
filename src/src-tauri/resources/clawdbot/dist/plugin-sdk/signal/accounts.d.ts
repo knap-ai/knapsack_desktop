@@ -8,8 +8,8 @@ export type ResolvedSignalAccount = {
     configured: boolean;
     config: SignalAccountConfig;
 };
-export declare function listSignalAccountIds(cfg: OpenClawConfig): string[];
-export declare function resolveDefaultSignalAccountId(cfg: OpenClawConfig): string;
+export declare const listSignalAccountIds: (cfg: OpenClawConfig) => string[];
+export declare const resolveDefaultSignalAccountId: (cfg: OpenClawConfig) => string;
 export declare function resolveSignalAccount(params: {
     cfg: OpenClawConfig;
     accountId?: string | null;

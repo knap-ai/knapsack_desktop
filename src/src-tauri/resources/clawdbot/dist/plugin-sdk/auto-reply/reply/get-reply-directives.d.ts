@@ -6,12 +6,12 @@ import type { SessionEntry } from "../../config/sessions.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
-import type { TypingController } from "./typing.js";
 import { buildCommandContext } from "./commands.js";
 import { type InlineDirectives } from "./directive-handling.js";
 import { applyInlineDirectiveOverrides } from "./get-reply-directives-apply.js";
 import { defaultGroupActivation, resolveGroupRequireMention } from "./groups.js";
 import { createModelSelectionState } from "./model-selection.js";
+import type { TypingController } from "./typing.js";
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;
 export type ReplyDirectiveContinuation = {
@@ -30,6 +30,7 @@ export type ReplyDirectiveContinuation = {
     }>;
     defaultActivation: ReturnType<typeof defaultGroupActivation>;
     resolvedThinkLevel: ThinkLevel | undefined;
+    resolvedFastMode: boolean;
     resolvedVerboseLevel: VerboseLevel | undefined;
     resolvedReasoningLevel: ReasoningLevel;
     resolvedElevatedLevel: ElevatedLevel;

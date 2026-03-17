@@ -3,15 +3,17 @@ import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import type { MemoryCitationsMode } from "../../config/types.memory.js";
 import type { ResolvedTimeFormat } from "../date-time.js";
 import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
+import { type PromptMode } from "../system-prompt.js";
 import type { EmbeddedSandboxInfo } from "./types.js";
 import type { ReasoningLevel, ThinkLevel } from "./utils.js";
-import { type PromptMode } from "../system-prompt.js";
 export declare function buildEmbeddedSystemPrompt(params: {
     workspaceDir: string;
     defaultThinkLevel?: ThinkLevel;
     reasoningLevel?: ReasoningLevel;
     extraSystemPrompt?: string;
     ownerNumbers?: string[];
+    ownerDisplay?: "raw" | "hash";
+    ownerDisplaySecret?: string;
     reasoningTagHint: boolean;
     heartbeatPrompt?: string;
     skillsPrompt?: string;
@@ -24,6 +26,8 @@ export declare function buildEmbeddedSystemPrompt(params: {
     workspaceNotes?: string[];
     /** Controls which hardcoded sections to include. Defaults to "full". */
     promptMode?: PromptMode;
+    /** Whether ACP-specific routing guidance should be included. Defaults to true. */
+    acpEnabled?: boolean;
     runtimeInfo: {
         agentId?: string;
         host: string;
@@ -45,6 +49,7 @@ export declare function buildEmbeddedSystemPrompt(params: {
     userTime?: string;
     userTimeFormat?: ResolvedTimeFormat;
     contextFiles?: EmbeddedContextFile[];
+    bootstrapTruncationWarningLines?: string[];
     memoryCitationsMode?: MemoryCitationsMode;
 }): string;
 export declare function createSystemPromptOverride(systemPrompt: string): (defaultPrompt?: string) => string;

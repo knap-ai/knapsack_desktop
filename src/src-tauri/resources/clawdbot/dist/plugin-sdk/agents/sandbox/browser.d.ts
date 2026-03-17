@@ -5,4 +5,8 @@ export declare function ensureSandboxBrowser(params: {
     agentWorkspaceDir: string;
     cfg: SandboxConfig;
     evaluateEnabled?: boolean;
+    bridgeAuth?: {
+        token?: string;
+        password?: string;
+    };
 }): Promise<SandboxBrowserContext | null>;

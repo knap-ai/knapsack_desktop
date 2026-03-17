@@ -8,7 +8,7 @@ export type GroupHistoryEntry = {
     id?: string;
     senderJid?: string;
 };
-export declare function applyGroupGating(params: {
+type ApplyGroupGatingParams = {
     cfg: ReturnType<typeof loadConfig>;
     msg: WebInboundMsg;
     conversationId: string;
@@ -24,6 +24,10 @@ export declare function applyGroupGating(params: {
     replyLogger: {
         debug: (obj: unknown, msg: string) => void;
     };
-}): {
+};
+export declare function applyGroupGating(params: ApplyGroupGatingParams): {
+    readonly shouldProcess: false;
+} | {
     shouldProcess: boolean;
 };
+export {};

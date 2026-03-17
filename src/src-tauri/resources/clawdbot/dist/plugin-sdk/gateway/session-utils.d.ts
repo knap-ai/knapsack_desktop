@@ -1,7 +1,7 @@
-import type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult } from "./session-utils.types.js";
-import { type OpenClawConfig } from "../config/config.js";
+import { type OpenClawConfig, loadConfig } from "../config/config.js";
 import { type SessionEntry, type SessionScope } from "../config/sessions.js";
-export { archiveFileOnDisk, archiveSessionTranscripts, capArrayByJsonBytes, readFirstUserMessageFromTranscript, readLastMessagePreviewFromTranscript, readSessionPreviewItemsFromTranscript, readSessionMessages, resolveSessionTranscriptCandidates, } from "./session-utils.fs.js";
+import type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult } from "./session-utils.types.js";
+export { archiveFileOnDisk, archiveSessionTranscripts, capArrayByJsonBytes, readFirstUserMessageFromTranscript, readLastMessagePreviewFromTranscript, readSessionTitleFieldsFromTranscript, readSessionPreviewItemsFromTranscript, readSessionMessages, resolveSessionTranscriptCandidates, } from "./session-utils.fs.js";
 export type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult, SessionsPatchResult, SessionsPreviewEntry, SessionsPreviewResult, } from "./session-utils.types.js";
 export declare function deriveSessionTitle(entry: SessionEntry | undefined, firstUserMessage?: string | null): string | undefined;
 export declare function loadSessionEntry(sessionKey: string): {
@@ -26,6 +26,20 @@ export declare function pruneLegacyStoreKeys(params: {
     canonicalKey: string;
     candidates: Iterable<string>;
 }): void;
+export declare function migrateAndPruneGatewaySessionStoreKey(params: {
+    cfg: ReturnType<typeof loadConfig>;
+    key: string;
+    store: Record<string, SessionEntry>;
+}): {
+    target: {
+        agentId: string;
+        storePath: string;
+        canonicalKey: string;
+        storeKeys: string[];
+    };
+    primaryKey: string;
+    entry: SessionEntry;
+};
 export declare function classifySessionKey(key: string, entry?: SessionEntry): GatewaySessionRow["kind"];
 export declare function parseGroupKey(key: string): {
     channel?: string;
@@ -59,8 +73,12 @@ export declare function loadCombinedSessionStoreForGateway(cfg: OpenClawConfig):
     store: Record<string, SessionEntry>;
 };
 export declare function getSessionDefaults(cfg: OpenClawConfig): GatewaySessionsDefaults;
-export declare function resolveSessionModelRef(cfg: OpenClawConfig, entry?: SessionEntry, agentId?: string): {
+export declare function resolveSessionModelRef(cfg: OpenClawConfig, entry?: SessionEntry | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">, agentId?: string): {
     provider: string;
+    model: string;
+};
+export declare function resolveSessionModelIdentityRef(cfg: OpenClawConfig, entry?: SessionEntry | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">, agentId?: string): {
+    provider?: string;
     model: string;
 };
 export declare function listSessionsFromStore(params: {

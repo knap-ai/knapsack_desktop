@@ -1,10 +1,10 @@
+import { type SessionEntry } from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
 import type { TemplateContext } from "../templating.js";
-import type { GetReplyOptions, ReplyPayload } from "../types.js";
-import type { TypingController } from "./typing.js";
-import { type SessionEntry } from "../../config/sessions.js";
 import { type VerboseLevel } from "../thinking.js";
+import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { type FollowupRun, type QueueSettings } from "./queue.js";
+import type { TypingController } from "./typing.js";
 export declare function runReplyAgent(params: {
     commandBody: string;
     followupRun: FollowupRun;

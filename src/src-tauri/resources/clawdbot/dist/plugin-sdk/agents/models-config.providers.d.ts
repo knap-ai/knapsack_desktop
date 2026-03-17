@@ -1,29 +1,38 @@
 import type { OpenClawConfig } from "../config/config.js";
+export { buildKimiCodingProvider, buildKilocodeProvider, buildNvidiaProvider, buildModelStudioProvider, buildQianfanProvider, buildXiaomiProvider, MODELSTUDIO_BASE_URL, MODELSTUDIO_DEFAULT_MODEL_ID, QIANFAN_BASE_URL, QIANFAN_DEFAULT_MODEL_ID, XIAOMI_DEFAULT_MODEL_ID, } from "./models-config.providers.static.js";
+export { resolveOllamaApiBase } from "./models-config.providers.discovery.js";
 type ModelsConfig = NonNullable<OpenClawConfig["models"]>;
 export type ProviderConfig = NonNullable<ModelsConfig["providers"]>[string];
-export declare const XIAOMI_DEFAULT_MODEL_ID = "mimo-v2-flash";
-export declare const QIANFAN_BASE_URL = "https://qianfan.baidubce.com/v2";
-export declare const QIANFAN_DEFAULT_MODEL_ID = "deepseek-v3.2";
-/**
- * Derive the Ollama native API base URL from a configured base URL.
- *
- * Users typically configure `baseUrl` with a `/v1` suffix (e.g.
- * `http://192.168.20.14:11434/v1`) for the OpenAI-compatible endpoint.
- * The native Ollama API lives at the root (e.g. `/api/tags`), so we
- * strip the `/v1` suffix when present.
- */
-export declare function resolveOllamaApiBase(configuredBaseUrl?: string): string;
+type SecretDefaults = {
+    env?: string;
+    file?: string;
+    exec?: string;
+};
 export declare function normalizeGoogleModelId(id: string): string;
+export declare function normalizeAntigravityModelId(id: string): string;
+export declare function enforceSourceManagedProviderSecrets(params: {
+    providers: ModelsConfig["providers"];
+    sourceProviders: ModelsConfig["providers"] | undefined;
+    sourceSecretDefaults?: SecretDefaults;
+    secretRefManagedProviders?: Set<string>;
+}): ModelsConfig["providers"];
 export declare function normalizeProviders(params: {
     providers: ModelsConfig["providers"];
     agentDir: string;
+    env?: NodeJS.ProcessEnv;
+    secretDefaults?: SecretDefaults;
+    sourceProviders?: ModelsConfig["providers"];
+    sourceSecretDefaults?: SecretDefaults;
+    secretRefManagedProviders?: Set<string>;
 }): ModelsConfig["providers"];
-export declare function buildXiaomiProvider(): ProviderConfig;
-export declare function buildQianfanProvider(): ProviderConfig;
-export declare function resolveImplicitProviders(params: {
+type ImplicitProviderParams = {
     agentDir: string;
+    config?: OpenClawConfig;
+    env?: NodeJS.ProcessEnv;
+    workspaceDir?: string;
     explicitProviders?: Record<string, ProviderConfig> | null;
-}): Promise<ModelsConfig["providers"]>;
+};
+export declare function resolveImplicitProviders(params: ImplicitProviderParams): Promise<ModelsConfig["providers"]>;
 export declare function resolveImplicitCopilotProvider(params: {
     agentDir: string;
     env?: NodeJS.ProcessEnv;
@@ -33,4 +42,3 @@ export declare function resolveImplicitBedrockProvider(params: {
     config?: OpenClawConfig;
     env?: NodeJS.ProcessEnv;
 }): Promise<ProviderConfig | null>;
-export {};

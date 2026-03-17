@@ -1,12 +1,14 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { ResolvedTtsConfig, ResolvedTtsModelOverrides, TtsDirectiveParseResult } from "./tts.js";
+export declare const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 export declare function isValidVoiceId(voiceId: string): boolean;
-export declare function parseTtsDirectives(text: string, policy: ResolvedTtsModelOverrides): TtsDirectiveParseResult;
+export declare function parseTtsDirectives(text: string, policy: ResolvedTtsModelOverrides, openaiBaseUrl?: string): TtsDirectiveParseResult;
 export declare const OPENAI_TTS_MODELS: readonly ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"];
 export declare const OPENAI_TTS_VOICES: readonly ["alloy", "ash", "ballad", "cedar", "coral", "echo", "fable", "juniper", "marin", "onyx", "nova", "sage", "shimmer", "verse"];
 type OpenAiTtsVoice = (typeof OPENAI_TTS_VOICES)[number];
-export declare function isValidOpenAIModel(model: string): boolean;
-export declare function isValidOpenAIVoice(voice: string): voice is OpenAiTtsVoice;
+export declare function isValidOpenAIModel(model: string, baseUrl?: string): boolean;
+export declare function resolveOpenAITtsInstructions(model: string, instructions?: string): string | undefined;
+export declare function isValidOpenAIVoice(voice: string, baseUrl?: string): voice is OpenAiTtsVoice;
 type SummarizeResult = {
     summary: string;
     latencyMs: number;
@@ -37,8 +39,11 @@ export declare function elevenLabsTTS(params: {
 export declare function openaiTTS(params: {
     text: string;
     apiKey: string;
+    baseUrl: string;
     model: string;
     voice: string;
+    speed?: number;
+    instructions?: string;
     responseFormat: "mp3" | "opus" | "pcm";
     timeoutMs: number;
 }): Promise<Buffer>;

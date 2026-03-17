@@ -1,38 +1,42 @@
-export declare const DevicePairListParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{}>;
-export declare const DevicePairApproveParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    requestId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const DevicePairListParamsSchema: import("@sinclair/typebox").TObject<{}>;
+export declare const DevicePairApproveParamsSchema: import("@sinclair/typebox").TObject<{
+    requestId: import("@sinclair/typebox").TString;
 }>;
-export declare const DevicePairRejectParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    requestId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const DevicePairRejectParamsSchema: import("@sinclair/typebox").TObject<{
+    requestId: import("@sinclair/typebox").TString;
 }>;
-export declare const DeviceTokenRotateParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    deviceId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    role: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    scopes: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
+export declare const DevicePairRemoveParamsSchema: import("@sinclair/typebox").TObject<{
+    deviceId: import("@sinclair/typebox").TString;
 }>;
-export declare const DeviceTokenRevokeParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    deviceId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    role: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const DeviceTokenRotateParamsSchema: import("@sinclair/typebox").TObject<{
+    deviceId: import("@sinclair/typebox").TString;
+    role: import("@sinclair/typebox").TString;
+    scopes: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
 }>;
-export declare const DevicePairRequestedEventSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    requestId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    deviceId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    publicKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    displayName: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    platform: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    clientId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    clientMode: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    role: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    roles: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    scopes: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    remoteIp: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    silent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    isRepair: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    ts: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
+export declare const DeviceTokenRevokeParamsSchema: import("@sinclair/typebox").TObject<{
+    deviceId: import("@sinclair/typebox").TString;
+    role: import("@sinclair/typebox").TString;
 }>;
-export declare const DevicePairResolvedEventSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    requestId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    deviceId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    decision: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    ts: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger;
+export declare const DevicePairRequestedEventSchema: import("@sinclair/typebox").TObject<{
+    requestId: import("@sinclair/typebox").TString;
+    deviceId: import("@sinclair/typebox").TString;
+    publicKey: import("@sinclair/typebox").TString;
+    displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    platform: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    deviceFamily: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    clientId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    clientMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    role: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    roles: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    scopes: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    remoteIp: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    silent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    isRepair: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    ts: import("@sinclair/typebox").TInteger;
+}>;
+export declare const DevicePairResolvedEventSchema: import("@sinclair/typebox").TObject<{
+    requestId: import("@sinclair/typebox").TString;
+    deviceId: import("@sinclair/typebox").TString;
+    decision: import("@sinclair/typebox").TString;
+    ts: import("@sinclair/typebox").TInteger;
 }>;

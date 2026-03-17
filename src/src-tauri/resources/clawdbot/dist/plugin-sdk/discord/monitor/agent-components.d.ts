@@ -1,14 +1,19 @@
+import { Button, ChannelSelectMenu, MentionableSelectMenu, Modal, RoleSelectMenu, StringSelectMenu, UserSelectMenu, type ButtonInteraction, type ComponentData, type StringSelectMenuInteraction } from "@buape/carbon";
 import type { APIStringSelectComponent } from "discord-api-types/v10";
-import { Button, type ButtonInteraction, type ComponentData, StringSelectMenu, type StringSelectMenuInteraction } from "@buape/carbon";
 import { ButtonStyle } from "discord-api-types/v10";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { DiscordAccountConfig } from "../../config/types.discord.js";
+import { type RuntimeEnv } from "../../runtime.js";
 import { type DiscordGuildEntryResolved } from "./allow-list.js";
 export type AgentComponentContext = {
     cfg: OpenClawConfig;
     accountId: string;
+    discordConfig?: DiscordAccountConfig;
+    runtime?: RuntimeEnv;
+    token?: string;
     guildEntries?: Record<string, DiscordGuildEntryResolved>;
-    /** DM allowlist (from dm.allowFrom config) */
-    allowFrom?: Array<string | number>;
+    /** DM allowlist (from allowFrom config; legacy: dm.allowFrom) */
+    allowFrom?: string[];
     /** DM policy (default: "pairing") */
     dmPolicy?: "open" | "pairing" | "allowlist" | "disabled";
 };
@@ -41,3 +46,10 @@ export declare class AgentSelectMenu extends StringSelectMenu {
 }
 export declare function createAgentComponentButton(ctx: AgentComponentContext): Button;
 export declare function createAgentSelectMenu(ctx: AgentComponentContext): StringSelectMenu;
+export declare function createDiscordComponentButton(ctx: AgentComponentContext): Button;
+export declare function createDiscordComponentStringSelect(ctx: AgentComponentContext): StringSelectMenu;
+export declare function createDiscordComponentUserSelect(ctx: AgentComponentContext): UserSelectMenu;
+export declare function createDiscordComponentRoleSelect(ctx: AgentComponentContext): RoleSelectMenu;
+export declare function createDiscordComponentMentionableSelect(ctx: AgentComponentContext): MentionableSelectMenu;
+export declare function createDiscordComponentChannelSelect(ctx: AgentComponentContext): ChannelSelectMenu;
+export declare function createDiscordComponentModal(ctx: AgentComponentContext): Modal;

@@ -4,6 +4,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import type { GatewayClientMode, GatewayClientName } from "../../utils/message-channel.js";
 import type { OutboundSendDeps } from "./deliver.js";
 import type { MessagePollResult, MessageSendResult } from "./message.js";
+import type { OutboundMirror } from "./mirror.js";
 export type OutboundGatewayContext = {
     url?: string;
     token?: string;
@@ -16,17 +17,14 @@ export type OutboundSendContext = {
     cfg: OpenClawConfig;
     channel: ChannelId;
     params: Record<string, unknown>;
+    /** Active agent id for per-agent outbound media root scoping. */
+    agentId?: string;
     accountId?: string | null;
     gateway?: OutboundGatewayContext;
     toolContext?: ChannelThreadingToolContext;
     deps?: OutboundSendDeps;
     dryRun: boolean;
-    mirror?: {
-        sessionKey: string;
-        agentId?: string;
-        text?: string;
-        mediaUrls?: string[];
-    };
+    mirror?: OutboundMirror;
     abortSignal?: AbortSignal;
     silent?: boolean;
 };
@@ -52,7 +50,10 @@ export declare function executePollAction(params: {
     question: string;
     options: string[];
     maxSelections: number;
+    durationSeconds?: number;
     durationHours?: number;
+    threadId?: string;
+    isAnonymous?: boolean;
 }): Promise<{
     handledBy: "plugin" | "core";
     payload: unknown;

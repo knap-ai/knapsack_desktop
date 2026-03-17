@@ -1,7 +1,7 @@
-import { type Message, type UserFromGetMe } from "@grammyjs/types";
 import { Bot } from "grammy";
 import type { OpenClawConfig, ReplyToMode } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
+import { type RuntimeEnv } from "../runtime.js";
+import { getTelegramSequentialKey } from "./sequential-key.js";
 export type TelegramBotOptions = {
     token: string;
     accountId?: string;
@@ -13,6 +13,8 @@ export type TelegramBotOptions = {
     replyToMode?: ReplyToMode;
     proxyFetch?: typeof fetch;
     config?: OpenClawConfig;
+    /** Signal to abort in-flight Telegram API fetch requests (e.g. getUpdates) on shutdown. */
+    fetchAbortSignal?: AbortSignal;
     updateOffset?: {
         lastUpdateId?: number | null;
         onUpdateId?: (updateId: number) => void | Promise<void>;
@@ -22,37 +24,5 @@ export type TelegramBotOptions = {
         textFragmentGapMs?: number;
     };
 };
-export declare function getTelegramSequentialKey(ctx: {
-    chat?: {
-        id?: number;
-    };
-    me?: UserFromGetMe;
-    message?: Message;
-    update?: {
-        message?: Message;
-        edited_message?: Message;
-        callback_query?: {
-            message?: Message;
-        };
-        message_reaction?: {
-            chat?: {
-                id?: number;
-            };
-        };
-    };
-}): string;
-export declare function createTelegramBot(opts: TelegramBotOptions): Bot<import("node_modules/grammy/out/context.js").Context, import("node_modules/grammy/out/mod.js").Api<import("node_modules/grammy/out/mod.js").RawApi>>;
-export declare function createTelegramWebhookCallback(bot: Bot, path?: string): {
-    path: string;
-    handler: (req: {
-        headers: Record<string, string | string[] | undefined>;
-        on: (event: string, listener: (chunk: unknown) => void) => /*elided*/ any;
-        once: (event: string, listener: () => void) => /*elided*/ any;
-    }, res: {
-        writeHead: {
-            (status: number): /*elided*/ any;
-            (status: number, headers: Record<string, string>): /*elided*/ any;
-        };
-        end: (json?: string) => void;
-    }) => Promise<void>;
-};
+export { getTelegramSequentialKey };
+export declare function createTelegramBot(opts: TelegramBotOptions): Bot<import("grammy").Context, import("grammy").Api<import("grammy").RawApi>>;

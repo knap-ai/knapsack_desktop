@@ -6,10 +6,19 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
  * This acts as a safety net when we don't know the context window size.
  */
 export declare const HARD_MAX_TOOL_RESULT_CHARS = 400000;
+type ToolResultTruncationOptions = {
+    suffix?: string;
+    minKeepChars?: number;
+};
 /**
- * Truncate a single text string to fit within maxChars, preserving the beginning.
+ * Truncate a single text string to fit within maxChars.
+ *
+ * Uses a head+tail strategy when the tail contains important content
+ * (errors, results, JSON structure), otherwise preserves the beginning.
+ * This ensures error messages and summaries at the end of tool output
+ * aren't lost during truncation.
  */
-export declare function truncateToolResultText(text: string, maxChars: number): string;
+export declare function truncateToolResultText(text: string, maxChars: number, options?: ToolResultTruncationOptions): string;
 /**
  * Calculate the maximum allowed characters for a single tool result
  * based on the model's context window tokens.
@@ -18,6 +27,15 @@ export declare function truncateToolResultText(text: string, maxChars: number): 
  * actual ratio varies by tokenizer).
  */
 export declare function calculateMaxToolResultChars(contextWindowTokens: number): number;
+/**
+ * Get the total character count of text content blocks in a tool result message.
+ */
+export declare function getToolResultTextLength(msg: AgentMessage): number;
+/**
+ * Truncate a tool result message's text content blocks to fit within maxChars.
+ * Returns a new message (does not mutate the original).
+ */
+export declare function truncateToolResultMessage(msg: AgentMessage, maxChars: number, options?: ToolResultTruncationOptions): AgentMessage;
 /**
  * Find oversized tool result entries in a session and truncate them.
  *
@@ -63,3 +81,4 @@ export declare function sessionLikelyHasOversizedToolResults(params: {
     messages: AgentMessage[];
     contextWindowTokens: number;
 }): boolean;
+export {};

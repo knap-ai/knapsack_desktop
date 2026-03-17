@@ -1,9 +1,7 @@
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import type { createIMessageRpcClient } from "../client.js";
-type SentMessageCache = {
-    remember: (scope: string, text: string) => void;
-};
+import type { SentMessageCache } from "./echo-cache.js";
 export declare function deliverReplies(params: {
     replies: ReplyPayload[];
     target: string;
@@ -12,6 +10,5 @@ export declare function deliverReplies(params: {
     runtime: RuntimeEnv;
     maxBytes: number;
     textLimit: number;
-    sentMessageCache?: SentMessageCache;
+    sentMessageCache?: Pick<SentMessageCache, "remember">;
 }): Promise<void>;
-export {};

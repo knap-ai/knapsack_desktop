@@ -14,7 +14,11 @@ type ThoughtSignatureSanitizeOptions = {
  */
 export declare function stripThoughtSignatures<T>(content: T, options?: ThoughtSignatureSanitizeOptions): T;
 export declare const DEFAULT_BOOTSTRAP_MAX_CHARS = 20000;
+export declare const DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS = 150000;
+export declare const DEFAULT_BOOTSTRAP_PROMPT_TRUNCATION_WARNING_MODE = "once";
 export declare function resolveBootstrapMaxChars(cfg?: OpenClawConfig): number;
+export declare function resolveBootstrapTotalMaxChars(cfg?: OpenClawConfig): number;
+export declare function resolveBootstrapPromptTruncationWarningMode(cfg?: OpenClawConfig): "off" | "once" | "always";
 export declare function ensureSessionHeader(params: {
     sessionFile: string;
     sessionId: string;
@@ -23,6 +27,7 @@ export declare function ensureSessionHeader(params: {
 export declare function buildBootstrapContextFiles(files: WorkspaceBootstrapFile[], opts?: {
     warn?: (message: string) => void;
     maxChars?: number;
+    totalMaxChars?: number;
 }): EmbeddedContextFile[];
 export declare function sanitizeGoogleTurnOrdering(messages: AgentMessage[]): AgentMessage[];
 export {};

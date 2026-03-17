@@ -11,6 +11,9 @@ export type InlineDirectives = {
     hasVerboseDirective: boolean;
     verboseLevel?: VerboseLevel;
     rawVerboseLevel?: string;
+    hasFastDirective: boolean;
+    fastMode?: boolean;
+    rawFastMode?: string;
     hasReasoningDirective: boolean;
     reasoningLevel?: ReasoningLevel;
     rawReasoningLevel?: string;

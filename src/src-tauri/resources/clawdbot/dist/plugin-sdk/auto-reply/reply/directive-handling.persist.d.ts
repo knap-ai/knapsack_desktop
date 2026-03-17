@@ -1,7 +1,7 @@
-import type { OpenClawConfig } from "../../config/config.js";
-import type { InlineDirectives } from "./directive-handling.parse.js";
 import { type ModelAliasIndex } from "../../agents/model-selection.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry } from "../../config/sessions.js";
+import type { InlineDirectives } from "./directive-handling.parse.js";
 export declare function persistInlineDirectives(params: {
     directives: InlineDirectives;
     effectiveModelDirective?: string;

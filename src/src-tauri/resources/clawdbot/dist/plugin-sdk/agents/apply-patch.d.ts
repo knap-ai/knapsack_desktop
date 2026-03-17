@@ -19,14 +19,17 @@ type SandboxApplyPatchConfig = {
 type ApplyPatchOptions = {
     cwd: string;
     sandbox?: SandboxApplyPatchConfig;
+    /** Restrict patch paths to the workspace root (cwd). Default: true. Set false to opt out. */
+    workspaceOnly?: boolean;
     signal?: AbortSignal;
 };
-declare const applyPatchSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    input: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+declare const applyPatchSchema: import("@sinclair/typebox").TObject<{
+    input: import("@sinclair/typebox").TString;
 }>;
 export declare function createApplyPatchTool(options?: {
     cwd?: string;
     sandbox?: SandboxApplyPatchConfig;
+    workspaceOnly?: boolean;
 }): AgentTool<typeof applyPatchSchema, ApplyPatchToolDetails>;
 export declare function applyPatch(input: string, options: ApplyPatchOptions): Promise<ApplyPatchResult>;
 export {};

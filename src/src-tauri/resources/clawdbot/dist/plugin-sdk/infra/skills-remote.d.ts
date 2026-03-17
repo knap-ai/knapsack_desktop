@@ -12,6 +12,7 @@ export declare function recordRemoteNodeInfo(node: {
     remoteIp?: string;
 }): void;
 export declare function recordRemoteNodeBins(nodeId: string, bins: string[]): void;
+export declare function removeRemoteNodeInfo(nodeId: string): void;
 export declare function refreshRemoteNodeBins(params: {
     nodeId: string;
     platform?: string;

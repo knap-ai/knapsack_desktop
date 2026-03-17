@@ -45,7 +45,7 @@ export declare function listChunks(params: {
 export declare function searchKeyword(params: {
     db: DatabaseSync;
     ftsTable: string;
-    providerModel: string;
+    providerModel: string | undefined;
     query: string;
     limit: number;
     snippetMaxChars: number;

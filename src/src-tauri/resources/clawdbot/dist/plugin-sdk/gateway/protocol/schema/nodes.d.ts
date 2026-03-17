@@ -1,64 +1,111 @@
-export declare const NodePairRequestParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    nodeId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    displayName: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    platform: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    version: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    coreVersion: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    uiVersion: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    deviceFamily: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    modelIdentifier: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    caps: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    commands: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TArray<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    remoteIp: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    silent: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
+export declare const NodePairRequestParamsSchema: import("@sinclair/typebox").TObject<{
+    nodeId: import("@sinclair/typebox").TString;
+    displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    platform: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    version: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    coreVersion: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    uiVersion: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    deviceFamily: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    modelIdentifier: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    caps: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    commands: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    remoteIp: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    silent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
 }>;
-export declare const NodePairListParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{}>;
-export declare const NodePairApproveParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    requestId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const NodePairListParamsSchema: import("@sinclair/typebox").TObject<{}>;
+export declare const NodePairApproveParamsSchema: import("@sinclair/typebox").TObject<{
+    requestId: import("@sinclair/typebox").TString;
 }>;
-export declare const NodePairRejectParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    requestId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const NodePairRejectParamsSchema: import("@sinclair/typebox").TObject<{
+    requestId: import("@sinclair/typebox").TString;
 }>;
-export declare const NodePairVerifyParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    nodeId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    token: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const NodePairVerifyParamsSchema: import("@sinclair/typebox").TObject<{
+    nodeId: import("@sinclair/typebox").TString;
+    token: import("@sinclair/typebox").TString;
 }>;
-export declare const NodeRenameParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    nodeId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    displayName: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const NodeRenameParamsSchema: import("@sinclair/typebox").TObject<{
+    nodeId: import("@sinclair/typebox").TString;
+    displayName: import("@sinclair/typebox").TString;
 }>;
-export declare const NodeListParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{}>;
-export declare const NodeDescribeParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    nodeId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const NodeListParamsSchema: import("@sinclair/typebox").TObject<{}>;
+export declare const NodePendingAckParamsSchema: import("@sinclair/typebox").TObject<{
+    ids: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
 }>;
-export declare const NodeInvokeParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    nodeId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    command: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    params: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-    timeoutMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    idempotencyKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
+export declare const NodeDescribeParamsSchema: import("@sinclair/typebox").TObject<{
+    nodeId: import("@sinclair/typebox").TString;
 }>;
-export declare const NodeInvokeResultParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    nodeId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    ok: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean;
-    payload: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-    payloadJSON: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    error: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-        code: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-        message: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const NodeInvokeParamsSchema: import("@sinclair/typebox").TObject<{
+    nodeId: import("@sinclair/typebox").TString;
+    command: import("@sinclair/typebox").TString;
+    params: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    idempotencyKey: import("@sinclair/typebox").TString;
+}>;
+export declare const NodeInvokeResultParamsSchema: import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+    nodeId: import("@sinclair/typebox").TString;
+    ok: import("@sinclair/typebox").TBoolean;
+    payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+    payloadJSON: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    error: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        code: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>>;
 }>;
-export declare const NodeEventParamsSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    event: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    payload: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TUnknown>;
-    payloadJSON: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const NodeEventParamsSchema: import("@sinclair/typebox").TObject<{
+    event: import("@sinclair/typebox").TString;
+    payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+    payloadJSON: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const NodeInvokeRequestEventSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    id: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    nodeId: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    command: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    paramsJSON: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    timeoutMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TInteger>;
-    idempotencyKey: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const NodePendingDrainParamsSchema: import("@sinclair/typebox").TObject<{
+    maxItems: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+}>;
+export declare const NodePendingDrainItemSchema: import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+    type: import("@sinclair/typebox").TString;
+    priority: import("@sinclair/typebox").TString;
+    createdAtMs: import("@sinclair/typebox").TInteger;
+    expiresAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TInteger, import("@sinclair/typebox").TNull]>>;
+    payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>>;
+}>;
+export declare const NodePendingDrainResultSchema: import("@sinclair/typebox").TObject<{
+    nodeId: import("@sinclair/typebox").TString;
+    revision: import("@sinclair/typebox").TInteger;
+    items: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+        id: import("@sinclair/typebox").TString;
+        type: import("@sinclair/typebox").TString;
+        priority: import("@sinclair/typebox").TString;
+        createdAtMs: import("@sinclair/typebox").TInteger;
+        expiresAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TInteger, import("@sinclair/typebox").TNull]>>;
+        payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>>;
+    }>>;
+    hasMore: import("@sinclair/typebox").TBoolean;
+}>;
+export declare const NodePendingEnqueueParamsSchema: import("@sinclair/typebox").TObject<{
+    nodeId: import("@sinclair/typebox").TString;
+    type: import("@sinclair/typebox").TString;
+    priority: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    expiresInMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    wake: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+}>;
+export declare const NodePendingEnqueueResultSchema: import("@sinclair/typebox").TObject<{
+    nodeId: import("@sinclair/typebox").TString;
+    revision: import("@sinclair/typebox").TInteger;
+    queued: import("@sinclair/typebox").TObject<{
+        id: import("@sinclair/typebox").TString;
+        type: import("@sinclair/typebox").TString;
+        priority: import("@sinclair/typebox").TString;
+        createdAtMs: import("@sinclair/typebox").TInteger;
+        expiresAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TInteger, import("@sinclair/typebox").TNull]>>;
+        payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>>;
+    }>;
+    wakeTriggered: import("@sinclair/typebox").TBoolean;
+}>;
+export declare const NodeInvokeRequestEventSchema: import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+    nodeId: import("@sinclair/typebox").TString;
+    command: import("@sinclair/typebox").TString;
+    paramsJSON: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    idempotencyKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;

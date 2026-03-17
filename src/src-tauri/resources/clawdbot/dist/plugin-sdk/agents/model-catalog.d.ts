@@ -1,11 +1,12 @@
 import { type OpenClawConfig } from "../config/config.js";
+export type ModelInputType = "text" | "image" | "document";
 export type ModelCatalogEntry = {
     id: string;
     name: string;
     provider: string;
     contextWindow?: number;
     reasoning?: boolean;
-    input?: Array<"text" | "image">;
+    input?: ModelInputType[];
 };
 type PiSdkModule = typeof import("./pi-model-discovery.js");
 export declare function resetModelCatalogCacheForTest(): void;
@@ -18,6 +19,10 @@ export declare function loadModelCatalog(params?: {
  * Check if a model supports image input based on its catalog entry.
  */
 export declare function modelSupportsVision(entry: ModelCatalogEntry | undefined): boolean;
+/**
+ * Check if a model supports native document/PDF input based on its catalog entry.
+ */
+export declare function modelSupportsDocument(entry: ModelCatalogEntry | undefined): boolean;
 /**
  * Find a model in the catalog by provider and model ID.
  */

@@ -1,5 +1,4 @@
 import type { WebhookRequestBody } from "@line/bot-sdk";
-import type { IncomingMessage } from "node:http";
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { ResolvedLineAccount } from "./types.js";
@@ -26,5 +25,4 @@ export declare function getLineRuntimeState(accountId: string): {
     lastInboundAt?: number | null;
     lastOutboundAt?: number | null;
 } | undefined;
-export declare function readLineWebhookRequestBody(req: IncomingMessage, maxBytes?: number): Promise<string>;
 export declare function monitorLineProvider(opts: MonitorLineProviderOptions): Promise<LineProviderMonitor>;

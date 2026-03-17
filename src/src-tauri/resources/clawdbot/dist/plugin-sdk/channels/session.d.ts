@@ -6,6 +6,14 @@ export type InboundLastRouteUpdate = {
     to: string;
     accountId?: string;
     threadId?: string | number;
+    mainDmOwnerPin?: {
+        ownerRecipient: string;
+        senderRecipient: string;
+        onSkip?: (params: {
+            ownerRecipient: string;
+            senderRecipient: string;
+        }) => void;
+    };
 };
 export declare function recordInboundSession(params: {
     storePath: string;

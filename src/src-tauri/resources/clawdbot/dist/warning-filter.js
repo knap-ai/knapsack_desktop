@@ -43,6 +43,5 @@ function installProcessWarningFilter() {
 	process.emitWarning = wrappedEmitWarning;
 	globalState[warningFilterKey] = { installed: true };
 }
-
 //#endregion
 export { installProcessWarningFilter, shouldIgnoreWarning };

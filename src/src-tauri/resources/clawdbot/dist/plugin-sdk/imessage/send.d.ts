@@ -8,14 +8,18 @@ export type IMessageSendOpts = {
     service?: IMessageService;
     region?: string;
     accountId?: string;
+    replyToId?: string;
     mediaUrl?: string;
+    mediaLocalRoots?: readonly string[];
     maxBytes?: number;
     timeoutMs?: number;
     chatId?: number;
     client?: IMessageRpcClient;
     config?: ReturnType<typeof loadConfig>;
     account?: ResolvedIMessageAccount;
-    resolveAttachmentImpl?: (mediaUrl: string, maxBytes: number) => Promise<{
+    resolveAttachmentImpl?: (mediaUrl: string, maxBytes: number, options?: {
+        localRoots?: readonly string[];
+    }) => Promise<{
         path: string;
         contentType?: string;
     }>;

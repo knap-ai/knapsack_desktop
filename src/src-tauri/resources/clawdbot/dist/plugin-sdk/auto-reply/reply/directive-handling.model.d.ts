@@ -1,7 +1,8 @@
+import { type ModelAliasIndex } from "../../agents/model-selection.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { SessionEntry } from "../../config/sessions.js";
 import type { ReplyPayload } from "../types.js";
 import type { InlineDirectives } from "./directive-handling.parse.js";
-import { type ModelAliasIndex } from "../../agents/model-selection.js";
 import { type ModelDirectiveSelection } from "./model-selection.js";
 export declare function maybeHandleModelDirectiveInfo(params: {
     directives: InlineDirectives;
@@ -20,6 +21,7 @@ export declare function maybeHandleModelDirectiveInfo(params: {
     }>;
     resetModelOverride: boolean;
     surface?: string;
+    sessionEntry?: Pick<SessionEntry, "modelProvider" | "model">;
 }): Promise<ReplyPayload | undefined>;
 export declare function resolveModelSelectionFromDirective(params: {
     directives: InlineDirectives;

@@ -1,5 +1,5 @@
+import { execFileSync, execSync } from "node:child_process";
 import type { OAuthCredentials, OAuthProvider } from "@mariozechner/pi-ai";
-import { execSync } from "node:child_process";
 export declare function resetCliCredentialCachesForTest(): void;
 export type ClaudeCliCredential = {
     type: "oauth";
@@ -44,6 +44,7 @@ type ClaudeCliWriteOptions = ClaudeCliFileOptions & {
     writeFile?: (credentials: OAuthCredentials, options?: ClaudeCliFileOptions) => boolean;
 };
 type ExecSyncFn = typeof execSync;
+type ExecFileSyncFn = typeof execFileSync;
 export declare function readClaudeCliCredentials(options?: {
     allowKeychainPrompt?: boolean;
     platform?: NodeJS.Platform;
@@ -58,7 +59,7 @@ export declare function readClaudeCliCredentialsCached(options?: {
     execSync?: ExecSyncFn;
 }): ClaudeCliCredential | null;
 export declare function writeClaudeCliKeychainCredentials(newCredentials: OAuthCredentials, options?: {
-    execSync?: ExecSyncFn;
+    execFileSync?: ExecFileSyncFn;
 }): boolean;
 export declare function writeClaudeCliFileCredentials(newCredentials: OAuthCredentials, options?: ClaudeCliFileOptions): boolean;
 export declare function writeClaudeCliCredentials(newCredentials: OAuthCredentials, options?: ClaudeCliWriteOptions): boolean;

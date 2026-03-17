@@ -3,6 +3,7 @@ import { type ResponsePrefixContext } from "./response-prefix-template.js";
 export type NormalizeReplySkipReason = "empty" | "silent" | "heartbeat";
 export type NormalizeReplyOptions = {
     responsePrefix?: string;
+    enableSlackInteractiveReplies?: boolean;
     /** Context for template variable interpolation in responsePrefix */
     responsePrefixContext?: ResponsePrefixContext;
     onHeartbeatStrip?: () => void;
