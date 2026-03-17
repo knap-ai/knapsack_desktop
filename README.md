@@ -177,6 +177,21 @@ npm run tauri -- build
 
 Bundled application output is written to `src/src-tauri/target/release/bundle/`.
 
+## Releasing
+
+Releases are fully automated via GitHub Actions. There is no need to create a release manually.
+
+1. Merge your changes to `main`
+2. Go to **Actions** → **Release** workflow → **Run workflow** (select the `main` branch)
+
+The workflow will:
+- Bump the version (patch) and create a git tag
+- Build a universal macOS binary (arm64 + x86_64), sign it, and notarize with Apple
+- Build Windows MSI and NSIS installers
+- Create a GitHub Release with all artifacts and a `latest.json` for the Tauri auto-updater
+
+Required repository secrets: `TAURI_PRIVATE_KEY`, `TAURI_KEY_PASSWORD`, `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`.
+
 ## macOS Code Signing & Notarization
 
 To distribute a macOS DMG that passes Gatekeeper, you must code sign and notarize the app. An automated script handles the full process.
