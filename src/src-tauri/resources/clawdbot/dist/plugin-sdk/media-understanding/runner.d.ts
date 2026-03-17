@@ -1,8 +1,8 @@
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { MediaUnderstandingConfig } from "../config/types.tools.js";
+import { MediaAttachmentCache, type MediaAttachmentCacheOptions } from "./attachments.js";
 import type { MediaAttachment, MediaUnderstandingCapability, MediaUnderstandingDecision, MediaUnderstandingOutput, MediaUnderstandingProvider } from "./types.js";
-import { MediaAttachmentCache } from "./attachments.js";
 export type ActiveMediaModel = {
     provider: string;
     model?: string;
@@ -14,7 +14,11 @@ export type RunCapabilityResult = {
 };
 export declare function buildProviderRegistry(overrides?: Record<string, MediaUnderstandingProvider>): ProviderRegistry;
 export declare function normalizeMediaAttachments(ctx: MsgContext): MediaAttachment[];
-export declare function createMediaAttachmentCache(attachments: MediaAttachment[]): MediaAttachmentCache;
+export declare function resolveMediaAttachmentLocalRoots(params: {
+    cfg: OpenClawConfig;
+    ctx: MsgContext;
+}): readonly string[];
+export declare function createMediaAttachmentCache(attachments: MediaAttachment[], options?: MediaAttachmentCacheOptions): MediaAttachmentCache;
 export declare function clearMediaUnderstandingBinaryCacheForTests(): void;
 export declare function resolveAutoImageModel(params: {
     cfg: OpenClawConfig;

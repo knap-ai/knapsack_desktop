@@ -6,12 +6,10 @@ import type { SandboxFsBridge } from "../../sandbox/fs-bridge.js";
 export interface DetectedImageRef {
     /** The raw matched string from the prompt */
     raw: string;
-    /** The type of reference (path or url) */
-    type: "path" | "url";
-    /** The resolved/normalized path or URL */
+    /** The type of reference */
+    type: "path";
+    /** The resolved/normalized path */
     resolved: string;
-    /** Index of the message this ref was found in (for history images) */
-    messageIndex?: number;
 }
 /**
  * Detects image references in a user prompt.
@@ -28,7 +26,7 @@ export interface DetectedImageRef {
  */
 export declare function detectImageReferences(prompt: string): DetectedImageRef[];
 /**
- * Loads an image from a file path or URL and returns it as ImageContent.
+ * Loads an image from a file path and returns it as ImageContent.
  *
  * @param ref The detected image reference
  * @param workspaceDir The current workspace directory for resolving relative paths
@@ -37,6 +35,7 @@ export declare function detectImageReferences(prompt: string): DetectedImageRef[
  */
 export declare function loadImageFromRef(ref: DetectedImageRef, workspaceDir: string, options?: {
     maxBytes?: number;
+    workspaceOnly?: boolean;
     sandbox?: {
         root: string;
         bridge: SandboxFsBridge;
@@ -58,11 +57,8 @@ export declare function modelSupportsImages(model: {
  * loads them, and returns them as ImageContent array ready to be passed to
  * the model's prompt method.
  *
- * Also scans conversation history for images from previous turns and returns
- * them mapped by message index so they can be injected at their original location.
- *
  * @param params Configuration for image detection and loading
- * @returns Object with loaded images for current prompt and history images by message index
+ * @returns Object with loaded images for current prompt only
  */
 export declare function detectAndLoadPromptImages(params: {
     prompt: string;
@@ -71,8 +67,9 @@ export declare function detectAndLoadPromptImages(params: {
         input?: string[];
     };
     existingImages?: ImageContent[];
-    historyMessages?: unknown[];
     maxBytes?: number;
+    maxDimensionPx?: number;
+    workspaceOnly?: boolean;
     sandbox?: {
         root: string;
         bridge: SandboxFsBridge;
@@ -80,8 +77,6 @@ export declare function detectAndLoadPromptImages(params: {
 }): Promise<{
     /** Images for the current prompt (existingImages + detected in current prompt) */
     images: ImageContent[];
-    /** Images from history messages, keyed by message index */
-    historyImagesByIndex: Map<number, ImageContent[]>;
     detectedRefs: DetectedImageRef[];
     loadedCount: number;
     skippedCount: number;

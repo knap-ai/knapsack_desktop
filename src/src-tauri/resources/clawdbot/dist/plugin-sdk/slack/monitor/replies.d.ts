@@ -2,6 +2,7 @@ import type { ChunkMode } from "../../auto-reply/chunk.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { MarkdownTableMode } from "../../config/types.base.js";
 import type { RuntimeEnv } from "../../runtime.js";
+import { type SlackSendIdentity } from "../send.js";
 export declare function deliverReplies(params: {
     replies: ReplyPayload[];
     target: string;
@@ -10,6 +11,8 @@ export declare function deliverReplies(params: {
     runtime: RuntimeEnv;
     textLimit: number;
     replyThreadTs?: string;
+    replyToMode: "off" | "first" | "all";
+    identity?: SlackSendIdentity;
 }): Promise<void>;
 export type SlackRespondFn = (payload: {
     text: string;
@@ -26,6 +29,7 @@ export declare function resolveSlackThreadTs(params: {
     incomingThreadTs: string | undefined;
     messageTs: string | undefined;
     hasReplied: boolean;
+    isThreadReply?: boolean;
 }): string | undefined;
 type SlackReplyDeliveryPlan = {
     nextThreadTs: () => string | undefined;
@@ -38,6 +42,7 @@ export declare function createSlackReplyDeliveryPlan(params: {
     hasRepliedRef: {
         value: boolean;
     };
+    isThreadReply?: boolean;
 }): SlackReplyDeliveryPlan;
 export declare function deliverSlackSlashReplies(params: {
     replies: ReplyPayload[];

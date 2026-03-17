@@ -6,15 +6,18 @@ export type BrowserFormField = {
 };
 export type BrowserActRequest = {
     kind: "click";
-    ref: string;
+    ref?: string;
+    selector?: string;
     targetId?: string;
     doubleClick?: boolean;
     button?: string;
     modifiers?: string[];
+    delayMs?: number;
     timeoutMs?: number;
 } | {
     kind: "type";
-    ref: string;
+    ref?: string;
+    selector?: string;
     text: string;
     targetId?: string;
     submit?: boolean;
@@ -27,23 +30,28 @@ export type BrowserActRequest = {
     delayMs?: number;
 } | {
     kind: "hover";
-    ref: string;
+    ref?: string;
+    selector?: string;
     targetId?: string;
     timeoutMs?: number;
 } | {
     kind: "scrollIntoView";
-    ref: string;
+    ref?: string;
+    selector?: string;
     targetId?: string;
     timeoutMs?: number;
 } | {
     kind: "drag";
-    startRef: string;
-    endRef: string;
+    startRef?: string;
+    startSelector?: string;
+    endRef?: string;
+    endSelector?: string;
     targetId?: string;
     timeoutMs?: number;
 } | {
     kind: "select";
-    ref: string;
+    ref?: string;
+    selector?: string;
     values: string[];
     targetId?: string;
     timeoutMs?: number;
@@ -77,17 +85,31 @@ export type BrowserActRequest = {
 } | {
     kind: "close";
     targetId?: string;
+} | {
+    kind: "batch";
+    actions: BrowserActRequest[];
+    targetId?: string;
+    stopOnError?: boolean;
 };
 export type BrowserActResponse = {
     ok: true;
     targetId: string;
     url?: string;
     result?: unknown;
+    results?: Array<{
+        ok: boolean;
+        error?: string;
+    }>;
 };
 export type BrowserDownloadPayload = {
     url: string;
     suggestedFilename: string;
     path: string;
+};
+type BrowserDownloadResult = {
+    ok: true;
+    targetId: string;
+    download: BrowserDownloadPayload;
 };
 export declare function browserNavigate(baseUrl: string | undefined, opts: {
     url: string;
@@ -115,22 +137,14 @@ export declare function browserWaitForDownload(baseUrl: string | undefined, opts
     targetId?: string;
     timeoutMs?: number;
     profile?: string;
-}): Promise<{
-    ok: true;
-    targetId: string;
-    download: BrowserDownloadPayload;
-}>;
+}): Promise<BrowserDownloadResult>;
 export declare function browserDownload(baseUrl: string | undefined, opts: {
     ref: string;
     path: string;
     targetId?: string;
     timeoutMs?: number;
     profile?: string;
-}): Promise<{
-    ok: true;
-    targetId: string;
-    download: BrowserDownloadPayload;
-}>;
+}): Promise<BrowserDownloadResult>;
 export declare function browserAct(baseUrl: string | undefined, req: BrowserActRequest, opts?: {
     profile?: string;
 }): Promise<BrowserActResponse>;
@@ -142,3 +156,4 @@ export declare function browserScreenshotAction(baseUrl: string | undefined, opt
     type?: "png" | "jpeg";
     profile?: string;
 }): Promise<BrowserActionPathResult>;
+export {};

@@ -16,10 +16,13 @@ export declare function buildReplyPayloads(params: {
     currentMessageId?: string;
     messageProvider?: string;
     messagingToolSentTexts?: string[];
+    messagingToolSentMediaUrls?: string[];
     messagingToolSentTargets?: Parameters<typeof shouldSuppressMessagingToolReplies>[0]["messagingToolSentTargets"];
+    originatingChannel?: OriginatingChannelType;
     originatingTo?: string;
     accountId?: string;
-}): {
+    normalizeMediaPaths?: (payload: ReplyPayload) => Promise<ReplyPayload>;
+}): Promise<{
     replyPayloads: ReplyPayload[];
     didLogHeartbeatStrip: boolean;
-};
+}>;

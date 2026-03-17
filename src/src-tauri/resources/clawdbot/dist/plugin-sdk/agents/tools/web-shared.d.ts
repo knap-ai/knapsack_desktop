@@ -14,4 +14,11 @@ export declare function readCache<T>(cache: Map<string, CacheEntry<T>>, key: str
 } | null;
 export declare function writeCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T, ttlMs: number): void;
 export declare function withTimeout(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal;
-export declare function readResponseText(res: Response): Promise<string>;
+export type ReadResponseTextResult = {
+    text: string;
+    truncated: boolean;
+    bytesRead: number;
+};
+export declare function readResponseText(res: Response, options?: {
+    maxBytes?: number;
+}): Promise<ReadResponseTextResult>;

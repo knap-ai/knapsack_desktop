@@ -1,13 +1,16 @@
 import type { TypingMode } from "../../config/types.js";
+import type { TypingPolicy } from "../types.js";
 import type { TypingController } from "./typing.js";
 export type TypingModeContext = {
     configured?: TypingMode;
     isGroupChat: boolean;
     wasMentioned: boolean;
     isHeartbeat: boolean;
+    typingPolicy?: TypingPolicy;
+    suppressTyping?: boolean;
 };
 export declare const DEFAULT_GROUP_TYPING_MODE: TypingMode;
-export declare function resolveTypingMode({ configured, isGroupChat, wasMentioned, isHeartbeat, }: TypingModeContext): TypingMode;
+export declare function resolveTypingMode({ configured, isGroupChat, wasMentioned, isHeartbeat, typingPolicy, suppressTyping, }: TypingModeContext): TypingMode;
 export type TypingSignaler = {
     mode: TypingMode;
     shouldStartImmediately: boolean;

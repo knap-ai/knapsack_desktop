@@ -3,6 +3,8 @@ import { type InputProvenance } from "../sessions/input-provenance.js";
 export type GuardedSessionManager = SessionManager & {
     /** Flush any synthetic tool results for pending tool calls. Idempotent. */
     flushPendingToolResults?: () => void;
+    /** Clear pending tool calls without persisting synthetic tool results. Idempotent. */
+    clearPendingToolResults?: () => void;
 };
 /**
  * Apply the tool-result guard to a SessionManager exactly once and expose
@@ -13,4 +15,5 @@ export declare function guardSessionManager(sessionManager: SessionManager, opts
     sessionKey?: string;
     inputProvenance?: InputProvenance;
     allowSyntheticToolResults?: boolean;
+    allowedToolNames?: Iterable<string>;
 }): GuardedSessionManager;

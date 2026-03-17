@@ -1,3 +1,4 @@
+export declare function resetWSLStateForTests(): void;
 export declare function isWSLEnv(): boolean;
 /**
  * Synchronously check if running in WSL.

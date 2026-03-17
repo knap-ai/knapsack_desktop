@@ -1,7 +1,9 @@
+import type { SsrFPolicy } from "../infra/net/ssrf.js";
 import type { EmbeddingProvider, EmbeddingProviderOptions } from "./embeddings.js";
 export type OpenAiEmbeddingClient = {
     baseUrl: string;
     headers: Record<string, string>;
+    ssrfPolicy?: SsrFPolicy;
     model: string;
 };
 export declare const DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";

@@ -1,14 +1,14 @@
 import type { ExecToolDefaults } from "../../agents/bash-tools.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { type SessionEntry } from "../../config/sessions.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
+import { type ElevatedLevel, type ReasoningLevel, type ThinkLevel, type VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import type { buildCommandContext } from "./commands.js";
 import type { InlineDirectives } from "./directive-handling.js";
+import { buildGroupIntro } from "./groups.js";
 import type { createModelSelectionState } from "./model-selection.js";
 import type { TypingController } from "./typing.js";
-import { type SessionEntry } from "../../config/sessions.js";
-import { type ElevatedLevel, type ReasoningLevel, type ThinkLevel, type VerboseLevel } from "../thinking.js";
-import { buildGroupIntro } from "./groups.js";
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;
 type RunPreparedReplyParams = {

@@ -11,6 +11,10 @@ export type MonitorSlackOpts = {
     abortSignal?: AbortSignal;
     mediaMaxMb?: number;
     slashCommand?: SlackSlashCommandConfig;
+    /** Callback to update the channel account status snapshot (e.g. lastEventAt). */
+    setStatus?: (next: Record<string, unknown>) => void;
+    /** Callback to read the current channel account status snapshot. */
+    getStatus?: () => Record<string, unknown>;
 };
 export type SlackReactionEvent = {
     type: "reaction_added" | "reaction_removed";
@@ -72,9 +76,13 @@ export type SlackMessageChangedEvent = {
     channel?: string;
     message?: {
         ts?: string;
+        user?: string;
+        bot_id?: string;
     };
     previous_message?: {
         ts?: string;
+        user?: string;
+        bot_id?: string;
     };
     event_ts?: string;
 };
@@ -83,14 +91,22 @@ export type SlackMessageDeletedEvent = {
     subtype: "message_deleted";
     channel?: string;
     deleted_ts?: string;
+    previous_message?: {
+        ts?: string;
+        user?: string;
+        bot_id?: string;
+    };
     event_ts?: string;
 };
 export type SlackThreadBroadcastEvent = {
     type: "message";
     subtype: "thread_broadcast";
     channel?: string;
+    user?: string;
     message?: {
         ts?: string;
+        user?: string;
+        bot_id?: string;
     };
     event_ts?: string;
 };

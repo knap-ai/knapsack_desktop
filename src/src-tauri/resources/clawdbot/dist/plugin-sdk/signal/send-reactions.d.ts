@@ -1,7 +1,9 @@
 /**
  * Signal reactions via signal-cli JSON-RPC API
  */
+import type { OpenClawConfig } from "../config/config.js";
 export type SignalReactionOpts = {
+    cfg?: OpenClawConfig;
     baseUrl?: string;
     account?: string;
     accountId?: string;

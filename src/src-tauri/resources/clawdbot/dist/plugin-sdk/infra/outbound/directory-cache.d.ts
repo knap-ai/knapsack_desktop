@@ -12,10 +12,13 @@ export declare class DirectoryCache<T> {
     private readonly ttlMs;
     private readonly cache;
     private lastConfigRef;
-    constructor(ttlMs: number);
+    private readonly maxSize;
+    constructor(ttlMs: number, maxSize?: number);
     get(key: string, cfg: OpenClawConfig): T | undefined;
     set(key: string, value: T, cfg: OpenClawConfig): void;
     clearMatching(match: (key: string) => boolean): void;
     clear(cfg?: OpenClawConfig): void;
     private resetIfConfigChanged;
+    private pruneExpired;
+    private evictToMaxSize;
 }

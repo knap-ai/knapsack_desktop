@@ -13,4 +13,4 @@ export declare function isGifMedia(opts: {
     fileName?: string | null;
 }): boolean;
 export declare function imageMimeFromFormat(format?: string | null): string | undefined;
-export declare function kindFromMime(mime?: string | null): MediaKind;
+export declare function kindFromMime(mime?: string | null): MediaKind | undefined;

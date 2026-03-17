@@ -22,6 +22,11 @@ export declare function formatGatewayServiceDescription(params?: {
     profile?: string;
     version?: string;
 }): string;
+export declare function resolveGatewayServiceDescription(params: {
+    env: Record<string, string | undefined>;
+    environment?: Record<string, string | undefined>;
+    description?: string;
+}): string;
 export declare function resolveNodeLaunchAgentLabel(): string;
 export declare function resolveNodeSystemdServiceName(): string;
 export declare function resolveNodeWindowsTaskName(): string;

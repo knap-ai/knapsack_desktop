@@ -1,4 +1,6 @@
 import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
+import { type QueuedFileWriter } from "./queued-file-writer.js";
+type PayloadLogWriter = QueuedFileWriter;
 export type AnthropicPayloadLogger = {
     enabled: true;
     wrapStreamFn: (streamFn: StreamFn) => StreamFn;
@@ -13,4 +15,6 @@ export declare function createAnthropicPayloadLogger(params: {
     modelId?: string;
     modelApi?: string | null;
     workspaceDir?: string;
+    writer?: PayloadLogWriter;
 }): AnthropicPayloadLogger | null;
+export {};

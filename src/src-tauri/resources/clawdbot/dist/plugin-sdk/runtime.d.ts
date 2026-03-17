@@ -1,7 +1,7 @@
 export type RuntimeEnv = {
-    log: typeof console.log;
-    error: typeof console.error;
-    exit: (code: number) => never;
+    log: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+    exit: (code: number) => void;
 };
 export declare const defaultRuntime: RuntimeEnv;
 export declare function createNonExitingRuntime(): RuntimeEnv;

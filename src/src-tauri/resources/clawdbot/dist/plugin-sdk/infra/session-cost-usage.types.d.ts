@@ -1,4 +1,5 @@
 import type { NormalizedUsage } from "../agents/usage.js";
+import type { SessionUsageTimePoint as SharedSessionUsageTimePoint, SessionUsageTimeSeries as SharedSessionUsageTimeSeries } from "../shared/session-usage-timeseries-types.js";
 export type CostBreakdown = {
     total?: number;
     input?: number;
@@ -129,21 +130,8 @@ export type DiscoveredSession = {
     mtime: number;
     firstUserMessage?: string;
 };
-export type SessionUsageTimePoint = {
-    timestamp: number;
-    input: number;
-    output: number;
-    cacheRead: number;
-    cacheWrite: number;
-    totalTokens: number;
-    cost: number;
-    cumulativeTokens: number;
-    cumulativeCost: number;
-};
-export type SessionUsageTimeSeries = {
-    sessionId?: string;
-    points: SessionUsageTimePoint[];
-};
+export type SessionUsageTimePoint = SharedSessionUsageTimePoint;
+export type SessionUsageTimeSeries = SharedSessionUsageTimeSeries;
 export type SessionLogEntry = {
     timestamp: number;
     role: "user" | "assistant" | "tool" | "toolResult";

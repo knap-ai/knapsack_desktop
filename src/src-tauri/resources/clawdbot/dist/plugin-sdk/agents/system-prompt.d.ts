@@ -2,6 +2,7 @@ import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
 import type { MemoryCitationsMode } from "../config/types.memory.js";
 import type { ResolvedTimeFormat } from "./date-time.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
+import type { EmbeddedSandboxInfo } from "./pi-embedded-runner/types.js";
 /**
  * Controls which hardcoded sections are included in the system prompt.
  * - "full": All sections (default, for main agent)
@@ -9,12 +10,15 @@ import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
  * - "none": Just basic identity line, no sections
  */
 export type PromptMode = "full" | "minimal" | "none";
+type OwnerIdDisplay = "raw" | "hash";
 export declare function buildAgentSystemPrompt(params: {
     workspaceDir: string;
     defaultThinkLevel?: ThinkLevel;
     reasoningLevel?: ReasoningLevel;
     extraSystemPrompt?: string;
     ownerNumbers?: string[];
+    ownerDisplay?: OwnerIdDisplay;
+    ownerDisplaySecret?: string;
     reasoningTagHint?: boolean;
     toolNames?: string[];
     toolSummaries?: Record<string, string>;
@@ -23,6 +27,7 @@ export declare function buildAgentSystemPrompt(params: {
     userTime?: string;
     userTimeFormat?: ResolvedTimeFormat;
     contextFiles?: EmbeddedContextFile[];
+    bootstrapTruncationWarningLines?: string[];
     skillsPrompt?: string;
     heartbeatPrompt?: string;
     docsPath?: string;
@@ -30,6 +35,8 @@ export declare function buildAgentSystemPrompt(params: {
     ttsHint?: string;
     /** Controls which hardcoded sections to include. Defaults to "full". */
     promptMode?: PromptMode;
+    /** Whether ACP-specific routing guidance should be included. Defaults to true. */
+    acpEnabled?: boolean;
     runtimeInfo?: {
         agentId?: string;
         host?: string;
@@ -44,19 +51,7 @@ export declare function buildAgentSystemPrompt(params: {
         repoRoot?: string;
     };
     messageToolHints?: string[];
-    sandboxInfo?: {
-        enabled: boolean;
-        workspaceDir?: string;
-        workspaceAccess?: "none" | "ro" | "rw";
-        agentWorkspaceMount?: string;
-        browserBridgeUrl?: string;
-        browserNoVncUrl?: string;
-        hostBrowserAllowed?: boolean;
-        elevated?: {
-            allowed: boolean;
-            defaultLevel: "on" | "off" | "ask" | "full";
-        };
-    };
+    sandboxInfo?: EmbeddedSandboxInfo;
     /** Reaction guidance for the agent (for Telegram minimal/extensive modes). */
     reactionGuidance?: {
         level: "minimal" | "extensive";
@@ -75,3 +70,4 @@ export declare function buildRuntimeLine(runtimeInfo?: {
     shell?: string;
     repoRoot?: string;
 }, runtimeChannel?: string, runtimeCapabilities?: string[], defaultThinkLevel?: ThinkLevel): string;
+export {};

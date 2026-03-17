@@ -1,7 +1,7 @@
+import type { BaseTokenResolution } from "../channels/plugins/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 export type TelegramTokenSource = "env" | "tokenFile" | "config" | "none";
-export type TelegramTokenResolution = {
-    token: string;
+export type TelegramTokenResolution = BaseTokenResolution & {
     source: TelegramTokenSource;
 };
 type ResolveTelegramTokenOpts = {

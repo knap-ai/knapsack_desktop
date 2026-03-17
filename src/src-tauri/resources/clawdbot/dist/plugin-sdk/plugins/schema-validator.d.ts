@@ -1,3 +1,10 @@
+export type JsonSchemaValidationError = {
+    path: string;
+    message: string;
+    text: string;
+    allowedValues?: string[];
+    allowedValuesHiddenCount?: number;
+};
 export declare function validateJsonSchemaValue(params: {
     schema: Record<string, unknown>;
     cacheKey: string;
@@ -6,5 +13,5 @@ export declare function validateJsonSchemaValue(params: {
     ok: true;
 } | {
     ok: false;
-    errors: string[];
+    errors: JsonSchemaValidationError[];
 };

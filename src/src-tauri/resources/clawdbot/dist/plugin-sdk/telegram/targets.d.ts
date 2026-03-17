@@ -1,14 +1,11 @@
 export type TelegramTarget = {
     chatId: string;
     messageThreadId?: number;
+    chatType: "direct" | "group" | "unknown";
 };
 export declare function stripTelegramInternalPrefixes(to: string): string;
-/**
- * Parse a Telegram delivery target into chatId and optional topic/thread ID.
- *
- * Supported formats:
- * - `chatId` (plain chat ID, t.me link, @username, or internal prefixes like `telegram:...`)
- * - `chatId:topicId` (numeric topic/thread ID)
- * - `chatId:topic:topicId` (explicit topic marker; preferred)
- */
+export declare function normalizeTelegramChatId(raw: string): string | undefined;
+export declare function isNumericTelegramChatId(raw: string): boolean;
+export declare function normalizeTelegramLookupTarget(raw: string): string | undefined;
 export declare function parseTelegramTarget(to: string): TelegramTarget;
+export declare function resolveTelegramTargetChatType(target: string): "direct" | "group" | "unknown";

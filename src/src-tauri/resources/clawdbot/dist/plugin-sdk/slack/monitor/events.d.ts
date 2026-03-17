@@ -5,4 +5,6 @@ export declare function registerSlackMonitorEvents(params: {
     ctx: SlackMonitorContext;
     account: ResolvedSlackAccount;
     handleSlackMessage: SlackMessageHandler;
+    /** Called on each inbound event to update liveness tracking. */
+    trackEvent?: () => void;
 }): void;

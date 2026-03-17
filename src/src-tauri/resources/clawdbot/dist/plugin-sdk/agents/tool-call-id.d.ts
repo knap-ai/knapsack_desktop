@@ -1,5 +1,9 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 export type ToolCallIdMode = "strict" | "strict9";
+export type ToolCallLike = {
+    id: string;
+    name?: string;
+};
 /**
  * Sanitize a tool call ID to be compatible with various providers.
  *
@@ -7,6 +11,12 @@ export type ToolCallIdMode = "strict" | "strict9";
  * - "strict9" mode: only [a-zA-Z0-9], length 9 (Mistral tool call requirement)
  */
 export declare function sanitizeToolCallId(id: string, mode?: ToolCallIdMode): string;
+export declare function extractToolCallsFromAssistant(msg: Extract<AgentMessage, {
+    role: "assistant";
+}>): ToolCallLike[];
+export declare function extractToolResultId(msg: Extract<AgentMessage, {
+    role: "toolResult";
+}>): string | null;
 export declare function isValidCloudCodeAssistToolId(id: string, mode?: ToolCallIdMode): boolean;
 /**
  * Sanitize tool call IDs for provider compatibility.

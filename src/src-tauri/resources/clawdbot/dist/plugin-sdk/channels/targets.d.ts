@@ -18,6 +18,38 @@ export declare function ensureTargetId(params: {
     pattern: RegExp;
     errorMessage: string;
 }): string;
+export declare function parseTargetMention(params: {
+    raw: string;
+    mentionPattern: RegExp;
+    kind: MessagingTargetKind;
+}): MessagingTarget | undefined;
+export declare function parseTargetPrefix(params: {
+    raw: string;
+    prefix: string;
+    kind: MessagingTargetKind;
+}): MessagingTarget | undefined;
+export declare function parseTargetPrefixes(params: {
+    raw: string;
+    prefixes: Array<{
+        prefix: string;
+        kind: MessagingTargetKind;
+    }>;
+}): MessagingTarget | undefined;
+export declare function parseAtUserTarget(params: {
+    raw: string;
+    pattern: RegExp;
+    errorMessage: string;
+}): MessagingTarget | undefined;
+export declare function parseMentionPrefixOrAtUserTarget(params: {
+    raw: string;
+    mentionPattern: RegExp;
+    prefixes: Array<{
+        prefix: string;
+        kind: MessagingTargetKind;
+    }>;
+    atUserPattern: RegExp;
+    atUserErrorMessage: string;
+}): MessagingTarget | undefined;
 export declare function requireTargetKind(params: {
     platform: string;
     target: MessagingTarget | undefined;

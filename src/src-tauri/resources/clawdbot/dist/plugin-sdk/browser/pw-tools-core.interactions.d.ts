@@ -1,4 +1,4 @@
-import type { BrowserFormField } from "./client-actions-core.js";
+import type { BrowserActRequest, BrowserFormField } from "./client-actions-core.js";
 export declare function highlightViaPlaywright(opts: {
     cdpUrl: string;
     targetId?: string;
@@ -7,29 +7,35 @@ export declare function highlightViaPlaywright(opts: {
 export declare function clickViaPlaywright(opts: {
     cdpUrl: string;
     targetId?: string;
-    ref: string;
+    ref?: string;
+    selector?: string;
     doubleClick?: boolean;
     button?: "left" | "right" | "middle";
     modifiers?: Array<"Alt" | "Control" | "ControlOrMeta" | "Meta" | "Shift">;
+    delayMs?: number;
     timeoutMs?: number;
 }): Promise<void>;
 export declare function hoverViaPlaywright(opts: {
     cdpUrl: string;
     targetId?: string;
-    ref: string;
+    ref?: string;
+    selector?: string;
     timeoutMs?: number;
 }): Promise<void>;
 export declare function dragViaPlaywright(opts: {
     cdpUrl: string;
     targetId?: string;
-    startRef: string;
-    endRef: string;
+    startRef?: string;
+    startSelector?: string;
+    endRef?: string;
+    endSelector?: string;
     timeoutMs?: number;
 }): Promise<void>;
 export declare function selectOptionViaPlaywright(opts: {
     cdpUrl: string;
     targetId?: string;
-    ref: string;
+    ref?: string;
+    selector?: string;
     values: string[];
     timeoutMs?: number;
 }): Promise<void>;
@@ -42,7 +48,8 @@ export declare function pressKeyViaPlaywright(opts: {
 export declare function typeViaPlaywright(opts: {
     cdpUrl: string;
     targetId?: string;
-    ref: string;
+    ref?: string;
+    selector?: string;
     text: string;
     submit?: boolean;
     slowly?: boolean;
@@ -65,7 +72,8 @@ export declare function evaluateViaPlaywright(opts: {
 export declare function scrollIntoViewViaPlaywright(opts: {
     cdpUrl: string;
     targetId?: string;
-    ref: string;
+    ref?: string;
+    selector?: string;
     timeoutMs?: number;
 }): Promise<void>;
 export declare function waitForViaPlaywright(opts: {
@@ -112,3 +120,16 @@ export declare function setInputFilesViaPlaywright(opts: {
     element?: string;
     paths: string[];
 }): Promise<void>;
+export declare function batchViaPlaywright(opts: {
+    cdpUrl: string;
+    targetId?: string;
+    actions: BrowserActRequest[];
+    stopOnError?: boolean;
+    evaluateEnabled?: boolean;
+    depth?: number;
+}): Promise<{
+    results: Array<{
+        ok: boolean;
+        error?: string;
+    }>;
+}>;

@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
-import type { MsgContext, TemplateContext } from "../templating.js";
 import { type GroupKeyResolution, type SessionEntry, type SessionScope } from "../../config/sessions.js";
+import type { MsgContext, TemplateContext } from "../templating.js";
 export type SessionInitResult = {
     sessionCtx: TemplateContext;
     sessionEntry: SessionEntry;

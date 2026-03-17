@@ -1,19 +1,36 @@
-import type { RequestClient } from "@buape/carbon";
+import { type RequestClient } from "@buape/carbon";
+import { type OpenClawConfig } from "../config/config.js";
 import type { RetryConfig } from "../infra/retry.js";
 import type { PollInput } from "../polls.js";
+import { type DiscordSendComponents, type DiscordSendEmbeds } from "./send.shared.js";
 import type { DiscordSendResult } from "./send.types.js";
 type DiscordSendOpts = {
+    cfg?: OpenClawConfig;
     token?: string;
     accountId?: string;
     mediaUrl?: string;
+    mediaLocalRoots?: readonly string[];
     verbose?: boolean;
     rest?: RequestClient;
     replyTo?: string;
     retry?: RetryConfig;
-    embeds?: unknown[];
+    components?: DiscordSendComponents;
+    embeds?: DiscordSendEmbeds;
     silent?: boolean;
 };
 export declare function sendMessageDiscord(to: string, text: string, opts?: DiscordSendOpts): Promise<DiscordSendResult>;
+type DiscordWebhookSendOpts = {
+    cfg?: OpenClawConfig;
+    webhookId: string;
+    webhookToken: string;
+    accountId?: string;
+    threadId?: string | number;
+    replyTo?: string;
+    username?: string;
+    avatarUrl?: string;
+    wait?: boolean;
+};
+export declare function sendWebhookMessageDiscord(text: string, opts: DiscordWebhookSendOpts): Promise<DiscordSendResult>;
 export declare function sendStickerDiscord(to: string, stickerIds: string[], opts?: DiscordSendOpts & {
     content?: string;
 }): Promise<DiscordSendResult>;
@@ -21,6 +38,7 @@ export declare function sendPollDiscord(to: string, poll: PollInput, opts?: Disc
     content?: string;
 }): Promise<DiscordSendResult>;
 type VoiceMessageOpts = {
+    cfg?: OpenClawConfig;
     token?: string;
     accountId?: string;
     verbose?: boolean;

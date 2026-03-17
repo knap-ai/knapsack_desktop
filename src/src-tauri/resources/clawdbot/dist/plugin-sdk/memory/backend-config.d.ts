@@ -33,8 +33,14 @@ export type ResolvedQmdSessionConfig = {
     exportDir?: string;
     retentionDays?: number;
 };
+export type ResolvedQmdMcporterConfig = {
+    enabled: boolean;
+    serverName: string;
+    startDaemon: boolean;
+};
 export type ResolvedQmdConfig = {
     command: string;
+    mcporter: ResolvedQmdMcporterConfig;
     searchMode: MemoryQmdSearchMode;
     collections: ResolvedQmdCollection[];
     sessions: ResolvedQmdSessionConfig;

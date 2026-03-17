@@ -1,10 +1,13 @@
 import type { SkillCommandSpec } from "../agents/skills.js";
 import type { OpenClawConfig } from "../config/config.js";
-import type { MediaUnderstandingDecision } from "../media-understanding/types.js";
-import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "./thinking.js";
 import { type SessionEntry, type SessionScope } from "../config/sessions.js";
+import type { MediaUnderstandingDecision } from "../media-understanding/types.js";
 import { formatTokenCount as formatTokenCountShared } from "../utils/usage-format.js";
-type AgentConfig = Partial<NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>>;
+import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "./thinking.js";
+type AgentDefaults = NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>;
+type AgentConfig = Partial<AgentDefaults> & {
+    model?: AgentDefaults["model"] | string;
+};
 export declare const formatTokenCount: typeof formatTokenCountShared;
 type QueueStatus = {
     mode?: string;
@@ -20,18 +23,21 @@ type StatusArgs = {
     agentId?: string;
     sessionEntry?: SessionEntry;
     sessionKey?: string;
+    parentSessionKey?: string;
     sessionScope?: SessionScope;
     sessionStorePath?: string;
     groupActivation?: "mention" | "always";
     resolvedThink?: ThinkLevel;
+    resolvedFast?: boolean;
     resolvedVerbose?: VerboseLevel;
     resolvedReasoning?: ReasoningLevel;
     resolvedElevated?: ElevatedLevel;
     modelAuth?: string;
+    activeModelAuth?: string;
     usageLine?: string;
     timeLine?: string;
     queue?: QueueStatus;
-    mediaDecisions?: MediaUnderstandingDecision[];
+    mediaDecisions?: ReadonlyArray<MediaUnderstandingDecision>;
     subagentsLine?: string;
     includeTranscriptUsage?: boolean;
     now?: number;

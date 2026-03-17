@@ -1,8 +1,11 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { ExecAsk, ExecHost, ExecSecurity } from "../infra/exec-approvals.js";
+import { type ExecHost } from "../infra/exec-approvals.js";
 import type { ProcessSession } from "./bash-process-registry.js";
-import type { ExecToolDetails } from "./bash-tools.exec.js";
+import type { ExecToolDetails } from "./bash-tools.exec-types.js";
 import type { BashSandboxConfig } from "./bash-tools.shared.js";
+export { applyPathPrepend, findPathKey, normalizePathPrepend } from "../infra/path-prepend.js";
+export { normalizeExecAsk, normalizeExecHost, normalizeExecSecurity, } from "../infra/exec-approvals.js";
+export declare function sanitizeHostBaseEnv(env: Record<string, string>): Record<string, string>;
 export declare function validateHostEnv(env: Record<string, string>): void;
 export declare const DEFAULT_MAX_OUTPUT: number;
 export declare const DEFAULT_PENDING_MAX_OUTPUT: number;
@@ -10,19 +13,19 @@ export declare const DEFAULT_PATH: string;
 export declare const DEFAULT_NOTIFY_TAIL_CHARS = 400;
 export declare const DEFAULT_APPROVAL_TIMEOUT_MS = 120000;
 export declare const DEFAULT_APPROVAL_REQUEST_TIMEOUT_MS = 130000;
-export declare const execSchema: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TObject<{
-    command: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString;
-    workdir: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    env: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TRecord<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString, import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>>;
-    yieldMs: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNumber>;
-    background: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    timeout: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TNumber>;
-    pty: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    elevated: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TBoolean>;
-    host: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    security: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    ask: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
-    node: import("node_modules/@sinclair/typebox/build/esm/index.mjs").TOptional<import("node_modules/@sinclair/typebox/build/esm/index.mjs").TString>;
+export declare const execSchema: import("@sinclair/typebox").TObject<{
+    command: import("@sinclair/typebox").TString;
+    workdir: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    env: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+    yieldMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+    background: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    timeout: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+    pty: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    elevated: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    host: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    node: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
 export type ExecProcessOutcome = {
     status: "completed" | "failed";
@@ -40,17 +43,19 @@ export type ExecProcessHandle = {
     promise: Promise<ExecProcessOutcome>;
     kill: () => void;
 };
-export declare function normalizeExecHost(value?: string | null): ExecHost | null;
-export declare function normalizeExecSecurity(value?: string | null): ExecSecurity | null;
-export declare function normalizeExecAsk(value?: string | null): ExecAsk | null;
 export declare function renderExecHostLabel(host: ExecHost): "sandbox" | "gateway" | "node";
 export declare function normalizeNotifyOutput(value: string): string;
-export declare function normalizePathPrepend(entries?: string[]): string[];
-export declare function applyPathPrepend(env: Record<string, string>, prepend: string[], options?: {
-    requireExisting?: boolean;
-}): void;
 export declare function applyShellPath(env: Record<string, string>, shellPath?: string | null): void;
 export declare function createApprovalSlug(id: string): string;
+export declare function buildApprovalPendingMessage(params: {
+    warningText?: string;
+    approvalSlug: string;
+    approvalId: string;
+    command: string;
+    cwd: string;
+    host: "gateway" | "node";
+    nodeId?: string;
+}): string;
 export declare function resolveApprovalRunningNoticeMs(value?: number): number;
 export declare function emitExecSystemEvent(text: string, opts: {
     sessionKey?: string;
@@ -58,6 +63,7 @@ export declare function emitExecSystemEvent(text: string, opts: {
 }): void;
 export declare function runExecProcess(opts: {
     command: string;
+    execCommand?: string;
     workdir: string;
     env: Record<string, string>;
     sandbox?: BashSandboxConfig;
@@ -67,8 +73,9 @@ export declare function runExecProcess(opts: {
     maxOutput: number;
     pendingMaxOutput: number;
     notifyOnExit: boolean;
+    notifyOnExitEmptySuccess?: boolean;
     scopeKey?: string;
     sessionKey?: string;
-    timeoutSec: number;
+    timeoutSec: number | null;
     onUpdate?: (partialResult: AgentToolResult<ExecToolDetails>) => void;
 }): Promise<ExecProcessHandle>;

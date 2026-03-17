@@ -14,6 +14,8 @@ export type SignalInstallResult = {
     error?: string;
 };
 /** @internal Exported for testing. */
+export declare function extractSignalCliArchive(archivePath: string, installRoot: string, timeoutMs: number): Promise<void>;
+/** @internal Exported for testing. */
 export declare function looksLikeArchive(name: string): boolean;
 /**
  * Pick a native release asset from the official GitHub releases.

@@ -1,5 +1,7 @@
 export type DedupeCache = {
     check: (key: string | undefined | null, now?: number) => boolean;
+    peek: (key: string | undefined | null, now?: number) => boolean;
+    delete: (key: string | undefined | null) => void;
     clear: () => void;
     size: () => number;
 };

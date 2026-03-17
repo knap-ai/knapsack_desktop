@@ -3,10 +3,12 @@ export type DiscordGatewayHandle = {
     emitter?: Pick<EventEmitter, "on" | "removeListener">;
     disconnect?: () => void;
 };
-export declare function getDiscordGatewayEmitter(gateway?: unknown): EventEmitter | undefined;
-export declare function waitForDiscordGatewayStop(params: {
+export type WaitForDiscordGatewayStopParams = {
     gateway?: DiscordGatewayHandle;
     abortSignal?: AbortSignal;
     onGatewayError?: (err: unknown) => void;
     shouldStopOnError?: (err: unknown) => boolean;
-}): Promise<void>;
+    registerForceStop?: (forceStop: (err: unknown) => void) => void;
+};
+export declare function getDiscordGatewayEmitter(gateway?: unknown): EventEmitter | undefined;
+export declare function waitForDiscordGatewayStop(params: WaitForDiscordGatewayStopParams): Promise<void>;

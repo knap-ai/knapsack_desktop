@@ -1,12 +1,15 @@
 import type { OpenClawConfig } from "../config/config.js";
+import type { SecretInput } from "../config/types.secrets.js";
+import { type MemoryMultimodalSettings } from "../memory/multimodal.js";
 export type ResolvedMemorySearchConfig = {
     enabled: boolean;
     sources: Array<"memory" | "sessions">;
     extraPaths: string[];
-    provider: "openai" | "local" | "gemini" | "voyage" | "auto";
+    multimodal: MemoryMultimodalSettings;
+    provider: "openai" | "local" | "gemini" | "voyage" | "mistral" | "ollama" | "auto";
     remote?: {
         baseUrl?: string;
-        apiKey?: string;
+        apiKey?: SecretInput;
         headers?: Record<string, string>;
         batch?: {
             enabled: boolean;
@@ -19,8 +22,9 @@ export type ResolvedMemorySearchConfig = {
     experimental: {
         sessionMemory: boolean;
     };
-    fallback: "openai" | "gemini" | "local" | "voyage" | "none";
+    fallback: "openai" | "gemini" | "local" | "voyage" | "mistral" | "ollama" | "none";
     model: string;
+    outputDimensionality?: number;
     local: {
         modelPath?: string;
         modelCacheDir?: string;
@@ -46,6 +50,7 @@ export type ResolvedMemorySearchConfig = {
         sessions: {
             deltaBytes: number;
             deltaMessages: number;
+            postCompactionForce: boolean;
         };
     };
     query: {
@@ -56,6 +61,14 @@ export type ResolvedMemorySearchConfig = {
             vectorWeight: number;
             textWeight: number;
             candidateMultiplier: number;
+            mmr: {
+                enabled: boolean;
+                lambda: number;
+            };
+            temporalDecay: {
+                enabled: boolean;
+                halfLifeDays: number;
+            };
         };
     };
     cache: {

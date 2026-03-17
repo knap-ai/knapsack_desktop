@@ -2,29 +2,11 @@ import { Button, type ButtonInteraction, type ComponentData } from "@buape/carbo
 import { ButtonStyle } from "discord-api-types/v10";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { DiscordExecApprovalConfig } from "../../config/types.discord.js";
-import type { ExecApprovalDecision } from "../../infra/exec-approvals.js";
+import type { ExecApprovalDecision, ExecApprovalRequest, ExecApprovalResolved } from "../../infra/exec-approvals.js";
 import type { RuntimeEnv } from "../../runtime.js";
-export type ExecApprovalRequest = {
-    id: string;
-    request: {
-        command: string;
-        cwd?: string | null;
-        host?: string | null;
-        security?: string | null;
-        ask?: string | null;
-        agentId?: string | null;
-        resolvedPath?: string | null;
-        sessionKey?: string | null;
-    };
-    createdAtMs: number;
-    expiresAtMs: number;
-};
-export type ExecApprovalResolved = {
-    id: string;
-    decision: ExecApprovalDecision;
-    resolvedBy?: string | null;
-    ts: number;
-};
+export type { ExecApprovalRequest, ExecApprovalResolved };
+/** Extract Discord channel ID from a session key like "agent:main:discord:channel:123456789" */
+export declare function extractDiscordChannelId(sessionKey?: string | null): string | null;
 export declare function buildExecApprovalCustomId(approvalId: string, action: ExecApprovalDecision): string;
 export declare function parseExecApprovalData(data: ComponentData): {
     approvalId: string;
@@ -56,6 +38,8 @@ export declare class DiscordExecApprovalHandler {
     private finalizeMessage;
     private updateMessage;
     resolveApproval(approvalId: string, decision: ExecApprovalDecision): Promise<boolean>;
+    /** Return the list of configured approver IDs. */
+    getApprovers(): string[];
 }
 export type ExecApprovalButtonContext = {
     handler: DiscordExecApprovalHandler;

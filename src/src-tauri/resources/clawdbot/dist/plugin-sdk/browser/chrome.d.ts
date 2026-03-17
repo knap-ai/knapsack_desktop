@@ -1,6 +1,6 @@
 import { type ChildProcessWithoutNullStreams } from "node:child_process";
-import type { ResolvedBrowserConfig, ResolvedBrowserProfile } from "./config.js";
 import { type BrowserExecutable } from "./chrome.executables.js";
+import type { ResolvedBrowserConfig, ResolvedBrowserProfile } from "./config.js";
 export type { BrowserExecutable } from "./chrome.executables.js";
 export { findChromeExecutableLinux, findChromeExecutableMac, findChromeExecutableWindows, resolveBrowserExecutableForPlatform, } from "./chrome.executables.js";
 export { decorateOpenClawProfile, ensureProfileCleanExit, isProfileDecorated, } from "./chrome.profile-decoration.js";

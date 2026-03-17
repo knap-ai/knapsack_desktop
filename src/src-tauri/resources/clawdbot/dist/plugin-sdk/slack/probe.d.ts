@@ -1,7 +1,6 @@
-export type SlackProbe = {
-    ok: boolean;
+import type { BaseProbeResult } from "../channels/plugins/types.js";
+export type SlackProbe = BaseProbeResult & {
     status?: number | null;
-    error?: string | null;
     elapsedMs?: number | null;
     bot?: {
         id?: string;

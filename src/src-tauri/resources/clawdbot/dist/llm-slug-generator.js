@@ -1,46 +1,21 @@
-import "./paths-BZtyHNCi.js";
-import "./workspace-CUznpDHg.js";
-import "./exec-DBtWJ4Ld.js";
-import { c as resolveDefaultAgentId, r as resolveAgentDir, s as resolveAgentWorkspaceDir } from "./agent-scope-xZu8sXcF.js";
-import "./deliver-aThCVOeQ.js";
-import { t as runEmbeddedPiAgent } from "./pi-embedded-D69Ciu0d.js";
-import "./image-ops-CQkyIkuI.js";
-import "./boolean-Bb19hm9Y.js";
-import "./model-auth-BffKC6OJ.js";
-import "./config-DAGaFnCt.js";
-import "./send-oeFwp37b.js";
-import "./send-Cv6A4K4k.js";
-import "./send-BWIKm-Ci.js";
-import "./github-copilot-token-BRNzgUa_.js";
-import "./pi-model-discovery-Cexg1XRf.js";
-import "./pi-embedded-helpers-mrBZwZ9b.js";
-import "./chrome-DdEflVKx.js";
-import "./frontmatter-Uu27Y56g.js";
-import "./store-l7p5BQMc.js";
-import "./paths-CpGplyYJ.js";
-import "./tool-images-BVaD9DCP.js";
-import "./image-CZapiPj9.js";
-import "./manager-TKJUwtha.js";
-import "./sqlite-Dashr12i.js";
-import "./retry-BhlI4gtw.js";
-import "./redact-DcuzVizL.js";
-import "./common-fdrT4FYK.js";
-import "./ir-XjRYsEjJ.js";
-import "./fetch-BUVoWGPC.js";
-import "./render-CiikiGbn.js";
-import "./runner-C0QyHqy1.js";
-import "./send-B9PAu0LZ.js";
-import "./send-CV8EAKqp.js";
-import "./channel-activity-BHDtnoEK.js";
-import "./tables-BY2rftQn.js";
+import "./github-copilot-token-bJVPdSYE.js";
+import { Ct as resolveAgentWorkspaceDir, vt as resolveAgentDir, wt as resolveDefaultAgentId, yt as resolveAgentEffectiveModelPrimary } from "./query-expansion-DnS6CGY2.js";
+import "./paths-BwJ6yG6k.js";
+import { t as createSubsystemLogger } from "./subsystem-CDcEQtQK.js";
+import "./workspace-Cg3kGb1y.js";
+import "./logger-C0l_Gj8Y.js";
+import { ji as DEFAULT_PROVIDER, o as parseModelRef, tt as runEmbeddedPiAgent } from "./model-selection-CU2b7bN6.js";
+import "./boolean-Cuaw_-7j.js";
+import "./fetch-BsqGaLgN.js";
+import "./frontmatter-D6-ANhh_.js";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-
 //#region src/hooks/llm-slug-generator.ts
 /**
 * LLM-based slug generator for session memory filenames
 */
+const log = createSubsystemLogger("llm-slug-generator");
 /**
 * Generate a short 1-2 word filename slug from session content using LLM
 */
@@ -58,6 +33,10 @@ Conversation summary:
 ${params.sessionContent.slice(0, 2e3)}
 
 Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", "bug-fix"`;
+		const modelRef = resolveAgentEffectiveModelPrimary(params.cfg, agentId);
+		const parsed = modelRef ? parseModelRef(modelRef, DEFAULT_PROVIDER) : null;
+		const provider = parsed?.provider ?? "anthropic";
+		const model = parsed?.model ?? "claude-opus-4-6";
 		const result = await runEmbeddedPiAgent({
 			sessionId: `slug-generator-${Date.now()}`,
 			sessionKey: "temp:slug-generator",
@@ -67,6 +46,8 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
 			agentDir,
 			config: params.cfg,
 			prompt,
+			provider,
+			model,
 			timeoutMs: 15e3,
 			runId: `slug-gen-${Date.now()}`
 		});
@@ -76,7 +57,8 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
 		}
 		return null;
 	} catch (err) {
-		console.error("[llm-slug-generator] Failed to generate slug:", err);
+		const message = err instanceof Error ? err.stack ?? err.message : String(err);
+		log.error(`Failed to generate slug: ${message}`);
 		return null;
 	} finally {
 		if (tempSessionFile) try {
@@ -87,6 +69,5 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
 		} catch {}
 	}
 }
-
 //#endregion
 export { generateSlugViaLLM };

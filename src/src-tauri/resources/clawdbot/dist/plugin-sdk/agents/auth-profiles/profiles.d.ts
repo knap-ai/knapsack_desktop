@@ -1,4 +1,5 @@
 import type { AuthProfileCredential, AuthProfileStore } from "./types.js";
+export declare function dedupeProfileIds(profileIds: string[]): string[];
 export declare function setAuthProfileOrder(params: {
     agentDir?: string;
     provider: string;

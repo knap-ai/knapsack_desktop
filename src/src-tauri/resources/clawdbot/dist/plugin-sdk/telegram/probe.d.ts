@@ -1,7 +1,7 @@
-export type TelegramProbe = {
-    ok: boolean;
+import type { BaseProbeResult } from "../channels/plugins/types.js";
+import type { TelegramNetworkConfig } from "../config/types.telegram.js";
+export type TelegramProbe = BaseProbeResult & {
     status?: number | null;
-    error?: string | null;
     elapsedMs: number;
     bot?: {
         id?: number | null;
@@ -15,4 +15,10 @@ export type TelegramProbe = {
         hasCustomCert?: boolean | null;
     };
 };
-export declare function probeTelegram(token: string, timeoutMs: number, proxyUrl?: string): Promise<TelegramProbe>;
+export type TelegramProbeOptions = {
+    proxyUrl?: string;
+    network?: TelegramNetworkConfig;
+    accountId?: string;
+};
+export declare function resetTelegramProbeFetcherCacheForTests(): void;
+export declare function probeTelegram(token: string, timeoutMs: number, proxyOrOptions?: string | TelegramProbeOptions): Promise<TelegramProbe>;

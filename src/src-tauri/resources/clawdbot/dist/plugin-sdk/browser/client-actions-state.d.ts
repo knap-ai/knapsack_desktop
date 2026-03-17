@@ -1,4 +1,20 @@
 import type { BrowserActionOk, BrowserActionTargetOk } from "./client-actions-types.js";
+type TargetedProfileOptions = {
+    targetId?: string;
+    profile?: string;
+};
+type HttpCredentialsOptions = TargetedProfileOptions & {
+    username?: string;
+    password?: string;
+    clear?: boolean;
+};
+type GeolocationOptions = TargetedProfileOptions & {
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+    origin?: string;
+    clear?: boolean;
+};
 export declare function browserCookies(baseUrl: string | undefined, opts?: {
     targetId?: string;
     profile?: string;
@@ -48,22 +64,8 @@ export declare function browserSetHeaders(baseUrl: string | undefined, opts: {
     targetId?: string;
     profile?: string;
 }): Promise<BrowserActionTargetOk>;
-export declare function browserSetHttpCredentials(baseUrl: string | undefined, opts?: {
-    username?: string;
-    password?: string;
-    clear?: boolean;
-    targetId?: string;
-    profile?: string;
-}): Promise<BrowserActionTargetOk>;
-export declare function browserSetGeolocation(baseUrl: string | undefined, opts?: {
-    latitude?: number;
-    longitude?: number;
-    accuracy?: number;
-    origin?: string;
-    clear?: boolean;
-    targetId?: string;
-    profile?: string;
-}): Promise<BrowserActionTargetOk>;
+export declare function browserSetHttpCredentials(baseUrl: string | undefined, opts?: HttpCredentialsOptions): Promise<BrowserActionTargetOk>;
+export declare function browserSetGeolocation(baseUrl: string | undefined, opts?: GeolocationOptions): Promise<BrowserActionTargetOk>;
 export declare function browserSetMedia(baseUrl: string | undefined, opts: {
     colorScheme: "dark" | "light" | "no-preference" | "none";
     targetId?: string;
@@ -88,3 +90,4 @@ export declare function browserClearPermissions(baseUrl: string | undefined, opt
     targetId?: string;
     profile?: string;
 }): Promise<BrowserActionOk>;
+export {};

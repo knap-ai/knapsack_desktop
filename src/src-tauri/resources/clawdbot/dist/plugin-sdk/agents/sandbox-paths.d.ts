@@ -1,3 +1,4 @@
+export declare function resolveSandboxInputPath(filePath: string, cwd: string): string;
 export declare function resolveSandboxPath(params: {
     filePath: string;
     cwd: string;
@@ -10,6 +11,8 @@ export declare function assertSandboxPath(params: {
     filePath: string;
     cwd: string;
     root: string;
+    allowFinalSymlinkForUnlink?: boolean;
+    allowFinalHardlinkForUnlink?: boolean;
 }): Promise<{
     resolved: string;
     relative: string;
