@@ -43,11 +43,15 @@ jobs:
           node scripts/prepare-node.cjs
           node scripts/prune-clawdbot.cjs
 
-      - name: Clean Tauri NSIS cache
+      - name: Clean Tauri NSIS cache and stale bundle artifacts
         run: |
           if (Test-Path "$env:LOCALAPPDATA\tauri\NSIS") {
             Remove-Item -Recurse -Force "$env:LOCALAPPDATA\tauri\NSIS"
-            Write-Host "Cleared stale NSIS cache"
+            Write-Host "Cleared stale NSIS toolchain cache"
+          }
+          if (Test-Path "src\src-tauri\target\release\bundle") {
+            Remove-Item -Recurse -Force "src\src-tauri\target\release\bundle"
+            Write-Host "Cleared stale bundle artifacts"
           }
 
       - name: Build Tauri app
