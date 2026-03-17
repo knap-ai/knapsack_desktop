@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
+use tokio::sync::Mutex;
+
+/// Global mutex to prevent concurrent `ensure_gateway_running` calls.
+/// Multiple callers (channel status, WS reconnect, RPC client) can trigger
+/// restarts simultaneously, causing launchctl bootout/bootstrap races that
+/// result in I/O errors and "service not found" failures.
+static RESTART_MUTEX: once_cell::sync::Lazy<Mutex<()>> = once_cell::sync::Lazy::new(|| Mutex::new(()));
 
 /// Minimal gateway supervisor helpers.
 ///
@@ -135,12 +142,30 @@ pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
 ///
 /// This does NOT install/bootstrap the agent; it assumes the service is already enabled.
 /// Uses exponential backoff: retries up to 4 times with delays of 500ms, 1s, 2s, 4s.
+///
+/// Protected by a mutex — only one restart attempt runs at a time.  Concurrent
+/// callers wait for the in-progress attempt to finish and then re-check health.
 pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureResponse {
+  // Fast path: if already healthy, skip the mutex entirely.
   if is_gateway_healthy(token).await {
     return GatewayEnsureResponse {
       success: true,
       running: true,
       message: "Gateway healthy".to_string(),
+    };
+  }
+
+  // Acquire the restart mutex — if another caller is already restarting,
+  // we wait for it to finish and then re-check health before trying ourselves.
+  let _guard = RESTART_MUTEX.lock().await;
+
+  // Re-check health after acquiring the lock — the previous holder may
+  // have already restarted the gateway successfully.
+  if is_gateway_healthy(token).await {
+    return GatewayEnsureResponse {
+      success: true,
+      running: true,
+      message: "Gateway healthy (recovered while waiting)".to_string(),
     };
   }
 
@@ -193,7 +218,7 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
   GatewayEnsureResponse {
     success: false,
     running: false,
-    message: "Gateway not reachable after multiple retries".to_string(),
+    message: "Gateway not reachable after multiple retries (not running)".to_string(),
   }
 }
 
