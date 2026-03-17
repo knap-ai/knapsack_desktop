@@ -2475,13 +2475,34 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // Start the service on launch — only enable if not already running.
       // Avoid cycling (disable+enable) because SIGTERMing a healthy gateway
       // causes the browser to disconnect and triggers the restart loop.
+      // Retry up to 3 times with backoff because in dev mode the Rust backend
+      // may not be ready when the React app mounts.
       try {
-        const s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+        let s: ServiceStatus | null = null
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+            break
+          } catch {
+            // Backend not ready yet — wait and retry
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+          }
+        }
+        if (!s) {
+          // All retries failed — try one last time without catching
+          s = await apiGet<ServiceStatus>('/api/clawd/service/status')
+        }
         setStatus(s)
 
         if (!s.running) {
-          // Service is not running — start it
-          await apiPost('/api/clawd/service/enable', { enabled: true })
+          // Service is not running — start it (retry once on failure)
+          try {
+            await apiPost('/api/clawd/service/enable', { enabled: true })
+          } catch {
+            // First enable attempt failed — wait and retry
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            await apiPost('/api/clawd/service/enable', { enabled: true })
+          }
           // Wait for gateway to become healthy (with exponential backoff on backend).
           // The startup-ready endpoint polls until the gateway responds or 30s elapses.
           try {
@@ -3599,22 +3620,39 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     if (health) {
       const gwStarting = channelStatus.gatewayStarting
+      // Extract a short diagnostic hint from the health message when gateway is down.
+      // The full message (with stderr tail) is still available in the tooltip.
+      let gwLabel = 'Gateway: OK'
+      if (!health.gateway_ok) {
+        if (gwStarting) {
+          gwLabel = 'Gateway: starting...'
+        } else if (health.message?.includes('plist not found')) {
+          gwLabel = 'Gateway: not enabled'
+        } else if (health.message?.includes('not loaded')) {
+          gwLabel = 'Gateway: not loaded — re-enable in Settings'
+        } else {
+          gwLabel = 'Gateway: reconnecting...'
+        }
+      }
       parts.push(
         <span key="gw" className={health.gateway_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
           title={!health.gateway_ok && health.message ? health.message : undefined}>
-          {health.gateway_ok ? 'Gateway: OK' : gwStarting ? 'Gateway: starting...' : 'Gateway: reconnecting...'}
+          {gwLabel}
         </span>,
       )
       parts.push(
         <span key="br" className={health.browser_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
           title={!health.browser_ok && health.message ? health.message : undefined}>
-          {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : 'Browser: reconnecting...'}
+          {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : health.gateway_ok ? 'Browser: starting...' : 'Browser: waiting for gateway'}
         </span>,
       )
     } else if (status?.running) {
       // Health not loaded yet but service is running — show checking state
       parts.push(<span key="gw" className="status-warn">Gateway: starting...</span>)
       parts.push(<span key="br" className="status-warn">Browser: starting...</span>)
+    } else if (!status?.running && !status?.installed) {
+      // Service not installed — give clear direction
+      parts.push(<span key="gw" className="status-down">Gateway: not installed</span>)
     }
     if (currentTargetId) parts.push(<span key="tab">Tab: {currentTargetId.slice(0, 12)}...</span>)
     return parts.reduce<ReactNode[]>((acc, part, i) => {
