@@ -2493,6 +2493,12 @@ pub async fn chat(
       }
     }
 
+    // Open Activity Panel — allows the AI to open the terminal drawer in the sidebar
+    if name == "open_activity_panel" {
+      let _ = app_handle.emit_all("open-activity-panel", json!({}));
+      return Ok(json!({"ok": true, "message": "Activity Panel opened. The user can now see the terminal and any running processes."}));
+    }
+
     // Read terminal output — allows AI to see what's in the terminal without user pasting
     if name == "read_terminal" {
       let session_id = args_map.get("session_id").and_then(|v| v.as_str());
@@ -3038,6 +3044,7 @@ Users can attach screenshots, photos, and images to their messages. When an imag
 - **type(selector, text)**: Enter text into fields
 - **list_tabs()**: See all open browser tabs with their URLs
 - **focus_tab(tabId)**: Switch to a specific tab
+- **open_activity_panel()**: Open the Activity Panel / terminal drawer in the sidebar. Use when the user asks to open the terminal, open Claude Code, show the Activity Panel, or see terminal output.
 - **read_file(path)**: Read a local file's contents
 - **write_file(path, content)**: Write content to a local file (creates parent dirs as needed)
 - **list_directory(path)**: List files in a directory

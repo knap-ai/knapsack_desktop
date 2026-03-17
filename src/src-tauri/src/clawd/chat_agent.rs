@@ -398,6 +398,18 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
     OaiToolSpec {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
+        name: "open_activity_panel".to_string(),
+        description: "Open the Activity Panel / terminal drawer in the sidebar. Use when the user asks to open the terminal, open Claude Code, show the Activity Panel, or see terminal output. This opens the panel UI — it does NOT start a Claude Code session.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }),
+      },
+    },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
         name: "read_terminal".to_string(),
         description: "Read recent output from the built-in terminal panel. Use this to see what the user is working on in their terminal, check command output, view error messages, or understand terminal context without asking the user to paste. Returns the last N lines from active terminal sessions.".to_string(),
         parameters: json!({
