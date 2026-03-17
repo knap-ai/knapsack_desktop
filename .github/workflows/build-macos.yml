@@ -1,0 +1,73 @@
+name: Build macOS App (Universal)
+
+on:
+  push:
+    branches: [main, "release/*", "claude/*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable with targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src/src-tauri
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: src
+        run: npm install
+
+      - name: Create .env from example
+        working-directory: src
+        run: cp .env.example .env
+
+      - name: Run prebuild scripts
+        working-directory: src
+        env:
+          UNIVERSAL_BUILD: "true"
+        run: |
+          node scripts/sync-version.cjs
+          node scripts/prepare-node.cjs
+          node scripts/prune-clawdbot.cjs
+
+      - name: Build Tauri app (universal)
+        working-directory: src
+        run: npx tauri build --target universal-apple-darwin
+        env:
+          VITE_KN_API_SERVER: https://api.knapsack.ai
+          MICROSOFT_CLIENT_ID: unused
+          VITE_GOOGLE_CLIENT_ID: ""
+          VITE_GOOGLE_DEVELOPER_KEY: ""
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: knapsack-macos-dmg
+          path: src/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: warn
+
+      - name: Upload updater artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: knapsack-macos-updater
+          path: |
+            src/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            src/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: warn
