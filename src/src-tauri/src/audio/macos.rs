@@ -226,8 +226,8 @@ pub async fn record_speaker_output(
 
   #[cfg(target_os = "macos")]
   {
-    use objc2::runtime::{AnyClass, AnyObject};
-    use objc2::{msg_send, msg_send_id, rc::{Allocated, Id}};
+    use objc2::runtime::{AnyClass, AnyObject, Bool as ObjcBool};
+    use objc2::{msg_send, msg_send_id, sel, rc::{Allocated, Id}};
     use core_foundation::base::{CFRelease, TCFType};
     use core_foundation::string::CFString;
     use core_foundation::dictionary::CFDictionary;
@@ -272,18 +272,62 @@ pub async fn record_speaker_output(
       let _: () = msg_send![&*tap_desc, setPrivate: true];
     }
 
-    // Get the tap's UUID (needed for aggregate device configuration)
-    let tap_uuid: Id<AnyObject> = unsafe {
-      msg_send_id![&*tap_desc, uuid]
-    };
-    let tap_uuid_string: Id<AnyObject> = unsafe {
-      msg_send_id![&*tap_uuid, UUIDString]
-    };
-    let tap_uuid_str: *const libc::c_char = unsafe {
-      msg_send![&*tap_uuid_string, UTF8String]
-    };
-    let tap_uuid_rust = unsafe {
-      std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+    // Get the tap's UUID (needed for aggregate device configuration).
+    // On macOS 14–15, CATapDescription has a `uuid` property.
+    // On macOS 26 (Tahoe), Apple renamed it — try `UUID` and `uuid` selectors,
+    // then fall back to a generated UUID to avoid crashing.
+    let tap_uuid_rust: String = unsafe {
+      let has_uuid: bool = {
+        let s = sel!(uuid);
+        let result: ObjcBool = msg_send![&*tap_desc, respondsToSelector: s];
+        result.as_bool()
+      };
+      let has_upper_uuid: bool = {
+        let s = sel!(UUID);
+        let result: ObjcBool = msg_send![&*tap_desc, respondsToSelector: s];
+        result.as_bool()
+      };
+
+      if has_uuid {
+        let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, uuid];
+        let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
+        let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
+        std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+      } else if has_upper_uuid {
+        let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, UUID];
+        let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
+        let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
+        std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+      } else {
+        // macOS 26+: try `tapUUID` or `identifier` as alternative selectors.
+        let has_tap_uuid: bool = {
+          let s = sel!(tapUUID);
+          let result: ObjcBool = msg_send![&*tap_desc, respondsToSelector: s];
+          result.as_bool()
+        };
+        let has_identifier: bool = {
+          let s = sel!(identifier);
+          let result: ObjcBool = msg_send![&*tap_desc, respondsToSelector: s];
+          result.as_bool()
+        };
+
+        if has_tap_uuid {
+          let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, tapUUID];
+          let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
+          let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
+          std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+        } else if has_identifier {
+          let tap_id_obj: Id<AnyObject> = msg_send_id![&*tap_desc, identifier];
+          let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_id_obj, UUIDString];
+          let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
+          std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+        } else {
+          // Last resort: log available methods and generate a UUID.
+          // The aggregate device creation may fail, but at least the app won't crash.
+          log::warn!("[audio tap] CATapDescription does not respond to any known UUID selector");
+          uuid::Uuid::new_v4().to_string().to_uppercase()
+        }
+      }
     };
     log::info!("[audio tap] Tap UUID: {}", tap_uuid_rust);
 
