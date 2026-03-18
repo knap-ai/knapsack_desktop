@@ -50,7 +50,7 @@ use std::sync::Mutex as StdMutex;
 use tauri::async_runtime::TokioJoinHandle;
 use tauri::{
   AppHandle, CustomMenuItem, FileDropEvent, Manager, State, SystemTray, SystemTrayEvent,
-  SystemTrayMenu, WindowEvent,
+  SystemTrayMenu, SystemTrayMenuItem, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
 use tokio::sync::Mutex;
@@ -955,6 +955,143 @@ fn create_db_env_variable() {
   env::set_var("DATABASE_URL", db_path_str);
 }
 
+// ── System tray (Granola-style menu bar) ──
+
+fn build_default_tray_menu() -> SystemTrayMenu {
+  let open_knapsack = CustomMenuItem::new("open_knapsack", "Open Knapsack");
+  let quick_note = CustomMenuItem::new("quick_note", "Quick Note");
+  let settings = CustomMenuItem::new("settings", "Settings");
+  let version = CustomMenuItem::new("version", format!("Knapsack v{}", env!("CARGO_PKG_VERSION"))).disabled();
+  let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
+  let quit = CustomMenuItem::new("quit", "Quit");
+
+  SystemTrayMenu::new()
+    .add_item(open_knapsack)
+    .add_item(quick_note)
+    .add_item(settings)
+    .add_native_item(SystemTrayMenuItem::Separator)
+    .add_item(version)
+    .add_item(check_updates)
+    .add_native_item(SystemTrayMenuItem::Separator)
+    .add_item(quit)
+}
+
+fn handle_tray_menu_click(app: &AppHandle, id: &str) {
+  match id {
+    "open_knapsack" | "show" => {
+      if let Some(window) = app.get_window("main") {
+        window.show().unwrap();
+        window.set_focus().unwrap();
+      }
+    }
+    "quick_note" => {
+      if let Some(window) = app.get_window("main") {
+        window.show().unwrap();
+        window.set_focus().unwrap();
+        let _ = window.emit("create_quick_note", {});
+      }
+    }
+    "settings" => {
+      if let Some(window) = app.get_window("main") {
+        window.show().unwrap();
+        window.set_focus().unwrap();
+        let _ = window.emit("open_settings", {});
+      }
+    }
+    "check_updates" => {
+      if let Some(window) = app.get_window("main") {
+        window.show().unwrap();
+        window.set_focus().unwrap();
+      }
+    }
+    "quit" => {
+      std::process::exit(0);
+    }
+    _ => {
+      // Meeting items: id format is "meeting_{index}"
+      if id.starts_with("meeting_") {
+        if let Some(window) = app.get_window("main") {
+          window.show().unwrap();
+          window.set_focus().unwrap();
+          // Emit event with meeting index so frontend can select it
+          let _ = window.emit("tray_meeting_click", id);
+        }
+      }
+    }
+  }
+}
+
+#[derive(Debug, Deserialize)]
+struct TrayMeetingItem {
+  title: String,
+  time: String,
+  #[serde(default)]
+  is_now: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct TrayMeetingGroup {
+  label: String,
+  meetings: Vec<TrayMeetingItem>,
+}
+
+#[tauri::command]
+fn update_tray_menu(app: AppHandle, groups: Vec<TrayMeetingGroup>) {
+  let mut menu = SystemTrayMenu::new();
+
+  // Add meeting groups (e.g. "Starts in 8h 10m", "Tomorrow")
+  let mut meeting_index = 0;
+  for group in &groups {
+    // Group header (disabled, acts as label)
+    let header = CustomMenuItem::new(format!("header_{}", group.label), &group.label).disabled();
+    menu = menu.add_item(header);
+
+    for meeting in &group.meetings {
+      let label = format!("{}\n{}", meeting.title, meeting.time);
+      let item = CustomMenuItem::new(format!("meeting_{}", meeting_index), label);
+      menu = menu.add_item(item);
+      meeting_index += 1;
+    }
+  }
+
+  if meeting_index > 0 {
+    menu = menu.add_native_item(SystemTrayMenuItem::Separator);
+  }
+
+  // Standard items
+  let open_knapsack = CustomMenuItem::new("open_knapsack", "Open Knapsack");
+  let quick_note = CustomMenuItem::new("quick_note", "Quick Note");
+  let settings = CustomMenuItem::new("settings", "Settings");
+  let version = CustomMenuItem::new("version", format!("Knapsack v{}", env!("CARGO_PKG_VERSION"))).disabled();
+  let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
+  let quit = CustomMenuItem::new("quit", "Quit");
+
+  menu = menu
+    .add_item(open_knapsack)
+    .add_item(quick_note)
+    .add_item(settings)
+    .add_native_item(SystemTrayMenuItem::Separator)
+    .add_item(version)
+    .add_item(check_updates)
+    .add_native_item(SystemTrayMenuItem::Separator)
+    .add_item(quit);
+
+  let _ = app.tray_handle().set_menu(menu);
+}
+
+#[tauri::command]
+fn update_tray_title(app: AppHandle, title: String) {
+  #[cfg(target_os = "macos")]
+  {
+    let _ = app.tray_handle().set_title(&title);
+  }
+  // On Windows/Linux, the title isn't shown in the tray, only tooltip
+  #[cfg(not(target_os = "macos"))]
+  {
+    let _ = app.tray_handle().set_tooltip(&title);
+  }
+}
+
 #[tokio::main]
 async fn main() {
   create_data_dir();
@@ -1263,6 +1400,8 @@ async fn main() {
       spotlight::toggle_overlay_window,
       spotlight::show_recording_indicator,
       spotlight::hide_recording_indicator,
+      update_tray_menu,
+      update_tray_title,
       kn_read_logs,
       kn_get_log_path,
       kn_execute_command,
@@ -1316,14 +1455,11 @@ async fn main() {
       _ => {}
     });
 
-  #[cfg(any(target_os = "windows", target_os = "linux"))]
+  // System tray with Granola-style menu (all platforms)
   {
-    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
-    let show = CustomMenuItem::new("show".to_string(), "Show");
-
-    let tray_menu = SystemTrayMenu::new().add_item(show).add_item(quit);
-
+    let tray_menu = build_default_tray_menu();
     let system_tray = SystemTray::new().with_menu(tray_menu);
+
     builder = builder
       .system_tray(system_tray)
       .on_system_tray_event(|app, event| match event {
@@ -1332,21 +1468,14 @@ async fn main() {
           size: _,
           ..
         } => {
-          let window = app.get_window("main").unwrap();
-          window.show().unwrap();
-          window.set_focus().unwrap();
-        }
-        SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-          "quit" => {
-            std::process::exit(0);
-          }
-          "show" => {
-            let window = app.get_window("main").unwrap();
+          if let Some(window) = app.get_window("main") {
             window.show().unwrap();
             window.set_focus().unwrap();
           }
-          _ => {}
-        },
+        }
+        SystemTrayEvent::MenuItemClick { id, .. } => {
+          handle_tray_menu_click(app, &id);
+        }
         _ => {}
       });
   }
