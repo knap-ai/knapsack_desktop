@@ -1166,6 +1166,45 @@ async fn main() {
           .unwrap();
       }
 
+      // Recording indicator floating pill window
+      let mut rec_indicator_builder = WindowBuilder::new(
+        app,
+        "recording-indicator",
+        WindowUrl::App("recording-indicator.html".into()),
+      )
+      .title("Recording")
+      .inner_size(180.0, 48.0)
+      .resizable(false)
+      .decorations(false)
+      .always_on_top(true)
+      .transparent(true)
+      .visible(false);
+
+      #[cfg(target_os = "macos")]
+      {
+        rec_indicator_builder = rec_indicator_builder.accept_first_mouse(true);
+      }
+
+      let rec_indicator_window = rec_indicator_builder.build()?;
+
+      // Position recording indicator at bottom-right of screen
+      if let Ok(Some(monitor)) = rec_indicator_window.current_monitor() {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+        let screen_width_logical = screen_size.width as f64 / scale_factor;
+        let screen_height_logical = screen_size.height as f64 / scale_factor;
+        let indicator_width = 180.0_f64;
+        let indicator_height = 48.0_f64;
+        let indicator_x = ((screen_width_logical - indicator_width - 24.0)) * scale_factor;
+        let indicator_y = ((screen_height_logical - indicator_height - 80.0)) * scale_factor;
+        rec_indicator_window
+          .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+            x: indicator_x as i32,
+            y: indicator_y as i32,
+          }))
+          .unwrap();
+      }
+
       let llm_path = app
         .path_resolver()
         .resolve_resource("resources/llm.gguf")
@@ -1222,6 +1261,8 @@ async fn main() {
       spotlight::show_overlay_window,
       spotlight::hide_overlay_window,
       spotlight::toggle_overlay_window,
+      spotlight::show_recording_indicator,
+      spotlight::hide_recording_indicator,
       kn_read_logs,
       kn_get_log_path,
       kn_execute_command,
