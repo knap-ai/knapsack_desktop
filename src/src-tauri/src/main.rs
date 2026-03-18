@@ -990,7 +990,7 @@ async fn main() {
   let recording_state = RecordingState::default();
 
   let mut context = tauri::generate_context!();
-  let url = format!("http://localhost:1420").parse().unwrap();
+  let url = format!("http://127.0.0.1:1420").parse().unwrap();
   let window_url = WindowUrl::External(url);
   // rewrite the config so the IPC is enabled on this URL
   context.config_mut().build.dist_dir = AppUrl::Url(window_url.clone());
