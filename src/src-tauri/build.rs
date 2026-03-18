@@ -1,29 +1,38 @@
 use std::fs;
 use std::path::Path;
 
-/// Remove broken symlinks under the given directory (non-recursive into subdirs).
+/// Recursively remove broken symlinks under the given directory.
 /// Tauri's resource bundler fails when it encounters dangling symlinks created
-/// by npm but pointing at pruned packages.
-fn remove_broken_symlinks(dir: &Path) {
+/// by pnpm/npm pointing at pruned or missing packages.
+/// pnpm uses symlinks throughout node_modules (not just .bin/), so we must
+/// walk the entire tree.
+fn remove_broken_symlinks_recursive(dir: &Path) {
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        // Check if it's a symlink whose target doesn't exist
-        if path.symlink_metadata().map_or(false, |m| m.file_type().is_symlink()) && !path.exists()
-        {
+        let meta = match path.symlink_metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if meta.file_type().is_symlink() && !path.exists() {
+            // Dangling symlink – remove it (file or dir symlink)
             let _ = fs::remove_file(&path);
+        } else if meta.file_type().is_dir() {
+            remove_broken_symlinks_recursive(&path);
         }
     }
 }
 
 fn main() {
-    // Clean up broken symlinks left by pruned npm packages (e.g. typescript, node-llama-cpp).
-    // These cause tauri_build::build() to fail with "does not exist" errors.
-    remove_broken_symlinks(Path::new(
-        "resources/clawdbot/node_modules/.bin",
+    // Clean up broken symlinks left by pruned pnpm/npm packages.
+    // pnpm creates symlinks throughout node_modules (not just .bin/), and after
+    // git checkout or merge these can become dangling, causing tauri_build to
+    // fail with "does not exist" errors.
+    remove_broken_symlinks_recursive(Path::new(
+        "resources/clawdbot/node_modules",
     ));
     // Fail the build early if the bundled Node.js binary is missing.
     // The binary is downloaded by `scripts/prepare-node.sh` (runs automatically
