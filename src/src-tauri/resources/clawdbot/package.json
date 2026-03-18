@@ -372,6 +372,7 @@
     "discord-api-types": "^0.38.42",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "fast-xml-parser": "5.3.8",
     "file-type": "^21.3.2",
     "grammy": "^1.41.1",
     "hono": "4.12.7",
