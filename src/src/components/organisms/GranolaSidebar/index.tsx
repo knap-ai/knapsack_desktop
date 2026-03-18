@@ -16,9 +16,11 @@ interface GranolaSidebarProps {
   onChatClick?: () => void
   onEmailClick?: () => void
   isAnyRecording?: boolean
+  onMeetingClick?: (key: string, itemId: number) => void
+  onMeetingReminderPrompt?: (meetingTitle: string, participants: string[]) => void
 }
 
-function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEmailClick, isAnyRecording }: GranolaSidebarProps) {
+function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEmailClick, isAnyRecording, onMeetingClick, onMeetingReminderPrompt }: GranolaSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1)
@@ -196,7 +198,11 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
       e.preventDefault()
       const selected = searchResults[selectedSearchIndex]
       if (selected.item.id != null) {
-        feed.selectFeedItem(selected.key, selected.item.id)
+        if (onMeetingClick) {
+          onMeetingClick(selected.key, selected.item.id)
+        } else {
+          feed.selectFeedItem(selected.key, selected.item.id)
+        }
       } else if (selected.item.calendarEvent) {
         feed.openCalendarEvent(selected.item.calendarEvent)
       }
@@ -218,55 +224,6 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
 
   return (
     <div className="granola-sidebar">
-      {/* Navigation icons at top */}
-      <nav className="granola-sidebar__nav">
-        <button
-          className="granola-sidebar__nav-icon granola-sidebar__nav-icon--active"
-          title="Meetings"
-        >
-          {/* Calendar icon */}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-        </button>
-        <button
-          className="granola-sidebar__nav-icon"
-          onClick={onChatClick}
-          title="Chat"
-        >
-          {/* Chat icon */}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </button>
-        <button
-          className="granola-sidebar__nav-icon"
-          onClick={onEmailClick}
-          title="Email Autopilot"
-        >
-          {/* Email icon */}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-            <polyline points="22,6 12,13 2,6" />
-          </svg>
-        </button>
-        <div className="granola-sidebar__nav-spacer" />
-        <button
-          className="granola-sidebar__nav-icon"
-          onClick={onSettingsClick}
-          title="Settings"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7" />
-            <rect x="14" y="3" width="7" height="7" />
-            <rect x="14" y="14" width="7" height="7" />
-            <rect x="3" y="14" width="7" height="7" />
-          </svg>
-        </button>
-      </nav>
 
       {/* Scrollable content */}
       <div className="granola-sidebar__content">
@@ -326,7 +283,11 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
                               className={`granola-sidebar__calendar-event ${isNow ? 'granola-sidebar__calendar-event--now' : ''}`}
                               onClick={() => {
                                 if (item.id != null) {
-                                  feed.selectFeedItem(key, item.id)
+                                  if (onMeetingClick) {
+                                    onMeetingClick(key, item.id)
+                                  } else {
+                                    feed.selectFeedItem(key, item.id)
+                                  }
                                 } else if (item.calendarEvent) {
                                   feed.openCalendarEvent(item.calendarEvent)
                                 }
@@ -346,7 +307,18 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     if (item.id != null) {
-                                      feed.selectFeedItem(key, item.id)
+                                      if (onMeetingClick) {
+                                        onMeetingClick(key, item.id)
+                                      } else {
+                                        feed.selectFeedItem(key, item.id)
+                                      }
+                                    }
+                                    // Trigger prep prompt for the meeting
+                                    if (onMeetingReminderPrompt) {
+                                      const participants = item.calendarEvent?.participants?.map(
+                                        (p: any) => p.name || p.email?.split('@')[0] || ''
+                                      ).filter(Boolean) || []
+                                      onMeetingReminderPrompt(title, participants)
                                     }
                                     feed.createNewMeeting()
                                   }}
@@ -386,7 +358,11 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
                     className={`granola-sidebar__note-card ${isSelected ? 'granola-sidebar__note-card--selected' : ''}`}
                     onClick={() => {
                       if (item.id != null) {
-                        feed.selectFeedItem(key, item.id)
+                        if (onMeetingClick) {
+                          onMeetingClick(key, item.id)
+                        } else {
+                          feed.selectFeedItem(key, item.id)
+                        }
                       }
                     }}
                   >
@@ -436,7 +412,11 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
                     className={`granola-sidebar__note-card ${isSelected ? 'granola-sidebar__note-card--selected' : ''}`}
                     onClick={() => {
                       if (item.id != null) {
-                        feed.selectFeedItem(todayKey, item.id)
+                        if (onMeetingClick) {
+                          onMeetingClick(todayKey, item.id)
+                        } else {
+                          feed.selectFeedItem(todayKey, item.id)
+                        }
                       }
                     }}
                   >
@@ -471,7 +451,11 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
                   className={`granola-sidebar__search-result ${index === selectedSearchIndex ? 'granola-sidebar__search-result--selected' : ''}`}
                   onClick={() => {
                     if (item.id != null) {
-                      feed.selectFeedItem(key, item.id)
+                      if (onMeetingClick) {
+                        onMeetingClick(key, item.id)
+                      } else {
+                        feed.selectFeedItem(key, item.id)
+                      }
                     } else if (item.calendarEvent) {
                       feed.openCalendarEvent(item.calendarEvent)
                     }

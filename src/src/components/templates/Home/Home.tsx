@@ -102,6 +102,7 @@ function Home({
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+  const [showCalendarSidebar, setShowCalendarSidebar] = useState(false)
   const isResizingRef = useRef(false)
 
   // Check if a meeting note is currently selected (for hiding sidebar in full-width note view)
@@ -553,11 +554,23 @@ function Home({
       />
       <div className="overflow-hidden flex-1 bg-ks-bg-main rounded-b-[10px]">
         <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-ks-bg-main">
-          {/* Granola-style sidebar for Meeting tab - hidden when viewing a meeting note */}
-          {currentTab === TabChoices.Meeting && !hasMeetingNoteSelected && (
+          {/* TabBar with calendar toggle - always shown */}
+          <TabBar
+            currentTab={currentTab}
+            setCurrentTab={setCurrentTab}
+            fullRelease={fullRelease}
+            onCalendarToggle={() => setShowCalendarSidebar(prev => !prev)}
+            isCalendarOpen={showCalendarSidebar}
+          />
+          {/* Meetings sidebar - toggleable from any tab via calendar icon */}
+          {showCalendarSidebar && (
             <GranolaSidebar
               feed={feed}
-              onQuickNote={() => feed.createNewMeeting()}
+              onQuickNote={() => {
+                setCurrentTab(TabChoices.Meeting)
+                setMeetingSubView('meetings')
+                feed.createNewMeeting()
+              }}
               onSettingsClick={() => setIsSettingsDialogOpened(true)}
               onChatClick={() => {
                 setCurrentTab(TabChoices.Openclaw)
@@ -567,11 +580,22 @@ function Home({
                 setCurrentTab(TabChoices.Openclaw)
               }}
               isAnyRecording={isAnyRecording}
+              onMeetingClick={(key, itemId) => {
+                setCurrentTab(TabChoices.Meeting)
+                setMeetingSubView('meetings')
+                feed.selectFeedItem(key, itemId)
+              }}
+              onMeetingReminderPrompt={(meetingTitle, participants) => {
+                // Switch to chat and inject a prep prompt
+                setCurrentTab(TabChoices.Openclaw)
+                const participantStr = participants.length > 0 ? ` with ${participants.join(', ')}` : ''
+                const prompt = `Prepare me for my upcoming meeting "${meetingTitle}"${participantStr}. What should I know, what questions should I ask, and what should I prepare?`
+                // Use the clawd-send-user event to inject the prompt into ClawdChat
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: prompt }))
+                }, 300)
+              }}
             />
-          )}
-          {/* Legacy TabBar for non-meeting tabs */}
-          {currentTab !== TabChoices.Meeting && (
-            <TabBar currentTab={currentTab} setCurrentTab={setCurrentTab} fullRelease={fullRelease} />
           )}
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
             <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main">

@@ -519,6 +519,17 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   const [synthTimedOut, setSynthTimedOut] = useState(false)
 
+  // Chat overlay state — must be before early return to satisfy React hooks rules
+  const [showChatOverlay, setShowChatOverlay] = useState(false)
+  const [chatInput, setChatInput] = useState('')
+
+  // Default prep prompt
+  const defaultPrepPrompt = useMemo(() => {
+    if (!meeting) return ''
+    const participants = meeting.participants?.map(p => p.name || p.email.split('@')[0]).join(', ')
+    return `Prepare me for this meeting${participants ? ` with ${participants}` : ''}. What should I know and what questions should I ask?`
+  }, [meeting])
+
   useEffect(() => {
     if (isSynthesizing() && !synthTimedOut) {
       const timer = setInterval(() => {
@@ -592,17 +603,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const onEditClick = () => {
     setIsEditing(!isEditing)
   }
-
-  // Chat overlay state
-  const [showChatOverlay, setShowChatOverlay] = useState(false)
-  const [chatInput, setChatInput] = useState('')
-
-  // Default prep prompt
-  const defaultPrepPrompt = useMemo(() => {
-    if (!meeting) return ''
-    const participants = meeting.participants?.map(p => p.name || p.email.split('@')[0]).join(', ')
-    return `Prepare me for this meeting${participants ? ` with ${participants}` : ''}. What should I know and what questions should I ask?`
-  }, [meeting])
 
   return (
     <div className="granola-note">
