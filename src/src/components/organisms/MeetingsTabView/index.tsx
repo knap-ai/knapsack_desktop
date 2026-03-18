@@ -123,8 +123,9 @@ const MeetingsTabView = ({
 
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
+      if (!Array.isArray(items)) return
       items.forEach(item => {
-        if (item.calendarEvent) {
+        if (item?.calendarEvent && item?.timestamp) {
           const start = item.timestamp.getTime()
           const diff = start - now
           // Within 5 minutes
@@ -171,7 +172,7 @@ const MeetingsTabView = ({
   const isSelectedMeetingNote = selectedMeeting?.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
 
   // Get the meeting URL for Join button
-  const selectedCalendarEvent = selectedMeeting?.getCalendarEvent?.()
+  const selectedCalendarEvent = typeof selectedMeeting?.getCalendarEvent === 'function' ? selectedMeeting.getCalendarEvent() : undefined
   const meetingUrl = selectedCalendarEvent ? getEventUrl(selectedCalendarEvent) : null
   const meetingPlatformLabel = useMemo(() => {
     if (!selectedCalendarEvent) return 'Join Meeting'

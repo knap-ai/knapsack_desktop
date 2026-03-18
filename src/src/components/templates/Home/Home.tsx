@@ -198,90 +198,94 @@ function Home({
 
   // Update system tray menu with upcoming meetings (Granola-style menu bar)
   useEffect(() => {
-    if (!feed.feedContent) return
+    try {
+      if (!feed.feedContent) return
 
-    const now = Date.now()
-    const groups: { label: string; meetings: { title: string; time: string; is_now: boolean }[] }[] = []
+      const now = Date.now()
+      const groups: { label: string; meetings: { title: string; time: string; is_now: boolean }[] }[] = []
 
-    // Collect upcoming calendar events
-    const upcoming: { item: any; key: string }[] = []
-    Object.entries(feed.feedContent).forEach(([key, items]) => {
-      if (key === STATIONARY_ITEMS) return
-      items.forEach(item => {
-        if (item.calendarEvent && item.timestamp.getTime() > now - 3600000) {
-          upcoming.push({ item, key })
-        }
+      // Collect upcoming calendar events
+      const upcoming: { item: any; key: string }[] = []
+      Object.entries(feed.feedContent).forEach(([key, items]) => {
+        if (key === STATIONARY_ITEMS) return
+        if (!Array.isArray(items)) return
+        items.forEach(item => {
+          if (item?.calendarEvent && item?.timestamp && item.timestamp.getTime() > now - 3600000) {
+            upcoming.push({ item, key })
+          }
+        })
       })
-    })
-    upcoming.sort((a, b) => a.item.timestamp.getTime() - b.item.timestamp.getTime())
+      upcoming.sort((a, b) => (a.item.timestamp?.getTime() || 0) - (b.item.timestamp?.getTime() || 0))
 
-    // Group by date
-    const byDate: Record<string, typeof upcoming> = {}
-    upcoming.forEach(ev => {
-      const dateKey = dayjs(ev.item.timestamp).format('YYYY-MM-DD')
-      if (!byDate[dateKey]) byDate[dateKey] = []
-      byDate[dateKey].push(ev)
-    })
+      // Group by date
+      const byDate: Record<string, typeof upcoming> = {}
+      upcoming.forEach(ev => {
+        const dateKey = dayjs(ev.item.timestamp).format('YYYY-MM-DD')
+        if (!byDate[dateKey]) byDate[dateKey] = []
+        byDate[dateKey].push(ev)
+      })
 
-    // Build groups with relative labels
-    Object.entries(byDate).slice(0, 3).forEach(([dateStr, events]) => {
-      const date = dayjs(dateStr)
-      const isToday = date.isSame(dayjs(), 'day')
-      const isTomorrow = date.isSame(dayjs().add(1, 'day'), 'day')
+      // Build groups with relative labels
+      Object.entries(byDate).slice(0, 3).forEach(([dateStr, events]) => {
+        const date = dayjs(dateStr)
+        const isToday = date.isSame(dayjs(), 'day')
+        const isTomorrow = date.isSame(dayjs().add(1, 'day'), 'day')
 
-      // Calculate "Starts in Xh Ym" for the first event if it's today
-      let label = date.format('ddd, MMM D')
-      if (isToday && events.length > 0) {
-        const diff = events[0].item.timestamp.getTime() - now
+        let label = date.format('ddd, MMM D')
+        if (isToday && events.length > 0) {
+          const diff = events[0].item.timestamp.getTime() - now
+          if (diff > 0) {
+            const hours = Math.floor(diff / 3600000)
+            const mins = Math.floor((diff % 3600000) / 60000)
+            label = hours > 0 ? `Starts in ${hours}h ${mins}m` : `Starts in ${mins}m`
+          } else {
+            label = 'Now'
+          }
+        } else if (isTomorrow) {
+          label = 'Tomorrow'
+        }
+
+        groups.push({
+          label,
+          meetings: events.slice(0, 5).map(({ item }) => {
+            const title = typeof item.getTitle === 'function' ? item.getTitle() : item.title || 'Untitled'
+            const start = dayjs(item.timestamp).format('h:mm A')
+            const end = item.calendarEvent?.end
+              ? dayjs(item.calendarEvent.end < item.timestamp.getTime() / 100
+                  ? item.calendarEvent.end * 1000
+                  : item.calendarEvent.end
+                ).format('h:mm A')
+              : ''
+            return {
+              title,
+              time: end ? `${start} - ${end}` : start,
+              is_now: item.timestamp.getTime() <= now,
+            }
+          }),
+        })
+      })
+
+      invoke('update_tray_menu', { groups }).catch(() => {})
+
+      // Update tray title with next meeting info
+      if (upcoming.length > 0) {
+        const next = upcoming[0]
+        const title = typeof next.item.getTitle === 'function' ? next.item.getTitle() : next.item.title || ''
+        const truncTitle = title.length > 20 ? title.substring(0, 18) + '..' : title
+        const diff = next.item.timestamp.getTime() - now
         if (diff > 0) {
           const hours = Math.floor(diff / 3600000)
           const mins = Math.floor((diff % 3600000) / 60000)
-          label = hours > 0 ? `Starts in ${hours}h ${mins}m` : `Starts in ${mins}m`
+          const timeStr = hours > 0 ? `in ${hours}h ${mins}m` : `in ${mins}m`
+          invoke('update_tray_title', { title: `${truncTitle} \u2022 ${timeStr}` }).catch(() => {})
         } else {
-          label = 'Now'
+          invoke('update_tray_title', { title: `${truncTitle} \u2022 now` }).catch(() => {})
         }
-      } else if (isTomorrow) {
-        label = 'Tomorrow'
-      }
-
-      groups.push({
-        label,
-        meetings: events.slice(0, 5).map(({ item }) => {
-          const title = typeof item.getTitle === 'function' ? item.getTitle() : item.title || 'Untitled'
-          const start = dayjs(item.timestamp).format('h:mm A')
-          const end = item.calendarEvent?.end
-            ? dayjs(item.calendarEvent.end < item.timestamp.getTime() / 100
-                ? item.calendarEvent.end * 1000
-                : item.calendarEvent.end
-              ).format('h:mm A')
-            : ''
-          return {
-            title,
-            time: end ? `${start} - ${end}` : start,
-            is_now: item.timestamp.getTime() <= now,
-          }
-        }),
-      })
-    })
-
-    invoke('update_tray_menu', { groups }).catch(() => {})
-
-    // Update tray title with next meeting info (macOS shows this in the menu bar)
-    if (upcoming.length > 0) {
-      const next = upcoming[0]
-      const title = typeof next.item.getTitle === 'function' ? next.item.getTitle() : next.item.title || ''
-      const truncTitle = title.length > 20 ? title.substring(0, 18) + '..' : title
-      const diff = next.item.timestamp.getTime() - now
-      if (diff > 0) {
-        const hours = Math.floor(diff / 3600000)
-        const mins = Math.floor((diff % 3600000) / 60000)
-        const timeStr = hours > 0 ? `in ${hours}h ${mins}m` : `in ${mins}m`
-        invoke('update_tray_title', { title: `${truncTitle} \u2022 ${timeStr}` }).catch(() => {})
       } else {
-        invoke('update_tray_title', { title: `${truncTitle} \u2022 now` }).catch(() => {})
+        invoke('update_tray_title', { title: '' }).catch(() => {})
       }
-    } else {
-      invoke('update_tray_title', { title: '' }).catch(() => {})
+    } catch (err) {
+      console.warn('[tray] Failed to update tray menu:', err)
     }
   }, [feed.feedContent])
 

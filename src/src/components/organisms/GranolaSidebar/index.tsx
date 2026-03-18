@@ -59,14 +59,16 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
     const events: { item: FeedItem; key: string }[] = []
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
+      if (!Array.isArray(items)) return
       items.forEach(item => {
-        if (item.calendarEvent || (item.timestamp && item.timestamp.getTime() > now - 3600000)) {
+        if (!item?.timestamp) return
+        if (item.calendarEvent || (item.timestamp.getTime() > now - 3600000)) {
           events.push({ item, key })
         }
       })
     })
 
-    events.sort((a, b) => a.item.timestamp.getTime() - b.item.timestamp.getTime())
+    events.sort((a, b) => (a.item.timestamp?.getTime() || 0) - (b.item.timestamp?.getTime() || 0))
 
     // Group by date
     const grouped: Record<string, { item: FeedItem; key: string }[]> = {}
@@ -88,7 +90,9 @@ function GranolaSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onEma
 
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
+      if (!Array.isArray(items)) return
       items.forEach(item => {
+        if (!item?.timestamp) return
         const hasMeetingNotes = item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
         if (hasMeetingNotes && item.timestamp.getTime() < now) {
           const dateKey = key
