@@ -9,6 +9,7 @@ extern crate derive_more;
 extern crate dirs;
 extern crate qdrant_client;
 extern crate serde;
+use serde::Deserialize;
 extern crate tokio;
 
 mod api;
