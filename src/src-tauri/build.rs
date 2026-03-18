@@ -1,16 +1,50 @@
 use std::fs;
 use std::path::Path;
 
-/// Recursively dereference symlinks under the given directory.
+/// Remove a symlink (or junction on Windows) regardless of whether it points to
+/// a file or directory. On Unix `remove_file` works for all symlinks. On Windows,
+/// directory symlinks and junctions require `remove_dir`.
+fn remove_symlink(path: &Path) {
+    // Try remove_file first (works for file symlinks on all platforms,
+    // and for all symlinks on Unix).
+    if fs::remove_file(path).is_err() {
+        // On Windows, directory symlinks / junctions need remove_dir.
+        let _ = fs::remove_dir(path);
+    }
+}
+
+/// Returns true if `path` is a symlink or, on Windows, an NTFS junction.
+/// pnpm uses junctions (not symlinks) on Windows because they don't require
+/// admin privileges. Rust's `is_symlink()` returns false for junctions, so we
+/// detect them via `read_link()` — it succeeds for both symlinks and junctions
+/// (any reparse point).
+fn is_symlink_or_junction(path: &Path, meta: &fs::Metadata) -> bool {
+    if meta.file_type().is_symlink() {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        // On Windows, junctions are directories that are reparse points.
+        // fs::read_link() succeeds for junctions, so use it as the detector.
+        if meta.file_type().is_dir() {
+            return fs::read_link(path).is_ok();
+        }
+    }
+    let _ = path; // suppress unused warning on non-Windows
+    false
+}
+
+/// Recursively dereference symlinks (and junctions on Windows) under the given
+/// directory.
 ///
 /// pnpm creates a symlink-based `node_modules` layout where every package is a
-/// symlink into `.pnpm/`. Tauri's resource bundler copies these symlinks as-is
-/// into the app bundle, where they become dangling (the relative targets no
-/// longer resolve). This causes runtime `ERR_MODULE_NOT_FOUND` errors for
-/// packages like `chalk`, `fast-xml-parser`, etc.
+/// symlink (or junction on Windows) into `.pnpm/`. Tauri's resource bundler
+/// copies these as-is into the app bundle, where they become dangling. This
+/// causes runtime `ERR_MODULE_NOT_FOUND` errors for packages like `chalk`,
+/// `fast-xml-parser`, etc.
 ///
-/// This function walks the directory tree and replaces every symlink with a real
-/// copy of its target (file or directory). Dangling symlinks are simply removed.
+/// This function walks the directory tree and replaces every symlink/junction
+/// with a real copy of its target. Dangling ones are simply removed.
 fn dereference_symlinks_recursive(dir: &Path) {
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
@@ -22,44 +56,40 @@ fn dereference_symlinks_recursive(dir: &Path) {
             Ok(m) => m,
             Err(_) => continue,
         };
-        if meta.file_type().is_symlink() {
+        if is_symlink_or_junction(&path, &meta) {
             if path.exists() {
-                // Valid symlink – replace with a copy of the target
+                // Valid symlink/junction – replace with a copy of the target
                 let target_meta = match fs::metadata(&path) {
                     Ok(m) => m,
                     Err(_) => {
-                        let _ = fs::remove_file(&path);
+                        remove_symlink(&path);
                         continue;
                     }
                 };
                 if target_meta.is_dir() {
-                    // Read the real target path before removing the symlink
                     let real_target = match fs::canonicalize(&path) {
                         Ok(t) => t,
                         Err(_) => {
-                            let _ = fs::remove_file(&path);
+                            remove_symlink(&path);
                             continue;
                         }
                     };
-                    // Remove the symlink (it's a symlink to a dir, but remove_file works on symlinks)
-                    let _ = fs::remove_file(&path);
-                    // Copy the directory tree
+                    remove_symlink(&path);
                     copy_dir_recursive(&real_target, &path);
                 } else {
-                    // It's a symlink to a file
                     let real_target = match fs::canonicalize(&path) {
                         Ok(t) => t,
                         Err(_) => {
-                            let _ = fs::remove_file(&path);
+                            remove_symlink(&path);
                             continue;
                         }
                     };
-                    let _ = fs::remove_file(&path);
+                    remove_symlink(&path);
                     let _ = fs::copy(&real_target, &path);
                 }
             } else {
-                // Dangling symlink – just remove it
-                let _ = fs::remove_file(&path);
+                // Dangling symlink/junction – just remove it
+                remove_symlink(&path);
             }
         } else if meta.file_type().is_dir() {
             dereference_symlinks_recursive(&path);
