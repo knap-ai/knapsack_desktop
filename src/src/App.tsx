@@ -34,7 +34,7 @@ import {
 
 import { Event, listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
-import { onUpdaterEvent } from '@tauri-apps/api/updater'
+import { UpdateBanner } from './components/molecules/UpdateBanner'
 
 import { KNChatMessage } from './api/threads'
 import { Automation, AutomationRun, Cadence } from './automations/automation'
@@ -1109,39 +1109,11 @@ function App() {
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 
   useEffect(() => {
-    const setupUpdaterTracking = async () => {
-      const unlisten = await onUpdaterEvent(({ error, status }) => {
-        if (error) {
-          KNAnalytics.trackEvent('update_error', {
-            error: error,
-            timestamp: new Date().toISOString(),
-          })
-        } else {
-          const statusAmplitude = 'update_' + status.toLowerCase()
-          KNAnalytics.trackEvent(statusAmplitude, {
-            timestamp: new Date().toISOString(),
-          })
-        }
-      })
-      return unlisten
-    }
-
-    let unlistenUpdater: (() => void) | undefined
-    setupUpdaterTracking().then(unlisten => {
-      unlistenUpdater = unlisten
-    })
-
     fetchUUID()
 
     invoke('plugin:autostart|enable')
       .then(() => console.log('Autostart enabled'))
       .catch(error => console.error('Failed to enable autostart:', error))
-
-    return () => {
-      if (unlistenUpdater) {
-        unlistenUpdater()
-      }
-    }
   }, [])
 
   const fetchUUID = async () => {
@@ -1321,6 +1293,7 @@ function App() {
 
   return (
     <>
+      <UpdateBanner />
       <Snackbar
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         open={!!toastrState.message}
