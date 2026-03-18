@@ -2590,6 +2590,16 @@ async fn prepare_gateway_config(
     ("CLAWDBOT_GATEWAY_PORT".to_string(), "18789".to_string()),
     ("OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
     ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
+    // Ensure Node.js resolves packages from the bundled flat node_modules
+    // directory.  Without this, stale nested node_modules can cause
+    // ERR_PACKAGE_PATH_NOT_EXPORTED errors.
+    ("NODE_PATH".to_string(), {
+      let mut nm = clawdbot_entry.clone();
+      nm.pop(); // remove entry.js
+      nm.pop(); // remove dist/
+      nm.push("node_modules");
+      nm.to_string_lossy().to_string()
+    }),
   ];
 
   // On Windows, also set USERPROFILE and APPDATA for Node.js compatibility
@@ -2738,6 +2748,26 @@ pub async fn set_service_enabled(
       kill_process_on_port(18789);
       // Brief pause to let ports release
       std::thread::sleep(std::time::Duration::from_millis(500));
+
+      // Clean up stale gateway lock files left behind by terminated processes.
+      // On Windows the lock dir is %TEMP%/openclaw/
+      {
+        let lock_dir = std::env::temp_dir().join("openclaw");
+        if lock_dir.is_dir() {
+          if let Ok(entries) = fs::read_dir(&lock_dir) {
+            for entry in entries.flatten() {
+              let name = entry.file_name();
+              let name_str = name.to_string_lossy();
+              if name_str.starts_with("gateway.") && name_str.ends_with(".lock") {
+                match fs::remove_file(entry.path()) {
+                  Ok(_) => eprintln!("[clawd/service] Removed stale lock: {}", entry.path().display()),
+                  Err(e) => eprintln!("[clawd/service] WARNING: Failed to remove lock {}: {}", entry.path().display(), e),
+                }
+              }
+            }
+          }
+        }
+      }
 
       // Spawn the gateway process
       let stdout_log = windows_log_path("stdout");
@@ -2956,8 +2986,9 @@ pub async fn set_service_enabled(
       let clawdbot_home = app_clawdbot_home(&app_handle);
       let clawdbot_home_str = clawdbot_home.to_string_lossy().to_string();
 
-      // Resolve bundled plugins directory early — needed both for config
-      // patching (plugins.load.paths) and for the env var passed to the gateway.
+      // Resolve bundled plugins directory early — needed for the
+      // OPENCLAW_BUNDLED_PLUGINS_DIR env var and for cleaning up stale
+      // plugins.load.paths entries from older configs.
       let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/extensions");
 
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
@@ -2990,9 +3021,6 @@ pub async fn set_service_enabled(
           "plugins": {
             "slots": {
               "memory": "none"
-            },
-            "load": {
-              "paths": [bundled_plugins_dir.to_string_lossy().to_string()]
             }
           },
           "tools": {
@@ -3067,52 +3095,36 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Ensure plugins.load.paths includes the bundled extensions directory.
-            // The config validator runs plugin discovery to check that every entry
-            // in plugins.entries actually exists.  Even though we pass
-            // OPENCLAW_BUNDLED_PLUGINS_DIR as an env var, the validator may not
-            // pick it up in all contexts (e.g. macOS app translocation, path
-            // resolution edge cases).  Writing the path directly into
-            // plugins.load.paths guarantees the validator can always find
-            // bundled plugins like telegram, imessage, whatsapp, etc.
+            // Remove bundled extensions directory from plugins.load.paths.
             //
-            // We also remove stale bundled paths from previous app installs
-            // (e.g. after update the .app bundle path may change).
+            // The OPENCLAW_BUNDLED_PLUGINS_DIR env var (always set) already
+            // tells the gateway where to find bundled plugins.  Having the
+            // same path in plugins.load.paths causes double plugin discovery:
+            // the gateway scans the directory once as "config" origin and
+            // again as "bundled" origin, producing dozens of "duplicate
+            // plugin id detected" warnings and doubling startup time.
+            //
+            // Also clean up stale paths from previous app installs.
             {
               let bundled_dir = bundled_plugins_dir.to_string_lossy().to_string();
-              let load_paths = cfg
+              if let Some(load_paths) = cfg
                 .pointer("/plugins/load/paths")
                 .and_then(|v| v.as_array())
-                .cloned()
-                .unwrap_or_default();
-              // Remove stale bundled extension paths (contain "clawdbot/extensions"
-              // but don't match the current bundled dir).
-              let mut cleaned: Vec<serde_json::Value> = load_paths.into_iter().filter(|v| {
-                match v.as_str() {
-                  Some(s) if s.contains("clawdbot/extensions") || s.contains("clawdbot\\extensions") => s == bundled_dir,
-                  _ => true,
+              {
+                let cleaned: Vec<serde_json::Value> = load_paths.iter().filter(|v| {
+                  match v.as_str() {
+                    Some(s) if s.contains("clawdbot/extensions") || s.contains("clawdbot\\extensions") => false,
+                    _ => true,
+                  }
+                }).cloned().collect();
+                if cleaned.len() != load_paths.len() {
+                  if cfg.pointer("/plugins/load").is_some() {
+                    cfg.pointer_mut("/plugins/load").unwrap().as_object_mut().unwrap()
+                      .insert("paths".to_string(), serde_json::json!(cleaned));
+                  }
+                  eprintln!("[clawd/service] Removed bundled extensions from plugins.load.paths (using OPENCLAW_BUNDLED_PLUGINS_DIR env var instead)");
+                  patched = true;
                 }
-              }).collect();
-              let already_present = cleaned.iter().any(|v| {
-                v.as_str().map(|s| s == bundled_dir).unwrap_or(false)
-              });
-              if !already_present {
-                cleaned.push(serde_json::json!(bundled_dir));
-              }
-              let needs_update = !already_present || cleaned.len() != cfg
-                .pointer("/plugins/load/paths")
-                .and_then(|v| v.as_array())
-                .map(|a| a.len())
-                .unwrap_or(0);
-              if needs_update {
-                if cfg.pointer("/plugins/load").is_none() {
-                  cfg.pointer_mut("/plugins").unwrap().as_object_mut().unwrap()
-                    .insert("load".to_string(), serde_json::json!({}));
-                }
-                cfg.pointer_mut("/plugins/load").unwrap().as_object_mut().unwrap()
-                  .insert("paths".to_string(), serde_json::json!(cleaned));
-                eprintln!("[clawd/service] Updated plugins.load.paths with bundled extensions dir");
-                patched = true;
               }
             }
 
@@ -3782,6 +3794,35 @@ You can create, list, and cancel scheduled tasks (cron jobs).
       let _ = std::process::Command::new("launchctl")
         .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
         .status();
+
+      // Wait for the old gateway process to fully terminate and release
+      // its port + lock file.  Without this delay, the new gateway may
+      // encounter EADDRINUSE on port 18789 or fail to acquire the lock
+      // because the dying process still holds it.
+      std::thread::sleep(std::time::Duration::from_millis(1000));
+
+      // Clean up stale gateway lock files left behind by the terminated
+      // process.  The lock dir is /tmp/openclaw-{uid}/ and files match
+      // gateway.*.lock.  Without cleanup, the new gateway may wait up
+      // to 5 seconds for the lock to become stale (30s threshold) and
+      // then fail with GatewayLockError.
+      {
+        let lock_dir = std::path::PathBuf::from(format!("/tmp/openclaw-{}", uid));
+        if lock_dir.is_dir() {
+          if let Ok(entries) = fs::read_dir(&lock_dir) {
+            for entry in entries.flatten() {
+              let name = entry.file_name();
+              let name_str = name.to_string_lossy();
+              if name_str.starts_with("gateway.") && name_str.ends_with(".lock") {
+                match fs::remove_file(entry.path()) {
+                  Ok(_) => eprintln!("[clawd/service] Removed stale lock: {}", entry.path().display()),
+                  Err(e) => eprintln!("[clawd/service] WARNING: Failed to remove lock {}: {}", entry.path().display(), e),
+                }
+              }
+            }
+          }
+        }
+      }
 
       let boot = std::process::Command::new("launchctl")
         .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
