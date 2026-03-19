@@ -1,3 +1,6 @@
+/// <reference types="node" resolution-mode="require"/>
+/// <reference types="node" resolution-mode="require"/>
+/// <reference types="node" resolution-mode="require"/>
 import { LRUCache } from 'lru-cache';
 import { posix, win32 } from 'node:path';
 import { Minipass } from 'minipass';
@@ -190,8 +193,6 @@ export declare abstract class PathBase implements Dirent {
     /**
      * Deprecated alias for Dirent['parentPath'] Somewhat counterintuitively,
      * this property refers to the *parent* path, not the path object itself.
-     *
-     * @deprecated
      */
     get path(): string;
     /**
@@ -621,7 +622,7 @@ export declare abstract class PathScurryBase {
      *
      * @internal
      */
-    constructor(cwd: (URL | string) | undefined, pathImpl: typeof win32 | typeof posix, sep: string | RegExp, { nocase, childrenCacheSize, fs, }?: PathScurryOpts);
+    constructor(cwd: string | URL | undefined, pathImpl: typeof win32 | typeof posix, sep: string | RegExp, { nocase, childrenCacheSize, fs, }?: PathScurryOpts);
     /**
      * Get the depth of a provided path, string, or the cwd
      */

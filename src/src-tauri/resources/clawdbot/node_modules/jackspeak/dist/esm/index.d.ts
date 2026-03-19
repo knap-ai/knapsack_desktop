@@ -1,16 +1,10 @@
-import { inspect, InspectOptions, ParseArgsConfig } from 'node:util';
-export type ParseArgsOptions = Exclude<ParseArgsConfig['options'], undefined>;
-export type ParseArgsOption = ParseArgsOptions[string];
-export type ParseArgsDefault = Exclude<ConfigValue, number | number[]>;
+/// <reference types="node" resolution-mode="require"/>
 export type ConfigType = 'number' | 'string' | 'boolean';
-export declare const isConfigType: (t: unknown) => t is ConfigType;
-export type ConfigValuePrimitive = string | boolean | number;
-export type ConfigValueArray = string[] | boolean[] | number[];
-export type ConfigValue = ConfigValuePrimitive | ConfigValueArray;
 /**
  * Given a Jack object, get the typeof its ConfigSet
  */
 export type Unwrap<J> = J extends Jack<infer C> ? C : never;
+import { inspect, InspectOptions } from 'node:util';
 /**
  * Defines the type of value that is valid, given a config definition's
  * {@link ConfigType} and boolean multiple setting
@@ -18,69 +12,81 @@ export type Unwrap<J> = J extends Jack<infer C> ? C : never;
 export type ValidValue<T extends ConfigType = ConfigType, M extends boolean = boolean> = [
     T,
     M
-] extends ['number', true] ? number[] : [T, M] extends ['string', true] ? string[] : [T, M] extends ['boolean', true] ? boolean[] : [T, M] extends ['number', false] ? number : [T, M] extends ['string', false] ? string : [T, M] extends ['boolean', false] ? boolean : [T, M] extends ['string', boolean] ? string | string[] : [T, M] extends ['boolean', boolean] ? boolean | boolean[] : [T, M] extends ['number', boolean] ? number | number[] : [T, M] extends [ConfigType, false] ? ConfigValuePrimitive : [T, M] extends [ConfigType, true] ? ConfigValueArray : ConfigValue;
-export type ReadonlyArrays = readonly number[] | readonly string[];
-/**
- * Defines the type of validOptions that are valid, given a config definition's
- * {@link ConfigType}
- */
-export type ValidOptions<T extends ConfigType> = T extends 'boolean' ? undefined : T extends 'string' ? readonly string[] : T extends 'number' ? readonly number[] : ReadonlyArrays;
-/**
- * A config field definition, in its full representation.
- * This is what is passed in to addFields so `type` is required.
- */
-export type ConfigOption<T extends ConfigType = ConfigType, M extends boolean = boolean, O extends undefined | ValidOptions<T> = undefined | ValidOptions<T>> = {
-    type: T;
-    short?: string;
-    default?: ValidValue<T, M> & (O extends ReadonlyArrays ? M extends false ? O[number] : O[number][] : unknown);
-    description?: string;
-    hint?: T extends 'boolean' ? undefined : string;
-    validate?: ((v: unknown) => v is ValidValue<T, M>) | ((v: unknown) => boolean);
-    validOptions?: O;
-    delim?: M extends false ? undefined : string;
-    multiple?: M;
-};
-/**
- * Determine whether an unknown object is a {@link ConfigOption} based only
- * on its `type` and `multiple` property
- */
-export declare const isConfigOptionOfType: <T extends ConfigType, M extends boolean>(o: unknown, type: T, multi: M) => o is ConfigOption<T, M>;
-/**
- * Determine whether an unknown object is a {@link ConfigOption} based on
- * it having all valid properties
- */
-export declare const isConfigOption: <T extends ConfigType, M extends boolean>(o: unknown, type: T, multi: M) => o is ConfigOption<T, M>;
+] extends ['number', true] ? number[] : [T, M] extends ['string', true] ? string[] : [T, M] extends ['boolean', true] ? boolean[] : [T, M] extends ['number', false] ? number : [T, M] extends ['string', false] ? string : [T, M] extends ['boolean', false] ? boolean : [T, M] extends ['string', boolean] ? string | string[] : [T, M] extends ['boolean', boolean] ? boolean | boolean[] : [T, M] extends ['number', boolean] ? number | number[] : [T, M] extends [ConfigType, false] ? string | number | boolean : [T, M] extends [ConfigType, true] ? string[] | number[] | boolean[] : string | number | boolean | string[] | number[] | boolean[];
 /**
  * The meta information for a config option definition, when the
  * type and multiple values can be inferred by the method being used
  */
-export type ConfigOptionMeta<T extends ConfigType, M extends boolean, O extends ConfigOption<T, M> = ConfigOption<T, M>> = Pick<Partial<O>, 'type'> & Omit<O, 'type'>;
-/**
- * A set of {@link ConfigOption} objects, referenced by their longOption
- * string values.
- */
-export type ConfigSet = {
-    [longOption: string]: ConfigOption;
-};
+export type ConfigOptionMeta<T extends ConfigType, M extends boolean = boolean, O extends undefined | (T extends 'boolean' ? never : T extends 'string' ? readonly string[] : T extends 'number' ? readonly number[] : readonly number[] | readonly string[]) = undefined | (T extends 'boolean' ? never : T extends 'string' ? readonly string[] : T extends 'number' ? readonly number[] : readonly number[] | readonly string[])> = {
+    default?: undefined | (ValidValue<T, M> & (O extends number[] | string[] ? M extends false ? O[number] : O[number][] : unknown));
+    validOptions?: O;
+    description?: string;
+    validate?: ((v: unknown) => v is ValidValue<T, M>) | ((v: unknown) => boolean);
+    short?: string | undefined;
+    type?: T;
+    hint?: T extends 'boolean' ? never : string;
+    delim?: M extends true ? string : never;
+} & (M extends false ? {
+    multiple?: false | undefined;
+} : M extends true ? {
+    multiple: true;
+} : {
+    multiple?: boolean;
+});
 /**
  * A set of {@link ConfigOptionMeta} fields, referenced by their longOption
  * string values.
  */
-export type ConfigMetaSet<T extends ConfigType, M extends boolean> = {
+export type ConfigMetaSet<T extends ConfigType, M extends boolean = boolean> = {
     [longOption: string]: ConfigOptionMeta<T, M>;
 };
 /**
  * Infer {@link ConfigSet} fields from a given {@link ConfigMetaSet}
  */
-export type ConfigSetFromMetaSet<T extends ConfigType, M extends boolean, S extends ConfigMetaSet<T, M>> = S & {
-    [longOption in keyof S]: ConfigOption<T, M>;
+export type ConfigSetFromMetaSet<T extends ConfigType, M extends boolean, S extends ConfigMetaSet<T, M>> = {
+    [longOption in keyof S]: ConfigOptionBase<T, M>;
 };
 /**
- * The 'values' field returned by {@link Jack#parse}. If a value has
- * a default field it will be required on the object otherwise it is optional.
+ * Fields that can be set on a {@link ConfigOptionBase} or
+ * {@link ConfigOptionMeta} based on whether or not the field is known to be
+ * multiple.
+ */
+export type MultiType<M extends boolean> = M extends true ? {
+    multiple: true;
+    delim?: string | undefined;
+} : M extends false ? {
+    multiple?: false | undefined;
+    delim?: undefined;
+} : {
+    multiple?: boolean | undefined;
+    delim?: string | undefined;
+};
+/**
+ * A config field definition, in its full representation.
+ */
+export type ConfigOptionBase<T extends ConfigType, M extends boolean = boolean> = {
+    type: T;
+    short?: string | undefined;
+    default?: ValidValue<T, M> | undefined;
+    description?: string;
+    hint?: T extends 'boolean' ? undefined : string | undefined;
+    validate?: (v: unknown) => v is ValidValue<T, M>;
+    validOptions?: T extends 'boolean' ? undefined : T extends 'string' ? readonly string[] : T extends 'number' ? readonly number[] : readonly number[] | readonly string[];
+} & MultiType<M>;
+export declare const isConfigType: (t: string) => t is ConfigType;
+export declare const isConfigOption: <T extends ConfigType, M extends boolean>(o: any, type: T, multi: M) => o is ConfigOptionBase<T, M>;
+/**
+ * A set of {@link ConfigOptionBase} objects, referenced by their longOption
+ * string values.
+ */
+export type ConfigSet = {
+    [longOption: string]: ConfigOptionBase<ConfigType>;
+};
+/**
+ * The 'values' field returned by {@link Jack#parse}
  */
 export type OptionsResults<T extends ConfigSet> = {
-    [K in keyof T]: (T[K]['validOptions'] extends ReadonlyArrays ? T[K] extends ConfigOption<'string' | 'number', false> ? T[K]['validOptions'][number] : T[K] extends ConfigOption<'string' | 'number', true> ? T[K]['validOptions'][number][] : never : T[K] extends ConfigOption<'string', false> ? string : T[K] extends ConfigOption<'string', true> ? string[] : T[K] extends ConfigOption<'number', false> ? number : T[K] extends ConfigOption<'number', true> ? number[] : T[K] extends ConfigOption<'boolean', false> ? boolean : T[K] extends ConfigOption<'boolean', true> ? boolean[] : never) | (T[K]['default'] extends ConfigValue ? never : undefined);
+    [k in keyof T]?: T[k]['validOptions'] extends (readonly string[] | readonly number[]) ? T[k] extends ConfigOptionBase<'string' | 'number', false> ? T[k]['validOptions'][number] : T[k] extends ConfigOptionBase<'string' | 'number', true> ? T[k]['validOptions'][number][] : never : T[k] extends ConfigOptionBase<'string', false> ? string : T[k] extends ConfigOptionBase<'string', true> ? string[] : T[k] extends ConfigOptionBase<'number', false> ? number : T[k] extends ConfigOptionBase<'number', true> ? number[] : T[k] extends ConfigOptionBase<'boolean', false> ? boolean : T[k] extends ConfigOptionBase<'boolean', true> ? boolean[] : never;
 };
 /**
  * The object retured by {@link Jack#parse}
@@ -134,12 +140,12 @@ export interface Description extends Row {
  */
 export type TextRow = Heading | Description;
 /**
- * Either a {@link TextRow} or a reference to a {@link ConfigOption}
+ * Either a {@link TextRow} or a reference to a {@link ConfigOptionBase}
  */
 export type UsageField = TextRow | {
     type: 'config';
     name: string;
-    value: ConfigOption;
+    value: ConfigOptionBase<ConfigType>;
 };
 /**
  * Options provided to the {@link Jack} constructor
@@ -161,7 +167,9 @@ export interface JackOptions {
      * Environment object to read/write. Defaults `process.env`.
      * No effect if `envPrefix` is not set.
      */
-    env?: Record<string, string | undefined>;
+    env?: {
+        [k: string]: string | undefined;
+    };
     /**
      * A short usage string. If not provided, will be generated from the
      * options provided, but that can of course be rather verbose if
@@ -196,28 +204,12 @@ export declare class Jack<C extends ConfigSet = {}> {
     #private;
     constructor(options?: JackOptions);
     /**
-     * Resulting definitions, suitable to be passed to Node's `util.parseArgs`,
-     * but also including `description` and `short` fields, if set.
-     */
-    get definitions(): C;
-    /** map of `{ <short>: <long> }` strings for each short name defined */
-    get shorts(): Record<string, string>;
-    /**
-     * options passed to the {@link Jack} constructor
-     */
-    get jackOptions(): JackOptions;
-    /**
-     * the data used to generate {@link Jack#usage} and
-     * {@link Jack#usageMarkdown} content.
-     */
-    get usageFields(): UsageField[];
-    /**
      * Set the default value (which will still be overridden by env or cli)
      * as if from a parsed config file. The optional `source` param, if
      * provided, will be included in error messages if a value is invalid or
      * unknown.
      */
-    setConfigValues(values: Partial<OptionsResults<C>>, source?: string): this;
+    setConfigValues(values: OptionsResults<C>, source?: string): this;
     /**
      * Parse a string of arguments, and return the resulting
      * `{ values, positionals }` object.
@@ -264,7 +256,7 @@ export declare class Jack<C extends ConfigSet = {}> {
     /**
      * Add one or more multiple number fields.
      */
-    numList<F extends ConfigMetaSet<'number', true>>(fields: F): Jack<C & ConfigSetFromMetaSet<'number', true, F>>;
+    numList<F extends ConfigMetaSet<'number'>>(fields: F): Jack<C & ConfigSetFromMetaSet<'number', true, F>>;
     /**
      * Add one or more string option fields.
      */
@@ -272,7 +264,7 @@ export declare class Jack<C extends ConfigSet = {}> {
     /**
      * Add one or more multiple string option fields.
      */
-    optList<F extends ConfigMetaSet<'string', true>>(fields: F): Jack<C & ConfigSetFromMetaSet<'string', true, F>>;
+    optList<F extends ConfigMetaSet<'string'>>(fields: F): Jack<C & ConfigSetFromMetaSet<'string', true, F>>;
     /**
      * Add one or more flag fields.
      */
@@ -280,7 +272,7 @@ export declare class Jack<C extends ConfigSet = {}> {
     /**
      * Add one or more multiple flag fields.
      */
-    flagList<F extends ConfigMetaSet<'boolean', true>>(fields: F): Jack<C & ConfigSetFromMetaSet<'boolean', true, F>>;
+    flagList<F extends ConfigMetaSet<'boolean'>>(fields: F): Jack<C & ConfigSetFromMetaSet<'boolean', true, F>>;
     /**
      * Generic field definition method. Similar to flag/flagList/number/etc,
      * but you must specify the `type` (and optionally `multiple` and `delim`)
@@ -301,9 +293,9 @@ export declare class Jack<C extends ConfigSet = {}> {
     toJSON(): {
         [k: string]: {
             hint?: string | undefined;
-            default?: ConfigValue | undefined;
+            default?: string | number | boolean | string[] | number[] | boolean[] | undefined;
             validOptions?: readonly number[] | readonly string[] | undefined;
-            validate?: ((v: unknown) => boolean) | ((v: unknown) => v is ConfigValue) | undefined;
+            validate?: ((v: unknown) => v is string | number | boolean | string[] | number[] | boolean[]) | undefined;
             description?: string | undefined;
             short?: string | undefined;
             delim?: string | undefined;
