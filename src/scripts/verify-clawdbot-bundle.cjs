@@ -18,6 +18,8 @@ const REQUIRED_FILES = [
   'package.json',
   'node_modules/fast-xml-parser/package.json',
   'node_modules/fast-xml-parser/src/fxp.js',
+  'node_modules/fast-xml-parser/lib/fxp.cjs',   // CJS entry used by @aws-sdk/xml-builder
+  'node_modules/signal-exit/package.json',        // required by multiple runtime packages
 ];
 
 // Critical directories that must exist and not be empty
@@ -25,6 +27,7 @@ const REQUIRED_DIRS = [
   'dist',
   'node_modules',
   'node_modules/fast-xml-parser',
+  'node_modules/signal-exit',
 ];
 
 let errors = 0;
