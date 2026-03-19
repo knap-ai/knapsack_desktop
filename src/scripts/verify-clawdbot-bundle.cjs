@@ -73,6 +73,32 @@ if (fs.existsSync(entryPath)) {
   }
 }
 
+// Verify package.json has "type": "module" (critical for ESM entry.js)
+const rootPkgPath = path.join(CLAWDBOT_DIR, 'package.json');
+if (fs.existsSync(rootPkgPath)) {
+  const rootPkg = JSON.parse(fs.readFileSync(rootPkgPath, 'utf8'));
+  if (rootPkg.type !== 'module') {
+    console.error(`[verify-clawdbot] CRITICAL: package.json "type" is "${rootPkg.type}" — must be "module" for ESM entry.js`);
+    errors++;
+  } else {
+    console.log('[verify-clawdbot] package.json type: "module" ✓');
+  }
+}
+
+// Verify entry.js chunk dependencies exist in dist/
+if (fs.existsSync(entryPath)) {
+  const content = fs.readFileSync(entryPath, 'utf8');
+  const importRegex = /from\s+["']\.\/([^"']+)["']/g;
+  let match;
+  while ((match = importRegex.exec(content)) !== null) {
+    const chunkPath = path.join(CLAWDBOT_DIR, 'dist', match[1]);
+    if (!fs.existsSync(chunkPath)) {
+      console.error(`[verify-clawdbot] MISSING CHUNK: dist/${match[1]} (imported by entry.js)`);
+      errors++;
+    }
+  }
+}
+
 // Verify fast-xml-parser version matches expected
 const fxpPkgPath = path.join(CLAWDBOT_DIR, 'node_modules', 'fast-xml-parser', 'package.json');
 if (fs.existsSync(fxpPkgPath)) {
