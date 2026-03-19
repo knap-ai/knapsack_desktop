@@ -1,6 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use tauri::{utils::config::AppUrl, window::WindowBuilder, WindowUrl};
+use tauri::{window::WindowBuilder, WindowUrl};
 
 #[macro_use]
 extern crate lazy_static;
@@ -989,21 +989,9 @@ async fn main() {
   };
   let recording_state = RecordingState::default();
 
-  let mut context = tauri::generate_context!();
-  let url = format!("http://127.0.0.1:1420").parse().unwrap();
-  let window_url = WindowUrl::External(url);
-  // rewrite the config so the IPC is enabled on this URL
-  context.config_mut().build.dist_dir = AppUrl::Url(window_url.clone());
+  let context = tauri::generate_context!();
 
   let mut builder = tauri::Builder::default();
-
-  // Only load the localhost plugin in production builds.
-  // In dev mode, Vite's dev server runs on port 1420 (configured in vite.config.ts).
-  // Loading the plugin in dev steals port 1420 from Vite, causing a white screen.
-  #[cfg(not(dev))]
-  {
-    builder = builder.plugin(tauri_plugin_localhost::Builder::new(1420).build());
-  }
 
   builder = builder
     .plugin(tauri_plugin_store::Builder::default().build())
@@ -1027,11 +1015,7 @@ async fn main() {
       let mut window_builder = WindowBuilder::new(
         app,
         "main".to_string(),
-        if cfg!(dev) {
-          Default::default()
-        } else {
-          window_url.clone()
-        },
+        Default::default(),
       )
       .title("")
       .fullscreen(false)
