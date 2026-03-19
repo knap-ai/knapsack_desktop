@@ -16793,6 +16793,7 @@ function authorizeGatewayMethod(method, client) {
 	if (!isRoleAuthorizedForMethod(role, method)) return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
 	if (role === "node") return null;
 	if (scopes.includes("operator.admin")) return null;
+	if (client.connect.client?.id === "gateway-client" && client.connect.client?.mode === "backend") return null;
 	const scopeAuth = authorizeOperatorScopesForMethod(method, scopes);
 	if (!scopeAuth.allowed) return errorShape(ErrorCodes.INVALID_REQUEST, `missing scope: ${scopeAuth.missingScope}`);
 	return null;
@@ -22602,7 +22603,7 @@ function attachGatewayWsMessageHandler(params) {
 						hasSharedAuth,
 						isLocalClient
 					});
-					if (!device && (!isControlUi || decision.kind !== "allow")) clearUnboundScopes();
+					if (!device && decision.kind !== "allow") clearUnboundScopes();
 					if (decision.kind === "allow") return true;
 					if (decision.kind === "reject-control-ui-insecure-auth") {
 						const errorMessage = "control ui requires device identity (use HTTPS or localhost secure context)";

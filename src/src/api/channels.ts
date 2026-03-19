@@ -35,17 +35,27 @@ async function get<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
-async function post<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  })
-  if (!res.ok) {
-    const t = await res.text().catch(() => '')
-    throw new Error(t || `HTTP ${res.status}`)
+async function post<T>(path: string, body?: unknown, timeoutMs = 30_000): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const t = await res.text().catch(() => '')
+      throw new Error(t || `HTTP ${res.status}`)
+    }
+    return (await res.json()) as T
+  } catch (e: any) {
+    if (e.name === 'AbortError') throw new Error('Request timed out — gateway may be down')
+    throw e
+  } finally {
+    clearTimeout(timer)
   }
-  return (await res.json()) as T
 }
 
 // ── WhatsApp ─────────────────────────────────────────────────
