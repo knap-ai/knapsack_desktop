@@ -991,9 +991,9 @@ async fn main() {
 
   let context = tauri::generate_context!();
 
-  let builder = tauri::Builder::default();
+  let mut builder = tauri::Builder::default();
 
-  builder
+  builder = builder
     .plugin(tauri_plugin_store::Builder::default().build())
     .plugin(tauri_plugin_autostart::init(
       MacosLauncher::LaunchAgent,
