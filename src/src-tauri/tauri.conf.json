@@ -163,8 +163,7 @@
         "windowSize": {
           "width": 660,
           "height": 400
-        },
-        "background": "icons/dmg-background.png"
+        }
       },
       "publisher": "Knap",
       "resources": [

@@ -288,16 +288,78 @@ if [ "$DO_NOTARIZE" = true ]; then
     EXISTING_DMG=$(find "$DMG_DIR" -name "*.dmg" -print -quit 2>/dev/null || true)
     if [ -n "$EXISTING_DMG" ]; then
       DMG_PATH="$EXISTING_DMG"
-      echo "[notarize] Recreating DMG with stapled .app: $DMG_PATH"
+      echo "[notarize] Recreating styled DMG with stapled .app: $DMG_PATH"
 
-      # Create a fresh DMG containing the signed+stapled .app
+      # Create a styled DMG containing the signed+stapled .app
       DMG_TEMP="$(mktemp -d /tmp/knapsack-dmg.XXXXXX)"
       cp -R "$APP_PATH" "$DMG_TEMP/"
       ln -s /Applications "$DMG_TEMP/Applications"
-      rm -f "$DMG_PATH"
+
+      # Determine DMG size
+      APP_SIZE_MB=$(du -sm "$APP_PATH" | awk '{print $1}')
+      DMG_SIZE_MB=$((APP_SIZE_MB + 80))
+
+      DMG_RW_PATH="${DMG_PATH%.dmg}-rw.dmg"
+      rm -f "$DMG_RW_PATH" "$DMG_PATH"
+
+      # Create read-write DMG for styling
       hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_TEMP" \
-        -ov -format UDZO "$DMG_PATH"
+        -ov -format UDRW -size "${DMG_SIZE_MB}m" "$DMG_RW_PATH"
       rm -rf "$DMG_TEMP"
+
+      # Mount and style the DMG
+      DMG_MOUNT="/Volumes/$APP_NAME"
+      if [[ -d "$DMG_MOUNT" ]]; then
+        hdiutil detach "$DMG_MOUNT" -force 2>/dev/null || true
+        sleep 1
+      fi
+      hdiutil attach "$DMG_RW_PATH" -mountpoint "$DMG_MOUNT" -nobrowse
+
+      # Copy background image
+      DMG_BG="$PROJECT_DIR/src-tauri/icons/dmg-background.png"
+      if [[ -f "$DMG_BG" ]]; then
+        mkdir -p "$DMG_MOUNT/.background"
+        cp "$DMG_BG" "$DMG_MOUNT/.background/background.png"
+      fi
+
+      # Apply Finder styling via AppleScript
+      osascript <<APPLESCRIPT
+tell application "Finder"
+  tell disk "$APP_NAME"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set the bounds of container window to {400, 100, 1060, 500}
+    set viewOptions to the icon view options of container window
+    set arrangement of viewOptions to not arranged
+    set icon size of viewOptions to 128
+    if exists file ".background:background.png" then
+      set background picture of viewOptions to file ".background:background.png"
+    end if
+    set text size of viewOptions to 13
+    set label position of viewOptions to bottom
+    set position of item "${APP_NAME}.app" of container window to {180, 170}
+    set position of item "Applications" of container window to {480, 170}
+    update without registering applications
+    delay 2
+    close
+    open
+    delay 1
+  end tell
+end tell
+APPLESCRIPT
+      sleep 2
+      osascript -e 'tell application "Finder" to close every window' || true
+
+      # Detach and convert to compressed DMG
+      for i in {1..5}; do
+        if hdiutil detach "$DMG_MOUNT" -quiet 2>/dev/null; then break; fi
+        [[ "$i" == "3" ]] && hdiutil detach "$DMG_MOUNT" -force 2>/dev/null || true
+        sleep 2
+      done
+      hdiutil convert "$DMG_RW_PATH" -format UDZO -o "$DMG_PATH" -ov
+      rm -f "$DMG_RW_PATH"
 
       # Sign the DMG
       echo "[notarize] Signing DMG..."
