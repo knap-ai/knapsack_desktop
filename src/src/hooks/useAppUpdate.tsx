@@ -63,17 +63,28 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const checkForUpdates = useCallback(async () => {
+  const checkForUpdates = useCallback(async (autoInstall = false) => {
     setState({ status: 'checking' })
     setDismissed(false)
     try {
       const { shouldUpdate, manifest } = await checkUpdate()
       if (shouldUpdate && manifest) {
-        setState({ status: 'available', version: manifest.version })
         KNAnalytics.trackEvent('update_available', {
           version: manifest.version,
           timestamp: new Date().toISOString(),
         })
+        if (autoInstall) {
+          // Download silently — banner only appears when ready
+          setState({ status: 'downloading' })
+          try {
+            await installUpdate()
+            // onUpdaterEvent will fire with DONE and set state to 'ready'
+          } catch (err) {
+            setState({ status: 'error', message: String(err) })
+          }
+        } else {
+          setState({ status: 'available', version: manifest.version })
+        }
       } else {
         setState({ status: 'up-to-date' })
       }
@@ -100,9 +111,9 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     setDismissed(true)
   }, [])
 
-  // Auto-check on mount
+  // Auto-check on mount — download silently, banner only shows when ready
   useEffect(() => {
-    checkForUpdates()
+    checkForUpdates(true)
   }, [])
 
   return (
