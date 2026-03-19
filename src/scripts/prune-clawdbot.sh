@@ -149,6 +149,8 @@ CRITICAL_PACKAGES=(
   "@whiskeysockets/baileys"
   "long"
   "proper-lockfile"
+  "fast-xml-parser"           # required by @aws-sdk/xml-builder (gateway startup)
+  "signal-exit"               # required by multiple packages at runtime
 )
 
 MISSING=()

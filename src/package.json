@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/sync-version.cjs && node scripts/prepare-node.cjs && node scripts/prune-clawdbot.cjs",
+    "prebuild": "node scripts/sync-version.cjs && node scripts/prepare-node.cjs && node scripts/prune-clawdbot.cjs && node scripts/verify-clawdbot-bundle.cjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "node scripts/load-env-and-run.cjs tauri",

@@ -47,6 +47,10 @@ jobs:
           node scripts/prepare-node.cjs
           node scripts/prune-clawdbot.cjs
 
+      - name: Verify clawdbot bundle integrity
+        working-directory: src
+        run: node scripts/verify-clawdbot-bundle.cjs
+
       - name: Build Tauri app (universal)
         working-directory: src
         run: npx tauri build --target universal-apple-darwin
