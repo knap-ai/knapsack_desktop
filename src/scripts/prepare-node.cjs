@@ -15,7 +15,7 @@ const { execSync } = require('child_process');
 const https = require('https');
 const http = require('http');
 
-const NODE_VERSION = process.env.NODE_VERSION || '22.14.0';
+const NODE_VERSION = process.env.NODE_VERSION || '22.16.0';
 const SCRIPT_DIR = __dirname;
 const PROJECT_DIR = path.resolve(SCRIPT_DIR, '..');
 const TARGET_DIR = path.join(PROJECT_DIR, 'src-tauri', 'resources', 'node');
