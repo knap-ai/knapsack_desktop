@@ -616,7 +616,7 @@ pub async fn openai_compatible_chat(
 
     if status.is_success() {
       let parsed: OaiChatResp = serde_json::from_str(&text)?;
-      return Ok(parsed);
+      return Ok(fixup_raw_tool_tokens(parsed));
     }
 
     // Check for rate limit (429)
@@ -695,6 +695,82 @@ fn parse_retry_after(text: &str) -> Option<f64> {
     }
   }
   None
+}
+
+/// Some models (e.g. Groq-hosted Llama) sometimes emit raw tool-call tokens as
+/// plain text in the `content` field instead of producing structured
+/// `tool_calls`.  Detect that pattern and convert the raw tokens into proper
+/// `OaiToolCall` entries so the rest of the pipeline processes them correctly.
+fn fixup_raw_tool_tokens(mut resp: OaiChatResp) -> OaiChatResp {
+  for choice in &mut resp.choices {
+    let msg = &mut choice.message;
+    // Only attempt recovery when the model returned no structured tool calls
+    // but the content contains the raw token markers.
+    if !msg.tool_calls.is_empty() {
+      continue;
+    }
+    let content = match &msg.content {
+      Some(c) if c.contains("<|tool_call_begin|>") => c.clone(),
+      _ => continue,
+    };
+
+    eprintln!("[chat_agent] detected raw tool-call tokens in content, attempting fixup");
+
+    let mut extracted: Vec<OaiToolCall> = Vec::new();
+    let mut tc_counter = 0u32;
+    // Remaining text after stripping tool-call tokens.
+    let mut cleaned = content.clone();
+
+    // Pattern: <|tool_call_begin|>functions.NAME:IGNORED<|tool_call_argument_begin|>ARGS<|tool_call_end|>
+    // The section may end with <|tool_calls_section_end|>
+    let re = match regex::Regex::new(
+      r#"<\|tool_call_begin\|>functions\.([^:<|]+)[^<]*<\|tool_call_argument_begin\|>([\s\S]*?)<\|tool_call_end\|>"#,
+    ) {
+      Ok(r) => r,
+      Err(_) => continue,
+    };
+
+    for cap in re.captures_iter(&content) {
+      let name = cap[1].to_string();
+      let args_raw = cap[2].trim().to_string();
+      // Ensure the arguments are valid JSON; fall back to empty object.
+      let args = if serde_json::from_str::<JsonValue>(&args_raw).is_ok() {
+        args_raw
+      } else {
+        "{}".to_string()
+      };
+      tc_counter += 1;
+      extracted.push(OaiToolCall {
+        id: format!("raw_tc_{}", tc_counter),
+        kind: "function".to_string(),
+        function: OaiToolFn {
+          name,
+          arguments: args,
+        },
+      });
+    }
+
+    if !extracted.is_empty() {
+      // Strip all raw tool-call tokens from the content.
+      let section_re = regex::Regex::new(
+        r#"<\|tool_call_begin\|>[\s\S]*?<\|tool_call_end\|>"#
+      ).unwrap();
+      cleaned = section_re.replace_all(&cleaned, "").to_string();
+      let end_re = regex::Regex::new(r#"<\|tool_calls_section_end\|>"#).unwrap();
+      cleaned = end_re.replace_all(&cleaned, "").to_string();
+      let cleaned = cleaned.trim().to_string();
+
+      eprintln!(
+        "[chat_agent] extracted {} tool call(s) from raw tokens: {:?}",
+        extracted.len(),
+        extracted.iter().map(|t| &t.function.name).collect::<Vec<_>>()
+      );
+
+      msg.tool_calls = extracted;
+      msg.content = if cleaned.is_empty() { None } else { Some(cleaned) };
+    }
+  }
+  resp
 }
 
 /// Call Anthropic Messages API and map the response back to OAI-compatible format.
