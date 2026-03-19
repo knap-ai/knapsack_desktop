@@ -54,18 +54,6 @@ jobs:
             Write-Host "Cleared stale bundle artifacts"
           }
 
-      - name: Generate temporary updater signing key (CI only)
-        shell: pwsh
-        run: |
-          npx tauri signer generate -w "$env:RUNNER_TEMP\ci-key.key"
-          $privkey = (Get-Content "$env:RUNNER_TEMP\ci-key.key" -Raw).Trim()
-          $delim = "EOF_$(Get-Random)"
-          echo "TAURI_PRIVATE_KEY<<$delim" >> $env:GITHUB_ENV
-          echo "$privkey" >> $env:GITHUB_ENV
-          echo "$delim" >> $env:GITHUB_ENV
-          echo "TAURI_KEY_PASSWORD=" >> $env:GITHUB_ENV
-        working-directory: src
-
       - name: Build Tauri app
         working-directory: src
         run: npx tauri build
@@ -74,6 +62,8 @@ jobs:
           MICROSOFT_CLIENT_ID: unused
           VITE_GOOGLE_CLIENT_ID: ""
           VITE_GOOGLE_DEVELOPER_KEY: ""
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v5

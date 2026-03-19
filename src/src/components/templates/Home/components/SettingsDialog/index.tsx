@@ -28,6 +28,7 @@ import {
 } from 'src/components/atoms/typography'
 import { Dialog } from 'src/components/molecules/Dialog'
 import HeartbeatSettings from 'src/components/organisms/HeartbeatSettings'
+import { useAppUpdate } from 'src/hooks/useAppUpdate'
 
 import styles from './styles.module.scss'
 import { Profile } from 'src/hooks/auth/useAuth'
@@ -111,6 +112,62 @@ type OllamaModel = {
   size?: number
   parameter_size?: string
   family?: string
+}
+
+// ── Update section ───────────────────────────────────────────────────────────
+
+const UpdateSection = () => {
+  const { updateState, checkForUpdates, startInstall, restartApp } = useAppUpdate()
+
+  const statusText = (() => {
+    switch (updateState.status) {
+      case 'checking': return 'Checking for updates...'
+      case 'up-to-date': return 'You\'re up to date'
+      case 'available': return `Version ${updateState.version} available`
+      case 'downloading': return 'Downloading update...'
+      case 'ready': return 'Update ready — restart to apply'
+      case 'error': return `Error: ${updateState.message}`
+      default: return null
+    }
+  })()
+
+  return (
+    <div className="p-6 flex flex-col gap-3">
+      <Typography weight={TypographyWeight.medium}>Updates</Typography>
+      <div className="flex justify-between items-center h-[36px]">
+        <Typography className="text-sm text-gray-600">
+          {statusText || 'Check for new versions'}
+        </Typography>
+        {(updateState.status === 'idle' || updateState.status === 'up-to-date' || updateState.status === 'error') && (
+          <button
+            onClick={checkForUpdates}
+            className="text-sm text-red-600 hover:text-red-700 font-medium"
+          >
+            Check for Updates
+          </button>
+        )}
+        {updateState.status === 'checking' && (
+          <span className="text-sm text-gray-400 animate-pulse">Checking...</span>
+        )}
+        {updateState.status === 'available' && (
+          <button
+            onClick={startInstall}
+            className="text-sm text-red-600 hover:text-red-700 font-medium"
+          >
+            Install Update
+          </button>
+        )}
+        {updateState.status === 'ready' && (
+          <button
+            onClick={restartApp}
+            className="text-sm text-red-600 hover:text-red-700 font-medium"
+          >
+            Restart Now
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
@@ -880,6 +937,8 @@ export const SettingsDialog = ({
 
         <hr className="border-zinc-200" />
         <HeartbeatSettings />
+        <hr className="border-zinc-200" />
+        <UpdateSection />
         <hr className="border-zinc-200" />
         <div className="DocumentsContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Documents</Typography>
