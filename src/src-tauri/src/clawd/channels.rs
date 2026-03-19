@@ -1185,6 +1185,19 @@ pub async fn telegram_configure(
         });
     }
 
+    // Fail fast if gateway is not reachable instead of hanging on stale connections.
+    if !gateway_client::is_gateway_port_open().await {
+        gateway_client::ensure_gateway_and_wait().await;
+        if !gateway_client::is_gateway_port_open().await {
+            return HttpResponse::Ok().json(GenericResponse {
+                success: false,
+                message: Some("Gateway not reachable — the background service may need to be restarted.".to_string()),
+                configured: None,
+                linked: None,
+            });
+        }
+    }
+
     let config_result = gateway_client::config_get(None).await;
 
     match config_result {
@@ -1327,6 +1340,19 @@ pub async fn whatsapp_disconnect(
 
 /// Shared disconnect logic: logout + remove config with retries.
 async fn disconnect_channel(channel: &str, account_id: &str) -> HttpResponse {
+    // Fail fast if gateway is not reachable.
+    if !gateway_client::is_gateway_port_open().await {
+        gateway_client::ensure_gateway_and_wait().await;
+        if !gateway_client::is_gateway_port_open().await {
+            return HttpResponse::Ok().json(GenericResponse {
+                success: false,
+                message: Some("Gateway not reachable — the background service may need to be restarted.".to_string()),
+                configured: None,
+                linked: None,
+            });
+        }
+    }
+
     // Step 1: Ask the gateway to logout the channel (clears credentials).
     let logout_params = serde_json::json!({
         "channel": channel,
@@ -1522,6 +1548,19 @@ pub async fn generic_channel_configure(
             configured: None,
             linked: None,
         });
+    }
+
+    // Fail fast if gateway is not reachable.
+    if !gateway_client::is_gateway_port_open().await {
+        gateway_client::ensure_gateway_and_wait().await;
+        if !gateway_client::is_gateway_port_open().await {
+            return HttpResponse::Ok().json(GenericResponse {
+                success: false,
+                message: Some("Gateway not reachable — the background service may need to be restarted.".to_string()),
+                configured: None,
+                linked: None,
+            });
+        }
     }
 
     // Merge the user-provided config with standard channel defaults.
