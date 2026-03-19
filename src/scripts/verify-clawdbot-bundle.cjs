@@ -20,6 +20,9 @@ const REQUIRED_FILES = [
   'node_modules/fast-xml-parser/src/fxp.js',
   'node_modules/fast-xml-parser/lib/fxp.cjs',   // CJS entry used by @aws-sdk/xml-builder
   'node_modules/signal-exit/package.json',        // required by multiple runtime packages
+  // proper-lockfile needs signal-exit@3 (root has v4 which breaks its CJS require)
+  'node_modules/proper-lockfile/node_modules/signal-exit/package.json',
+  'node_modules/proper-lockfile/node_modules/signal-exit/index.js',
 ];
 
 // Critical directories that must exist and not be empty
@@ -99,6 +102,18 @@ if (fs.existsSync(entryPath)) {
       console.error(`[verify-clawdbot] MISSING CHUNK: dist/${match[1]} (imported by entry.js)`);
       errors++;
     }
+  }
+}
+
+// Verify proper-lockfile's nested signal-exit is v3 (not v4)
+const plSignalExitPkg = path.join(CLAWDBOT_DIR, 'node_modules', 'proper-lockfile', 'node_modules', 'signal-exit', 'package.json');
+if (fs.existsSync(plSignalExitPkg)) {
+  const pkg = JSON.parse(fs.readFileSync(plSignalExitPkg, 'utf8'));
+  if (!pkg.version || !pkg.version.startsWith('3.')) {
+    console.error(`[verify-clawdbot] WRONG VERSION: proper-lockfile/node_modules/signal-exit is ${pkg.version}, expected 3.x`);
+    errors++;
+  } else {
+    console.log(`[verify-clawdbot] proper-lockfile/signal-exit version: ${pkg.version} ✓`);
   }
 }
 

@@ -12,6 +12,10 @@ lerna-debug.log*
 
 node_modules
 !src-tauri/resources/clawdbot/node_modules/
+# Un-ignore nested node_modules that contain version-specific deps required
+# at runtime.  The blanket "node_modules" rule above blocks these from git.
+# proper-lockfile needs signal-exit@3 (root has v4, which is breaking).
+!src-tauri/resources/clawdbot/node_modules/proper-lockfile/node_modules/
 # Heavy / unused packages — kept out of git, removed at build time by prune-clawdbot.sh
 src-tauri/resources/clawdbot/node_modules/@node-llama-cpp/
 src-tauri/resources/clawdbot/node_modules/node-llama-cpp/
