@@ -22602,7 +22602,7 @@ function attachGatewayWsMessageHandler(params) {
 						hasSharedAuth,
 						isLocalClient
 					});
-					if (!device && (!isControlUi || decision.kind !== "allow")) clearUnboundScopes();
+					if (!device && decision.kind !== "allow") clearUnboundScopes();
 					if (decision.kind === "allow") return true;
 					if (decision.kind === "reject-control-ui-insecure-auth") {
 						const errorMessage = "control ui requires device identity (use HTTPS or localhost secure context)";
