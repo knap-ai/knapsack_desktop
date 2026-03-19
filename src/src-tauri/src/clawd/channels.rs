@@ -1128,7 +1128,7 @@ pub async fn telegram_enable(
 
             let patch = if body.enabled {
                 build_enable_patch(
-                    r#"{"channels": {"telegram": {"dmPolicy": "pairing"}}}"#,
+                    r#"{"channels": {"telegram": {"dmPolicy": "allowlist"}}}"#,
                     &config_snapshot,
                 )
             } else {
@@ -1208,7 +1208,7 @@ pub async fn telegram_configure(
                 "channels": {
                     "telegram": {
                         "botToken": token,
-                        "dmPolicy": "pairing",
+                        "dmPolicy": "allowlist",
                         // Grammy's default HTTP timeout is 500 seconds, which causes
                         // long-running getUpdates requests and AbortError spam in logs.
                         // 60s is generous for Telegram API calls; the polling interval
@@ -1607,12 +1607,12 @@ pub async fn generic_channel_configure(
                     }
                 }
                 if !obj.contains_key("dmPolicy") {
-                    obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("allowlist"));
                 }
             }
             _ => {
                 if !obj.contains_key("dmPolicy") {
-                    obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("allowlist"));
                 }
             }
         }
@@ -2770,7 +2770,7 @@ pub async fn channel_diagnostics() -> impl Responder {
                                     let bh = extract_base_hash(&snap);
                                     let dm_policy = match *ch_key {
                                         "imessage" => r#"{"channels":{"imessage":{"dmPolicy":"allowlist","service":"auto"}}}"#,
-                                        _ => &format!(r#"{{"channels":{{"{}": {{"dmPolicy":"pairing"}}}}}}"#, ch_key),
+                                        _ => &format!(r#"{{"channels":{{"{}": {{"dmPolicy":"allowlist"}}}}}}"#, ch_key),
                                     };
                                     match gateway_client::config_patch(dm_policy, &bh, None).await {
                                         Ok(_) => repairs.push(format!("Added channel config for '{}'", ch_key)),
