@@ -407,6 +407,24 @@ fn active_provider(app_handle: &tauri::AppHandle) -> String {
     .unwrap_or_else(|| "openai".to_string())
 }
 
+/// Pending emails awaiting user confirmation.  The key is a random token; the
+/// value holds the draft details.  `send_email` stores a draft here on first
+/// call and only actually sends when called again with `confirmed: true` and the
+/// matching `pending_id`.  This prevents the LLM from sending emails without the
+/// user seeing the draft first.
+#[derive(Clone)]
+struct PendingEmail {
+    to: String,
+    cc: Option<String>,
+    subject: String,
+    body_html: String,
+    thread_id: Option<String>,
+    created_at: std::time::Instant,
+}
+
+static PENDING_EMAILS: Lazy<Mutex<HashMap<String, PendingEmail>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
 static CHAT_HISTORY: Lazy<Mutex<HashMap<String, Vec<chat_agent::OaiMessage>>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -2680,7 +2698,10 @@ pub async fn chat(
       }
     }
 
-    // Direct email sending via Gmail API (no browser automation needed)
+    // Direct email sending via Gmail API (no browser automation needed).
+    // Two-phase: first call drafts & stores a pending email; second call
+    // with confirmed=true + pending_id actually sends.  This ensures the
+    // user always sees the draft in the chat before it is sent.
     if name == "send_email" {
       if user_email.is_empty() {
         return Ok(json!({
@@ -2689,30 +2710,83 @@ pub async fn chat(
         }));
       }
 
-      let to = args_map.get("to").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let cc = args_map.get("cc").and_then(|v| v.as_str()).map(|s| s.trim());
-      let subject = args_map.get("subject").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let body_html = args_map.get("body").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let thread_id = args_map.get("thread_id").and_then(|v| v.as_str()).map(|s| s.trim());
+      let confirmed = args_map.get("confirmed").and_then(|v| v.as_bool()).unwrap_or(false);
+      let pending_id = args_map.get("pending_id").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
+
+      // Phase 2: send a previously confirmed draft.
+      if confirmed {
+        let pid = match pending_id {
+          Some(ref id) if !id.is_empty() => id.clone(),
+          _ => anyhow::bail!("confirmed=true requires a valid pending_id from the draft step"),
+        };
+        let pending = {
+          let mut store = PENDING_EMAILS.lock().unwrap();
+          // Expire stale drafts (> 10 min)
+          store.retain(|_, v| v.created_at.elapsed().as_secs() < 600);
+          store.remove(&pid)
+        };
+        let draft = match pending {
+          Some(d) => d,
+          None => return Ok(json!({
+            "ok": false,
+            "error": "No pending email found for this pending_id. The draft may have expired (10 min). Please draft the email again."
+          })),
+        };
+        match crate::clawd::gmail::send_gmail_email(
+          user_email,
+          user_name,
+          &draft.to,
+          draft.cc.as_deref(),
+          &draft.subject,
+          &draft.body_html,
+          draft.thread_id.as_deref(),
+        )
+        .await
+        {
+          Ok(msg) => return Ok(json!({"ok": true, "message": msg})),
+          Err(e) => return Ok(json!({"ok": false, "error": e})),
+        }
+      }
+
+      // Phase 1: draft the email and store it as pending.
+      let to = args_map.get("to").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+      let cc = args_map.get("cc").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
+      let subject = args_map.get("subject").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+      let body_html = args_map.get("body").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+      let thread_id = args_map.get("thread_id").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
 
       if to.is_empty() || subject.is_empty() || body_html.is_empty() {
         anyhow::bail!("to, subject, and body are all required");
       }
 
-      match crate::clawd::gmail::send_gmail_email(
-        user_email,
-        user_name,
-        to,
-        cc,
-        subject,
-        body_html,
-        thread_id,
-      )
-      .await
+      let pid = format!("email_{}", uuid::Uuid::new_v4().simple());
       {
-        Ok(msg) => return Ok(json!({"ok": true, "message": msg})),
-        Err(e) => return Ok(json!({"ok": false, "error": e})),
+        let mut store = PENDING_EMAILS.lock().unwrap();
+        // Expire stale drafts
+        store.retain(|_, v| v.created_at.elapsed().as_secs() < 600);
+        store.insert(pid.clone(), PendingEmail {
+          to: to.clone(),
+          cc: cc.clone(),
+          subject: subject.clone(),
+          body_html: body_html.clone(),
+          thread_id: thread_id.clone(),
+          created_at: std::time::Instant::now(),
+        });
       }
+
+      return Ok(json!({
+        "ok": false,
+        "pending": true,
+        "pending_id": pid,
+        "draft": {
+          "to": to,
+          "cc": cc,
+          "subject": subject,
+          "body": body_html,
+          "thread_id": thread_id,
+        },
+        "message": "Email draft prepared. You MUST show the user the full email details (To, CC, Subject, Body) and wait for their explicit confirmation before sending. Call send_email again with confirmed=true and pending_id to send."
+      }));
     }
 
     anyhow::bail!("unknown tool: {}", name)
@@ -2989,14 +3063,17 @@ When the user asks "what can you do" or "what skills do you have", mention that 
     r#"## EMAIL SENDING
 Your email account is connected. You have a **send_email** tool that sends emails directly via the Gmail API (no browser needed). This is the PREFERRED way to send emails — do NOT use browser automation to compose/send emails.
 
-### How to Send Emails
-1. **Draft the email** and show the user the full details (To, CC, Subject, Body) in your response
-2. **Ask for confirmation** — e.g. "Ready to send this email. Say **SEND** to confirm, or let me know what to change."
-3. **Only call send_email** after the user explicitly confirms (says "send", "send it", "yes", "confirmed", "go ahead", etc.)
-4. For **replies**, include the thread_id if available to maintain threading
+### How to Send Emails (MANDATORY two-phase process)
+1. **Call send_email** with to, subject, body — this creates a draft and returns a pending_id. The email is NOT sent yet.
+2. **Show the user** the full email details (To, CC, Subject, Body) from the draft response.
+3. **Ask for confirmation** — e.g. "Ready to send this email. Say **SEND** to confirm, or let me know what to change."
+4. **Only after the user explicitly confirms**, call send_email again with `confirmed: true` and the `pending_id` from step 1.
+5. For **replies**, include the thread_id if available to maintain threading.
+
+CRITICAL: You MUST NOT set confirmed=true without the user's explicit approval. The system enforces this — emails cannot be sent without the two-phase draft→confirm flow.
 
 ### When the User Says "Send"
-When the user says "send it", "yes send", "confirmed", or similar — immediately call the send_email tool. Do NOT ask for additional confirmation or re-show the email. One confirmation is enough."#.to_string()
+When the user says "send it", "yes send", "confirmed", or similar — immediately call the send_email tool with confirmed=true and the pending_id. Do NOT ask for additional confirmation or re-show the email. One confirmation is enough."#.to_string()
   } else {
     r#"## EMAIL
 No email account is directly connected via the send_email tool. However, you CAN still help the user with email by using browser automation — navigate to Gmail (https://mail.google.com) or Outlook (https://outlook.live.com) in the browser to read, search, and compose emails. Do NOT tell the user that email is unavailable or ask them to connect their account — just use the browser to help with email tasks."#.to_string()

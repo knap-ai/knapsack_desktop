@@ -374,12 +374,13 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         }),
       },
     },
-    // Direct email sending tool (uses Gmail/Outlook API, no browser needed)
+    // Direct email sending tool (uses Gmail/Outlook API, no browser needed).
+    // Two-phase: first call drafts, second call with confirmed=true sends.
     OaiToolSpec {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "send_email".to_string(),
-        description: "Send an email directly via Gmail or Outlook API. Works for both new emails and replies. Requires the user to be logged in with their email account. ALWAYS show the user the full email (to, cc, subject, body) and get explicit confirmation before calling this tool.".to_string(),
+        description: "Send an email via Gmail or Outlook API. Two-phase process: (1) Call with to/subject/body to create a draft — this does NOT send. (2) Show the user the draft details and wait for explicit confirmation. (3) Call again with confirmed=true and the pending_id from step 1 to actually send. NEVER set confirmed=true on the first call.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
@@ -388,7 +389,9 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
             "subject": { "type": "string", "description": "Email subject line" },
             "body": { "type": "string", "description": "Email body in HTML format. Use <p>, <br>, <b>, <i> tags for formatting." },
             "reply_to_uid": { "type": "string", "description": "If replying to an existing email, the email_uid of the message being replied to. Omit for new emails." },
-            "thread_id": { "type": "string", "description": "Gmail thread ID for threading replies. Omit for new emails." }
+            "thread_id": { "type": "string", "description": "Gmail thread ID for threading replies. Omit for new emails." },
+            "confirmed": { "type": "boolean", "description": "Set to true ONLY after the user has explicitly confirmed the draft. Must be accompanied by pending_id." },
+            "pending_id": { "type": "string", "description": "The pending_id returned from the draft step. Required when confirmed=true." }
           },
           "required": ["to", "subject", "body"],
           "additionalProperties": false
