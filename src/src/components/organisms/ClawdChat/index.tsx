@@ -3142,7 +3142,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         pushAssistant('Refreshed status.')
         return
       }
-      if (cmd === 'logs' || cmd === 'log') {
+      if (cmd === '/logs' || cmd === '/log') {
         const stream = (rest[0] || 'stderr').toLowerCase()
         const logs = await apiGet<{ success: boolean; text: string }>(
           `/api/clawd/service/logs?stream=${encodeURIComponent(stream)}&lines=250`,
