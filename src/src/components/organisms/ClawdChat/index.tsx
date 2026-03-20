@@ -25,7 +25,7 @@ import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
 type PromptAction = { label: string; prompt: string }
 
 // All recognized prompt link prefixes — the AI may use any of these forms
-const PROMPT_MARKERS = ['knapsack://prompt/', 'knapsack://prompt=']
+const PROMPT_MARKERS = ['knapsack://prompt/', 'knapsack://prompt=', 'knapsack://prompt(']
 
 // Check if string starts with any prompt marker, return the matched marker or null
 function matchPromptMarker(s: string): string | null {
@@ -100,7 +100,14 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
     }
 
     // Extract prompt (everything after the matched marker and before closing ")")
-    const prompt = md.slice(parenStart + 1 + matchedMarker.length, parenEnd)
+    let prompt = md.slice(parenStart + 1 + matchedMarker.length, parenEnd)
+
+    // When the AI uses knapsack://prompt(...) (function-call style), the "(" in
+    // the marker opens a paren whose matching ")" is still in the extracted text.
+    // Strip that trailing ")".
+    if (matchedMarker === 'knapsack://prompt(' && prompt.endsWith(')')) {
+      prompt = prompt.slice(0, -1)
+    }
 
     actions.push({ label, prompt })
     // Don't insert inline text — actions render as clickable buttons below the message
