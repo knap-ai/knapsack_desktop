@@ -209,19 +209,23 @@ jobs:
             Write-Host "Cleared stale bundle artifacts"
           }
 
-      - name: Import Windows code signing certificate
-        if: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+      - name: Install AzureSignTool
+        if: ${{ secrets.AZURE_KEY_VAULT_URI != '' }}
+        run: dotnet tool install --global AzureSignTool
+
+      - name: Configure Windows code signing (Azure Key Vault)
+        if: ${{ secrets.AZURE_KEY_VAULT_URI != '' }}
         shell: pwsh
         env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
+          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
+          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
+          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
         run: |
-          $pfxBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
-          $pfxPath = Join-Path $env:RUNNER_TEMP "certificate.pfx"
-          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
-          $signCommand = "signtool sign /f `"$pfxPath`" /p `"$env:WINDOWS_CERTIFICATE_PASSWORD`" /fd SHA256 /t http://timestamp.comodoca.com `"%1`""
+          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" --azure-key-vault-tenant-id `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 `"%1`""
           echo "TAURI_WINDOWS_SIGN_COMMAND=$signCommand" >> $env:GITHUB_ENV
-          Write-Host "Windows code signing certificate imported successfully"
+          Write-Host "Azure Key Vault code signing configured successfully"
 
       - name: Build Tauri app
         working-directory: src
