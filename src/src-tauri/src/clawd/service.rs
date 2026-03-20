@@ -2617,14 +2617,29 @@ async fn prepare_gateway_config(
     }),
   ];
 
-  // On Windows, also set USERPROFILE and APPDATA for Node.js compatibility
+  // On Windows, propagate critical system env vars.  The gateway child process
+  // receives ONLY the env vars we pass (`.envs()` replaces the environment).
+  // Without these the Node.js gateway can't find Chrome, create temp files,
+  // or perform TLS/crypto operations.
   if cfg!(target_os = "windows") {
     env.push(("USERPROFILE".to_string(), user_home));
-    if let Ok(appdata) = std::env::var("APPDATA") {
-      env.push(("APPDATA".to_string(), appdata));
-    }
-    if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
-      env.push(("LOCALAPPDATA".to_string(), localappdata));
+    // These are required for Chrome detection, temp dirs, TLS, and subprocesses
+    let windows_vars = [
+      "APPDATA", "LOCALAPPDATA",
+      "PROGRAMFILES", "PROGRAMFILES(X86)", "ProgramW6432",
+      "SystemRoot", "SystemDrive",
+      "TEMP", "TMP",
+      "COMSPEC",
+      "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
+      "PATHEXT",
+      "HOMEDRIVE", "HOMEPATH",
+    ];
+    for var in &windows_vars {
+      if let Ok(val) = std::env::var(var) {
+        if !val.is_empty() {
+          env.push((var.to_string(), val));
+        }
+      }
     }
   }
 

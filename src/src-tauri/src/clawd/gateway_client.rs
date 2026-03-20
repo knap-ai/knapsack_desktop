@@ -1530,6 +1530,8 @@ fn is_transient_browser_error(err: &str) -> bool {
     || err.contains("Target closed")
     || err.contains("Browser not started")
     || err.contains("browser is not running")
+    || err.contains("Can't reach")
+    || err.contains("tab not found")
     || err.contains("CDP") && err.contains("not")
 }
 
