@@ -454,7 +454,15 @@ fn activate_main_window_from_notification(window: tauri::Window) {
               .ok().flatten()
               .map(|m| m.scale_factor())
               .unwrap_or(1.0);
-            let wa_h_logical = wa_h as f64 / scale_factor;
+            // Subtract frame overhead so the outer window fits in the work area
+            let frame_overhead_physical = main_window.outer_size()
+              .ok()
+              .and_then(|outer| main_window.inner_size().ok().map(|inner| {
+                outer.height as i32 - inner.height as i32
+              }))
+              .unwrap_or(0);
+            let usable_h = (wa_h - frame_overhead_physical).max(400);
+            let wa_h_logical = usable_h as f64 / scale_factor;
 
             let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
               width: NOTIF_WIDTH,
@@ -1104,8 +1112,21 @@ async fn main() {
             .ok().flatten()
             .map(|m| m.scale_factor())
             .unwrap_or(1.0);
+
+          // Measure the window frame overhead (title bar + borders).
+          // set_size / inner_size sets the *client* area, so the outer
+          // window extends beyond by the frame dimensions.
+          let frame_overhead_physical = main_window.outer_size()
+            .ok()
+            .and_then(|outer| main_window.inner_size().ok().map(|inner| {
+              outer.height as i32 - inner.height as i32
+            }))
+            .unwrap_or(0);
+
           let wa_w_logical = wa_w as f64 / scale_factor;
-          let wa_h_logical = wa_h as f64 / scale_factor;
+          // Subtract the frame overhead so the *outer* window fits inside the work area
+          let usable_h = (wa_h - frame_overhead_physical).max(400);
+          let wa_h_logical = usable_h as f64 / scale_factor;
           let window_width = 1440.0_f64.min(wa_w_logical);
 
           main_window
