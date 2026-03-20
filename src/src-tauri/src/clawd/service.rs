@@ -464,6 +464,14 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw_token.trim());
     std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw_token.trim());
   }
+
+  // Set OPENCLAW_HOME so gateway_client can find the config file for
+  // token sync and browser config patching (especially important on
+  // Windows where HOME is not set).
+  let home = app_clawdbot_home(app_handle);
+  let home_str = home.to_string_lossy().to_string();
+  std::env::set_var("OPENCLAW_HOME", &home_str);
+  std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
 }
 
 /// Allowlist of environment variable names that extra_provider_keys may set.
@@ -2711,13 +2719,20 @@ async fn prepare_gateway_config(
     }
   }
 
-  // Set gateway token in current process
+  // Set gateway token and state dir in current Tauri process so that
+  // gateway_client (ensure_browser_config, read_token_from_config, etc.)
+  // can locate the config file and resolve the auth token.
   {
     let gw = tokens.gateway_token.trim();
     if !gw.is_empty() {
       std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
       std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw);
     }
+  }
+  {
+    let home_str = app_clawdbot_home(app_handle).to_string_lossy().to_string();
+    std::env::set_var("OPENCLAW_HOME", &home_str);
+    std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
   }
 
   // Set browser base_url
@@ -3821,6 +3836,13 @@ You can create, list, and cancel scheduled tasks (cron jobs).
           std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
           std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw);
         }
+      }
+      // Also set OPENCLAW_HOME in Tauri process so gateway_client can find
+      // the config file for token sync and browser config patching.
+      {
+        let home_str = clawdbot_home.to_string_lossy().to_string();
+        std::env::set_var("OPENCLAW_HOME", &home_str);
+        std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
       }
 
       let plist = generate_plist(&program_args, &env);

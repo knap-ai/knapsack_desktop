@@ -188,7 +188,10 @@ async fn ensure_gateway_best_effort(token: &str) {
 /// of how the gateway was started.
 /// Returns `true` when the on-disk config was changed (browser settings patched).
 fn ensure_browser_config() -> bool {
-  let home = match std::env::var("HOME") {
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = match std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+  {
     Ok(h) => h,
     Err(_) => return false,
   };
@@ -242,7 +245,9 @@ fn ensure_tools_md(config_path: &std::path::Path) {
     Err(_) => return,
   };
 
-  let home = match std::env::var("HOME") {
+  let home = match std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+  {
     Ok(h) => h,
     Err(_) => return,
   };
@@ -1343,7 +1348,10 @@ fn get_gateway_token() -> Option<String> {
     }
   }
 
-  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| ".".to_string());
   let config_candidates = [
     std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json"),
     std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json"),
@@ -1370,7 +1378,10 @@ fn get_gateway_token() -> Option<String> {
 /// Read the gateway token directly from config files, bypassing env vars.
 /// Used as a fallback when the env var token doesn't match the running gateway.
 fn read_token_from_config() -> Option<String> {
-  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| ".".to_string());
 
   // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR),
   // then standard user-level config locations.
