@@ -352,9 +352,10 @@ const EmailDraftCard = ({
           action={actions.leftAction}
           updateAction={updateAction}
         />
-        {email.classification?.actionRequired && (
+        {email.classification?.classification === 'IMPORTANT_NEEDS_RESPONSE' && (
           <TakeActionButton
             email={email}
+            label={email.classification?.actionRequired || undefined}
           />
         )}
         <SendEmailButton
