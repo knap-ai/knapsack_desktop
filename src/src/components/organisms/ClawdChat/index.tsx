@@ -606,6 +606,30 @@ const SMART_PROMPT = 'Check my email and calendar and tell me what I should focu
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 const BUILD_WEBSITE_PROMPT = `Build a personal website about me`
 
+const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having connectivity issues. Please help me diagnose and fix this. Run these checks in order:
+
+1. Check the gateway service status by running: curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
+2. Check if the gateway process is running: ps aux | grep -i "entry.js\\|clawdbot" | grep -v grep
+3. Check for stale Chrome/Chromium processes: ps aux | grep -i "chrome.*clawdbot\\|chromium.*clawdbot" | grep -v grep
+4. Check the error logs (last 30 lines): tail -30 ~/Library/Logs/ks_error.log 2>/dev/null || echo "No error log found"
+5. Check if port 18789 is in use: lsof -i :18789 2>/dev/null || echo "Port 18789 not in use"
+
+Based on the results, tell me:
+- Whether the gateway process is running
+- Whether the browser (Chrome CDP) is connected
+- Any specific errors you see in the logs (like permission denied, port conflicts, session expired)
+- The recommended fix (e.g. restart the gateway, grant Full Disk Access, re-link WhatsApp, kill stale processes)`
+
+const GATEWAY_RESTART_PROMPT = `Please restart the Knapsack gateway service. Run this command:
+curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | python3 -m json.tool
+Then check if it recovered:
+curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
+Tell me whether the gateway and browser are now healthy.`
+
+const GATEWAY_VIEW_LOGS_PROMPT = `Show me the recent Knapsack error logs to help diagnose connectivity issues. Run:
+tail -50 ~/Library/Logs/ks_error.log 2>/dev/null || echo "No error log found at ~/Library/Logs/ks_error.log"
+Summarize any recurring errors, especially related to: gateway connectivity, browser/CDP failures, channel errors (WhatsApp, iMessage), permission issues, or port conflicts.`
+
 function buildWebsiteInstructions(userName: string, userEmail: string): string {
   const namePart = userName ? `My name is ${userName}.` : ''
   const emailPart = userEmail ? `My email is ${userEmail}.` : ''
@@ -4099,6 +4123,67 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
                   Connect iMessage
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Gateway troubleshooting banner — shown when gateway is down and no longer in startup phase */}
+        {health && !health.gateway_ok && !channelStatus.gatewayStarting && (
+          <div className="ClawdMsg ClawdMsg-assistant">
+            <div className="ClawdBubble ClawdGatewayBanner">
+              <p className="ClawdGatewayBannerTitle">Gateway connectivity issue</p>
+              <p className="ClawdGatewayBannerDesc">
+                The gateway isn't responding. This can happen after a crash, permission change, or system sleep. Try one of these:
+              </p>
+              <div className="ClawdPromptActions">
+                <button
+                  className="ClawdPromptAction"
+                  onClick={() => handleSendWithText(GATEWAY_DIAGNOSE_PROMPT)}
+                >
+                  <span className="ClawdPromptActionNum">1</span>
+                  Diagnose the issue
+                </button>
+                <button
+                  className="ClawdPromptAction"
+                  onClick={() => handleSendWithText(GATEWAY_RESTART_PROMPT)}
+                >
+                  <span className="ClawdPromptActionNum">2</span>
+                  Restart the gateway
+                </button>
+                <button
+                  className="ClawdPromptAction"
+                  onClick={() => handleSendWithText(GATEWAY_VIEW_LOGS_PROMPT)}
+                >
+                  <span className="ClawdPromptActionNum">3</span>
+                  View error logs
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Browser-only issue banner — gateway OK but browser not responding */}
+        {health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && (
+          <div className="ClawdMsg ClawdMsg-assistant">
+            <div className="ClawdBubble ClawdGatewayBanner ClawdGatewayBanner--warn">
+              <p className="ClawdGatewayBannerTitle">Browser is not responding</p>
+              <p className="ClawdGatewayBannerDesc">
+                The gateway is running but the browser (Chrome CDP) isn't connecting. This usually resolves on its own, but if it persists:
+              </p>
+              <div className="ClawdPromptActions">
+                <button
+                  className="ClawdPromptAction"
+                  onClick={() => handleSendWithText(GATEWAY_DIAGNOSE_PROMPT)}
+                >
+                  <span className="ClawdPromptActionNum">1</span>
+                  Diagnose the issue
+                </button>
+                <button
+                  className="ClawdPromptAction"
+                  onClick={() => handleSendWithText(GATEWAY_VIEW_LOGS_PROMPT)}
+                >
+                  <span className="ClawdPromptActionNum">2</span>
+                  View error logs
                 </button>
               </div>
             </div>

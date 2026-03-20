@@ -2470,6 +2470,41 @@
   }
 }
 
+// Gateway troubleshooting banner — shown when gateway or browser is down
+.ClawdGatewayBanner {
+  background: linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%);
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 16px 20px;
+
+  &--warn {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border-color: #fde68a;
+  }
+}
+
+.ClawdGatewayBannerTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: #991b1b;
+  margin: 0 0 4px;
+
+  .ClawdGatewayBanner--warn & {
+    color: #92400e;
+  }
+}
+
+.ClawdGatewayBannerDesc {
+  font-size: 13px;
+  color: #7f1d1d;
+  margin: 0 0 14px;
+  line-height: 1.45;
+
+  .ClawdGatewayBanner--warn & {
+    color: #78350f;
+  }
+}
+
 // Channels Panel — full-height right-side drawer
 .ClawdChannelsPanel {
   @extend %ClawdDrawer;
