@@ -149610,6 +149610,9 @@ var IMessageRpcClient = class {
 			"pipe"
 		] });
 		this.child = child;
+		child.stdin?.on("error", (err) => {
+			this.failAll(err instanceof Error ? err : new Error(String(err)));
+		});
 		this.reader = createInterface({ input: child.stdout });
 		this.reader.on("line", (line) => {
 			const trimmed = line.trim();
