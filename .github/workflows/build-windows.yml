@@ -59,11 +59,13 @@ jobs:
           }
 
       - name: Install AzureSignTool
-        if: ${{ secrets.AZURE_KEY_VAULT_URI != '' }}
+        if: env.AZURE_KEY_VAULT_URI != ''
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
         run: dotnet tool install --global AzureSignTool
 
       - name: Configure Windows code signing (Azure Key Vault)
-        if: ${{ secrets.AZURE_KEY_VAULT_URI != '' }}
+        if: env.AZURE_KEY_VAULT_URI != ''
         shell: pwsh
         env:
           AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
