@@ -75,6 +75,26 @@ use console_subscriber;
 pub const KNAPSACK_DATA_DIR: &str = ".knapsack";
 pub const TRANSCRIPTS_DIR: &str = "transcripts";
 
+/// Query the primary-monitor work area on Windows (screen rect minus taskbar).
+/// Returns `(x, y, width, height)` in physical pixels, or `None` on failure /
+/// non-Windows platforms.
+#[cfg(target_os = "windows")]
+fn windows_work_area() -> Option<(i32, i32, i32, i32)> {
+  #[repr(C)]
+  struct Rect { left: i32, top: i32, right: i32, bottom: i32 }
+  extern "system" {
+    fn SystemParametersInfoW(action: u32, param: u32, pvparam: *mut Rect, winini: u32) -> i32;
+  }
+  const SPI_GETWORKAREA: u32 = 0x0030;
+  let mut rc = Rect { left: 0, top: 0, right: 0, bottom: 0 };
+  let ok = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut rc, 0) };
+  if ok != 0 {
+    Some((rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top))
+  } else {
+    None
+  }
+}
+
 const NOTIF_HEIGHT: f64 = 180.0;
 const NOTIF_WIDTH: f64 = 720.0;
 const NOTIF_Y_OFFSET: f64 = 50.0; // Push below macOS menu bar / notch
@@ -425,34 +445,52 @@ fn activate_main_window_from_notification(window: tauri::Window) {
     // Determine position and size from the notification window so the main
     // window appears to "expand" from it.
     if let Some(notification_window) = app.get_window("notification") {
-      if let (Ok(notif_pos), Ok(Some(monitor))) = (
-        notification_window.outer_position(),
-        notification_window.current_monitor(),
-      ) {
-        let screen_size = monitor.size();
-        let monitor_pos = monitor.position();
-        let scale_factor = monitor.scale_factor();
+      if let Ok(notif_pos) = notification_window.outer_position() {
+        // On Windows, use the actual work area so we never overlap the taskbar.
+        #[cfg(target_os = "windows")]
+        {
+          if let Some((_wa_x, wa_y, _wa_w, wa_h)) = windows_work_area() {
+            let scale_factor = notification_window.current_monitor()
+              .ok().flatten()
+              .map(|m| m.scale_factor())
+              .unwrap_or(1.0);
+            let wa_h_logical = wa_h as f64 / scale_factor;
 
-        // Reserve space for system UI elements:
-        // - macOS: ~25px for the menu bar at the top
-        // - Windows: ~48px for the taskbar at the bottom (default height)
-        let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
-        let bottom_margin: f64 = if cfg!(target_os = "windows") { 48.0 } else { 0.0 };
-        let logical_height = screen_size.height as f64 / scale_factor - menu_bar_height - bottom_margin;
+            let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+              width: NOTIF_WIDTH,
+              height: wa_h_logical,
+            }));
+            let _ = main_window.set_position(tauri::Position::Physical(
+              tauri::PhysicalPosition { x: notif_pos.x, y: wa_y },
+            ));
+          }
+        }
 
-        let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-          width: NOTIF_WIDTH,
-          height: logical_height,
-        }));
+        #[cfg(not(target_os = "windows"))]
+        {
+          if let Ok(Some(monitor)) = notification_window.current_monitor() {
+            let screen_size = monitor.size();
+            let monitor_pos = monitor.position();
+            let scale_factor = monitor.scale_factor();
 
-        // Align horizontally with the notification, pin below the menu bar
-        let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
-        let _ = main_window.set_position(tauri::Position::Physical(
-          tauri::PhysicalPosition {
-            x: notif_pos.x,
-            y: (y * scale_factor) as i32,
-          },
-        ));
+            // macOS: ~25px for the menu bar at the top
+            let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
+            let logical_height = screen_size.height as f64 / scale_factor - menu_bar_height;
+
+            let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+              width: NOTIF_WIDTH,
+              height: logical_height,
+            }));
+
+            let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
+            let _ = main_window.set_position(tauri::Position::Physical(
+              tauri::PhysicalPosition {
+                x: notif_pos.x,
+                y: (y * scale_factor) as i32,
+              },
+            ));
+          }
+        }
       }
     }
 
@@ -1056,45 +1094,71 @@ async fn main() {
 
       let main_window = window_builder.build()?;
 
-      // Position the window like Granola: right-aligned, below the menu bar,
-      // filling the usable screen height.  This avoids the window opening
-      // behind the macOS menu bar (y=0) where the drag region and chat input
-      // are inaccessible.
-      if let Ok(Some(monitor)) = main_window.current_monitor() {
-        let screen_size = monitor.size();
-        let monitor_pos = monitor.position();
-        let scale_factor = monitor.scale_factor();
-        let screen_width_logical = screen_size.width as f64 / scale_factor;
-        let screen_height_logical = screen_size.height as f64 / scale_factor;
+      // Position the window: right-aligned, filling the usable screen height.
+      // On Windows we query the actual work area (excludes taskbar regardless
+      // of its position/size).  On macOS we subtract the menu bar height.
+      #[cfg(target_os = "windows")]
+      {
+        if let Some((wa_x, wa_y, wa_w, wa_h)) = windows_work_area() {
+          let scale_factor = main_window.current_monitor()
+            .ok().flatten()
+            .map(|m| m.scale_factor())
+            .unwrap_or(1.0);
+          let wa_w_logical = wa_w as f64 / scale_factor;
+          let wa_h_logical = wa_h as f64 / scale_factor;
+          let window_width = 1440.0_f64.min(wa_w_logical);
 
-        // Reserve space for system UI elements:
-        // - macOS: ~25px for the menu bar at the top
-        // - Windows: ~48px for the taskbar at the bottom (default height)
-        let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
-        let bottom_margin: f64 = if cfg!(target_os = "windows") { 48.0 } else { 0.0 };
-        let usable_height = screen_height_logical - menu_bar_height - bottom_margin;
+          main_window
+            .set_size(tauri::Size::Logical(tauri::LogicalSize {
+              width: window_width,
+              height: wa_h_logical,
+            }))
+            .unwrap();
 
-        // Cap width so the window doesn't exceed the screen
-        let window_width = 1440.0_f64.min(screen_width_logical);
+          // Right-align within the work area
+          let x = wa_x as f64 + (wa_w as f64 - window_width * scale_factor);
+          main_window
+            .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+              x: x as i32,
+              y: wa_y,
+            }))
+            .unwrap();
+        } else {
+          main_window.center()?;
+        }
+      }
 
-        main_window
-          .set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: window_width,
-            height: usable_height,
-          }))
-          .unwrap();
+      #[cfg(not(target_os = "windows"))]
+      {
+        if let Ok(Some(monitor)) = main_window.current_monitor() {
+          let screen_size = monitor.size();
+          let monitor_pos = monitor.position();
+          let scale_factor = monitor.scale_factor();
+          let screen_width_logical = screen_size.width as f64 / scale_factor;
+          let screen_height_logical = screen_size.height as f64 / scale_factor;
 
-        // Right-align: x = screen_right_edge - window_width
-        let monitor_x_logical = monitor_pos.x as f64 / scale_factor;
-        let x = (monitor_x_logical + screen_width_logical - window_width).max(0.0);
-        let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
+          // macOS: ~25px for the menu bar at the top
+          let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
+          let usable_height = screen_height_logical - menu_bar_height;
+          let window_width = 1440.0_f64.min(screen_width_logical);
 
-        main_window
-          .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))
-          .unwrap();
-      } else {
-        // Fallback: just center if we can't detect the monitor
-        main_window.center()?;
+          main_window
+            .set_size(tauri::Size::Logical(tauri::LogicalSize {
+              width: window_width,
+              height: usable_height,
+            }))
+            .unwrap();
+
+          let monitor_x_logical = monitor_pos.x as f64 / scale_factor;
+          let x = (monitor_x_logical + screen_width_logical - window_width).max(0.0);
+          let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
+
+          main_window
+            .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))
+            .unwrap();
+        } else {
+          main_window.center()?;
+        }
       }
 
       // NOTE: Do NOT call set_decorations(false) on macOS — it disables
