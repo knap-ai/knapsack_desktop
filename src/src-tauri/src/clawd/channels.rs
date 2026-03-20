@@ -6,6 +6,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use crate::clawd::gateway_client;
+use crate::clawd::pairing_auto_approve;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
 /// Strip ANSI escape sequences (colours, bold, etc.) from a string.
@@ -1128,7 +1129,7 @@ pub async fn telegram_enable(
 
             let patch = if body.enabled {
                 build_enable_patch(
-                    r#"{"channels": {"telegram": {"dmPolicy": "allowlist"}}}"#,
+                    r#"{"channels": {"telegram": {"dmPolicy": "pairing"}}}"#,
                     &config_snapshot,
                 )
             } else {
@@ -1136,16 +1137,25 @@ pub async fn telegram_enable(
             };
 
             match gateway_client::config_patch(&patch, &base_hash, None).await {
-                Ok(_) => HttpResponse::Ok().json(GenericResponse {
-                    success: true,
-                    message: Some(if body.enabled {
-                        "Telegram enabled".to_string()
-                    } else {
-                        "Telegram disabled".to_string()
-                    }),
-                    configured: None,
-                    linked: None,
-                }),
+                Ok(_) => {
+                    if body.enabled {
+                        // Auto-approve the first pairing request so the device
+                        // owner doesn't need to manually run `openclaw pairing
+                        // approve`.  After approval the policy switches to
+                        // "allowlist" to block all other senders silently.
+                        pairing_auto_approve::spawn_auto_approve("telegram");
+                    }
+                    HttpResponse::Ok().json(GenericResponse {
+                        success: true,
+                        message: Some(if body.enabled {
+                            "Telegram enabled".to_string()
+                        } else {
+                            "Telegram disabled".to_string()
+                        }),
+                        configured: None,
+                        linked: None,
+                    })
+                }
                 Err(e) => {
                     log::error!("[channels] telegram_enable config.patch failed: {}", e);
                     HttpResponse::Ok().json(GenericResponse {
@@ -1208,7 +1218,7 @@ pub async fn telegram_configure(
                 "channels": {
                     "telegram": {
                         "botToken": token,
-                        "dmPolicy": "allowlist",
+                        "dmPolicy": "pairing",
                         // Grammy's default HTTP timeout is 500 seconds, which causes
                         // long-running getUpdates requests and AbortError spam in logs.
                         // 60s is generous for Telegram API calls; the polling interval
@@ -1225,6 +1235,9 @@ pub async fn telegram_configure(
             match gateway_client::config_patch(&patch, &base_hash, None).await {
                 Ok(_) => {
                     log::info!("[channels] Telegram bot token configured successfully");
+                    // Start watching for the owner's first message so we can
+                    // auto-approve and lock the channel to allowlist mode.
+                    pairing_auto_approve::spawn_auto_approve("telegram");
                     HttpResponse::Ok().json(GenericResponse {
                         success: true,
                         message: Some("Telegram configured. The bot should connect shortly.".to_string()),
@@ -1607,12 +1620,12 @@ pub async fn generic_channel_configure(
                     }
                 }
                 if !obj.contains_key("dmPolicy") {
-                    obj.insert("dmPolicy".to_string(), serde_json::json!("allowlist"));
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
                 }
             }
             _ => {
                 if !obj.contains_key("dmPolicy") {
-                    obj.insert("dmPolicy".to_string(), serde_json::json!("allowlist"));
+                    obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
                 }
             }
         }
@@ -1635,6 +1648,11 @@ pub async fn generic_channel_configure(
             match gateway_client::config_patch(&patch, &base_hash, None).await {
                 Ok(_) => {
                     log::info!("[channels] {} configured successfully", channel);
+                    // For channels using pairing mode, auto-approve the first
+                    // request so the device owner is seamlessly allowlisted.
+                    // Channels that already use allowlist (whatsapp, imessage)
+                    // won't have pairing requests, so this is a safe no-op.
+                    pairing_auto_approve::spawn_auto_approve(&channel);
                     HttpResponse::Ok().json(GenericResponse {
                         success: true,
                         message: Some(format!("{} configured. The channel should connect shortly.", channel)),
@@ -2770,7 +2788,7 @@ pub async fn channel_diagnostics() -> impl Responder {
                                     let bh = extract_base_hash(&snap);
                                     let dm_policy = match *ch_key {
                                         "imessage" => r#"{"channels":{"imessage":{"dmPolicy":"allowlist","service":"auto"}}}"#,
-                                        _ => &format!(r#"{{"channels":{{"{}": {{"dmPolicy":"allowlist"}}}}}}"#, ch_key),
+                                        _ => &format!(r#"{{"channels":{{"{}": {{"dmPolicy":"pairing"}}}}}}"#, ch_key),
                                     };
                                     match gateway_client::config_patch(dm_policy, &bh, None).await {
                                         Ok(_) => repairs.push(format!("Added channel config for '{}'", ch_key)),
