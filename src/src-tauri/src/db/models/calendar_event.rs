@@ -73,7 +73,7 @@ impl CalendarEvent {
     })
   }
 
-  pub fn get_event_participants_str(event_id: u64) -> Result<(String), Error> {
+  pub fn get_event_participants_str(event_id: u64) -> Result<String, Error> {
     let calendar_event = match CalendarEvent::find_by_id(event_id) {
       Ok(Some(calendar_event)) => calendar_event,
       Ok(None) => {
