@@ -78,9 +78,12 @@ jobs:
           echo "TAURI_WINDOWS_SIGN_COMMAND=$signCommand" >> $env:GITHUB_ENV
           Write-Host "Azure Key Vault code signing configured successfully"
 
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli@1.6.3 --locked
+
       - name: Build Tauri app
         working-directory: src
-        run: npx tauri build
+        run: cargo tauri build
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
