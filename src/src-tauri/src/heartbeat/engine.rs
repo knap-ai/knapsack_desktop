@@ -9,6 +9,11 @@ use tokio::sync::Mutex;
 
 use crate::db::models::heartbeat::{HeartbeatConfig, HeartbeatLog};
 
+/// Track recently sent notification messages to avoid repeating the same alert.
+/// Stores (message, timestamp) pairs; entries older than 4 hours are pruned.
+static RECENT_NOTIFICATIONS: once_cell::sync::Lazy<Mutex<Vec<(String, i64)>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
+
 /// The payload emitted to the frontend via Tauri event.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,8 +124,14 @@ async fn run_single_heartbeat(
     // Gather context from local APIs
     let context = gather_context(&config).await;
 
+    // Collect recent notification messages so the LLM can avoid repeats
+    let recent_msgs: Vec<String> = {
+        let recent = RECENT_NOTIFICATIONS.lock().await;
+        recent.iter().map(|(m, _)| m.clone()).collect()
+    };
+
     // Build the LLM prompt
-    let prompt = build_prompt(&context);
+    let prompt = build_prompt(&context, &recent_msgs);
 
     // Call the LLM for judgment
     let decision = call_llm_for_decision(&prompt).await;
@@ -133,22 +144,42 @@ async fn run_single_heartbeat(
         }
     };
 
-    // If notify, emit Tauri event
+    // If notify, emit Tauri event — but skip if we recently sent the same message
     if should_notify && !notification_message.is_empty() {
         let now_ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
 
-        let payload = HeartbeatNotification {
-            message: notification_message.clone(),
-            timestamp: now_ts,
+        let is_duplicate = {
+            let mut recent = RECENT_NOTIFICATIONS.lock().await;
+            // Prune entries older than 4 hours
+            let cutoff = now_ts - 4 * 3600;
+            recent.retain(|(_, ts)| *ts > cutoff);
+            // Check if this message (or very similar) was already sent
+            let msg_lower = notification_message.to_lowercase();
+            recent.iter().any(|(prev, _)| {
+                let prev_lower = prev.to_lowercase();
+                prev_lower == msg_lower || msg_lower.contains(&prev_lower) || prev_lower.contains(&msg_lower)
+            })
         };
 
-        if let Err(e) = app_handle.emit_all("heartbeat_notification", &payload) {
-            error!("[heartbeat] Failed to emit notification event: {}", e);
+        if is_duplicate {
+            info!("[heartbeat] Suppressed duplicate notification: {}", &notification_message);
         } else {
-            info!("[heartbeat] Notification emitted: {}", &notification_message);
+            let payload = HeartbeatNotification {
+                message: notification_message.clone(),
+                timestamp: now_ts,
+            };
+
+            if let Err(e) = app_handle.emit_all("heartbeat_notification", &payload) {
+                error!("[heartbeat] Failed to emit notification event: {}", e);
+            } else {
+                info!("[heartbeat] Notification emitted: {}", &notification_message);
+                // Track this notification
+                let mut recent = RECENT_NOTIFICATIONS.lock().await;
+                recent.push((notification_message.clone(), now_ts));
+            }
         }
     }
 
@@ -353,8 +384,18 @@ async fn gather_context(config: &HeartbeatConfig) -> GatheredContext {
 }
 
 /// Build the LLM assessment prompt from gathered context.
-fn build_prompt(context: &GatheredContext) -> String {
+fn build_prompt(context: &GatheredContext, recent_notifications: &[String]) -> String {
     let now_str = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
+
+    let recent_section = if recent_notifications.is_empty() {
+        String::from("(none)")
+    } else {
+        recent_notifications
+            .iter()
+            .map(|m| format!("- {}", m))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
 
     format!(
         r#"You are the user's proactive assistant at Knapsack. Your job is to surface the ONE most important, time-sensitive thing the user should know about right now.
@@ -367,6 +408,8 @@ Context:
 - Upcoming meetings today ({} total):
 {}
 - Current time: {}
+- Notifications already sent recently (DO NOT repeat these):
+{}
 
 When to notify (pick the FIRST one that applies — only mention that ONE thing):
 1. A meeting is coming up in the next 60 minutes — mention prep, who's attending
@@ -376,7 +419,7 @@ When to notify (pick the FIRST one that applies — only mention that ONE thing)
 When to stay SILENT:
 - Emails are routine, automated, or informational (Apple Developer notices, Sentry alerts, newsletters, shipping notifications, marketing, CI/CD reports, etc.) — these are NEVER worth notifying about
 - Nothing is genuinely time-sensitive or urgent right now
-- You already notified about the exact same item recently
+- You already notified about the exact same item recently — check the "Notifications already sent recently" list above. If a meeting or email has already been mentioned there, do NOT notify about it again
 - There are no upcoming meetings and no emails that require a human reply
 - The only emails are from automated systems, bots, or no-reply addresses
 
@@ -390,7 +433,8 @@ Respond with ONLY valid JSON, no markdown, no explanation:
         context.email_summary,
         context.event_count,
         context.calendar_summary,
-        now_str
+        now_str,
+        recent_section
     )
 }
 
