@@ -231,8 +231,12 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
         scopes = [...scopes, ...googleConnections[key].scopes]
       }
     }
-    openGoogleAuthScreen(scopes.join(' '))
-    setGoogleListenerTransitionIndex(index)
+    try {
+      openGoogleAuthScreen(scopes.join(' '))
+      setGoogleListenerTransitionIndex(index)
+    } catch (error) {
+      console.error('Failed to open Google auth:', error)
+    }
   }
 
   const onMicrosoftGrantClick = (index: number) => {
