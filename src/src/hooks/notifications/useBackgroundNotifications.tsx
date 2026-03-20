@@ -282,9 +282,12 @@ export function useBackgroundNotifications({
   const gatherFullContext = useCallback(async (): Promise<string> => {
     const contextParts: string[] = []
 
-    // Fetch recent emails (last 2 days, up to 15)
+    // Fetch recent emails (last 2 days, up to 15), excluding emails sent by the user
     try {
-      const emails = await dataFetcher.getRecentGmailMessages(2, 15)
+      const allEmails = await dataFetcher.getRecentGmailMessages(2, 15)
+      const emails = allEmails?.filter(
+        e => !userEmail || !e.sender?.toLowerCase().includes(userEmail.toLowerCase()),
+      )
       if (emails?.length) {
         contextParts.push('## Recent Emails\n')
         for (const email of emails.slice(0, 10)) {
@@ -353,7 +356,7 @@ export function useBackgroundNotifications({
 
     if (contextParts.length === 0) return ''
     return contextParts.join('\n')
-  }, [dataFetcher])
+  }, [dataFetcher, userEmail])
 
   /**
    * Gather email-focused context for email alert notifications.
@@ -365,9 +368,11 @@ export function useBackgroundNotifications({
         const emails = await dataFetcher.getRecentGmailMessages(1, 20)
         if (!emails?.length) return { context: '', emailCount: 0 }
 
-        // Filter to recent emails (last 6 hours)
+        // Filter to recent emails (last 6 hours) and exclude emails sent by the user
         const sixHoursAgo = Date.now() / 1000 - 6 * 3600
-        const recentEmails = emails.filter(e => e.date > sixHoursAgo)
+        const recentEmails = emails.filter(
+          e => e.date > sixHoursAgo && (!userEmail || !e.sender?.toLowerCase().includes(userEmail.toLowerCase())),
+        )
         if (!recentEmails.length) return { context: '', emailCount: 0 }
 
         const contextParts: string[] = ['## Recent Emails (Last 6 Hours)\n']
@@ -385,7 +390,7 @@ export function useBackgroundNotifications({
         return { context: '', emailCount: 0 }
       }
     },
-    [dataFetcher],
+    [dataFetcher, userEmail],
   )
 
   /**
