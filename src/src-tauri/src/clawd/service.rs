@@ -1763,6 +1763,35 @@ pub async fn set_api_key(
     }
   }
 
+  // Update agents.defaults.model in the config file so the gateway uses
+  // the correct model on restart.  Without this, a stale model (e.g.
+  // ollama/llama3.2) persists in openclaw.json even after the user
+  // switches to Claude or another provider, causing orphaned messages
+  // when the gateway tries the wrong model.
+  let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
+  if let Ok(cfg_str) = fs::read_to_string(&config_path) {
+    if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
+      let model = crate::clawd::gateway_client::resolve_default_model();
+      let agents = cfg_val
+        .as_object_mut()
+        .unwrap()
+        .entry("agents")
+        .or_insert_with(|| serde_json::json!({}));
+      let defaults = agents
+        .as_object_mut()
+        .unwrap_or(&mut serde_json::Map::new())
+        .entry("defaults")
+        .or_insert_with(|| serde_json::json!({}));
+      defaults.as_object_mut().map(|d| {
+        d.insert("model".to_string(), serde_json::json!(model));
+      });
+      if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
+        let _ = fs::write(&config_path, json);
+        eprintln!("[clawd/service] Updated agents.defaults.model to '{}' in config file", model);
+      }
+    }
+  }
+
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
     message: format!("{} API key saved successfully", provider_name),
@@ -1985,6 +2014,32 @@ pub async fn ollama_configure(
     std::env::remove_var("OLLAMA_HOST");
     if tokens.active_provider.as_deref() == Some("ollama") {
       std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+    }
+  }
+
+  // Update agents.defaults.model in the config file so the gateway uses
+  // the correct model on restart (same fix as set_api_key).
+  let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
+  if let Ok(cfg_str) = fs::read_to_string(&config_path) {
+    if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
+      let model = crate::clawd::gateway_client::resolve_default_model();
+      let agents = cfg_val
+        .as_object_mut()
+        .unwrap()
+        .entry("agents")
+        .or_insert_with(|| serde_json::json!({}));
+      let defaults = agents
+        .as_object_mut()
+        .unwrap_or(&mut serde_json::Map::new())
+        .entry("defaults")
+        .or_insert_with(|| serde_json::json!({}));
+      defaults.as_object_mut().map(|d| {
+        d.insert("model".to_string(), serde_json::json!(model));
+      });
+      if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
+        let _ = fs::write(&config_path, json);
+        eprintln!("[clawd/service] Updated agents.defaults.model to '{}' in config file", model);
+      }
     }
   }
 

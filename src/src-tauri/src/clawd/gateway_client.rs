@@ -604,7 +604,9 @@ static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
 
 /// Push browser config to a running gateway via a **temporary** WebSocket
 /// Pick the best default LLM model based on which API key is available.
-fn resolve_default_model() -> String {
+/// Public so service.rs can call the same model resolution logic when
+/// updating the config file on provider change.
+pub fn resolve_default_model() -> String {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let has_key = |var: &str| std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false);
 
@@ -853,28 +855,29 @@ async fn apply_runtime_browser_config(token: &str) {
     }
   });
 
-  // Check if agents.defaults.model is already set in the config.
+  // Always patch agents.defaults.model from the current active provider.
+  // The config file may contain a stale model (e.g. ollama) if the user
+  // switched providers without restarting the gateway.  By always including
+  // the resolved model in the runtime patch we ensure the gateway uses
+  // whatever the user selected most recently in Settings.
+  let model = resolve_default_model();
   let config_inner = cfg_val.get("config").unwrap_or(&cfg_val);
-  let has_model = config_inner
+  let existing_model = config_inner
     .pointer("/agents/defaults/model")
     .and_then(|v| match v {
-      Value::String(s) => if s.trim().is_empty() { None } else { Some(()) },
+      Value::String(s) => Some(s.as_str().to_string()),
       Value::Object(o) => o.get("primary")
         .and_then(|v| v.as_str())
-        .filter(|s| !s.trim().is_empty())
-        .map(|_| ()),
+        .map(|s| s.to_string()),
       _ => None,
-    })
-    .is_some();
-
-  if !has_model {
-    // Pick the best model based on available API keys.
-    let model = resolve_default_model();
-    patch_obj.as_object_mut().unwrap().insert(
-      "agents".to_string(),
-      serde_json::json!({"defaults": {"model": model}}),
-    );
-    eprintln!("[gateway_client] agents.defaults.model missing — adding '{}' to runtime patch", model);
+    });
+  let model_changed = existing_model.as_deref() != Some(&model);
+  patch_obj.as_object_mut().unwrap().insert(
+    "agents".to_string(),
+    serde_json::json!({"defaults": {"model": model}}),
+  );
+  if model_changed {
+    eprintln!("[gateway_client] agents.defaults.model updated: {:?} → '{}' in runtime patch", existing_model, model);
   }
 
   let raw_patch = patch_obj.to_string();
