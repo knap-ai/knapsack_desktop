@@ -269,7 +269,7 @@ fn ensure_tools_md(config_path: &std::path::Path) {
 
   let should_write = if tools_md_path.exists() {
     std::fs::read_to_string(&tools_md_path)
-      .map(|c| !c.contains("Core Principle: DO THE WORK"))
+      .map(|c| !c.contains("FALLBACK BEHAVIOR"))
       .unwrap_or(true)
   } else {
     true
