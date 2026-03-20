@@ -455,7 +455,9 @@ mod conpty {
   }
 
   pub const EXTENDED_STARTUPINFO_PRESENT: DWORD = 0x00080000;
+  pub const CREATE_NO_WINDOW: DWORD = 0x08000000;
   pub const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x00020016;
+  pub const STARTF_USESHOWWINDOW: DWORD = 0x00000001;
   pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
 
   extern "system" {
@@ -606,9 +608,12 @@ fn platform_spawn(
       return Err("UpdateProcThreadAttribute failed".into());
     }
 
-    // Prepare STARTUPINFOEXW
+    // Prepare STARTUPINFOEXW – hide the console window so cmd.exe
+    // doesn't flash on-screen; the pseudo-console handles all I/O.
     let mut si: STARTUPINFOEXW = zeroed();
     si.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as DWORD;
+    si.StartupInfo.dwFlags = STARTF_USESHOWWINDOW;
+    // wShowWindow is already 0 (SW_HIDE) from zeroed()
     si.lpAttributeList = attr_list_ptr;
 
     let mut pi: PROCESS_INFORMATION = zeroed();
@@ -630,7 +635,7 @@ fn platform_spawn(
       ptr::null(),
       ptr::null(),
       0,
-      EXTENDED_STARTUPINFO_PRESENT,
+      EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW,
       ptr::null(),
       cwd_ptr,
       &si.StartupInfo as *const _,

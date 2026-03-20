@@ -22,9 +22,12 @@ pub fn open_microphone_settings() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let output = Command::new("cmd")
             .args(["/C", "start", "ms-settings:privacy-microphone"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
 
         match output {

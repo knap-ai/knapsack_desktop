@@ -188,7 +188,10 @@ async fn ensure_gateway_best_effort(token: &str) {
 /// of how the gateway was started.
 /// Returns `true` when the on-disk config was changed (browser settings patched).
 fn ensure_browser_config() -> bool {
-  let home = match std::env::var("HOME") {
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = match std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+  {
     Ok(h) => h,
     Err(_) => return false,
   };
@@ -242,7 +245,9 @@ fn ensure_tools_md(config_path: &std::path::Path) {
     Err(_) => return,
   };
 
-  let home = match std::env::var("HOME") {
+  let home = match std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+  {
     Ok(h) => h,
     Err(_) => return,
   };
@@ -264,7 +269,7 @@ fn ensure_tools_md(config_path: &std::path::Path) {
 
   let should_write = if tools_md_path.exists() {
     std::fs::read_to_string(&tools_md_path)
-      .map(|c| !c.contains("## Shell & Code Execution"))
+      .map(|c| !c.contains("FALLBACK BEHAVIOR"))
       .unwrap_or(true)
   } else {
     true
@@ -274,52 +279,8 @@ fn ensure_tools_md(config_path: &std::path::Path) {
     return;
   }
 
-  // Same content as service.rs writes; kept in sync manually.
-  let tools_md = r#"# Tools
-
-## Cross-Channel Awareness
-
-You are running inside the **Knapsack desktop app** on the user's computer. You serve the same user across multiple channels — the desktop chat UI, Telegram, WhatsApp, and iMessage all share the same session and capabilities.
-
-**Key facts:**
-- Messages from **Telegram, WhatsApp, and iMessage** are handled by the same agent as the desktop chat — they share history and session state
-- You have access to a **real desktop browser** on the user's machine — use it to check email, calendars, web apps, etc. regardless of which channel the message came from
-- When a user messages you from Telegram asking to "check my calendar" or "look up something online", **use the browser tool** — you CAN do it
-- The browser is logged into the user's accounts (Google, Microsoft, etc.), so you can access authenticated services
-- Never say "I can't browse the web" or "I don't have access to your calendar" — you DO have access via the browser tool
-
-**Reviewing past channel conversations:**
-- To check what you've been discussing on **Telegram, WhatsApp, iMessage**, or any channel: use `sessions_list` to find sessions from that channel, then `sessions_history` to read the conversation
-- Example: if the user asks "what have we been talking about on Telegram?", use `sessions_list` with a filter for Telegram sessions, then read the history — do NOT browse to web.telegram.org or the messaging app's website
-- You already have direct access to all channel conversation history through the sessions tools — no need to use the browser for this
-
-**Channel-specific notes:**
-- **Desktop chat**: The user sees your response directly in the Knapsack app
-- **Telegram/WhatsApp/iMessage**: The user sees your response in their messaging app. Keep responses concise and mobile-friendly. You can still use the browser, run scripts, and access files — the user just won't see the browser directly
-
-## Browser Automation
-
-You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
-
-- **Check email**: Navigate to Gmail/Outlook and read/summarize
-- **Check calendar**: Navigate to Google Calendar and read upcoming events
-- **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
-- **Fill forms, click buttons, type text** on any website
-
-## Web Fetch & Web Search
-
-Use `web_fetch` to read URLs directly. Use `web_search` to find information online. Use **browser** for interactive tasks requiring login, JavaScript-heavy pages, or multi-step flows.
-
-## Shell & Code Execution
-
-You have shell access on the user's desktop machine. Use these tools to execute commands, edit files, and automate tasks:
-
-- **`exec`** — Execute shell commands (bash/zsh). Use for installing software, running CLI tools, git operations, build scripts, etc.
-- **`process`** — Manage running processes (start, stop, check status).
-- **`read`** / **`write`** / **`edit`** / **`apply_patch`** — Read, write, edit, and patch files on the local filesystem.
-
-**IMPORTANT:** When the user asks you to run a command, write code, install something, or automate a task — DO IT directly using these tools. Never tell the user to run commands themselves or say you lack shell access.
-"#;
+  // Single source of truth: tools_md_content.txt (same as service.rs uses).
+  let tools_md = include_str!("tools_md_content.txt");
   match std::fs::write(&tools_md_path, tools_md) {
     Ok(_) => eprintln!("[gateway_client] Wrote TOOLS.md at {}", tools_md_path.display()),
     Err(e) => eprintln!("[gateway_client] Failed to write TOOLS.md: {}", e),
@@ -643,18 +604,77 @@ static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
 
 /// Push browser config to a running gateway via a **temporary** WebSocket
 /// Pick the best default LLM model based on which API key is available.
-fn resolve_default_model() -> &'static str {
-  for (var, model) in [
-    ("ANTHROPIC_API_KEY", "anthropic/claude-opus-4-6"),
-    ("OPENAI_API_KEY", "openai/gpt-4o"),
-    ("GROQ_API_KEY", "groq/llama-3.3-70b-versatile"),
-    ("GEMINI_API_KEY", "google/gemini-2.0-flash"),
-  ] {
-    if std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false) {
-      return model;
+fn resolve_default_model() -> String {
+  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+  let has_key = |var: &str| std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false);
+
+  // Respect the user's active provider selection and configured model
+  match active.as_str() {
+    "openrouter" => {
+      let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+        .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+      return format!("openrouter/{}", model);
     }
+    "ollama" => {
+      let model = std::env::var("KNAPSACK_OLLAMA_MODEL")
+        .unwrap_or_else(|_| "llama3.1".to_string());
+      return format!("ollama/{}", model);
+    }
+    "anthropic" if has_key("ANTHROPIC_API_KEY") => {
+      let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+        .unwrap_or_else(|_| "claude-opus-4-6".to_string());
+      return format!("anthropic/{}", model);
+    }
+    "openai" if has_key("OPENAI_API_KEY") => {
+      let model = std::env::var("KNAPSACK_OPENAI_MODEL")
+        .unwrap_or_else(|_| "gpt-5.4".to_string());
+      return format!("openai/{}", model);
+    }
+    "groq" if has_key("GROQ_API_KEY") => {
+      let model = std::env::var("KNAPSACK_GROQ_MODEL")
+        .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+      return format!("groq/{}", model);
+    }
+    "gemini" if has_key("GEMINI_API_KEY") => {
+      let model = std::env::var("KNAPSACK_GEMINI_MODEL")
+        .unwrap_or_else(|_| "gemini-2.0-flash".to_string());
+      return format!("google/{}", model);
+    }
+    _ => {}
   }
-  "anthropic/claude-opus-4-6"
+
+  // Fallback: try providers in preference order using user's configured model
+  if has_key("ANTHROPIC_API_KEY") {
+    let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+      .unwrap_or_else(|_| "claude-opus-4-6".to_string());
+    return format!("anthropic/{}", model);
+  }
+  if has_key("OPENAI_API_KEY") {
+    let model = std::env::var("KNAPSACK_OPENAI_MODEL")
+      .unwrap_or_else(|_| "gpt-5.4".to_string());
+    return format!("openai/{}", model);
+  }
+  if has_key("GROQ_API_KEY") {
+    let model = std::env::var("KNAPSACK_GROQ_MODEL")
+      .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+    return format!("groq/{}", model);
+  }
+  if has_key("GEMINI_API_KEY") {
+    let model = std::env::var("KNAPSACK_GEMINI_MODEL")
+      .unwrap_or_else(|_| "gemini-2.0-flash".to_string());
+    return format!("google/{}", model);
+  }
+  if has_key("OPENROUTER_API_KEY") {
+    let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+      .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+    return format!("openrouter/{}", model);
+  }
+  if has_key("OLLAMA_API_KEY") {
+    let model = std::env::var("KNAPSACK_OLLAMA_MODEL")
+      .unwrap_or_else(|_| "llama3.1".to_string());
+    return format!("ollama/{}", model);
+  }
+  "anthropic/claude-opus-4-6".to_string()
 }
 
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
@@ -1343,7 +1363,10 @@ fn get_gateway_token() -> Option<String> {
     }
   }
 
-  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| ".".to_string());
   let config_candidates = [
     std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json"),
     std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json"),
@@ -1370,7 +1393,10 @@ fn get_gateway_token() -> Option<String> {
 /// Read the gateway token directly from config files, bypassing env vars.
 /// Used as a fallback when the env var token doesn't match the running gateway.
 fn read_token_from_config() -> Option<String> {
-  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| ".".to_string());
 
   // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR),
   // then standard user-level config locations.
@@ -1449,6 +1475,8 @@ fn is_transient_browser_error(err: &str) -> bool {
     || err.contains("Target closed")
     || err.contains("Browser not started")
     || err.contains("browser is not running")
+    || err.contains("Can't reach")
+    || err.contains("tab not found")
     || err.contains("CDP") && err.contains("not")
 }
 

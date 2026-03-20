@@ -551,7 +551,15 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     try {
       const res = await configureTelegram(botToken)
       if (!res.success) throw new Error(res.message ?? 'Failed to configure Telegram')
+      // Wait for the gateway to restart after config.patch, then verify
+      await new Promise(r => setTimeout(r, 2000))
       await refresh()
+      // Check if the status poll succeeded — configure can succeed but the
+      // gateway may fail to reconnect (e.g. token mismatch after restart).
+      const status = await getTelegramStatus().catch(() => null)
+      if (status && !status.success && status.message) {
+        setChannelError('telegram', status.message)
+      }
       // Auto-repair sandbox tools/model after successful connect
       triggerDiagnostics()
     } catch (e: any) {

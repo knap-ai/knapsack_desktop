@@ -236,12 +236,18 @@ impl CalendarEvent {
   }
 
   pub fn get_recent_calendar_events(limit: usize) -> Vec<CalendarEvent> {
+    // Opportunistically clean up stale events before querying
+    let _ = Self::cleanup_stale_events();
     let connection = get_db_conn();
+    let now_epoch = std::time::SystemTime::now()
+      .duration_since(std::time::UNIX_EPOCH)
+      .unwrap()
+      .as_secs() as i64;
     let mut stmt = connection
-      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE start > strftime('%s', 'now') ORDER BY start ASC LIMIT ?1")
+      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE start > ?1 ORDER BY start ASC LIMIT ?2")
       .expect("could not prepare query emails");
     let rows = stmt
-      .query_map([limit], |row| {
+      .query_map(rusqlite::params![now_epoch, limit], |row| {
         Ok((
           row.get::<_, u64>(0),
           row.get::<_, String>(1),
@@ -316,6 +322,30 @@ impl CalendarEvent {
       })?;
 
     Ok(())
+  }
+
+  /// Delete calendar events whose end time is more than 24 hours in the past.
+  /// This prevents stale events from accumulating and triggering repeat notifications.
+  pub fn cleanup_stale_events() -> Result<usize, Error> {
+    let connection = get_db_conn();
+    let cutoff = std::time::SystemTime::now()
+      .duration_since(std::time::UNIX_EPOCH)
+      .unwrap()
+      .as_secs() as i64
+      - 86400; // 24 hours ago
+    let deleted = connection
+      .execute(
+        "DELETE FROM calendar_events WHERE end IS NOT NULL AND end < ?1",
+        rusqlite::params![cutoff],
+      )
+      .map_err(|e| {
+        log::error!("Failed to cleanup stale calendar events: {:?}", e);
+        Error::KSError(format!("Failed to cleanup stale calendar events: {:?}", e))
+      })?;
+    if deleted > 0 {
+      log::info!("Cleaned up {} stale calendar events (ended before {})", deleted, cutoff);
+    }
+    Ok(deleted)
   }
 
   pub fn get_calendar_event_by_recurrence_id(recurrence_id: String) -> Vec<CalendarEvent> {

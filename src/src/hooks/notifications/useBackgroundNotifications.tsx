@@ -81,6 +81,47 @@ const KN_MORNING_BRIEFING_DATE = 'kn_morning_briefing_date'
 const KN_DAILY_NOTIFICATION_COUNT = 'kn_daily_notification_count'
 const KN_DAILY_NOTIFICATION_DATE = 'kn_daily_notification_date'
 const KN_LAST_PROACTIVE_CHECKIN = 'kn_last_proactive_checkin'
+const KN_PREPPED_MEETING_IDS = 'kn_prepped_meeting_ids'
+
+/** Load persisted prepped-meeting IDs from localStorage, pruning any older than 7 days. */
+function loadPreppedMeetingIds(): Set<string> {
+  try {
+    const stored = localStorage.getItem(KN_PREPPED_MEETING_IDS)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed)) {
+        // Each entry is { id, ts } where ts is when it was added
+        const now = Date.now()
+        const sevenDays = 7 * 24 * 60 * 60 * 1000
+        const valid = parsed.filter(
+          (e: { id: string; ts: number }) => now - e.ts < sevenDays,
+        )
+        // Re-save pruned list
+        localStorage.setItem(KN_PREPPED_MEETING_IDS, JSON.stringify(valid))
+        return new Set<string>(valid.map((e: { id: string }) => e.id))
+      }
+    }
+  } catch {
+    // ignore corrupt data
+  }
+  return new Set<string>()
+}
+
+/** Persist a meeting ID to the prepped set in localStorage. */
+function persistPreppedMeetingId(meetingKey: string) {
+  try {
+    const stored = localStorage.getItem(KN_PREPPED_MEETING_IDS)
+    const entries: { id: string; ts: number }[] = stored
+      ? JSON.parse(stored)
+      : []
+    if (!entries.some(e => e.id === meetingKey)) {
+      entries.push({ id: meetingKey, ts: Date.now() })
+    }
+    localStorage.setItem(KN_PREPPED_MEETING_IDS, JSON.stringify(entries))
+  } catch {
+    // ignore
+  }
+}
 
 export function useBackgroundNotifications({
   userEmail,
@@ -93,7 +134,7 @@ export function useBackgroundNotifications({
   const pendingInsightRef = useRef<BackgroundNotificationResult | null>(null)
   const pendingFollowupRef = useRef<BackgroundNotificationResult | null>(null)
   const lastNotificationTimeRef = useRef<number>(0)
-  const preppedMeetingIdsRef = useRef<Set<string>>(new Set())
+  const preppedMeetingIdsRef = useRef<Set<string>>(loadPreppedMeetingIds())
   const processingLockRef = useRef<boolean>(false)
   const channelsAttachedRef = useRef<boolean | null>(null)
 
@@ -570,17 +611,26 @@ export function useBackgroundNotifications({
       const upcomingMeetings = await dataFetcher.getRecentCalendarEvents()
       if (!upcomingMeetings?.length) return
 
+      const now = new Date()
+
+      // Filter out any events that have already started (safety guard for stale data)
+      const futureOnly = upcomingMeetings.filter(
+        m => new Date(m.start) > now,
+      )
+      if (!futureOnly.length) return
+
       let meetingNeedingPrep
       if (force) {
-        // When forced, pick the next upcoming meeting regardless of time window
-        meetingNeedingPrep = upcomingMeetings[0]
+        // When forced, pick the next upcoming future meeting regardless of time window
+        const meetingKey = futureOnly[0].eventId || String(futureOnly[0].id)
+        const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
+        meetingNeedingPrep = notAlreadyPrepped ? futureOnly[0] : undefined
       } else {
-        const now = new Date()
         const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000)
         const fifteenMinFromNow = new Date(now.getTime() + 15 * 60 * 1000)
 
         // Find meetings starting in the next 15-30 minutes with multiple attendees
-        meetingNeedingPrep = upcomingMeetings.find(meeting => {
+        meetingNeedingPrep = futureOnly.find(meeting => {
           const meetingStart = new Date(meeting.start)
           const hasMultipleAttendees = (meeting.participants?.length || 0) >= 2
           const isInWindow =
@@ -602,6 +652,7 @@ export function useBackgroundNotifications({
       const meetingKey =
         meetingNeedingPrep.eventId || String(meetingNeedingPrep.id)
       preppedMeetingIdsRef.current.add(meetingKey)
+      persistPreppedMeetingId(meetingKey)
 
       const context = await gatherMeetingPrepContext(meetingNeedingPrep)
 

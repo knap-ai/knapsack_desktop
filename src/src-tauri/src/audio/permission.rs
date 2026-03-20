@@ -46,11 +46,14 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         // Windows doesn't have a separate "screen recording" permission.
         // Open the general privacy settings.
         let output = Command::new("cmd")
             .args(["/C", "start", "ms-settings:privacy-microphone"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
 
         match output {

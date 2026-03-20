@@ -200,14 +200,31 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   if chrome.unwrap_or(false) {
     "chrome"
   } else {
-    "knapsack"
+    "openclaw"
   }
 }
 
-/// Open a URL in the system Chrome/Chromium browser instead of the OS default
-/// browser.  Falls back to the system default only if no Chrome-family browser
+/// Determine the user-data-dir for the isolated "openclaw" browser profile.
+/// This keeps the fallback browser separate from the user's personal profile.
+fn openclaw_user_data_dir() -> PathBuf {
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| {
+      if cfg!(target_os = "windows") { r"C:\Users\Default".to_string() }
+      else { "/tmp".to_string() }
+    });
+  PathBuf::from(&home).join(".openclaw").join("browser-profiles").join("openclaw")
+}
+
+/// Open a URL in the system Chrome/Chromium browser using the isolated
+/// "openclaw" user data directory so it never hijacks the user's personal
+/// profile.  Falls back to the system default only if no Chrome-family browser
 /// can be found.
 fn open_url_in_chrome(url: &str) -> Result<(), String> {
+  let user_data_dir = openclaw_user_data_dir();
+  let _ = std::fs::create_dir_all(&user_data_dir);
+  let udd_arg = format!("--user-data-dir={}", user_data_dir.to_string_lossy());
+
   #[cfg(target_os = "macos")]
   {
     // Try Chrome → Brave → Edge → Chromium in order of preference.
@@ -220,6 +237,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
     for browser in browsers {
       if Path::new(browser).exists() {
         return std::process::Command::new(browser)
+          .arg(&udd_arg)
           .arg(url)
           .spawn()
           .map(|_| ())
@@ -230,7 +248,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
 
   #[cfg(target_os = "windows")]
   {
-    // Try well-known Chrome install locations on Windows.
+    // Try Chrome → Brave → Edge in well-known Windows install locations.
     let program_files = std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
     let program_files_x86 = std::env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
     let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
@@ -238,14 +256,20 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
       format!(r"{}\Google\Chrome\Application\chrome.exe", program_files),
       format!(r"{}\Google\Chrome\Application\chrome.exe", program_files_x86),
       format!(r"{}\Google\Chrome\Application\chrome.exe", local_appdata),
+      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", program_files),
+      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", program_files_x86),
+      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", local_appdata),
+      format!(r"{}\Microsoft\Edge\Application\msedge.exe", program_files),
+      format!(r"{}\Microsoft\Edge\Application\msedge.exe", program_files_x86),
     ];
     for browser in &candidates {
       if Path::new(browser).exists() {
         return std::process::Command::new(browser)
+          .arg(&udd_arg)
           .arg(url)
           .spawn()
           .map(|_| ())
-          .map_err(|e| format!("Failed to launch Chrome: {}", e));
+          .map_err(|e| format!("Failed to launch {}: {}", browser, e));
       }
     }
   }
@@ -257,6 +281,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
       if let Ok(output) = std::process::Command::new("which").arg(bin).output() {
         if output.status.success() {
           return std::process::Command::new(bin)
+            .arg(&udd_arg)
             .arg(url)
             .spawn()
             .map(|_| ())
@@ -1685,7 +1710,11 @@ pub async fn chat(
             let msg = e.to_string();
             let is_transient = msg.contains("onnection refused")
               || msg.contains("extension not connected")
-              || msg.contains("Extension not connected");
+              || msg.contains("Extension not connected")
+              || msg.contains("Can't reach")
+              || msg.contains("tab not found")
+              || msg.contains("not running")
+              || msg.contains("not ready");
             if is_transient && attempt < 1 {
               eprintln!("[clawd/chat] list_tabs attempt {} failed ({}), retrying...", attempt + 1, msg);
               tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
@@ -1722,7 +1751,10 @@ pub async fn chat(
               || last_err.contains("Extension not connected")
               || last_err.contains("No pages available")
               || last_err.contains("no tab is connected")
-              || last_err.contains("tab not found");
+              || last_err.contains("tab not found")
+              || last_err.contains("Can't reach")
+              || last_err.contains("not running")
+              || last_err.contains("not ready");
             if is_transient && attempt < 2 {
               eprintln!("[clawd/chat] snapshot attempt {} failed ({}), retrying...", attempt + 1, last_err);
               tokio::time::sleep(std::time::Duration::from_millis(1500 * (attempt as u64 + 1))).await;

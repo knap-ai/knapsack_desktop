@@ -27,8 +27,11 @@ fn windows_log_path(stream: &str) -> PathBuf {
 /// On Windows, kill a process listening on the given TCP port.
 #[cfg(target_os = "windows")]
 fn kill_process_on_port(port: u16) {
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
   let output = std::process::Command::new("netstat")
     .args(["-ano", "-p", "tcp"])
+    .creation_flags(CREATE_NO_WINDOW)
     .output();
   if let Ok(out) = output {
     let text = String::from_utf8_lossy(&out.stdout);
@@ -40,6 +43,7 @@ fn kill_process_on_port(port: u16) {
               eprintln!("[clawd/service] killing process on port {} (pid {})", port, pid);
               let _ = std::process::Command::new("taskkill")
                 .args(["/PID", &pid.to_string(), "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .status();
             }
           }
@@ -53,8 +57,11 @@ fn kill_process_on_port(port: u16) {
 #[cfg(target_os = "windows")]
 fn is_pid_alive(pid: u32) -> bool {
   if pid == 0 { return false; }
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
   std::process::Command::new("tasklist")
     .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+    .creation_flags(CREATE_NO_WINDOW)
     .output()
     .map(|o| {
       let out = String::from_utf8_lossy(&o.stdout);
@@ -457,6 +464,14 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw_token.trim());
     std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw_token.trim());
   }
+
+  // Set OPENCLAW_HOME so gateway_client can find the config file for
+  // token sync and browser config patching (especially important on
+  // Windows where HOME is not set).
+  let home = app_clawdbot_home(app_handle);
+  let home_str = home.to_string_lossy().to_string();
+  std::env::set_var("OPENCLAW_HOME", &home_str);
+  std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
 }
 
 /// Allowlist of environment variable names that extra_provider_keys may set.
@@ -2516,7 +2531,7 @@ async fn prepare_gateway_config(
   let tools_md_path = workspace_path.join("TOOLS.md");
   let should_write_tools_md = if tools_md_path.exists() {
     fs::read_to_string(&tools_md_path)
-      .map(|content| !content.contains("## Shell & Command Execution"))
+      .map(|content| !content.contains("FALLBACK BEHAVIOR"))
       .unwrap_or(true)
   } else {
     true
@@ -2602,14 +2617,29 @@ async fn prepare_gateway_config(
     }),
   ];
 
-  // On Windows, also set USERPROFILE and APPDATA for Node.js compatibility
+  // On Windows, propagate critical system env vars.  The gateway child process
+  // receives ONLY the env vars we pass (`.envs()` replaces the environment).
+  // Without these the Node.js gateway can't find Chrome, create temp files,
+  // or perform TLS/crypto operations.
   if cfg!(target_os = "windows") {
     env.push(("USERPROFILE".to_string(), user_home));
-    if let Ok(appdata) = std::env::var("APPDATA") {
-      env.push(("APPDATA".to_string(), appdata));
-    }
-    if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
-      env.push(("LOCALAPPDATA".to_string(), localappdata));
+    // These are required for Chrome detection, temp dirs, TLS, and subprocesses
+    let windows_vars = [
+      "APPDATA", "LOCALAPPDATA",
+      "PROGRAMFILES", "PROGRAMFILES(X86)", "ProgramW6432",
+      "SystemRoot", "SystemDrive",
+      "TEMP", "TMP",
+      "COMSPEC",
+      "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
+      "PATHEXT",
+      "HOMEDRIVE", "HOMEPATH",
+    ];
+    for var in &windows_vars {
+      if let Ok(val) = std::env::var(var) {
+        if !val.is_empty() {
+          env.push((var.to_string(), val));
+        }
+      }
     }
   }
 
@@ -2660,6 +2690,40 @@ async fn prepare_gateway_config(
       }
     }
   }
+  // Propagate OpenRouter key
+  if let Some(k) = tokens.openrouter_api_key.clone() {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      std::env::set_var("OPENROUTER_API_KEY", &k);
+      env.push(("OPENROUTER_API_KEY".to_string(), k));
+    }
+  }
+
+  // Propagate active provider and model overrides so the gateway uses the
+  // correct provider/model the user selected in the UI.
+  if let Some(p) = tokens.active_provider.clone() {
+    let p = p.trim().to_string();
+    if !p.is_empty() {
+      std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", &p);
+      env.push(("KNAPSACK_ACTIVE_PROVIDER".to_string(), p));
+    }
+  }
+  if let Some(m) = tokens.openai_model.clone() {
+    env.push(("KNAPSACK_OPENAI_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.anthropic_model.clone() {
+    env.push(("KNAPSACK_ANTHROPIC_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.gemini_model.clone() {
+    env.push(("KNAPSACK_GEMINI_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.groq_model.clone() {
+    env.push(("KNAPSACK_GROQ_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.openrouter_model.clone() {
+    env.push(("KNAPSACK_OPENROUTER_MODEL".to_string(), m));
+  }
+
   if let Some(extra) = &tokens.extra_provider_keys {
     for (env_var, key) in extra {
       let key = key.trim().to_string();
@@ -2670,13 +2734,20 @@ async fn prepare_gateway_config(
     }
   }
 
-  // Set gateway token in current process
+  // Set gateway token and state dir in current Tauri process so that
+  // gateway_client (ensure_browser_config, read_token_from_config, etc.)
+  // can locate the config file and resolve the auth token.
   {
     let gw = tokens.gateway_token.trim();
     if !gw.is_empty() {
       std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
       std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw);
     }
+  }
+  {
+    let home_str = app_clawdbot_home(app_handle).to_string_lossy().to_string();
+    std::env::set_var("OPENCLAW_HOME", &home_str);
+    std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
   }
 
   // Set browser base_url
@@ -2836,9 +2907,14 @@ pub async fn set_service_enabled(
       let pid = GATEWAY_PID.load(Ordering::Relaxed);
       if pid > 0 {
         eprintln!("[clawd/service] Killing gateway process (pid {})", pid);
-        let _ = std::process::Command::new("taskkill")
-          .args(["/PID", &pid.to_string(), "/F", "/T"])
-          .status();
+        {
+          use std::os::windows::process::CommandExt;
+          const CREATE_NO_WINDOW: u32 = 0x08000000;
+          let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/F", "/T"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+        }
         GATEWAY_PID.store(0, Ordering::Relaxed);
       }
       // Also kill by port as fallback
@@ -3480,103 +3556,14 @@ pub async fn set_service_enabled(
       // Write TOOLS.md if it doesn't exist or if it's missing key sections.
       let should_write_tools_md = if tools_md_path.exists() {
         fs::read_to_string(&tools_md_path)
-          .map(|content| !content.contains("## Shell & Command Execution"))
+          .map(|content| !content.contains("FALLBACK BEHAVIOR"))
           .unwrap_or(true)
       } else {
         true
       };
       if should_write_tools_md {
-        let tools_md_content = r#"# Tools
-
-## Cross-Channel Awareness
-
-You are running inside the **Knapsack desktop app** on the user's computer. You serve the same user across multiple channels — the desktop chat UI, Telegram, WhatsApp, and iMessage all share the same session and capabilities.
-
-**Key facts:**
-- Messages from **Telegram, WhatsApp, and iMessage** are handled by the same agent as the desktop chat — they share history and session state
-- You have access to a **real desktop browser** on the user's machine — use it to check email, calendars, web apps, etc. regardless of which channel the message came from
-- When a user messages you from Telegram asking to "check my calendar" or "look up something online", **use the browser tool** — you CAN do it
-- The browser is logged into the user's accounts (Google, Microsoft, etc.), so you can access authenticated services
-- Never say "I can't browse the web" or "I don't have access to your calendar" — you DO have access via the browser tool
-
-**Reviewing past channel conversations:**
-- To check what you've been discussing on **Telegram, WhatsApp, iMessage**, or any channel: use `sessions_list` to find sessions from that channel, then `sessions_history` to read the conversation
-- Example: if the user asks "what have we been talking about on Telegram?", use `sessions_list` with a filter for Telegram sessions, then read the history — do NOT browse to web.telegram.org or the messaging app's website
-- You already have direct access to all channel conversation history through the sessions tools — no need to use the browser for this
-
-**Channel-specific notes:**
-- **Desktop chat**: The user sees your response directly in the Knapsack app
-- **Telegram/WhatsApp/iMessage**: The user sees your response in their messaging app. Keep responses concise and mobile-friendly. You can still use the browser, run scripts, and access files — the user just won't see the browser directly
-
-## Images & Photos
-
-When a user sends you a photo or image, you can see it. The image is automatically loaded and visible to you. Describe what you see, answer questions about it, or use it in context.
-
-## Web Fetch
-
-You have a `web_fetch` tool that can fetch and read the content of any URL. Use it when the user asks you to:
-- Look up information on a website
-- Read an article, blog post, or documentation page
-- Check a specific URL for content
-- Get data from a public API
-
-Just call the tool with the URL and you'll get the page content back as markdown.
-
-## Web Search
-
-You have a `web_search` tool for searching the internet. Use it when the user asks you to:
-- Research a topic
-- Find current information, news, or events
-- Look up facts, prices, or availability
-- Find answers to questions you're unsure about
-
-## Browser Automation
-
-You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
-
-- **Check email**: Navigate to https://mail.google.com (or Outlook, etc.) and read/summarize
-- **Check calendar**: Navigate to https://calendar.google.com and read upcoming events
-- **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
-- **Fill forms, click buttons, type text** on any website
-
-### When to use browser vs web_fetch
-
-- Use **web_fetch** for simple page reads (articles, docs, public pages)
-- Use **browser** for interactive tasks requiring login, forms, JavaScript-heavy pages, or multi-step flows
-
-### Quick access URLs
-
-- Gmail: https://mail.google.com
-- Google Calendar: https://calendar.google.com
-- Google Drive: https://drive.google.com
-- GitHub: https://github.com
-- LinkedIn: https://www.linkedin.com
-
-### Workflow
-
-1. Navigate to the relevant website
-2. Take a snapshot to see the page content
-3. Interact with elements (click, type) as needed
-4. Read and summarize the results for the user
-
-## File Operations
-
-You can read and write local files, list directories, and search for files.
-
-## Script Execution
-
-You can run Python scripts for calculations, data processing, and file transformations.
-
-## Shell & Command Execution
-
-You have full shell access on the user's machine. Use the `exec` tool to run any shell command — bash, git, npm, pip, curl, etc. Use the `process` tool to manage long-running processes.
-
-**IMPORTANT:** When the user asks you to run a command, install something, write code, or automate a task — DO IT directly using these tools. Never tell the user to run commands themselves or say you lack shell access. You ARE the agent — act on their behalf.
-
-## Scheduling
-
-You can create, list, and cancel scheduled tasks (cron jobs).
-"#;
+        // Single source of truth: tools_md_content.txt
+        let tools_md_content = include_str!("tools_md_content.txt");
         match fs::write(&tools_md_path, tools_md_content) {
           Ok(_) => eprintln!("[clawd/service] Created workspace TOOLS.md at {}", tools_md_path.display()),
           Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
@@ -3721,6 +3708,40 @@ You can create, list, and cancel scheduled tasks (cron jobs).
         }
       }
 
+      // Propagate OpenRouter key
+      if let Some(k) = tokens.openrouter_api_key.clone() {
+        let k = k.trim().to_string();
+        if !k.is_empty() {
+          std::env::set_var("OPENROUTER_API_KEY", &k);
+          env.push(("OPENROUTER_API_KEY".to_string(), k));
+        }
+      }
+
+      // Propagate active provider and model overrides so the gateway uses the
+      // correct provider/model the user selected in the UI.
+      if let Some(p) = tokens.active_provider.clone() {
+        let p = p.trim().to_string();
+        if !p.is_empty() {
+          std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", &p);
+          env.push(("KNAPSACK_ACTIVE_PROVIDER".to_string(), p));
+        }
+      }
+      if let Some(m) = tokens.openai_model.clone() {
+        env.push(("KNAPSACK_OPENAI_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.anthropic_model.clone() {
+        env.push(("KNAPSACK_ANTHROPIC_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.gemini_model.clone() {
+        env.push(("KNAPSACK_GEMINI_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.groq_model.clone() {
+        env.push(("KNAPSACK_GROQ_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.openrouter_model.clone() {
+        env.push(("KNAPSACK_OPENROUTER_MODEL".to_string(), m));
+      }
+
       // Propagate extra provider keys (MiniMax, ZAI/GLM, HuggingFace, etc.)
       if let Some(extra) = &tokens.extra_provider_keys {
         for (env_var, key) in extra {
@@ -3741,6 +3762,13 @@ You can create, list, and cancel scheduled tasks (cron jobs).
           std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
           std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw);
         }
+      }
+      // Also set OPENCLAW_HOME in Tauri process so gateway_client can find
+      // the config file for token sync and browser config patching.
+      {
+        let home_str = clawdbot_home.to_string_lossy().to_string();
+        std::env::set_var("OPENCLAW_HOME", &home_str);
+        std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
       }
 
       let plist = generate_plist(&program_args, &env);
@@ -3926,8 +3954,11 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
   // Kill the current gateway process
   let pid = GATEWAY_PID.load(Ordering::Relaxed);
   if pid > 0 {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
     let _ = std::process::Command::new("taskkill")
       .args(["/PID", &pid.to_string(), "/F", "/T"])
+      .creation_flags(CREATE_NO_WINDOW)
       .status();
     GATEWAY_PID.store(0, Ordering::Relaxed);
   }
@@ -3945,6 +3976,31 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
   // No-op on other platforms
+}
+
+/// Kill the gateway process and any child processes before the app exits.
+/// Called from the quit handler so orphaned processes don't linger.
+#[cfg(target_os = "windows")]
+pub fn cleanup_gateway_on_exit() {
+  use std::os::windows::process::CommandExt;
+  use std::sync::atomic::Ordering;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+  let pid = GATEWAY_PID.load(Ordering::Relaxed);
+  if pid > 0 {
+    eprintln!("[clawd/service] Cleaning up gateway process (pid {}) on exit", pid);
+    let _ = std::process::Command::new("taskkill")
+      .args(["/PID", &pid.to_string(), "/F", "/T"])
+      .creation_flags(CREATE_NO_WINDOW)
+      .status();
+    GATEWAY_PID.store(0, Ordering::Relaxed);
+  }
+  kill_process_on_port(18789);
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn cleanup_gateway_on_exit() {
+  // On macOS, launchd manages the gateway; on Linux, no-op.
 }
 
 // --- Skills API endpoint (static catalog) ---

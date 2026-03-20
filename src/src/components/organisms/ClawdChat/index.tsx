@@ -4754,7 +4754,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 </button>
                 <div className="ClawdAccordionBody">
                   <div className="ClawdAccordionActions">
-                    {channelStatus.telegram?.configured ? (
+                    {channelStatus.channelErrors?.telegram ? (
+                      <div className="ClawdChannelCardStatus ClawdChannelCardStatus--error" title={channelStatus.channelErrors.telegram}>Gateway error — try restarting the service</div>
+                    ) : channelStatus.telegram?.configured ? (
                       <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
                     ) : channelStatus.telegram?.enabled ? (
                       <div className="ClawdChannelCardStatus">Enabled — needs bot token</div>
