@@ -193,16 +193,40 @@ fn resolve_default_model() -> String {
                 .unwrap_or_else(|_| "llama3.1".to_string());
             return format!("ollama/{}", model);
         }
-        "anthropic" if has_key("ANTHROPIC_API_KEY") => return "anthropic/claude-opus-4-6".to_string(),
-        "openai" if has_key("OPENAI_API_KEY") => return "openai/gpt-4o".to_string(),
-        "groq" if has_key("GROQ_API_KEY") => return "groq/llama-3.3-70b-versatile".to_string(),
-        "gemini" if has_key("GEMINI_API_KEY") => return "google/gemini-2.0-flash".to_string(),
+        "anthropic" if has_key("ANTHROPIC_API_KEY") => {
+            let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+                .unwrap_or_else(|_| "claude-opus-4-6".to_string());
+            return format!("anthropic/{}", model);
+        }
+        "openai" if has_key("OPENAI_API_KEY") => {
+            let model = std::env::var("KNAPSACK_OPENAI_MODEL")
+                .unwrap_or_else(|_| "gpt-5.4".to_string());
+            return format!("openai/{}", model);
+        }
+        "groq" if has_key("GROQ_API_KEY") => {
+            let model = std::env::var("KNAPSACK_GROQ_MODEL")
+                .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+            return format!("groq/{}", model);
+        }
+        "gemini" if has_key("GEMINI_API_KEY") => {
+            let model = std::env::var("KNAPSACK_GEMINI_MODEL")
+                .unwrap_or_else(|_| "gemini-2.0-flash".to_string());
+            return format!("google/{}", model);
+        }
         _ => {}
     }
 
     // Fallback: try providers in preference order
-    if has_key("ANTHROPIC_API_KEY") { return "anthropic/claude-opus-4-6".to_string(); }
-    if has_key("OPENAI_API_KEY") { return "openai/gpt-4o".to_string(); }
+    if has_key("ANTHROPIC_API_KEY") {
+        let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+            .unwrap_or_else(|_| "claude-opus-4-6".to_string());
+        return format!("anthropic/{}", model);
+    }
+    if has_key("OPENAI_API_KEY") {
+        let model = std::env::var("KNAPSACK_OPENAI_MODEL")
+            .unwrap_or_else(|_| "gpt-5.4".to_string());
+        return format!("openai/{}", model);
+    }
     if has_key("GROQ_API_KEY") { return "groq/llama-3.3-70b-versatile".to_string(); }
     if has_key("GEMINI_API_KEY") { return "google/gemini-2.0-flash".to_string(); }
     if has_key("OPENROUTER_API_KEY") {
