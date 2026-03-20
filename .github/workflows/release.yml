@@ -209,6 +209,20 @@ jobs:
             Write-Host "Cleared stale bundle artifacts"
           }
 
+      - name: Import Windows code signing certificate
+        if: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          $pfxPath = Join-Path $env:RUNNER_TEMP "certificate.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $signCommand = "signtool sign /f `"$pfxPath`" /p `"$env:WINDOWS_CERTIFICATE_PASSWORD`" /fd SHA256 /t http://timestamp.comodoca.com `"%1`""
+          echo "TAURI_WINDOWS_SIGN_COMMAND=$signCommand" >> $env:GITHUB_ENV
+          Write-Host "Windows code signing certificate imported successfully"
+
       - name: Build Tauri app
         working-directory: src
         run: npx tauri build
