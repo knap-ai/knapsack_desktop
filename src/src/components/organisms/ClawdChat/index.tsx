@@ -3573,9 +3573,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         // Try gateway agent-chat first (shared session with Telegram/WhatsApp/iMessage),
         // fall back to direct chat if gateway is unavailable.
-        // Use a 90-second timeout so we don't hang forever if the gateway agent is stuck
-        // (e.g. browser tool blocked by deny list).  The user's abort controller also
-        // cancels the request if they navigate away.
+        // Use a 300-second timeout to match the backend's gateway RPC timeout.
+        // A shorter timeout (e.g. 90s) causes the frontend to fall back to direct
+        // chat while the gateway is still processing, which leaves an orphaned user
+        // message in the gateway session (the gateway committed the user turn but
+        // hasn't produced the assistant response yet).  The user's abort controller
+        // also cancels the request if they click Stop.
         // Skip gateway when there are attachments — the gateway protocol only
         // carries a text message string and cannot forward images/files.
         // Go straight to direct /api/clawd/chat which has full vision support.
@@ -3584,9 +3587,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
         const agentTimerId = agentTimeout ? setTimeout(() => {
-          console.warn('[chat] agent-chat timed out after 90s, falling back to direct chat')
+          console.warn('[chat] agent-chat timed out after 300s, falling back to direct chat')
           agentTimeout.abort()
-        }, 90_000) : null
+        }, 300_000) : null
         // Combine user abort + timeout abort
         const agentSignal = agentTimeout
           ? (typeof AbortSignal !== 'undefined' && 'any' in AbortSignal
@@ -3626,7 +3629,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           if (agentTimerId) clearTimeout(agentTimerId)
           // Only re-throw if this was the USER's abort (not our timeout)
           if (agentErr.name === 'AbortError' && controller.signal.aborted) throw agentErr
-          // Timeout or other error — fall back to direct chat
+          // If this was our timeout abort, the gateway already has the user
+          // message committed to its session.  Falling back to direct chat
+          // would send the same message through a separate path, leaving an
+          // orphaned user turn in the gateway session.  Show an error instead.
+          if (agentErr.name === 'AbortError' && agentTimeout?.signal.aborted) {
+            console.warn('[chat] agent-chat timed out — not falling back to direct chat to avoid orphaned gateway message')
+            throw new Error('The request timed out. The agent may still be processing — please try again in a moment.')
+          }
+          // Non-timeout error (network failure, gateway down) — safe to fall
+          // back because the gateway never received the message.
           console.warn('[chat] Gateway agent-chat unavailable, using direct chat:', agentErr.message)
           useDirectChat = true
         }
