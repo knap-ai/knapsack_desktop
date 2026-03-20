@@ -383,6 +383,7 @@ Rules:
 - Only mention emails that genuinely need a response from a real person. Skip newsletters, automated emails, FYI messages.
 - Reference specific names, subjects, and times from the context
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
@@ -434,6 +435,7 @@ Rules:
 - Focus exclusively on the single most urgent email from a real person who needs a reply
 - Include sender name and subject in your analysis
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
@@ -474,6 +476,7 @@ Rules:
 - Suggest concrete talking points based on available context
 - If you have relevant email threads with attendees, summarize them briefly
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
@@ -511,6 +514,7 @@ Rules:
 - Action items should have clear owners and deadlines when mentioned
 - If email follow-ups are needed, draft brief outlines of what they should say
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
 - The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate - only reference what's in the transcript

@@ -60,10 +60,13 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
       break
     }
 
-    // Check for "](knapsack://prompt/" or "](knapsack://prompt=" immediately after "]"
+    // Check for "](knapsack://prompt/" or "](knapsack://prompt=" after "]"
+    // Allow optional whitespace/newlines between "]" and "("
     const afterBracket = md.slice(bracketClose + 1)
-    // Must start with "(" then a prompt marker
-    const markerContent = afterBracket.startsWith('(') ? afterBracket.slice(1) : ''
+    const wsMatch = afterBracket.match(/^(\s*)\(/)
+    const wsLen = wsMatch ? wsMatch[1].length : -1
+    // Must start with optional whitespace + "(" then a prompt marker
+    const markerContent = wsLen >= 0 ? afterBracket.slice(wsLen + 1) : ''
     const matchedMarker = matchPromptMarker(markerContent)
     if (!matchedMarker) {
       // Not a prompt link — emit the bracket and continue
@@ -76,7 +79,7 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
     const label = md.slice(bracketOpen + 1, bracketClose)
 
     // Find the closing ")" with balanced parentheses
-    const parenStart = bracketClose + 1 // position of "("
+    const parenStart = bracketClose + 1 + wsLen // position of "(" (skip any whitespace)
     let depth = 0
     let j = parenStart
     let parenEnd = -1
@@ -109,6 +112,12 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
       prompt = prompt.slice(0, -1)
     }
 
+    // If the prompt contains raw tool calls (send_email(...), run_command(...), etc.)
+    // or raw HTML tags, convert to a clean natural-language instruction using the label.
+    if (/<[a-z]+[>\s/]/.test(prompt) || /^(send_email|run_command|navigate|click|type)\s*\(/.test(prompt)) {
+      prompt = label
+    }
+
     actions.push({ label, prompt })
     // Don't insert inline text — actions render as clickable buttons below the message
     i = parenEnd + 1
@@ -133,6 +142,12 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
       }
     }
   }
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+
+  // Safety net: if cleaned text still contains raw knapsack://prompt links that
+  // weren't extracted (e.g., malformed markdown), strip those lines entirely.
+  cleaned = cleaned.replace(/\[([^\]]*)\]\s*\(knapsack:\/\/prompt[^)]*\)/g, '').trim()
+  cleaned = cleaned.replace(/knapsack:\/\/prompt\S*/g, '').trim()
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
 
   return { cleaned, actions }

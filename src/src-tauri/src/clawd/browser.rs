@@ -3400,6 +3400,14 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
 - They should be things the USER would initiate, not things YOU should be doing right now
 - If you find yourself wanting to present action prompts for things you could do — STOP and just DO them instead
 
+**CRITICAL — Prompt content must be NATURAL LANGUAGE:**
+- NEVER put raw tool calls inside prompt links (e.g., `send_email(to=..., body=...)` is WRONG)
+- NEVER put HTML tags inside prompt links (e.g., `<p>`, `<ul>`, `<li>` is WRONG)
+- NEVER put code or function calls inside prompt links
+- Prompt text must be a plain English instruction, like "Draft a reply to Sarah about the budget"
+- WRONG: `[Draft Email](knapsack://prompt/send_email(to="x@y.com", body="<p>Hi</p>"))`
+- RIGHT: `[Draft Email to Sarah](knapsack://prompt/Draft a reply to Sarah about the Q3 budget, confirming the timeline)`
+
 **When NOT to use action prompts:**
 - NEVER use them to present "options" for what you should do next (just do it all)
 - NEVER use them mid-task as a way to check in with the user
