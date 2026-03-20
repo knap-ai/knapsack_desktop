@@ -1977,8 +1977,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       const data = await res.json()
       if (data.text && data.text.trim()) {
-        // Auto-send the transcribed text directly via doSend
-        doSendRef.current?.(data.text)
+        // Auto-send the transcribed text — queues if chat is busy mid-inference
+        handleSendWithTextRef.current?.(data.text)
       }
     } catch (e: any) {
       pushAssistantRef.current?.(`🎤 Transcription failed: ${e?.message || String(e)}`)
@@ -2872,19 +2872,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // When the user clicks the primary action button on a notification,
   // the handler pushes the analysis to chat and then dispatches this event
   // to auto-execute the suggested action prompt.
-  // If the chat is busy (mid-inference), queue the message to send after completion.
+  // handleSendWithText queues automatically if the chat is busy mid-inference.
   const busyRef = useRef(false)
   busyRef.current = busy
   const queueMessageRef = useRef<(text: string) => void>(() => {})
   useEffect(() => {
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
-      if (!text) return
-      if (busyRef.current) {
-        queueMessageRef.current(text)
-      } else {
-        handleSendWithTextRef.current?.(text)
-      }
+      if (text) handleSendWithTextRef.current?.(text)
     }
     window.addEventListener('clawd-send-user', handler)
     return () => window.removeEventListener('clawd-send-user', handler)
@@ -2957,6 +2952,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }
 
   // Send with specific text (for prompt action clicks, example clicks, voice auto-send)
+  // If the chat is busy (mid-inference), queue the message to send after completion.
   const handleSendWithText = useCallback(async (text: string) => {
     if (!text.trim()) return
 
@@ -2970,6 +2966,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       pushAssistant('⚡ **Advanced mode enabled.** Re-sending your request with shell access...')
       // Small delay to let state update, then re-send original prompt
       setTimeout(() => doSend(originalPrompt), 100)
+      return
+    }
+
+    // Queue the message if chat is busy instead of interrupting current inference
+    if (busyRef.current) {
+      queueMessageRef.current(text.trim())
       return
     }
 
@@ -3692,7 +3694,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     setHasQueuedMessage(true)
     setQueuedMessageTexts(prev => [...prev, text])
   }, [])
-  // Keep queueMessageRef updated for the clawd-send-user event listener
+  // Keep queueMessageRef updated so handleSendWithText can queue mid-inference
   queueMessageRef.current = stableQueueMessage
 
   // Drain queued messages one at a time when busy transitions from true → false
