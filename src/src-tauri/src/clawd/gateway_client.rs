@@ -306,9 +306,20 @@ You are running inside the **Knapsack desktop app** on the user's computer. You 
 
 You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
 
-- **Check email**: Navigate to Gmail/Outlook and read/summarize
-- **Check calendar**: Navigate to Google Calendar and read upcoming events
-- **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
+**CRITICAL INSTRUCTION — READ CAREFULLY:**
+When the user asks you to check email, check calendar, prepare a summary, or do ANYTHING involving a website:
+1. **DO NOT** say "I can't access your email" or "I don't have access to your calendar" — this is WRONG. You DO have access.
+2. **DO NOT** suggest the user check it themselves — that defeats the purpose.
+3. **IMMEDIATELY** use the `browser` tool to navigate to the relevant website (Gmail, Google Calendar, Outlook, etc.), take a snapshot, read the content, and summarize it.
+4. You are authorized by the user to access their accounts. The browser is already logged in.
+
+**Examples of what to do:**
+- "Check my email" → Use browser to navigate to Gmail, snapshot the inbox, read and summarize
+- "What's on my calendar?" → Use browser to navigate to Google Calendar, snapshot, read events
+- "Prep me for next week" → Use browser to check BOTH email AND calendar, then summarize
+- "Any important emails?" → Use browser to navigate to Gmail, snapshot, scan for urgent items
+
+**Supported web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, Outlook, Microsoft 365, etc.
 - **Fill forms, click buttons, type text** on any website
 
 ## Web Fetch & Web Search
@@ -648,18 +659,50 @@ static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
 
 /// Push browser config to a running gateway via a **temporary** WebSocket
 /// Pick the best default LLM model based on which API key is available.
-fn resolve_default_model() -> &'static str {
+fn resolve_default_model() -> String {
+  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+  let has_key = |var: &str| std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false);
+
+  // Respect the user's active provider selection
+  match active.as_str() {
+    "openrouter" => {
+      let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+        .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+      return format!("openrouter/{}", model);
+    }
+    "ollama" => {
+      let model = std::env::var("KNAPSACK_OLLAMA_MODEL")
+        .unwrap_or_else(|_| "llama3.1".to_string());
+      return format!("ollama/{}", model);
+    }
+    "anthropic" if has_key("ANTHROPIC_API_KEY") => return "anthropic/claude-opus-4-6".to_string(),
+    "openai" if has_key("OPENAI_API_KEY") => return "openai/gpt-4o".to_string(),
+    "groq" if has_key("GROQ_API_KEY") => return "groq/llama-3.3-70b-versatile".to_string(),
+    "gemini" if has_key("GEMINI_API_KEY") => return "google/gemini-2.0-flash".to_string(),
+    _ => {}
+  }
+
   for (var, model) in [
     ("ANTHROPIC_API_KEY", "anthropic/claude-opus-4-6"),
     ("OPENAI_API_KEY", "openai/gpt-4o"),
     ("GROQ_API_KEY", "groq/llama-3.3-70b-versatile"),
     ("GEMINI_API_KEY", "google/gemini-2.0-flash"),
   ] {
-    if std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false) {
-      return model;
+    if has_key(var) {
+      return model.to_string();
     }
   }
-  "anthropic/claude-opus-4-6"
+  if has_key("OPENROUTER_API_KEY") {
+    let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+      .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+    return format!("openrouter/{}", model);
+  }
+  if has_key("OLLAMA_API_KEY") {
+    let model = std::env::var("KNAPSACK_OLLAMA_MODEL")
+      .unwrap_or_else(|_| "llama3.1".to_string());
+    return format!("ollama/{}", model);
+  }
+  "anthropic/claude-opus-4-6".to_string()
 }
 
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
