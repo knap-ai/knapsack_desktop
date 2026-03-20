@@ -123,10 +123,15 @@ pub async fn install_server(path: web::Path<String>) -> HttpResponse {
                     }
 
                     // Use tokio::process::Command to avoid blocking the actix thread
-                    let install_result = tokio::process::Command::new("npm")
-                        .args(&["install", "-g", package_name])
-                        .output()
-                        .await;
+                    let mut npm_cmd = tokio::process::Command::new("npm");
+                    npm_cmd.args(&["install", "-g", package_name]);
+                    #[cfg(windows)]
+                    {
+                        use std::os::windows::process::CommandExt;
+                        const CREATE_NO_WINDOW: u32 = 0x08000000;
+                        npm_cmd.creation_flags(CREATE_NO_WINDOW);
+                    }
+                    let install_result = npm_cmd.output().await;
 
                     match install_result {
                         Ok(output) => {

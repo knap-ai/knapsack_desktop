@@ -27,8 +27,11 @@ fn windows_log_path(stream: &str) -> PathBuf {
 /// On Windows, kill a process listening on the given TCP port.
 #[cfg(target_os = "windows")]
 fn kill_process_on_port(port: u16) {
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
   let output = std::process::Command::new("netstat")
     .args(["-ano", "-p", "tcp"])
+    .creation_flags(CREATE_NO_WINDOW)
     .output();
   if let Ok(out) = output {
     let text = String::from_utf8_lossy(&out.stdout);
@@ -40,6 +43,7 @@ fn kill_process_on_port(port: u16) {
               eprintln!("[clawd/service] killing process on port {} (pid {})", port, pid);
               let _ = std::process::Command::new("taskkill")
                 .args(["/PID", &pid.to_string(), "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .status();
             }
           }
@@ -53,8 +57,11 @@ fn kill_process_on_port(port: u16) {
 #[cfg(target_os = "windows")]
 fn is_pid_alive(pid: u32) -> bool {
   if pid == 0 { return false; }
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
   std::process::Command::new("tasklist")
     .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+    .creation_flags(CREATE_NO_WINDOW)
     .output()
     .map(|o| {
       let out = String::from_utf8_lossy(&o.stdout);
@@ -2836,9 +2843,14 @@ pub async fn set_service_enabled(
       let pid = GATEWAY_PID.load(Ordering::Relaxed);
       if pid > 0 {
         eprintln!("[clawd/service] Killing gateway process (pid {})", pid);
-        let _ = std::process::Command::new("taskkill")
-          .args(["/PID", &pid.to_string(), "/F", "/T"])
-          .status();
+        {
+          use std::os::windows::process::CommandExt;
+          const CREATE_NO_WINDOW: u32 = 0x08000000;
+          let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/F", "/T"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+        }
         GATEWAY_PID.store(0, Ordering::Relaxed);
       }
       // Also kill by port as fallback
@@ -3926,8 +3938,11 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
   // Kill the current gateway process
   let pid = GATEWAY_PID.load(Ordering::Relaxed);
   if pid > 0 {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
     let _ = std::process::Command::new("taskkill")
       .args(["/PID", &pid.to_string(), "/F", "/T"])
+      .creation_flags(CREATE_NO_WINDOW)
       .status();
     GATEWAY_PID.store(0, Ordering::Relaxed);
   }

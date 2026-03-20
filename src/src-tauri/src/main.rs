@@ -754,6 +754,13 @@ async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<Stri
     let mut cmd = Command::new(&shell);
     cmd.args(&args);
 
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
@@ -827,6 +834,13 @@ async fn kn_spawn_streaming_command(
     {
         use std::os::unix::process::CommandExt;
         cmd.process_group(0);
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
     if let Some(ref dir) = cwd {
@@ -925,8 +939,11 @@ async fn kn_kill_streaming_process(
         #[cfg(windows)]
         {
             use std::process::Command;
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
             Command::new("taskkill")
                 .args(&["/PID", &pid.to_string(), "/T", "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output()
                 .ok();
         }
