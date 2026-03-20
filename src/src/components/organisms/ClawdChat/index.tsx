@@ -3615,7 +3615,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               ])
             } else {
               // No reply at all — fall back to direct chat from the frontend
-              console.warn('[chat] agent-chat returned no reply, using direct chat. Response:', agentOut)
+              console.warn('[chat] agent-chat returned no reply, using direct chat. Response:', JSON.stringify(agentOut))
               useDirectChat = true
             }
           } else {

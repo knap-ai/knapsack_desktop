@@ -222,6 +222,114 @@ fn remove_stale_standalone_gateway() {
   // No-op on other platforms
 }
 
+/// Check if the gateway Node.js binary or the bundled clawdbot directory is
+/// quarantined by macOS Gatekeeper.  When a DMG-installed app is not properly
+/// code-signed and notarized, macOS adds a `com.apple.quarantine` xattr to the
+/// files.  The gateway process can then be silently killed by Gatekeeper
+/// (SIGKILL with no visible error) immediately after launch.
+///
+/// This diagnostic runs only when the gateway is down and the LaunchAgent is
+/// loaded, to help surface the root cause in the health check response.
+#[cfg(target_os = "macos")]
+fn check_gatekeeper_quarantine(app_handle: &tauri::AppHandle, message: &mut String) {
+  let clawdbot_home = app_clawdbot_home(app_handle);
+
+  // Check quarantine xattr on the clawdbot home directory itself
+  let check_targets = vec![
+    clawdbot_home.clone(),
+    clawdbot_home.join("dist").join("entry.js"),
+  ];
+
+  for target in &check_targets {
+    if !target.exists() {
+      continue;
+    }
+    let output = std::process::Command::new("xattr")
+      .args(["-p", "com.apple.quarantine"])
+      .arg(target)
+      .output();
+    match output {
+      Ok(out) if out.status.success() => {
+        let xattr_val = String::from_utf8_lossy(&out.stdout);
+        eprintln!(
+          "[clawd/service] Gatekeeper quarantine detected on {}: {}",
+          target.display(),
+          xattr_val.trim()
+        );
+        message.push_str(&format!(
+          "\n[diagnostic] macOS Gatekeeper quarantine detected on {}. \
+           The gateway binary may be blocked from running. \
+           Try: xattr -cr \"{}\" or re-download from the latest signed release.",
+          target.display(),
+          clawdbot_home.display()
+        ));
+        return; // One diagnostic is enough
+      }
+      _ => {} // No quarantine xattr — good
+    }
+  }
+
+  // Also check the node binary used by the gateway
+  let resource_dir = app_handle.path_resolver().resource_dir();
+  if let Some(res_dir) = resource_dir {
+    let node_binary = res_dir.join("resources").join("node").join("node");
+    if node_binary.exists() {
+      // Verify code signature
+      let codesign_check = std::process::Command::new("codesign")
+        .args(["--verify", "--deep", "--strict"])
+        .arg(&node_binary)
+        .output();
+      match codesign_check {
+        Ok(out) if !out.status.success() => {
+          let stderr = String::from_utf8_lossy(&out.stderr);
+          eprintln!(
+            "[clawd/service] Node binary code-sign verification failed: {}",
+            stderr.trim()
+          );
+          message.push_str(&format!(
+            "\n[diagnostic] Gateway node binary has an invalid code signature: {}. \
+             macOS Gatekeeper may be killing the process. \
+             Re-install from the latest notarized DMG release.",
+            stderr.trim()
+          ));
+        }
+        _ => {}
+      }
+    }
+  }
+
+  // Check for recent crash reports from the gateway
+  if let Some(home) = dirs::home_dir() {
+    let crash_dir = home.join("Library").join("Logs").join("DiagnosticReports");
+    if crash_dir.is_dir() {
+      let check_output = std::process::Command::new("ls")
+        .args(["-t"])
+        .arg(&crash_dir)
+        .output();
+      if let Ok(out) = check_output {
+        let listing = String::from_utf8_lossy(&out.stdout);
+        let recent_crashes: Vec<&str> = listing
+          .lines()
+          .filter(|l| {
+            let lower = l.to_lowercase();
+            lower.contains("node") || lower.contains("knapsack") || lower.contains("claw")
+          })
+          .take(3)
+          .collect();
+        if !recent_crashes.is_empty() {
+          let crash_names = recent_crashes.join(", ");
+          eprintln!("[clawd/service] Found potentially related crash reports: {}", crash_names);
+          message.push_str(&format!(
+            "\n[diagnostic] Crash reports found in ~/Library/Logs/DiagnosticReports/: {}. \
+             This may indicate the gateway process is crashing on startup.",
+            crash_names
+          ));
+        }
+      }
+    }
+  }
+}
+
 fn launch_agent_plist_path() -> Result<PathBuf, String> {
   let home = dirs::home_dir().ok_or("Couldn't resolve home dir")?;
   Ok(
@@ -833,6 +941,10 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
                 eprintln!("[clawd/service] gateway down: plist exists but service not loaded (label={})", LAUNCH_AGENT_LABEL);
               } else {
                 eprintln!("[clawd/service] gateway down: service is loaded but not responding on port 18789");
+
+                // Check if Gatekeeper quarantine is blocking the gateway binary.
+                // macOS can silently kill quarantined or improperly signed processes.
+                check_gatekeeper_quarantine(&app_handle, &mut message);
               }
             }
           }

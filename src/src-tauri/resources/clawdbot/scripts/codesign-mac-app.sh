@@ -247,6 +247,17 @@ verify_team_ids() {
   fi
 }
 
+# Sign bundled Node.js binary with JIT entitlements (required for V8 engine).
+# Without this, macOS Gatekeeper silently kills the process because the hardened
+# runtime prevents JIT compilation by default.
+for node_bin in "$APP_BUNDLE/Contents/Resources/resources/node/node" \
+                "$APP_BUNDLE/Contents/Resources/node/node"; do
+  if [ -f "$node_bin" ]; then
+    echo "Signing bundled Node.js binary (JIT): $node_bin"
+    sign_item "$node_bin" "$ENT_TMP_RUNTIME"
+  fi
+done
+
 # Sign main binary
 if [ -f "$APP_BUNDLE/Contents/MacOS/OpenClaw" ]; then
   echo "Signing main binary"; sign_item "$APP_BUNDLE/Contents/MacOS/OpenClaw" "$APP_ENTITLEMENTS"
