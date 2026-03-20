@@ -269,7 +269,7 @@ fn ensure_tools_md(config_path: &std::path::Path) {
 
   let should_write = if tools_md_path.exists() {
     std::fs::read_to_string(&tools_md_path)
-      .map(|c| !c.contains("## Shell & Code Execution"))
+      .map(|c| !c.contains("Core Principle: DO THE WORK"))
       .unwrap_or(true)
   } else {
     true
@@ -279,63 +279,8 @@ fn ensure_tools_md(config_path: &std::path::Path) {
     return;
   }
 
-  // Same content as service.rs writes; kept in sync manually.
-  let tools_md = r#"# Tools
-
-## Cross-Channel Awareness
-
-You are running inside the **Knapsack desktop app** on the user's computer. You serve the same user across multiple channels — the desktop chat UI, Telegram, WhatsApp, and iMessage all share the same session and capabilities.
-
-**Key facts:**
-- Messages from **Telegram, WhatsApp, and iMessage** are handled by the same agent as the desktop chat — they share history and session state
-- You have access to a **real desktop browser** on the user's machine — use it to check email, calendars, web apps, etc. regardless of which channel the message came from
-- When a user messages you from Telegram asking to "check my calendar" or "look up something online", **use the browser tool** — you CAN do it
-- The browser is logged into the user's accounts (Google, Microsoft, etc.), so you can access authenticated services
-- Never say "I can't browse the web" or "I don't have access to your calendar" — you DO have access via the browser tool
-
-**Reviewing past channel conversations:**
-- To check what you've been discussing on **Telegram, WhatsApp, iMessage**, or any channel: use `sessions_list` to find sessions from that channel, then `sessions_history` to read the conversation
-- Example: if the user asks "what have we been talking about on Telegram?", use `sessions_list` with a filter for Telegram sessions, then read the history — do NOT browse to web.telegram.org or the messaging app's website
-- You already have direct access to all channel conversation history through the sessions tools — no need to use the browser for this
-
-**Channel-specific notes:**
-- **Desktop chat**: The user sees your response directly in the Knapsack app
-- **Telegram/WhatsApp/iMessage**: The user sees your response in their messaging app. Keep responses concise and mobile-friendly. You can still use the browser, run scripts, and access files — the user just won't see the browser directly
-
-## Browser Automation
-
-You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
-
-**CRITICAL INSTRUCTION — READ CAREFULLY:**
-When the user asks you to check email, check calendar, prepare a summary, or do ANYTHING involving a website:
-1. **DO NOT** say "I can't access your email" or "I don't have access to your calendar" — this is WRONG. You DO have access.
-2. **DO NOT** suggest the user check it themselves — that defeats the purpose.
-3. **IMMEDIATELY** use the `browser` tool to navigate to the relevant website (Gmail, Google Calendar, Outlook, etc.), take a snapshot, read the content, and summarize it.
-4. You are authorized by the user to access their accounts. The browser is already logged in.
-
-**Examples of what to do:**
-- "Check my email" → Use browser to navigate to Gmail, snapshot the inbox, read and summarize
-- "What's on my calendar?" → Use browser to navigate to Google Calendar, snapshot, read events
-- "Prep me for next week" → Use browser to check BOTH email AND calendar, then summarize
-- "Any important emails?" → Use browser to navigate to Gmail, snapshot, scan for urgent items
-
-**Supported web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, Outlook, Microsoft 365, etc.
-- **Fill forms, click buttons, type text** on any website
-
-## Web Fetch & Web Search
-
-Use `web_fetch` to read URLs directly. Use `web_search` to find information online. Use **browser** for interactive tasks requiring login, JavaScript-heavy pages, or multi-step flows.
-
-## Shell & Code Execution
-
-You have shell access on the user's desktop machine. Use these tools to execute commands, edit files, and automate tasks:
-
-- **`exec`** — Execute shell commands (bash/zsh). Use for installing software, running CLI tools, git operations, build scripts, etc.
-- **`process`** — Manage running processes (start, stop, check status).
-- **`read`** / **`write`** / **`edit`** / **`apply_patch`** — Read, write, edit, and patch files on the local filesystem.
-
-**IMPORTANT:** When the user asks you to run a command, write code, install something, or automate a task — DO IT directly using these tools. Never tell the user to run commands themselves or say you lack shell access.
-"#;
+  // Single source of truth: tools_md_content.txt (same as service.rs uses).
+  let tools_md = include_str!("tools_md_content.txt");
   match std::fs::write(&tools_md_path, tools_md) {
     Ok(_) => eprintln!("[gateway_client] Wrote TOOLS.md at {}", tools_md_path.display()),
     Err(e) => eprintln!("[gateway_client] Failed to write TOOLS.md: {}", e),
