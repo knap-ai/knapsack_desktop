@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { ConnectionKeys, getAccessToken, googleConnections } from 'src/api/connections';
-import { openGoogleAuthScreen } from 'src/utils/permissions/google';
+import { GoogleAuthError, openGoogleAuthScreen } from 'src/utils/permissions/google';
 
 const googlePermissions: Record<string, boolean> = {
   [ConnectionKeys.GOOGLE_CALENDAR]: true,
@@ -21,12 +21,14 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
     onAuth,
     userEmail,
   }) => {
+    const [authError, setAuthError] = useState<string | null>(null);
+
     useEffect(() => {
       let isActive = true;
-      
+
       const checkAuth = async () => {
         if (!isActive) return;
-        
+
         try {
           await getAccessToken(userEmail, ConnectionKeys.GOOGLE_PROFILE);
           if (isActive) {
@@ -37,11 +39,11 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
           if (isActive) console.log("popup auth check failed");
         }
       };
-  
+
       const interval = setInterval(checkAuth, 500);
-      
+
       checkAuth();
-  
+
       return () => {
         isActive = false;
         clearInterval(interval);
@@ -49,6 +51,7 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
     }, [userEmail, onAuth, onClose]);
 
   const handleAuth = async () => {
+    setAuthError(null);
     try {
       await getAccessToken(userEmail, ConnectionKeys.GOOGLE_PROFILE);
       onAuth();
@@ -60,7 +63,15 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
           scopes = [...scopes, ...googleConnections[key].scopes];
         }
       }
-      openGoogleAuthScreen(scopes.join(' '));
+      try {
+        openGoogleAuthScreen(scopes.join(' '));
+      } catch (error) {
+        if (error instanceof GoogleAuthError) {
+          setAuthError(error.message);
+        } else {
+          setAuthError('Failed to open Google sign-in. Please try again.');
+        }
+      }
     }
   };
 
@@ -71,7 +82,7 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/50 z-[99998]"
       onClick={handleOverlayClick}
     >
@@ -79,7 +90,12 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
         <span className="text-left block mb-4">
           This automation needs access to your Google account to<br />run properly
         </span>
-        <button 
+        {authError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+            {authError}
+          </div>
+        )}
+        <button
           className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           onClick={handleAuth}
         >
