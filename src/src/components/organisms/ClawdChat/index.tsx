@@ -2872,10 +2872,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // When the user clicks the primary action button on a notification,
   // the handler pushes the analysis to chat and then dispatches this event
   // to auto-execute the suggested action prompt.
+  // If the chat is busy (mid-inference), queue the message to send after completion.
+  const busyRef = useRef(false)
+  busyRef.current = busy
+  const queueMessageRef = useRef<(text: string) => void>(() => {})
   useEffect(() => {
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
-      if (text) handleSendWithTextRef.current?.(text)
+      if (!text) return
+      if (busyRef.current) {
+        queueMessageRef.current(text)
+      } else {
+        handleSendWithTextRef.current?.(text)
+      }
     }
     window.addEventListener('clawd-send-user', handler)
     return () => window.removeEventListener('clawd-send-user', handler)
@@ -3683,6 +3692,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     setHasQueuedMessage(true)
     setQueuedMessageTexts(prev => [...prev, text])
   }, [])
+  // Keep queueMessageRef updated for the clawd-send-user event listener
+  queueMessageRef.current = stableQueueMessage
 
   // Drain queued messages one at a time when busy transitions from true → false
   const prevBusyRef = useRef(false)

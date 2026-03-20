@@ -261,7 +261,7 @@ You must respond with a JSON object for each email like this:
     "response_deadline": string | null,  // Required if classification is "IMPORTANT_NEEDS_RESPONSE", null otherwise
     "confidence_score": number, // 0.0 to 1.0 indicating confidence in classification
     "keywords": string[],      // Array of key terms that influenced the decision
-    "action_required": string | null  // Brief description of required action if any, null if none
+    "action_required": string | null  // Brief description of required action if any, null if none. Be LIBERAL here — if the email mentions ANY concrete task, request, or next step (scheduling a meeting, reviewing a document, signing a contract, following up, making a decision, etc.), describe it. Only use null for purely informational emails with zero actionable content.
     "isStarred": boolean | null // When this value is true, the email will always be IMPORTANT_NEEDS_RESPONSE
 }
 
@@ -332,7 +332,7 @@ isStarred: true
       "response_deadline": "EOD Friday",
       "confidence_score": 0.95,
       "keywords": ["urgent", "Q4 report", "review needed", "boss", "board", "deadline"],
-      "action_required": "Review Q4 report draft and provide feedback",  // if action_required is null, just use empty string: ""
+      "action_required": "Review Q4 report draft and provide feedback",  // Set this for ANY email with a concrete task or next step. Only null for purely informational emails with no action needed.
       "isStarred": true
     },
     ...,
