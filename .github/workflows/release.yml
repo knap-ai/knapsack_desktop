@@ -89,9 +89,12 @@ jobs:
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
 
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli@1.6.3 --locked
+
       - name: Build Tauri app (universal)
         working-directory: src
-        run: npx tauri build --target universal-apple-darwin
+        run: cargo tauri build --target universal-apple-darwin
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
