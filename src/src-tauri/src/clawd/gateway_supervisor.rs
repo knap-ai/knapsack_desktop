@@ -220,6 +220,7 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
   // Dump the last few lines of the gateway's stderr log so we can see
   // why the process is failing to start.
   let err_log = super::service::gateway_stderr_log();
+  let mut detail = String::new();
   if let Ok(content) = std::fs::read_to_string(&err_log) {
     let tail: Vec<&str> = content.lines().rev().take(25).collect();
     if !tail.is_empty() {
@@ -229,13 +230,29 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
       for line in &lines {
         eprintln!("[gateway_supervisor]   {}", line);
       }
+      detail = format!("\nLast stderr:\n{}", lines.join("\n"));
+    }
+  }
+
+  // On macOS, check if the process is being killed by Gatekeeper (exit code 9 = SIGKILL).
+  #[cfg(target_os = "macos")]
+  {
+    let uid = unsafe { libc::getuid() };
+    let service = format!("gui/{}/{}", uid, label);
+    if let Ok(output) = Command::new("launchctl").args(["print", &service]).output() {
+      let info = String::from_utf8_lossy(&output.stdout);
+      // launchctl print shows "last exit code" for the service
+      if info.contains("last exit code = 9") || info.contains("last exit code = 137") {
+        eprintln!("[gateway_supervisor] Service was killed with SIGKILL — likely macOS Gatekeeper");
+        detail.push_str("\n[diagnostic] Gateway process was killed with SIGKILL (exit code 9). This typically means macOS Gatekeeper is blocking the binary due to missing or invalid code signature. Try re-installing from the latest notarized DMG.");
+      }
     }
   }
 
   GatewayEnsureResponse {
     success: false,
     running: false,
-    message: "Gateway not reachable after multiple retries (not running)".to_string(),
+    message: format!("Gateway not reachable after multiple retries (not running).{}", detail),
   }
 }
 
