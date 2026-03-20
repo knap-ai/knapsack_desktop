@@ -3962,6 +3962,31 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
   // No-op on other platforms
 }
 
+/// Kill the gateway process and any child processes before the app exits.
+/// Called from the quit handler so orphaned processes don't linger.
+#[cfg(target_os = "windows")]
+pub fn cleanup_gateway_on_exit() {
+  use std::os::windows::process::CommandExt;
+  use std::sync::atomic::Ordering;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+  let pid = GATEWAY_PID.load(Ordering::Relaxed);
+  if pid > 0 {
+    eprintln!("[clawd/service] Cleaning up gateway process (pid {}) on exit", pid);
+    let _ = std::process::Command::new("taskkill")
+      .args(["/PID", &pid.to_string(), "/F", "/T"])
+      .creation_flags(CREATE_NO_WINDOW)
+      .status();
+    GATEWAY_PID.store(0, Ordering::Relaxed);
+  }
+  kill_process_on_port(18789);
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn cleanup_gateway_on_exit() {
+  // On macOS, launchd manages the gateway; on Linux, no-op.
+}
+
 // --- Skills API endpoint (static catalog) ---
 
 /// Return built-in skills catalog (static JSON file, no gateway dependency)

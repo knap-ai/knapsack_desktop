@@ -1298,6 +1298,8 @@ async fn main() {
         }
         SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
           "quit" => {
+            // Clean up child processes before exiting so they don't linger
+            clawd::service::cleanup_gateway_on_exit();
             std::process::exit(0);
           }
           "show" => {
