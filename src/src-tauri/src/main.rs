@@ -430,21 +430,27 @@ fn activate_main_window_from_notification(window: tauri::Window) {
         notification_window.current_monitor(),
       ) {
         let screen_size = monitor.size();
+        let monitor_pos = monitor.position();
         let scale_factor = monitor.scale_factor();
 
-        // Use the same width as the notification and full screen height
-        let logical_height = screen_size.height as f64 / scale_factor;
+        // Reserve space for system UI elements:
+        // - macOS: ~25px for the menu bar at the top
+        // - Windows: ~48px for the taskbar at the bottom (default height)
+        let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
+        let bottom_margin: f64 = if cfg!(target_os = "windows") { 48.0 } else { 0.0 };
+        let logical_height = screen_size.height as f64 / scale_factor - menu_bar_height - bottom_margin;
 
         let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
           width: NOTIF_WIDTH,
           height: logical_height,
         }));
 
-        // Align horizontally with the notification, pin to top of screen
+        // Align horizontally with the notification, pin below the menu bar
+        let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
         let _ = main_window.set_position(tauri::Position::Physical(
           tauri::PhysicalPosition {
             x: notif_pos.x,
-            y: 0,
+            y: (y * scale_factor) as i32,
           },
         ));
       }

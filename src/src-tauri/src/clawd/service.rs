@@ -2667,6 +2667,40 @@ async fn prepare_gateway_config(
       }
     }
   }
+  // Propagate OpenRouter key
+  if let Some(k) = tokens.openrouter_api_key.clone() {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      std::env::set_var("OPENROUTER_API_KEY", &k);
+      env.push(("OPENROUTER_API_KEY".to_string(), k));
+    }
+  }
+
+  // Propagate active provider and model overrides so the gateway uses the
+  // correct provider/model the user selected in the UI.
+  if let Some(p) = tokens.active_provider.clone() {
+    let p = p.trim().to_string();
+    if !p.is_empty() {
+      std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", &p);
+      env.push(("KNAPSACK_ACTIVE_PROVIDER".to_string(), p));
+    }
+  }
+  if let Some(m) = tokens.openai_model.clone() {
+    env.push(("KNAPSACK_OPENAI_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.anthropic_model.clone() {
+    env.push(("KNAPSACK_ANTHROPIC_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.gemini_model.clone() {
+    env.push(("KNAPSACK_GEMINI_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.groq_model.clone() {
+    env.push(("KNAPSACK_GROQ_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.openrouter_model.clone() {
+    env.push(("KNAPSACK_OPENROUTER_MODEL".to_string(), m));
+  }
+
   if let Some(extra) = &tokens.extra_provider_keys {
     for (env_var, key) in extra {
       let key = key.trim().to_string();
@@ -3731,6 +3765,40 @@ You can create, list, and cancel scheduled tasks (cron jobs).
             env.push(("OLLAMA_HOST".to_string(), u));
           }
         }
+      }
+
+      // Propagate OpenRouter key
+      if let Some(k) = tokens.openrouter_api_key.clone() {
+        let k = k.trim().to_string();
+        if !k.is_empty() {
+          std::env::set_var("OPENROUTER_API_KEY", &k);
+          env.push(("OPENROUTER_API_KEY".to_string(), k));
+        }
+      }
+
+      // Propagate active provider and model overrides so the gateway uses the
+      // correct provider/model the user selected in the UI.
+      if let Some(p) = tokens.active_provider.clone() {
+        let p = p.trim().to_string();
+        if !p.is_empty() {
+          std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", &p);
+          env.push(("KNAPSACK_ACTIVE_PROVIDER".to_string(), p));
+        }
+      }
+      if let Some(m) = tokens.openai_model.clone() {
+        env.push(("KNAPSACK_OPENAI_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.anthropic_model.clone() {
+        env.push(("KNAPSACK_ANTHROPIC_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.gemini_model.clone() {
+        env.push(("KNAPSACK_GEMINI_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.groq_model.clone() {
+        env.push(("KNAPSACK_GROQ_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.openrouter_model.clone() {
+        env.push(("KNAPSACK_OPENROUTER_MODEL".to_string(), m));
       }
 
       // Propagate extra provider keys (MiniMax, ZAI/GLM, HuggingFace, etc.)
