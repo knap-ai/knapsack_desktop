@@ -1777,9 +1777,10 @@ pub async fn set_api_key(
         .unwrap()
         .entry("agents")
         .or_insert_with(|| serde_json::json!({}));
+      let mut empty_map = serde_json::Map::new();
       let defaults = agents
         .as_object_mut()
-        .unwrap_or(&mut serde_json::Map::new())
+        .unwrap_or(&mut empty_map)
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
@@ -2028,9 +2029,10 @@ pub async fn ollama_configure(
         .unwrap()
         .entry("agents")
         .or_insert_with(|| serde_json::json!({}));
+      let mut empty_map = serde_json::Map::new();
       let defaults = agents
         .as_object_mut()
-        .unwrap_or(&mut serde_json::Map::new())
+        .unwrap_or(&mut empty_map)
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
