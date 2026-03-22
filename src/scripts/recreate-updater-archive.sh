@@ -65,14 +65,15 @@ fi
 
 # Use tauri CLI to sign (it uses minisign under the hood)
 echo "[updater-archive] Signing archive with TAURI_PRIVATE_KEY..."
+SIGN_PASSWORD="${TAURI_KEY_PASSWORD:-}"
 npx tauri signer sign \
   --private-key "$TAURI_PRIVATE_KEY" \
-  ${TAURI_KEY_PASSWORD:+--password "$TAURI_KEY_PASSWORD"} \
+  --password "$SIGN_PASSWORD" \
   "$TAR_GZ_PATH" 2>&1 || {
   # Fallback: try cargo-tauri if npx tauri is not available
   cargo tauri signer sign \
     --private-key "$TAURI_PRIVATE_KEY" \
-    ${TAURI_KEY_PASSWORD:+--password "$TAURI_KEY_PASSWORD"} \
+    --password "$SIGN_PASSWORD" \
     "$TAR_GZ_PATH"
 }
 
