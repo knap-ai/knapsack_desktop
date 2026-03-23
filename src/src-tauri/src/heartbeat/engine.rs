@@ -571,7 +571,15 @@ struct HeartbeatProvider {
 
 /// Resolve the cheapest/fastest available LLM provider for heartbeat checks.
 /// Priority: Groq (free/fast) > Gemini Flash > OpenAI mini > Anthropic Haiku
+///
+/// Respects KNAPSACK_DISABLE_PAID_FALLBACK: when enabled (default), the heartbeat
+/// system will NOT fall back to paid providers (OpenAI, Anthropic) if a free
+/// provider like Groq is the user's active choice. This prevents silent charges.
 fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
+    let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(true); // Default: paid fallback disabled
+
     let groq_key = std::env::var("GROQ_API_KEY")
         .ok()
         .filter(|k| !k.trim().is_empty());
@@ -584,6 +592,10 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
     let anthropic_key = std::env::var("ANTHROPIC_API_KEY")
         .ok()
         .filter(|k| !k.trim().is_empty());
+
+    // Check if the user's active provider is a free/cheap one
+    let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+    let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter" | "");
 
     // Prefer Groq — free and fast
     if let Some(key) = groq_key {
@@ -607,26 +619,34 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
         });
     }
 
-    // OpenAI mini — affordable
-    if let Some(key) = openai_key {
-        return Ok(HeartbeatProvider {
-            name: "openai".into(),
-            api_key: key,
-            model: "gpt-4o-mini".into(),
-            base_url: "https://api.openai.com/v1".into(),
-            is_anthropic: false,
-        });
+    // OpenAI mini — affordable, but skip if paid fallback is disabled and user chose a free provider
+    if !disable_paid || !active_is_free {
+        if let Some(key) = openai_key {
+            return Ok(HeartbeatProvider {
+                name: "openai".into(),
+                api_key: key,
+                model: "gpt-4o-mini".into(),
+                base_url: "https://api.openai.com/v1".into(),
+                is_anthropic: false,
+            });
+        }
+    } else if openai_key.is_some() {
+        log::info!("[heartbeat] Skipping OpenAI fallback (KNAPSACK_DISABLE_PAID_FALLBACK=true, active_provider={})", active);
     }
 
-    // Anthropic Haiku — cheapest Anthropic option
-    if let Some(key) = anthropic_key {
-        return Ok(HeartbeatProvider {
-            name: "anthropic".into(),
-            api_key: key,
-            model: "claude-haiku-4-5-20251001".into(),
-            base_url: "https://api.anthropic.com/v1".into(),
-            is_anthropic: true,
-        });
+    // Anthropic Haiku — skip if paid fallback is disabled and user chose a free provider
+    if !disable_paid || !active_is_free {
+        if let Some(key) = anthropic_key {
+            return Ok(HeartbeatProvider {
+                name: "anthropic".into(),
+                api_key: key,
+                model: "claude-haiku-4-5-20251001".into(),
+                base_url: "https://api.anthropic.com/v1".into(),
+                is_anthropic: true,
+            });
+        }
+    } else if anthropic_key.is_some() {
+        log::info!("[heartbeat] Skipping Anthropic fallback (KNAPSACK_DISABLE_PAID_FALLBACK=true, active_provider={})", active);
     }
 
     Err("No API key configured for heartbeat. Please add an API key in Settings.".into())

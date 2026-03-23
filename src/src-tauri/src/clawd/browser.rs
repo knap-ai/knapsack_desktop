@@ -432,6 +432,32 @@ fn active_provider(app_handle: &tauri::AppHandle) -> String {
     .unwrap_or_else(|| "openai".to_string())
 }
 
+/// Returns true if paid-provider fallback is disabled.
+/// When the user selects a free/cheap provider like Groq, they may not want
+/// the app to silently fall back to expensive providers like Anthropic or OpenAI.
+fn is_paid_fallback_disabled() -> bool {
+  std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    .unwrap_or(true) // Default: paid fallback is DISABLED (opt-in, not opt-out)
+}
+
+/// Returns true if the given provider is considered "paid" (i.e. charges per token).
+/// Groq and Ollama are considered free/cheap; OpenAI and Anthropic are paid.
+fn is_paid_provider(provider: &str) -> bool {
+  matches!(provider, "openai" | "anthropic")
+}
+
+/// Emit a provider-fallback event so the frontend can notify the user.
+fn emit_fallback_event(app_handle: &tauri::AppHandle, from: &str, to: &str, reason: &str) {
+  let _ = app_handle.emit_all("provider-fallback", json!({
+    "from": from,
+    "to": to,
+    "reason": reason,
+    "timestamp": chrono::Utc::now().to_rfc3339(),
+  }));
+  eprintln!("[provider-fallback] Switched from {} to {} (reason: {})", from, to, reason);
+}
+
 /// Pending emails awaiting user confirmation.  The key is a random token; the
 /// value holds the draft details.  `send_email` stores a draft here on first
 /// call and only actually sends when called again with `confirmed: true` and the
@@ -3614,7 +3640,9 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
           );
         }
         // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → Ollama
+        // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges on expensive providers
         eprintln!("[clawd/chat] {} hit credit/rate limit: {}", current_provider, err_str);
+        let disable_paid = is_paid_fallback_disabled();
         let ollama_key = if ollama_is_enabled(&app_handle) { Some("ollama-local".to_string()) } else { None };
         let fallbacks: [(&str, Option<String>); 5] = [
           ("openai", openai_key(&app_handle)),
@@ -3626,6 +3654,12 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
         let mut fallback_resp = None;
         for (fb_provider, fb_key_opt) in &fallbacks {
           if *fb_provider == current_provider.as_str() { continue; }
+          // Skip paid providers if paid fallback is disabled and the user's
+          // active provider is not itself a paid provider
+          if disable_paid && is_paid_provider(fb_provider) && !is_paid_provider(&current_provider) {
+            eprintln!("[clawd/chat] Skipping paid fallback provider {} (KNAPSACK_DISABLE_PAID_FALLBACK=true)", fb_provider);
+            continue;
+          }
           if let Some(fb_key) = fb_key_opt {
             let fb_model = match *fb_provider {
               "anthropic" => super::service::get_anthropic_model(&app_handle),
@@ -3638,6 +3672,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
             match call_provider(fb_provider, fb_key, &fb_model, messages.clone(), tools.clone(), &current_ollama_base).await {
               Ok(r) => {
                 eprintln!("[clawd/chat] Fallback to {} succeeded", fb_provider);
+                emit_fallback_event(&app_handle, &current_provider, fb_provider, &err_str);
                 current_provider = fb_provider.to_string();
                 current_api_key = fb_key.clone();
                 current_model = fb_model;
