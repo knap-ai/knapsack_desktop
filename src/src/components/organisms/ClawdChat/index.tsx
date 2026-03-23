@@ -5653,15 +5653,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             ))}
                           </select>
                           <div className="ClawdAccordionActions">
-                            {!isActive ? (
-                              <button
-                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                                onClick={() => switchProviderModel(p.id)}
-                                disabled={savingKey}
-                              >
-                                {savingKey ? 'Switching...' : 'Switch to ' + p.name}
-                              </button>
-                            ) : null}
+                            <button
+                              className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                              onClick={() => switchProviderModel(p.id)}
+                              disabled={savingKey}
+                            >
+                              {savingKey ? 'Switching...' : isActive ? 'Select' : 'Select ' + p.name}
+                            </button>
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
                               onClick={() => { setApiKey(''); setEditingProviderKey(true) }}
@@ -5845,7 +5843,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       onClick={saveOllamaProvider}
                       disabled={savingKey || !ollamaRunning || !selectedOllamaModel}
                     >
-                      {savingKey ? 'Saving...' : 'Enable Ollama'}
+                      {savingKey ? 'Saving...' : 'Select'}
                     </button>
                   </div>
                 </div>
