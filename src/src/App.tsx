@@ -1292,7 +1292,7 @@ function App() {
   }, [])
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <UpdateBanner />
       <Snackbar
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
@@ -1322,39 +1322,41 @@ function App() {
         </Alert>
       </Snackbar>
 
-      <Routes>
-        <Route path="/onboard" element={<Onboarding updateProfile={auth.updateProfile} />} />
-        <Route
-          path="/home"
-          element={
-            <Home
-              auth={auth}
-              feed={feed}
-              automations={automations}
-              connections={connections}
-              toastrState={toastrState}
-              votes={votes}
-              googleAuthControls={googleAuthControls}
-              handleOpenToastr={handleOpenToastr}
-              fetchConnections={fetchConnections}
-              deleteConnection={deleteConnectionApi}
-              handleError={handleError}
-              addToLLMQueue={addToLLMQueue}
-              updateAutomation={(automation: any) => updateAutomation(automation.id, automation)}
-              setVotes={setVotes}
-              llmBar={llmBar}
-              handleAutomationPreview={handleAutomationPreview}
-              recordingHandlers={recordingHandlers}
-              isSignInDialogOpened={isSignInDialogOpened}
-              setIsSignInDialogOpened={handleSignInDialogOpenChange}
-              reconnectKeys={reconnect}
-              isAnyRecording={isAnyRecording}
-            />
-          }
-        />
-        <Route path="/" element={<Navigate to="/onboard" />} />
-      </Routes>
-    </>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <Routes>
+          <Route path="/onboard" element={<Onboarding updateProfile={auth.updateProfile} />} />
+          <Route
+            path="/home"
+            element={
+              <Home
+                auth={auth}
+                feed={feed}
+                automations={automations}
+                connections={connections}
+                toastrState={toastrState}
+                votes={votes}
+                googleAuthControls={googleAuthControls}
+                handleOpenToastr={handleOpenToastr}
+                fetchConnections={fetchConnections}
+                deleteConnection={deleteConnectionApi}
+                handleError={handleError}
+                addToLLMQueue={addToLLMQueue}
+                updateAutomation={(automation: any) => updateAutomation(automation.id, automation)}
+                setVotes={setVotes}
+                llmBar={llmBar}
+                handleAutomationPreview={handleAutomationPreview}
+                recordingHandlers={recordingHandlers}
+                isSignInDialogOpened={isSignInDialogOpened}
+                setIsSignInDialogOpened={handleSignInDialogOpenChange}
+                reconnectKeys={reconnect}
+                isAnyRecording={isAnyRecording}
+              />
+            }
+          />
+          <Route path="/" element={<Navigate to="/onboard" />} />
+        </Routes>
+      </div>
+    </div>
   )
 }
 
