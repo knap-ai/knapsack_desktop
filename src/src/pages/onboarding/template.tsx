@@ -331,6 +331,53 @@ const PrivacyMessageScreen = ({
   )
 }
 
+const KNAPSACK_EXTENSION_WEB_STORE_URL =
+  'https://chrome.google.com/webstore/detail/ndolhgjognokndkmkcjgookcogfbgdpg'
+
+type ChromeExtensionScreenProps = {
+  onInstallClick: (index: number) => void
+  onSkipClick: (index: number) => void
+} & OnboardingScreenProps
+
+const ChromeExtensionScreen = ({
+  onInstallClick,
+  onSkipClick,
+  currentSlideInScreen,
+  currentSlideOutScreen,
+  index,
+}: ChromeExtensionScreenProps) => {
+  return (
+    <OnboardingScreenContainer
+      currentSlideInScreen={currentSlideInScreen}
+      currentSlideOutScreen={currentSlideOutScreen}
+      index={index}
+      className="flex flex-col justify-center items-center flex-1"
+    >
+      <div className="text-center text-black text-4xl font-semibold font-Lora leading-10">
+        Automate your browser
+      </div>
+      <div className="mt-4 max-w-md text-center text-zinc-600 text-base font-normal font-InterTight leading-relaxed">
+        Install the Knapsack Chrome extension to record and schedule browser workflows.
+        Knapsack can replay your recorded actions on a regular basis.
+      </div>
+      <OnboardingPrimaryButton
+        label="Install Chrome Extension"
+        className="mt-14"
+        onClick={() => {
+          open(KNAPSACK_EXTENSION_WEB_STORE_URL)
+          onInstallClick(index)
+        }}
+      />
+      <button
+        className="mt-6 text-zinc-500 text-sm font-medium font-InterTight underline leading-tight cursor-pointer hover:text-zinc-700"
+        onClick={() => onSkipClick(index)}
+      >
+        Skip for now
+      </button>
+    </OnboardingScreenContainer>
+  )
+}
+
 type OnboardingTemplateProps = {
   currentSlideInScreen?: number
   currentSlideOutScreen?: number
@@ -349,6 +396,8 @@ type OnboardingTemplateProps = {
   onMicrosoftGrantClick: (index: number) => void
   isLoading: boolean
   error: string
+  onChromeExtensionInstallClick: (index: number) => void
+  onChromeExtensionSkipClick: (index: number) => void
   // onAudioGrantClick: (index: number) => void
 }
 
@@ -367,6 +416,8 @@ export const OnboardingTemplate = ({
   onMicrosoftGrantClick,
   isLoading,
   error,
+  onChromeExtensionInstallClick,
+  onChromeExtensionSkipClick,
   // onAudioGrantClick,
 }: OnboardingTemplateProps) => {
   return (
@@ -404,6 +455,13 @@ export const OnboardingTemplate = ({
           onMicrosoftGrantClick={onMicrosoftGrantClick}
           isLoading={isLoading}
           error={error}
+        />
+        <ChromeExtensionScreen
+          currentSlideInScreen={currentSlideInScreen}
+          currentSlideOutScreen={currentSlideOutScreen}
+          index={3}
+          onInstallClick={onChromeExtensionInstallClick}
+          onSkipClick={onChromeExtensionSkipClick}
         />
         {/*<AudioPermissionsScreen
           currentSlideInScreen={currentSlideInScreen}

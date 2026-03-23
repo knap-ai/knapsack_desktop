@@ -216,14 +216,57 @@ fn openclaw_user_data_dir() -> PathBuf {
   PathBuf::from(&home).join(".openclaw").join("browser-profiles").join("openclaw")
 }
 
+/// Path to the Knapsack Chrome extension installed via the Web Store or locally.
+/// Returns the path if the extension directory exists and contains a manifest.json.
+fn knapsack_extension_dir() -> Option<PathBuf> {
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_default();
+  if home.is_empty() {
+    return None;
+  }
+
+  // Check for locally installed extension (copied during onboarding or first-run)
+  let local_ext = PathBuf::from(&home).join(".knapsack").join("chrome-extension");
+  if local_ext.join("manifest.json").exists() {
+    return Some(local_ext);
+  }
+
+  // Check for extension installed via openclaw CLI
+  let openclaw_ext = PathBuf::from(&home).join(".openclaw").join("browser").join("chrome-extension");
+  if openclaw_ext.join("manifest.json").exists() {
+    return Some(openclaw_ext);
+  }
+
+  None
+}
+
+/// Build Chromium CLI args for the managed browser profile.
+/// Includes --user-data-dir and --load-extension if the Knapsack extension is found.
+fn build_chromium_args(url: &str) -> Vec<String> {
+  let user_data_dir = openclaw_user_data_dir();
+  let _ = std::fs::create_dir_all(&user_data_dir);
+  let udd_arg = format!("--user-data-dir={}", user_data_dir.to_string_lossy());
+
+  let mut args = vec![udd_arg];
+
+  // Auto-sideload the Knapsack extension if it's installed locally
+  if let Some(ext_dir) = knapsack_extension_dir() {
+    let ext_path = ext_dir.to_string_lossy().to_string();
+    args.push(format!("--load-extension={}", ext_path));
+    args.push(format!("--disable-extensions-except={}", ext_path));
+  }
+
+  args.push(url.to_string());
+  args
+}
+
 /// Open a URL in the system Chrome/Chromium browser using the isolated
 /// "openclaw" user data directory so it never hijacks the user's personal
 /// profile.  Falls back to the system default only if no Chrome-family browser
 /// can be found.
 fn open_url_in_chrome(url: &str) -> Result<(), String> {
-  let user_data_dir = openclaw_user_data_dir();
-  let _ = std::fs::create_dir_all(&user_data_dir);
-  let udd_arg = format!("--user-data-dir={}", user_data_dir.to_string_lossy());
+  let args = build_chromium_args(url);
 
   #[cfg(target_os = "macos")]
   {
@@ -237,8 +280,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
     for browser in browsers {
       if Path::new(browser).exists() {
         return std::process::Command::new(browser)
-          .arg(&udd_arg)
-          .arg(url)
+          .args(&args)
           .spawn()
           .map(|_| ())
           .map_err(|e| format!("Failed to launch {}: {}", browser, e));
@@ -265,8 +307,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
     for browser in &candidates {
       if Path::new(browser).exists() {
         return std::process::Command::new(browser)
-          .arg(&udd_arg)
-          .arg(url)
+          .args(&args)
           .spawn()
           .map(|_| ())
           .map_err(|e| format!("Failed to launch {}: {}", browser, e));
@@ -281,8 +322,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
       if let Ok(output) = std::process::Command::new("which").arg(bin).output() {
         if output.status.success() {
           return std::process::Command::new(bin)
-            .arg(&udd_arg)
-            .arg(url)
+            .args(&args)
             .spawn()
             .map(|_| ())
             .map_err(|e| format!("Failed to launch {}: {}", bin, e));

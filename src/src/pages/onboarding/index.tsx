@@ -137,7 +137,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
                 Object.keys(connections).map(key => key),
               )
               syncConnections(response.profile.email, connections)
-              navigateToNextScreen()
+              transitionToExtensionScreen()
               setIsLoading(false)
             })
             .catch(error => {
@@ -186,7 +186,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
             Object.keys(connections).map(key => key),
           )
           syncMicrosoftConnections(event.payload.profile.email, connections)
-          navigateToNextScreen()
+          transitionToExtensionScreen()
           setIsLoading(false)
         },
       )
@@ -254,12 +254,26 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
 
   const onGoogleSkipClick = (_index: number) => {
     KNAnalytics.trackEvent('Onboarding - Skipped Google Sign In', {})
-    navigateToNextScreen()
+    transitionToExtensionScreen()
+  }
+
+  const transitionToExtensionScreen = () => {
+    transitionToNextScreen(2)
   }
 
   const navigateToNextScreen = async () => {
     await setHasOnboarded(true)
     navigate('/home?=' + KN_ONBOARDING_URL_PARAM)
+  }
+
+  const onChromeExtensionInstallClick = (_index: number) => {
+    KNAnalytics.trackEvent('Onboarding - Installed Chrome Extension', {})
+    navigateToNextScreen()
+  }
+
+  const onChromeExtensionSkipClick = (_index: number) => {
+    KNAnalytics.trackEvent('Onboarding - Skipped Chrome Extension', {})
+    navigateToNextScreen()
   }
 
   // const onClickGrantNotificationPermission = async () => {
@@ -326,6 +340,8 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       onMicrosoftGrantClick={onMicrosoftGrantClick}
       isLoading={isLoading}
       error={error}
+      onChromeExtensionInstallClick={onChromeExtensionInstallClick}
+      onChromeExtensionSkipClick={onChromeExtensionSkipClick}
       //onAudioGrantClick={onClickGrantAudioPermission}
     />
   )

@@ -16,23 +16,25 @@ import { CadenceType, Cadence, DaysOfWeek } from 'src/automations/automation'
 type RecorderStatus = 'idle' | 'recording' | 'saving' | 'playing'
 
 /**
- * Chrome extension ID for the OpenClaw Browser Relay extension.
- * This is needed to communicate with the extension for recording.
- * Users may need to update this if they load the extension unpacked.
+ * Published Knapsack Chrome extension ID from the Chrome Web Store.
+ * Override via localStorage 'knapsack-extension-id' for dev/unpacked builds.
  */
-const EXTENSION_ID_KEY = 'openclaw-extension-id'
+const KNAPSACK_EXTENSION_ID = 'ndolhgjognokndkmkcjgookcogfbgdpg'
 
-function getExtensionId(): string | null {
-  return localStorage.getItem(EXTENSION_ID_KEY)
+function getExtensionId(): string {
+  return localStorage.getItem('knapsack-extension-id') || KNAPSACK_EXTENSION_ID
 }
 
 /**
- * Send a message to the OpenClaw Chrome extension.
- * Falls back to broadcasting via the relay if direct messaging fails.
+ * Send a message to the Knapsack Chrome extension via chrome.runtime.sendMessage.
+ * Falls back to the relay control endpoint for environments without chrome APIs
+ * (e.g. when running inside Tauri's webview).
  */
 async function sendExtensionMessage(msg: Record<string, unknown>): Promise<unknown> {
   const extensionId = getExtensionId()
-  if (extensionId && chrome?.runtime?.sendMessage) {
+
+  // Try direct Chrome extension messaging first (works if running inside Chrome)
+  if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(extensionId, msg, (response: unknown) => {
         if (chrome.runtime.lastError) {
@@ -43,7 +45,8 @@ async function sendExtensionMessage(msg: Record<string, unknown>): Promise<unkno
       })
     })
   }
-  // Fallback: use fetch to the relay control endpoint
+
+  // Fallback for Tauri webview: relay through the local control endpoint
   const resp = await fetch('http://127.0.0.1:18792/recorder', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -500,17 +503,20 @@ export default function WorkflowRecorder() {
       <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
         <p className="font-medium">Setup:</p>
         <ol className="mt-1 list-inside list-decimal">
-          <li>Install the OpenClaw Browser Relay extension in Chrome</li>
-          <li>Click the extension icon on the tab you want to record</li>
           <li>
-            Set the extension ID in localStorage:{' '}
-            <code className="rounded bg-gray-200 px-1">
-              localStorage.setItem(&apos;{EXTENSION_ID_KEY}&apos;,
-              &apos;YOUR_EXTENSION_ID&apos;)
-            </code>
+            Install the{' '}
+            <a
+              href="https://chrome.google.com/webstore/detail/ndolhgjognokndkmkcjgookcogfbgdpg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              Knapsack Chrome Extension
+            </a>
           </li>
+          <li>Open Chrome and navigate to the page where your workflow starts</li>
           <li>Click &quot;Start Recording&quot; and perform your workflow</li>
-          <li>Click &quot;Stop Recording&quot; to save</li>
+          <li>Click &quot;Stop Recording&quot; to save and optionally schedule</li>
         </ol>
       </div>
     </div>
