@@ -815,6 +815,12 @@ async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<Stri
 
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
+    } else {
+        // Default to user home so cmd.exe doesn't inherit a potentially
+        // invalid working directory from the Tauri process on Windows.
+        if let Some(home) = dirs::home_dir() {
+            cmd.current_dir(home);
+        }
     }
 
     let output = cmd.output().map_err(|e| format!("Failed to execute command: {}", e))?;

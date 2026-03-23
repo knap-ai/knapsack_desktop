@@ -2335,6 +2335,7 @@ struct ServiceSetup {
   env: Vec<(String, String)>,
   app_version: String,
   os_info: String,
+  working_dir: PathBuf,
 }
 
 /// Platform-agnostic gateway configuration setup.
@@ -3040,6 +3041,7 @@ async fn prepare_gateway_config(
     env,
     app_version,
     os_info,
+    working_dir: workspace_path,
   })
 }
 
@@ -3139,6 +3141,7 @@ pub async fn set_service_enabled(
       let child = std::process::Command::new(&setup.program_args[0])
         .args(&setup.program_args[1..])
         .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        .current_dir(&setup.working_dir)
         .stdout(stdout_file)
         .stderr(stderr_file)
         .creation_flags(CREATE_NO_WINDOW)
