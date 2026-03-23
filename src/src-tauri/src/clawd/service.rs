@@ -1652,6 +1652,35 @@ pub async fn set_api_key(
       std::env::remove_var("OLLAMA_HOST");
     }
 
+    // Update agents.defaults.model in the config file so the gateway uses
+    // the correct model on restart.  Without this, a stale model (e.g.
+    // ollama/deepseek-r1:8b) persists in openclaw.json even after the user
+    // switches providers via the toolbar (no-key switch path).
+    let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
+    if let Ok(cfg_str) = fs::read_to_string(&config_path) {
+      if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
+        let model = crate::clawd::gateway_client::resolve_default_model();
+        let agents = cfg_val
+          .as_object_mut()
+          .unwrap()
+          .entry("agents")
+          .or_insert_with(|| serde_json::json!({}));
+        let mut empty_map = serde_json::Map::new();
+        let defaults = agents
+          .as_object_mut()
+          .unwrap_or(&mut empty_map)
+          .entry("defaults")
+          .or_insert_with(|| serde_json::json!({}));
+        defaults.as_object_mut().map(|d| {
+          d.insert("model".to_string(), serde_json::json!({"primary": model}));
+        });
+        if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
+          let _ = fs::write(&config_path, json);
+          eprintln!("[clawd/service] Updated agents.defaults.model to '{}' in config file (provider switch)", model);
+        }
+      }
+    }
+
     // Provider switch requires a full gateway restart — a config.patch only
     // updates the default model but does NOT re-run provider discovery, so
     // the old provider (e.g. Ollama) stays in the catalog and the gateway
