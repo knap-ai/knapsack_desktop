@@ -3808,6 +3808,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Number-key shortcuts for gateway/browser troubleshooting banners
+  useEffect(() => {
+    const handleBannerKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+      // Don't intercept when user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      const gatewayDown = health && !health.gateway_ok && !channelStatus.gatewayStarting
+      const browserDown = health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting
+
+      let prompt: string | undefined
+      if (gatewayDown) {
+        if (e.key === '1') prompt = GATEWAY_DIAGNOSE_PROMPT
+        else if (e.key === '2') prompt = GATEWAY_RESTART_PROMPT
+        else if (e.key === '3') prompt = GATEWAY_VIEW_LOGS_PROMPT
+      } else if (browserDown) {
+        if (e.key === '1') prompt = GATEWAY_DIAGNOSE_PROMPT
+        else if (e.key === '2') prompt = GATEWAY_VIEW_LOGS_PROMPT
+      }
+
+      if (prompt) {
+        e.preventDefault()
+        handleSendWithTextRef.current?.(prompt)
+      }
+    }
+    window.addEventListener('keydown', handleBannerKey)
+    return () => window.removeEventListener('keydown', handleBannerKey)
+  }, [health, channelStatus.gatewayStarting])
+
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput
   const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
