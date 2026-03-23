@@ -2159,6 +2159,60 @@ pub struct OllamaPullRequest {
   pub model: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct OllamaDeleteRequest {
+  pub model: String,
+}
+
+/// Delete a model from the local Ollama instance.
+#[post("/api/knapsack/ollama/delete")]
+pub async fn ollama_delete(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<OllamaDeleteRequest>,
+) -> impl Responder {
+  let tokens = load_or_create_tokens(&app_handle).ok();
+  let base_url = tokens
+    .as_ref()
+    .and_then(|t| t.ollama_base_url.clone())
+    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(30))
+    .build()
+    .unwrap_or_default();
+
+  let resp = match client
+    .delete(format!("{}/api/delete", &base_url))
+    .json(&serde_json::json!({ "model": &payload.model }))
+    .send()
+    .await
+  {
+    Ok(r) => r,
+    Err(e) => {
+      return HttpResponse::BadGateway().json(serde_json::json!({
+        "success": false,
+        "message": format!("Cannot reach Ollama at {}: {}", base_url, e),
+      }))
+    }
+  };
+
+  if !resp.status().is_success() {
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    return HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": format!("Ollama delete error ({}): {}", status, body),
+    }));
+  }
+
+  eprintln!("[clawd/service] Deleted Ollama model: {}", &payload.model);
+
+  HttpResponse::Ok().json(serde_json::json!({
+    "success": true,
+    "message": format!("Deleted model {}", &payload.model),
+  }))
+}
+
 /// Pull (download) a model from the Ollama registry.
 /// Streams progress back as newline-delimited JSON lines.
 #[post("/api/knapsack/ollama/pull")]

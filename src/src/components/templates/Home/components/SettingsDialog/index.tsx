@@ -373,6 +373,8 @@ export const SettingsDialog = ({
     }
   }
 
+  const [deletingOllamaModel, setDeletingOllamaModel] = useState<string | null>(null)
+
   const handleOllamaModelChange = async (model: string) => {
     setSelectedOllamaModel(model)
     if (!providerStatus?.ollama_enabled) return
@@ -388,6 +390,35 @@ export const SettingsDialog = ({
       })
     } catch {
       // silently fail
+    }
+  }
+
+  const handleOllamaDeleteModel = async (model: string) => {
+    if (!confirm(`Delete "${model}"? This will free disk space but you'll need to re-download it to use it again.`)) return
+    setDeletingOllamaModel(model)
+    try {
+      const resp = await fetch('http://127.0.0.1:8897/api/knapsack/ollama/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      })
+      const data = await resp.json()
+      if (data.success) {
+        setOllamaModels(prev => prev.filter(m => m.name !== model))
+        // If the deleted model was selected, clear selection
+        if (selectedOllamaModel === model) {
+          const remaining = ollamaModels.filter(m => m.name !== model)
+          const next = remaining[0]?.name || ''
+          setSelectedOllamaModel(next)
+          if (next && providerStatus?.ollama_enabled) {
+            handleOllamaModelChange(next)
+          }
+        }
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setDeletingOllamaModel(null)
     }
   }
 
@@ -593,7 +624,7 @@ export const SettingsDialog = ({
               {/* Model picker */}
               {ollamaRunning && ollamaModels.length > 0 && (
                 <div>
-                  <div className={styles.ollamaModelLabel}>Model</div>
+                  <div className={styles.ollamaModelLabel}>Active Model</div>
                   <InputSelect
                     options={ollamaModels.map(m => ({
                       label: `${m.name}${m.parameter_size ? ` (${m.parameter_size})` : ''}`,
@@ -602,6 +633,37 @@ export const SettingsDialog = ({
                     value={selectedOllamaModel || ollamaModels[0]?.name || ''}
                     onChange={handleOllamaModelChange}
                   />
+                  <div className={styles.ollamaModelLabel} style={{ marginTop: 10 }}>Installed Models</div>
+                  <div className={styles.ollamaModelList}>
+                    {ollamaModels.map(m => {
+                      const sizeGB = m.size ? (m.size / 1_073_741_824).toFixed(1) : null
+                      const isSelected = (selectedOllamaModel || ollamaModels[0]?.name) === m.name
+                      const isDeleting = deletingOllamaModel === m.name
+                      return (
+                        <div key={m.name} className={styles.ollamaModelRow}>
+                          <div className={styles.ollamaModelInfo}>
+                            <span className={styles.ollamaModelName}>
+                              {m.name}
+                              {isSelected && <span className={styles.ollamaModelActive}>active</span>}
+                            </span>
+                            <span className={styles.ollamaModelMeta}>
+                              {m.parameter_size && <span>{m.parameter_size}</span>}
+                              {sizeGB && <span>{sizeGB} GB</span>}
+                              {m.family && <span>{m.family}</span>}
+                            </span>
+                          </div>
+                          <button
+                            className={styles.ollamaDeleteBtn}
+                            disabled={isDeleting}
+                            onClick={() => handleOllamaDeleteModel(m.name)}
+                            title={`Delete ${m.name}`}
+                          >
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
