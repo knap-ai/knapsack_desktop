@@ -233,6 +233,14 @@ function friendlyError(raw: string): string {
   if (lower.includes('content must be a string') || lower.includes('does not support images')) {
     return `🖼️ **This model (\`${activeModel}\`) does not support image attachments.** Switch to a vision-capable model (e.g. Llama 4 Scout) in Settings, or send your message without the image.`
   }
+  // Model doesn't support tool/function calling (e.g. deepseek-r1, some Ollama models)
+  if (lower.includes('does not support tools') || lower.includes('does not support function') || lower.includes('tool use is not supported')) {
+    return `🔧 **This model (\`${activeModel}\`) does not support tool use.** Knapsack needs tool calling to run actions like browsing, reading files, and executing commands. Switch to a model that supports tools (e.g. Llama 3.1, Qwen 2.5, or Mistral) in Settings.`
+  }
+  // Unsupported parameter value (e.g. temperature on reasoning models)
+  if (lower.includes('unsupported value') && lower.includes('temperature')) {
+    return `⚠️ **Parameter not supported by \`${activeModel}\`.** This is a reasoning model that doesn't allow custom temperature. This has been fixed — please try again.`
+  }
   // If it looks like raw JSON, extract the meaningful part
   if (raw.includes('"message"') && raw.includes('"error"')) {
     try {
@@ -3807,6 +3815,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // Number-key shortcuts for gateway/browser troubleshooting banners
+  useEffect(() => {
+    const handleBannerKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+      // Don't intercept when user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      const gatewayDown = health && !health.gateway_ok && !channelStatus.gatewayStarting
+      const browserDown = health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting
+
+      let prompt: string | undefined
+      if (gatewayDown) {
+        if (e.key === '1') prompt = GATEWAY_DIAGNOSE_PROMPT
+        else if (e.key === '2') prompt = GATEWAY_RESTART_PROMPT
+        else if (e.key === '3') prompt = GATEWAY_VIEW_LOGS_PROMPT
+      } else if (browserDown) {
+        if (e.key === '1') prompt = GATEWAY_DIAGNOSE_PROMPT
+        else if (e.key === '2') prompt = GATEWAY_VIEW_LOGS_PROMPT
+      }
+
+      if (prompt) {
+        e.preventDefault()
+        handleSendWithTextRef.current?.(prompt)
+      }
+    }
+    window.addEventListener('keydown', handleBannerKey)
+    return () => window.removeEventListener('keydown', handleBannerKey)
+  }, [health, channelStatus.gatewayStarting])
 
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput

@@ -1639,42 +1639,74 @@ pub async fn set_api_key(
     if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
     if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
     if let Some(k) = &tokens.openrouter_api_key { std::env::set_var("OPENROUTER_API_KEY", k); }
-    // Ollama env vars for the switched provider
-    if tokens.ollama_enabled.unwrap_or(false) {
+    // Ollama env vars: only set when Ollama is the active provider.
+    // When switching AWAY from Ollama, clear the env vars so the gateway's
+    // provider discovery won't pick up a stale Ollama provider.
+    if provider == "ollama" && tokens.ollama_enabled.unwrap_or(false) {
       std::env::set_var("OLLAMA_API_KEY", "ollama-local");
       if let Some(m) = &tokens.ollama_model { std::env::set_var("KNAPSACK_OLLAMA_MODEL", m); }
       if let Some(u) = &tokens.ollama_base_url { std::env::set_var("OLLAMA_HOST", u); }
+    } else if provider != "ollama" {
+      std::env::remove_var("OLLAMA_API_KEY");
+      std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
+      std::env::remove_var("OLLAMA_HOST");
     }
-    // Push model change to the running gateway immediately
-    let switch_model = crate::clawd::gateway_client::resolve_default_model();
-    tokio::spawn(async move {
-      if !crate::clawd::gateway_client::is_gateway_port_open().await {
-        return;
-      }
-      let cfg_result = crate::clawd::gateway_client::config_get(None).await;
-      if let Ok(cfg_val) = cfg_result {
-        let base_hash = cfg_val.get("hash")
-          .and_then(|h| h.as_str())
-          .unwrap_or("");
-        if !base_hash.is_empty() {
-          let patch = serde_json::json!({
-            "agents": {"defaults": {"model": switch_model}}
-          });
-          match crate::clawd::gateway_client::config_patch(
-            &patch.to_string(), base_hash, None
-          ).await {
-            Ok(_) => eprintln!(
-              "[clawd/service] Pushed model '{}' to running gateway via config.patch (provider switch)",
-              switch_model
-            ),
-            Err(e) => eprintln!(
-              "[clawd/service] Failed to push model to gateway on switch: {}",
-              e
-            ),
-          }
+
+    // Update agents.defaults.model in the config file so the gateway uses
+    // the correct model on restart.  Without this, a stale model (e.g.
+    // ollama/deepseek-r1:8b) persists in openclaw.json even after the user
+    // switches providers via the toolbar (no-key switch path).
+    let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
+    if let Ok(cfg_str) = fs::read_to_string(&config_path) {
+      if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
+        let model = crate::clawd::gateway_client::resolve_default_model();
+        let agents = cfg_val
+          .as_object_mut()
+          .unwrap()
+          .entry("agents")
+          .or_insert_with(|| serde_json::json!({}));
+        let mut empty_map = serde_json::Map::new();
+        let defaults = agents
+          .as_object_mut()
+          .unwrap_or(&mut empty_map)
+          .entry("defaults")
+          .or_insert_with(|| serde_json::json!({}));
+        defaults.as_object_mut().map(|d| {
+          d.insert("model".to_string(), serde_json::json!({"primary": model}));
+        });
+        if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
+          let _ = fs::write(&config_path, json);
+          eprintln!("[clawd/service] Updated agents.defaults.model to '{}' in config file (provider switch)", model);
         }
       }
-    });
+    }
+
+    // Provider switch requires a full gateway restart — a config.patch only
+    // updates the default model but does NOT re-run provider discovery, so
+    // the old provider (e.g. Ollama) stays in the catalog and the gateway
+    // keeps routing requests through it.
+    //
+    // Kill the running gateway; the health-check will auto-restart it with
+    // the updated env vars and correct provider discovery.
+    let switch_model = crate::clawd::gateway_client::resolve_default_model();
+    eprintln!(
+      "[clawd/service] Provider switch to '{}' (model: {}) — restarting gateway for provider re-discovery",
+      provider, switch_model
+    );
+    // Invalidate the cached WS connection first
+    crate::clawd::gateway_client::invalidate();
+    #[cfg(target_os = "windows")]
+    {
+      kill_process_on_port(18789);
+    }
+    #[cfg(target_os = "macos")]
+    {
+      let pid = GATEWAY_PID.load(std::sync::atomic::Ordering::Relaxed);
+      if pid > 0 {
+        unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+        GATEWAY_PID.store(0, std::sync::atomic::Ordering::Relaxed);
+      }
+    }
     return HttpResponse::Ok().json(SetApiKeyResponse {
       success: true,
       message: format!("Switched to {}", provider_name),
@@ -1783,13 +1815,17 @@ pub async fn set_api_key(
   if let Some(m) = &tokens.gemini_model { std::env::set_var("KNAPSACK_GEMINI_MODEL", m); }
   if let Some(m) = &tokens.groq_model { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
   if let Some(m) = &tokens.openrouter_model { std::env::set_var("KNAPSACK_OPENROUTER_MODEL", m); }
-  // Propagate Ollama settings
-  if tokens.ollama_enabled.unwrap_or(false) {
+  // Propagate Ollama settings — only when Ollama is the active provider.
+  // When switching away, clear the env vars so the gateway won't discover
+  // a stale Ollama provider on restart.
+  if provider == "ollama" && tokens.ollama_enabled.unwrap_or(false) {
     std::env::set_var("OLLAMA_API_KEY", "ollama-local");
     if let Some(m) = &tokens.ollama_model { std::env::set_var("KNAPSACK_OLLAMA_MODEL", m); }
     if let Some(u) = &tokens.ollama_base_url { std::env::set_var("OLLAMA_HOST", u); }
-  } else {
+  } else if provider != "ollama" {
     std::env::remove_var("OLLAMA_API_KEY");
+    std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
+    std::env::remove_var("OLLAMA_HOST");
   }
   if let Some(extra) = &tokens.extra_provider_keys {
     for (env_var, key) in extra {
@@ -1820,7 +1856,7 @@ pub async fn set_api_key(
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
-        d.insert("model".to_string(), serde_json::json!(model));
+        d.insert("model".to_string(), serde_json::json!({"primary": model}));
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
@@ -1829,37 +1865,27 @@ pub async fn set_api_key(
     }
   }
 
-  // Push model change to the running gateway via config.patch RPC so it
-  // takes effect immediately without requiring a gateway restart.
+  // Restart the gateway so provider discovery runs with updated env vars.
+  // A config.patch alone only updates the default model but doesn't re-run
+  // provider discovery — the old provider stays in the catalog.
   let model_for_gateway = crate::clawd::gateway_client::resolve_default_model();
-  tokio::spawn(async move {
-    if !crate::clawd::gateway_client::is_gateway_port_open().await {
-      return;
+  eprintln!(
+    "[clawd/service] API key saved for '{}' (model: {}) — restarting gateway for provider re-discovery",
+    provider, model_for_gateway
+  );
+  crate::clawd::gateway_client::invalidate();
+  #[cfg(target_os = "windows")]
+  {
+    kill_process_on_port(18789);
+  }
+  #[cfg(target_os = "macos")]
+  {
+    let pid = GATEWAY_PID.load(std::sync::atomic::Ordering::Relaxed);
+    if pid > 0 {
+      unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+      GATEWAY_PID.store(0, std::sync::atomic::Ordering::Relaxed);
     }
-    let cfg_result = crate::clawd::gateway_client::config_get(None).await;
-    if let Ok(cfg_val) = cfg_result {
-      let base_hash = cfg_val.get("hash")
-        .and_then(|h| h.as_str())
-        .unwrap_or("");
-      if !base_hash.is_empty() {
-        let patch = serde_json::json!({
-          "agents": {"defaults": {"model": model_for_gateway}}
-        });
-        match crate::clawd::gateway_client::config_patch(
-          &patch.to_string(), base_hash, None
-        ).await {
-          Ok(_) => eprintln!(
-            "[clawd/service] Pushed model '{}' to running gateway via config.patch",
-            model_for_gateway
-          ),
-          Err(e) => eprintln!(
-            "[clawd/service] Failed to push model to gateway: {} (will apply on restart)",
-            e
-          ),
-        }
-      }
-    }
-  });
+  }
 
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
@@ -2104,7 +2130,7 @@ pub async fn ollama_configure(
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
-        d.insert("model".to_string(), serde_json::json!(model));
+        d.insert("model".to_string(), serde_json::json!({"primary": model}));
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
@@ -2126,7 +2152,7 @@ pub async fn ollama_configure(
         .unwrap_or("");
       if !base_hash.is_empty() {
         let patch = serde_json::json!({
-          "agents": {"defaults": {"model": ollama_model}}
+          "agents": {"defaults": {"model": {"primary": ollama_model}}}
         });
         match crate::clawd::gateway_client::config_patch(
           &patch.to_string(), base_hash, None
@@ -2157,6 +2183,60 @@ pub async fn ollama_configure(
 #[derive(Debug, Deserialize)]
 pub struct OllamaPullRequest {
   pub model: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OllamaDeleteRequest {
+  pub model: String,
+}
+
+/// Delete a model from the local Ollama instance.
+#[post("/api/knapsack/ollama/delete")]
+pub async fn ollama_delete(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<OllamaDeleteRequest>,
+) -> impl Responder {
+  let tokens = load_or_create_tokens(&app_handle).ok();
+  let base_url = tokens
+    .as_ref()
+    .and_then(|t| t.ollama_base_url.clone())
+    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(30))
+    .build()
+    .unwrap_or_default();
+
+  let resp = match client
+    .delete(format!("{}/api/delete", &base_url))
+    .json(&serde_json::json!({ "model": &payload.model }))
+    .send()
+    .await
+  {
+    Ok(r) => r,
+    Err(e) => {
+      return HttpResponse::BadGateway().json(serde_json::json!({
+        "success": false,
+        "message": format!("Cannot reach Ollama at {}: {}", base_url, e),
+      }))
+    }
+  };
+
+  if !resp.status().is_success() {
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    return HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": format!("Ollama delete error ({}): {}", status, body),
+    }));
+  }
+
+  eprintln!("[clawd/service] Deleted Ollama model: {}", &payload.model);
+
+  HttpResponse::Ok().json(serde_json::json!({
+    "success": true,
+    "message": format!("Deleted model {}", &payload.model),
+  }))
 }
 
 /// Pull (download) a model from the Ollama registry.
@@ -2335,6 +2415,7 @@ struct ServiceSetup {
   env: Vec<(String, String)>,
   app_version: String,
   os_info: String,
+  working_dir: PathBuf,
 }
 
 /// Platform-agnostic gateway configuration setup.
@@ -2583,6 +2664,20 @@ async fn prepare_gateway_config(
             .remove("hideAutomationBanner");
           eprintln!("[clawd/service] Removed invalid browser.hideAutomationBanner key from config");
           patched = true;
+        }
+
+        // Migrate agents.defaults.model from string to object form.
+        // The gateway schema expects { primary: "...", fallbacks?: [...] }
+        // but older Knapsack versions wrote a bare string.
+        if let Some(model_val) = cfg_val.pointer("/agents/defaults/model") {
+          if model_val.is_string() {
+            let model_str = model_val.as_str().unwrap_or("").to_string();
+            if let Some(defaults) = cfg_val.pointer_mut("/agents/defaults").and_then(|v| v.as_object_mut()) {
+              defaults.insert("model".to_string(), serde_json::json!({"primary": model_str}));
+              eprintln!("[clawd/service] Migrated agents.defaults.model from string to object form");
+              patched = true;
+            }
+          }
         }
 
         // On Linux, set browser.noSandbox = true
@@ -3040,6 +3135,7 @@ async fn prepare_gateway_config(
     env,
     app_version,
     os_info,
+    working_dir: workspace_path,
   })
 }
 
@@ -3069,6 +3165,26 @@ pub async fn set_service_enabled(
     let enabled = payload.enabled;
 
     if enabled {
+      // If a background restart is already in progress, wait for it to
+      // finish rather than spawning a second gateway process.
+      if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
+        eprintln!("[clawd/service] Enable request: background restart already in progress, waiting...");
+        for _ in 0..20 {
+          std::thread::sleep(std::time::Duration::from_millis(500));
+          if !GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) { break; }
+        }
+        // If a gateway is now running, skip re-spawn
+        let existing_pid = GATEWAY_PID.load(Ordering::Relaxed);
+        if existing_pid > 0 {
+          eprintln!("[clawd/service] Enable request: gateway already running (pid {})", existing_pid);
+          return HttpResponse::Ok().json(EnableServiceResponse {
+            success: true,
+            enabled,
+            message: format!("Gateway already started by background restart (pid {})", existing_pid),
+          });
+        }
+      }
+
       let setup = match prepare_gateway_config(&app_handle, &cfg).await {
         Ok(s) => s,
         Err(e) => {
@@ -3079,6 +3195,10 @@ pub async fn set_service_enabled(
           })
         }
       };
+
+      // Mark restart in progress so the health-check background task
+      // doesn't race us by spawning a second gateway.
+      GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
 
       // Kill stale Chrome processes holding the CDP port
       kill_stale_clawdbot_chromes();
@@ -3139,6 +3259,7 @@ pub async fn set_service_enabled(
       let child = std::process::Command::new(&setup.program_args[0])
         .args(&setup.program_args[1..])
         .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        .current_dir(&setup.working_dir)
         .stdout(stdout_file)
         .stderr(stderr_file)
         .creation_flags(CREATE_NO_WINDOW)
@@ -3148,9 +3269,11 @@ pub async fn set_service_enabled(
         Ok(child) => {
           let pid = child.id();
           GATEWAY_PID.store(pid, Ordering::Relaxed);
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           eprintln!("[clawd/service] Spawned gateway process (pid {})", pid);
         }
         Err(e) => {
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           return HttpResponse::InternalServerError().json(EnableServiceResponse {
             success: false,
             enabled,

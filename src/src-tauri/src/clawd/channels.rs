@@ -2765,7 +2765,7 @@ pub async fn channel_diagnostics() -> impl Responder {
                 issues.push("agents.defaults.model is NOT set in gateway config — AI cannot respond".to_string());
                 let model_str = resolve_default_model();
                 let base_hash = extract_base_hash(&snapshot);
-                let patch = serde_json::json!({"agents": {"defaults": {"model": model_str}}}).to_string();
+                let patch = serde_json::json!({"agents": {"defaults": {"model": {"primary": model_str}}}}).to_string();
                 match gateway_client::config_patch(&patch, &base_hash, None).await {
                     Ok(_) => repairs.push(format!("Set agents.defaults.model to '{}'", model_str)),
                     Err(e) => issues.push(format!("Failed to repair model: {}", e)),
