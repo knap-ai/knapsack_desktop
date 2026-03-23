@@ -3613,13 +3613,15 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
             serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
           );
         }
-        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq
+        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → Ollama
         eprintln!("[clawd/chat] {} hit credit/rate limit: {}", current_provider, err_str);
-        let fallbacks: [(&str, Option<String>); 4] = [
+        let ollama_key = if ollama_is_enabled(&app_handle) { Some("ollama-local".to_string()) } else { None };
+        let fallbacks: [(&str, Option<String>); 5] = [
           ("openai", openai_key(&app_handle)),
           ("anthropic", anthropic_key(&app_handle)),
           ("gemini", gemini_key(&app_handle)),
           ("groq", groq_key(&app_handle)),
+          ("ollama", ollama_key),
         ];
         let mut fallback_resp = None;
         for (fb_provider, fb_key_opt) in &fallbacks {
@@ -3629,6 +3631,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
               "anthropic" => super::service::get_anthropic_model(&app_handle),
               "gemini" => super::service::get_gemini_model(&app_handle),
               "groq" => super::service::get_groq_model(&app_handle),
+              "ollama" => ollama_model(&app_handle),
               _ => super::service::get_openai_model(&app_handle),
             };
             eprintln!("[clawd/chat] Trying fallback provider={} model={}", fb_provider, fb_model);
@@ -3650,8 +3653,8 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
         match fallback_resp {
           Some(r) => r,
           None => {
-            return HttpResponse::InternalServerError().json(
-              serde_json::json!({"ok": false, "message": format!("{} error: {}. All fallback providers also failed.", current_provider, e)}),
+            return HttpResponse::Ok().json(
+              serde_json::json!({"ok": false, "message": format!("All AI providers are unavailable. Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.")}),
             );
           }
         }
