@@ -3139,6 +3139,26 @@ pub async fn set_service_enabled(
     let enabled = payload.enabled;
 
     if enabled {
+      // If a background restart is already in progress, wait for it to
+      // finish rather than spawning a second gateway process.
+      if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
+        eprintln!("[clawd/service] Enable request: background restart already in progress, waiting...");
+        for _ in 0..20 {
+          std::thread::sleep(std::time::Duration::from_millis(500));
+          if !GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) { break; }
+        }
+        // If a gateway is now running, skip re-spawn
+        let existing_pid = GATEWAY_PID.load(Ordering::Relaxed);
+        if existing_pid > 0 {
+          eprintln!("[clawd/service] Enable request: gateway already running (pid {})", existing_pid);
+          return HttpResponse::Ok().json(EnableServiceResponse {
+            success: true,
+            enabled,
+            message: format!("Gateway already started by background restart (pid {})", existing_pid),
+          });
+        }
+      }
+
       let setup = match prepare_gateway_config(&app_handle, &cfg).await {
         Ok(s) => s,
         Err(e) => {
@@ -3149,6 +3169,10 @@ pub async fn set_service_enabled(
           })
         }
       };
+
+      // Mark restart in progress so the health-check background task
+      // doesn't race us by spawning a second gateway.
+      GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
 
       // Kill stale Chrome processes holding the CDP port
       kill_stale_clawdbot_chromes();
@@ -3219,9 +3243,11 @@ pub async fn set_service_enabled(
         Ok(child) => {
           let pid = child.id();
           GATEWAY_PID.store(pid, Ordering::Relaxed);
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           eprintln!("[clawd/service] Spawned gateway process (pid {})", pid);
         }
         Err(e) => {
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           return HttpResponse::InternalServerError().json(EnableServiceResponse {
             success: false,
             enabled,
