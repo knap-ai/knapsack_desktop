@@ -237,6 +237,10 @@ function friendlyError(raw: string): string {
   if (lower.includes('does not support tools') || lower.includes('does not support function') || lower.includes('tool use is not supported')) {
     return `🔧 **This model (\`${activeModel}\`) does not support tool use.** Knapsack needs tool calling to run actions like browsing, reading files, and executing commands. Switch to a model that supports tools (e.g. Llama 3.1, Qwen 2.5, or Mistral) in Settings.`
   }
+  // Unsupported parameter value (e.g. temperature on reasoning models)
+  if (lower.includes('unsupported value') && lower.includes('temperature')) {
+    return `⚠️ **Parameter not supported by \`${activeModel}\`.** This is a reasoning model that doesn't allow custom temperature. This has been fixed — please try again.`
+  }
   // If it looks like raw JSON, extract the meaningful part
   if (raw.includes('"message"') && raw.includes('"error"')) {
     try {
