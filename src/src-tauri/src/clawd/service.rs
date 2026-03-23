@@ -1701,10 +1701,14 @@ pub async fn set_api_key(
     }
     #[cfg(target_os = "macos")]
     {
-      let pid = GATEWAY_PID.load(std::sync::atomic::Ordering::Relaxed);
-      if pid > 0 {
-        unsafe { libc::kill(pid as i32, libc::SIGTERM); }
-        GATEWAY_PID.store(0, std::sync::atomic::Ordering::Relaxed);
+      if let Ok(plist_path) = launch_agent_plist_path() {
+        if plist_path.exists() {
+          let uid = unsafe { libc::getuid() };
+          let domain = format!("gui/{}", uid);
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+        }
       }
     }
     return HttpResponse::Ok().json(SetApiKeyResponse {
@@ -1880,10 +1884,14 @@ pub async fn set_api_key(
   }
   #[cfg(target_os = "macos")]
   {
-    let pid = GATEWAY_PID.load(std::sync::atomic::Ordering::Relaxed);
-    if pid > 0 {
-      unsafe { libc::kill(pid as i32, libc::SIGTERM); }
-      GATEWAY_PID.store(0, std::sync::atomic::Ordering::Relaxed);
+    if let Ok(plist_path) = launch_agent_plist_path() {
+      if plist_path.exists() {
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+          .status();
+      }
     }
   }
 
