@@ -154,36 +154,52 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
 }
 
 // Convert raw API/JSON error messages into user-friendly text
+function getActiveModelLabel(): string {
+  const provider = localStorage.getItem('moltbot_active_provider') || 'openai'
+  const modelKeys: Record<string, string> = {
+    openai: 'moltbot_openai_model',
+    anthropic: 'moltbot_anthropic_model',
+    gemini: 'moltbot_gemini_model',
+    groq: 'moltbot_groq_model',
+    openrouter: 'moltbot_openrouter_model',
+    ollama: 'moltbot_ollama_model',
+  }
+  const model = localStorage.getItem(modelKeys[provider] || '') || ''
+  if (model) return `${provider}/${model}`
+  return provider
+}
+
 function friendlyError(raw: string): string {
   if (!raw) return 'Something went wrong. Please try again.'
   const lower = raw.toLowerCase()
+  const activeModel = getActiveModelLabel()
   // All providers failed (fallback exhausted)
   if (lower.includes('all fallback providers also failed')) {
-    return '⚠️ **All AI providers are unavailable.** Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.'
+    return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.`
   }
   // OpenAI quota / billing errors
   if (lower.includes('insufficient_quota') || lower.includes('exceeded your current quota')) {
-    return '⚠️ **API quota exceeded.** Your OpenAI account has run out of credits or hit its spending limit. Add another provider\'s API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).'
+    return `⚠️ **API quota exceeded** (active: \`${activeModel}\`). Your OpenAI account has run out of credits or hit its spending limit. Add another provider's API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).`
   }
   // Anthropic credit errors
   if (lower.includes('anthropic') && (lower.includes('credit') || lower.includes('billing') || lower.includes('exceeded'))) {
-    return '⚠️ **Anthropic credit limit reached.** Add another provider\'s API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).'
+    return `⚠️ **Anthropic credit limit reached** (active: \`${activeModel}\`). Add another provider's API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).`
   }
   // Rate limit (but not quota)
   if (lower.includes('rate_limit') || (lower.includes('429') && !lower.includes('insufficient_quota'))) {
-    return '⏳ **Rate limited.** Too many requests — please wait a moment and try again.'
+    return `⏳ **Rate limited** (active: \`${activeModel}\`). Too many requests — please wait a moment and try again.`
   }
   // Invalid API key
   if (lower.includes('invalid_api_key') || lower.includes('incorrect api key')) {
-    return '🔑 **Invalid API key.** Please check your key in Settings and try again.'
+    return `🔑 **Invalid API key** (active: \`${activeModel}\`). Please check your key in Settings and try again.`
   }
   // Auth error
   if (lower.includes('401') || lower.includes('unauthorized')) {
-    return '🔒 **Authentication failed.** Your API key may be invalid or expired. Update it in Settings.'
+    return `🔒 **Authentication failed** (active: \`${activeModel}\`). Your API key may be invalid or expired. Update it in Settings.`
   }
   // Model not found / access
   if (lower.includes('model_not_found') || lower.includes('does not exist') || lower.includes('no access')) {
-    return '⚠️ **Model not available.** Your API key may not have access to this model. Try switching to a different model in Settings.'
+    return `⚠️ **Model not available** (active: \`${activeModel}\`). Your API key may not have access to this model. Try switching to a different model in Settings.`
   }
   // Browser automation errors
   if (lower.includes('browser control server') || lower.includes('browser not running') || lower.includes('clawdbot base_url is not configured')) {
@@ -200,22 +216,22 @@ function friendlyError(raw: string): string {
   }
   // Network / connection errors
   if (lower.includes('load failed') && !lower.includes('model')) {
-    return '🌐 **Request too large.** The image attachment may be too large to send. Try a smaller image or send without the attachment.'
+    return `🌐 **Request too large** (active: \`${activeModel}\`). The image attachment may be too large to send. Try a smaller image or send without the attachment.`
   }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
-    return '🌐 **Connection error.** Unable to reach the AI service. Check your internet connection and try again.'
+    return `🌐 **Connection error** (active: \`${activeModel}\`). Unable to reach the AI service. Check your internet connection and try again.`
   }
   // Timeout
   if (lower.includes('timeout') || lower.includes('timed out')) {
-    return '⏰ **Request timed out.** The AI took too long to respond. Try a simpler request or try again.'
+    return `⏰ **Request timed out** (active: \`${activeModel}\`). The AI took too long to respond. Try a simpler request or try again.`
   }
   // Tool loop exceeded
   if (lower.includes('tool loop exceeded')) {
-    return '🔄 **Task too complex.** The AI hit its action limit for this request. Try breaking it into smaller steps.'
+    return `🔄 **Task too complex** (active: \`${activeModel}\`). The AI hit its action limit for this request. Try breaking it into smaller steps.`
   }
   // Image/vision not supported by model (e.g. Groq non-vision models)
   if (lower.includes('content must be a string') || lower.includes('does not support images')) {
-    return '🖼️ **This model does not support image attachments.** Switch to a vision-capable model (e.g. Llama 4 Scout) in Settings, or send your message without the image.'
+    return `🖼️ **This model (\`${activeModel}\`) does not support image attachments.** Switch to a vision-capable model (e.g. Llama 4 Scout) in Settings, or send your message without the image.`
   }
   // If it looks like raw JSON, extract the meaningful part
   if (raw.includes('"message"') && raw.includes('"error"')) {
@@ -244,14 +260,14 @@ function friendlyError(raw: string): string {
     try {
       const parsed = JSON.parse(cleaned)
       const msg = parsed?.error?.message || parsed?.message || parsed?.error
-      if (msg && typeof msg === 'string') return `⚠️ ${msg}`
+      if (msg && typeof msg === 'string') return `⚠️ ${msg} (active: \`${activeModel}\`)`
     } catch { /* not valid JSON, fall through */ }
   }
   // If still very long, truncate rather than hiding the error entirely
   if (cleaned.length > 200) {
-    return `⚠️ ${cleaned.slice(0, 180)}…`
+    return `⚠️ ${cleaned.slice(0, 180)}… (active: \`${activeModel}\`)`
   }
-  return `⚠️ ${cleaned}`
+  return `⚠️ ${cleaned} (active: \`${activeModel}\`)`
 }
 
 type Role = 'system' | 'user' | 'assistant'

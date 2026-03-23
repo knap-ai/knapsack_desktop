@@ -1639,6 +1639,42 @@ pub async fn set_api_key(
     if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
     if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
     if let Some(k) = &tokens.openrouter_api_key { std::env::set_var("OPENROUTER_API_KEY", k); }
+    // Ollama env vars for the switched provider
+    if tokens.ollama_enabled.unwrap_or(false) {
+      std::env::set_var("OLLAMA_API_KEY", "ollama-local");
+      if let Some(m) = &tokens.ollama_model { std::env::set_var("KNAPSACK_OLLAMA_MODEL", m); }
+      if let Some(u) = &tokens.ollama_base_url { std::env::set_var("OLLAMA_HOST", u); }
+    }
+    // Push model change to the running gateway immediately
+    let switch_model = crate::clawd::gateway_client::resolve_default_model();
+    tokio::spawn(async move {
+      if !crate::clawd::gateway_client::is_gateway_port_open().await {
+        return;
+      }
+      let cfg_result = crate::clawd::gateway_client::config_get(None).await;
+      if let Ok(cfg_val) = cfg_result {
+        let base_hash = cfg_val.get("hash")
+          .and_then(|h| h.as_str())
+          .unwrap_or("");
+        if !base_hash.is_empty() {
+          let patch = serde_json::json!({
+            "agents": {"defaults": {"model": switch_model}}
+          });
+          match crate::clawd::gateway_client::config_patch(
+            &patch.to_string(), base_hash, None
+          ).await {
+            Ok(_) => eprintln!(
+              "[clawd/service] Pushed model '{}' to running gateway via config.patch (provider switch)",
+              switch_model
+            ),
+            Err(e) => eprintln!(
+              "[clawd/service] Failed to push model to gateway on switch: {}",
+              e
+            ),
+          }
+        }
+      }
+    });
     return HttpResponse::Ok().json(SetApiKeyResponse {
       success: true,
       message: format!("Switched to {}", provider_name),
@@ -1792,6 +1828,38 @@ pub async fn set_api_key(
       }
     }
   }
+
+  // Push model change to the running gateway via config.patch RPC so it
+  // takes effect immediately without requiring a gateway restart.
+  let model_for_gateway = crate::clawd::gateway_client::resolve_default_model();
+  tokio::spawn(async move {
+    if !crate::clawd::gateway_client::is_gateway_port_open().await {
+      return;
+    }
+    let cfg_result = crate::clawd::gateway_client::config_get(None).await;
+    if let Ok(cfg_val) = cfg_result {
+      let base_hash = cfg_val.get("hash")
+        .and_then(|h| h.as_str())
+        .unwrap_or("");
+      if !base_hash.is_empty() {
+        let patch = serde_json::json!({
+          "agents": {"defaults": {"model": model_for_gateway}}
+        });
+        match crate::clawd::gateway_client::config_patch(
+          &patch.to_string(), base_hash, None
+        ).await {
+          Ok(_) => eprintln!(
+            "[clawd/service] Pushed model '{}' to running gateway via config.patch",
+            model_for_gateway
+          ),
+          Err(e) => eprintln!(
+            "[clawd/service] Failed to push model to gateway: {} (will apply on restart)",
+            e
+          ),
+        }
+      }
+    }
+  });
 
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
@@ -2044,6 +2112,37 @@ pub async fn ollama_configure(
       }
     }
   }
+
+  // Push model change to the running gateway immediately
+  let ollama_model = crate::clawd::gateway_client::resolve_default_model();
+  tokio::spawn(async move {
+    if !crate::clawd::gateway_client::is_gateway_port_open().await {
+      return;
+    }
+    let cfg_result = crate::clawd::gateway_client::config_get(None).await;
+    if let Ok(cfg_val) = cfg_result {
+      let base_hash = cfg_val.get("hash")
+        .and_then(|h| h.as_str())
+        .unwrap_or("");
+      if !base_hash.is_empty() {
+        let patch = serde_json::json!({
+          "agents": {"defaults": {"model": ollama_model}}
+        });
+        match crate::clawd::gateway_client::config_patch(
+          &patch.to_string(), base_hash, None
+        ).await {
+          Ok(_) => eprintln!(
+            "[clawd/service] Pushed model '{}' to running gateway via config.patch (ollama configure)",
+            ollama_model
+          ),
+          Err(e) => eprintln!(
+            "[clawd/service] Failed to push model to gateway on ollama configure: {}",
+            e
+          ),
+        }
+      }
+    }
+  });
 
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
