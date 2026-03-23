@@ -1658,7 +1658,7 @@ pub async fn set_api_key(
           .unwrap_or("");
         if !base_hash.is_empty() {
           let patch = serde_json::json!({
-            "agents": {"defaults": {"model": switch_model}}
+            "agents": {"defaults": {"model": {"primary": switch_model}}}
           });
           match crate::clawd::gateway_client::config_patch(
             &patch.to_string(), base_hash, None
@@ -1820,7 +1820,7 @@ pub async fn set_api_key(
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
-        d.insert("model".to_string(), serde_json::json!(model));
+        d.insert("model".to_string(), serde_json::json!({"primary": model}));
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
@@ -1843,7 +1843,7 @@ pub async fn set_api_key(
         .unwrap_or("");
       if !base_hash.is_empty() {
         let patch = serde_json::json!({
-          "agents": {"defaults": {"model": model_for_gateway}}
+          "agents": {"defaults": {"model": {"primary": model_for_gateway}}}
         });
         match crate::clawd::gateway_client::config_patch(
           &patch.to_string(), base_hash, None
@@ -2104,7 +2104,7 @@ pub async fn ollama_configure(
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
-        d.insert("model".to_string(), serde_json::json!(model));
+        d.insert("model".to_string(), serde_json::json!({"primary": model}));
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
@@ -2126,7 +2126,7 @@ pub async fn ollama_configure(
         .unwrap_or("");
       if !base_hash.is_empty() {
         let patch = serde_json::json!({
-          "agents": {"defaults": {"model": ollama_model}}
+          "agents": {"defaults": {"model": {"primary": ollama_model}}}
         });
         match crate::clawd::gateway_client::config_patch(
           &patch.to_string(), base_hash, None
@@ -2638,6 +2638,20 @@ async fn prepare_gateway_config(
             .remove("hideAutomationBanner");
           eprintln!("[clawd/service] Removed invalid browser.hideAutomationBanner key from config");
           patched = true;
+        }
+
+        // Migrate agents.defaults.model from string to object form.
+        // The gateway schema expects { primary: "...", fallbacks?: [...] }
+        // but older Knapsack versions wrote a bare string.
+        if let Some(model_val) = cfg_val.pointer("/agents/defaults/model") {
+          if model_val.is_string() {
+            let model_str = model_val.as_str().unwrap_or("").to_string();
+            if let Some(defaults) = cfg_val.pointer_mut("/agents/defaults").and_then(|v| v.as_object_mut()) {
+              defaults.insert("model".to_string(), serde_json::json!({"primary": model_str}));
+              eprintln!("[clawd/service] Migrated agents.defaults.model from string to object form");
+              patched = true;
+            }
+          }
         }
 
         // On Linux, set browser.noSandbox = true
