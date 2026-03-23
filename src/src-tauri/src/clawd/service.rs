@@ -1639,42 +1639,45 @@ pub async fn set_api_key(
     if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
     if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
     if let Some(k) = &tokens.openrouter_api_key { std::env::set_var("OPENROUTER_API_KEY", k); }
-    // Ollama env vars for the switched provider
-    if tokens.ollama_enabled.unwrap_or(false) {
+    // Ollama env vars: only set when Ollama is the active provider.
+    // When switching AWAY from Ollama, clear the env vars so the gateway's
+    // provider discovery won't pick up a stale Ollama provider.
+    if provider == "ollama" && tokens.ollama_enabled.unwrap_or(false) {
       std::env::set_var("OLLAMA_API_KEY", "ollama-local");
       if let Some(m) = &tokens.ollama_model { std::env::set_var("KNAPSACK_OLLAMA_MODEL", m); }
       if let Some(u) = &tokens.ollama_base_url { std::env::set_var("OLLAMA_HOST", u); }
+    } else if provider != "ollama" {
+      std::env::remove_var("OLLAMA_API_KEY");
+      std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
+      std::env::remove_var("OLLAMA_HOST");
     }
-    // Push model change to the running gateway immediately
+
+    // Provider switch requires a full gateway restart — a config.patch only
+    // updates the default model but does NOT re-run provider discovery, so
+    // the old provider (e.g. Ollama) stays in the catalog and the gateway
+    // keeps routing requests through it.
+    //
+    // Kill the running gateway; the health-check will auto-restart it with
+    // the updated env vars and correct provider discovery.
     let switch_model = crate::clawd::gateway_client::resolve_default_model();
-    tokio::spawn(async move {
-      if !crate::clawd::gateway_client::is_gateway_port_open().await {
-        return;
+    eprintln!(
+      "[clawd/service] Provider switch to '{}' (model: {}) — restarting gateway for provider re-discovery",
+      provider, switch_model
+    );
+    // Invalidate the cached WS connection first
+    crate::clawd::gateway_client::invalidate();
+    #[cfg(target_os = "windows")]
+    {
+      kill_process_on_port(18789);
+    }
+    #[cfg(target_os = "macos")]
+    {
+      let pid = GATEWAY_PID.load(std::sync::atomic::Ordering::Relaxed);
+      if pid > 0 {
+        unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+        GATEWAY_PID.store(0, std::sync::atomic::Ordering::Relaxed);
       }
-      let cfg_result = crate::clawd::gateway_client::config_get(None).await;
-      if let Ok(cfg_val) = cfg_result {
-        let base_hash = cfg_val.get("hash")
-          .and_then(|h| h.as_str())
-          .unwrap_or("");
-        if !base_hash.is_empty() {
-          let patch = serde_json::json!({
-            "agents": {"defaults": {"model": {"primary": switch_model}}}
-          });
-          match crate::clawd::gateway_client::config_patch(
-            &patch.to_string(), base_hash, None
-          ).await {
-            Ok(_) => eprintln!(
-              "[clawd/service] Pushed model '{}' to running gateway via config.patch (provider switch)",
-              switch_model
-            ),
-            Err(e) => eprintln!(
-              "[clawd/service] Failed to push model to gateway on switch: {}",
-              e
-            ),
-          }
-        }
-      }
-    });
+    }
     return HttpResponse::Ok().json(SetApiKeyResponse {
       success: true,
       message: format!("Switched to {}", provider_name),
@@ -1783,13 +1786,17 @@ pub async fn set_api_key(
   if let Some(m) = &tokens.gemini_model { std::env::set_var("KNAPSACK_GEMINI_MODEL", m); }
   if let Some(m) = &tokens.groq_model { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
   if let Some(m) = &tokens.openrouter_model { std::env::set_var("KNAPSACK_OPENROUTER_MODEL", m); }
-  // Propagate Ollama settings
-  if tokens.ollama_enabled.unwrap_or(false) {
+  // Propagate Ollama settings — only when Ollama is the active provider.
+  // When switching away, clear the env vars so the gateway won't discover
+  // a stale Ollama provider on restart.
+  if provider == "ollama" && tokens.ollama_enabled.unwrap_or(false) {
     std::env::set_var("OLLAMA_API_KEY", "ollama-local");
     if let Some(m) = &tokens.ollama_model { std::env::set_var("KNAPSACK_OLLAMA_MODEL", m); }
     if let Some(u) = &tokens.ollama_base_url { std::env::set_var("OLLAMA_HOST", u); }
-  } else {
+  } else if provider != "ollama" {
     std::env::remove_var("OLLAMA_API_KEY");
+    std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
+    std::env::remove_var("OLLAMA_HOST");
   }
   if let Some(extra) = &tokens.extra_provider_keys {
     for (env_var, key) in extra {
@@ -1829,37 +1836,27 @@ pub async fn set_api_key(
     }
   }
 
-  // Push model change to the running gateway via config.patch RPC so it
-  // takes effect immediately without requiring a gateway restart.
+  // Restart the gateway so provider discovery runs with updated env vars.
+  // A config.patch alone only updates the default model but doesn't re-run
+  // provider discovery — the old provider stays in the catalog.
   let model_for_gateway = crate::clawd::gateway_client::resolve_default_model();
-  tokio::spawn(async move {
-    if !crate::clawd::gateway_client::is_gateway_port_open().await {
-      return;
+  eprintln!(
+    "[clawd/service] API key saved for '{}' (model: {}) — restarting gateway for provider re-discovery",
+    provider, model_for_gateway
+  );
+  crate::clawd::gateway_client::invalidate();
+  #[cfg(target_os = "windows")]
+  {
+    kill_process_on_port(18789);
+  }
+  #[cfg(target_os = "macos")]
+  {
+    let pid = GATEWAY_PID.load(std::sync::atomic::Ordering::Relaxed);
+    if pid > 0 {
+      unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+      GATEWAY_PID.store(0, std::sync::atomic::Ordering::Relaxed);
     }
-    let cfg_result = crate::clawd::gateway_client::config_get(None).await;
-    if let Ok(cfg_val) = cfg_result {
-      let base_hash = cfg_val.get("hash")
-        .and_then(|h| h.as_str())
-        .unwrap_or("");
-      if !base_hash.is_empty() {
-        let patch = serde_json::json!({
-          "agents": {"defaults": {"model": {"primary": model_for_gateway}}}
-        });
-        match crate::clawd::gateway_client::config_patch(
-          &patch.to_string(), base_hash, None
-        ).await {
-          Ok(_) => eprintln!(
-            "[clawd/service] Pushed model '{}' to running gateway via config.patch",
-            model_for_gateway
-          ),
-          Err(e) => eprintln!(
-            "[clawd/service] Failed to push model to gateway: {} (will apply on restart)",
-            e
-          ),
-        }
-      }
-    }
-  });
+  }
 
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
