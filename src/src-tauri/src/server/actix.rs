@@ -82,7 +82,7 @@ pub async fn start_server<'a>(
   // Clawdbot integration config (in-memory for now)
   let clawdbot_cfg: SharedClawdbotConfig =
     std::sync::Arc::new(tokio::sync::RwLock::new(ClawdbotConfig {
-      base_url: std::env::var("CLAWDBOT_BASE_URL")
+      base_url: std::env::var("OPENCLAW_BASE_URL")
         .ok()
         .map(|s| s.trim_end_matches('/').to_string())
         .or_else(|| Some("http://127.0.0.1:18791".to_string())),

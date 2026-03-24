@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/diagnostics-otel.js";
+export * from "./src/plugin-sdk/diagnostics-otel.js";

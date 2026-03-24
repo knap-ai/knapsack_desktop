@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/imessage.js";
+export * from "./src/plugin-sdk/imessage.js";

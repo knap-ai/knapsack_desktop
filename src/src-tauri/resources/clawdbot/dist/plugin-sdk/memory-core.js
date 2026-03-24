@@ -1,2 +1,2 @@
-import { t as emptyPluginConfigSchema } from "./config-schema-D5FeRBQU.js";
+import { t as emptyPluginConfigSchema } from "../config-schema-S4LJDwIg.js";
 export { emptyPluginConfigSchema };

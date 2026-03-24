@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/line.js";
+export * from "./src/plugin-sdk/line.js";

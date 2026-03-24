@@ -1,10 +1,21 @@
-import "../../paths-BwJ6yG6k.js";
-import { t as createSubsystemLogger } from "../../subsystem-CDcEQtQK.js";
-import { d as loadExtraBootstrapFilesWithDiagnostics, u as filterBootstrapFilesForSession } from "../../workspace-Cg3kGb1y.js";
-import "../../logger-C0l_Gj8Y.js";
-import "../../boolean-Cuaw_-7j.js";
-import { g as isAgentBootstrapEvent } from "../../frontmatter-D6-ANhh_.js";
-import { t as resolveHookConfig } from "../../config-BYkzFD4a.js";
+import "../../logger-kwZIqwuw.js";
+import "../../paths-ViKUYWUK.js";
+import "../../tmp-openclaw-dir-idKIOMmb.js";
+import "../../theme-CdOoMzRk.js";
+import "../../globals-DBUMOBZ8.js";
+import { t as createSubsystemLogger } from "../../subsystem-DISldKSB.js";
+import "../../ansi-BEJF8NKS.js";
+import "../../boolean-C3GkJetE.js";
+import "../../utils-CS0Ikux6.js";
+import "../../boundary-path-Dm0QJ7-y.js";
+import "../../boundary-file-read-DcZxlWD8.js";
+import "../../logger-BmpSCz93.js";
+import "../../exec-B5_AYfQG.js";
+import { f as filterBootstrapFilesForSession, m as loadExtraBootstrapFilesWithDiagnostics } from "../../workspace-D4K6QX9X.js";
+import { i as isAgentBootstrapEvent } from "../../internal-hooks-CIUghoK4.js";
+import "../../frontmatter-CP5371Rm.js";
+import "../../frontmatter-AzDGezO7.js";
+import { r as resolveHookConfig } from "../../config-Bnl_ZCTo.js";
 //#region src/hooks/bundled/bootstrap-extra-files/handler.ts
 const HOOK_KEY = "bootstrap-extra-files";
 const log = createSubsystemLogger("bootstrap-extra-files");

@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/thread-ownership.js";
+export * from "./src/plugin-sdk/thread-ownership.js";

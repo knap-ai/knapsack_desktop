@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/diffs.js";
+export * from "./src/plugin-sdk/diffs.js";

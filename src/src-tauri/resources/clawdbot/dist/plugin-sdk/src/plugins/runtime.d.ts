@@ -1,0 +1,12 @@
+import type { PluginRegistry } from "./registry.js";
+export declare function setActivePluginRegistry(registry: PluginRegistry, cacheKey?: string): void;
+export declare function getActivePluginRegistry(): PluginRegistry | null;
+export declare function requireActivePluginRegistry(): PluginRegistry;
+export declare function pinActivePluginHttpRouteRegistry(registry: PluginRegistry): void;
+export declare function releasePinnedPluginHttpRouteRegistry(registry?: PluginRegistry): void;
+export declare function getActivePluginHttpRouteRegistry(): PluginRegistry | null;
+export declare function requireActivePluginHttpRouteRegistry(): PluginRegistry;
+export declare function resolveActivePluginHttpRouteRegistry(fallback: PluginRegistry): PluginRegistry;
+export declare function getActivePluginRegistryKey(): string | null;
+export declare function getActivePluginRegistryVersion(): number;
+export declare function resetPluginRuntimeStateForTest(): void;

@@ -1,0 +1,83 @@
+import { d as isRecord } from "./utils-CS0Ikux6.js";
+import { KS as inspectDiscordAccount, ii as fetchChannelPermissionsDiscord } from "./pi-embedded-CbCYZxIb.js";
+//#region extensions/discord/src/audit.ts
+const REQUIRED_CHANNEL_PERMISSIONS = ["ViewChannel", "SendMessages"];
+function shouldAuditChannelConfig(config) {
+	if (!config) return true;
+	if (config.allow === false) return false;
+	if (config.enabled === false) return false;
+	return true;
+}
+function listConfiguredGuildChannelKeys(guilds) {
+	if (!guilds) return [];
+	const ids = /* @__PURE__ */ new Set();
+	for (const entry of Object.values(guilds)) {
+		if (!entry || typeof entry !== "object") continue;
+		const channelsRaw = entry.channels;
+		if (!isRecord(channelsRaw)) continue;
+		for (const [key, value] of Object.entries(channelsRaw)) {
+			const channelId = String(key).trim();
+			if (!channelId) continue;
+			if (channelId === "*") continue;
+			if (!shouldAuditChannelConfig(value)) continue;
+			ids.add(channelId);
+		}
+	}
+	return [...ids].toSorted((a, b) => a.localeCompare(b));
+}
+function collectDiscordAuditChannelIds(params) {
+	const keys = listConfiguredGuildChannelKeys(inspectDiscordAccount({
+		cfg: params.cfg,
+		accountId: params.accountId
+	}).config.guilds);
+	const channelIds = keys.filter((key) => /^\d+$/.test(key));
+	return {
+		channelIds,
+		unresolvedChannels: keys.length - channelIds.length
+	};
+}
+async function auditDiscordChannelPermissions(params) {
+	const started = Date.now();
+	const token = params.token?.trim() ?? "";
+	if (!token || params.channelIds.length === 0) return {
+		ok: true,
+		checkedChannels: 0,
+		unresolvedChannels: 0,
+		channels: [],
+		elapsedMs: Date.now() - started
+	};
+	const required = [...REQUIRED_CHANNEL_PERMISSIONS];
+	const channels = [];
+	for (const channelId of params.channelIds) try {
+		const perms = await fetchChannelPermissionsDiscord(channelId, {
+			token,
+			accountId: params.accountId ?? void 0
+		});
+		const missing = required.filter((p) => !perms.permissions.includes(p));
+		channels.push({
+			channelId,
+			ok: missing.length === 0,
+			missing: missing.length ? missing : void 0,
+			error: null,
+			matchKey: channelId,
+			matchSource: "id"
+		});
+	} catch (err) {
+		channels.push({
+			channelId,
+			ok: false,
+			error: err instanceof Error ? err.message : String(err),
+			matchKey: channelId,
+			matchSource: "id"
+		});
+	}
+	return {
+		ok: channels.every((c) => c.ok),
+		checkedChannels: channels.length,
+		unresolvedChannels: 0,
+		channels,
+		elapsedMs: Date.now() - started
+	};
+}
+//#endregion
+export { collectDiscordAuditChannelIds as n, auditDiscordChannelPermissions as t };

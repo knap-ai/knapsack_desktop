@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/zalo.js";
+export * from "./src/plugin-sdk/zalo.js";

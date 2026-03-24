@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/nextcloud-talk.js";
+export * from "./src/plugin-sdk/nextcloud-talk.js";

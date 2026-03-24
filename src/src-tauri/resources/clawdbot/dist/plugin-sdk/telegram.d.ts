@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/telegram.js";
+export * from "./src/plugin-sdk/telegram.js";
