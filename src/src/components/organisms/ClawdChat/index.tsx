@@ -14,6 +14,7 @@ import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVer
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
+import { TokenCostsView } from 'src/components/organisms/ActivityPanel'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -1335,6 +1336,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   })
   const [savingKey, setSavingKey] = useState(false)
 
+  // Model picker tab state: 'providers' or 'costs'
+  const [modelPickerTab, setModelPickerTab] = useState<'providers' | 'costs'>('providers')
+
+  // Background AI (heartbeat) state
+  const [backgroundAiEnabled, setBackgroundAiEnabled] = useState<boolean | null>(null)
+  const [backgroundAiLoading, setBackgroundAiLoading] = useState(false)
+
   // Ollama state
   const [ollamaRunning, setOllamaRunning] = useState<boolean | null>(null)
   const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; parameter_size?: string }>>([])
@@ -2443,6 +2451,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     checkOllama()
   }, [selectedProvider, showKeyPrompt])
+
+  // ── Background AI (heartbeat) config fetch ─────────────────────────────
+  useEffect(() => {
+    if (!showKeyPrompt) return
+    fetch('http://127.0.0.1:8897/api/knapsack/heartbeat/config')
+      .then(r => r.json())
+      .then(data => { if (data.success) setBackgroundAiEnabled(data.data.enabled) })
+      .catch(() => {})
+  }, [showKeyPrompt])
+
+  const toggleBackgroundAi = useCallback(async () => {
+    const newVal = !backgroundAiEnabled
+    setBackgroundAiLoading(true)
+    try {
+      const resp = await fetch('http://127.0.0.1:8897/api/knapsack/heartbeat/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: newVal }),
+      })
+      const data = await resp.json()
+      if (data.success) setBackgroundAiEnabled(newVal)
+    } catch {}
+    setBackgroundAiLoading(false)
+  }, [backgroundAiEnabled])
 
   const pullOllamaModel = useCallback(async (modelId: string) => {
     setOllamaPulling(true)
@@ -5614,6 +5646,42 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
             }}>×</button>
           </div>
+
+          {/* ── Tab bar: Providers | Token Costs ── */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', padding: '0 16px' }}>
+            <button
+              onClick={() => setModelPickerTab('providers')}
+              style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: modelPickerTab === 'providers' ? 600 : 400,
+                color: modelPickerTab === 'providers' ? '#1e293b' : '#94a3b8', background: 'none', border: 'none',
+                borderBottom: modelPickerTab === 'providers' ? '2px solid #6366f1' : '2px solid transparent',
+                cursor: 'pointer', marginBottom: -1,
+              }}
+            >
+              Providers
+            </button>
+            <button
+              onClick={() => setModelPickerTab('costs')}
+              style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: modelPickerTab === 'costs' ? 600 : 400,
+                color: modelPickerTab === 'costs' ? '#1e293b' : '#94a3b8', background: 'none', border: 'none',
+                borderBottom: modelPickerTab === 'costs' ? '2px solid #6366f1' : '2px solid transparent',
+                cursor: 'pointer', marginBottom: -1,
+              }}
+            >
+              Token Costs
+            </button>
+          </div>
+
+          {/* ── Token Costs tab ── */}
+          {modelPickerTab === 'costs' && (
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              <TokenCostsView />
+            </div>
+          )}
+
+          {/* ── Providers tab ── */}
+          {modelPickerTab === 'providers' && (
           <div className="ClawdChannelsPanelBody">
             <p className="ClawdChannelsPanelIntro">
               {hasCompletedOnboarding
@@ -5992,7 +6060,37 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 )
               })}
             </div>
+
+            {/* ── Background AI toggle ── */}
+            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>Background AI</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, maxWidth: 280 }}>
+                    Proactive notifications (email reminders, meeting alerts). Always uses the cheapest model for your provider. Does not affect chat or messaging channels.
+                  </div>
+                </div>
+                <button
+                  onClick={toggleBackgroundAi}
+                  disabled={backgroundAiLoading || backgroundAiEnabled === null}
+                  style={{
+                    position: 'relative', width: 36, height: 20, borderRadius: 10, border: 'none',
+                    background: backgroundAiEnabled ? '#22c55e' : '#d1d5db', cursor: 'pointer',
+                    transition: 'background 0.2s', flexShrink: 0,
+                    opacity: backgroundAiLoading ? 0.5 : 1,
+                  }}
+                >
+                  <span style={{
+                    display: 'block', width: 14, height: 14, borderRadius: 7, background: '#fff',
+                    transition: 'transform 0.2s',
+                    transform: backgroundAiEnabled ? 'translateX(18px)' : 'translateX(3px)',
+                    marginTop: 3,
+                  }} />
+                </button>
+              </div>
+            </div>
           </div>
+          )}
         </div>
       )}
 

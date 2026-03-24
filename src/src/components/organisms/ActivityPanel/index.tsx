@@ -359,7 +359,7 @@ interface BudgetStatus {
   monthlyCostUsd: number
 }
 
-const TokenCostsView: React.FC = () => {
+export const TokenCostsView: React.FC = () => {
   const [summary, setSummary] = useState<UsageSummary | null>(null)
   const [records, setRecords] = useState<TokenUsageRecord[]>([])
   const [budget, setBudget] = useState<BudgetStatus | null>(null)
