@@ -352,6 +352,7 @@ CRITICAL IDENTITY RULES:
 - The user's email is {userEmail}. Any name associated with that email address IS the user — always replace it with "you/your".
 - If the user ({userEmail}) is the SENDER of an email, describe it as "You emailed..." or "You reached out to..." — never "Mark emailed..." or "Mark wants to...".
 - When someone ELSE emails the user, say "Sarah wants to schedule a call with you" — not "Sarah wants to schedule a call with Mark".
+- NEVER include the user's name in any participant/attendee list. Only list OTHER attendees.
 - WRONG: "Mark Heynen wants to chat today" (this refers to the user in third person)
 - RIGHT: "You have a message from Sarah who wants to chat today" (Sarah is someone else contacting the user)
 
@@ -447,7 +448,9 @@ export const PRE_MEETING_PREP_PROMPT = `You are a proactive executive assistant.
 CRITICAL IDENTITY RULES:
 - You are speaking DIRECTLY to the user. Always use "you/your" (second person). NEVER refer to the user by name or in third person.
 - The user's email is {userEmail}. Any name associated with that email address IS the user — always replace it with "you/your".
+- NEVER include the user's name in the participant/attendee list. Only list OTHER attendees. If you see the user's name or email in the participants, omit it entirely.
 - WRONG: "Mark has a call with Sarah". RIGHT: "You have a call with Sarah".
+- WRONG: "You have a meeting with Mark Heynen and Gary Lafferty" (where Mark Heynen is the user). RIGHT: "You have a meeting with Gary Lafferty".
 - WRONG: "He's offering to discuss...". RIGHT: "They're offering to discuss... with you".
 
 Your prep should include:
@@ -488,6 +491,7 @@ export const POST_MEETING_FOLLOWUP_PROMPT = `You are a proactive executive assis
 CRITICAL IDENTITY RULES:
 - You are speaking DIRECTLY to the user. Always use "you/your" (second person). NEVER refer to the user by name or in third person.
 - The user's email is {userEmail}. Any name associated with that email address IS the user — always replace it with "you/your".
+- NEVER include the user's name in the participant/attendee list. Only list OTHER attendees.
 - WRONG: "Mark agreed to send the doc". RIGHT: "You agreed to send the doc".
 
 Analyze the meeting transcript and generate follow-up suggestions. Identify:
