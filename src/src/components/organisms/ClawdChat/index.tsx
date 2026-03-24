@@ -2455,8 +2455,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // ── Background AI (heartbeat) config fetch ─────────────────────────────
   useEffect(() => {
     if (!showKeyPrompt) return
-    fetch('http://127.0.0.1:8897/api/knapsack/heartbeat/config')
-      .then(r => r.json())
+    apiGet<{ success: boolean; data: { enabled: boolean } }>('/api/knapsack/heartbeat/config')
       .then(data => { if (data.success) setBackgroundAiEnabled(data.data.enabled) })
       .catch(() => {})
   }, [showKeyPrompt])
@@ -2465,7 +2464,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const newVal = !backgroundAiEnabled
     setBackgroundAiLoading(true)
     try {
-      const resp = await fetch('http://127.0.0.1:8897/api/knapsack/heartbeat/config', {
+      const resp = await fetch(apiUrl('/api/knapsack/heartbeat/config'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: newVal }),
