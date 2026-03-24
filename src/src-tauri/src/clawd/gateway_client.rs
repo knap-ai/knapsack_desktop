@@ -645,16 +645,33 @@ pub fn resolve_default_model() -> String {
     _ => {}
   }
 
-  // Fallback: try providers in preference order using user's configured model
-  if has_key("ANTHROPIC_API_KEY") {
-    let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
-      .unwrap_or_else(|_| "claude-opus-4-6".to_string());
-    return format!("anthropic/{}", model);
-  }
-  if has_key("OPENAI_API_KEY") {
-    let model = std::env::var("KNAPSACK_OPENAI_MODEL")
-      .unwrap_or_else(|_| "gpt-5.4".to_string());
-    return format!("openai/{}", model);
+  // Fallback: try providers in preference order using user's configured model.
+  // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silently selecting expensive models.
+  let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    .unwrap_or(true);
+  let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter");
+
+  if !disable_paid || !active_is_free {
+    if has_key("ANTHROPIC_API_KEY") {
+      let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+        .unwrap_or_else(|_| "claude-opus-4-6".to_string());
+      log::warn!("[resolve_default_model] Falling back to anthropic/{} (active={})", model, active);
+      return format!("anthropic/{}", model);
+    }
+    if has_key("OPENAI_API_KEY") {
+      let model = std::env::var("KNAPSACK_OPENAI_MODEL")
+        .unwrap_or_else(|_| "gpt-5.4".to_string());
+      log::warn!("[resolve_default_model] Falling back to openai/{} (active={})", model, active);
+      return format!("openai/{}", model);
+    }
+  } else {
+    if has_key("ANTHROPIC_API_KEY") {
+      log::info!("[resolve_default_model] Skipping Anthropic fallback (paid fallback disabled, active={})", active);
+    }
+    if has_key("OPENAI_API_KEY") {
+      log::info!("[resolve_default_model] Skipping OpenAI fallback (paid fallback disabled, active={})", active);
+    }
   }
   if has_key("GROQ_API_KEY") {
     let model = std::env::var("KNAPSACK_GROQ_MODEL")
@@ -676,7 +693,9 @@ pub fn resolve_default_model() -> String {
       .unwrap_or_else(|_| "llama3.1".to_string());
     return format!("ollama/{}", model);
   }
-  "anthropic/claude-opus-4-6".to_string()
+  // Final fallback: use Groq free model instead of expensive Anthropic Opus
+  log::warn!("[resolve_default_model] No provider keys found, defaulting to groq/llama-3.3-70b-versatile");
+  "groq/llama-3.3-70b-versatile".to_string()
 }
 
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
