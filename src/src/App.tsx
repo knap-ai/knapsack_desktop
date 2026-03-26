@@ -632,6 +632,33 @@ function App() {
     }
   }, [fetchConnections, auth.updateProfile, syncConnections, userEmail])
 
+  // Listen for provider-fallback events and show a warning toast
+  useEffect(() => {
+    const unlistenFallback = listen(
+      'provider-fallback',
+      (event: Event<{ from: string; to: string; reason: string }>) => {
+        const { from, to, reason } = event.payload
+        setToastrState({
+          message: (
+            <>
+              <strong>Provider fallback:</strong> Switched from {from} to {to} due to rate
+              limiting. You may incur unexpected charges. Disable this in Settings &gt; API
+              &gt; &quot;Allow paid provider fallback&quot;.
+            </>
+          ) as ReactElement,
+          alertType: 'warning',
+          autoHideDuration: 10000,
+          icon: false,
+        })
+        console.warn(`[provider-fallback] ${from} → ${to}: ${reason}`)
+      },
+    )
+
+    return () => {
+      unlistenFallback.then(unlisten => unlisten())
+    }
+  }, [])
+
   const submitWebSearch = async (submittedUserPrompt: string) => {
     setSearchTextValue(submittedUserPrompt)
 
