@@ -3666,11 +3666,21 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               // Accept replies from both gateway and direct-chat fallback.
               // The backend already called open_first_url_in_reply, so the
               // browser should have opened if the reply contained a URL.
-              console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
-              setMsgs(prev => [
-                ...prev,
-                { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct' },
-              ])
+              // Defense-in-depth: if the gateway reply looks like a raw HTTP error
+              // (e.g. "401 Missing Authentication header"), fall back to direct chat
+              // so friendlyError can surface a helpful message instead.
+              const rawReply = agentOut.reply.trim()
+              const httpErrorMatch = /^([345]\d{2}) /.test(rawReply)
+              if (agentOut.gateway && httpErrorMatch && rawReply.length < 250) {
+                console.warn('[chat] Gateway returned HTTP error reply, falling back to direct chat:', rawReply.slice(0, 100))
+                useDirectChat = true
+              } else {
+                console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
+                setMsgs(prev => [
+                  ...prev,
+                  { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct' },
+                ])
+              }
             } else {
               // No reply at all — fall back to direct chat from the frontend
               console.warn('[chat] agent-chat returned no reply, using direct chat. Response:', JSON.stringify(agentOut))

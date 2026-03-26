@@ -1252,9 +1252,27 @@ pub async fn agent_chat(
           });
 
         if !reply.is_empty() {
-          eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
-          open_first_url_in_reply(&app_handle, &reply);
-          Some(reply)
+          // Detect if the gateway returned a raw HTTP error string (e.g. "401 Missing
+          // Authentication header") rather than a real AI response.  These occur when
+          // the gateway's internal API calls fail with an auth error.  Treat them as
+          // gateway failures and fall back to direct chat so the frontend's friendlyError
+          // handler can surface an actionable message instead of raw error text.
+          let trimmed = reply.trim();
+          let is_http_error = trimmed.len() >= 4
+            && trimmed.as_bytes().get(3) == Some(&b' ')
+            && trimmed[..3].parse::<u16>().map(|c| (300..=599).contains(&c)).unwrap_or(false)
+            && trimmed.len() < 250;
+          if is_http_error {
+            eprintln!(
+              "[clawd/agent-chat] Gateway returned HTTP error reply: {:?}, falling back to direct chat",
+              &trimmed[..trimmed.len().min(100)]
+            );
+            None
+          } else {
+            eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
+            open_first_url_in_reply(&app_handle, &reply);
+            Some(reply)
+          }
         } else {
           eprintln!("[clawd/agent-chat] Gateway returned empty reply, falling back to direct chat");
           None
