@@ -270,7 +270,7 @@ fn create_connections_from_scopes(
 /// This is used when GOOGLE_CLIENT_SECRET is configured for self-hosted builds.
 async fn exchange_code_locally(code: String, client_secret: &str) -> Result<GoogleSigninResponse, FetchError> {
   let client_id: &'static str = env!("VITE_GOOGLE_CLIENT_ID", "Missing VITE_GOOGLE_CLIENT_ID env var");
-  let redirect_uri = "http://127.0.0.1:8897/api/knapsack/google/signin";
+  let redirect_uri = "http://localhost:8897/api/knapsack/google/signin";
   let client = reqwest::Client::new();
 
   let params = [

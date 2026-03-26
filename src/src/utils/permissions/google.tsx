@@ -34,8 +34,12 @@ export const openGoogleAuthScreen = (scope: string) => {
     prompt: 'consent',
   })
 
+  const fullUrl = `${GOOGLE_OAUTH2_AUTH_URL}?${params.toString()}`
+  console.log('[Google OAuth] Opening URL:', fullUrl)
+  console.log('[Google OAuth] redirect_uri:', KN_API_GOOGLE_SIGNIN_REDIRECT)
+
   try {
-    open(`${GOOGLE_OAUTH2_AUTH_URL}?${params.toString()}`)
+    open(fullUrl)
   } catch (error: any) {
     logError(new Error('Error opening Google Auth screen:'), {
       additionalInfo: '',
