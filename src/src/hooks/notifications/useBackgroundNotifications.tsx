@@ -389,7 +389,12 @@ export function useBackgroundNotifications({
         contextParts.push('\n## Upcoming Meetings\n')
         for (const meeting of upcomingMeetings) {
           const startStr = dayjs(meeting.start).format('ddd MMM D, h:mm A')
-          const participants = meeting.participants?.join(', ') || 'N/A'
+          const participants = meeting.participants
+            ?.filter((p: any) => {
+              const email = typeof p === 'string' ? p : p.email
+              return !userEmail || !email?.toLowerCase().includes(userEmail.toLowerCase())
+            })
+            ?.join(', ') || 'N/A'
           contextParts.push(
             `- **${meeting.title}** at ${startStr} | Participants: ${participants}\n`,
           )
