@@ -203,7 +203,7 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZFRjZCMjlFRTU1NTYwMzQKUldRMFlGWGxuckwyL3FDa2k1djhyVVNVcTUrL00vVzhPeExrK0VQZDRML3BKYmM5eUxXRHdmQkMK"
     },
     "systemTray": {
-      "iconPath": "icons/icon.ico",
+      "iconPath": "icons/128x128.png",
       "iconAsTemplate": true
     },
     "macOSPrivateApi": true,
