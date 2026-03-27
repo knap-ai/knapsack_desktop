@@ -3669,9 +3669,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               // Defense-in-depth: if the gateway reply looks like a raw HTTP error
               // (e.g. "401 Missing Authentication header"), fall back to direct chat
               // so friendlyError can surface a helpful message instead.
+              // No length cap — verbose gateway errors (>250 chars) must also be caught.
               const rawReply = agentOut.reply.trim()
               const httpErrorMatch = /^([345]\d{2}) /.test(rawReply)
-              if (agentOut.gateway && httpErrorMatch && rawReply.length < 250) {
+              if (agentOut.gateway && httpErrorMatch) {
                 console.warn('[chat] Gateway returned HTTP error reply, falling back to direct chat:', rawReply.slice(0, 100))
                 useDirectChat = true
               } else {
