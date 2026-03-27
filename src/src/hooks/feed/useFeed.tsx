@@ -168,6 +168,8 @@ export interface IFeed {
   selectedEmailCategory: EmailImportance | null
   setSelectedEmailCategory: (category: EmailImportance) => void
   loggedEmailAutopilot: boolean
+  composedEmailDraft: ComposedEmailDraft | null
+  setComposedEmailDraft: (draft: ComposedEmailDraft | null) => void
   createMeetingNotes: (feedItem: FeedItem) => Promise<Thread | undefined>
   currentMeetId: () => number | undefined
   getNextMeetId: () => number | undefined
@@ -179,6 +181,14 @@ export interface IFeed {
 export interface EmailAction {
   leftAction: AutopilotActions
   rightAction: AutopilotActions
+}
+
+export interface ComposedEmailDraft {
+  to: string
+  cc?: string
+  subject: string
+  body: string
+  threadId?: string
 }
 
 export function useFeed(
@@ -1888,6 +1898,8 @@ export function useFeed(
       : false
   }, [connections])
 
+  const [composedEmailDraft, setComposedEmailDraft] = useState<ComposedEmailDraft | null>(null)
+
   const feed: IFeed = {
     feedContent,
     insertFeedItem,
@@ -1922,6 +1934,8 @@ export function useFeed(
     selectedEmailCategory,
     setSelectedEmailCategory,
     loggedEmailAutopilot,
+    composedEmailDraft,
+    setComposedEmailDraft,
     createMeetingNotes,
     currentMeetId,
     getNextMeetId,

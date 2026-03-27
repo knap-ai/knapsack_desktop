@@ -2418,6 +2418,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         },
       )
       cleanups.push(unlistenOpenPanel)
+
+      // Forward compose-email-ready events to the window so Home.tsx can switch tabs
+      const unlistenCompose = await tauriListen<Record<string, unknown>>(
+        'compose-email-ready',
+        (event) => {
+          if (cancelled) return
+          window.dispatchEvent(new CustomEvent('clawd-email-draft-ready', { detail: event.payload }))
+        },
+      )
+      cleanups.push(unlistenCompose)
     })()
 
     return () => {
