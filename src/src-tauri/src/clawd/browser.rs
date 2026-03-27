@@ -1257,11 +1257,12 @@ pub async fn agent_chat(
           // the gateway's internal API calls fail with an auth error.  Treat them as
           // gateway failures and fall back to direct chat so the frontend's friendlyError
           // handler can surface an actionable message instead of raw error text.
+          // Note: no length cap — gateway error messages can be verbose (>250 chars)
+          // and would bypass detection if we required trimmed.len() < 250.
           let trimmed = reply.trim();
           let is_http_error = trimmed.len() >= 4
             && trimmed.as_bytes().get(3) == Some(&b' ')
-            && trimmed[..3].parse::<u16>().map(|c| (300..=599).contains(&c)).unwrap_or(false)
-            && trimmed.len() < 250;
+            && trimmed[..3].parse::<u16>().map(|c| (300..=599).contains(&c)).unwrap_or(false);
           if is_http_error {
             eprintln!(
               "[clawd/agent-chat] Gateway returned HTTP error reply: {:?}, falling back to direct chat",
