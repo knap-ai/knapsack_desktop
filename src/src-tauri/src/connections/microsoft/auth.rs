@@ -185,7 +185,9 @@ pub async fn start_oauth(
   scope: String,
   scope_keys: Vec<String>,
 ) -> String {
-  let client_id =  env!("MICROSOFT_CLIENT_ID", "Missing MICROSOFT_CLIENT_ID env var");
+  let client_id = option_env!("MICROSOFT_CLIENT_ID")
+    .filter(|id| !id.is_empty() && *id != "unused")
+    .unwrap_or("0edbd2c2-902d-4678-9dc2-9de46d769973");
   let config = OAuthConfig {
     client_id: client_id.to_string().clone(),
     authorization_endpoint: KN_MICROSOFT_AUTH_URL.to_string(),
