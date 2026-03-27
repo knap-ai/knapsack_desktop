@@ -165,9 +165,12 @@ function Home({
     }
   }, [])
 
-  // Listen for AI email draft ready — show compose card inline in Chat tab
+  // Listen for AI email draft ready — only when email is connected natively in the desktop app
   useEffect(() => {
     const handleEmailDraftReady = (e: Event) => {
+      // Only use the compose drawer when the user has their email connected natively.
+      // When email is not connected the AI falls back to browser automation instead.
+      if (!feed.loggedEmailAutopilot) return
       const detail = (e as CustomEvent).detail
       feed.setComposedEmailDraft(detail)
       setCurrentTab(TabChoices.Openclaw)
@@ -179,7 +182,7 @@ function Home({
       window.removeEventListener('clawd-email-draft-ready', handleEmailDraftReady)
       window.removeEventListener('clawd-focus-chat', handleFocusChat)
     }
-  }, [feed.setComposedEmailDraft])
+  }, [feed.loggedEmailAutopilot, feed.setComposedEmailDraft])
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
@@ -539,7 +542,7 @@ function Home({
                       </div>
                     </>
                   )}
-                  {feed.composedEmailDraft && (
+                  {feed.loggedEmailAutopilot && feed.composedEmailDraft && (
                     <EmailComposeDrawer
                       draft={feed.composedEmailDraft}
                       userEmail={userEmail}
