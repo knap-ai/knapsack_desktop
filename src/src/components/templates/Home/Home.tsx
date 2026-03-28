@@ -46,6 +46,7 @@ import TabBar, { TabChoices } from './../../TabBar'
 import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
+import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
 import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
@@ -163,6 +164,25 @@ function Home({
       unlisten.then(fn => fn())
     }
   }, [])
+
+  // Listen for AI email draft ready — only when email is connected natively in the desktop app
+  useEffect(() => {
+    const handleEmailDraftReady = (e: Event) => {
+      // Only use the compose drawer when the user has their email connected natively.
+      // When email is not connected the AI falls back to browser automation instead.
+      if (!feed.loggedEmailAutopilot) return
+      const detail = (e as CustomEvent).detail
+      feed.setComposedEmailDraft(detail)
+      setCurrentTab(TabChoices.Openclaw)
+    }
+    const handleFocusChat = () => setCurrentTab(TabChoices.Openclaw)
+    window.addEventListener('clawd-email-draft-ready', handleEmailDraftReady)
+    window.addEventListener('clawd-focus-chat', handleFocusChat)
+    return () => {
+      window.removeEventListener('clawd-email-draft-ready', handleEmailDraftReady)
+      window.removeEventListener('clawd-focus-chat', handleFocusChat)
+    }
+  }, [feed.loggedEmailAutopilot, feed.setComposedEmailDraft])
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
@@ -521,6 +541,14 @@ function Home({
                         <ActivityPanel onClose={() => setShowActivityPanel(false)} />
                       </div>
                     </>
+                  )}
+                  {feed.loggedEmailAutopilot && feed.composedEmailDraft && (
+                    <EmailComposeDrawer
+                      draft={feed.composedEmailDraft}
+                      userEmail={userEmail}
+                      userName={userName}
+                      onDismiss={() => feed.setComposedEmailDraft(null)}
+                    />
                   )}
                   {(feed.loggedEmailAutopilot || autopilotForceOpen) && (
                     <EmailNotificationDrawer

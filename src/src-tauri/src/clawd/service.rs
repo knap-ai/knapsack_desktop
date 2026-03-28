@@ -483,7 +483,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
 /// variables so they are available to the actix server (llm_complete, transcribe, etc.)
 /// from the moment the process starts — not just after clawdbot service enable.
 pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
-  let tokens = match load_or_create_tokens(app_handle) {
+  let mut tokens = match load_or_create_tokens(app_handle) {
     Ok(t) => t,
     Err(e) => {
       eprintln!("[clawd/service] Could not load tokens for early key propagation: {}", e);
@@ -528,13 +528,15 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     let m = m.trim();
     if !m.is_empty() { std::env::set_var("KNAPSACK_GROQ_MODEL", m); }
   }
-  if let Some(k) = &tokens.openrouter_api_key {
-    let k = k.trim();
-    if !k.is_empty() {
-      if validate_api_key_format(k).is_ok() {
-        std::env::set_var("OPENROUTER_API_KEY", k);
+  if let Some(k) = tokens.openrouter_api_key.clone() {
+    let k_trimmed = k.trim().to_string();
+    if !k_trimmed.is_empty() {
+      if validate_api_key_format(&k_trimmed).is_ok() {
+        std::env::set_var("OPENROUTER_API_KEY", &k_trimmed);
       } else {
-        eprintln!("[clawd/service] WARNING: stored OPENROUTER_API_KEY looks malformed (len={}), skipping propagation. Please re-enter your key in Settings.", k.len());
+        eprintln!("[clawd/service] WARNING: stored OPENROUTER_API_KEY looks malformed (len={}), clearing from storage. Please re-enter your key in Settings.", k_trimmed.len());
+        tokens.openrouter_api_key = None;
+        let _ = save_tokens(app_handle, &tokens);
       }
     }
   }
@@ -1638,7 +1640,14 @@ pub async fn set_api_key(
     if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
     if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
     if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
-    if let Some(k) = &tokens.openrouter_api_key { std::env::set_var("OPENROUTER_API_KEY", k); }
+    if let Some(k) = &tokens.openrouter_api_key {
+      let k = k.trim();
+      if !k.is_empty() && validate_api_key_format(k).is_ok() {
+        std::env::set_var("OPENROUTER_API_KEY", k);
+      } else if !k.is_empty() {
+        eprintln!("[clawd/service] WARNING: stored OPENROUTER_API_KEY looks malformed, skipping propagation. Please re-enter your key in Settings.");
+      }
+    }
     // Ollama env vars: only set when Ollama is the active provider.
     // When switching AWAY from Ollama, clear the env vars so the gateway's
     // provider discovery won't pick up a stale Ollama provider.
@@ -1810,8 +1819,13 @@ pub async fn set_api_key(
   if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
   if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
   if let Some(k) = &tokens.openrouter_api_key {
-    eprintln!("[clawd/service] set-api-key: propagating OPENROUTER_API_KEY len={} trimmed_len={}", k.len(), k.trim().len());
-    std::env::set_var("OPENROUTER_API_KEY", k);
+    let k = k.trim();
+    if !k.is_empty() && validate_api_key_format(k).is_ok() {
+      eprintln!("[clawd/service] set-api-key: propagating OPENROUTER_API_KEY len={}", k.len());
+      std::env::set_var("OPENROUTER_API_KEY", k);
+    } else if !k.is_empty() {
+      eprintln!("[clawd/service] WARNING: stored OPENROUTER_API_KEY looks malformed (len={}), skipping propagation. Please re-enter your key in Settings.", k.len());
+    }
   }
   if let Some(p) = &tokens.active_provider { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
   if let Some(m) = &tokens.openai_model { std::env::set_var("KNAPSACK_OPENAI_MODEL", m); }

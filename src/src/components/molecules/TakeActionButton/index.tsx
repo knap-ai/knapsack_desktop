@@ -28,7 +28,11 @@ const TakeActionButton = ({ email, label = 'Take Action' }: TakeActionButtonProp
     parts.push(`\nWhat should I do?`)
 
     const msg = parts.join('\n')
-    window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: msg }))
+    // Navigate to the chat tab first, then send the message
+    window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: msg }))
+    }, 150)
 
     KNAnalytics.trackEvent('email_take_action', {
       has_action_hint: !!actionHint,

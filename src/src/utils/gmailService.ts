@@ -197,3 +197,64 @@ export const sendGmailReply = async ({
     throw new Error('Failed to send email')
   }
 }
+
+/** Send a new (non-reply) email composed by the AI agent. */
+export const sendComposedEmail = async ({
+  to,
+  cc,
+  subject,
+  body,
+  threadId,
+  userEmail,
+  userName,
+}: {
+  to: string
+  cc?: string
+  subject: string
+  body: string
+  threadId?: string
+  userEmail: string
+  userName?: string
+}): Promise<void> => {
+  const accessToken = await getAccessToken(userEmail, ConnectionKeys.GOOGLE_GMAIL)
+  const fullSender = userName ? `${userName} <${userEmail}>` : userEmail
+  const newMessageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@gmail.com>`
+
+  const emailLines = [
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
+    `Message-ID: ${newMessageId}`,
+    `Subject: ${subject}`,
+    `From: ${fullSender}`,
+    `To: ${to}`,
+  ]
+  if (cc) emailLines.push(`CC: ${cc}`)
+
+  if (threadId) {
+    const originalMessageId = await getOriginalMessageId(threadId, accessToken)
+    if (originalMessageId) {
+      emailLines.push(`In-Reply-To: ${originalMessageId.split(' ').pop()}`)
+      emailLines.push(`References: ${originalMessageId}`)
+    }
+  }
+
+  emailLines.push('', body)
+
+  const encodedEmail = Base64.encodeURI(emailLines.join('\r\n'))
+  const payload: Record<string, unknown> = { raw: encodedEmail }
+  if (threadId) payload.threadId = threadId
+
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`)
+  }
+}

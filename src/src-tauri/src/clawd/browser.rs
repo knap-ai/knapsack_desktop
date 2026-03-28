@@ -2851,6 +2851,15 @@ pub async fn chat(
         });
       }
 
+      // Signal the frontend to show the draft in the Email Autopilot compose UI.
+      let _ = app_handle.emit_all("compose-email-ready", json!({
+        "to": to,
+        "cc": cc,
+        "subject": subject,
+        "body": body_html,
+        "threadId": thread_id,
+      }));
+
       return Ok(json!({
         "ok": false,
         "pending": true,
@@ -2862,7 +2871,7 @@ pub async fn chat(
           "body": body_html,
           "thread_id": thread_id,
         },
-        "message": "Email draft prepared. You MUST show the user the full email details (To, CC, Subject, Body) and wait for their explicit confirmation before sending. Call send_email again with confirmed=true and pending_id to send."
+        "message": "Email draft prepared and shown in the Email Autopilot UI. Tell the user their draft is ready in the Email tab to review and send."
       }));
     }
 
@@ -3138,19 +3147,15 @@ When the user asks "what can you do" or "what skills do you have", mention that 
 
   let email_section = if !user_email.is_empty() {
     r#"## EMAIL SENDING
-Your email account is connected. You have a **send_email** tool that sends emails directly via the Gmail API (no browser needed). This is the PREFERRED way to send emails — do NOT use browser automation to compose/send emails.
+Your email account is connected. You have a **send_email** tool that sends emails directly via the Gmail API. NEVER use browser automation to compose or send emails — always use the send_email tool.
 
-### How to Send Emails (MANDATORY two-phase process)
-1. **Call send_email** with to, subject, body — this creates a draft and returns a pending_id. The email is NOT sent yet.
-2. **Show the user** the full email details (To, CC, Subject, Body) from the draft response.
-3. **Ask for confirmation** — e.g. "Ready to send this email. Say **SEND** to confirm, or let me know what to change."
-4. **Only after the user explicitly confirms**, call send_email again with `confirmed: true` and the `pending_id` from step 1.
-5. For **replies**, include the thread_id if available to maintain threading.
+### How to Send Emails
+1. **Call send_email** with to, subject, body (and thread_id for replies). This creates a draft, stores it, AND opens it in the user's Email Autopilot UI automatically.
+2. **Tell the user** their draft is ready in the Email tab: e.g. "I've drafted your email — it's ready to review and send in the **Email tab**."
+3. The user reviews and sends from the Email tab. You do NOT need to ask for chat confirmation.
+4. If the user explicitly says "send it" or "yes send" in chat, call send_email again with `confirmed: true` and the `pending_id`.
 
-CRITICAL: You MUST NOT set confirmed=true without the user's explicit approval. The system enforces this — emails cannot be sent without the two-phase draft→confirm flow.
-
-### When the User Says "Send"
-When the user says "send it", "yes send", "confirmed", or similar — immediately call the send_email tool with confirmed=true and the pending_id. Do NOT ask for additional confirmation or re-show the email. One confirmation is enough."#.to_string()
+CRITICAL: NEVER use browser automation for email when this tool is available. NEVER navigate to gmail.com or outlook.com to send email."#.to_string()
   } else {
     r#"## EMAIL
 No email account is directly connected via the send_email tool. However, you CAN still help the user with email by using browser automation — navigate to Gmail (https://mail.google.com) or Outlook (https://outlook.live.com) in the browser to read, search, and compose emails. Do NOT tell the user that email is unavailable or ask them to connect their account — just use the browser to help with email tasks."#.to_string()

@@ -2418,6 +2418,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         },
       )
       cleanups.push(unlistenOpenPanel)
+
+      // Forward compose-email-ready events to the window so Home.tsx can switch tabs
+      const unlistenCompose = await tauriListen<Record<string, unknown>>(
+        'compose-email-ready',
+        (event) => {
+          if (cancelled) return
+          window.dispatchEvent(new CustomEvent('clawd-email-draft-ready', { detail: event.payload }))
+        },
+      )
+      cleanups.push(unlistenCompose)
     })()
 
     return () => {
@@ -5740,34 +5750,34 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             <span className="ClawdKeySavedHint">{keyHints[p.id] || p.keyPrefix + '...'}</span>
                           </div>
                           <label className="ClawdKeyPromptLabel">Model</label>
-                          <select
-                            className="ClawdModelSelect"
-                            value={modelValue}
-                            onChange={async e => {
-                              const newModel = e.target.value
-                              setModelValue(newModel)
-                              // Auto-persist model choice to localStorage and backend
-                              const storageKey = p.id === 'openai' ? OPENAI_MODEL_STORAGE
-                                : p.id === 'anthropic' ? ANTHROPIC_MODEL_STORAGE
-                                : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
-                                : GROQ_MODEL_STORAGE
-                              localStorage.setItem(storageKey, newModel)
-                              if (isActive) {
-                                try {
-                                  await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
-                                  const modelName = models.find(m => m.id === newModel)?.name || newModel
-                                  pushAssistant(`Switched to ${modelName}.`)
-                                } catch {}
-                              }
-                            }}
-                            disabled={savingKey}
-                          >
+                          <div className="ClawdModelSelector">
                             {models.map(model => (
-                              <option key={model.id} value={model.id}>
-                                {model.name} — {model.description}
-                              </option>
+                              <button
+                                key={model.id}
+                                className={`ClawdModelOption${modelValue === model.id ? ' selected' : ''}`}
+                                onClick={async () => {
+                                  const newModel = model.id
+                                  setModelValue(newModel)
+                                  const storageKey = p.id === 'openai' ? OPENAI_MODEL_STORAGE
+                                    : p.id === 'anthropic' ? ANTHROPIC_MODEL_STORAGE
+                                    : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
+                                    : GROQ_MODEL_STORAGE
+                                  localStorage.setItem(storageKey, newModel)
+                                  if (isActive) {
+                                    try {
+                                      await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
+                                      const modelName = models.find(m => m.id === newModel)?.name || newModel
+                                      pushAssistant(`Switched to ${modelName}.`)
+                                    } catch {}
+                                  }
+                                }}
+                                disabled={savingKey}
+                              >
+                                <span className="ClawdModelName">{model.name}</span>
+                                <span className="ClawdModelDesc">{model.description}</span>
+                              </button>
                             ))}
-                          </select>
+                          </div>
                           <div className="ClawdAccordionActions">
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--connect"
@@ -5804,18 +5814,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             onKeyDown={e => { if (e.key === 'Enter') saveApiKey() }}
                           />
                           <label className="ClawdKeyPromptLabel">Model</label>
-                          <select
-                            className="ClawdModelSelect"
-                            value={modelValue}
-                            onChange={e => setModelValue(e.target.value)}
-                            disabled={savingKey}
-                          >
+                          <div className="ClawdModelSelector">
                             {models.map(model => (
-                              <option key={model.id} value={model.id}>
-                                {model.name} — {model.description}
-                              </option>
+                              <button
+                                key={model.id}
+                                className={`ClawdModelOption${modelValue === model.id ? ' selected' : ''}`}
+                                onClick={() => setModelValue(model.id)}
+                                disabled={savingKey}
+                              >
+                                <span className="ClawdModelName">{model.name}</span>
+                                <span className="ClawdModelDesc">{model.description}</span>
+                              </button>
                             ))}
-                          </select>
+                          </div>
                           <div className="ClawdAccordionActions">
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--connect"
