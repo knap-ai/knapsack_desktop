@@ -1302,6 +1302,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const queuedMessagesRef = useRef<string[]>([])
   const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
   const [queuedMessageTexts, setQueuedMessageTexts] = useState<string[]>([])
+  const [editingQueuedIndex, setEditingQueuedIndex] = useState<number | null>(null)
+  const [editingQueuedText, setEditingQueuedText] = useState('')
 
   // Abort controller for stopping generation
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -4351,10 +4353,87 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         )}
         {queuedMessageTexts.map((qText, i) => (
           <div key={`queued-${i}`} className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
-            <div className="ClawdBubble">
-              <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
+            {editingQueuedIndex === i ? (
+              <div className="ClawdQueuedEdit">
+                <textarea
+                  className="ClawdQueuedEdit__textarea"
+                  value={editingQueuedText}
+                  onChange={e => setEditingQueuedText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      const trimmed = editingQueuedText.trim()
+                      if (trimmed) {
+                        const updated = [...queuedMessagesRef.current]
+                        updated[i] = trimmed
+                        queuedMessagesRef.current = updated
+                        setQueuedMessageTexts(updated)
+                      }
+                      setEditingQueuedIndex(null)
+                    } else if (e.key === 'Escape') {
+                      setEditingQueuedIndex(null)
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className="ClawdQueuedEdit__actions">
+                  <button
+                    className="ClawdQueuedEdit__save"
+                    onClick={() => {
+                      const trimmed = editingQueuedText.trim()
+                      if (trimmed) {
+                        const updated = [...queuedMessagesRef.current]
+                        updated[i] = trimmed
+                        queuedMessagesRef.current = updated
+                        setQueuedMessageTexts(updated)
+                      }
+                      setEditingQueuedIndex(null)
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="ClawdQueuedEdit__cancel"
+                    onClick={() => setEditingQueuedIndex(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="ClawdBubble">
+                <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
+              </div>
+            )}
+            <div className="ClawdQueuedFooter">
+              <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''}</span>
+              {editingQueuedIndex !== i && (
+                <div className="ClawdQueuedActions">
+                  <button
+                    className="ClawdQueuedActions__btn"
+                    title="Edit queued message"
+                    onClick={() => {
+                      setEditingQueuedText(qText)
+                      setEditingQueuedIndex(i)
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="ClawdQueuedActions__btn ClawdQueuedActions__btn--remove"
+                    title="Remove queued message"
+                    onClick={() => {
+                      const updated = queuedMessagesRef.current.filter((_, idx) => idx !== i)
+                      queuedMessagesRef.current = updated
+                      setQueuedMessageTexts(updated)
+                      setHasQueuedMessage(updated.length > 0)
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
             </div>
-            <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''}</span>
           </div>
         ))}
         {claudeCodeActive && (
