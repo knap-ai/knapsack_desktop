@@ -5911,12 +5911,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   {ollamaRunning && ollamaModels.length > 0 && (
                     <>
                       <label className="ClawdKeyPromptLabel">Your Models</label>
-                      <select className="ClawdModelSelect" value={selectedOllamaModel} onChange={e => setSelectedOllamaModel(e.target.value)} disabled={savingKey}>
-                        <option value="">Select a model...</option>
+                      <div className="ClawdModelSelector">
                         {ollamaModels.map(model => (
-                          <option key={model.name} value={model.name}>{model.name} — {model.parameter_size || 'Local model'}</option>
+                          <button
+                            key={model.name}
+                            className={`ClawdModelOption${selectedOllamaModel === model.name ? ' selected' : ''}`}
+                            onClick={() => setSelectedOllamaModel(model.name)}
+                            disabled={savingKey}
+                          >
+                            <span className="ClawdModelName">{model.name}</span>
+                            <span className="ClawdModelDesc">{model.parameter_size || 'Local model'}</span>
+                          </button>
                         ))}
-                      </select>
+                      </div>
                     </>
                   )}
 
@@ -5953,7 +5960,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       <div className="ClawdModelSelector">
                         {OLLAMA_SUGGESTED_MODELS
                           .filter(s => !ollamaModels.some(m => m.name.startsWith(s.id.split(':')[0])))
-                          .slice(0, 3)
                           .map(model => (
                           <button key={model.id} className="ClawdModelOption" onClick={() => pullOllamaModel(model.id)}>
                             <span className="ClawdModelName">{model.name}</span>
