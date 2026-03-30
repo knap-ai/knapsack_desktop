@@ -1031,14 +1031,32 @@ pub async fn gemini_chat(
           }
         }
         if let Some(tcs) = tool_calls {
+          // Gemini 2.5+ models with thinking enabled require thoughtSignature on all functionCall
+          // parts in conversation history. Use the skip_thought_signature_validator sentinel for
+          // function calls that don't have an actual signature (e.g. replayed from prior turns).
+          // See: https://ai.google.dev/gemini-api/docs/thought-signatures
+          let needs_thought_sig = {
+            let m = model.to_lowercase();
+            m.contains("gemini-2.5") || m.contains("gemini-3")
+          };
           for tc in tcs {
             let args: JsonValue = serde_json::from_str(&tc.function.arguments).unwrap_or(json!({}));
-            parts.push(json!({
-              "functionCall": {
-                "name": tc.function.name,
-                "args": args
-              }
-            }));
+            if needs_thought_sig {
+              parts.push(json!({
+                "functionCall": {
+                  "name": tc.function.name,
+                  "args": args
+                },
+                "thoughtSignature": "skip_thought_signature_validator"
+              }));
+            } else {
+              parts.push(json!({
+                "functionCall": {
+                  "name": tc.function.name,
+                  "args": args
+                }
+              }));
+            }
           }
         }
         if parts.is_empty() {
