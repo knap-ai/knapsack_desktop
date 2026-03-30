@@ -2544,6 +2544,7 @@
 
 .ClawdChannelsPanelBody {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px 20px;
   display: flex;
@@ -2565,6 +2566,7 @@
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .ClawdAccordionItem {
@@ -2588,7 +2590,7 @@
     }
 
     .ClawdAccordionBody {
-      max-height: 800px;
+      max-height: 2000px;
       opacity: 1;
       padding: 14px 16px;
     }
@@ -2666,6 +2668,11 @@
   overflow: hidden;
   padding: 0 16px;
   transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+}
+
+.ClawdAccordionBody > .ClawdModelSelector {
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .ClawdAccordionActions {
