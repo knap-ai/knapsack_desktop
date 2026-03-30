@@ -404,6 +404,20 @@ fn groq_key(app_handle: &tauri::AppHandle) -> Option<String> {
     .filter(|s| !s.is_empty())
 }
 
+fn openrouter_key(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("OPENROUTER_API_KEY") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
+  }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.openrouter_api_key)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
 fn ollama_is_enabled(app_handle: &tauri::AppHandle) -> bool {
   load_or_create_tokens(app_handle)
     .ok()
@@ -1602,6 +1616,15 @@ pub async fn chat(
         return HttpResponse::BadRequest().json(serde_json::json!({
           "ok": false,
           "message": "Groq API key is not set. Add it in Settings and Save, then re-enable."
+        }))
+      }
+    },
+    "openrouter" => match openrouter_key(&app_handle) {
+      Some(k) => k,
+      None => {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+          "ok": false,
+          "message": "OpenRouter API key is not set. Add it in Settings and Save, then re-enable."
         }))
       }
     },
@@ -3608,6 +3631,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
     "gemini" => super::service::get_gemini_model(&app_handle),
     "groq" => super::service::get_groq_model(&app_handle),
     "ollama" => ollama_model(&app_handle),
+    "openrouter" => super::service::get_openrouter_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
   };
   let current_ollama_base = ollama_base_url(&app_handle);
@@ -3626,6 +3650,9 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
         "ollama" => {
           let base = format!("{}/v1", ollama_base.trim_end_matches('/'));
           chat_agent::openai_compatible_chat(key, model, &base, msgs, tls).await
+        },
+        "openrouter" => {
+          chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls).await
         },
         _ => chat_agent::openai_chat(key, model, msgs, tls).await,
       }
@@ -3668,11 +3695,12 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
         eprintln!("[clawd/chat] {} hit credit/rate limit: {}", current_provider, err_str);
         let disable_paid = is_paid_fallback_disabled();
         let ollama_key = if ollama_is_enabled(&app_handle) { Some("ollama-local".to_string()) } else { None };
-        let fallbacks: [(&str, Option<String>); 5] = [
+        let fallbacks: [(&str, Option<String>); 6] = [
           ("openai", openai_key(&app_handle)),
           ("anthropic", anthropic_key(&app_handle)),
           ("gemini", gemini_key(&app_handle)),
           ("groq", groq_key(&app_handle)),
+          ("openrouter", openrouter_key(&app_handle)),
           ("ollama", ollama_key),
         ];
         let mut fallback_resp = None;
@@ -3690,6 +3718,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
               "gemini" => super::service::get_gemini_model(&app_handle),
               "groq" => super::service::get_groq_model(&app_handle),
               "ollama" => ollama_model(&app_handle),
+              "openrouter" => super::service::get_openrouter_model(&app_handle),
               _ => super::service::get_openai_model(&app_handle),
             };
             eprintln!("[clawd/chat] Trying fallback provider={} model={}", fb_provider, fb_model);

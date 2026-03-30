@@ -596,9 +596,11 @@ pub async fn openai_compatible_chat(
   let mut body = json!({
     "model": model,
     "messages": oai_messages,
-    "tools": tools,
-    "tool_choice": "auto"
   });
+  if !tools.is_empty() {
+    body["tools"] = json!(tools);
+    body["tool_choice"] = json!("auto");
+  }
   if let Some(t) = temperature {
     body["temperature"] = json!(t);
   }
