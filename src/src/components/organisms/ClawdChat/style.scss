@@ -326,18 +326,119 @@
 
 .ClawdMsg-queued {
   opacity: 0.5;
+  flex-direction: column;
+  align-items: flex-end;
 
   .ClawdBubble {
     border-style: dashed;
   }
 }
 
+.ClawdQueuedFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+  width: 100%;
+}
+
 .ClawdQueuedLabel {
-  display: block;
   font-size: 11px;
   color: #999;
-  margin-top: 4px;
   font-style: italic;
+  flex: 1;
+}
+
+.ClawdQueuedActions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+
+  .ClawdMsg-queued:hover & {
+    opacity: 1;
+  }
+
+  &__btn {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    color: #666;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    &--remove {
+      color: #c0392b;
+      border-color: #e0b4b4;
+
+      &:hover {
+        background: rgba(192, 57, 43, 0.06);
+      }
+    }
+  }
+}
+
+.ClawdQueuedEdit {
+  width: 100%;
+
+  &__textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border: 1px solid #5b6abf;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 60px;
+    outline: none;
+
+    &:focus {
+      border-color: #3d4d9f;
+      box-shadow: 0 0 0 2px rgba(91, 106, 191, 0.2);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+    justify-content: flex-end;
+  }
+
+  &__save,
+  &__cancel {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+
+  &__save {
+    background: #5b6abf;
+    color: #fff;
+
+    &:hover {
+      background: #3d4d9f;
+    }
+  }
+
+  &__cancel {
+    background: none;
+    border-color: #ccc;
+    color: #555;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+  }
 }
 
 // Claude Code running indicator
