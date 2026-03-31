@@ -2916,7 +2916,7 @@ async fn prepare_gateway_config(
   let tools_md_path = workspace_path.join("TOOLS.md");
   let should_write_tools_md = if tools_md_path.exists() {
     fs::read_to_string(&tools_md_path)
-      .map(|content| !content.contains("FALLBACK BEHAVIOR"))
+      .map(|content| !content.contains("SELF-REVIEW"))
       .unwrap_or(true)
   } else {
     true
@@ -3969,7 +3969,7 @@ pub async fn set_service_enabled(
       // Write TOOLS.md if it doesn't exist or if it's missing key sections.
       let should_write_tools_md = if tools_md_path.exists() {
         fs::read_to_string(&tools_md_path)
-          .map(|content| !content.contains("FALLBACK BEHAVIOR"))
+          .map(|content| !content.contains("SELF-REVIEW"))
           .unwrap_or(true)
       } else {
         true
