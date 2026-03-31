@@ -2884,7 +2884,7 @@ pub async fn chat(
       }));
 
       return Ok(json!({
-        "ok": false,
+        "ok": true,
         "pending": true,
         "pending_id": pid,
         "draft": {
@@ -2894,7 +2894,7 @@ pub async fn chat(
           "body": body_html,
           "thread_id": thread_id,
         },
-        "message": "Email draft prepared and shown in the Email Autopilot UI. Tell the user their draft is ready in the Email tab to review and send."
+        "message": "Email draft created and opened in the Email Autopilot compose drawer. Tell the user their draft is ready to review and send in the Email tab. Do NOT ask for chat confirmation — the user sends from the drawer."
       }));
     }
 

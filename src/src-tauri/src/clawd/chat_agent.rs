@@ -380,7 +380,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "send_email".to_string(),
-        description: "Send an email via Gmail or Outlook API. Two-phase process: (1) Call with to/subject/body to create a draft — this does NOT send. (2) Show the user the draft details and wait for explicit confirmation. (3) Call again with confirmed=true and the pending_id from step 1 to actually send. NEVER set confirmed=true on the first call.".to_string(),
+        description: "Draft an email via Gmail or Outlook API. Call with to/subject/body to create a draft — this does NOT send immediately. The draft opens automatically in the Email Autopilot compose drawer for the user to review and send. After calling, tell the user their draft is ready in the Email tab. Do NOT ask for chat confirmation — the user sends from the drawer. Only call again with confirmed=true + pending_id if the user explicitly says to send in chat.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
