@@ -170,10 +170,10 @@ function getActiveModelLabel(): string {
   return provider
 }
 
-function friendlyError(raw: string): string {
+function friendlyError(raw: string, activeModel?: string): string {
   if (!raw) return 'Something went wrong. Please try again.'
   const lower = raw.toLowerCase()
-  const activeModel = getActiveModelLabel()
+  if (!activeModel) activeModel = getActiveModelLabel()
   // All providers failed (fallback exhausted)
   if (lower.includes('all fallback providers also failed')) {
     return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.`
@@ -3559,6 +3559,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       const controller = new AbortController()
       setAbortController(controller)
 
+      // Snapshot the active model label from React state at request time so error
+      // messages reflect the model that was actually selected when sent, not the
+      // model in localStorage (which can lag behind UI state changes).
+      const activeModelAtSend = (() => {
+        const m = selectedProvider === 'ollama' ? selectedOllamaModel
+          : selectedProvider === 'anthropic' ? selectedAnthropicModel
+          : selectedProvider === 'gemini' ? selectedGeminiModel
+          : selectedProvider === 'groq' ? selectedGroqModel
+          : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+          : selectedModel
+        return m ? `${selectedProvider}/${m}` : selectedProvider
+      })()
+
       try {
         // Get the current tone's system prompt addition
         const currentTone = TONE_OPTIONS.find(t => t.id === selectedTone)
@@ -3757,7 +3770,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
             } else {
-              pushAssistant(friendlyError(out.message || out.error || 'No reply'))
+              pushAssistant(friendlyError(out.message || out.error || 'No reply', activeModelAtSend))
             }
             succeeded = true
             break
@@ -3794,7 +3807,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setAbortController(null)
       }
     } catch (e: any) {
-      pushAssistant(friendlyError(e?.message || String(e)))
+      pushAssistant(friendlyError(e?.message || String(e), activeModelAtSend))
     } finally {
       // Safety net: always clear thinking state when request ends, even if inner
       // finally was skipped due to an error thrown between setting thinkingMessage
