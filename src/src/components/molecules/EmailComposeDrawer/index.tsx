@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ComposedEmailDraft } from 'src/hooks/feed/useFeed'
 import { sendComposedEmail } from 'src/utils/gmailService'
@@ -11,19 +11,56 @@ interface EmailComposeDrawerProps {
 }
 
 const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComposeDrawerProps) => {
+  const [to, setTo] = useState(draft.to)
+  const [subject, setSubject] = useState(draft.subject)
+  const [ccList, setCcList] = useState<string[]>(() =>
+    draft.cc ? draft.cc.split(',').map(c => c.trim()).filter(Boolean) : []
+  )
+  const [ccInput, setCcInput] = useState('')
+  const [showCcInput, setShowCcInput] = useState(!!draft.cc && draft.cc.trim().length > 0)
+  const ccInputRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+
+  // Set initial body HTML (can't combine contentEditable + dangerouslySetInnerHTML)
+  useEffect(() => {
+    if (bodyRef.current) {
+      bodyRef.current.innerHTML = draft.body
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRemoveCc = useCallback((index: number) => {
+    setCcList(prev => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleAddCc = useCallback((value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return
+    setCcList(prev => prev.includes(trimmed) ? prev : [...prev, trimmed])
+    setCcInput('')
+  }, [])
+
+  const handleCcKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === ',') {
+      e.preventDefault()
+      handleAddCc(ccInput)
+    } else if (e.key === 'Backspace' && ccInput === '' && ccList.length > 0) {
+      handleRemoveCc(ccList.length - 1)
+    }
+  }, [ccInput, ccList, handleAddCc, handleRemoveCc])
 
   const handleSend = useCallback(async () => {
     setSending(true)
     setError('')
     try {
       await sendComposedEmail({
-        to: draft.to,
-        cc: draft.cc,
-        subject: draft.subject,
-        body: draft.body,
+        to,
+        cc: ccList.length > 0 ? ccList.join(', ') : undefined,
+        subject,
+        body: bodyRef.current?.innerHTML || draft.body,
         threadId: draft.threadId,
         userEmail,
         userName,
@@ -35,22 +72,36 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
     } finally {
       setSending(false)
     }
-  }, [draft, userEmail, userName, onDismiss])
+  }, [to, subject, ccList, draft, userEmail, userName, onDismiss])
+
+  const fieldRowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 6,
+    padding: '6px 0',
+    borderBottom: '1px solid #f1f5f9',
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, color: '#64748b',
+    width: 52, flexShrink: 0, paddingTop: 2,
+  }
+  const inputStyle: React.CSSProperties = {
+    flex: 1, fontSize: 12, color: '#1e293b', border: 'none', outline: 'none',
+    background: 'transparent', padding: 0,
+  }
 
   return (
     <div
       style={{
         position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: 0, left: 0, right: 0,
         zIndex: 30,
         background: 'white',
         borderTop: '1px solid #e2e8f0',
         boxShadow: '0 -4px 16px rgba(0,0,0,0.10)',
         display: 'flex',
         flexDirection: 'column',
-        maxHeight: '60vh',
+        maxHeight: '65vh',
       }}
     >
       {/* Header */}
@@ -70,26 +121,92 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
         </button>
       </div>
 
-      {/* Body */}
-      <div style={{ overflowY: 'auto', flex: 1, padding: '12px 16px' }}>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>
-          <strong style={{ color: '#1e293b' }}>To:</strong> {draft.to}
+      {/* Fields */}
+      <div style={{ padding: '4px 16px 0', flexShrink: 0, borderBottom: '1px solid #e2e8f0' }}>
+        {/* To */}
+        <div style={fieldRowStyle}>
+          <span style={labelStyle}>To</span>
+          <input
+            style={inputStyle}
+            value={to}
+            onChange={e => setTo(e.target.value)}
+            placeholder="recipient@example.com"
+          />
         </div>
-        {draft.cc && (
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>
-            <strong style={{ color: '#1e293b' }}>CC:</strong> {draft.cc}
-          </div>
-        )}
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
-          <strong style={{ color: '#1e293b' }}>Subject:</strong> {draft.subject}
+
+        {/* CC */}
+        <div style={{ ...fieldRowStyle, borderBottom: showCcInput ? '1px solid #f1f5f9' : 'none' }}>
+          <span style={labelStyle}>CC</span>
+          {showCcInput ? (
+            <div
+              style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', cursor: 'text' }}
+              onClick={() => ccInputRef.current?.focus()}
+            >
+              {ccList.map((cc, i) => (
+                <span
+                  key={`${cc}-${i}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 2,
+                    padding: '1px 6px', borderRadius: 4,
+                    background: '#f1f5f9', color: '#475569', fontSize: 11,
+                  }}
+                >
+                  {cc}
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); handleRemoveCc(i) }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '0 1px', lineHeight: 1, fontSize: 13 }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <input
+                ref={ccInputRef}
+                type="text"
+                value={ccInput}
+                onChange={e => setCcInput(e.target.value)}
+                onKeyDown={handleCcKeyDown}
+                onBlur={() => handleAddCc(ccInput)}
+                placeholder={ccList.length === 0 ? 'Add CC...' : ''}
+                style={{ ...inputStyle, minWidth: 80, flex: 1 }}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setShowCcInput(true); setTimeout(() => ccInputRef.current?.focus(), 0) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#94a3b8', padding: 0 }}
+            >
+              + Add CC
+            </button>
+          )}
         </div>
+
+        {/* Subject */}
+        <div style={{ ...fieldRowStyle, borderBottom: 'none' }}>
+          <span style={labelStyle}>Subject</span>
+          <input
+            style={inputStyle}
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            placeholder="Subject"
+          />
+        </div>
+      </div>
+
+      {/* Body — contentEditable for rich-text editing */}
+      <div style={{ overflowY: 'auto', flex: 1, padding: '10px 16px' }}>
         <div
+          ref={bodyRef}
+          contentEditable
+          suppressContentEditableWarning
           style={{
             fontSize: 13, color: '#1e293b', lineHeight: 1.55,
             background: '#f8fafc', borderRadius: 6, padding: '10px 12px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid #e2e8f0', minHeight: 80, outline: 'none',
+            wordBreak: 'break-word',
           }}
-          dangerouslySetInnerHTML={{ __html: draft.body }}
         />
       </div>
 
