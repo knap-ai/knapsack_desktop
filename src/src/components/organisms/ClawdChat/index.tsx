@@ -289,6 +289,7 @@ type Msg = {
   isClickable?: boolean
   model?: string // model used for this response (e.g. "gpt-4o-mini")
   promptActions?: PromptAction[] // pre-defined actions (skip extractPromptActions parsing)
+  replyTo?: string // ID of the message this is a reply to
 }
 
 type ServiceStatus = {
@@ -859,6 +860,8 @@ type ChatInputBarProps = {
   onStopRecording: () => void
   onToggleVoice: () => void
   onStopGeneration: () => void
+  replyToMsg?: Msg | null
+  onCancelReply?: () => void
 }
 
 // ── Memoized single-message renderer ──────────────────────────────────
@@ -872,10 +875,13 @@ type ChatMessageProps = {
   mdComponents: Components
   onExampleClick?: (e: React.MouseEvent, text: string) => void
   onAction?: (prompt: string) => void
+  onReply?: (msg: Msg) => void
+  replyToMsg?: Msg | null
+  onScrollToMsg?: (id: string) => void
 }
 
 const ChatMessage = memo(function ChatMessage({
-  msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction,
+  msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction, onReply, replyToMsg, onScrollToMsg,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
 
@@ -887,12 +893,40 @@ const ChatMessage = memo(function ChatMessage({
     })
   }, [m.text])
 
+  const handleReply = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onReply?.(m)
+  }, [m, onReply])
+
+  const handleScrollToReply = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (m.replyTo) onScrollToMsg?.(m.replyTo)
+  }, [m.replyTo, onScrollToMsg])
+
   return (
     <div
       className={`ClawdMsg ClawdMsg-${m.role} ${m.isClickable ? 'ClawdMsg-clickable' : ''}`}
       onClick={m.isClickable && onExampleClick ? (e) => onExampleClick(e, m.text) : undefined}
     >
       <div className="ClawdBubble">
+        {/* Quoted reply block — shown when this message replies to another */}
+        {replyToMsg && (
+          <div
+            className={`ClawdQuotedReply ClawdQuotedReply--${replyToMsg.role}`}
+            onClick={handleScrollToReply}
+            title="Jump to original message"
+          >
+            <div className="ClawdQuotedReply__bar" />
+            <div className="ClawdQuotedReply__body">
+              <span className="ClawdQuotedReply__author">
+                {replyToMsg.role === 'user' ? 'You' : 'Knapsack'}
+              </span>
+              <span className="ClawdQuotedReply__text">
+                {replyToMsg.text.replace(/\n/g, ' ').slice(0, 120)}{replyToMsg.text.length > 120 ? '…' : ''}
+              </span>
+            </div>
+          </div>
+        )}
         {m.isClickable ? (
           <p>{m.text}</p>
         ) : (
@@ -916,22 +950,34 @@ const ChatMessage = memo(function ChatMessage({
           <div className="ClawdMsgModel">via {m.model}</div>
         )}
         {!m.isClickable && (
-          <button
-            className={`ClawdCopyBtn ${copied ? 'ClawdCopyBtn--copied' : ''}`}
-            onClick={handleCopy}
-            title={copied ? 'Copied!' : 'Copy message'}
-          >
-            {copied ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
+          <>
+            <button
+              className="ClawdReplyBtn"
+              onClick={handleReply}
+              title="Reply to this message"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 17 4 12 9 7" />
+                <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
               </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
-          </button>
+            </button>
+            <button
+              className={`ClawdCopyBtn ${copied ? 'ClawdCopyBtn--copied' : ''}`}
+              onClick={handleCopy}
+              title={copied ? 'Copied!' : 'Copy message'}
+            >
+              {copied ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              )}
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -942,7 +988,10 @@ const ChatMessage = memo(function ChatMessage({
   prev.cleaned === next.cleaned &&
   prev.actions === next.actions &&
   prev.mdPlugins === next.mdPlugins &&
-  prev.mdComponents === next.mdComponents
+  prev.mdComponents === next.mdComponents &&
+  prev.replyToMsg?.id === next.replyToMsg?.id &&
+  prev.onReply === next.onReply &&
+  prev.onScrollToMsg === next.onScrollToMsg
 )
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
@@ -950,6 +999,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     busy, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
+    replyToMsg, onCancelReply,
   } = props
   const [input, setInput] = useState('')
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
@@ -995,6 +1045,30 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
 
   return (
     <>
+      {/* Reply preview bar — shown when replying to a message */}
+      {replyToMsg && (
+        <div className="ClawdReplyPreview">
+          <div className={`ClawdReplyPreview__bar ClawdReplyPreview__bar--${replyToMsg.role}`} />
+          <div className="ClawdReplyPreview__content">
+            <span className="ClawdReplyPreview__author">
+              {replyToMsg.role === 'user' ? 'You' : 'Knapsack'}
+            </span>
+            <span className="ClawdReplyPreview__text">
+              {replyToMsg.text.replace(/\n/g, ' ').slice(0, 100)}{replyToMsg.text.length > 100 ? '…' : ''}
+            </span>
+          </div>
+          <button
+            className="ClawdReplyPreview__cancel"
+            onClick={onCancelReply}
+            title="Cancel reply"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
       {/* Attached files preview */}
       {attachedFiles.length > 0 && (
         <div className="ClawdAttachments">
@@ -1476,6 +1550,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
   const isNearBottomRef = useRef(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
+
+  // Message threading (reply-to) state
+  const [replyToMsg, setReplyToMsg] = useState<Msg | null>(null)
+  const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Voice silence detection refs
   const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -2884,6 +2962,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     setShowScrollButton(false)
   }, [])
 
+  // Scroll to a specific message and briefly highlight it (for reply navigation)
+  const scrollToMsg = useCallback((id: string) => {
+    const el = msgRefsMap.current.get(id)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('ClawdMsg--highlighted')
+    setTimeout(() => el.classList.remove('ClawdMsg--highlighted'), 1400)
+  }, [])
+
   // Save chat history to localStorage whenever msgs change (excluding welcome messages)
   useEffect(() => {
     // Only save if we have messages beyond the initial welcome
@@ -3000,8 +3087,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('clawd-send-user', handler)
   }, [])
 
-  const pushUser = (text: string) => {
-    setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
+  const pushUser = (text: string, replyToId?: string) => {
+    setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
   }
 
   // Stop current generation
@@ -3239,6 +3326,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       }
     }
 
+    // Capture and clear reply context before any async work
+    const currentReplyTo = replyToMsg
+    setReplyToMsg(null)
+
     // Capture current attachments and clear them
     const currentAttachments = [...attachedFiles]
     setAttachedFiles([])
@@ -3247,7 +3338,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const attachmentSummary = currentAttachments.length > 0
       ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
       : ''
-    pushUser(text + attachmentSummary)
+    pushUser(text + attachmentSummary, currentReplyTo?.id)
 
     // Parse "command args..." form
     const [rawCmd, ...rest] = text.split(/\s+/)
@@ -3630,6 +3721,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         }
 
+        // Prepend quoted reply context so the AI knows which message is being replied to
+        if (currentReplyTo) {
+          const quotedText = currentReplyTo.text.slice(0, 500).replace(/\n/g, '\n> ')
+          actualText = `> ${quotedText}\n\n${actualText}`
+        }
+
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
           text: actualText || 'Please analyze the attached files.',
@@ -3986,6 +4083,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     [msgs],
   )
 
+  // Fast id→Msg lookup for reply-to resolution
+  const msgsById = useMemo(() => {
+    const map = new Map<string, Msg>()
+    for (const m of msgs) map.set(m.id, m)
+    return map
+  }, [msgs])
+
   return (
     <div className="ClawdChatRoot">
       <div className="ClawdChatHeader">
@@ -4235,16 +4339,26 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
-          <ChatMessage
+          <div
             key={m.id}
-            msg={m}
-            cleaned={cleaned}
-            actions={actions}
-            mdPlugins={mdPlugins}
-            mdComponents={mdComponents}
-            onExampleClick={handleExampleClick}
-            onAction={handleSendWithText}
-          />
+            ref={el => {
+              if (el) msgRefsMap.current.set(m.id, el)
+              else msgRefsMap.current.delete(m.id)
+            }}
+          >
+            <ChatMessage
+              msg={m}
+              cleaned={cleaned}
+              actions={actions}
+              mdPlugins={mdPlugins}
+              mdComponents={mdComponents}
+              onExampleClick={handleExampleClick}
+              onAction={handleSendWithText}
+              onReply={setReplyToMsg}
+              replyToMsg={m.replyTo ? (msgsById.get(m.replyTo) ?? null) : null}
+              onScrollToMsg={scrollToMsg}
+            />
+          </div>
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
         {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
@@ -4498,6 +4612,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onStopRecording={stopRecording}
         onToggleVoice={stableToggleVoiceOutput}
         onStopGeneration={stableStopGeneration}
+        replyToMsg={replyToMsg}
+        onCancelReply={() => setReplyToMsg(null)}
       />
       </div>
       </div>{/* end ClawdChatContent */}
