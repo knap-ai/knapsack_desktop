@@ -359,6 +359,170 @@ fn ensure_dir(p: &Path) -> Result<(), String> {
   fs::create_dir_all(p).map_err(|e| format!("Failed to create dir {}: {}", p.display(), e))
 }
 
+/// Returns true if an allowFrom JSON value is absent or effectively empty.
+/// An array is "empty" if it has no elements or all elements are blank strings.
+fn is_empty_allow_from(value: Option<&serde_json::Value>) -> bool {
+  match value {
+    None => true,
+    Some(v) => match v.as_array() {
+      None => true,
+      Some(arr) => arr.iter().all(|item| {
+        item.as_str().map(|s| s.trim().is_empty()).unwrap_or(false)
+      }),
+    },
+  }
+}
+
+/// Auto-heal OpenClaw channel configs where `dmPolicy="allowlist"` but
+/// `allowFrom` is missing or empty. Such configs fail Zod validation and
+/// cause fatal CLI errors ("openclaw logs", "status", etc.).
+///
+/// Strategy: downgrade `dmPolicy` from "allowlist" to "pairing" so the
+/// gateway can start. The user retains their other channel settings intact.
+///
+/// Handles:
+///   - Top-level per-channel `dmPolicy` / `allowFrom`
+///   - Per-account `dmPolicy` / `allowFrom` inside `channels.*.accounts.*`
+///   - Google Chat's `dm.policy` / `dm.allowFrom` sub-object
+///
+/// Returns `true` if any fields were modified (caller should persist config).
+fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
+  let mut patched = false;
+
+  let channel_names: Vec<String> = cfg
+    .get("channels")
+    .and_then(|v| v.as_object())
+    .map(|obj| obj.keys().cloned().collect())
+    .unwrap_or_default();
+
+  for channel_name in &channel_names {
+    // ── Top-level dmPolicy / allowFrom ───────────────────────────────
+    let channel_ptr = format!("/channels/{}", channel_name);
+
+    let dm_policy = cfg
+      .pointer(&format!("{}/dmPolicy", channel_ptr))
+      .and_then(|v| v.as_str())
+      .map(|s| s.to_string());
+
+    if dm_policy.as_deref() == Some("allowlist") {
+      let allow_from = cfg.pointer(&format!("{}/allowFrom", channel_ptr));
+      if is_empty_allow_from(allow_from) {
+        if let Some(ch) = cfg.pointer_mut(&channel_ptr).and_then(|v| v.as_object_mut()) {
+          ch.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
+          eprintln!(
+            "[clawd/service] Auto-fixed invalid OpenClaw config: \
+             channels.{}.dmPolicy=\"allowlist\" but allowFrom is missing/empty \
+             — downgraded to \"pairing\"",
+            channel_name
+          );
+          patched = true;
+        }
+      }
+    }
+
+    // ── Google Chat: dm.policy / dm.allowFrom ────────────────────────
+    // Google Chat uses a nested `dm` object for its DM policy.
+    let gc_dm_policy = cfg
+      .pointer(&format!("{}/dm/policy", channel_ptr))
+      .and_then(|v| v.as_str())
+      .map(|s| s.to_string());
+
+    if gc_dm_policy.as_deref() == Some("allowlist") {
+      let gc_allow_from = cfg.pointer(&format!("{}/dm/allowFrom", channel_ptr));
+      if is_empty_allow_from(gc_allow_from) {
+        if let Some(dm_obj) = cfg
+          .pointer_mut(&format!("{}/dm", channel_ptr))
+          .and_then(|v| v.as_object_mut())
+        {
+          dm_obj.insert("policy".to_string(), serde_json::json!("pairing"));
+          eprintln!(
+            "[clawd/service] Auto-fixed invalid OpenClaw config: \
+             channels.{}.dm.policy=\"allowlist\" but dm.allowFrom is missing/empty \
+             — downgraded to \"pairing\"",
+            channel_name
+          );
+          patched = true;
+        }
+      }
+    }
+
+    // ── Per-account dmPolicy / allowFrom ────────────────────────────
+    // Multi-account channels (telegram, discord, slack, irc, …) can have
+    // per-account overrides under `channels.<channel>.accounts.<id>`.
+    let account_names: Vec<String> = cfg
+      .pointer(&format!("{}/accounts", channel_ptr))
+      .and_then(|v| v.as_object())
+      .map(|obj| obj.keys().cloned().collect())
+      .unwrap_or_default();
+
+    // Parent-level allowFrom serves as fallback per the gateway schema.
+    let parent_allow_from_empty = is_empty_allow_from(
+      cfg.pointer(&format!("{}/allowFrom", channel_ptr)),
+    );
+
+    for account_name in &account_names {
+      let acct_ptr = format!("{}/accounts/{}", channel_ptr, account_name);
+
+      let acct_dm_policy = cfg
+        .pointer(&format!("{}/dmPolicy", acct_ptr))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+      if acct_dm_policy.as_deref() == Some("allowlist") {
+        let acct_allow_from = cfg.pointer(&format!("{}/allowFrom", acct_ptr));
+        // Only invalid if BOTH account-level and parent-level allowFrom are empty.
+        let effective_empty =
+          is_empty_allow_from(acct_allow_from) && parent_allow_from_empty;
+        if effective_empty {
+          if let Some(acct) = cfg
+            .pointer_mut(&acct_ptr)
+            .and_then(|v| v.as_object_mut())
+          {
+            acct.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
+            eprintln!(
+              "[clawd/service] Auto-fixed invalid OpenClaw config: \
+               channels.{}.accounts.{}.dmPolicy=\"allowlist\" but allowFrom is \
+               missing/empty (and no parent allowFrom) — downgraded to \"pairing\"",
+              channel_name, account_name
+            );
+            patched = true;
+          }
+        }
+      }
+    }
+  }
+
+  patched
+}
+
+/// Apply `sanitize_channel_allowlist_configs` to a config file on disk.
+/// Non-destructive: only writes back when a change was actually made.
+/// Logs a clear warning but never panics or returns an error — startup
+/// must succeed even if the patch cannot be persisted.
+fn sanitize_config_file_allowlist(config_path: &Path) {
+  let contents = match fs::read_to_string(config_path) {
+    Ok(s) => s,
+    Err(_) => return, // file absent or unreadable — nothing to fix
+  };
+  let mut cfg: serde_json::Value = match serde_json::from_str(&contents) {
+    Ok(v) => v,
+    Err(_) => return, // not valid JSON — leave alone, gateway will report the real error
+  };
+  if sanitize_channel_allowlist_configs(&mut cfg) {
+    match fs::write(config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
+      Ok(_) => eprintln!(
+        "[clawd/service] Persisted auto-fixed allowlist config to {}",
+        config_path.display()
+      ),
+      Err(e) => eprintln!(
+        "[clawd/service] WARNING: Could not persist allowlist fix to {}: {}",
+        config_path.display(),
+        e
+      ),
+    }
+  }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct StoredTokens {
   gateway_token: String,
@@ -2878,6 +3042,13 @@ async fn prepare_gateway_config(
           patched = true;
         }
 
+        // ── Auto-heal allowlist channels ──────────────────────────────
+        // Must run AFTER other patches so that the in-memory cfg_val is
+        // already up-to-date before we persist it.
+        if sanitize_channel_allowlist_configs(&mut cfg_val) {
+          patched = true;
+        }
+
         if patched {
           match fs::write(&config_path, serde_json::to_string_pretty(&cfg_val).unwrap_or_default()) {
             Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
@@ -2885,6 +3056,17 @@ async fn prepare_gateway_config(
           }
         }
       }
+    }
+  }
+
+  // ── Auto-heal global ~/.openclaw/openclaw.json ────────────────────
+  // The global config is used by the CLI (`openclaw logs`, `status`, etc.)
+  // and is separate from the app runtime config above.  Patch it too so
+  // CLI commands never hit a fatal allowlist validation error.
+  if let Some(home_dir) = dirs::home_dir() {
+    let global_config_path = home_dir.join(".openclaw").join("openclaw.json");
+    if global_config_path.exists() {
+      sanitize_config_file_allowlist(&global_config_path);
     }
   }
 
@@ -3927,6 +4109,11 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
+            // ── Auto-heal allowlist channels ──────────────────────────
+            if sanitize_channel_allowlist_configs(&mut cfg) {
+              patched = true;
+            }
+
             if patched {
               match fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
                 Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
@@ -3934,6 +4121,17 @@ pub async fn set_service_enabled(
               }
             }
           }
+        }
+      }
+
+      // ── Auto-heal global ~/.openclaw/openclaw.json ──────────────────
+      // CLI commands read the global config independently of OPENCLAW_HOME.
+      // Patch it here so `openclaw logs`, `openclaw status`, etc. don't
+      // hit a fatal allowlist validation error even when no app config exists.
+      if let Some(home_dir) = dirs::home_dir() {
+        let global_config_path = home_dir.join(".openclaw").join("openclaw.json");
+        if global_config_path.exists() {
+          sanitize_config_file_allowlist(&global_config_path);
         }
       }
 
