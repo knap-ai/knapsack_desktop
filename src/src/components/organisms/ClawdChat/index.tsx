@@ -2638,7 +2638,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOpenRouterModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
 
   // Switch to a provider that already has a saved key (no new key needed)
-  const switchProviderModel = useCallback(async (providerId: Provider) => {
+  const switchProviderModel = useCallback(async (providerId: Provider, alreadyActive = false) => {
     // Ollama uses its own configure endpoint
     if (providerId === 'ollama') {
       saveOllamaProvider()
@@ -2687,7 +2687,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'openrouter' ? selectedOpenRouterModel
         : selectedGroqModel
       const modelName = models.find(m => m.id === mv)?.name || mv
-      pushAssistant(`Switched to ${providerInfo?.name || providerId} (${modelName}).`)
+      if (!alreadyActive) {
+        pushAssistant(`Switched to ${providerInfo?.name || providerId} (${modelName}).`)
+      }
     } catch (e: any) {
       pushAssistant(`Failed to switch provider: ${e?.message || String(e)}`)
     } finally {
@@ -5873,7 +5875,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                           <div className="ClawdAccordionActions">
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                              onClick={() => switchProviderModel(p.id)}
+                              onClick={() => switchProviderModel(p.id, isActive)}
                               disabled={savingKey}
                             >
                               {savingKey ? 'Switching...' : isActive ? 'Select' : 'Select ' + p.name}
