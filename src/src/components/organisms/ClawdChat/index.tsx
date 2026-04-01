@@ -3779,7 +3779,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: requestBody.text, advancedMode }),
+            body: JSON.stringify({ text: requestBody.text, advancedMode, userEmail: userEmail || '', userName: userName || '' }),
             signal: agentSignal,
           })
           if (agentTimerId) clearTimeout(agentTimerId)
