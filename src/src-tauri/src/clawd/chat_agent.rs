@@ -599,7 +599,11 @@ pub async fn openai_compatible_chat(
   });
   if !tools.is_empty() {
     body["tools"] = json!(tools);
-    body["tool_choice"] = json!("auto");
+    // Don't send tool_choice for local Ollama models — some models
+    // (e.g. gemma3) don't support this parameter via the OpenAI-compat API.
+    if !is_local {
+      body["tool_choice"] = json!("auto");
+    }
   }
   if let Some(t) = temperature {
     body["temperature"] = json!(t);
@@ -667,6 +671,39 @@ pub async fn openai_compatible_chat(
           }
         }
       }
+    }
+
+    // Ollama models (local) may return errors when tools are included but
+    // the model doesn't support them (e.g. gemma3).  Detect these errors
+    // and retry once without tools so the model can still respond.
+    let text_lower = text.to_lowercase();
+    let is_tool_error = text_lower.contains("does not support tools")
+      || text_lower.contains("does not support function")
+      || text_lower.contains("tool use is not supported")
+      || text_lower.contains("tools is not supported")
+      || text_lower.contains("unknown parameter: tools");
+    if is_tool_error && is_local && !tools.is_empty() {
+      eprintln!("[chat_agent] Ollama model does not support tools — retrying without tools");
+      let mut body_no_tools = json!({
+        "model": model,
+        "messages": oai_messages,
+      });
+      if let Some(t) = temperature {
+        body_no_tools["temperature"] = json!(t);
+      }
+      let retry_res = client
+        .post(format!("{}/chat/completions", base_url))
+        .bearer_auth(api_key)
+        .json(&body_no_tools)
+        .send()
+        .await?;
+      let retry_status = retry_res.status();
+      let retry_text = retry_res.text().await.unwrap_or_default();
+      if retry_status.is_success() {
+        let parsed: OaiChatResp = serde_json::from_str(&retry_text)?;
+        return Ok(fixup_raw_tool_tokens(parsed));
+      }
+      anyhow::bail!("LLM HTTP {}: {}", retry_status, retry_text);
     }
 
     // For other errors, fail immediately
