@@ -1000,6 +1000,26 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         kill_stale_clawdbot_chromes();
 
+        // Auto-heal the config before restarting.  If the gateway is crashing
+        // due to a Zod validation error (e.g. dmPolicy="allowlist" with an
+        // empty allowFrom), it will exit immediately on every kickstart attempt.
+        // Patching here ensures recovery works even when prepare_gateway_config
+        // hasn't run yet (e.g. user edited config via CLI after initial setup).
+        if let Ok(dir) = std::env::var("OPENCLAW_HOME")
+          .or_else(|_| std::env::var("CLAWDBOT_STATE_DIR"))
+        {
+          let dir = dir.trim().to_string();
+          if !dir.is_empty() {
+            for filename in &["openclaw.json", "clawdbot.json"] {
+              let p = std::path::PathBuf::from(&dir).join(filename);
+              if p.exists() {
+                sanitize_config_file_allowlist(&p);
+                break;
+              }
+            }
+          }
+        }
+
         use crate::clawd::gateway_supervisor;
         let result = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, &token).await;
         eprintln!("[clawd/service] gateway restart attempt: {} ({})", result.message,
@@ -1075,6 +1095,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     if gateway_ok && !browser_ok && !BROWSER_START_NUDGED.swap(true, Ordering::Relaxed) {
       eprintln!("[clawd/service] browser not reachable — sending /start nudge");
       tokio::spawn(async {
+        // Kill any stale Chrome holding the CDP port (18800) before asking the
+        // gateway to start a new one.  This handles the case where the app
+        // started with the gateway already running but Chrome crashed and left
+        // an orphan process that prevents a fresh browser from binding the port.
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        kill_stale_clawdbot_chromes();
+
         match tokio::time::timeout(
           std::time::Duration::from_secs(10),
           gateway_client::browser_request(
@@ -1082,8 +1109,16 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           ),
         ).await {
           Ok(Ok(_)) => eprintln!("[clawd/service] browser /start nudge succeeded"),
-          Ok(Err(e)) => eprintln!("[clawd/service] browser /start nudge failed: {}", e),
-          Err(_) => eprintln!("[clawd/service] browser /start nudge timed out"),
+          Ok(Err(e)) => {
+            eprintln!("[clawd/service] browser /start nudge failed: {}", e);
+            // Reset so the next health-check cycle can retry rather than
+            // staying stuck with BROWSER_START_NUDGED=true forever.
+            BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+          }
+          Err(_) => {
+            eprintln!("[clawd/service] browser /start nudge timed out");
+            BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+          }
         }
       });
     }
