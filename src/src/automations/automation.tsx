@@ -30,12 +30,22 @@ export enum DaysOfWeek {
   SUNDAY = 'Sunday',
 }
 
+export type AgentIdentity = {
+  displayName: string
+  emoji: string
+  personality: string
+  soul: string
+}
+
 export enum AutomationDataSources {
   GMAIL = 'gmail',
   GOOGLE_CALENDAR = 'google_calendar',
   DRIVE = 'drive',
   LOCAL_FILES = 'file',
   WEB = 'web',
+  OUTLOOK = 'outlook',
+  MICROSOFT_CALENDAR = 'microsoft_calendar',
+  ONEDRIVE = 'onedrive',
 }
 
 export const convertAutomationDataSourceToConnectionKey = (automationDataSource: string) => {
@@ -48,6 +58,12 @@ export const convertAutomationDataSourceToConnectionKey = (automationDataSource:
       return ConnectionKeys.GOOGLE_DRIVE
     case AutomationDataSources.LOCAL_FILES:
       return ConnectionKeys.LOCAL_FILES
+    case AutomationDataSources.OUTLOOK:
+      return ConnectionKeys.MICROSOFT_OUTLOOK
+    case AutomationDataSources.MICROSOFT_CALENDAR:
+      return ConnectionKeys.MICROSOFT_CALENDAR
+    case AutomationDataSources.ONEDRIVE:
+      return ConnectionKeys.MICROSOFT_ONEDRIVE
     default:
       return undefined
   }
@@ -76,6 +92,18 @@ export const automationDataSourcesIndex: Record<
   [AutomationDataSources.WEB]: {
     asset: '/assets/images/dataSources/web.svg',
     label: 'Web',
+  },
+  [AutomationDataSources.OUTLOOK]: {
+    asset: '/assets/images/dataSources/gmail.svg',
+    label: 'Outlook',
+  },
+  [AutomationDataSources.MICROSOFT_CALENDAR]: {
+    asset: '/assets/images/dataSources/gcal.svg',
+    label: 'Microsoft Calendar',
+  },
+  [AutomationDataSources.ONEDRIVE]: {
+    asset: '/assets/images/dataSources/gdrive.svg',
+    label: 'OneDrive',
   },
 }
 
@@ -107,6 +135,7 @@ type AutomationProps = {
   isBeta?: boolean | undefined
   showLibrary?: boolean | undefined
   icon?: string | undefined
+  identity?: AgentIdentity | undefined
 }
 
 export class Automation {
@@ -122,6 +151,7 @@ export class Automation {
   private loading?: boolean
   private showLibrary?: boolean | undefined
   icon?: string | undefined
+  private identity?: AgentIdentity | undefined
 
   constructor({
     id,
@@ -135,6 +165,7 @@ export class Automation {
     isBeta,
     showLibrary,
     icon,
+    identity,
   }: AutomationProps) {
     this.id = id
     this.name = name
@@ -148,6 +179,7 @@ export class Automation {
     this.loading = false
     this.showLibrary = showLibrary ?? true
     this.icon = icon
+    this.identity = identity
   }
 
   getId() {
@@ -193,6 +225,15 @@ export class Automation {
 
   getIcon() {
     return this.icon
+  }
+
+  getIdentity() {
+    return this.identity
+  }
+
+  setIdentity(identity: AgentIdentity) {
+    this.identity = identity
+    return this
   }
 
   getLoading() {
@@ -276,6 +317,14 @@ export class Automation {
       is_active: this.isActive,
       show_library: this.showLibrary,
       icon: this.icon,
+      identity: this.identity
+        ? {
+            display_name: this.identity.displayName,
+            emoji: this.identity.emoji,
+            personality: this.identity.personality,
+            soul: this.identity.soul,
+          }
+        : undefined,
     }
   }
 }

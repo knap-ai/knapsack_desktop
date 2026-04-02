@@ -260,6 +260,7 @@ export function useAutomations({
         let context: StepExecuteContext = {
           userEmail,
           trigger,
+          agentIdentity: automation.getIdentity(),
           ...runParams,
         }
 
@@ -333,7 +334,11 @@ export function useAutomations({
         })
       }
 
-      let context: StepExecuteContext = { userEmail, trigger: AutomationTrigger.CLICK }
+      let context: StepExecuteContext = {
+        userEmail,
+        trigger: AutomationTrigger.CLICK,
+        agentIdentity: automation.getIdentity(),
+      }
       for (const step of automation.getSteps()) {
         try {
           const helpers = {
