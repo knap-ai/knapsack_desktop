@@ -3345,6 +3345,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const cmd = rawCmd.toLowerCase()
 
     setBusy(true)
+
+    // Snapshot the active model label from React state at request time so error
+    // messages reflect the model that was actually selected when sent, not the
+    // model in localStorage (which can lag behind UI state changes).
+    const activeModelAtSend = (() => {
+      const m = selectedProvider === 'ollama' ? selectedOllamaModel
+        : selectedProvider === 'anthropic' ? selectedAnthropicModel
+        : selectedProvider === 'gemini' ? selectedGeminiModel
+        : selectedProvider === 'groq' ? selectedGroqModel
+        : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+        : selectedModel
+      return m ? `${selectedProvider}/${m}` : selectedProvider
+    })()
+
     try {
       if (cmd === 'enable') {
         await enableAssistant(true)
@@ -3651,19 +3665,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // Create abort controller for this request
       const controller = new AbortController()
       setAbortController(controller)
-
-      // Snapshot the active model label from React state at request time so error
-      // messages reflect the model that was actually selected when sent, not the
-      // model in localStorage (which can lag behind UI state changes).
-      const activeModelAtSend = (() => {
-        const m = selectedProvider === 'ollama' ? selectedOllamaModel
-          : selectedProvider === 'anthropic' ? selectedAnthropicModel
-          : selectedProvider === 'gemini' ? selectedGeminiModel
-          : selectedProvider === 'groq' ? selectedGroqModel
-          : selectedProvider === 'openrouter' ? selectedOpenRouterModel
-          : selectedModel
-        return m ? `${selectedProvider}/${m}` : selectedProvider
-      })()
 
       try {
         // Get the current tone's system prompt addition
