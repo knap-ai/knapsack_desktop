@@ -15,3 +15,7 @@ export declare function resolveEffectiveToolFsWorkspaceOnly(params: {
     cfg?: OpenClawConfig;
     agentId?: string;
 }): boolean;
+export declare function resolveEffectiveToolFsRootExpansionAllowed(params: {
+    cfg?: OpenClawConfig;
+    agentId?: string;
+}): boolean;

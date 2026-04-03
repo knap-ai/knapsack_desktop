@@ -22,8 +22,7 @@
  */
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import * as piAi from "@mariozechner/pi-ai";
-import type { AssistantMessage, Context, Message } from "@mariozechner/pi-ai";
-import { OpenAIWebSocketManager, type FunctionToolDefinition, type InputItem, type OpenAIWebSocketManagerOptions, type ResponseObject } from "./openai-ws-connection.js";
+import { OpenAIWebSocketManager, type OpenAIWebSocketManagerOptions } from "./openai-ws-connection.js";
 type OpenAIWsStreamDeps = {
     createManager: (options?: OpenAIWebSocketManagerOptions) => OpenAIWebSocketManager;
     streamSimple: typeof piAi.streamSimple;
@@ -37,21 +36,7 @@ export declare function releaseWsSession(sessionId: string): void;
  * Returns true if a live WebSocket session exists for the given sessionId.
  */
 export declare function hasWsSession(sessionId: string): boolean;
-type ReplayModelInfo = {
-    input?: ReadonlyArray<string>;
-};
-/** Convert pi-ai tool array to OpenAI FunctionToolDefinition[]. */
-export declare function convertTools(tools: Context["tools"]): FunctionToolDefinition[];
-/**
- * Convert the full pi-ai message history to an OpenAI `input` array.
- * Handles user messages, assistant text+tool-call messages, and tool results.
- */
-export declare function convertMessagesToInputItems(messages: Message[], modelOverride?: ReplayModelInfo): InputItem[];
-export declare function buildAssistantMessageFromResponse(response: ResponseObject, modelInfo: {
-    api: string;
-    provider: string;
-    id: string;
-}): AssistantMessage;
+export { buildAssistantMessageFromResponse, convertMessagesToInputItems, convertTools, planTurnInput, } from "./openai-ws-message-conversion.js";
 export interface OpenAIWebSocketStreamOptions {
     /** Manager options (url override, retry counts, etc.) */
     managerOptions?: OpenAIWebSocketManagerOptions;
@@ -75,4 +60,3 @@ export declare function createOpenAIWebSocketStreamFn(apiKey: string, sessionId:
 export declare const __testing: {
     setDepsForTest(overrides?: Partial<OpenAIWsStreamDeps>): void;
 };
-export {};

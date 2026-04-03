@@ -15,11 +15,13 @@ export declare function tryDispatchAcpReply(params: {
     ctx: FinalizedMsgContext;
     cfg: OpenClawConfig;
     dispatcher: ReplyDispatcher;
+    runId?: string;
     sessionKey?: string;
     abortSignal?: AbortSignal;
     inboundAudio: boolean;
     sessionTtsAuto?: TtsAutoMode;
     ttsChannel?: string;
+    suppressUserDelivery?: boolean;
     shouldRouteToOriginating: boolean;
     originatingChannel?: string;
     originatingTo?: string;

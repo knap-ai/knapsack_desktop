@@ -1,14 +1,20 @@
+import { completeSimple } from "@mariozechner/pi-ai";
+import { getApiKeyForModel, requireApiKey } from "../agents/model-auth.js";
+import { resolveModelAsync } from "../agents/pi-embedded-runner/model.js";
+import { prepareModelForSimpleCompletion } from "../agents/simple-completion-transport.js";
 import type { OpenClawConfig } from "../config/config.js";
-import type { ResolvedTtsConfig, ResolvedTtsModelOverrides, TtsDirectiveParseResult } from "./tts.js";
-export declare const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
-export declare function isValidVoiceId(voiceId: string): boolean;
-export declare function parseTtsDirectives(text: string, policy: ResolvedTtsModelOverrides, openaiBaseUrl?: string): TtsDirectiveParseResult;
-export declare const OPENAI_TTS_MODELS: readonly ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"];
-export declare const OPENAI_TTS_VOICES: readonly ["alloy", "ash", "ballad", "cedar", "coral", "echo", "fable", "juniper", "marin", "onyx", "nova", "sage", "shimmer", "verse"];
-type OpenAiTtsVoice = (typeof OPENAI_TTS_VOICES)[number];
-export declare function isValidOpenAIModel(model: string, baseUrl?: string): boolean;
-export declare function resolveOpenAITtsInstructions(model: string, instructions?: string): string | undefined;
-export declare function isValidOpenAIVoice(voice: string, baseUrl?: string): voice is OpenAiTtsVoice;
+import type { ResolvedTtsConfig } from "./tts.js";
+type SummarizeTextDeps = {
+    completeSimple: typeof completeSimple;
+    getApiKeyForModel: typeof getApiKeyForModel;
+    prepareModelForSimpleCompletion: typeof prepareModelForSimpleCompletion;
+    requireApiKey: typeof requireApiKey;
+    resolveModelAsync: typeof resolveModelAsync;
+};
+export declare function requireInRange(value: number, min: number, max: number, label: string): void;
+export declare function normalizeLanguageCode(code?: string): string | undefined;
+export declare function normalizeApplyTextNormalization(mode?: string): "auto" | "on" | "off" | undefined;
+export declare function normalizeSeed(seed?: number): number | undefined;
 type SummarizeResult = {
     summary: string;
     latencyMs: number;
@@ -21,37 +27,6 @@ export declare function summarizeText(params: {
     cfg: OpenClawConfig;
     config: ResolvedTtsConfig;
     timeoutMs: number;
-}): Promise<SummarizeResult>;
+}, deps?: SummarizeTextDeps): Promise<SummarizeResult>;
 export declare function scheduleCleanup(tempDir: string, delayMs?: number): void;
-export declare function elevenLabsTTS(params: {
-    text: string;
-    apiKey: string;
-    baseUrl: string;
-    voiceId: string;
-    modelId: string;
-    outputFormat: string;
-    seed?: number;
-    applyTextNormalization?: "auto" | "on" | "off";
-    languageCode?: string;
-    voiceSettings: ResolvedTtsConfig["elevenlabs"]["voiceSettings"];
-    timeoutMs: number;
-}): Promise<Buffer>;
-export declare function openaiTTS(params: {
-    text: string;
-    apiKey: string;
-    baseUrl: string;
-    model: string;
-    voice: string;
-    speed?: number;
-    instructions?: string;
-    responseFormat: "mp3" | "opus" | "pcm";
-    timeoutMs: number;
-}): Promise<Buffer>;
-export declare function inferEdgeExtension(outputFormat: string): string;
-export declare function edgeTTS(params: {
-    text: string;
-    outputPath: string;
-    config: ResolvedTtsConfig["edge"];
-    timeoutMs: number;
-}): Promise<void>;
 export {};

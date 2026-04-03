@@ -25,6 +25,7 @@ export declare function ensureApiKeyFromOptionEnvOrPrompt(params: {
     tokenProvider: string | undefined;
     secretInputMode?: SecretInputMode;
     config: OpenClawConfig;
+    env?: NodeJS.ProcessEnv;
     expectedProviders: string[];
     provider: string;
     envLabel: string;
@@ -38,6 +39,7 @@ export declare function ensureApiKeyFromOptionEnvOrPrompt(params: {
 }): Promise<string>;
 export declare function ensureApiKeyFromEnvOrPrompt(params: {
     config: OpenClawConfig;
+    env?: NodeJS.ProcessEnv;
     provider: string;
     envLabel: string;
     promptMessage: string;

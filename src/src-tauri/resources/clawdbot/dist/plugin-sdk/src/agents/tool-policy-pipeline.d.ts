@@ -4,12 +4,15 @@ export type ToolPolicyPipelineStep = {
     policy: ToolPolicyLike | undefined;
     label: string;
     stripPluginOnlyAllowlist?: boolean;
+    suppressUnavailableCoreToolWarning?: boolean;
 };
 export declare function buildDefaultToolPolicyPipelineSteps(params: {
     profilePolicy?: ToolPolicyLike;
     profile?: string;
+    profileAlsoAllow?: string[];
     providerProfilePolicy?: ToolPolicyLike;
     providerProfile?: string;
+    providerProfileAlsoAllow?: string[];
     globalPolicy?: ToolPolicyLike;
     globalProviderPolicy?: ToolPolicyLike;
     agentPolicy?: ToolPolicyLike;
@@ -25,3 +28,4 @@ export declare function applyToolPolicyPipeline(params: {
     warn: (message: string) => void;
     steps: ToolPolicyPipelineStep[];
 }): AnyAgentTool[];
+export declare function resetToolPolicyWarningCacheForTest(): void;

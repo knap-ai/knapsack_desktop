@@ -1,1 +1,1 @@
-export { describeImageFile, describeImageFileWithModel, describeVideoFile, runMediaUnderstandingFile, transcribeAudioFile, } from "../../media-understanding/runtime.js";
+export { describeImageFile, describeImageFileWithModel, describeVideoFile, runMediaUnderstandingFile, transcribeAudioFile, } from "../../plugin-sdk/media-understanding-runtime.js";

@@ -1,5 +1,6 @@
 {
   "id": "github-copilot",
+  "enabledByDefault": true,
   "providers": [
     "github-copilot"
   ],

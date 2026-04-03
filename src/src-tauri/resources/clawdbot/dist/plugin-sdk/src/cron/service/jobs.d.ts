@@ -2,6 +2,7 @@ import type { CronJob, CronJobCreate, CronJobPatch } from "../types.js";
 import type { CronServiceState } from "./state.js";
 export declare function assertSupportedJobSpec(job: Pick<CronJob, "sessionTarget" | "payload">): void;
 export declare function findJobOrThrow(state: CronServiceState, id: string): CronJob;
+export declare function isJobEnabled(job: Pick<CronJob, "enabled">): boolean;
 export declare function computeJobNextRunAtMs(job: CronJob, nowMs: number): number | undefined;
 export declare function computeJobPreviousRunAtMs(job: CronJob, nowMs: number): number | undefined;
 export declare function recordScheduleComputeError(params: {

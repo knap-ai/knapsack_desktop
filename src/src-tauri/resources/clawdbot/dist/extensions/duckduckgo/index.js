@@ -1,22 +1,13 @@
-import "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import "../../tmp-openclaw-dir-idKIOMmb.js";
-import "../../theme-CdOoMzRk.js";
-import "../../globals-DBUMOBZ8.js";
-import "../../subsystem-DISldKSB.js";
-import "../../ansi-BEJF8NKS.js";
-import "../../utils-CS0Ikux6.js";
-import "../../logger-BmpSCz93.js";
-import "../../exec-B5_AYfQG.js";
-import "../../legacy-web-search-BB-ZHEhz.js";
-import "../../registry-C5UkPpaO.js";
-import "../../ip-Ce8EDTBZ.js";
-import "../../common-zReYuoMM.js";
-import "../../image-ops-By4YfyWa.js";
-import "../../mime-CsUtzcn2.js";
-import "../../ssrf-0bPJMoZR.js";
-import "../../fetch-guard-CYl1q2XH.js";
-import "../../provider-web-search-COZNygbd.js";
-import "../../external-content-DZI9vlJn.js";
-import { t as duckduckgo_default } from "../../duckduckgo-CZuAOfiQ.js";
+import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import { t as createDuckDuckGoWebSearchProvider } from "../../ddg-search-provider-CBDdHzeh.js";
+//#region extensions/duckduckgo/index.ts
+var duckduckgo_default = definePluginEntry({
+	id: "duckduckgo",
+	name: "DuckDuckGo Plugin",
+	description: "Bundled DuckDuckGo web search plugin",
+	register(api) {
+		api.registerWebSearchProvider(createDuckDuckGoWebSearchProvider());
+	}
+});
+//#endregion
 export { duckduckgo_default as default };

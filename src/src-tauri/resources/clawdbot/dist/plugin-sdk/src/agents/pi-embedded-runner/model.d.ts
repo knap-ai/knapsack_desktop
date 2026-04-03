@@ -2,9 +2,10 @@ import type { Api, Model } from "@mariozechner/pi-ai";
 import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ModelDefinitionConfig } from "../../config/types.js";
-import { prepareProviderDynamicModel, runProviderDynamicModel, normalizeProviderResolvedModelWithPlugin } from "../../plugins/provider-runtime.js";
+import { applyProviderResolvedModelCompatWithPlugins, applyProviderResolvedTransportWithPlugin, buildProviderUnknownModelHintWithPlugin, normalizeProviderTransportWithPlugin, prepareProviderDynamicModel, runProviderDynamicModel, normalizeProviderResolvedModelWithPlugin } from "../../plugins/provider-runtime.js";
 import { buildModelAliasLines } from "../model-alias-lines.js";
-type InlineModelEntry = ModelDefinitionConfig & {
+type InlineModelEntry = Omit<ModelDefinitionConfig, "api"> & {
+    api?: Api;
     provider: string;
     baseUrl?: string;
     headers?: Record<string, string>;
@@ -14,11 +15,16 @@ type InlineProviderConfig = {
     api?: ModelDefinitionConfig["api"];
     models?: ModelDefinitionConfig[];
     headers?: unknown;
+    authHeader?: boolean;
 };
 type ProviderRuntimeHooks = {
+    applyProviderResolvedModelCompatWithPlugins?: (params: Parameters<typeof applyProviderResolvedModelCompatWithPlugins>[0]) => unknown;
+    applyProviderResolvedTransportWithPlugin?: (params: Parameters<typeof applyProviderResolvedTransportWithPlugin>[0]) => unknown;
+    buildProviderUnknownModelHintWithPlugin: (params: Parameters<typeof buildProviderUnknownModelHintWithPlugin>[0]) => string | undefined;
     prepareProviderDynamicModel: (params: Parameters<typeof prepareProviderDynamicModel>[0]) => Promise<void>;
     runProviderDynamicModel: (params: Parameters<typeof runProviderDynamicModel>[0]) => unknown;
     normalizeProviderResolvedModelWithPlugin: (params: Parameters<typeof normalizeProviderResolvedModelWithPlugin>[0]) => unknown;
+    normalizeProviderTransportWithPlugin: (params: Parameters<typeof normalizeProviderTransportWithPlugin>[0]) => unknown;
 };
 export { buildModelAliasLines };
 export declare function buildInlineProviderModels(providers: Record<string, InlineProviderConfig>): InlineModelEntry[];
@@ -34,6 +40,7 @@ export declare function resolveModel(provider: string, modelId: string, agentDir
     authStorage?: AuthStorage;
     modelRegistry?: ModelRegistry;
     runtimeHooks?: ProviderRuntimeHooks;
+    skipProviderRuntimeHooks?: boolean;
 }): {
     model?: Model<Api>;
     error?: string;
@@ -45,6 +52,7 @@ export declare function resolveModelAsync(provider: string, modelId: string, age
     modelRegistry?: ModelRegistry;
     retryTransientProviderRuntimeMiss?: boolean;
     runtimeHooks?: ProviderRuntimeHooks;
+    skipProviderRuntimeHooks?: boolean;
 }): Promise<{
     model?: Model<Api>;
     error?: string;

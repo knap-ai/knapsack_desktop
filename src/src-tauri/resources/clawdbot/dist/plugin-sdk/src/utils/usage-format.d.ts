@@ -19,6 +19,7 @@ export declare function resolveModelCostConfig(params: {
     provider?: string;
     model?: string;
     config?: OpenClawConfig;
+    allowPluginNormalization?: boolean;
 }): ModelCostConfig | undefined;
 export declare function estimateUsageCost(params: {
     usage?: NormalizedUsage | UsageTotals | null;

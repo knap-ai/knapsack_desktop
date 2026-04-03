@@ -23,6 +23,7 @@ export declare function postTrustedWebToolsJson<T>(params: {
     body: Record<string, unknown>;
     errorLabel: string;
     maxErrorBytes?: number;
+    extraHeaders?: Record<string, string>;
 }, parseResponse: (response: Response) => Promise<T>): Promise<T>;
 export declare function throwWebSearchApiError(res: Response, providerLabel: string): Promise<never>;
 export declare function resolveSiteName(url: string | undefined): string | undefined;
@@ -30,6 +31,21 @@ export declare const FRESHNESS_TO_RECENCY: Record<string, string>;
 export declare const RECENCY_TO_FRESHNESS: Record<string, string>;
 export declare function isoToPerplexityDate(iso: string): string | undefined;
 export declare function normalizeToIsoDate(value: string): string | undefined;
+export declare function parseIsoDateRange(params: {
+    rawDateAfter?: string;
+    rawDateBefore?: string;
+    invalidDateAfterMessage: string;
+    invalidDateBeforeMessage: string;
+    invalidDateRangeMessage: string;
+    docs?: string;
+}): {
+    dateAfter?: string;
+    dateBefore?: string;
+} | {
+    error: "invalid_date" | "invalid_date_range";
+    message: string;
+    docs: string;
+};
 export declare function normalizeFreshness(value: string | undefined, provider: "brave" | "perplexity"): string | undefined;
 export declare function readCachedSearchPayload(cacheKey: string): Record<string, unknown> | undefined;
 export declare function buildSearchCacheKey(parts: Array<string | number | boolean | undefined>): string;

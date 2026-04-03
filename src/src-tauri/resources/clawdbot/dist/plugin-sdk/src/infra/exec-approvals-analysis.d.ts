@@ -23,6 +23,12 @@ export declare function isWindowsPlatform(platform?: string | null): boolean;
  * Returns null when no chain is present or when the chain is malformed.
  */
 export declare function splitCommandChainWithOperators(command: string): ShellChainPart[] | null;
+export declare function windowsEscapeArg(value: string): {
+    ok: true;
+    escaped: string;
+} | {
+    ok: false;
+};
 /**
  * Builds a shell command string that preserves pipes/chaining, but forces *arguments* to be
  * literal (no globbing, no env-var expansion) by single-quoting every argv token.
@@ -46,7 +52,7 @@ export declare function resolvePlannedSegmentArgv(segment: ExecCommandSegment): 
 export declare function buildSafeBinsShellCommand(params: {
     command: string;
     segments: ExecCommandSegment[];
-    segmentSatisfiedBy: ("allowlist" | "safeBins" | "skills" | null)[];
+    segmentSatisfiedBy: ("allowlist" | "safeBins" | "skills" | "skillPrelude" | null)[];
     platform?: string | null;
 }): {
     ok: boolean;

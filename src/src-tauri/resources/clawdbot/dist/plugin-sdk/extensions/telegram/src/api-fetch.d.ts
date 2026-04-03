@@ -1,4 +1,4 @@
-import type { TelegramNetworkConfig } from "../runtime-api.js";
+import type { TelegramNetworkConfig } from "openclaw/plugin-sdk/telegram-core";
 export declare function resolveTelegramChatLookupFetch(params?: {
     proxyUrl?: string;
     network?: TelegramNetworkConfig;

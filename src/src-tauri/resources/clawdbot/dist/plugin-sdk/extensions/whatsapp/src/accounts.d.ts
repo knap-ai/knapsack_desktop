@@ -1,4 +1,4 @@
-import { type OpenClawConfig } from "openclaw/plugin-sdk/account-resolution";
+import { type OpenClawConfig } from "openclaw/plugin-sdk/account-core";
 import type { DmPolicy, GroupPolicy, WhatsAppAccountConfig } from "./runtime-api.js";
 export type ResolvedWhatsAppAccount = {
     accountId: string;
@@ -19,6 +19,7 @@ export type ResolvedWhatsAppAccount = {
     mediaMaxMb?: number;
     blockStreaming?: boolean;
     ackReaction?: WhatsAppAccountConfig["ackReaction"];
+    reactionLevel?: WhatsAppAccountConfig["reactionLevel"];
     groups?: WhatsAppAccountConfig["groups"];
     debounceMs?: number;
 };

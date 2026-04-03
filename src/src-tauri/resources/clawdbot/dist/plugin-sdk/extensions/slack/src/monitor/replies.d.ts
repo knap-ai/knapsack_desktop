@@ -3,7 +3,7 @@ import type { ChunkMode } from "openclaw/plugin-sdk/reply-runtime";
 import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { type SlackSendIdentity } from "../send.js";
-export declare function readSlackReplyBlocks(payload: ReplyPayload): (import("@slack/web-api").Block | import("@slack/web-api").KnownBlock)[] | undefined;
+export declare function readSlackReplyBlocks(payload: ReplyPayload): import("../blocks-render.ts").SlackBlock[] | undefined;
 export declare function deliverReplies(params: {
     replies: ReplyPayload[];
     target: string;

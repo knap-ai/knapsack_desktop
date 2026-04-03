@@ -1,4 +1,5 @@
 import { type NpmIntegrityDrift, type NpmSpecResolution } from "../infra/install-source-utils.js";
+import type { InstallSafetyOverrides } from "./install-security-scan.js";
 type PluginInstallLogger = {
     info?: (message: string) => void;
     warn?: (message: string) => void;
@@ -12,6 +13,8 @@ export declare const PLUGIN_INSTALL_ERROR_CODE: {
     readonly EMPTY_OPENCLAW_EXTENSIONS: "empty_openclaw_extensions";
     readonly NPM_PACKAGE_NOT_FOUND: "npm_package_not_found";
     readonly PLUGIN_ID_MISMATCH: "plugin_id_mismatch";
+    readonly SECURITY_SCAN_BLOCKED: "security_scan_blocked";
+    readonly SECURITY_SCAN_FAILED: "security_scan_failed";
 };
 export type PluginInstallErrorCode = (typeof PLUGIN_INSTALL_ERROR_CODE)[keyof typeof PLUGIN_INSTALL_ERROR_CODE];
 export type InstallPluginResult = {
@@ -34,13 +37,18 @@ export type PluginNpmIntegrityDriftParams = {
     actualIntegrity: string;
     resolution: NpmSpecResolution;
 };
-type PackageInstallCommonParams = {
+type PluginInstallPolicyRequest = {
+    kind: "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm";
+    requestedSpecifier?: string;
+};
+type PackageInstallCommonParams = InstallSafetyOverrides & {
     extensionsDir?: string;
     timeoutMs?: number;
     logger?: PluginInstallLogger;
     mode?: "install" | "update";
     dryRun?: boolean;
     expectedPluginId?: string;
+    installPolicyRequest?: PluginInstallPolicyRequest;
 };
 export declare function resolvePluginInstallDir(pluginId: string, extensionsDir?: string): string;
 export declare function installPluginFromArchive(params: {
@@ -51,12 +59,14 @@ export declare function installPluginFromDir(params: {
 } & PackageInstallCommonParams): Promise<InstallPluginResult>;
 export declare function installPluginFromFile(params: {
     filePath: string;
+    dangerouslyForceUnsafeInstall?: boolean;
     extensionsDir?: string;
     logger?: PluginInstallLogger;
     mode?: "install" | "update";
     dryRun?: boolean;
+    installPolicyRequest?: PluginInstallPolicyRequest;
 }): Promise<InstallPluginResult>;
-export declare function installPluginFromNpmSpec(params: {
+export declare function installPluginFromNpmSpec(params: InstallSafetyOverrides & {
     spec: string;
     extensionsDir?: string;
     timeoutMs?: number;

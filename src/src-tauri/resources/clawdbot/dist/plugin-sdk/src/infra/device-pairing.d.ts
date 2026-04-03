@@ -69,9 +69,8 @@ export type ApproveDevicePairingResult = {
     status: "forbidden";
     missingScope: string;
 } | null;
-type ApprovedDevicePairingResult = Extract<NonNullable<ApproveDevicePairingResult>, {
-    status: "approved";
-}>;
+export declare function listEffectivePairedDeviceRoles(device: Pick<PairedDevice, "role" | "roles" | "tokens">): string[];
+export declare function hasEffectivePairedDeviceRole(device: Pick<PairedDevice, "role" | "roles" | "tokens">, role: string): boolean;
 export declare function listDevicePairing(baseDir?: string): Promise<DevicePairingList>;
 export declare function getPairedDevice(deviceId: string, baseDir?: string): Promise<PairedDevice | null>;
 export declare function getPendingDevicePairing(requestId: string, baseDir?: string): Promise<DevicePairingPendingRequest | null>;
@@ -80,7 +79,7 @@ export declare function requestDevicePairing(req: Omit<DevicePairingPendingReque
     request: DevicePairingPendingRequest;
     created: boolean;
 }>;
-export declare function approveDevicePairing(requestId: string, baseDir?: string): Promise<ApprovedDevicePairingResult | null>;
+export declare function approveDevicePairing(requestId: string, baseDir?: string): Promise<ApproveDevicePairingResult>;
 export declare function approveDevicePairing(requestId: string, options: {
     callerScopes?: readonly string[];
 }, baseDir?: string): Promise<ApproveDevicePairingResult>;
@@ -121,4 +120,3 @@ export declare function revokeDeviceToken(params: {
     baseDir?: string;
 }): Promise<DeviceAuthToken | null>;
 export declare function clearDevicePairing(deviceId: string, baseDir?: string): Promise<boolean>;
-export {};

@@ -1,10 +1,7 @@
+import type { ExternalPluginCompatibility } from "../../packages/plugin-package-contract/src/index.js";
 export type ClawHubPackageFamily = "skill" | "code-plugin" | "bundle-plugin";
 export type ClawHubPackageChannel = "official" | "community" | "private";
-export type ClawHubPackageCompatibility = {
-    pluginApiRange?: string;
-    builtWithOpenClawVersion?: string;
-    minGatewayVersion?: string;
-};
+export type ClawHubPackageCompatibility = ExternalPluginCompatibility;
 export type ClawHubPackageListItem = {
     name: string;
     displayName: string;
@@ -133,8 +130,9 @@ export type ClawHubSkillListResponse = {
 export type ClawHubDownloadResult = {
     archivePath: string;
     integrity: string;
+    cleanup: () => Promise<void>;
 };
-type FetchLike = typeof fetch;
+type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 export declare class ClawHubRequestError extends Error {
     readonly status: number;
     readonly requestPath: string;

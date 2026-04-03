@@ -2,6 +2,7 @@ import type { ChannelOutboundTargetMode } from "../../channels/plugins/types.js"
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import type { AgentDefaultsConfig } from "../../config/types.agent-defaults.js";
+import { type DeliveryContext } from "../../utils/delivery-context.js";
 import type { DeliverableMessageChannel, GatewayMessageChannel } from "../../utils/message-channel.js";
 export type OutboundChannel = DeliverableMessageChannel | "none";
 export type HeartbeatTarget = OutboundChannel | "last";
@@ -79,6 +80,7 @@ export declare function resolveHeartbeatDeliveryTarget(params: {
     cfg: OpenClawConfig;
     entry?: SessionEntry;
     heartbeat?: AgentDefaultsConfig["heartbeat"];
+    turnSource?: DeliveryContext;
 }): OutboundTarget;
 export declare function resolveHeartbeatSenderContext(params: {
     cfg: OpenClawConfig;

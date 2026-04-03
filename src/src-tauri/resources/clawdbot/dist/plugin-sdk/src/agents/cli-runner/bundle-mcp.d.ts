@@ -3,9 +3,10 @@ import type { CliBackendConfig } from "../../config/types.js";
 type PreparedCliBundleMcpConfig = {
     backend: CliBackendConfig;
     cleanup?: () => Promise<void>;
+    mcpConfigHash?: string;
 };
 export declare function prepareCliBundleMcpConfig(params: {
-    backendId: string;
+    enabled: boolean;
     backend: CliBackendConfig;
     workspaceDir: string;
     config?: OpenClawConfig;

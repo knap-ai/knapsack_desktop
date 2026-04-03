@@ -13,6 +13,18 @@ export type SessionTranscriptUsageSnapshot = {
 export declare function readPromptTokensFromSessionLog(sessionId?: string, sessionEntry?: SessionEntry, sessionKey?: string, opts?: {
     storePath?: string;
 }): Promise<SessionTranscriptUsageSnapshot | undefined>;
+export declare function runPreflightCompactionIfNeeded(params: {
+    cfg: OpenClawConfig;
+    followupRun: FollowupRun;
+    promptForEstimate?: string;
+    defaultModel: string;
+    agentCfgContextTokens?: number;
+    sessionEntry?: SessionEntry;
+    sessionStore?: Record<string, SessionEntry>;
+    sessionKey?: string;
+    storePath?: string;
+    isHeartbeat: boolean;
+}): Promise<SessionEntry | undefined>;
 export declare function runMemoryFlushIfNeeded(params: {
     cfg: OpenClawConfig;
     followupRun: FollowupRun;

@@ -61,7 +61,9 @@ export declare function resolveModelDirectiveSelection(params: {
     error?: string;
 };
 export declare function resolveContextTokens(params: {
+    cfg: OpenClawConfig;
     agentCfg: NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]> | undefined;
+    provider: string;
     model: string;
 }): number;
 export {};

@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-import "./redact-BDinS1q9.js";
-import { i as formatUncaughtError } from "./errors-BxyFnvP3.js";
-import { t as isMainModule } from "./is-main-YViS6wOn.js";
-import { t as installUnhandledRejectionHandler } from "./unhandled-rejections-CDJ8dOVP.js";
+import { i as formatUncaughtError } from "./errors-Bs2h5H8p.js";
+import { t as isMainModule } from "./is-main-Bv5ej4lF.js";
+import { t as installUnhandledRejectionHandler } from "./unhandled-rejections-BWJ-75jM.js";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 //#region src/index.ts
@@ -29,7 +28,7 @@ let saveSessionStore;
 let toWhatsappJid;
 let waitForever;
 async function loadLegacyCliDeps() {
-	const [{ installGaxiosFetchCompat }, { runCli }] = await Promise.all([import("./gaxios-fetch-compat-DJUdzn61.js"), import("./run-main-BV_z8OR1.js")]);
+	const [{ installGaxiosFetchCompat }, { runCli }] = await Promise.all([import("./gaxios-fetch-compat-lq1frmBg.js"), import("./run-main-Dn5_pwmb.js")]);
 	return {
 		installGaxiosFetchCompat,
 		runCli
@@ -41,7 +40,7 @@ async function runLegacyCliEntry(argv = process.argv, deps) {
 	await runCli(argv);
 }
 const isMain = isMainModule({ currentFile: fileURLToPath(import.meta.url) });
-if (!isMain) ({assertWebChannel, applyTemplate, createDefaultDeps, deriveSessionKey, describePortOwner, ensureBinary, ensurePortAvailable, getReplyFromConfig, handlePortError, loadConfig, loadSessionStore, monitorWebChannel, normalizeE164, PortInUseError, promptYesNo, resolveSessionKey, resolveStorePath, runCommandWithTimeout, runExec, saveSessionStore, toWhatsappJid, waitForever} = await import("./library-Do2tO6Yh.js"));
+if (!isMain) ({assertWebChannel, applyTemplate, createDefaultDeps, deriveSessionKey, describePortOwner, ensureBinary, ensurePortAvailable, getReplyFromConfig, handlePortError, loadConfig, loadSessionStore, monitorWebChannel, normalizeE164, PortInUseError, promptYesNo, resolveSessionKey, resolveStorePath, runCommandWithTimeout, runExec, saveSessionStore, toWhatsappJid, waitForever} = await import("./library-C71fHLdv.js"));
 if (isMain) {
 	installUnhandledRejectionHandler();
 	process.on("uncaughtException", (error) => {

@@ -1,6 +1,6 @@
 import type { MarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
-import { type ChunkMode } from "openclaw/plugin-sdk/reply-runtime";
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
+import { type ChunkMode } from "openclaw/plugin-sdk/reply-chunking";
+import type { ReplyPayload } from "openclaw/plugin-sdk/reply-chunking";
 import type { WebInboundMsg } from "./types.js";
 export declare function deliverWebReply(params: {
     replyResult: ReplyPayload;

@@ -14,6 +14,8 @@ export declare const BUNDLED_PROVIDER_AUTH_ENV_VAR_CANDIDATES: {
     readonly kilocode: readonly ["KILOCODE_API_KEY"];
     readonly kimi: readonly ["KIMI_API_KEY", "KIMICODE_API_KEY"];
     readonly "kimi-coding": readonly ["KIMI_API_KEY", "KIMICODE_API_KEY"];
+    readonly litellm: readonly ["LITELLM_API_KEY"];
+    readonly "microsoft-foundry": readonly ["AZURE_OPENAI_API_KEY"];
     readonly minimax: readonly ["MINIMAX_API_KEY"];
     readonly "minimax-portal": readonly ["MINIMAX_OAUTH_TOKEN", "MINIMAX_API_KEY"];
     readonly mistral: readonly ["MISTRAL_API_KEY"];
@@ -27,7 +29,6 @@ export declare const BUNDLED_PROVIDER_AUTH_ENV_VAR_CANDIDATES: {
     readonly openrouter: readonly ["OPENROUTER_API_KEY"];
     readonly perplexity: readonly ["PERPLEXITY_API_KEY", "OPENROUTER_API_KEY"];
     readonly qianfan: readonly ["QIANFAN_API_KEY"];
-    readonly "qwen-portal": readonly ["QWEN_OAUTH_TOKEN", "QWEN_PORTAL_API_KEY"];
     readonly sglang: readonly ["SGLANG_API_KEY"];
     readonly synthetic: readonly ["SYNTHETIC_API_KEY"];
     readonly tavily: readonly ["TAVILY_API_KEY"];

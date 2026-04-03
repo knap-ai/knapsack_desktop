@@ -12,12 +12,17 @@ export type PendingPairingRequestResult<TPending> = {
     request: TPending;
     created: boolean;
 };
-export declare function upsertPendingPairingRequest<TPending extends {
+export declare function reconcilePendingPairingRequests<TPending extends {
     requestId: string;
-}>(params: {
+}, TIncoming>(params: {
     pendingById: Record<string, TPending>;
-    isExisting: (pending: TPending) => boolean;
-    createRequest: (isRepair: boolean) => TPending;
-    isRepair: boolean;
+    existing: readonly TPending[];
+    incoming: TIncoming;
+    canRefreshSingle: (existing: TPending, incoming: TIncoming) => boolean;
+    refreshSingle: (existing: TPending, incoming: TIncoming) => TPending;
+    buildReplacement: (params: {
+        existing: readonly TPending[];
+        incoming: TIncoming;
+    }) => TPending;
     persist: () => Promise<void>;
 }): Promise<PendingPairingRequestResult<TPending>>;

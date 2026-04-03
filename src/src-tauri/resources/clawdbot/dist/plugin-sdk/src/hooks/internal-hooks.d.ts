@@ -7,6 +7,8 @@
 import type { WorkspaceBootstrapFile } from "../agents/workspace.js";
 import type { CliDeps } from "../cli/deps.js";
 import type { OpenClawConfig } from "../config/config.js";
+import type { SessionEntry } from "../config/sessions.js";
+import type { SessionsPatchParams } from "../gateway/protocol/index.js";
 export type InternalHookEventType = "command" | "session" | "agent" | "gateway" | "message";
 export type AgentBootstrapHookContext = {
     workspaceDir: string;
@@ -135,6 +137,16 @@ export type MessagePreprocessedHookEvent = InternalHookEvent & {
     action: "preprocessed";
     context: MessagePreprocessedHookContext;
 };
+export type SessionPatchHookContext = {
+    sessionEntry: SessionEntry;
+    patch: SessionsPatchParams;
+    cfg: OpenClawConfig;
+};
+export type SessionPatchHookEvent = InternalHookEvent & {
+    type: "session";
+    action: "patch";
+    context: SessionPatchHookContext;
+};
 export interface InternalHookEvent {
     /** The type of event (command, session, agent, gateway, etc.) */
     type: InternalHookEventType;
@@ -185,6 +197,7 @@ export declare function clearInternalHooks(): void;
  * Get all registered event keys (useful for debugging)
  */
 export declare function getRegisteredEventKeys(): string[];
+export declare function hasInternalHookListeners(type: InternalHookEventType, action: string): boolean;
 /**
  * Trigger a hook event
  *
@@ -213,4 +226,5 @@ export declare function isMessageReceivedEvent(event: InternalHookEvent): event 
 export declare function isMessageSentEvent(event: InternalHookEvent): event is MessageSentHookEvent;
 export declare function isMessageTranscribedEvent(event: InternalHookEvent): event is MessageTranscribedHookEvent;
 export declare function isMessagePreprocessedEvent(event: InternalHookEvent): event is MessagePreprocessedHookEvent;
+export declare function isSessionPatchEvent(event: InternalHookEvent): event is SessionPatchHookEvent;
 export {};

@@ -4,6 +4,10 @@ import type { LineSendResult } from "./types.js";
 type Message = messagingApi.Message;
 type TextMessage = messagingApi.TextMessage;
 type ImageMessage = messagingApi.ImageMessage;
+type VideoMessage = messagingApi.VideoMessage & {
+    trackingId?: string;
+};
+type AudioMessage = messagingApi.AudioMessage;
 type LocationMessage = messagingApi.LocationMessage;
 type FlexContainer = messagingApi.FlexContainer;
 type TemplateMessage = messagingApi.TemplateMessage;
@@ -14,10 +18,16 @@ interface LineSendOpts {
     accountId?: string;
     verbose?: boolean;
     mediaUrl?: string;
+    mediaKind?: "image" | "video" | "audio";
+    previewImageUrl?: string;
+    durationMs?: number;
+    trackingId?: string;
     replyToken?: string;
 }
 type LinePushOpts = Pick<LineSendOpts, "cfg" | "channelAccessToken" | "accountId" | "verbose">;
 export declare function createImageMessage(originalContentUrl: string, previewImageUrl?: string): ImageMessage;
+export declare function createVideoMessage(originalContentUrl: string, previewImageUrl: string, trackingId?: string): VideoMessage;
+export declare function createAudioMessage(originalContentUrl: string, durationMs: number): AudioMessage;
 export declare function createLocationMessage(location: {
     title: string;
     address: string;

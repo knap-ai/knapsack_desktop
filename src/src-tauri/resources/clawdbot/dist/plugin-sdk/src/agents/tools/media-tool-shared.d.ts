@@ -17,7 +17,7 @@ export declare function applyImageModelConfigDefaults(cfg: OpenClawConfig | unde
 export declare function applyImageGenerationModelConfigDefaults(cfg: OpenClawConfig | undefined, imageGenerationModelConfig: ToolModelConfig): OpenClawConfig | undefined;
 export declare function resolveMediaToolLocalRoots(workspaceDirRaw: string | undefined, options?: {
     workspaceOnly?: boolean;
-}): string[];
+}, _mediaSources?: readonly string[]): string[];
 export declare function resolvePromptAndModelOverride(args: Record<string, unknown>, defaultPrompt: string): {
     prompt: string;
     modelOverride?: string;

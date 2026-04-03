@@ -1,3 +1,2 @@
-import "../../model-definitions-CLagLj0g.js";
-import { t as buildXaiProvider } from "../../provider-catalog-CKHo9CRM.js";
+import { t as buildXaiProvider } from "../../provider-catalog-BK0ohwR_.js";
 export { buildXaiProvider };

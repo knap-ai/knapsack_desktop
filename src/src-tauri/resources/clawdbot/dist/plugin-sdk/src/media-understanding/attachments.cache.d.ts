@@ -33,5 +33,6 @@ export declare class MediaAttachmentCache {
     private resolveLocalPath;
     private ensureLocalStat;
     private getCanonicalLocalPathRoots;
+    private readLocalBuffer;
 }
 export {};

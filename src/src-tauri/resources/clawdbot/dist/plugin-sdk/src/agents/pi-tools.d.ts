@@ -8,6 +8,11 @@ import { cleanToolSchemaForGemini } from "./pi-tools.schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
 declare function applyModelProviderToolPolicy(tools: AnyAgentTool[], params?: {
+    config?: OpenClawConfig;
+    modelProvider?: string;
+    modelApi?: string;
+    modelId?: string;
+    agentDir?: string;
     modelCompat?: ModelCompatConfig;
 }): AnyAgentTool[];
 export declare function resolveToolLoopDetectionConfig(params: {
@@ -57,6 +62,8 @@ export declare function createOpenClawCodingTools(options?: {
     modelProvider?: string;
     /** Model id for the current provider (used for model-specific tool gating). */
     modelId?: string;
+    /** Model API for the current provider (used for provider-native tool arbitration). */
+    modelApi?: string;
     /** Model context window in tokens (used to scale read-tool output budget). */
     modelContextWindowTokens?: number;
     /** Resolved runtime model compatibility hints. */

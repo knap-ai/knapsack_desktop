@@ -1,11 +1,10 @@
-import { listSlackDirectoryGroupsLive as listSlackDirectoryGroupsLiveImpl, listSlackDirectoryPeersLive as listSlackDirectoryPeersLiveImpl, monitorSlackProvider as monitorSlackProviderImpl, probeSlack as probeSlackImpl, resolveSlackChannelAllowlist as resolveSlackChannelAllowlistImpl, resolveSlackUserAllowlist as resolveSlackUserAllowlistImpl, sendMessageSlack as sendMessageSlackImpl, handleSlackAction as handleSlackActionImpl } from "../../plugin-sdk/slack.js";
 export declare const runtimeSlackOps: {
-    listDirectoryGroupsLive: typeof listSlackDirectoryGroupsLiveImpl;
-    listDirectoryPeersLive: typeof listSlackDirectoryPeersLiveImpl;
-    probeSlack: typeof probeSlackImpl;
-    resolveChannelAllowlist: typeof resolveSlackChannelAllowlistImpl;
-    resolveUserAllowlist: typeof resolveSlackUserAllowlistImpl;
-    sendMessageSlack: typeof sendMessageSlackImpl;
-    monitorSlackProvider: typeof monitorSlackProviderImpl;
-    handleSlackAction: typeof handleSlackActionImpl;
+    listDirectoryGroupsLive: typeof import("@openclaw/slack/runtime-api.ts").listSlackDirectoryGroupsLive;
+    listDirectoryPeersLive: typeof import("@openclaw/slack/runtime-api.ts").listSlackDirectoryPeersLive;
+    probeSlack: typeof import("@openclaw/slack/api.ts").probeSlack;
+    resolveChannelAllowlist: typeof import("@openclaw/slack/runtime-api.ts").resolveSlackChannelAllowlist;
+    resolveUserAllowlist: typeof import("@openclaw/slack/runtime-api.ts").resolveSlackUserAllowlist;
+    sendMessageSlack: typeof import("@openclaw/slack/runtime-api.ts").sendMessageSlack;
+    monitorSlackProvider: typeof import("@openclaw/slack/runtime-api.ts").monitorSlackProvider;
+    handleSlackAction: typeof import("@openclaw/slack/runtime-api.ts").handleSlackAction;
 };

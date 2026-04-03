@@ -1,5 +1,5 @@
 import type { BaseProbeResult } from "openclaw/plugin-sdk/channel-contract";
-import type { TelegramNetworkConfig } from "../runtime-api.js";
+import type { TelegramNetworkConfig } from "openclaw/plugin-sdk/telegram-core";
 export type TelegramProbe = BaseProbeResult & {
     status?: number | null;
     elapsedMs: number;

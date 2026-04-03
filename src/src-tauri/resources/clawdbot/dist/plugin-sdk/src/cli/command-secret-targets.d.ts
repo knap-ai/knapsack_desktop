@@ -7,7 +7,6 @@ export declare function getScopedChannelsCommandSecretTargets(params: {
     targetIds: Set<string>;
     allowedPaths?: Set<string>;
 };
-export declare function getMemoryCommandSecretTargetIds(): Set<string>;
 export declare function getQrRemoteCommandSecretTargetIds(): Set<string>;
 export declare function getChannelsCommandSecretTargetIds(): Set<string>;
 export declare function getModelsCommandSecretTargetIds(): Set<string>;

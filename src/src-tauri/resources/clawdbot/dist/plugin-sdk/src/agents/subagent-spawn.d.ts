@@ -1,9 +1,19 @@
+import { loadConfig } from "../config/config.js";
+import { updateSessionStore } from "../config/sessions.js";
+import { callGateway } from "../gateway/call.js";
+import type { SubagentLifecycleHookRunner } from "../plugins/hooks.js";
 import { decodeStrictBase64 } from "./subagent-attachments.js";
 export declare const SUBAGENT_SPAWN_MODES: readonly ["run", "session"];
 export type SpawnSubagentMode = (typeof SUBAGENT_SPAWN_MODES)[number];
 export declare const SUBAGENT_SPAWN_SANDBOX_MODES: readonly ["inherit", "require"];
 export type SpawnSubagentSandboxMode = (typeof SUBAGENT_SPAWN_SANDBOX_MODES)[number];
 export { decodeStrictBase64 };
+type SubagentSpawnDeps = {
+    callGateway: typeof callGateway;
+    getGlobalHookRunner: () => SubagentLifecycleHookRunner | null;
+    loadConfig: typeof loadConfig;
+    updateSessionStore: typeof updateSessionStore;
+};
 export type SpawnSubagentParams = {
     task: string;
     label?: string;
@@ -69,3 +79,6 @@ export declare function splitModelRef(ref?: string): {
     model: string;
 };
 export declare function spawnSubagentDirect(params: SpawnSubagentParams, ctx: SpawnSubagentContext): Promise<SpawnSubagentResult>;
+export declare const __testing: {
+    setDepsForTest(overrides?: Partial<SubagentSpawnDeps>): void;
+};

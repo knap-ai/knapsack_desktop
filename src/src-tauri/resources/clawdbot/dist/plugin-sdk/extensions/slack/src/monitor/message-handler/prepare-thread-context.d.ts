@@ -19,6 +19,8 @@ export declare function resolveSlackThreadContextData(params: {
     roomLabel: string;
     storePath: string;
     sessionKey: string;
+    allowFromLower: string[];
+    allowNameMatching: boolean;
     envelopeOptions: ReturnType<typeof import("openclaw/plugin-sdk/channel-inbound").resolveEnvelopeFormatOptions>;
     effectiveDirectMedia: SlackMediaResult[] | null;
 }): Promise<SlackThreadContextData>;

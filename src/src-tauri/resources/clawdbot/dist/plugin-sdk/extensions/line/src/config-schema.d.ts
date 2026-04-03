@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "openclaw/plugin-sdk/zod";
 export declare const LineConfigSchema: z.ZodObject<{
     enabled: z.ZodOptional<z.ZodBoolean>;
     channelAccessToken: z.ZodOptional<z.ZodString>;
@@ -22,6 +22,13 @@ export declare const LineConfigSchema: z.ZodObject<{
     responsePrefix: z.ZodOptional<z.ZodString>;
     mediaMaxMb: z.ZodOptional<z.ZodNumber>;
     webhookPath: z.ZodOptional<z.ZodString>;
+    threadBindings: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodOptional<z.ZodBoolean>;
+        idleHours: z.ZodOptional<z.ZodNumber>;
+        maxAgeHours: z.ZodOptional<z.ZodNumber>;
+        spawnSubagentSessions: z.ZodOptional<z.ZodBoolean>;
+        spawnAcpSessions: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
     accounts: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodOptional<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodBoolean>;
         channelAccessToken: z.ZodOptional<z.ZodString>;
@@ -45,6 +52,13 @@ export declare const LineConfigSchema: z.ZodObject<{
         responsePrefix: z.ZodOptional<z.ZodString>;
         mediaMaxMb: z.ZodOptional<z.ZodNumber>;
         webhookPath: z.ZodOptional<z.ZodString>;
+        threadBindings: z.ZodOptional<z.ZodObject<{
+            enabled: z.ZodOptional<z.ZodBoolean>;
+            idleHours: z.ZodOptional<z.ZodNumber>;
+            maxAgeHours: z.ZodOptional<z.ZodNumber>;
+            spawnSubagentSessions: z.ZodOptional<z.ZodBoolean>;
+            spawnAcpSessions: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strict>>;
         groups: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodOptional<z.ZodObject<{
             enabled: z.ZodOptional<z.ZodBoolean>;
             allowFrom: z.ZodOptional<z.ZodArray<z.ZodUnion<readonly [z.ZodString, z.ZodNumber]>>>;

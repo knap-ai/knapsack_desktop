@@ -9,19 +9,37 @@ export declare function getTelegramExecApprovalApprovers(params: {
     cfg: OpenClawConfig;
     accountId?: string | null;
 }): string[];
-export declare function isTelegramExecApprovalClientEnabled(params: {
+export declare function isTelegramExecApprovalTargetRecipient(params: {
     cfg: OpenClawConfig;
-    accountId?: string | null;
-}): boolean;
-export declare function isTelegramExecApprovalApprover(params: {
-    cfg: OpenClawConfig;
-    accountId?: string | null;
     senderId?: string | null;
+    accountId?: string | null;
 }): boolean;
-export declare function resolveTelegramExecApprovalTarget(params: {
+export declare const isTelegramExecApprovalClientEnabled: (input: {
     cfg: OpenClawConfig;
     accountId?: string | null;
-}): "dm" | "channel" | "both";
+}) => boolean;
+export declare const isTelegramExecApprovalApprover: (input: {
+    cfg: OpenClawConfig;
+    accountId?: string | null;
+} & {
+    senderId?: string | null;
+}) => boolean;
+export declare const isTelegramExecApprovalAuthorizedSender: (input: {
+    cfg: OpenClawConfig;
+    accountId?: string | null;
+} & {
+    senderId?: string | null;
+}) => boolean;
+export declare const resolveTelegramExecApprovalTarget: (input: {
+    cfg: OpenClawConfig;
+    accountId?: string | null;
+}) => "channel" | "dm" | "both";
+export declare const shouldHandleTelegramExecApprovalRequest: (input: {
+    cfg: OpenClawConfig;
+    accountId?: string | null;
+} & {
+    request: import("openclaw/plugin-sdk/approval-runtime").ExecApprovalRequest | import("openclaw/plugin-sdk/approval-runtime").PluginApprovalRequest;
+}) => boolean;
 export declare function shouldInjectTelegramExecApprovalButtons(params: {
     cfg: OpenClawConfig;
     accountId?: string | null;
@@ -36,4 +54,8 @@ export declare function shouldSuppressLocalTelegramExecApprovalPrompt(params: {
     cfg: OpenClawConfig;
     accountId?: string | null;
     payload: ReplyPayload;
+}): boolean;
+export declare function isTelegramExecApprovalHandlerConfigured(params: {
+    cfg: OpenClawConfig;
+    accountId?: string | null;
 }): boolean;

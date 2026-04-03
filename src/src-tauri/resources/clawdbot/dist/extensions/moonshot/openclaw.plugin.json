@@ -1,5 +1,6 @@
 {
   "id": "moonshot",
+  "enabledByDefault": true,
   "providers": [
     "moonshot"
   ],
@@ -50,6 +51,14 @@
       "label": "Kimi Search Model",
       "help": "Kimi model override."
     }
+  },
+  "contracts": {
+    "mediaUnderstandingProviders": [
+      "moonshot"
+    ],
+    "webSearchProviders": [
+      "kimi"
+    ]
   },
   "configSchema": {
     "type": "object",

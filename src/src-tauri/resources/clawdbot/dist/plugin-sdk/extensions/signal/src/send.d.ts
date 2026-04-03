@@ -6,7 +6,12 @@ export type SignalSendOpts = {
     account?: string;
     accountId?: string;
     mediaUrl?: string;
+    mediaAccess?: {
+        localRoots?: readonly string[];
+        readFile?: (filePath: string) => Promise<Buffer>;
+    };
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
     maxBytes?: number;
     timeoutMs?: number;
     textMode?: "markdown" | "plain";

@@ -2,15 +2,28 @@ import type { AgentMessage, AgentTool } from "@mariozechner/pi-agent-core";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import type { TSchema } from "@sinclair/typebox";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { ProviderRuntimeModel } from "../../plugins/types.js";
 import type { TranscriptPolicy } from "../transcript-policy.js";
 export declare function findUnsupportedSchemaKeywords(schema: unknown, path: string): string[];
 export declare function sanitizeToolsForGoogle<TSchemaType extends TSchema = TSchema, TResult = unknown>(params: {
     tools: AgentTool<TSchemaType, TResult>[];
     provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    modelId?: string;
+    modelApi?: string | null;
+    model?: ProviderRuntimeModel;
 }): AgentTool<TSchemaType, TResult>[];
 export declare function logToolSchemasForGoogle(params: {
     tools: AgentTool[];
     provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    modelId?: string;
+    modelApi?: string | null;
+    model?: ProviderRuntimeModel;
 }): void;
 export type CompactionFailureListener = (reason: string) => void;
 /**
@@ -37,7 +50,22 @@ export declare function sanitizeSessionHistory(params: {
     provider?: string;
     allowedToolNames?: Iterable<string>;
     config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    model?: ProviderRuntimeModel;
     sessionManager: SessionManager;
     sessionId: string;
+    policy?: TranscriptPolicy;
+}): Promise<AgentMessage[]>;
+export declare function validateReplayTurns(params: {
+    messages: AgentMessage[];
+    modelApi?: string | null;
+    modelId?: string;
+    provider?: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    model?: ProviderRuntimeModel;
+    sessionId?: string;
     policy?: TranscriptPolicy;
 }): Promise<AgentMessage[]>;

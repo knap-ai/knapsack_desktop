@@ -1,10 +1,9 @@
-import "../../paths-ViKUYWUK.js";
-import { t as definePluginEntry } from "../../plugin-entry-B2shVOQl.js";
-import "../../state-paths-Dvb3Mfl3.js";
-import "../../memory-lancedb-DiJ3pXze.js";
-import "../../api-BkKHE_Ji.js";
-import { i as vectorDimsForModel, n as MEMORY_CATEGORIES, r as memoryConfigSchema } from "../../config-SWoRHZ0-.js";
-import { n as loadLanceDbModule } from "../../lancedb-runtime-kb26mHfi.js";
+import { n as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-DhfHLrpZ.js";
+import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import "../../runtime-env-CoykX19-.js";
+import "../../api-CnqzgANa.js";
+import { i as vectorDimsForModel, n as MEMORY_CATEGORIES, r as memoryConfigSchema } from "../../config-HoeczKrH.js";
+import { n as loadLanceDbModule } from "../../lancedb-runtime-BcTJBNI-.js";
 import { randomUUID } from "node:crypto";
 import { Type } from "@sinclair/typebox";
 //#region extensions/memory-lancedb/node_modules/openai/internal/tslib.mjs
@@ -176,7 +175,7 @@ const safeJSON = (text) => {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 //#endregion
 //#region extensions/memory-lancedb/node_modules/openai/version.mjs
-const VERSION = "6.32.0";
+const VERSION = "6.33.0";
 //#endregion
 //#region extensions/memory-lancedb/node_modules/openai/internal/detect-platform.mjs
 const isRunningInBrowser = () => {
@@ -6756,6 +6755,7 @@ var Embeddings = class {
 			input: text
 		};
 		if (this.dimensions) params.dimensions = this.dimensions;
+		ensureGlobalUndiciEnvProxyDispatcher();
 		return (await this.client.embeddings.create(params)).data[0].embedding;
 	}
 };

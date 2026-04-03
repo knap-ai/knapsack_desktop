@@ -30,6 +30,7 @@ export type HandleDirectiveOnlyCoreParams = {
     formatModelSwitchEvent: (label: string, alias?: string) => string;
 };
 export type HandleDirectiveOnlyParams = HandleDirectiveOnlyCoreParams & {
+    messageProvider?: string;
     currentThinkLevel?: ThinkLevel;
     currentFastMode?: boolean;
     currentVerboseLevel?: VerboseLevel;

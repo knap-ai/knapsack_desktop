@@ -10,6 +10,11 @@ export type DeliveryContextSessionSource = {
     lastTo?: string;
     lastAccountId?: string;
     lastThreadId?: string | number;
+    origin?: {
+        provider?: string;
+        accountId?: string;
+        threadId?: string | number;
+    };
     deliveryContext?: DeliveryContext;
 };
 export declare function normalizeDeliveryContext(context?: DeliveryContext): DeliveryContext | undefined;
@@ -33,10 +38,6 @@ export declare function normalizeSessionDeliveryFields(source?: DeliveryContextS
     lastAccountId?: string;
     lastThreadId?: string | number;
 };
-export declare function deliveryContextFromSession(entry?: DeliveryContextSessionSource & {
-    origin?: {
-        threadId?: string | number;
-    };
-}): DeliveryContext | undefined;
+export declare function deliveryContextFromSession(entry?: DeliveryContextSessionSource): DeliveryContext | undefined;
 export declare function mergeDeliveryContext(primary?: DeliveryContext, fallback?: DeliveryContext): DeliveryContext | undefined;
 export declare function deliveryContextKey(context?: DeliveryContext): string | undefined;

@@ -4,6 +4,7 @@ export type NormalizeReplySkipReason = "empty" | "silent" | "heartbeat";
 export type NormalizeReplyOptions = {
     responsePrefix?: string;
     enableSlackInteractiveReplies?: boolean;
+    applyChannelTransforms?: boolean;
     /** Context for template variable interpolation in responsePrefix */
     responsePrefixContext?: ResponsePrefixContext;
     onHeartbeatStrip?: () => void;

@@ -1,5 +1,6 @@
 {
   "id": "ollama",
+  "enabledByDefault": true,
   "providers": [
     "ollama"
   ],

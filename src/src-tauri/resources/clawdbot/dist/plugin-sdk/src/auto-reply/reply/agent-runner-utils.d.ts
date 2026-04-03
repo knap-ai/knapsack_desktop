@@ -55,6 +55,7 @@ export declare function buildEmbeddedRunBaseParams(params: {
     inputProvenance: import("../../sessions/input-provenance.ts").InputProvenance | undefined;
     senderIsOwner: boolean | undefined;
     enforceFinalTag: boolean;
+    silentExpected: boolean | undefined;
     provider: string;
     model: string;
 };
@@ -184,6 +185,7 @@ export declare function buildEmbeddedRunExecutionParams(params: {
         inputProvenance: import("../../sessions/input-provenance.ts").InputProvenance | undefined;
         senderIsOwner: boolean | undefined;
         enforceFinalTag: boolean;
+        silentExpected: boolean | undefined;
         provider: string;
         model: string;
     };

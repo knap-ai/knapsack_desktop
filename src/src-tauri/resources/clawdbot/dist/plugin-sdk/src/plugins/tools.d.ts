@@ -5,6 +5,7 @@ type PluginToolMeta = {
     optional: boolean;
 };
 export declare function getPluginToolMeta(tool: AnyAgentTool): PluginToolMeta | undefined;
+export declare function copyPluginToolMeta(source: AnyAgentTool, target: AnyAgentTool): void;
 export declare function resolvePluginTools(params: {
     context: OpenClawPluginToolContext;
     existingToolNames?: Set<string>;

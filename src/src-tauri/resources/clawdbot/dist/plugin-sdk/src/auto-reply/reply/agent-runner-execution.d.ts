@@ -6,6 +6,7 @@ import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { type BlockReplyPipeline } from "./block-reply-pipeline.js";
 import type { FollowupRun } from "./queue.js";
 import type { TypingSignaler } from "./typing-mode.js";
+export declare const MAX_LIVE_SWITCH_RETRIES = 2;
 export type RuntimeFallbackAttempt = {
     provider: string;
     model: string;

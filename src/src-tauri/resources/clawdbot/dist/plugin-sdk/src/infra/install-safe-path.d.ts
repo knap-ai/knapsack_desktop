@@ -1,4 +1,5 @@
 export declare function unscopedPackageName(name: string): string;
+export declare function packageNameMatchesId(packageName: string, id: string): boolean;
 export declare function safeDirName(input: string): string;
 export declare function safePathSegmentHashed(input: string): string;
 export declare function resolveSafeInstallDir(params: {

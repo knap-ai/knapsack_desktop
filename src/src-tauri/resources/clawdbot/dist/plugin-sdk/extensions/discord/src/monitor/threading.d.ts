@@ -1,5 +1,5 @@
 import { ChannelType, type Client } from "@buape/carbon";
-import type { ReplyToMode } from "openclaw/plugin-sdk/config-runtime";
+import { type OpenClawConfig, type ReplyToMode } from "openclaw/plugin-sdk/config-runtime";
 import { createReplyReferencePlanner } from "openclaw/plugin-sdk/reply-runtime";
 import type { DiscordChannelConfigResolved } from "./allow-list.js";
 import type { DiscordMessageEvent } from "./listeners.js";
@@ -75,17 +75,23 @@ type MaybeCreateDiscordAutoThreadParams = {
     client: Client;
     message: DiscordMessageEvent["message"];
     messageChannelId?: string;
+    channel?: string;
     isGuildMessage: boolean;
     channelConfig?: DiscordChannelConfigResolved | null;
     threadChannel?: DiscordThreadChannel | null;
     channelType?: ChannelType;
+    channelName?: string;
+    channelDescription?: string;
     baseText: string;
     combinedBody: string;
+    cfg?: OpenClawConfig;
+    agentId?: string;
 };
 export declare function resolveDiscordAutoThreadReplyPlan(params: MaybeCreateDiscordAutoThreadParams & {
     replyToMode: ReplyToMode;
     agentId: string;
     channel: string;
+    cfg?: OpenClawConfig;
 }): Promise<DiscordAutoThreadReplyPlan>;
 export declare function maybeCreateDiscordAutoThread(params: MaybeCreateDiscordAutoThreadParams): Promise<string | undefined>;
 export declare function resolveDiscordReplyDeliveryPlan(params: {

@@ -1,6 +1,5 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { BackoffPolicy } from "openclaw/plugin-sdk/infra-runtime";
-import { computeBackoff, sleepWithAbort } from "openclaw/plugin-sdk/infra-runtime";
+import { computeBackoff, sleepWithAbort, type BackoffPolicy } from "openclaw/plugin-sdk/runtime-env";
 export type ReconnectPolicy = BackoffPolicy & {
     maxAttempts: number;
 };

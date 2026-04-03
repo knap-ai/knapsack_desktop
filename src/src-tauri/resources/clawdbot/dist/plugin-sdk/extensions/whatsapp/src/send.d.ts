@@ -4,7 +4,12 @@ export declare function sendMessageWhatsApp(to: string, body: string, options: {
     verbose: boolean;
     cfg?: OpenClawConfig;
     mediaUrl?: string;
+    mediaAccess?: {
+        localRoots?: readonly string[];
+        readFile?: (filePath: string) => Promise<Buffer>;
+    };
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
     gifPlayback?: boolean;
     accountId?: string;
 }): Promise<{

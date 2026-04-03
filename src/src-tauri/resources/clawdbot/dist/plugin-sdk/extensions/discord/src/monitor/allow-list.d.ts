@@ -17,6 +17,7 @@ type DiscordChannelOverrideConfig = {
     systemPrompt?: string;
     includeThreadStarter?: boolean;
     autoThread?: boolean;
+    autoThreadName?: "message" | "generated";
     autoArchiveDuration?: "60" | "1440" | "4320" | "10080" | 60 | 1440 | 4320 | 10080;
 };
 export type DiscordGuildEntryResolved = {

@@ -1,3 +1,2 @@
-import "../provider-model-minimax-DSmX4BNO.js";
-import { t as detectZaiEndpoint } from "../provider-zai-endpoint-DvwnCAuE.js";
+import { t as detectZaiEndpoint } from "../provider-zai-endpoint-Cwtdsxf0.js";
 export { detectZaiEndpoint };

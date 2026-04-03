@@ -31,6 +31,7 @@ export declare function summarizeWithFallback(params: {
     messages: AgentMessage[];
     model: NonNullable<ExtensionContext["model"]>;
     apiKey: string;
+    headers?: Record<string, string>;
     signal: AbortSignal;
     reserveTokens: number;
     maxChunkTokens: number;
@@ -43,6 +44,7 @@ export declare function summarizeInStages(params: {
     messages: AgentMessage[];
     model: NonNullable<ExtensionContext["model"]>;
     apiKey: string;
+    headers?: Record<string, string>;
     signal: AbortSignal;
     reserveTokens: number;
     maxChunkTokens: number;

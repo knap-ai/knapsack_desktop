@@ -2,6 +2,7 @@ import type { CronJob, CronRunOutcome, CronRunStatus, CronRunTelemetry } from ".
 import type { CronEvent, CronServiceState } from "./state.js";
 export { DEFAULT_JOB_TIMEOUT_MS } from "./timeout-policy.js";
 export declare function executeJobCoreWithTimeout(state: CronServiceState, job: CronJob): Promise<Awaited<ReturnType<typeof executeJobCore>>>;
+export declare function normalizeCronRunErrorText(err: unknown): string;
 /**
  * Apply the result of a job execution to the job's state.
  * Handles consecutive error tracking, exponential backoff, one-shot disable,

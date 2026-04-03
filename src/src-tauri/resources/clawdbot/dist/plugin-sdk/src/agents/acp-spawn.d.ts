@@ -22,6 +22,8 @@ export type SpawnAcpContext = {
     agentAccountId?: string;
     agentTo?: string;
     agentThreadId?: string | number;
+    /** Group chat ID for channels that distinguish group vs. topic (e.g. Telegram). */
+    agentGroupId?: string;
     sandboxed?: boolean;
 };
 export type SpawnAcpResult = {

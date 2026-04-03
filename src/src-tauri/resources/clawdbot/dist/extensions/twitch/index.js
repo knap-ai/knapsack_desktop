@@ -1,219 +1,19 @@
-import { o as __toESM } from "../../chunk-DORXReHP.js";
-import "../../redact-BDinS1q9.js";
-import "../../errors-BxyFnvP3.js";
-import "../../unhandled-rejections-CDJ8dOVP.js";
-import "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import "../../tmp-openclaw-dir-idKIOMmb.js";
-import "../../theme-CdOoMzRk.js";
-import "../../globals-DBUMOBZ8.js";
-import "../../subsystem-DISldKSB.js";
-import "../../ansi-BEJF8NKS.js";
-import "../../boolean-C3GkJetE.js";
-import "../../env-Dnra1IpT.js";
-import "../../warning-filter-CBhOcgHd.js";
-import "../../utils-CS0Ikux6.js";
-import { t as formatDocsLink } from "../../links-8xRhWBQL.js";
-import "../../paths-C4Oy7wjk.js";
-import "../../auth-profiles-DRuJBw5y.js";
-import "../../agent-scope-bjWqU22i.js";
-import "../../boundary-path-Dm0QJ7-y.js";
-import "../../boundary-file-read-DcZxlWD8.js";
-import "../../logger-BmpSCz93.js";
-import "../../exec-B5_AYfQG.js";
-import "../../workspace-D4K6QX9X.js";
-import "../../model-selection-BnFtDmP7.js";
-import "../../io-y3Az_Onx.js";
-import "../../shell-env-BOu7XeT_.js";
-import "../../safe-text-yavot2qw.js";
-import "../../version-CD3oP1-d.js";
-import "../../env-substitution-O6uabUmO.js";
-import "../../includes-Bj3eLUWH.js";
-import "../../zod-schema.providers-core-COy5nBQ0.js";
-import "../../legacy-web-search-BB-ZHEhz.js";
-import "../../registry-C5UkPpaO.js";
-import "../../config-state-Br0ucqMb.js";
-import "../../min-host-version-RMBWtIAR.js";
-import "../../manifest-registry-B5JNQdOM.js";
-import "../../runtime-guard-PhQ6PwQa.js";
-import "../../avatar-policy-B5nOfso_.js";
-import "../../ip-Ce8EDTBZ.js";
-import "../../zod-schema.agent-runtime-Dtg4Jy6G.js";
-import { m as MarkdownConfigSchema } from "../../zod-schema.core-BuVz8Rk7.js";
-import "../../config-D4zN4BRl.js";
-import "../../file-lock-DEiVq2ow.js";
-import "../../audit-fs-DTQIjp2r.js";
-import "../../resolve-B7S4PlnO.js";
-import "../../profiles-COPO-hHI.js";
-import "../../tailscale-CxY-91GZ.js";
-import "../../tailnet-DHiKSG7V.js";
-import "../../net-JAg9zL0G.js";
-import "../../auth-Buq0Niri.js";
-import "../../credentials-D8pfRimu.js";
-import "../../message-channel-BliByQBl.js";
-import "../../store-C5UK26Ce.js";
-import "../../runtime-Iz8uZ7EU.js";
-import "../../plugins-B09-vgme.js";
-import "../../sessions-D9ZgHCHb.js";
-import "../../paths-rhN9LKM_.js";
-import "../../session-write-lock-va3qZE6f.js";
-import "../../method-scopes-BiEi0X2g.js";
-import "../../call-CQbSO4Fr.js";
-import "../../prompt-style-C4CV4Y_p.js";
-import "../../ports-lsof-BLEgL_Gn.js";
-import "../../restart-stale-pids-BsPvlGJd.js";
-import "../../ports-FldL_Lhq.js";
-import "../../logging-CznuqaMu.js";
-import "../../commands-C6oAw_H-.js";
-import "../../issue-format-BtLIwOtN.js";
-import "../../identity-Dp-UIak4.js";
-import "../../heartbeat-Bdfr_onc.js";
-import { Hb as defineChannelPluginEntry, Vb as createChatChannelPlugin, nl as require_retry } from "../../pi-embedded-CbCYZxIb.js";
-import "../../internal-hooks-CIUghoK4.js";
-import "../../multimodal-B8yEZcl5.js";
-import "../../memory-search-B_aq08y5.js";
-import "../../provider-catalog-rVN7ZbR5.js";
-import { n as describeAccountSnapshot, r as listCombinedAccountIds } from "../../account-helpers-BzkeDMfB.js";
-import "../../secret-input-DXoOLNgb.js";
-import "../../bindings-CFudGB9Z.js";
-import "../../resolve-route-DwFWP4JW.js";
-import "../../routing-zOQ0wwtV.js";
-import "../../identity-file-DVLib087.js";
-import "../../outbound-runtime-m-y0nd6F.js";
-import "../../provider-env-vars-CpUJqT5v.js";
-import "../../provider-auth-input-Bus9W_qh.js";
-import "../../provider-model-minimax-DSmX4BNO.js";
-import "../../provider-models-BKjzpTsb.js";
-import "../../anthropic-vertex-provider-B2x4YywE.js";
-import "../../provider-catalog-BTgF8VyO.js";
-import "../../provider-catalog-D0IlX18O.js";
-import "../../provider-catalog-BTmUX0Mp.js";
-import "../../provider-catalog-sph_Rl63.js";
-import "../../provider-catalog-C7tUyBwV.js";
-import "../../provider-catalog-C8dPZpHW.js";
-import "../../provider-catalog-BJNff1VI.js";
-import "../../provider-catalog-IAdymoqT.js";
-import "../../provider-catalog-Bjc7evzh.js";
-import "../../models-config.providers.discovery-CjkO08q6.js";
-import "../../text-runtime-DVXt5xhi.js";
-import "../../tool-catalog-BjSY4C4F.js";
-import "../../docker-Bhjg8g2t.js";
-import "../../sandbox-DTlKNieF.js";
-import "../../common-zReYuoMM.js";
-import "../../image-ops-By4YfyWa.js";
-import "../../thinking-CJoSRIGR.js";
-import "../../path-alias-guards-CwRM04O1.js";
-import "../../sandbox-paths-Cn8i8Jxm.js";
-import "../../channel-actions-fV93bLjV.js";
-import "../../mime-CsUtzcn2.js";
-import "../../ssrf-0bPJMoZR.js";
-import "../../fetch-guard-CYl1q2XH.js";
-import "../../provider-web-search-COZNygbd.js";
-import "../../manager-Bw8JrihM.js";
-import { r as buildChannelConfigSchema } from "../../config-schema-CPzP2Ds6.js";
-import "../../channel-plugin-common-ClptUZHU.js";
-import { l as createComputedAccountStatusAdapter, u as createDefaultChannelRuntimeState } from "../../status-helpers-Cflmo90d.js";
-import "../../conversation-runtime-nmWgJSXS.js";
-import "../../runtime-whatsapp-boundary-XjdkYMz_.js";
-import "../../pairing-store-BGKLrjo6.js";
-import "../../json-store--JDX3zNL.js";
-import { i as createPairingPrefixStripper, r as createLoggedPairingApprovalNotifier } from "../../channel-pairing-BrG9NqjP.js";
-import "../../secret-file-Bif7RlZ-.js";
-import "../../channel-config-schema-CgpS17zB.js";
-import "../../setup-binary-C2MYZTCc.js";
-import "../../archive-pOxyr9r4.js";
-import "../../fs-safe-DZyOgpPN.js";
-import "../../signal-cli-install-fVOL9FvX.js";
-import "../../setup-wizard-proxy-DoOpOF8S.js";
-import "../../setup-BI3ohdrT.js";
-import "../../dm-policy-shared-DtcQProI.js";
-import "../../runtime-env-DQOYrXVl.js";
-import "../../temp-path-B91lt0LF.js";
-import "../../diagnostic-CDTtMQBT.js";
-import "../../logging-CCTKg_fh.js";
-import "../../config-runtime-BYNizC50.js";
-import "../../level-overrides-DzIzQ3ZY.js";
-import "../../exec-approvals-BF_Qfdq8.js";
-import "../../webhook-ingress-D-H5frou.js";
-import "../../system-events-BU_NYynX.js";
-import "../../ssrf-policy-DYINyIKC.js";
-import "../../hook-runtime-BUYmDbaA.js";
-import "../../templating-BDXRiJUh.js";
-import "../../channel-reply-pipeline-BxH4-AP2.js";
-import "../../reply-history-n7nOPLta.js";
-import "../../commands-registry.data-BFXJWoqi.js";
-import "../../commands-registry-Bh9pJ817.js";
-import "../../frontmatter-CP5371Rm.js";
-import "../../env-overrides-BNSo89u5.js";
-import "../../skills-M0AZJeXx.js";
-import "../../skills-remote-BHxDA4Jw.js";
-import "../../workspace-dirs-DqDLiRvZ.js";
-import "../../pairing-token-DAszGmwD.js";
-import "../../skill-commands-D73dGR_l.js";
-import "../../config-CLRQPUSt.js";
-import "../../routes-XT2JfvT-.js";
-import "../../ssh-tunnel-LM52qY6N.js";
-import "../../server-middleware-BP59C6FL.js";
-import "../../provider-auth-ref-CQEp9sp3.js";
-import "../../provider-auth-helpers-Do3RFvdi.js";
-import "../../provider-api-key-auth-BEeRW3dq.js";
-import "../../pairing-labels-D27Y4Vv6.js";
-import "../../directory-runtime-D9Y42mW-.js";
-import "../../read-only-account-inspect-CJPRBFj7.js";
-import "../../src-BoNU6eQs.js";
-import "../../web-media-PKy3RbRG.js";
-import "../../media-understanding-BDOSvuM9.js";
-import "../../web-media-CiSbdGPs.js";
-import "../../state-paths-Dvb3Mfl3.js";
-import "../../llm-task-Br6Ixjlh.js";
-import "../../pi-model-discovery-DO3tFksS.js";
-import "../../exec-inline-eval-CpmxWJsW.js";
-import "../../target-registry-9OUOvlxj.js";
-import "../../external-content-DZI9vlJn.js";
-import "../../brave-onFD06fq.js";
-import "../../duckduckgo-CZuAOfiQ.js";
-import "../../exa-5bwgY04k.js";
-import "../../security-runtime-xlw0Fxx2.js";
-import "../../provider-usage-ClxTGn5c.js";
-import "../../provider-models-Bjv0V4OP.js";
-import "../../media-understanding-provider-DllGbg-v.js";
-import "../../media-understanding-provider-BDq4rFL-.js";
-import "../../provider-onboard-CSnPvkMM.js";
-import "../../onboard-BU8aRvq7.js";
-import "../../perplexity-web-search-provider-CI38RNUU.js";
-import "../../perplexity-CMZbsreI.js";
-import "../../model-definitions-CLagLj0g.js";
-import "../../onboard-0P7GBI2D.js";
-import "../../provider-catalog-CKHo9CRM.js";
-import "../../provider-models-Dmjtw6kn.js";
-import "../../stream-C-KGzzT0.js";
-import "../../web-search-CO1hvu_l.js";
-import "../../stagger-CFqdtCYL.js";
-import "../../command-secret-targets-DLs8jC2H.js";
-import "../../delivery-queue-DHURMSqX.js";
-import "../../channel-summary-Ctrv7moa.js";
-import "../../follow-redirects-CVAaqIk4.js";
-import "../../tool-policy-match-DQWWRSN4.js";
-import "../../runtime-CAdCdG-M.js";
-import "../../channel-status-BfM90KqH.js";
-import "../../discord-core-DLbIyXWy.js";
-import "../../cli-runtime-Cx1v7N7v.js";
-import "../../config-presence-DA3j8Nmi.js";
-import "../../query-expansion-BOJBTXsp.js";
-import "../../search-manager-DNBHwaee.js";
-import "../../acp-runtime-BHZj-SLU.js";
-import "../../telegram-core-DD8gCuaX.js";
-import "../../audit-BI48Fi3j.js";
-import "../../gateway-runtime-Dn2qAGY7.js";
-import "../../connection-auth-Nl2a3tDb.js";
-import "../../mcp-config-CDIWSqVk.js";
-import "../../channel-setup-C5JbULY6.js";
-import { n as buildPassiveProbedChannelStatusSummary } from "../../extension-shared-B8dMu-tU.js";
-import "../../twitch-Bo8ELc7X.js";
-import "../../runtime-api-DCwWjfhQ.js";
-import "../../api-CZs7LTet.js";
-import { A as rawDataSymbol, B as generateMessageId, C as HttpStatusCodeError, D as rtfm, E as HellFreezesOverError, F as arrayToObject, G as resolveTwitchToken, H as missingTargetError, I as __decorate, L as __read, M as promiseWithResolvers, N as mapNullable, O as CustomError, P as mapOptional, R as __spreadArray, S as transformTwitchApiResponse, T as extractUserName, U as normalizeToken, V as isAccountConfigured, W as normalizeTwitchChannel, _ as TokenInfo, a as getClientManager, b as callTwitchApiRaw, c as CachedGetter, d as RateLimitReachedError, f as CustomError$1, g as EventEmitter, h as StaticAuthProvider, i as stripMarkdownForTwitch, j as accessTokenIsExpired, k as DataObject, l as Cacheable, m as require_detect_node, n as setTwitchRuntime, o as removeClientManager, p as createLogger$1, r as chunkTextForTwitch, s as ChatClient, t as monitorTwitchProvider, u as PartitionedTimeBasedRateLimiter, v as InvalidTokenError, w as extractUserId, x as handleTwitchApiResponseError, y as callTwitchApi, z as Enumerable } from "../../monitor-DAuF-1Vd.js";
-import { z } from "zod";
+import { s as __toESM, t as __commonJSMin } from "../../chunk-iyeSoAlh.js";
+import { t as formatDocsLink } from "../../links-Ce33eXq9.js";
+import { m as MarkdownConfigSchema } from "../../zod-schema.core-Cx4hqkoC.js";
+import { r as buildChannelConfigSchema } from "../../config-schema-BoSEJoAt.js";
+import { d as createDefaultChannelRuntimeState, u as createComputedAccountStatusAdapter } from "../../status-helpers-CtpWf3f1.js";
+import { i as listCombinedAccountIds, n as describeAccountSnapshot } from "../../account-helpers-DqNwQN08.js";
+import { i as defineChannelPluginEntry, r as createChatChannelPlugin } from "../../core-BghMcc08.js";
+import "../../setup-CPpe7OZc.js";
+import "../../account-resolution-CahYTlaB.js";
+import { i as createPairingPrefixStripper, r as createLoggedPairingApprovalNotifier } from "../../channel-pairing-Nk7oRFrM.js";
+import { n as buildPassiveProbedChannelStatusSummary } from "../../extension-shared-gP7gKXlS.js";
+import "../../channel-config-primitives-C3Vad-6S.js";
+import { t as zod_exports } from "../../zod-DCTDn17d.js";
+import "../../api-kRvYQYz-.js";
+import { A as rawDataSymbol, B as normalizeToken, C as HttpStatusCodeError, D as rtfm, E as HellFreezesOverError, F as arrayToObject, H as resolveTwitchToken, I as Enumerable, L as generateMessageId, M as promiseWithResolvers, N as mapNullable, O as CustomError, P as mapOptional, R as isAccountConfigured, S as transformTwitchApiResponse, T as extractUserName, V as normalizeTwitchChannel, _ as TokenInfo, a as getClientManager, b as callTwitchApiRaw, c as CachedGetter, d as RateLimitReachedError, f as CustomError$1, g as EventEmitter, h as StaticAuthProvider, i as stripMarkdownForTwitch, j as accessTokenIsExpired, k as DataObject, l as Cacheable, m as require_detect_node, n as setTwitchRuntime, o as removeClientManager, p as createLogger$1, r as chunkTextForTwitch, s as ChatClient, t as monitorTwitchProvider, u as PartitionedTimeBasedRateLimiter, v as InvalidTokenError, w as extractUserId, x as handleTwitchApiResponseError, y as callTwitchApi, z as missingTargetError } from "../../monitor-51GGuFqv.js";
+import { a as __read, n as __decorate, o as __spreadArray, s as init_tslib_es6 } from "../../tslib.es6-CFzVO2xb.js";
 //#region extensions/twitch/src/config.ts
 /**
 * Default account ID for Twitch
@@ -291,13 +91,14 @@ function resolveTwitchSnapshotAccountId(cfg, account) {
 	return Object.entries(accountMap).find(([, value]) => value === account)?.[0] ?? "default";
 }
 //#endregion
-//#region node_modules/.pnpm/@d-fischer+shared-utils@3.6.4/node_modules/@d-fischer/shared-utils/es/functions/array/flatten.mjs
+//#region node_modules/@d-fischer/shared-utils/es/functions/array/flatten.mjs
+init_tslib_es6();
 function flatten(arr) {
 	var _a;
 	return (_a = []).concat.apply(_a, __spreadArray([], __read(arr), false));
 }
 //#endregion
-//#region node_modules/.pnpm/@d-fischer+shared-utils@3.6.4/node_modules/@d-fischer/shared-utils/es/functions/object/indexBy.mjs
+//#region node_modules/@d-fischer/shared-utils/es/functions/object/indexBy.mjs
 function indexBy(arr, keyFn) {
 	if (typeof keyFn !== "function") {
 		var key_1 = keyFn;
@@ -311,7 +112,7 @@ function indexBy(arr, keyFn) {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+common@8.0.3/node_modules/@twurple/common/lib/errors/RelationAssertionError.js
+//#region node_modules/@twurple/common/lib/errors/RelationAssertionError.js
 /**
 * Thrown when a relation that is expected to never be null does return null.
 */
@@ -321,14 +122,15 @@ var RelationAssertionError = class extends CustomError {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+common@8.0.3/node_modules/@twurple/common/lib/relations.js
+//#region node_modules/@twurple/common/lib/relations.js
 /** @private */
 function checkRelationAssertion(value) {
 	if (value == null) throw new RelationAssertionError();
 	return value;
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+common@8.0.3/node_modules/@twurple/common/lib/extensions/HelixExtension.js
+//#region node_modules/@twurple/common/lib/extensions/HelixExtension.js
+init_tslib_es6();
 /**
 * A Twitch Extension.
 */
@@ -638,12 +440,12 @@ let HelixExtension = class HelixExtension extends DataObject {
 };
 HelixExtension = __decorate([rtfm("api", "HelixExtension", "id")], HelixExtension);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api-call@8.0.3/node_modules/@twurple/api-call/lib/helpers/queries.external.js
+//#region node_modules/@twurple/api-call/lib/helpers/queries.external.js
 function createBroadcasterQuery(user) {
 	return { broadcaster_id: extractUserId(user) };
 }
 //#endregion
-//#region node_modules/.pnpm/@d-fischer+rate-limiter@1.1.0/node_modules/@d-fischer/rate-limiter/es/errors/RetryAfterError.mjs
+//#region node_modules/@d-fischer/rate-limiter/es/errors/RetryAfterError.mjs
 var RetryAfterError = class extends CustomError$1 {
 	constructor(after) {
 		super(`Need to retry after ${after} ms`);
@@ -654,7 +456,7 @@ var RetryAfterError = class extends CustomError$1 {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@d-fischer+rate-limiter@1.1.0/node_modules/@d-fischer/rate-limiter/es/limiters/ResponseBasedRateLimiter.mjs
+//#region node_modules/@d-fischer/rate-limiter/es/limiters/ResponseBasedRateLimiter.mjs
 var ResponseBasedRateLimiter = class {
 	constructor({ logger }) {
 		this._queue = [];
@@ -786,7 +588,7 @@ var ResponseBasedRateLimiter = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@d-fischer+rate-limiter@1.1.0/node_modules/@d-fischer/rate-limiter/es/limiters/PartitionedRateLimiter.mjs
+//#region node_modules/@d-fischer/rate-limiter/es/limiters/PartitionedRateLimiter.mjs
 var PartitionedRateLimiter = class {
 	constructor(options) {
 		this._children = /* @__PURE__ */ new Map();
@@ -1086,7 +888,7 @@ const twitchMessageActions = {
 /**
 * Twitch user roles that can be allowed to interact with the bot
 */
-const TwitchRoleSchema = z.enum([
+const TwitchRoleSchema = zod_exports.z.enum([
 	"moderator",
 	"owner",
 	"vip",
@@ -1096,27 +898,27 @@ const TwitchRoleSchema = z.enum([
 /**
 * Twitch account configuration schema
 */
-const TwitchAccountSchema = z.object({
-	username: z.string(),
-	accessToken: z.string(),
-	clientId: z.string().optional(),
-	channel: z.string().min(1),
-	enabled: z.boolean().optional(),
-	allowFrom: z.array(z.string()).optional(),
-	allowedRoles: z.array(TwitchRoleSchema).optional(),
-	requireMention: z.boolean().optional(),
-	responsePrefix: z.string().optional(),
-	clientSecret: z.string().optional(),
-	refreshToken: z.string().optional(),
-	expiresIn: z.number().nullable().optional(),
-	obtainmentTimestamp: z.number().optional()
+const TwitchAccountSchema = zod_exports.z.object({
+	username: zod_exports.z.string(),
+	accessToken: zod_exports.z.string(),
+	clientId: zod_exports.z.string().optional(),
+	channel: zod_exports.z.string().min(1),
+	enabled: zod_exports.z.boolean().optional(),
+	allowFrom: zod_exports.z.array(zod_exports.z.string()).optional(),
+	allowedRoles: zod_exports.z.array(TwitchRoleSchema).optional(),
+	requireMention: zod_exports.z.boolean().optional(),
+	responsePrefix: zod_exports.z.string().optional(),
+	clientSecret: zod_exports.z.string().optional(),
+	refreshToken: zod_exports.z.string().optional(),
+	expiresIn: zod_exports.z.number().nullable().optional(),
+	obtainmentTimestamp: zod_exports.z.number().optional()
 });
 /**
 * Base configuration properties shared by both single and multi-account modes
 */
-const TwitchConfigBaseSchema = z.object({
-	name: z.string().optional(),
-	enabled: z.boolean().optional(),
+const TwitchConfigBaseSchema = zod_exports.z.object({
+	name: zod_exports.z.string().optional(),
+	enabled: zod_exports.z.boolean().optional(),
 	markdown: MarkdownConfigSchema.optional()
 });
 /**
@@ -1125,13 +927,13 @@ const TwitchConfigBaseSchema = z.object({
 * Use this for single-account setups. Properties are at the top level,
 * creating an implicit "default" account.
 */
-const SimplifiedSchema = z.intersection(TwitchConfigBaseSchema, TwitchAccountSchema);
+const SimplifiedSchema = zod_exports.z.intersection(TwitchConfigBaseSchema, TwitchAccountSchema);
 /**
 * Multi-account configuration schema
 *
 * Use this for multi-account setups. Each key is an account ID (e.g., "default", "secondary").
 */
-const MultiAccountSchema = z.intersection(TwitchConfigBaseSchema, z.object({ accounts: z.record(z.string(), TwitchAccountSchema) }).refine((val) => Object.keys(val.accounts || {}).length > 0, { message: "accounts must contain at least one entry" }));
+const MultiAccountSchema = zod_exports.z.intersection(TwitchConfigBaseSchema, zod_exports.z.object({ accounts: zod_exports.z.record(zod_exports.z.string(), TwitchAccountSchema) }).refine((val) => Object.keys(val.accounts || {}).length > 0, { message: "accounts must contain at least one entry" }));
 /**
 * Twitch plugin configuration schema
 *
@@ -1141,7 +943,7 @@ const MultiAccountSchema = z.intersection(TwitchConfigBaseSchema, z.object({ acc
 *
 * The union ensures clear discrimination between the two modes.
 */
-const TwitchConfigSchema = z.union([SimplifiedSchema, MultiAccountSchema]);
+const TwitchConfigSchema = zod_exports.z.union([SimplifiedSchema, MultiAccountSchema]);
 //#endregion
 //#region extensions/twitch/src/probe.ts
 /**
@@ -1216,13 +1018,13 @@ async function probeTwitch(account, timeoutMs) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/errors/ConfigError.js
+//#region node_modules/@twurple/api/lib/errors/ConfigError.js
 /**
 * Thrown whenever you try using invalid values in the client configuration.
 */
 var ConfigError = class extends CustomError {};
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/utils/HelixRateLimiter.js
+//#region node_modules/@twurple/api/lib/utils/HelixRateLimiter.js
 /** @internal */
 var HelixRateLimiter = class extends ResponseBasedRateLimiter {
 	async doRequest({ options, clientId, accessToken, authorizationType, fetchOptions }) {
@@ -1242,7 +1044,182 @@ var HelixRateLimiter = class extends ResponseBasedRateLimiter {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/bits.external.js
+//#region node_modules/retry/lib/retry_operation.js
+var require_retry_operation = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	function RetryOperation(timeouts, options) {
+		if (typeof options === "boolean") options = { forever: options };
+		this._originalTimeouts = JSON.parse(JSON.stringify(timeouts));
+		this._timeouts = timeouts;
+		this._options = options || {};
+		this._maxRetryTime = options && options.maxRetryTime || Infinity;
+		this._fn = null;
+		this._errors = [];
+		this._attempts = 1;
+		this._operationTimeout = null;
+		this._operationTimeoutCb = null;
+		this._timeout = null;
+		this._operationStart = null;
+		this._timer = null;
+		if (this._options.forever) this._cachedTimeouts = this._timeouts.slice(0);
+	}
+	module.exports = RetryOperation;
+	RetryOperation.prototype.reset = function() {
+		this._attempts = 1;
+		this._timeouts = this._originalTimeouts.slice(0);
+	};
+	RetryOperation.prototype.stop = function() {
+		if (this._timeout) clearTimeout(this._timeout);
+		if (this._timer) clearTimeout(this._timer);
+		this._timeouts = [];
+		this._cachedTimeouts = null;
+	};
+	RetryOperation.prototype.retry = function(err) {
+		if (this._timeout) clearTimeout(this._timeout);
+		if (!err) return false;
+		var currentTime = (/* @__PURE__ */ new Date()).getTime();
+		if (err && currentTime - this._operationStart >= this._maxRetryTime) {
+			this._errors.push(err);
+			this._errors.unshift(/* @__PURE__ */ new Error("RetryOperation timeout occurred"));
+			return false;
+		}
+		this._errors.push(err);
+		var timeout = this._timeouts.shift();
+		if (timeout === void 0) if (this._cachedTimeouts) {
+			this._errors.splice(0, this._errors.length - 1);
+			timeout = this._cachedTimeouts.slice(-1);
+		} else return false;
+		var self = this;
+		this._timer = setTimeout(function() {
+			self._attempts++;
+			if (self._operationTimeoutCb) {
+				self._timeout = setTimeout(function() {
+					self._operationTimeoutCb(self._attempts);
+				}, self._operationTimeout);
+				if (self._options.unref) self._timeout.unref();
+			}
+			self._fn(self._attempts);
+		}, timeout);
+		if (this._options.unref) this._timer.unref();
+		return true;
+	};
+	RetryOperation.prototype.attempt = function(fn, timeoutOps) {
+		this._fn = fn;
+		if (timeoutOps) {
+			if (timeoutOps.timeout) this._operationTimeout = timeoutOps.timeout;
+			if (timeoutOps.cb) this._operationTimeoutCb = timeoutOps.cb;
+		}
+		var self = this;
+		if (this._operationTimeoutCb) this._timeout = setTimeout(function() {
+			self._operationTimeoutCb();
+		}, self._operationTimeout);
+		this._operationStart = (/* @__PURE__ */ new Date()).getTime();
+		this._fn(this._attempts);
+	};
+	RetryOperation.prototype.try = function(fn) {
+		console.log("Using RetryOperation.try() is deprecated");
+		this.attempt(fn);
+	};
+	RetryOperation.prototype.start = function(fn) {
+		console.log("Using RetryOperation.start() is deprecated");
+		this.attempt(fn);
+	};
+	RetryOperation.prototype.start = RetryOperation.prototype.try;
+	RetryOperation.prototype.errors = function() {
+		return this._errors;
+	};
+	RetryOperation.prototype.attempts = function() {
+		return this._attempts;
+	};
+	RetryOperation.prototype.mainError = function() {
+		if (this._errors.length === 0) return null;
+		var counts = {};
+		var mainError = null;
+		var mainErrorCount = 0;
+		for (var i = 0; i < this._errors.length; i++) {
+			var error = this._errors[i];
+			var message = error.message;
+			var count = (counts[message] || 0) + 1;
+			counts[message] = count;
+			if (count >= mainErrorCount) {
+				mainError = error;
+				mainErrorCount = count;
+			}
+		}
+		return mainError;
+	};
+}));
+//#endregion
+//#region node_modules/retry/lib/retry.js
+var require_retry$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	var RetryOperation = require_retry_operation();
+	exports.operation = function(options) {
+		return new RetryOperation(exports.timeouts(options), {
+			forever: options && (options.forever || options.retries === Infinity),
+			unref: options && options.unref,
+			maxRetryTime: options && options.maxRetryTime
+		});
+	};
+	exports.timeouts = function(options) {
+		if (options instanceof Array) return [].concat(options);
+		var opts = {
+			retries: 10,
+			factor: 2,
+			minTimeout: 1 * 1e3,
+			maxTimeout: Infinity,
+			randomize: false
+		};
+		for (var key in options) opts[key] = options[key];
+		if (opts.minTimeout > opts.maxTimeout) throw new Error("minTimeout is greater than maxTimeout");
+		var timeouts = [];
+		for (var i = 0; i < opts.retries; i++) timeouts.push(this.createTimeout(i, opts));
+		if (options && options.forever && !timeouts.length) timeouts.push(this.createTimeout(i, opts));
+		timeouts.sort(function(a, b) {
+			return a - b;
+		});
+		return timeouts;
+	};
+	exports.createTimeout = function(attempt, opts) {
+		var random = opts.randomize ? Math.random() + 1 : 1;
+		var timeout = Math.round(random * Math.max(opts.minTimeout, 1) * Math.pow(opts.factor, attempt));
+		timeout = Math.min(timeout, opts.maxTimeout);
+		return timeout;
+	};
+	exports.wrap = function(obj, options, methods) {
+		if (options instanceof Array) {
+			methods = options;
+			options = null;
+		}
+		if (!methods) {
+			methods = [];
+			for (var key in obj) if (typeof obj[key] === "function") methods.push(key);
+		}
+		for (var i = 0; i < methods.length; i++) {
+			var method = methods[i];
+			var original = obj[method];
+			obj[method] = function retryWrapper(original) {
+				var op = exports.operation(options);
+				var args = Array.prototype.slice.call(arguments, 1);
+				var callback = args.pop();
+				args.push(function(err) {
+					if (op.retry(err)) return;
+					if (err) arguments[0] = op.mainError();
+					callback.apply(this, arguments);
+				});
+				op.attempt(function() {
+					original.apply(obj, args);
+				});
+			}.bind(obj, original);
+			obj[method].options = options;
+		}
+	};
+}));
+//#endregion
+//#region node_modules/retry/index.js
+var require_retry = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	module.exports = require_retry$1();
+}));
+//#endregion
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/bits.external.js
 /** @internal */
 function createBitsLeaderboardQuery(params = {}) {
 	const { count = 10, period = "all", startDate, contextUserId } = params;
@@ -1254,7 +1231,8 @@ function createBitsLeaderboardQuery(params = {}) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/BaseApi.js
+//#region node_modules/@twurple/api/lib/endpoints/BaseApi.js
+init_tslib_es6();
 /** @private */
 var BaseApi = class {
 	/** @internal */ _client;
@@ -1269,7 +1247,8 @@ var BaseApi = class {
 };
 __decorate([Enumerable(false)], BaseApi.prototype, "_client", void 0);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/bits/HelixBitsLeaderboardEntry.js
+//#region node_modules/@twurple/api/lib/endpoints/bits/HelixBitsLeaderboardEntry.js
+init_tslib_es6();
 /**
 * A Bits leaderboard entry.
 */
@@ -1320,7 +1299,8 @@ let HelixBitsLeaderboardEntry = class HelixBitsLeaderboardEntry extends DataObje
 __decorate([Enumerable(false)], HelixBitsLeaderboardEntry.prototype, "_client", void 0);
 HelixBitsLeaderboardEntry = __decorate([rtfm("api", "HelixBitsLeaderboardEntry", "userId")], HelixBitsLeaderboardEntry);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/bits/HelixBitsLeaderboard.js
+//#region node_modules/@twurple/api/lib/endpoints/bits/HelixBitsLeaderboard.js
+init_tslib_es6();
 /**
 * A leaderboard where the users who used the most bits to a broadcaster are listed.
 */
@@ -1348,7 +1328,8 @@ __decorate([Enumerable(false)], HelixBitsLeaderboard.prototype, "_client", void 
 __decorate([CachedGetter()], HelixBitsLeaderboard.prototype, "entries", null);
 HelixBitsLeaderboard = __decorate([Cacheable, rtfm("api", "HelixBitsLeaderboard")], HelixBitsLeaderboard);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/bits/HelixCheermoteList.js
+//#region node_modules/@twurple/api/lib/endpoints/bits/HelixCheermoteList.js
+init_tslib_es6();
 /**
 * A list of cheermotes you can use globally or in a specific channel, depending on how you fetched the list.
 *
@@ -1386,7 +1367,8 @@ let HelixCheermoteList = class HelixCheermoteList extends DataObject {
 };
 HelixCheermoteList = __decorate([rtfm("api", "HelixCheermoteList")], HelixCheermoteList);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/bits/HelixBitsApi.js
+//#region node_modules/@twurple/api/lib/endpoints/bits/HelixBitsApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with bits.
 *
@@ -1436,7 +1418,7 @@ let HelixBitsApi = class HelixBitsApi extends BaseApi {
 };
 HelixBitsApi = __decorate([rtfm("api", "HelixBitsApi")], HelixBitsApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/channel.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/channel.external.js
 /** @internal */
 function createChannelUpdateBody(data) {
 	return {
@@ -1478,7 +1460,7 @@ function createFollowedChannelQuery(user, broadcaster) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/generic.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/generic.external.js
 /** @internal */
 function createSingleKeyQuery(key, value) {
 	return { [key]: value };
@@ -1509,7 +1491,8 @@ function createChannelUsersCheckQuery(broadcaster, users) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/relations/HelixUserRelation.js
+//#region node_modules/@twurple/api/lib/relations/HelixUserRelation.js
+init_tslib_es6();
 /**
 * A relation of anything with a user.
 */
@@ -1548,7 +1531,8 @@ let HelixUserRelation = class HelixUserRelation extends DataObject {
 __decorate([Enumerable(false)], HelixUserRelation.prototype, "_client", void 0);
 HelixUserRelation = __decorate([rtfm("api", "HelixUserRelation", "id")], HelixUserRelation);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/utils/HelixRequestBatcher.js
+//#region node_modules/@twurple/api/lib/utils/HelixRequestBatcher.js
+init_tslib_es6();
 /** @internal */
 var HelixRequestBatcher = class {
 	_callOptions;
@@ -1625,7 +1609,8 @@ var HelixRequestBatcher = class {
 };
 __decorate([Enumerable(false)], HelixRequestBatcher.prototype, "_client", void 0);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/utils/pagination/HelixPaginatedRequest.js
+//#region node_modules/@twurple/api/lib/utils/pagination/HelixPaginatedRequest.js
+init_tslib_es6();
 if (!Object.prototype.hasOwnProperty.call(Symbol, "asyncIterator")) Symbol.asyncIterator = Symbol.asyncIterator ?? Symbol.for("Symbol.asyncIterator");
 /**
 * Represents a request to the new Twitch API (Helix) that utilizes a cursor to paginate through its results.
@@ -1746,7 +1731,8 @@ let HelixPaginatedRequest = class HelixPaginatedRequest {
 __decorate([Enumerable(false)], HelixPaginatedRequest.prototype, "_client", void 0);
 HelixPaginatedRequest = __decorate([rtfm("api", "HelixPaginatedRequest")], HelixPaginatedRequest);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/utils/pagination/HelixPaginatedRequestWithTotal.js
+//#region node_modules/@twurple/api/lib/utils/pagination/HelixPaginatedRequestWithTotal.js
+init_tslib_es6();
 /**
 * A special case of {@link HelixPaginatedRequest} with support for fetching the total number of entities, whenever an endpoint supports it.
 *
@@ -1762,7 +1748,7 @@ let HelixPaginatedRequestWithTotal = class HelixPaginatedRequestWithTotal extend
 };
 HelixPaginatedRequestWithTotal = __decorate([rtfm("api", "HelixPaginatedRequestWithTotal")], HelixPaginatedRequestWithTotal);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/utils/pagination/HelixPaginatedResult.js
+//#region node_modules/@twurple/api/lib/utils/pagination/HelixPaginatedResult.js
 /** @internal */ function createPaginatedResult(response, type, client) {
 	let dataCache = void 0;
 	return {
@@ -1783,7 +1769,7 @@ HelixPaginatedRequestWithTotal = __decorate([rtfm("api", "HelixPaginatedRequestW
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/utils/pagination/HelixPagination.js
+//#region node_modules/@twurple/api/lib/utils/pagination/HelixPagination.js
 /** @internal */
 function createPaginationQuery({ after, before, limit } = {}) {
 	return {
@@ -1793,7 +1779,8 @@ function createPaginationQuery({ after, before, limit } = {}) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channel/HelixChannel.js
+//#region node_modules/@twurple/api/lib/endpoints/channel/HelixChannel.js
+init_tslib_es6();
 /**
 * A Twitch channel.
 */
@@ -1888,7 +1875,8 @@ let HelixChannel = class HelixChannel extends DataObject {
 __decorate([Enumerable(false)], HelixChannel.prototype, "_client", void 0);
 HelixChannel = __decorate([rtfm("api", "HelixChannel", "id")], HelixChannel);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channel/HelixChannelEditor.js
+//#region node_modules/@twurple/api/lib/endpoints/channel/HelixChannelEditor.js
+init_tslib_es6();
 /**
 * An editor of a previously given channel.
 */
@@ -1927,7 +1915,8 @@ let HelixChannelEditor = class HelixChannelEditor extends DataObject {
 __decorate([Enumerable(false)], HelixChannelEditor.prototype, "_client", void 0);
 HelixChannelEditor = __decorate([rtfm("api", "HelixChannelEditor", "userId")], HelixChannelEditor);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channel/HelixChannelFollower.js
+//#region node_modules/@twurple/api/lib/endpoints/channel/HelixChannelFollower.js
+init_tslib_es6();
 /**
 * Represents a user that follows a channel.
 */
@@ -1972,7 +1961,8 @@ let HelixChannelFollower = class HelixChannelFollower extends DataObject {
 __decorate([Enumerable(false)], HelixChannelFollower.prototype, "_client", void 0);
 HelixChannelFollower = __decorate([rtfm("api", "HelixChannelFollower", "userId")], HelixChannelFollower);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channel/HelixFollowedChannel.js
+//#region node_modules/@twurple/api/lib/endpoints/channel/HelixFollowedChannel.js
+init_tslib_es6();
 /**
 * Represents a broadcaster that a user follows.
 */
@@ -2017,7 +2007,8 @@ let HelixFollowedChannel = class HelixFollowedChannel extends DataObject {
 __decorate([Enumerable(false)], HelixFollowedChannel.prototype, "_client", void 0);
 HelixFollowedChannel = __decorate([rtfm("api", "HelixFollowedChannel", "broadcasterId")], HelixFollowedChannel);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channel/HelixAdSchedule.js
+//#region node_modules/@twurple/api/lib/endpoints/channel/HelixAdSchedule.js
+init_tslib_es6();
 /**
 * Represents a broadcaster's ad schedule.
 */
@@ -2064,7 +2055,8 @@ let HelixAdSchedule = class HelixAdSchedule extends DataObject {
 };
 HelixAdSchedule = __decorate([rtfm("api", "HelixAdSchedule")], HelixAdSchedule);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channel/HelixSnoozeNextAdResult.js
+//#region node_modules/@twurple/api/lib/endpoints/channel/HelixSnoozeNextAdResult.js
+init_tslib_es6();
 /**
 * Represents the result after a call to snooze the broadcaster's ad schedule.
 */
@@ -2090,7 +2082,8 @@ let HelixSnoozeNextAdResult = class HelixSnoozeNextAdResult extends DataObject {
 };
 HelixSnoozeNextAdResult = __decorate([rtfm("api", "HelixSnoozeNextAdResult")], HelixSnoozeNextAdResult);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channel/HelixChannelApi.js
+//#region node_modules/@twurple/api/lib/endpoints/channel/HelixChannelApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with channels.
 *
@@ -2426,7 +2419,7 @@ let HelixChannelApi = class HelixChannelApi extends BaseApi {
 __decorate([Enumerable(false)], HelixChannelApi.prototype, "_getChannelByIdBatcher", void 0);
 HelixChannelApi = __decorate([rtfm("api", "HelixChannelApi")], HelixChannelApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/channelPoints.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/channelPoints.external.js
 /** @internal */
 function createCustomRewardsQuery(broadcaster, onlyManageable) {
 	return {
@@ -2485,7 +2478,8 @@ function createRedemptionsForBroadcasterQuery(broadcaster, rewardId, status, fil
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channelPoints/HelixCustomReward.js
+//#region node_modules/@twurple/api/lib/endpoints/channelPoints/HelixCustomReward.js
+init_tslib_es6();
 /**
 * A custom Channel Points reward.
 */
@@ -2625,7 +2619,8 @@ let HelixCustomReward = class HelixCustomReward extends DataObject {
 __decorate([Enumerable(false)], HelixCustomReward.prototype, "_client", void 0);
 HelixCustomReward = __decorate([rtfm("api", "HelixCustomReward", "id")], HelixCustomReward);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channelPoints/HelixCustomRewardRedemption.js
+//#region node_modules/@twurple/api/lib/endpoints/channelPoints/HelixCustomRewardRedemption.js
+init_tslib_es6();
 /**
 * A redemption of a custom Channel Points reward.
 */
@@ -2756,7 +2751,8 @@ let HelixCustomRewardRedemption = class HelixCustomRewardRedemption extends Data
 __decorate([Enumerable(false)], HelixCustomRewardRedemption.prototype, "_client", void 0);
 HelixCustomRewardRedemption = __decorate([rtfm("api", "HelixCustomRewardRedemption", "id")], HelixCustomRewardRedemption);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channelPoints/HelixChannelPointsApi.js
+//#region node_modules/@twurple/api/lib/endpoints/channelPoints/HelixChannelPointsApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with channel points.
 *
@@ -2957,7 +2953,8 @@ let HelixChannelPointsApi = class HelixChannelPointsApi extends BaseApi {
 };
 HelixChannelPointsApi = __decorate([rtfm("api", "HelixChannelPointsApi")], HelixChannelPointsApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/charity/HelixCharityCampaignAmount.js
+//#region node_modules/@twurple/api/lib/endpoints/charity/HelixCharityCampaignAmount.js
+init_tslib_es6();
 /**
 * An object representing monetary amount and currency information for charity donations/goals.
 */
@@ -2994,7 +2991,8 @@ let HelixCharityCampaignAmount = class HelixCharityCampaignAmount extends DataOb
 };
 HelixCharityCampaignAmount = __decorate([rtfm("api", "HelixCharityCampaignAmount")], HelixCharityCampaignAmount);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/charity/HelixCharityCampaign.js
+//#region node_modules/@twurple/api/lib/endpoints/charity/HelixCharityCampaign.js
+init_tslib_es6();
 /**
 * A charity campaign in a Twitch channel.
 */
@@ -3075,7 +3073,8 @@ let HelixCharityCampaign = class HelixCharityCampaign extends DataObject {
 __decorate([Enumerable(false)], HelixCharityCampaign.prototype, "_client", void 0);
 HelixCharityCampaign = __decorate([rtfm("api", "HelixCharityCampaign", "id")], HelixCharityCampaign);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/charity/HelixCharityCampaignDonation.js
+//#region node_modules/@twurple/api/lib/endpoints/charity/HelixCharityCampaignDonation.js
+init_tslib_es6();
 /**
 * A donation to a charity campaign in a Twitch channel.
 */
@@ -3126,7 +3125,8 @@ let HelixCharityCampaignDonation = class HelixCharityCampaignDonation extends Da
 __decorate([Enumerable(false)], HelixCharityCampaignDonation.prototype, "_client", void 0);
 HelixCharityCampaignDonation = __decorate([rtfm("api", "HelixCharityCampaignDonation")], HelixCharityCampaignDonation);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/charity/HelixCharityApi.js
+//#region node_modules/@twurple/api/lib/endpoints/charity/HelixCharityApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with charity campaigns.
 *
@@ -3181,7 +3181,7 @@ let HelixCharityApi = class HelixCharityApi extends BaseApi {
 };
 HelixCharityApi = __decorate([rtfm("api", "HelixCharityApi")], HelixCharityApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/errors/ChatMessageDroppedError.js
+//#region node_modules/@twurple/api/lib/errors/ChatMessageDroppedError.js
 /**
 * Thrown when a chat message is dropped and not delivered to the target channel.
 */
@@ -3196,7 +3196,7 @@ var ChatMessageDroppedError = class extends CustomError {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/chat.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/chat.external.js
 /** @internal */
 function createChatSettingsUpdateBody(settings) {
 	return {
@@ -3249,13 +3249,13 @@ function createSendChatMessageAsAppBody(message, params) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/shared-chat-session.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/shared-chat-session.external.js
 /** @internal */
 function createSharedChatSessionQuery(broadcaster) {
 	return { broadcaster_id: extractUserId(broadcaster) };
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixEmoteBase.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixEmoteBase.js
 /** @private */
 var HelixEmoteBase = class extends DataObject {
 	/**
@@ -3320,7 +3320,8 @@ var HelixEmoteBase = class extends DataObject {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixEmote.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixEmote.js
+init_tslib_es6();
 /**
 * A Twitch emote.
 */
@@ -3336,7 +3337,8 @@ let HelixEmote = class HelixEmote extends HelixEmoteBase {
 };
 HelixEmote = __decorate([rtfm("api", "HelixEmote", "id")], HelixEmote);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixChannelEmote.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixChannelEmote.js
+init_tslib_es6();
 /**
 * A Twitch Channel emote.
 *
@@ -3378,7 +3380,8 @@ let HelixChannelEmote = class HelixChannelEmote extends HelixEmote {
 __decorate([Enumerable(false)], HelixChannelEmote.prototype, "_client", void 0);
 HelixChannelEmote = __decorate([rtfm("api", "HelixChannelEmote", "id")], HelixChannelEmote);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixChatBadgeVersion.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixChatBadgeVersion.js
+init_tslib_es6();
 /**
 * A version of a chat badge.
 */
@@ -3424,7 +3427,8 @@ let HelixChatBadgeVersion = class HelixChatBadgeVersion extends DataObject {
 };
 HelixChatBadgeVersion = __decorate([rtfm("api", "HelixChatBadgeVersion", "id")], HelixChatBadgeVersion);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixChatBadgeSet.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixChatBadgeSet.js
+init_tslib_es6();
 /**
 * A version of a chat badge.
 */
@@ -3453,7 +3457,8 @@ let HelixChatBadgeSet = class HelixChatBadgeSet extends DataObject {
 __decorate([CachedGetter()], HelixChatBadgeSet.prototype, "versions", null);
 HelixChatBadgeSet = __decorate([Cacheable, rtfm("api", "HelixChatBadgeSet", "id")], HelixChatBadgeSet);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixChatChatter.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixChatChatter.js
+init_tslib_es6();
 /**
 * A user connected to a Twitch channel's chat session.
 */
@@ -3492,7 +3497,8 @@ let HelixChatChatter = class HelixChatChatter extends DataObject {
 __decorate([Enumerable(false)], HelixChatChatter.prototype, "_client", void 0);
 HelixChatChatter = __decorate([rtfm("api", "HelixChatChatter")], HelixChatChatter);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixChatSettings.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixChatSettings.js
+init_tslib_es6();
 /**
 * The settings of a broadcaster's chat.
 */
@@ -3553,7 +3559,8 @@ let HelixChatSettings = class HelixChatSettings extends DataObject {
 };
 HelixChatSettings = __decorate([rtfm("api", "HelixChatSettings", "broadcasterId")], HelixChatSettings);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixEmoteFromSet.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixEmoteFromSet.js
+init_tslib_es6();
 /**
 * A Twitch Channel emote.
 *
@@ -3605,7 +3612,8 @@ let HelixEmoteFromSet = class HelixEmoteFromSet extends HelixEmote {
 __decorate([Enumerable(false)], HelixEmoteFromSet.prototype, "_client", void 0);
 HelixEmoteFromSet = __decorate([rtfm("api", "HelixEmoteFromSet", "id")], HelixEmoteFromSet);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixPrivilegedChatSettings.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixPrivilegedChatSettings.js
+init_tslib_es6();
 /**
 * The settings of a broadcaster's chat, with additional privileged data.
 */
@@ -3627,7 +3635,8 @@ let HelixPrivilegedChatSettings = class HelixPrivilegedChatSettings extends Heli
 };
 HelixPrivilegedChatSettings = __decorate([rtfm("api", "HelixPrivilegedChatSettings", "broadcasterId")], HelixPrivilegedChatSettings);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixSentChatMessage.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixSentChatMessage.js
+init_tslib_es6();
 /**
 * Information about a sent Twitch chat message.
 */
@@ -3659,7 +3668,8 @@ let HelixSentChatMessage = class HelixSentChatMessage extends DataObject {
 };
 HelixSentChatMessage = __decorate([rtfm("api", "HelixSentChatMessage", "id")], HelixSentChatMessage);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixSharedChatSessionParticipant.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixSharedChatSessionParticipant.js
+init_tslib_es6();
 /**
 * A shared chat session participant.
 */
@@ -3686,7 +3696,8 @@ let HelixSharedChatSessionParticipant = class HelixSharedChatSessionParticipant 
 __decorate([Enumerable(false)], HelixSharedChatSessionParticipant.prototype, "_client", void 0);
 HelixSharedChatSessionParticipant = __decorate([rtfm("api", "HelixSharedChatSessionParticipant", "broadcasterId")], HelixSharedChatSessionParticipant);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixSharedChatSession.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixSharedChatSession.js
+init_tslib_es6();
 /**
 * A shared chat session.
 */
@@ -3737,7 +3748,8 @@ let HelixSharedChatSession = class HelixSharedChatSession extends DataObject {
 __decorate([Enumerable(false)], HelixSharedChatSession.prototype, "_client", void 0);
 HelixSharedChatSession = __decorate([rtfm("api", "HelixSharedChatSession", "sessionId")], HelixSharedChatSession);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixUserEmote.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixUserEmote.js
+init_tslib_es6();
 /**
 * A Twitch user emote.
 */
@@ -3786,7 +3798,8 @@ let HelixUserEmote = class HelixUserEmote extends HelixEmoteBase {
 __decorate([Enumerable(false)], HelixUserEmote.prototype, "_client", void 0);
 HelixUserEmote = __decorate([rtfm("api", "HelixUserEmote", "id")], HelixUserEmote);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/chat/HelixChatApi.js
+//#region node_modules/@twurple/api/lib/endpoints/chat/HelixChatApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with chat.
 *
@@ -4191,7 +4204,7 @@ let HelixChatApi = class HelixChatApi extends BaseApi {
 };
 HelixChatApi = __decorate([rtfm("api", "HelixChatApi")], HelixChatApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/clip.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/clip.external.js
 /** @internal */
 function createClipCreateQuery(params) {
 	const { channel, createAfterDelay = false, title, duration } = params;
@@ -4225,7 +4238,8 @@ function createClipQuery(params) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/clip/HelixClip.js
+//#region node_modules/@twurple/api/lib/endpoints/clip/HelixClip.js
+init_tslib_es6();
 /**
 * A clip from a Twitch stream.
 */
@@ -4369,7 +4383,8 @@ let HelixClip = class HelixClip extends DataObject {
 __decorate([Enumerable(false)], HelixClip.prototype, "_client", void 0);
 HelixClip = __decorate([rtfm("api", "HelixClip", "id")], HelixClip);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/clip/HelixClipApi.js
+//#region node_modules/@twurple/api/lib/endpoints/clip/HelixClipApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with clips.
 *
@@ -4539,7 +4554,7 @@ let HelixClipApi = class HelixClipApi extends BaseApi {
 __decorate([Enumerable(false)], HelixClipApi.prototype, "_getClipByIdBatcher", void 0);
 HelixClipApi = __decorate([rtfm("api", "HelixClipApi")], HelixClipApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/contentClassificationLabels/HelixContentClassificationLabel.js
+//#region node_modules/@twurple/api/lib/endpoints/contentClassificationLabels/HelixContentClassificationLabel.js
 /**
 * A content classification label that can be applied to a Twitch stream.
 */
@@ -4564,7 +4579,8 @@ var HelixContentClassificationLabel = class extends DataObject {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/contentClassificationLabels/HelixContentClassificationLabelApi.js
+//#region node_modules/@twurple/api/lib/endpoints/contentClassificationLabels/HelixContentClassificationLabelApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with content classification labels.
 *
@@ -4594,7 +4610,7 @@ let HelixContentClassificationLabelApi = class HelixContentClassificationLabelAp
 };
 HelixContentClassificationLabelApi = __decorate([rtfm("api", "HelixContentClassificationLabelApi")], HelixContentClassificationLabelApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/entitlement.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/entitlement.external.js
 /** @internal */
 function createDropsEntitlementQuery(filters, alwaysApp) {
 	return {
@@ -4611,7 +4627,8 @@ function createDropsEntitlementUpdateBody(ids, fulfillmentStatus) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/entitlements/HelixDropsEntitlement.js
+//#region node_modules/@twurple/api/lib/endpoints/entitlements/HelixDropsEntitlement.js
+init_tslib_es6();
 /**
 * An entitlement for a drop.
 */
@@ -4680,7 +4697,8 @@ let HelixDropsEntitlement = class HelixDropsEntitlement extends DataObject {
 __decorate([Enumerable(false)], HelixDropsEntitlement.prototype, "_client", void 0);
 HelixDropsEntitlement = __decorate([rtfm("api", "HelixDropsEntitlement")], HelixDropsEntitlement);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/entitlements/HelixEntitlementApi.js
+//#region node_modules/@twurple/api/lib/endpoints/entitlements/HelixEntitlementApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with entitlements (drops).
 *
@@ -4782,7 +4800,7 @@ let HelixEntitlementApi = class HelixEntitlementApi extends BaseApi {
 __decorate([Enumerable(false)], HelixEntitlementApi.prototype, "_getDropsEntitlementByIdBatcher", void 0);
 HelixEntitlementApi = __decorate([rtfm("api", "HelixEntitlementApi")], HelixEntitlementApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/eventSub.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/eventSub.external.js
 /** @internal */
 function createEventSubBroadcasterCondition(broadcaster) {
 	return { broadcaster_user_id: extractUserId(broadcaster) };
@@ -4838,7 +4856,8 @@ function createEventSubConduitShardsUpdateCondition(conduitId, shards) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/eventSub/HelixEventSubSubscription.js
+//#region node_modules/@twurple/api/lib/endpoints/eventSub/HelixEventSubSubscription.js
+init_tslib_es6();
 /**
 * An EventSub subscription.
 */
@@ -4909,7 +4928,8 @@ let HelixEventSubSubscription = class HelixEventSubSubscription extends DataObje
 __decorate([Enumerable(false)], HelixEventSubSubscription.prototype, "_client", void 0);
 HelixEventSubSubscription = __decorate([rtfm("api", "HelixEventSubSubscription", "id")], HelixEventSubSubscription);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/eventSub/HelixPaginatedEventSubSubscriptionsRequest.js
+//#region node_modules/@twurple/api/lib/endpoints/eventSub/HelixPaginatedEventSubSubscriptionsRequest.js
+init_tslib_es6();
 /**
 * A special case of {@link HelixPaginatedRequestWithTotal} with support for fetching the total cost and cost limit
 * of EventSub subscriptions.
@@ -4940,7 +4960,8 @@ let HelixPaginatedEventSubSubscriptionsRequest = class HelixPaginatedEventSubSub
 };
 HelixPaginatedEventSubSubscriptionsRequest = __decorate([rtfm("api", "HelixPaginatedEventSubSubscriptionsRequest")], HelixPaginatedEventSubSubscriptionsRequest);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/eventSub/HelixEventSubConduit.js
+//#region node_modules/@twurple/api/lib/endpoints/eventSub/HelixEventSubConduit.js
+init_tslib_es6();
 /**
 * Represents an EventSub conduit.
 */
@@ -4987,7 +5008,8 @@ let HelixEventSubConduit = class HelixEventSubConduit extends DataObject {
 __decorate([Enumerable(false)], HelixEventSubConduit.prototype, "_client", void 0);
 HelixEventSubConduit = __decorate([rtfm("api", "HelixEventSubConduit")], HelixEventSubConduit);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/eventSub/HelixEventSubConduitShard.js
+//#region node_modules/@twurple/api/lib/endpoints/eventSub/HelixEventSubConduitShard.js
+init_tslib_es6();
 /**
 * Represents an EventSub conduit shard.
 */
@@ -5013,7 +5035,8 @@ let HelixEventSubConduitShard = class HelixEventSubConduitShard extends DataObje
 };
 HelixEventSubConduitShard = __decorate([rtfm("api", "HelixEventSubConduitShard")], HelixEventSubConduitShard);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/eventSub/HelixEventSubApi.js
+//#region node_modules/@twurple/api/lib/endpoints/eventSub/HelixEventSubApi.js
+init_tslib_es6();
 /**
 * The API methods that deal with EventSub.
 *
@@ -6127,7 +6150,7 @@ let HelixEventSubApi = class HelixEventSubApi extends BaseApi {
 };
 HelixEventSubApi = __decorate([rtfm("api", "HelixEventSubApi")], HelixEventSubApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/extensions.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/extensions.external.js
 /** @internal */
 function createReleasedExtensionFilter(extensionId, version) {
 	return {
@@ -6157,7 +6180,8 @@ function createExtensionTransactionQuery(extensionId, filter) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/channel/HelixChannelReference.js
+//#region node_modules/@twurple/api/lib/endpoints/channel/HelixChannelReference.js
+init_tslib_es6();
 /**
 * A reference to a Twitch channel.
 */
@@ -6220,7 +6244,8 @@ let HelixChannelReference = class HelixChannelReference extends DataObject {
 __decorate([Enumerable(false)], HelixChannelReference.prototype, "_client", void 0);
 HelixChannelReference = __decorate([rtfm("api", "HelixChannelReference", "id")], HelixChannelReference);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/extensions/HelixExtensionBitsProduct.js
+//#region node_modules/@twurple/api/lib/endpoints/extensions/HelixExtensionBitsProduct.js
+init_tslib_es6();
 /**
 * An extension's product to purchase with Bits.
 */
@@ -6264,7 +6289,8 @@ let HelixExtensionBitsProduct = class HelixExtensionBitsProduct extends DataObje
 };
 HelixExtensionBitsProduct = __decorate([rtfm("api", "HelixExtensionBitsProduct", "sku")], HelixExtensionBitsProduct);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/extensions/HelixExtensionTransaction.js
+//#region node_modules/@twurple/api/lib/endpoints/extensions/HelixExtensionTransaction.js
+init_tslib_es6();
 /**
 * A bits transaction made inside an extension.
 */
@@ -6369,7 +6395,8 @@ let HelixExtensionTransaction = class HelixExtensionTransaction extends DataObje
 __decorate([Enumerable(false)], HelixExtensionTransaction.prototype, "_client", void 0);
 HelixExtensionTransaction = __decorate([rtfm("api", "HelixExtensionTransaction", "id")], HelixExtensionTransaction);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/extensions/HelixExtensionsApi.js
+//#region node_modules/@twurple/api/lib/endpoints/extensions/HelixExtensionsApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with extensions.
 *
@@ -6495,7 +6522,8 @@ let HelixExtensionsApi = class HelixExtensionsApi extends BaseApi {
 };
 HelixExtensionsApi = __decorate([rtfm("api", "HelixExtensionsApi")], HelixExtensionsApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/game/HelixGame.js
+//#region node_modules/@twurple/api/lib/endpoints/game/HelixGame.js
+init_tslib_es6();
 /**
 * A game as displayed on Twitch.
 */
@@ -6561,7 +6589,8 @@ let HelixGame = class HelixGame extends DataObject {
 __decorate([Enumerable(false)], HelixGame.prototype, "_client", void 0);
 HelixGame = __decorate([rtfm("api", "HelixGame", "id")], HelixGame);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/game/HelixGameApi.js
+//#region node_modules/@twurple/api/lib/endpoints/game/HelixGameApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with games.
 *
@@ -6690,7 +6719,8 @@ __decorate([Enumerable(false)], HelixGameApi.prototype, "_getGameByNameBatcher",
 __decorate([Enumerable(false)], HelixGameApi.prototype, "_getGameByIgdbIdBatcher", void 0);
 HelixGameApi = __decorate([rtfm("api", "HelixGameApi")], HelixGameApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/goals/HelixGoal.js
+//#region node_modules/@twurple/api/lib/endpoints/goals/HelixGoal.js
+init_tslib_es6();
 /**
 * A creator goal.
 */
@@ -6765,7 +6795,8 @@ let HelixGoal = class HelixGoal extends DataObject {
 __decorate([Enumerable(false)], HelixGoal.prototype, "_client", void 0);
 HelixGoal = __decorate([rtfm("api", "HelixGoal", "id")], HelixGoal);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/goals/HelixGoalApi.js
+//#region node_modules/@twurple/api/lib/endpoints/goals/HelixGoalApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with creator goals.
 *
@@ -6792,7 +6823,8 @@ let HelixGoalApi = class HelixGoalApi extends BaseApi {
 };
 HelixGoalApi = __decorate([rtfm("api", "HelixGoalApi")], HelixGoalApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrainContribution.js
+//#region node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrainContribution.js
+init_tslib_es6();
 /**
 * A Hype Train contributor.
 */
@@ -6843,7 +6875,8 @@ let HelixHypeTrainContribution = class HelixHypeTrainContribution extends DataOb
 __decorate([Enumerable(false)], HelixHypeTrainContribution.prototype, "_client", void 0);
 HelixHypeTrainContribution = __decorate([rtfm("api", "HelixHypeTrainContribution", "userId")], HelixHypeTrainContribution);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrain.js
+//#region node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrain.js
+init_tslib_es6();
 /**
 * Data about the currently running Hype Train.
 */
@@ -6948,7 +6981,8 @@ let HelixHypeTrain = class HelixHypeTrain extends DataObject {
 __decorate([Enumerable(false)], HelixHypeTrain.prototype, "_client", void 0);
 HelixHypeTrain = __decorate([rtfm("api", "HelixHypeTrain", "id")], HelixHypeTrain);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrainAllTimeHigh.js
+//#region node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrainAllTimeHigh.js
+init_tslib_es6();
 /**
 * All-time-high Hype Train statistics.
 */
@@ -6974,7 +7008,8 @@ let HelixHypeTrainAllTimeHigh = class HelixHypeTrainAllTimeHigh extends DataObje
 };
 HelixHypeTrainAllTimeHigh = __decorate([rtfm("api", "HelixHypeTrainAllTimeHigh")], HelixHypeTrainAllTimeHigh);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrainStatus.js
+//#region node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrainStatus.js
+init_tslib_es6();
 /**
 * Statistics of Hype Trains on a channel.
 */
@@ -7007,7 +7042,7 @@ let HelixHypeTrainStatus = class HelixHypeTrainStatus extends DataObject {
 __decorate([Enumerable(false)], HelixHypeTrainStatus.prototype, "_client", void 0);
 HelixHypeTrainStatus = __decorate([rtfm("api", "HelixHypeTrainStatus")], HelixHypeTrainStatus);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrainApi.js
+//#region node_modules/@twurple/api/lib/endpoints/hypeTrain/HelixHypeTrainApi.js
 /**
 * The Helix API methods that deal with Hype Trains.
 *
@@ -7039,7 +7074,7 @@ var HelixHypeTrainApi = class extends BaseApi {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/moderation.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/moderation.external.js
 /** @internal */
 function createModerationUserListQuery(channel, filter) {
 	return {
@@ -7113,7 +7148,8 @@ function createWarnUserBody(user, reason) {
 	} };
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixAutoModSettings.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixAutoModSettings.js
+init_tslib_es6();
 /**
 * The AutoMod settings of a channel.
 */
@@ -7187,7 +7223,8 @@ let HelixAutoModSettings = class HelixAutoModSettings extends DataObject {
 };
 HelixAutoModSettings = __decorate([rtfm("api", "HelixAutoModSettings", "broadcasterId")], HelixAutoModSettings);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixAutoModStatus.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixAutoModStatus.js
+init_tslib_es6();
 /**
 * The status of a message that says whether it is permitted by AutoMod or not.
 */
@@ -7207,7 +7244,8 @@ let HelixAutoModStatus = class HelixAutoModStatus extends DataObject {
 };
 HelixAutoModStatus = __decorate([rtfm("api", "HelixAutoModStatus", "messageId")], HelixAutoModStatus);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixBanUser.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixBanUser.js
+init_tslib_es6();
 /**
 * Information about a user who has been banned/timed out.
 *
@@ -7263,7 +7301,8 @@ __decorate([Enumerable(false)], HelixBanUser.prototype, "_client", void 0);
 __decorate([Enumerable(false)], HelixBanUser.prototype, "_expiryTimestamp", void 0);
 HelixBanUser = __decorate([rtfm("api", "HelixBanUser", "userId")], HelixBanUser);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixBan.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixBan.js
+init_tslib_es6();
 /**
 * Information about the ban of a user.
 *
@@ -7307,7 +7346,8 @@ let HelixBan = class HelixBan extends HelixBanUser {
 };
 HelixBan = __decorate([rtfm("api", "HelixBan", "userId")], HelixBan);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixBlockedTerm.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixBlockedTerm.js
+init_tslib_es6();
 /**
 * Information about a word or phrase blocked in a broadcaster's channel.
 */
@@ -7358,7 +7398,8 @@ let HelixBlockedTerm = class HelixBlockedTerm extends DataObject {
 };
 HelixBlockedTerm = __decorate([rtfm("api", "HelixBlockedTerm", "id")], HelixBlockedTerm);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixModeratedChannel.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixModeratedChannel.js
+init_tslib_es6();
 /**
 * A reference to a Twitch channel where a user is a moderator.
 */
@@ -7403,7 +7444,8 @@ let HelixModeratedChannel = class HelixModeratedChannel extends DataObject {
 __decorate([Enumerable(false)], HelixModeratedChannel.prototype, "_client", void 0);
 HelixModeratedChannel = __decorate([rtfm("api", "HelixModeratedChannel", "id")], HelixModeratedChannel);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixModerator.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixModerator.js
+init_tslib_es6();
 /**
 * Information about the moderator status of a user.
 */
@@ -7442,7 +7484,8 @@ let HelixModerator = class HelixModerator extends DataObject {
 __decorate([Enumerable(false)], HelixModerator.prototype, "_client", void 0);
 HelixModerator = __decorate([rtfm("api", "HelixModerator", "userId")], HelixModerator);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixShieldModeStatus.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixShieldModeStatus.js
+init_tslib_es6();
 /**
 * Information about the Shield Mode status of a channel.
 */
@@ -7493,7 +7536,8 @@ let HelixShieldModeStatus = class HelixShieldModeStatus extends DataObject {
 __decorate([Enumerable(false)], HelixShieldModeStatus.prototype, "_client", void 0);
 HelixShieldModeStatus = __decorate([rtfm("api", "HelixShieldModeStatus")], HelixShieldModeStatus);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixUnbanRequest.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixUnbanRequest.js
+init_tslib_es6();
 /**
 * A request from a user to be unbanned from a channel.
 */
@@ -7616,7 +7660,8 @@ let HelixUnbanRequest = class HelixUnbanRequest extends DataObject {
 __decorate([Enumerable(false)], HelixUnbanRequest.prototype, "_client", void 0);
 HelixUnbanRequest = __decorate([rtfm("api", "HelixUnbanRequest", "id")], HelixUnbanRequest);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixWarning.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixWarning.js
+init_tslib_es6();
 /**
 * Information about the warning.
 */
@@ -7673,7 +7718,8 @@ let HelixWarning = class HelixWarning extends DataObject {
 __decorate([Enumerable(false)], HelixWarning.prototype, "_client", void 0);
 HelixWarning = __decorate([rtfm("api", "HelixWarning", "userId")], HelixWarning);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/moderation/HelixModerationApi.js
+//#region node_modules/@twurple/api/lib/endpoints/moderation/HelixModerationApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with moderation.
 *
@@ -8215,7 +8261,7 @@ let HelixModerationApi = class HelixModerationApi extends BaseApi {
 };
 HelixModerationApi = __decorate([rtfm("api", "HelixModerationApi")], HelixModerationApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/poll.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/poll.external.js
 /** @internal */
 function createPollBody(broadcaster, data) {
 	return {
@@ -8236,7 +8282,8 @@ function createPollEndBody(broadcaster, id, showResult) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/poll/HelixPollChoice.js
+//#region node_modules/@twurple/api/lib/endpoints/poll/HelixPollChoice.js
+init_tslib_es6();
 /**
 * A choice in a channel poll.
 */
@@ -8268,7 +8315,8 @@ let HelixPollChoice = class HelixPollChoice extends DataObject {
 };
 HelixPollChoice = __decorate([rtfm("api", "HelixPollChoice", "id")], HelixPollChoice);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/poll/HelixPoll.js
+//#region node_modules/@twurple/api/lib/endpoints/poll/HelixPoll.js
+init_tslib_es6();
 /**
 * A channel poll.
 */
@@ -8361,7 +8409,8 @@ let HelixPoll = class HelixPoll extends DataObject {
 __decorate([Enumerable(false)], HelixPoll.prototype, "_client", void 0);
 HelixPoll = __decorate([rtfm("api", "HelixPoll", "id")], HelixPoll);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/poll/HelixPollApi.js
+//#region node_modules/@twurple/api/lib/endpoints/poll/HelixPollApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with polls.
 *
@@ -8474,7 +8523,7 @@ let HelixPollApi = class HelixPollApi extends BaseApi {
 };
 HelixPollApi = __decorate([rtfm("api", "HelixPollApi")], HelixPollApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/prediction.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/prediction.external.js
 /** @internal */
 function createPredictionBody(broadcaster, data) {
 	return {
@@ -8494,7 +8543,8 @@ function createEndPredictionBody(broadcaster, id, status, outcomeId) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/prediction/HelixPredictor.js
+//#region node_modules/@twurple/api/lib/endpoints/prediction/HelixPredictor.js
+init_tslib_es6();
 /**
 * A user that took part in a prediction.
 */
@@ -8545,7 +8595,8 @@ let HelixPredictor = class HelixPredictor extends DataObject {
 __decorate([Enumerable(false)], HelixPredictor.prototype, "_client", void 0);
 HelixPredictor = __decorate([rtfm("api", "HelixPredictor", "userId")], HelixPredictor);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/prediction/HelixPredictionOutcome.js
+//#region node_modules/@twurple/api/lib/endpoints/prediction/HelixPredictionOutcome.js
+init_tslib_es6();
 /**
 * A possible outcome in a channel prediction.
 */
@@ -8596,7 +8647,8 @@ let HelixPredictionOutcome = class HelixPredictionOutcome extends DataObject {
 __decorate([Enumerable(false)], HelixPredictionOutcome.prototype, "_client", void 0);
 HelixPredictionOutcome = __decorate([rtfm("api", "HelixPredictionOutcome", "id")], HelixPredictionOutcome);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/prediction/HelixPrediction.js
+//#region node_modules/@twurple/api/lib/endpoints/prediction/HelixPrediction.js
+init_tslib_es6();
 /**
 * A channel prediction.
 */
@@ -8698,7 +8750,8 @@ let HelixPrediction = class HelixPrediction extends DataObject {
 __decorate([Enumerable(false)], HelixPrediction.prototype, "_client", void 0);
 HelixPrediction = __decorate([rtfm("api", "HelixPrediction", "id")], HelixPrediction);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/prediction/HelixPredictionApi.js
+//#region node_modules/@twurple/api/lib/endpoints/prediction/HelixPredictionApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with predictions.
 *
@@ -8832,7 +8885,7 @@ let HelixPredictionApi = class HelixPredictionApi extends BaseApi {
 };
 HelixPredictionApi = __decorate([rtfm("api", "HelixPredictionApi")], HelixPredictionApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/raid.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/raid.external.js
 /** @internal */
 function createRaidStartQuery(from, to) {
 	return {
@@ -8841,7 +8894,8 @@ function createRaidStartQuery(from, to) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/raids/HelixRaid.js
+//#region node_modules/@twurple/api/lib/endpoints/raids/HelixRaid.js
+init_tslib_es6();
 /**
 * A result of a successful raid initiation.
 */
@@ -8861,7 +8915,8 @@ let HelixRaid = class HelixRaid extends DataObject {
 };
 HelixRaid = __decorate([rtfm("api", "HelixRaid")], HelixRaid);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/raids/HelixRaidApi.js
+//#region node_modules/@twurple/api/lib/endpoints/raids/HelixRaidApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with raids.
 *
@@ -8911,7 +8966,7 @@ let HelixRaidApi = class HelixRaidApi extends BaseApi {
 };
 HelixRaidApi = __decorate([rtfm("api", "HelixRaidApi")], HelixRaidApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/schedule.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/schedule.external.js
 /** @internal */
 function createScheduleQuery(broadcaster, filter) {
 	return {
@@ -8964,7 +9019,8 @@ function createScheduleSegmentUpdateBody(data) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/schedule/HelixScheduleSegment.js
+//#region node_modules/@twurple/api/lib/endpoints/schedule/HelixScheduleSegment.js
+init_tslib_es6();
 /**
 * A segment of a schedule.
 */
@@ -9034,7 +9090,8 @@ let HelixScheduleSegment = class HelixScheduleSegment extends DataObject {
 __decorate([Enumerable(false)], HelixScheduleSegment.prototype, "_client", void 0);
 HelixScheduleSegment = __decorate([rtfm("api", "HelixScheduleSegment", "id")], HelixScheduleSegment);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/schedule/HelixPaginatedScheduleSegmentRequest.js
+//#region node_modules/@twurple/api/lib/endpoints/schedule/HelixPaginatedScheduleSegmentRequest.js
+init_tslib_es6();
 /**
 * A paginator specifically for schedule segments.
 */
@@ -9057,7 +9114,8 @@ let HelixPaginatedScheduleSegmentRequest = class HelixPaginatedScheduleSegmentRe
 };
 HelixPaginatedScheduleSegmentRequest = __decorate([rtfm("api", "HelixPaginatedScheduleSegmentRequest")], HelixPaginatedScheduleSegmentRequest);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/schedule/HelixSchedule.js
+//#region node_modules/@twurple/api/lib/endpoints/schedule/HelixSchedule.js
+init_tslib_es6();
 /**
 * A schedule of a channel.
 */
@@ -9116,7 +9174,7 @@ let HelixSchedule = class HelixSchedule extends DataObject {
 __decorate([Enumerable(false)], HelixSchedule.prototype, "_client", void 0);
 HelixSchedule = __decorate([rtfm("api", "HelixSchedule", "broadcasterId")], HelixSchedule);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/schedule/HelixScheduleApi.js
+//#region node_modules/@twurple/api/lib/endpoints/schedule/HelixScheduleApi.js
 /**
 * The Helix API methods that deal with schedules.
 *
@@ -9277,7 +9335,7 @@ var HelixScheduleApi = class extends BaseApi {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/search.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/search.external.js
 /** @internal */
 function createSearchChannelsQuery(query, filter) {
 	return {
@@ -9286,7 +9344,8 @@ function createSearchChannelsQuery(query, filter) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/search/HelixChannelSearchResult.js
+//#region node_modules/@twurple/api/lib/endpoints/search/HelixChannelSearchResult.js
+init_tslib_es6();
 /**
 * The result of a channel search.
 */
@@ -9373,7 +9432,8 @@ let HelixChannelSearchResult = class HelixChannelSearchResult extends DataObject
 __decorate([Enumerable(false)], HelixChannelSearchResult.prototype, "_client", void 0);
 HelixChannelSearchResult = __decorate([rtfm("api", "HelixChannelSearchResult", "id")], HelixChannelSearchResult);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/search/HelixSearchApi.js
+//#region node_modules/@twurple/api/lib/endpoints/search/HelixSearchApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that run searches.
 *
@@ -9453,7 +9513,7 @@ let HelixSearchApi = class HelixSearchApi extends BaseApi {
 };
 HelixSearchApi = __decorate([rtfm("api", "HelixSearchApi")], HelixSearchApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/errors/StreamNotLiveError.js
+//#region node_modules/@twurple/api/lib/errors/StreamNotLiveError.js
 /**
 * Thrown whenever you try something that requires your own stream to be live.
 */
@@ -9464,7 +9524,7 @@ var StreamNotLiveError = class extends CustomError {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/stream.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/stream.external.js
 /** @internal */
 function createStreamQuery(filter) {
 	return {
@@ -9487,7 +9547,8 @@ function createVideoQuery(id) {
 	return { video_id: id };
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/stream/HelixStream.js
+//#region node_modules/@twurple/api/lib/endpoints/stream/HelixStream.js
+init_tslib_es6();
 /**
 * A Twitch stream.
 */
@@ -9614,7 +9675,8 @@ let HelixStream = class HelixStream extends DataObject {
 __decorate([Enumerable(false)], HelixStream.prototype, "_client", void 0);
 HelixStream = __decorate([rtfm("api", "HelixStream", "id")], HelixStream);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/stream/HelixStreamMarker.js
+//#region node_modules/@twurple/api/lib/endpoints/stream/HelixStreamMarker.js
+init_tslib_es6();
 /**
 * A stream marker.
 */
@@ -9653,7 +9715,8 @@ let HelixStreamMarker = class HelixStreamMarker extends DataObject {
 __decorate([Enumerable(false)], HelixStreamMarker.prototype, "_client", void 0);
 HelixStreamMarker = __decorate([rtfm("api", "HelixStreamMarker", "id")], HelixStreamMarker);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/stream/HelixStreamMarkerWithVideo.js
+//#region node_modules/@twurple/api/lib/endpoints/stream/HelixStreamMarkerWithVideo.js
+init_tslib_es6();
 /**
 * A stream marker, also containing some video data.
 *
@@ -9687,7 +9750,8 @@ let HelixStreamMarkerWithVideo = class HelixStreamMarkerWithVideo extends HelixS
 };
 HelixStreamMarkerWithVideo = __decorate([rtfm("api", "HelixStreamMarkerWithVideo", "id")], HelixStreamMarkerWithVideo);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/stream/HelixStreamApi.js
+//#region node_modules/@twurple/api/lib/endpoints/stream/HelixStreamApi.js
+init_tslib_es6();
 var HelixStreamApi_1;
 /**
 * The Helix API methods that deal with streams.
@@ -9952,7 +10016,7 @@ __decorate([Enumerable(false)], HelixStreamApi.prototype, "_getStreamByUserIdBat
 __decorate([Enumerable(false)], HelixStreamApi.prototype, "_getStreamByUserNameBatcher", void 0);
 HelixStreamApi = HelixStreamApi_1 = __decorate([rtfm("api", "HelixStreamApi")], HelixStreamApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/subscription.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/subscription.external.js
 /** @internal */
 function createSubscriptionCheckQuery(broadcaster, user) {
 	return {
@@ -9961,7 +10025,8 @@ function createSubscriptionCheckQuery(broadcaster, user) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/subscriptions/HelixUserSubscription.js
+//#region node_modules/@twurple/api/lib/endpoints/subscriptions/HelixUserSubscription.js
+init_tslib_es6();
 /**
 * The user info about a (paid) subscription to a broadcaster.
 */
@@ -10012,7 +10077,8 @@ let HelixUserSubscription = class HelixUserSubscription extends DataObject {
 __decorate([Enumerable(false)], HelixUserSubscription.prototype, "_client", void 0);
 HelixUserSubscription = __decorate([rtfm("api", "HelixUserSubscription", "broadcasterId")], HelixUserSubscription);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/subscriptions/HelixSubscription.js
+//#region node_modules/@twurple/api/lib/endpoints/subscriptions/HelixSubscription.js
+init_tslib_es6();
 /**
 * A (paid) subscription of a user to a broadcaster.
 *
@@ -10094,7 +10160,8 @@ let HelixSubscription = class HelixSubscription extends HelixUserSubscription {
 };
 HelixSubscription = __decorate([rtfm("api", "HelixSubscription", "userId")], HelixSubscription);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/subscriptions/HelixPaginatedSubscriptionsRequest.js
+//#region node_modules/@twurple/api/lib/endpoints/subscriptions/HelixPaginatedSubscriptionsRequest.js
+init_tslib_es6();
 /**
 * A special case of {@link HelixPaginatedRequestWithTotal}
 * with support for fetching the total sub points of a broadcaster.
@@ -10120,7 +10187,8 @@ let HelixPaginatedSubscriptionsRequest = class HelixPaginatedSubscriptionsReques
 };
 HelixPaginatedSubscriptionsRequest = __decorate([rtfm("api", "HelixPaginatedSubscriptionsRequest")], HelixPaginatedSubscriptionsRequest);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/subscriptions/HelixSubscriptionApi.js
+//#region node_modules/@twurple/api/lib/endpoints/subscriptions/HelixSubscriptionApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with subscriptions.
 *
@@ -10222,7 +10290,8 @@ let HelixSubscriptionApi = class HelixSubscriptionApi extends BaseApi {
 };
 HelixSubscriptionApi = __decorate([rtfm("api", "HelixSubscriptionApi")], HelixSubscriptionApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/team/HelixTeam.js
+//#region node_modules/@twurple/api/lib/endpoints/team/HelixTeam.js
+init_tslib_es6();
 /**
 * A Stream Team.
 */
@@ -10299,7 +10368,8 @@ let HelixTeam = class HelixTeam extends DataObject {
 __decorate([Enumerable(false)], HelixTeam.prototype, "_client", void 0);
 HelixTeam = __decorate([rtfm("api", "HelixTeam", "id")], HelixTeam);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/team/HelixTeamWithUsers.js
+//#region node_modules/@twurple/api/lib/endpoints/team/HelixTeamWithUsers.js
+init_tslib_es6();
 /**
 * A Stream Team with its member relations.
 *
@@ -10315,7 +10385,8 @@ let HelixTeamWithUsers = class HelixTeamWithUsers extends HelixTeam {
 };
 HelixTeamWithUsers = __decorate([rtfm("api", "HelixTeamWithUsers", "id")], HelixTeamWithUsers);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/team/HelixTeamApi.js
+//#region node_modules/@twurple/api/lib/endpoints/team/HelixTeamApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with teams.
 *
@@ -10385,7 +10456,7 @@ let HelixTeamApi = class HelixTeamApi extends BaseApi {
 };
 HelixTeamApi = __decorate([rtfm("api", "HelixTeamApi")], HelixTeamApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/user.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/user.external.js
 /** @internal */
 function createUserBlockCreateQuery(target, additionalInfo) {
 	return {
@@ -10399,7 +10470,7 @@ function createUserBlockDeleteQuery(target) {
 	return { target_user_id: extractUserId(target) };
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/user/extensions/HelixBaseExtension.js
+//#region node_modules/@twurple/api/lib/endpoints/user/extensions/HelixBaseExtension.js
 /** @protected */
 var HelixBaseExtension = class extends DataObject {
 	/**
@@ -10422,7 +10493,8 @@ var HelixBaseExtension = class extends DataObject {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/user/extensions/HelixInstalledExtension.js
+//#region node_modules/@twurple/api/lib/endpoints/user/extensions/HelixInstalledExtension.js
+init_tslib_es6();
 /**
 * A Twitch Extension that is installed in a slot of a channel.
 *
@@ -10452,7 +10524,8 @@ let HelixInstalledExtension = class HelixInstalledExtension extends HelixBaseExt
 };
 HelixInstalledExtension = __decorate([rtfm("api", "HelixInstalledExtension", "id")], HelixInstalledExtension);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/user/extensions/HelixInstalledExtensionList.js
+//#region node_modules/@twurple/api/lib/endpoints/user/extensions/HelixInstalledExtensionList.js
+init_tslib_es6();
 /**
 * A list of extensions installed in a channel.
 */
@@ -10470,7 +10543,8 @@ let HelixInstalledExtensionList = class HelixInstalledExtensionList extends Data
 };
 HelixInstalledExtensionList = __decorate([rtfm("api", "HelixInstalledExtensionList")], HelixInstalledExtensionList);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/user/extensions/HelixUserExtension.js
+//#region node_modules/@twurple/api/lib/endpoints/user/extensions/HelixUserExtension.js
+init_tslib_es6();
 /**
 * A Twitch Extension that was installed by a user.
 *
@@ -10492,7 +10566,8 @@ let HelixUserExtension = class HelixUserExtension extends HelixBaseExtension {
 };
 HelixUserExtension = __decorate([rtfm("api", "HelixUserExtension", "id")], HelixUserExtension);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/user/HelixUser.js
+//#region node_modules/@twurple/api/lib/endpoints/user/HelixUser.js
+init_tslib_es6();
 /**
 * A Twitch user.
 */
@@ -10667,7 +10742,8 @@ let HelixUser = class HelixUser extends DataObject {
 __decorate([Enumerable(false)], HelixUser.prototype, "_client", void 0);
 HelixUser = __decorate([rtfm("api", "HelixUser", "id")], HelixUser);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/user/HelixPrivilegedUser.js
+//#region node_modules/@twurple/api/lib/endpoints/user/HelixPrivilegedUser.js
+init_tslib_es6();
 /**
 * A user you have extended privilges for, i.e. yourself.
 *
@@ -10691,7 +10767,8 @@ let HelixPrivilegedUser = class HelixPrivilegedUser extends HelixUser {
 };
 HelixPrivilegedUser = __decorate([rtfm("api", "HelixPrivilegedUser", "id")], HelixPrivilegedUser);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/user/HelixUserBlock.js
+//#region node_modules/@twurple/api/lib/endpoints/user/HelixUserBlock.js
+init_tslib_es6();
 /**
 * An user blocked by a previously given user.
 */
@@ -10730,7 +10807,8 @@ let HelixUserBlock = class HelixUserBlock extends DataObject {
 __decorate([Enumerable(false)], HelixUserBlock.prototype, "_client", void 0);
 HelixUserBlock = __decorate([rtfm("api", "HelixUserBlock", "userId")], HelixUserBlock);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/user/HelixUserApi.js
+//#region node_modules/@twurple/api/lib/endpoints/user/HelixUserApi.js
+init_tslib_es6();
 /**
 * The Helix API methods that deal with users.
 *
@@ -10969,7 +11047,8 @@ __decorate([Enumerable(false)], HelixUserApi.prototype, "_getUserByIdBatcher", v
 __decorate([Enumerable(false)], HelixUserApi.prototype, "_getUserByNameBatcher", void 0);
 HelixUserApi = __decorate([rtfm("api", "HelixUserApi")], HelixUserApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/video/HelixVideo.js
+//#region node_modules/@twurple/api/lib/endpoints/video/HelixVideo.js
+init_tslib_es6();
 /**
 * A video on Twitch.
 */
@@ -11143,7 +11222,8 @@ __decorate([Enumerable(false)], HelixVideo.prototype, "_client", void 0);
 __decorate([CachedGetter()], HelixVideo.prototype, "durationInSeconds", null);
 HelixVideo = __decorate([Cacheable, rtfm("api", "HelixVideo", "id")], HelixVideo);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/video/HelixVideoApi.js
+//#region node_modules/@twurple/api/lib/endpoints/video/HelixVideoApi.js
+init_tslib_es6();
 var HelixVideoApi_1;
 /**
 * The Helix API methods that deal with videos.
@@ -11285,7 +11365,7 @@ let HelixVideoApi = HelixVideoApi_1 = class HelixVideoApi extends BaseApi {
 __decorate([Enumerable(false)], HelixVideoApi.prototype, "_getVideoByIdBatcher", void 0);
 HelixVideoApi = HelixVideoApi_1 = __decorate([rtfm("api", "HelixVideoApi")], HelixVideoApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/interfaces/endpoints/whisper.external.js
+//#region node_modules/@twurple/api/lib/interfaces/endpoints/whisper.external.js
 /** @internal */
 function createWhisperQuery(from, to) {
 	return {
@@ -11294,7 +11374,8 @@ function createWhisperQuery(from, to) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/endpoints/whisper/HelixWhisperApi.js
+//#region node_modules/@twurple/api/lib/endpoints/whisper/HelixWhisperApi.js
+init_tslib_es6();
 /**
 * The API methods that deal with whispers.
 *
@@ -11340,7 +11421,7 @@ let HelixWhisperApi = class HelixWhisperApi extends BaseApi {
 };
 HelixWhisperApi = __decorate([rtfm("api", "HelixWhisperApi")], HelixWhisperApi);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/reporting/ApiReportedRequest.js
+//#region node_modules/@twurple/api/lib/reporting/ApiReportedRequest.js
 /**
 * Reporting details for an API request.
 */
@@ -11374,7 +11455,8 @@ var ApiReportedRequest = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/client/BaseApiClient.js
+//#region node_modules/@twurple/api/lib/client/BaseApiClient.js
+init_tslib_es6();
 var import_retry = /* @__PURE__ */ __toESM(require_retry(), 1);
 /** @private */
 let BaseApiClient = class BaseApiClient extends EventEmitter {
@@ -11700,7 +11782,8 @@ __decorate([CachedGetter()], BaseApiClient.prototype, "videos", null);
 __decorate([CachedGetter()], BaseApiClient.prototype, "whispers", null);
 BaseApiClient = __decorate([Cacheable, rtfm("api", "ApiClient")], BaseApiClient);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/client/NoContextApiClient.js
+//#region node_modules/@twurple/api/lib/client/NoContextApiClient.js
+init_tslib_es6();
 /** @private */
 let NoContextApiClient = class NoContextApiClient extends BaseApiClient {
 	/** @internal */
@@ -11710,7 +11793,8 @@ let NoContextApiClient = class NoContextApiClient extends BaseApiClient {
 };
 NoContextApiClient = __decorate([rtfm("api", "ApiClient")], NoContextApiClient);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/client/UserContextApiClient.js
+//#region node_modules/@twurple/api/lib/client/UserContextApiClient.js
+init_tslib_es6();
 /** @private */
 let UserContextApiClient = class UserContextApiClient extends BaseApiClient {
 	_userId;
@@ -11726,7 +11810,8 @@ let UserContextApiClient = class UserContextApiClient extends BaseApiClient {
 };
 UserContextApiClient = __decorate([rtfm("api", "ApiClient")], UserContextApiClient);
 //#endregion
-//#region node_modules/.pnpm/@twurple+api@8.0.3_@twurple+auth@8.0.3/node_modules/@twurple/api/lib/client/ApiClient.js
+//#region node_modules/@twurple/api/lib/client/ApiClient.js
+init_tslib_es6();
 var import_detect_node = require_detect_node();
 /**
 * An API client for the Twitch Helix API and other miscellaneous endpoints.
@@ -12394,7 +12479,7 @@ var twitch_default = defineChannelPluginEntry({
 						lastError: null
 					});
 					ctx.log?.info(`Starting Twitch connection for ${account.username}`);
-					const { monitorTwitchProvider } = await import("../../monitor-Bw8h9dBM.js");
+					const { monitorTwitchProvider } = await import("../../monitor-C8_Xxuib.js");
 					await monitorTwitchProvider({
 						account,
 						accountId,

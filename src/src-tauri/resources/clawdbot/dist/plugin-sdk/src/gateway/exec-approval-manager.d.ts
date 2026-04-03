@@ -1,8 +1,8 @@
 import type { ExecApprovalDecision, ExecApprovalRequestPayload as InfraExecApprovalRequestPayload } from "../infra/exec-approvals.js";
 export type ExecApprovalRequestPayload = InfraExecApprovalRequestPayload;
-export type ExecApprovalRecord = {
+export type ExecApprovalRecord<TPayload = ExecApprovalRequestPayload> = {
     id: string;
-    request: ExecApprovalRequestPayload;
+    request: TPayload;
     createdAtMs: number;
     expiresAtMs: number;
     requestedByConnId?: string | null;
@@ -21,22 +21,22 @@ export type ExecApprovalIdLookupResult = {
 } | {
     kind: "none";
 };
-export declare class ExecApprovalManager {
+export declare class ExecApprovalManager<TPayload = ExecApprovalRequestPayload> {
     private pending;
-    create(request: ExecApprovalRequestPayload, timeoutMs: number, id?: string | null): ExecApprovalRecord;
+    create(request: TPayload, timeoutMs: number, id?: string | null): ExecApprovalRecord<TPayload>;
     /**
      * Register an approval record and return a promise that resolves when the decision is made.
      * This separates registration (synchronous) from waiting (async), allowing callers to
      * confirm registration before the decision is made.
      */
-    register(record: ExecApprovalRecord, timeoutMs: number): Promise<ExecApprovalDecision | null>;
+    register(record: ExecApprovalRecord<TPayload>, timeoutMs: number): Promise<ExecApprovalDecision | null>;
     /**
      * @deprecated Use register() instead for explicit separation of registration and waiting.
      */
-    waitForDecision(record: ExecApprovalRecord, timeoutMs: number): Promise<ExecApprovalDecision | null>;
+    waitForDecision(record: ExecApprovalRecord<TPayload>, timeoutMs: number): Promise<ExecApprovalDecision | null>;
     resolve(recordId: string, decision: ExecApprovalDecision, resolvedBy?: string | null): boolean;
     expire(recordId: string, resolvedBy?: string | null): boolean;
-    getSnapshot(recordId: string): ExecApprovalRecord | null;
+    getSnapshot(recordId: string): ExecApprovalRecord<TPayload> | null;
     consumeAllowOnce(recordId: string): boolean;
     /**
      * Wait for decision on an already-registered approval.

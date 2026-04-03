@@ -83,4 +83,8 @@ export declare class AcpSessionManager {
     private clearCachedRuntimeState;
     private clearCachedRuntimeStateIfHandleMatches;
     private runtimeHandlesMatch;
+    private resolveBackgroundTaskContext;
+    private createBackgroundTaskRecord;
+    private markBackgroundTaskRunning;
+    private markBackgroundTaskTerminal;
 }

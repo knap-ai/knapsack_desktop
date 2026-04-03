@@ -64,6 +64,15 @@ export declare function appendFileWithinRoot(params: {
     mkdir?: boolean;
     prependNewlineIfNeeded?: boolean;
 }): Promise<void>;
+export declare function removePathWithinRoot(params: {
+    rootDir: string;
+    relativePath: string;
+}): Promise<void>;
+export declare function mkdirPathWithinRoot(params: {
+    rootDir: string;
+    relativePath: string;
+    allowRoot?: boolean;
+}): Promise<void>;
 export declare function writeFileWithinRoot(params: {
     rootDir: string;
     relativePath: string;

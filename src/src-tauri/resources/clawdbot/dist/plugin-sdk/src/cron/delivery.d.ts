@@ -6,9 +6,10 @@ export type CronDeliveryPlan = {
     mode: CronDeliveryMode;
     channel?: CronMessageChannel;
     to?: string;
+    threadId?: string | number;
     /** Explicit channel account id from the delivery config, if set. */
     accountId?: string;
-    source: "delivery" | "payload";
+    source: "delivery";
     requested: boolean;
 };
 export declare function resolveCronDeliveryPlan(job: CronJob): CronDeliveryPlan;

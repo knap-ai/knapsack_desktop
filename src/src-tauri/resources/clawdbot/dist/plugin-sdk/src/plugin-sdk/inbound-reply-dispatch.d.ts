@@ -15,6 +15,7 @@ export declare function dispatchReplyFromConfigWithSettledDispatcher(params: {
     dispatcher: ReplyDispatcher;
     onSettled: () => void | Promise<void>;
     replyOptions?: ReplyDispatchFromConfigOptions;
+    configOverride?: OpenClawConfig;
 }): Promise<DispatchFromConfigResult>;
 /** Assemble the common inbound reply dispatch dependencies for a resolved route. */
 export declare function buildInboundReplyDispatchBase(params: {

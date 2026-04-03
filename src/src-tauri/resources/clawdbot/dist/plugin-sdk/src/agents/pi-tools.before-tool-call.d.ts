@@ -20,11 +20,13 @@ declare function buildAdjustedParamsKey(params: {
     runId?: string;
     toolCallId: string;
 }): string;
+declare function mergeParamsWithApprovalOverrides(originalParams: unknown, approvalParams?: unknown): unknown;
 export declare function runBeforeToolCallHook(args: {
     toolName: string;
     params: unknown;
     toolCallId?: string;
     ctx?: HookContext;
+    signal?: AbortSignal;
 }): Promise<HookOutcome>;
 export declare function wrapToolWithBeforeToolCallHook(tool: AnyAgentTool, ctx?: HookContext): AnyAgentTool;
 export declare function isToolWrappedWithBeforeToolCallHook(tool: AnyAgentTool): boolean;
@@ -34,6 +36,7 @@ export declare const __testing: {
     buildAdjustedParamsKey: typeof buildAdjustedParamsKey;
     adjustedParamsByToolCallId: Map<string, unknown>;
     runBeforeToolCallHook: typeof runBeforeToolCallHook;
+    mergeParamsWithApprovalOverrides: typeof mergeParamsWithApprovalOverrides;
     isPlainObject: typeof isPlainObject;
 };
 export {};

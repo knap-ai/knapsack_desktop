@@ -4,6 +4,7 @@ export declare const ErrorCodes: {
     readonly NOT_PAIRED: "NOT_PAIRED";
     readonly AGENT_TIMEOUT: "AGENT_TIMEOUT";
     readonly INVALID_REQUEST: "INVALID_REQUEST";
+    readonly APPROVAL_NOT_FOUND: "APPROVAL_NOT_FOUND";
     readonly UNAVAILABLE: "UNAVAILABLE";
 };
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

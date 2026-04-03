@@ -12,6 +12,10 @@ export declare function resolveAttemptSpawnWorkspaceDir(params: {
     } | null;
     resolvedWorkspace: string;
 }): string | undefined;
+export declare function shouldUseOpenAIWebSocketTransport(params: {
+    provider: string;
+    modelApi?: string | null;
+}): boolean;
 export declare function shouldAppendAttemptCacheTtl(params: {
     timedOutDuringCompaction: boolean;
     compactionOccurredThisAttempt: boolean;

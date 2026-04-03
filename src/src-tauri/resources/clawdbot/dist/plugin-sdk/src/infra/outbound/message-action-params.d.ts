@@ -1,5 +1,6 @@
 import type { ChannelId, ChannelMessageActionName } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { type OutboundMediaAccess, type OutboundMediaReadFile } from "../../media/load-options.js";
 import { readBooleanParam as readBooleanParamShared } from "../../plugin-sdk/boolean-param.js";
 export declare const readBooleanParam: typeof readBooleanParamShared;
 export type AttachmentMediaPolicy = {
@@ -7,11 +8,13 @@ export type AttachmentMediaPolicy = {
     sandboxRoot: string;
 } | {
     mode: "host";
-    localRoots?: readonly string[];
+    mediaAccess?: OutboundMediaAccess;
 };
 export declare function resolveAttachmentMediaPolicy(params: {
     sandboxRoot?: string;
+    mediaAccess?: OutboundMediaAccess;
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: OutboundMediaReadFile;
 }): AttachmentMediaPolicy;
 export declare function normalizeSandboxMediaParams(params: {
     args: Record<string, unknown>;

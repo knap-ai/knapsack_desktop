@@ -1,220 +1,230 @@
-import "../../redact-BDinS1q9.js";
-import "../../errors-BxyFnvP3.js";
-import "../../unhandled-rejections-CDJ8dOVP.js";
-import "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import "../../tmp-openclaw-dir-idKIOMmb.js";
-import "../../theme-CdOoMzRk.js";
-import "../../globals-DBUMOBZ8.js";
-import "../../subsystem-DISldKSB.js";
-import "../../ansi-BEJF8NKS.js";
-import "../../boolean-C3GkJetE.js";
-import "../../env-Dnra1IpT.js";
-import "../../warning-filter-CBhOcgHd.js";
-import "../../utils-CS0Ikux6.js";
-import "../../links-8xRhWBQL.js";
-import "../../paths-C4Oy7wjk.js";
-import "../../auth-profiles-DRuJBw5y.js";
-import "../../agent-scope-bjWqU22i.js";
-import "../../boundary-path-Dm0QJ7-y.js";
-import "../../boundary-file-read-DcZxlWD8.js";
-import "../../logger-BmpSCz93.js";
-import "../../exec-B5_AYfQG.js";
-import "../../workspace-D4K6QX9X.js";
-import "../../model-selection-BnFtDmP7.js";
-import "../../io-y3Az_Onx.js";
-import "../../shell-env-BOu7XeT_.js";
-import "../../safe-text-yavot2qw.js";
-import "../../version-CD3oP1-d.js";
-import "../../env-substitution-O6uabUmO.js";
-import "../../includes-Bj3eLUWH.js";
-import "../../zod-schema.providers-core-COy5nBQ0.js";
-import "../../legacy-web-search-BB-ZHEhz.js";
-import "../../registry-C5UkPpaO.js";
-import "../../config-state-Br0ucqMb.js";
-import "../../min-host-version-RMBWtIAR.js";
-import "../../manifest-registry-B5JNQdOM.js";
-import "../../runtime-guard-PhQ6PwQa.js";
-import "../../avatar-policy-B5nOfso_.js";
-import "../../ip-Ce8EDTBZ.js";
-import "../../zod-schema.agent-runtime-Dtg4Jy6G.js";
-import "../../zod-schema.core-BuVz8Rk7.js";
-import "../../config-D4zN4BRl.js";
-import "../../file-lock-DEiVq2ow.js";
-import "../../audit-fs-DTQIjp2r.js";
-import "../../resolve-B7S4PlnO.js";
-import "../../profiles-COPO-hHI.js";
-import "../../tailscale-CxY-91GZ.js";
-import "../../tailnet-DHiKSG7V.js";
-import "../../net-JAg9zL0G.js";
-import "../../auth-Buq0Niri.js";
-import "../../credentials-D8pfRimu.js";
-import "../../message-channel-BliByQBl.js";
-import "../../store-C5UK26Ce.js";
-import "../../runtime-Iz8uZ7EU.js";
-import "../../plugins-B09-vgme.js";
-import "../../sessions-D9ZgHCHb.js";
-import "../../paths-rhN9LKM_.js";
-import "../../session-write-lock-va3qZE6f.js";
-import "../../method-scopes-BiEi0X2g.js";
-import "../../call-CQbSO4Fr.js";
-import "../../prompt-style-C4CV4Y_p.js";
-import "../../ports-lsof-BLEgL_Gn.js";
-import "../../restart-stale-pids-BsPvlGJd.js";
-import "../../ports-FldL_Lhq.js";
-import "../../logging-CznuqaMu.js";
-import "../../commands-C6oAw_H-.js";
-import "../../issue-format-BtLIwOtN.js";
-import "../../identity-Dp-UIak4.js";
-import "../../heartbeat-Bdfr_onc.js";
-import { $i as setPresence, $n as deleteMessageDiscord, Cn as sendTypingDiscord, Cr as createChannelDiscord, Dr as removeChannelPermissionDiscord, En as sendDiscordComponentMessage, Er as moveChannelDiscord, Fr as listDiscordDirectoryPeersLive, Hr as resolveDiscordChannelConfigWithFallback, Ir as allowListMatches, Jn as sendStickerDiscord, Jr as resolveDiscordShouldRequireMention, Kn as sendMessageDiscord, Lr as isDiscordGroupAllowedByPolicy, Or as setChannelPermissionDiscord, Pr as listDiscordDirectoryGroupsLive, Qi as presenceCacheSize, Qn as createThreadDiscord, Rr as normalizeDiscordAllowList, Sn as removeReactionDiscord, Sr as uploadStickerDiscord, Tn as registerBuiltDiscordComponentMessage, Tr as editChannelDiscord, Ur as resolveDiscordCommandAuthorized, Vr as resolveDiscordChannelConfig, Wr as resolveDiscordGuildEntry, Xi as clearPresences, Xn as sendWebhookMessageDiscord, Xr as shouldEmitDiscordReactionNotification, Yn as sendVoiceMessageDiscord, Yr as resolveGroupDmAllow, Zi as getPresence, _n as requiredGuildPermissionForModerationAction, _r as listScheduledEventsDiscord, ai as fetchMemberGuildPermissionsDiscord, ar as readMessagesDiscord, bn as reactMessageDiscord, br as listGuildEmojisDiscord, cr as addRoleDiscord, dn as clearGateways, dr as fetchChannelInfoDiscord, er as editMessageDiscord, fn as getGateway, fr as fetchMemberInfoDiscord, gn as readDiscordModerationCommand, gr as listGuildChannelsDiscord, hn as isDiscordModerationAction, hr as kickMemberDiscord, ii as fetchChannelPermissionsDiscord, ir as pinMessageDiscord, lr as banMemberDiscord, mn as unregisterGateway, mr as fetchVoiceStatusDiscord, nr as listPinsDiscord, oi as hasAllGuildPermissionsDiscord, or as searchMessagesDiscord, pn as registerGateway, pr as fetchRoleInfoDiscord, qn as sendPollDiscord, ri as DiscordSendError, rr as listThreadsDiscord, si as hasAnyGuildPermissionDiscord, sr as unpinMessageDiscord, tr as fetchMessageDiscord, un as handleDiscordAction, ur as createScheduledEventDiscord, vn as readDiscordParentIdParam, vr as removeRoleDiscord, wn as editDiscordComponentMessage, wr as deleteChannelDiscord, xn as removeOwnReactionsDiscord, xr as uploadEmojiDiscord, yn as fetchReactionsDiscord, yr as timeoutMemberDiscord, zr as normalizeDiscordSlug } from "../../pi-embedded-CbCYZxIb.js";
-import "../../internal-hooks-CIUghoK4.js";
-import "../../multimodal-B8yEZcl5.js";
-import "../../memory-search-B_aq08y5.js";
-import "../../provider-catalog-rVN7ZbR5.js";
-import "../../secret-input-DXoOLNgb.js";
-import "../../bindings-CFudGB9Z.js";
-import "../../resolve-route-DwFWP4JW.js";
-import "../../routing-zOQ0wwtV.js";
-import "../../identity-file-DVLib087.js";
-import "../../outbound-runtime-m-y0nd6F.js";
-import "../../provider-env-vars-CpUJqT5v.js";
-import "../../provider-auth-input-Bus9W_qh.js";
-import "../../provider-model-minimax-DSmX4BNO.js";
-import "../../provider-models-BKjzpTsb.js";
-import "../../anthropic-vertex-provider-B2x4YywE.js";
-import "../../provider-catalog-BTgF8VyO.js";
-import "../../provider-catalog-D0IlX18O.js";
-import "../../provider-catalog-BTmUX0Mp.js";
-import "../../provider-catalog-sph_Rl63.js";
-import "../../provider-catalog-C7tUyBwV.js";
-import "../../provider-catalog-C8dPZpHW.js";
-import "../../provider-catalog-BJNff1VI.js";
-import "../../provider-catalog-IAdymoqT.js";
-import "../../provider-catalog-Bjc7evzh.js";
-import "../../models-config.providers.discovery-CjkO08q6.js";
-import "../../text-runtime-DVXt5xhi.js";
-import "../../tool-catalog-BjSY4C4F.js";
-import "../../docker-Bhjg8g2t.js";
-import "../../sandbox-DTlKNieF.js";
-import "../../common-zReYuoMM.js";
-import "../../image-ops-By4YfyWa.js";
-import "../../thinking-CJoSRIGR.js";
-import "../../path-alias-guards-CwRM04O1.js";
-import "../../sandbox-paths-Cn8i8Jxm.js";
-import "../../channel-actions-fV93bLjV.js";
-import "../../mime-CsUtzcn2.js";
-import "../../ssrf-0bPJMoZR.js";
-import "../../fetch-guard-CYl1q2XH.js";
-import "../../provider-web-search-COZNygbd.js";
-import "../../manager-Bw8JrihM.js";
-import "../../config-schema-CPzP2Ds6.js";
-import "../../channel-plugin-common-ClptUZHU.js";
-import "../../status-helpers-Cflmo90d.js";
-import { i as resolveThreadBindingThreadName, r as resolveThreadBindingIntroText, t as formatThreadBindingDurationLabel } from "../../conversation-runtime-nmWgJSXS.js";
-import "../../runtime-whatsapp-boundary-XjdkYMz_.js";
-import "../../pairing-store-BGKLrjo6.js";
-import "../../json-store--JDX3zNL.js";
-import "../../secret-file-Bif7RlZ-.js";
-import "../../channel-config-schema-CgpS17zB.js";
-import "../../setup-binary-C2MYZTCc.js";
-import "../../archive-pOxyr9r4.js";
-import "../../fs-safe-DZyOgpPN.js";
-import "../../signal-cli-install-fVOL9FvX.js";
-import "../../setup-wizard-proxy-DoOpOF8S.js";
-import "../../setup-BI3ohdrT.js";
-import "../../dm-policy-shared-DtcQProI.js";
-import "../../runtime-env-DQOYrXVl.js";
-import "../../temp-path-B91lt0LF.js";
-import "../../diagnostic-CDTtMQBT.js";
-import "../../logging-CCTKg_fh.js";
-import "../../config-runtime-BYNizC50.js";
-import "../../level-overrides-DzIzQ3ZY.js";
-import "../../exec-approvals-BF_Qfdq8.js";
-import "../../webhook-ingress-D-H5frou.js";
-import "../../system-events-BU_NYynX.js";
-import "../../ssrf-policy-DYINyIKC.js";
-import "../../hook-runtime-BUYmDbaA.js";
-import "../../templating-BDXRiJUh.js";
-import "../../channel-reply-pipeline-BxH4-AP2.js";
-import "../../reply-history-n7nOPLta.js";
-import "../../commands-registry.data-BFXJWoqi.js";
-import "../../commands-registry-Bh9pJ817.js";
-import "../../frontmatter-CP5371Rm.js";
-import "../../env-overrides-BNSo89u5.js";
-import "../../skills-M0AZJeXx.js";
-import "../../skills-remote-BHxDA4Jw.js";
-import "../../workspace-dirs-DqDLiRvZ.js";
-import "../../pairing-token-DAszGmwD.js";
-import "../../skill-commands-D73dGR_l.js";
-import "../../config-CLRQPUSt.js";
-import "../../routes-XT2JfvT-.js";
-import "../../ssh-tunnel-LM52qY6N.js";
-import "../../server-middleware-BP59C6FL.js";
-import "../../provider-auth-ref-CQEp9sp3.js";
-import "../../provider-auth-helpers-Do3RFvdi.js";
-import "../../provider-api-key-auth-BEeRW3dq.js";
-import { f as resolveThreadBindingsEnabled } from "../../thread-bindings-policy-C1Av-nes.js";
-import "../../pairing-labels-D27Y4Vv6.js";
-import "../../directory-runtime-D9Y42mW-.js";
-import "../../read-only-account-inspect-CJPRBFj7.js";
-import "../../src-BoNU6eQs.js";
-import "../../web-media-PKy3RbRG.js";
-import "../../media-understanding-BDOSvuM9.js";
-import "../../web-media-CiSbdGPs.js";
-import "../../state-paths-Dvb3Mfl3.js";
-import "../../llm-task-Br6Ixjlh.js";
-import "../../pi-model-discovery-DO3tFksS.js";
-import "../../exec-inline-eval-CpmxWJsW.js";
-import "../../target-registry-9OUOvlxj.js";
-import "../../external-content-DZI9vlJn.js";
-import "../../brave-onFD06fq.js";
-import "../../duckduckgo-CZuAOfiQ.js";
-import "../../exa-5bwgY04k.js";
-import "../../security-runtime-xlw0Fxx2.js";
-import "../../provider-usage-ClxTGn5c.js";
-import "../../provider-models-Bjv0V4OP.js";
-import "../../media-understanding-provider-DllGbg-v.js";
-import "../../media-understanding-provider-BDq4rFL-.js";
-import "../../provider-onboard-CSnPvkMM.js";
-import "../../onboard-BU8aRvq7.js";
-import "../../perplexity-web-search-provider-CI38RNUU.js";
-import "../../perplexity-CMZbsreI.js";
-import "../../model-definitions-CLagLj0g.js";
-import "../../onboard-0P7GBI2D.js";
-import "../../provider-catalog-CKHo9CRM.js";
-import "../../provider-models-Dmjtw6kn.js";
-import "../../stream-C-KGzzT0.js";
-import "../../web-search-CO1hvu_l.js";
-import "../../stagger-CFqdtCYL.js";
-import "../../command-secret-targets-DLs8jC2H.js";
-import "../../delivery-queue-DHURMSqX.js";
-import "../../channel-summary-Ctrv7moa.js";
-import "../../follow-redirects-CVAaqIk4.js";
-import "../../tool-policy-match-DQWWRSN4.js";
-import "../../runtime-CAdCdG-M.js";
-import "../../channel-status-BfM90KqH.js";
-import "../../discord-core-DLbIyXWy.js";
-import "../../cli-runtime-Cx1v7N7v.js";
-import "../../config-presence-DA3j8Nmi.js";
-import "../../query-expansion-BOJBTXsp.js";
-import "../../search-manager-DNBHwaee.js";
-import "../../acp-runtime-BHZj-SLU.js";
-import "../../telegram-core-DD8gCuaX.js";
-import "../../audit-BI48Fi3j.js";
-import "../../gateway-runtime-Dn2qAGY7.js";
-import "../../connection-auth-Nl2a3tDb.js";
-import "../../mcp-config-CDIWSqVk.js";
-import { n as collectDiscordAuditChannelIds, t as auditDiscordChannelPermissions } from "../../audit-86GvYypd.js";
-import { t as discordMessageActions } from "../../runtime-api-Ckhst1XP.js";
-import { S as buildDiscordMediaPayload, l as resolveDiscordReplyTarget, p as sanitizeDiscordThreadName } from "../../route-resolution-C9XDTDsW.js";
-import { D as resolveThreadBindingInactivityExpiresAt, E as resolveThreadBindingIdleTimeoutMs, L as resolveThreadBindingPersona, O as resolveThreadBindingMaxAgeExpiresAt, R as resolveThreadBindingPersonaFromRecord, g as isRecentlyUnboundThreadWebhookMessage, k as resolveThreadBindingMaxAgeMs } from "../../thread-bindings.messages-C6WRAx05.js";
-import { a as registerDiscordListener, i as createDiscordNativeCommand, n as createDiscordGatewayPlugin, r as resolveDiscordGatewayIntents, t as monitorDiscordProvider } from "../../provider-kAmP8t4k.js";
-import { a as normalizeDiscordInboundWorkerTimeoutMs, i as mergeAbortSignals, n as DISCORD_DEFAULT_LISTENER_TIMEOUT_MS, o as normalizeDiscordListenerTimeoutMs, r as isAbortError, s as runDiscordTaskWithTimeout, t as DISCORD_DEFAULT_INBOUND_WORKER_TIMEOUT_MS } from "../../timeouts-BnOxp0oI.js";
-import { t as createDiscordMessageHandler } from "../../message-handler-DmHqPMDi.js";
-import { a as setThreadBindingIdleTimeoutBySessionKey, c as __testing, d as getThreadBindingManager, f as resolveDiscordThreadBindingIdleTimeoutMs, i as reconcileAcpThreadBindingsOnStartup, l as createNoopThreadBindingManager, n as listThreadBindingsBySessionKey, o as setThreadBindingMaxAgeBySessionKey, p as resolveDiscordThreadBindingMaxAgeMs, r as listThreadBindingsForAccount, s as unbindThreadBindingsBySessionKey, t as autoBindSpawnedDiscordSubagent, u as createThreadBindingManager } from "../../thread-bindings-neFAVWsT.js";
-import { a as probeDiscord, i as parseApplicationIdFromToken, n as fetchDiscordApplicationId, o as resolveDiscordPrivilegedIntentsFromFlags, r as fetchDiscordApplicationSummary } from "../../ui-BU9Tv965.js";
-import "../../src-VVAfbRUn.js";
-import { t as resolveDiscordUserAllowlist } from "../../resolve-users-D9S1NRZ1.js";
-import { t as resolveDiscordChannelAllowlist } from "../../resolve-channels-Cx3FRWkT.js";
-export { DISCORD_DEFAULT_INBOUND_WORKER_TIMEOUT_MS, DISCORD_DEFAULT_LISTENER_TIMEOUT_MS, DiscordSendError, __testing, addRoleDiscord, allowListMatches, auditDiscordChannelPermissions, autoBindSpawnedDiscordSubagent, banMemberDiscord, buildDiscordMediaPayload, clearGateways, clearPresences, collectDiscordAuditChannelIds, createChannelDiscord, createDiscordGatewayPlugin, createDiscordMessageHandler, createDiscordNativeCommand, createNoopThreadBindingManager, createScheduledEventDiscord, createThreadBindingManager, createThreadDiscord, deleteChannelDiscord, deleteMessageDiscord, discordMessageActions, editChannelDiscord, editDiscordComponentMessage, editMessageDiscord, fetchChannelInfoDiscord, fetchChannelPermissionsDiscord, fetchDiscordApplicationId, fetchDiscordApplicationSummary, fetchMemberGuildPermissionsDiscord, fetchMemberInfoDiscord, fetchMessageDiscord, fetchReactionsDiscord, fetchRoleInfoDiscord, fetchVoiceStatusDiscord, formatThreadBindingDurationLabel, getGateway, getPresence, getThreadBindingManager, handleDiscordAction, hasAllGuildPermissionsDiscord, hasAnyGuildPermissionDiscord, isAbortError, isDiscordGroupAllowedByPolicy, isDiscordModerationAction, isRecentlyUnboundThreadWebhookMessage, kickMemberDiscord, listDiscordDirectoryGroupsLive, listDiscordDirectoryPeersLive, listGuildChannelsDiscord, listGuildEmojisDiscord, listPinsDiscord, listScheduledEventsDiscord, listThreadBindingsBySessionKey, listThreadBindingsForAccount, listThreadsDiscord, mergeAbortSignals, monitorDiscordProvider, moveChannelDiscord, normalizeDiscordAllowList, normalizeDiscordInboundWorkerTimeoutMs, normalizeDiscordListenerTimeoutMs, normalizeDiscordSlug, parseApplicationIdFromToken, pinMessageDiscord, presenceCacheSize, probeDiscord, reactMessageDiscord, readDiscordModerationCommand, readDiscordParentIdParam, readMessagesDiscord, reconcileAcpThreadBindingsOnStartup, registerBuiltDiscordComponentMessage, registerDiscordListener, registerGateway, removeChannelPermissionDiscord, removeOwnReactionsDiscord, removeReactionDiscord, removeRoleDiscord, requiredGuildPermissionForModerationAction, resolveDiscordChannelAllowlist, resolveDiscordChannelConfig, resolveDiscordChannelConfigWithFallback, resolveDiscordCommandAuthorized, resolveDiscordGatewayIntents, resolveDiscordGuildEntry, resolveDiscordPrivilegedIntentsFromFlags, resolveDiscordReplyTarget, resolveDiscordShouldRequireMention, resolveDiscordThreadBindingIdleTimeoutMs, resolveDiscordThreadBindingMaxAgeMs, resolveDiscordUserAllowlist, resolveGroupDmAllow, resolveThreadBindingIdleTimeoutMs, resolveThreadBindingInactivityExpiresAt, resolveThreadBindingIntroText, resolveThreadBindingMaxAgeExpiresAt, resolveThreadBindingMaxAgeMs, resolveThreadBindingPersona, resolveThreadBindingPersonaFromRecord, resolveThreadBindingThreadName, resolveThreadBindingsEnabled, runDiscordTaskWithTimeout, sanitizeDiscordThreadName, searchMessagesDiscord, sendDiscordComponentMessage, sendMessageDiscord, sendPollDiscord, sendStickerDiscord, sendTypingDiscord, sendVoiceMessageDiscord, sendWebhookMessageDiscord, setChannelPermissionDiscord, setPresence, setThreadBindingIdleTimeoutBySessionKey, setThreadBindingMaxAgeBySessionKey, shouldEmitDiscordReactionNotification, timeoutMemberDiscord, unbindThreadBindingsBySessionKey, unpinMessageDiscord, unregisterGateway, uploadEmojiDiscord, uploadStickerDiscord };
+import { i as stringEnum } from "../../typebox-DqutihVq.js";
+import { g as formatThreadBindingDurationLabel, m as resolveThreadBindingsEnabled, v as resolveThreadBindingIntroText, y as resolveThreadBindingThreadName } from "../../thread-bindings-policy-ypJ47uk9.js";
+import { a as listTokenSourcedAccounts, i as createUnionActionGate } from "../../channel-actions-DVMcrs0t.js";
+import { r as listEnabledDiscordAccounts, t as createDiscordActionGate } from "../../accounts-7Ym6HIvs.js";
+import { c as resolveDiscordCommandAuthorized, h as shouldEmitDiscordReactionNotification, i as normalizeDiscordSlug, l as resolveDiscordGuildEntry, m as resolveGroupDmAllow, n as isDiscordGroupAllowedByPolicy, o as resolveDiscordChannelConfig, p as resolveDiscordShouldRequireMention, r as normalizeDiscordAllowList, s as resolveDiscordChannelConfigWithFallback, t as allowListMatches } from "../../allow-list-qE0AJ4XV.js";
+import { a as listDiscordDirectoryGroupsLive, o as listDiscordDirectoryPeersLive, t as resolveDiscordOutboundSessionRoute } from "../../runtime-api-B2wCPqWw.js";
+import { A as hasAnyGuildPermissionDiscord, D as fetchChannelPermissionsDiscord, E as DiscordSendError, O as fetchMemberGuildPermissionsDiscord, k as hasAllGuildPermissionsDiscord, n as registerBuiltDiscordComponentMessage, r as sendDiscordComponentMessage, t as editDiscordComponentMessage } from "../../send.components-sVt5Smd7.js";
+import { A as listScheduledEventsDiscord, B as removeChannelPermissionDiscord, C as createScheduledEventDiscord, D as fetchVoiceStatusDiscord, E as fetchRoleInfoDiscord, F as uploadStickerDiscord, I as createChannelDiscord, L as deleteChannelDiscord, M as timeoutMemberDiscord, N as listGuildEmojisDiscord, O as kickMemberDiscord, P as uploadEmojiDiscord, R as editChannelDiscord, S as banMemberDiscord, T as fetchMemberInfoDiscord, V as setChannelPermissionDiscord, _ as pinMessageDiscord, a as sendTypingDiscord, b as unpinMessageDiscord, c as sendStickerDiscord, d as createThreadDiscord, f as deleteMessageDiscord, g as listThreadsDiscord, h as listPinsDiscord, i as removeReactionDiscord, j as removeRoleDiscord, k as listGuildChannelsDiscord, l as sendVoiceMessageDiscord, m as fetchMessageDiscord, n as reactMessageDiscord, o as sendMessageDiscord, p as editMessageDiscord, r as removeOwnReactionsDiscord, s as sendPollDiscord, t as fetchReactionsDiscord, u as sendWebhookMessageDiscord, v as readMessagesDiscord, w as fetchChannelInfoDiscord, x as addRoleDiscord, y as searchMessagesDiscord, z as moveChannelDiscord } from "../../send-BP9-Jzzy.js";
+import { n as collectDiscordAuditChannelIds, t as auditDiscordChannelPermissions } from "../../audit-RyARLatx.js";
+import { t as resolveDiscordUserAllowlist } from "../../resolve-users-QVP1LD60.js";
+import { D as resolveThreadBindingInactivityExpiresAt, E as resolveThreadBindingIdleTimeoutMs, L as resolveThreadBindingPersona, O as resolveThreadBindingMaxAgeExpiresAt, R as resolveThreadBindingPersonaFromRecord, g as isRecentlyUnboundThreadWebhookMessage, k as resolveThreadBindingMaxAgeMs } from "../../thread-bindings.discord-api-WOO9VoBT.js";
+import { a as setThreadBindingIdleTimeoutBySessionKey, c as __testing, d as getThreadBindingManager, f as resolveDiscordThreadBindingIdleTimeoutMs, i as reconcileAcpThreadBindingsOnStartup, l as createNoopThreadBindingManager, n as listThreadBindingsBySessionKey, o as setThreadBindingMaxAgeBySessionKey, p as resolveDiscordThreadBindingMaxAgeMs, r as listThreadBindingsForAccount, s as unbindThreadBindingsBySessionKey, t as autoBindSpawnedDiscordSubagent, u as createThreadBindingManager } from "../../thread-bindings-DGck9pdd.js";
+import { a as clearPresences, c as setPresence, i as unregisterGateway, n as getGateway, o as getPresence, r as registerGateway, s as presenceCacheSize, t as clearGateways } from "../../gateway-registry-CHn1fno4.js";
+import { a as readDiscordParentIdParam, i as requiredGuildPermissionForModerationAction, n as isDiscordModerationAction, r as readDiscordModerationCommand, t as handleDiscordAction } from "../../action-runtime-api-DD-76vf1.js";
+import { t as handleDiscordMessageAction } from "../../handle-action-ZUjyJIMN.js";
+import { a as resolveDiscordPrivilegedIntentsFromFlags, i as probeDiscord, n as fetchDiscordApplicationSummary, r as parseApplicationIdFromToken, t as fetchDiscordApplicationId } from "../../probe-DgkjlFQq.js";
+import { a as createDiscordGatewayPlugin, i as registerDiscordListener, o as resolveDiscordGatewayIntents, r as createDiscordNativeCommand, t as monitorDiscordProvider } from "../../provider-BjLY5Kwt.js";
+import { a as isAbortError, c as normalizeDiscordListenerTimeoutMs, i as DISCORD_DEFAULT_LISTENER_TIMEOUT_MS, l as runDiscordTaskWithTimeout, n as DISCORD_ATTACHMENT_TOTAL_TIMEOUT_MS, o as mergeAbortSignals, r as DISCORD_DEFAULT_INBOUND_WORKER_TIMEOUT_MS, s as normalizeDiscordInboundWorkerTimeoutMs, t as DISCORD_ATTACHMENT_IDLE_TIMEOUT_MS } from "../../timeouts-Rxac5izA.js";
+import { d as buildDiscordMediaPayload, o as resolveDiscordReplyTarget, u as sanitizeDiscordThreadName } from "../../threading-CBvj7nks.js";
+import { t as resolveDiscordChannelAllowlist } from "../../resolve-channels-BjmdxRGt.js";
+import { t as createDiscordMessageHandler } from "../../message-handler-BBH57I8c.js";
+import { Type } from "@sinclair/typebox";
+//#region extensions/discord/src/message-tool-schema.ts
+const discordComponentEmojiSchema = Type.Object({
+	name: Type.String(),
+	id: Type.Optional(Type.String()),
+	animated: Type.Optional(Type.Boolean())
+});
+const discordComponentOptionSchema = Type.Object({
+	label: Type.String(),
+	value: Type.String(),
+	description: Type.Optional(Type.String()),
+	emoji: Type.Optional(discordComponentEmojiSchema),
+	default: Type.Optional(Type.Boolean())
+});
+const discordComponentButtonSchema = Type.Object({
+	label: Type.String(),
+	style: Type.Optional(stringEnum([
+		"primary",
+		"secondary",
+		"success",
+		"danger",
+		"link"
+	])),
+	url: Type.Optional(Type.String()),
+	emoji: Type.Optional(discordComponentEmojiSchema),
+	disabled: Type.Optional(Type.Boolean()),
+	allowedUsers: Type.Optional(Type.Array(Type.String({ description: "Discord user ids or names allowed to interact with this button." })))
+});
+const discordComponentSelectSchema = Type.Object({
+	type: Type.Optional(stringEnum([
+		"string",
+		"user",
+		"role",
+		"mentionable",
+		"channel"
+	])),
+	placeholder: Type.Optional(Type.String()),
+	minValues: Type.Optional(Type.Number()),
+	maxValues: Type.Optional(Type.Number()),
+	options: Type.Optional(Type.Array(discordComponentOptionSchema))
+});
+const discordComponentBlockSchema = Type.Object({
+	type: Type.String(),
+	text: Type.Optional(Type.String()),
+	texts: Type.Optional(Type.Array(Type.String())),
+	accessory: Type.Optional(Type.Object({
+		type: Type.String(),
+		url: Type.Optional(Type.String()),
+		button: Type.Optional(discordComponentButtonSchema)
+	})),
+	spacing: Type.Optional(stringEnum(["small", "large"])),
+	divider: Type.Optional(Type.Boolean()),
+	buttons: Type.Optional(Type.Array(discordComponentButtonSchema)),
+	select: Type.Optional(discordComponentSelectSchema),
+	items: Type.Optional(Type.Array(Type.Object({
+		url: Type.String(),
+		description: Type.Optional(Type.String()),
+		spoiler: Type.Optional(Type.Boolean())
+	}))),
+	file: Type.Optional(Type.String()),
+	spoiler: Type.Optional(Type.Boolean())
+});
+const discordComponentModalFieldSchema = Type.Object({
+	type: Type.String(),
+	name: Type.Optional(Type.String()),
+	label: Type.String(),
+	description: Type.Optional(Type.String()),
+	placeholder: Type.Optional(Type.String()),
+	required: Type.Optional(Type.Boolean()),
+	options: Type.Optional(Type.Array(discordComponentOptionSchema)),
+	minValues: Type.Optional(Type.Number()),
+	maxValues: Type.Optional(Type.Number()),
+	minLength: Type.Optional(Type.Number()),
+	maxLength: Type.Optional(Type.Number()),
+	style: Type.Optional(stringEnum(["short", "paragraph"]))
+});
+const discordComponentModalSchema = Type.Object({
+	title: Type.String(),
+	triggerLabel: Type.Optional(Type.String()),
+	triggerStyle: Type.Optional(stringEnum([
+		"primary",
+		"secondary",
+		"success",
+		"danger",
+		"link"
+	])),
+	fields: Type.Array(discordComponentModalFieldSchema)
+});
+function createDiscordMessageToolComponentsSchema() {
+	return Type.Object({
+		text: Type.Optional(Type.String()),
+		reusable: Type.Optional(Type.Boolean({ description: "Allow components to be used multiple times until they expire." })),
+		container: Type.Optional(Type.Object({
+			accentColor: Type.Optional(Type.String()),
+			spoiler: Type.Optional(Type.Boolean())
+		})),
+		blocks: Type.Optional(Type.Array(discordComponentBlockSchema)),
+		modal: Type.Optional(discordComponentModalSchema)
+	}, { description: "Discord components v2 payload. Set reusable=true to keep buttons, selects, and forms active until expiry." });
+}
+//#endregion
+//#region extensions/discord/src/channel-actions.ts
+function resolveDiscordActionDiscovery(cfg) {
+	const accounts = listTokenSourcedAccounts(listEnabledDiscordAccounts(cfg));
+	if (accounts.length === 0) return null;
+	const unionGate = createUnionActionGate(accounts, (account) => createDiscordActionGate({
+		cfg,
+		accountId: account.accountId
+	}));
+	return { isEnabled: (key, defaultValue = true) => unionGate(key, defaultValue) };
+}
+function describeDiscordMessageTool({ cfg }) {
+	const discovery = resolveDiscordActionDiscovery(cfg);
+	if (!discovery) return {
+		actions: [],
+		capabilities: [],
+		schema: null
+	};
+	const actions = new Set(["send"]);
+	if (discovery.isEnabled("polls")) actions.add("poll");
+	if (discovery.isEnabled("reactions")) {
+		actions.add("react");
+		actions.add("reactions");
+		actions.add("emoji-list");
+	}
+	if (discovery.isEnabled("messages")) {
+		actions.add("read");
+		actions.add("edit");
+		actions.add("delete");
+	}
+	if (discovery.isEnabled("pins")) {
+		actions.add("pin");
+		actions.add("unpin");
+		actions.add("list-pins");
+	}
+	if (discovery.isEnabled("permissions")) actions.add("permissions");
+	if (discovery.isEnabled("threads")) {
+		actions.add("thread-create");
+		actions.add("thread-list");
+		actions.add("thread-reply");
+	}
+	if (discovery.isEnabled("search")) actions.add("search");
+	if (discovery.isEnabled("stickers")) actions.add("sticker");
+	if (discovery.isEnabled("memberInfo")) actions.add("member-info");
+	if (discovery.isEnabled("roleInfo")) actions.add("role-info");
+	if (discovery.isEnabled("emojiUploads")) actions.add("emoji-upload");
+	if (discovery.isEnabled("stickerUploads")) actions.add("sticker-upload");
+	if (discovery.isEnabled("roles", false)) {
+		actions.add("role-add");
+		actions.add("role-remove");
+	}
+	if (discovery.isEnabled("channelInfo")) {
+		actions.add("channel-info");
+		actions.add("channel-list");
+	}
+	if (discovery.isEnabled("channels")) {
+		actions.add("channel-create");
+		actions.add("channel-edit");
+		actions.add("channel-delete");
+		actions.add("channel-move");
+		actions.add("category-create");
+		actions.add("category-edit");
+		actions.add("category-delete");
+	}
+	if (discovery.isEnabled("voiceStatus")) actions.add("voice-status");
+	if (discovery.isEnabled("events")) {
+		actions.add("event-list");
+		actions.add("event-create");
+	}
+	if (discovery.isEnabled("moderation", false)) {
+		actions.add("timeout");
+		actions.add("kick");
+		actions.add("ban");
+	}
+	if (discovery.isEnabled("presence", false)) actions.add("set-presence");
+	return {
+		actions: Array.from(actions),
+		capabilities: ["interactive", "components"],
+		schema: { properties: { components: Type.Optional(createDiscordMessageToolComponentsSchema()) } }
+	};
+}
+const discordMessageActions = {
+	describeMessageTool: describeDiscordMessageTool,
+	extractToolSend: ({ args }) => {
+		const action = typeof args.action === "string" ? args.action.trim() : "";
+		if (action === "sendMessage") {
+			const to = typeof args.to === "string" ? args.to : void 0;
+			return to ? { to } : null;
+		}
+		if (action === "threadReply") {
+			const channelId = typeof args.channelId === "string" ? args.channelId.trim() : "";
+			return channelId ? { to: `channel:${channelId}` } : null;
+		}
+		return null;
+	},
+	handleAction: async ({ action, params, cfg, accountId, requesterSenderId, toolContext, mediaLocalRoots }) => {
+		return await handleDiscordMessageAction({
+			action,
+			params,
+			cfg,
+			accountId,
+			requesterSenderId,
+			toolContext,
+			mediaLocalRoots
+		});
+	}
+};
+//#endregion
+export { DISCORD_ATTACHMENT_IDLE_TIMEOUT_MS, DISCORD_ATTACHMENT_TOTAL_TIMEOUT_MS, DISCORD_DEFAULT_INBOUND_WORKER_TIMEOUT_MS, DISCORD_DEFAULT_LISTENER_TIMEOUT_MS, DiscordSendError, __testing, addRoleDiscord, allowListMatches, auditDiscordChannelPermissions, autoBindSpawnedDiscordSubagent, banMemberDiscord, buildDiscordMediaPayload, clearGateways, clearPresences, collectDiscordAuditChannelIds, createChannelDiscord, createDiscordGatewayPlugin, createDiscordMessageHandler, createDiscordNativeCommand, createNoopThreadBindingManager, createScheduledEventDiscord, createThreadBindingManager, createThreadDiscord, deleteChannelDiscord, deleteMessageDiscord, discordMessageActions, editChannelDiscord, editDiscordComponentMessage, editMessageDiscord, fetchChannelInfoDiscord, fetchChannelPermissionsDiscord, fetchDiscordApplicationId, fetchDiscordApplicationSummary, fetchMemberGuildPermissionsDiscord, fetchMemberInfoDiscord, fetchMessageDiscord, fetchReactionsDiscord, fetchRoleInfoDiscord, fetchVoiceStatusDiscord, formatThreadBindingDurationLabel, getGateway, getPresence, getThreadBindingManager, handleDiscordAction, hasAllGuildPermissionsDiscord, hasAnyGuildPermissionDiscord, isAbortError, isDiscordGroupAllowedByPolicy, isDiscordModerationAction, isRecentlyUnboundThreadWebhookMessage, kickMemberDiscord, listDiscordDirectoryGroupsLive, listDiscordDirectoryPeersLive, listGuildChannelsDiscord, listGuildEmojisDiscord, listPinsDiscord, listScheduledEventsDiscord, listThreadBindingsBySessionKey, listThreadBindingsForAccount, listThreadsDiscord, mergeAbortSignals, monitorDiscordProvider, moveChannelDiscord, normalizeDiscordAllowList, normalizeDiscordInboundWorkerTimeoutMs, normalizeDiscordListenerTimeoutMs, normalizeDiscordSlug, parseApplicationIdFromToken, pinMessageDiscord, presenceCacheSize, probeDiscord, reactMessageDiscord, readDiscordModerationCommand, readDiscordParentIdParam, readMessagesDiscord, reconcileAcpThreadBindingsOnStartup, registerBuiltDiscordComponentMessage, registerDiscordListener, registerGateway, removeChannelPermissionDiscord, removeOwnReactionsDiscord, removeReactionDiscord, removeRoleDiscord, requiredGuildPermissionForModerationAction, resolveDiscordChannelAllowlist, resolveDiscordChannelConfig, resolveDiscordChannelConfigWithFallback, resolveDiscordCommandAuthorized, resolveDiscordGatewayIntents, resolveDiscordGuildEntry, resolveDiscordOutboundSessionRoute, resolveDiscordPrivilegedIntentsFromFlags, resolveDiscordReplyTarget, resolveDiscordShouldRequireMention, resolveDiscordThreadBindingIdleTimeoutMs, resolveDiscordThreadBindingMaxAgeMs, resolveDiscordUserAllowlist, resolveGroupDmAllow, resolveThreadBindingIdleTimeoutMs, resolveThreadBindingInactivityExpiresAt, resolveThreadBindingIntroText, resolveThreadBindingMaxAgeExpiresAt, resolveThreadBindingMaxAgeMs, resolveThreadBindingPersona, resolveThreadBindingPersonaFromRecord, resolveThreadBindingThreadName, resolveThreadBindingsEnabled, runDiscordTaskWithTimeout, sanitizeDiscordThreadName, searchMessagesDiscord, sendDiscordComponentMessage, sendMessageDiscord, sendPollDiscord, sendStickerDiscord, sendTypingDiscord, sendVoiceMessageDiscord, sendWebhookMessageDiscord, setChannelPermissionDiscord, setPresence, setThreadBindingIdleTimeoutBySessionKey, setThreadBindingMaxAgeBySessionKey, shouldEmitDiscordReactionNotification, timeoutMemberDiscord, unbindThreadBindingsBySessionKey, unpinMessageDiscord, unregisterGateway, uploadEmojiDiscord, uploadStickerDiscord };

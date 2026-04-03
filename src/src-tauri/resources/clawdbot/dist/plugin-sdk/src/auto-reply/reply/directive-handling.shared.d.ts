@@ -4,10 +4,15 @@ export declare const formatOptionsLine: (options: string) => string;
 export declare const withOptions: (line: string, options: string) => string;
 export declare const formatElevatedRuntimeHint: () => string;
 export declare const formatInternalExecPersistenceDeniedText: () => string;
-export declare function canPersistInternalExecDirective(params: {
+export declare const formatInternalVerbosePersistenceDeniedText: () => string;
+export declare const formatInternalVerboseCurrentReplyOnlyText: () => string;
+declare function canPersistInternalDirective(params: {
+    messageProvider?: string;
     surface?: string;
     gatewayClientScopes?: string[];
 }): boolean;
+export declare const canPersistInternalExecDirective: typeof canPersistInternalDirective;
+export declare const canPersistInternalVerboseDirective: typeof canPersistInternalDirective;
 export declare const formatElevatedEvent: (level: ElevatedLevel) => "Elevated FULL — exec runs on host with auto-approval." | "Elevated ASK — exec runs on host; approvals may still apply." | "Elevated OFF — exec stays in sandbox.";
 export declare const formatReasoningEvent: (level: ReasoningLevel) => "Reasoning STREAM — emit live <think>." | "Reasoning ON — include <think>." | "Reasoning OFF — hide <think>.";
 export declare function enqueueModeSwitchEvents(params: {
@@ -31,3 +36,4 @@ export declare function formatElevatedUnavailableText(params: {
     }>;
     sessionKey?: string;
 }): string;
+export {};

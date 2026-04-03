@@ -2,13 +2,26 @@ import { MANIFEST_KEY } from "../compat/legacy-names.js";
 import type { PluginConfigUiHint, PluginKind } from "./types.js";
 export declare const PLUGIN_MANIFEST_FILENAME = "openclaw.plugin.json";
 export declare const PLUGIN_MANIFEST_FILENAMES: readonly ["openclaw.plugin.json"];
+export type PluginManifestChannelConfig = {
+    schema: Record<string, unknown>;
+    uiHints?: Record<string, PluginConfigUiHint>;
+    label?: string;
+    description?: string;
+    preferOver?: string[];
+};
 export type PluginManifest = {
     id: string;
     configSchema: Record<string, unknown>;
     enabledByDefault?: boolean;
-    kind?: PluginKind;
+    /** Legacy plugin ids that should normalize to this plugin id. */
+    legacyPluginIds?: string[];
+    /** Provider ids that should auto-enable this plugin when referenced in auth/config/models. */
+    autoEnableWhenConfiguredProviders?: string[];
+    kind?: PluginKind | PluginKind[];
     channels?: string[];
     providers?: string[];
+    /** Cheap startup activation lookup for plugin-owned CLI inference backends. */
+    cliBackends?: string[];
     /** Cheap provider-auth env lookup without booting plugin runtime. */
     providerAuthEnvVars?: Record<string, string[]>;
     /**
@@ -21,6 +34,20 @@ export type PluginManifest = {
     description?: string;
     version?: string;
     uiHints?: Record<string, PluginConfigUiHint>;
+    /**
+     * Static capability ownership snapshot used for manifest-driven discovery,
+     * compat wiring, and contract coverage without importing plugin runtime.
+     */
+    contracts?: PluginManifestContracts;
+    channelConfigs?: Record<string, PluginManifestChannelConfig>;
+};
+export type PluginManifestContracts = {
+    speechProviders?: string[];
+    mediaUnderstandingProviders?: string[];
+    imageGenerationProviders?: string[];
+    webFetchProviders?: string[];
+    webSearchProviders?: string[];
+    tools?: string[];
 };
 export type PluginManifestProviderAuthChoice = {
     /** Provider id owned by this manifest entry. */
@@ -32,6 +59,8 @@ export type PluginManifestProviderAuthChoice = {
     /** Optional user-facing choice label/hint for grouped onboarding UI. */
     choiceLabel?: string;
     choiceHint?: string;
+    /** Legacy choice ids that should point users at this replacement choice. */
+    deprecatedChoiceIds?: string[];
     /** Optional grouping metadata for auth-choice pickers. */
     groupId?: string;
     groupLabel?: string;
@@ -68,12 +97,13 @@ export type PluginPackageChannel = {
     docsLabel?: string;
     blurb?: string;
     order?: number;
-    aliases?: string[];
-    preferOver?: string[];
+    aliases?: readonly string[];
+    preferOver?: readonly string[];
     systemImage?: string;
     selectionDocsPrefix?: string;
     selectionDocsOmitLabel?: boolean;
-    selectionExtras?: string[];
+    selectionExtras?: readonly string[];
+    markdownCapable?: boolean;
     showConfigured?: boolean;
     quickstartAllowFrom?: boolean;
     forceAccountBinding?: boolean;

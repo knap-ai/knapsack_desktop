@@ -19,6 +19,7 @@ export declare function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSe
         toolName: string;
         meta?: string;
         error?: string;
+        timedOut?: boolean;
         mutatingAction?: boolean;
         actionFingerprint?: string;
     } | undefined;

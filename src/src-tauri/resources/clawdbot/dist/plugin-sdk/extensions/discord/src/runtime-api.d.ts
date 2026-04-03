@@ -6,6 +6,8 @@ export { assertMediaNotDataUrl, parseAvailableTags, readReactionParams, withNorm
 export { createHybridChannelConfigAdapter, createScopedChannelConfigAdapter, createScopedAccountConfigAccessors, createScopedChannelConfigBase, createTopLevelChannelConfigAdapter, } from "openclaw/plugin-sdk/channel-config-helpers";
 export { createAccountActionGate, createAccountListHelpers, } from "openclaw/plugin-sdk/account-helpers";
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";
+export { loadOutboundMediaFromUrl } from "openclaw/plugin-sdk/discord";
 export { resolveAccountEntry } from "openclaw/plugin-sdk/routing";
 export type { ChannelMessageActionAdapter, ChannelMessageActionName, } from "openclaw/plugin-sdk/channel-contract";
 export { hasConfiguredSecretInput, normalizeResolvedSecretInputString, normalizeSecretInputString, } from "openclaw/plugin-sdk/secret-input";
+export { resolveDiscordOutboundSessionRoute } from "./outbound-session-route.js";

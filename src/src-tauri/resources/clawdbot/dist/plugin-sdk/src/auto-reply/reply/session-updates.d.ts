@@ -1,12 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry } from "../../config/sessions.js";
-/** Drain queued system events, format as `System:` lines, return the block (or undefined). */
-export declare function drainFormattedSystemEvents(params: {
-    cfg: OpenClawConfig;
-    sessionKey: string;
-    isMainSession: boolean;
-    isNewSession: boolean;
-}): Promise<string | undefined>;
+export { drainFormattedSystemEvents } from "./session-system-events.js";
 export declare function ensureSkillSnapshot(params: {
     sessionEntry?: SessionEntry;
     sessionStore?: Record<string, SessionEntry>;

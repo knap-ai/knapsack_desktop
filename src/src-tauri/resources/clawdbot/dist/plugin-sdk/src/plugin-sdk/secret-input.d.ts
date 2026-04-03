@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { hasConfiguredSecretInput, normalizeResolvedSecretInputString, normalizeSecretInputString } from "../config/types.secrets.js";
+import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
 import { buildSecretInputSchema } from "./secret-input-schema.js";
 export type { SecretInput } from "../config/types.secrets.js";
-export { buildSecretInputSchema, hasConfiguredSecretInput, normalizeResolvedSecretInputString, normalizeSecretInputString, };
+export { buildSecretInputSchema, hasConfiguredSecretInput, normalizeResolvedSecretInputString, normalizeSecretInput, normalizeSecretInputString, };
 /** Optional version of the shared secret-input schema. */
 export declare function buildOptionalSecretInputSchema(): z.ZodOptional<z.ZodUnion<readonly [z.ZodString, z.ZodDiscriminatedUnion<[z.ZodObject<{
     source: z.ZodLiteral<"env">;

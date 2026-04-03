@@ -8,6 +8,7 @@ export declare function ensureGatewayStartupAuth(params: {
     authOverride?: GatewayAuthConfig;
     tailscaleOverride?: GatewayTailscaleConfig;
     persist?: boolean;
+    baseHash?: string;
 }): Promise<{
     cfg: OpenClawConfig;
     auth: ReturnType<typeof resolveGatewayAuth>;

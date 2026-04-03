@@ -8,6 +8,12 @@ export type ThreadBindingSpawnPolicy = {
     enabled: boolean;
     spawnEnabled: boolean;
 };
+export declare function supportsAutomaticThreadBindingSpawn(channel: string): boolean;
+export declare function requiresNativeThreadContextForThreadHere(channel: string): boolean;
+export declare function resolveThreadBindingPlacementForCurrentContext(params: {
+    channel: string;
+    threadId?: string;
+}): "current" | "child";
 export declare function resolveThreadBindingIdleTimeoutMs(params: {
     channelIdleHoursRaw: unknown;
     sessionIdleHoursRaw: unknown;

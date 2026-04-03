@@ -7,11 +7,16 @@ export declare const __testing: {
         updateAuthProfileStoreWithLock: typeof updateAuthProfileStoreWithLock;
     }> | null): void;
 };
+type WhamCooldownProbeResult = {
+    cooldownMs: number;
+    reason: string;
+};
+export declare function probeWhamForCooldown(store: AuthProfileStore, profileId: string): Promise<WhamCooldownProbeResult | null>;
 export declare function resolveProfileUnusableUntil(stats: Pick<ProfileUsageStats, "cooldownUntil" | "disabledUntil">): number | null;
 /**
  * Check if a profile is currently in cooldown (due to rate limits, overload, or other transient failures).
  */
-export declare function isProfileInCooldown(store: AuthProfileStore, profileId: string, now?: number): boolean;
+export declare function isProfileInCooldown(store: AuthProfileStore, profileId: string, now?: number, forModel?: string): boolean;
 /**
  * Infer the most likely reason all candidate profiles are currently unavailable.
  *
@@ -28,7 +33,10 @@ export declare function resolveProfilesUnavailableReason(params: {
  * profiles, or `null` when no profile has a recorded cooldown. Note: the
  * returned timestamp may be in the past if the cooldown has already expired.
  */
-export declare function getSoonestCooldownExpiry(store: AuthProfileStore, profileIds: string[]): number | null;
+export declare function getSoonestCooldownExpiry(store: AuthProfileStore, profileIds: string[], options?: {
+    now?: number;
+    forModel?: string;
+}): number | null;
 /**
  * Clear expired cooldowns from all profiles in the store.
  *
@@ -71,10 +79,11 @@ export declare function markAuthProfileFailure(params: {
     cfg?: OpenClawConfig;
     agentDir?: string;
     runId?: string;
+    modelId?: string;
 }): Promise<void>;
 /**
- * Mark a profile as transiently failed. Applies exponential backoff cooldown.
- * Cooldown times: 1min, 5min, 25min, max 1 hour.
+ * Mark a profile as transiently failed. Applies stepped backoff cooldown.
+ * Cooldown times: 30s, 1min, 5min (capped).
  * Uses store lock to avoid overwriting concurrent usage updates.
  */
 export declare function markAuthProfileCooldown(params: {
@@ -92,3 +101,4 @@ export declare function clearAuthProfileCooldown(params: {
     profileId: string;
     agentDir?: string;
 }): Promise<void>;
+export {};

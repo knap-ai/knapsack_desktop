@@ -1,9 +1,11 @@
 type PluginSdkAliasCandidateKind = "dist" | "src";
+export type PluginSdkResolutionPreference = "auto" | "dist" | "src";
 export type LoaderModuleResolveParams = {
     modulePath?: string;
     argv1?: string;
     cwd?: string;
     moduleUrl?: string;
+    pluginSdkResolution?: PluginSdkResolutionPreference;
 };
 export declare function resolveLoaderPackageRoot(params: LoaderModuleResolveParams & {
     modulePath: string;
@@ -11,6 +13,7 @@ export declare function resolveLoaderPackageRoot(params: LoaderModuleResolvePara
 export declare function resolvePluginSdkAliasCandidateOrder(params: {
     modulePath: string;
     isProduction: boolean;
+    pluginSdkResolution?: PluginSdkResolutionPreference;
 }): PluginSdkAliasCandidateKind[];
 export declare function listPluginSdkAliasCandidates(params: {
     srcFile: string;
@@ -19,6 +22,7 @@ export declare function listPluginSdkAliasCandidates(params: {
     argv1?: string;
     cwd?: string;
     moduleUrl?: string;
+    pluginSdkResolution?: PluginSdkResolutionPreference;
 }): string[];
 export declare function resolvePluginSdkAliasFile(params: {
     srcFile: string;
@@ -27,15 +31,22 @@ export declare function resolvePluginSdkAliasFile(params: {
     argv1?: string;
     cwd?: string;
     moduleUrl?: string;
+    pluginSdkResolution?: PluginSdkResolutionPreference;
 }): string | null;
 export declare function listPluginSdkExportedSubpaths(params?: {
     modulePath?: string;
+    argv1?: string;
+    moduleUrl?: string;
+    pluginSdkResolution?: PluginSdkResolutionPreference;
 }): string[];
 export declare function resolvePluginSdkScopedAliasMap(params?: {
     modulePath?: string;
+    argv1?: string;
+    moduleUrl?: string;
+    pluginSdkResolution?: PluginSdkResolutionPreference;
 }): Record<string, string>;
 export declare function resolveExtensionApiAlias(params?: LoaderModuleResolveParams): string | null;
-export declare function buildPluginLoaderAliasMap(modulePath: string): Record<string, string>;
+export declare function buildPluginLoaderAliasMap(modulePath: string, argv1?: string | undefined, moduleUrl?: string, pluginSdkResolution?: PluginSdkResolutionPreference): Record<string, string>;
 export declare function resolvePluginRuntimeModulePath(params?: LoaderModuleResolveParams): string | null;
 export declare function buildPluginLoaderJitiOptions(aliasMap: Record<string, string>): {
     alias?: Record<string, string> | undefined;

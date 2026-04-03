@@ -1,11 +1,12 @@
 import type { InlineKeyboardMarkup } from "@grammyjs/types";
 import { Bot } from "grammy";
 import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { RetryConfig } from "openclaw/plugin-sdk/infra-runtime";
 import { type PollInput } from "openclaw/plugin-sdk/media-runtime";
+import { type RetryConfig } from "openclaw/plugin-sdk/retry-runtime";
 import type { TelegramInlineButtons } from "./button-types.js";
 type TelegramApi = Bot["api"];
 export type TelegramApiOverride = Partial<TelegramApi>;
+type TelegramCreateForumTopicParams = NonNullable<Parameters<TelegramApi["createForumTopic"]>[2]>;
 type TelegramSendOpts = {
     cfg?: ReturnType<typeof loadConfig>;
     token?: string;
@@ -13,14 +14,16 @@ type TelegramSendOpts = {
     verbose?: boolean;
     mediaUrl?: string;
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
+    gatewayClientScopes?: readonly string[];
     maxBytes?: number;
     api?: TelegramApiOverride;
     retry?: RetryConfig;
     textMode?: "markdown" | "html";
     plainText?: string;
-    /** Send audio as voice message (voice bubble) instead of audio file. Defaults to false. */
+    /** Send audio as voice message instead of audio file. Defaults to false. */
     asVoice?: boolean;
-    /** Send video as video note (voice bubble) instead of regular video. Defaults to false. */
+    /** Send video as video note instead of regular video. Defaults to false. */
     asVideoNote?: boolean;
     /** Send message silently (no notification). Defaults to false. */
     silent?: boolean;
@@ -168,6 +171,7 @@ type TelegramPollOpts = {
     verbose?: boolean;
     api?: TelegramApiOverride;
     retry?: RetryConfig;
+    gatewayClientScopes?: readonly string[];
     /** Message ID to reply to (for threading) */
     replyToMessageId?: number;
     /** Forum topic thread ID (for forum supergroups) */
@@ -196,7 +200,7 @@ type TelegramCreateForumTopicOpts = {
     verbose?: boolean;
     retry?: RetryConfig;
     /** Icon color for the topic (must be one of 0x6FB9F0, 0xFFD67E, 0xCB86DB, 0x8EEE98, 0xFF93B2, 0xFB6F5F). */
-    iconColor?: number;
+    iconColor?: TelegramCreateForumTopicParams["icon_color"];
     /** Custom emoji ID for the topic icon. */
     iconCustomEmojiId?: string;
 };

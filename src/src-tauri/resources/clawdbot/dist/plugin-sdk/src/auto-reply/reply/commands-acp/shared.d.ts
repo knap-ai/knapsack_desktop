@@ -4,7 +4,7 @@ import type { AcpSessionRuntimeOptions } from "../../../config/sessions/types.js
 import type { CommandHandlerResult, HandleCommandsParams } from "../commands-types.js";
 export { resolveAcpInstallCommandHint, resolveConfiguredAcpBackendId } from "./install-hints.js";
 export declare const COMMAND = "/acp";
-export declare const ACP_SPAWN_USAGE = "Usage: /acp spawn [harness-id] [--mode persistent|oneshot] [--thread auto|here|off] [--cwd <path>] [--label <label>].";
+export declare const ACP_SPAWN_USAGE = "Usage: /acp spawn [harness-id] [--mode persistent|oneshot] [--thread auto|here|off] [--bind here|off] [--cwd <path>] [--label <label>].";
 export declare const ACP_STEER_USAGE = "Usage: /acp steer [--session <session-key|session-id|session-label>] <instruction>";
 export declare const ACP_SET_MODE_USAGE = "Usage: /acp set-mode <mode> [session-key|session-id|session-label]";
 export declare const ACP_SET_USAGE = "Usage: /acp set <key> <value> [session-key|session-id|session-label]";
@@ -21,10 +21,12 @@ export declare const ACP_STEER_OUTPUT_LIMIT = 800;
 export { SESSION_ID_RE } from "../../../sessions/session-id.js";
 export type AcpAction = "spawn" | "cancel" | "steer" | "close" | "sessions" | "status" | "set-mode" | "set" | "cwd" | "permissions" | "timeout" | "model" | "reset-options" | "doctor" | "install" | "help";
 export type AcpSpawnThreadMode = "auto" | "here" | "off";
+export type AcpSpawnBindMode = "here" | "off";
 export type ParsedSpawnInput = {
     agentId: string;
     mode: AcpRuntimeSessionMode;
     thread: AcpSpawnThreadMode;
+    bind: AcpSpawnBindMode;
     cwd?: string;
     label?: string;
 };

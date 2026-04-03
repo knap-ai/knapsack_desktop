@@ -1,226 +1,24 @@
-import "../../redact-BDinS1q9.js";
-import "../../errors-BxyFnvP3.js";
-import "../../unhandled-rejections-CDJ8dOVP.js";
-import "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import "../../tmp-openclaw-dir-idKIOMmb.js";
-import "../../theme-CdOoMzRk.js";
-import "../../globals-DBUMOBZ8.js";
-import "../../subsystem-DISldKSB.js";
-import "../../ansi-BEJF8NKS.js";
-import "../../boolean-C3GkJetE.js";
-import "../../env-Dnra1IpT.js";
-import "../../warning-filter-CBhOcgHd.js";
-import "../../utils-CS0Ikux6.js";
-import "../../links-8xRhWBQL.js";
-import "../../paths-C4Oy7wjk.js";
-import "../../auth-profiles-DRuJBw5y.js";
-import { _ as normalizeAccountId, g as DEFAULT_ACCOUNT_ID } from "../../session-key-DAhnzjyr.js";
-import "../../agent-scope-bjWqU22i.js";
-import "../../boundary-path-Dm0QJ7-y.js";
-import "../../boundary-file-read-DcZxlWD8.js";
-import "../../logger-BmpSCz93.js";
-import "../../exec-B5_AYfQG.js";
-import "../../workspace-D4K6QX9X.js";
-import "../../model-selection-BnFtDmP7.js";
-import "../../io-y3Az_Onx.js";
-import "../../shell-env-BOu7XeT_.js";
-import "../../safe-text-yavot2qw.js";
-import "../../version-CD3oP1-d.js";
-import "../../env-substitution-O6uabUmO.js";
-import "../../includes-Bj3eLUWH.js";
-import "../../zod-schema.providers-core-COy5nBQ0.js";
-import "../../legacy-web-search-BB-ZHEhz.js";
-import "../../registry-C5UkPpaO.js";
-import "../../config-state-Br0ucqMb.js";
-import "../../min-host-version-RMBWtIAR.js";
-import "../../manifest-registry-B5JNQdOM.js";
-import "../../runtime-guard-PhQ6PwQa.js";
-import "../../avatar-policy-B5nOfso_.js";
-import "../../ip-Ce8EDTBZ.js";
-import "../../zod-schema.agent-runtime-Dtg4Jy6G.js";
-import "../../zod-schema.core-BuVz8Rk7.js";
-import "../../config-D4zN4BRl.js";
-import "../../file-lock-DEiVq2ow.js";
-import "../../audit-fs-DTQIjp2r.js";
-import "../../resolve-B7S4PlnO.js";
-import "../../profiles-COPO-hHI.js";
-import "../../tailscale-CxY-91GZ.js";
-import "../../tailnet-DHiKSG7V.js";
-import "../../net-JAg9zL0G.js";
-import "../../auth-Buq0Niri.js";
-import "../../credentials-D8pfRimu.js";
-import "../../message-channel-BliByQBl.js";
-import "../../store-C5UK26Ce.js";
-import "../../runtime-Iz8uZ7EU.js";
-import "../../plugins-B09-vgme.js";
-import "../../sessions-D9ZgHCHb.js";
-import "../../paths-rhN9LKM_.js";
-import "../../session-write-lock-va3qZE6f.js";
-import "../../method-scopes-BiEi0X2g.js";
-import "../../call-CQbSO4Fr.js";
-import "../../prompt-style-C4CV4Y_p.js";
-import "../../ports-lsof-BLEgL_Gn.js";
-import "../../restart-stale-pids-BsPvlGJd.js";
-import "../../ports-FldL_Lhq.js";
-import "../../logging-CznuqaMu.js";
-import "../../commands-C6oAw_H-.js";
-import "../../issue-format-BtLIwOtN.js";
-import "../../identity-Dp-UIak4.js";
-import "../../heartbeat-Bdfr_onc.js";
-import { Hb as defineChannelPluginEntry, Vb as createChatChannelPlugin, ex as createScopedDmSecurityResolver, zb as buildChannelOutboundSessionRoute } from "../../pi-embedded-CbCYZxIb.js";
-import "../../internal-hooks-CIUghoK4.js";
-import "../../multimodal-B8yEZcl5.js";
-import "../../memory-search-B_aq08y5.js";
-import "../../provider-catalog-rVN7ZbR5.js";
-import "../../secret-input-DXoOLNgb.js";
-import "../../bindings-CFudGB9Z.js";
-import "../../resolve-route-DwFWP4JW.js";
-import "../../routing-zOQ0wwtV.js";
-import "../../identity-file-DVLib087.js";
-import "../../outbound-runtime-m-y0nd6F.js";
-import "../../provider-env-vars-CpUJqT5v.js";
-import "../../provider-auth-input-Bus9W_qh.js";
-import "../../provider-model-minimax-DSmX4BNO.js";
-import "../../provider-models-BKjzpTsb.js";
-import "../../anthropic-vertex-provider-B2x4YywE.js";
-import "../../provider-catalog-BTgF8VyO.js";
-import "../../provider-catalog-D0IlX18O.js";
-import "../../provider-catalog-BTmUX0Mp.js";
-import "../../provider-catalog-sph_Rl63.js";
-import "../../provider-catalog-C7tUyBwV.js";
-import "../../provider-catalog-C8dPZpHW.js";
-import "../../provider-catalog-BJNff1VI.js";
-import "../../provider-catalog-IAdymoqT.js";
-import "../../provider-catalog-Bjc7evzh.js";
-import "../../models-config.providers.discovery-CjkO08q6.js";
-import "../../text-runtime-DVXt5xhi.js";
-import "../../tool-catalog-BjSY4C4F.js";
-import "../../docker-Bhjg8g2t.js";
-import "../../sandbox-DTlKNieF.js";
-import "../../common-zReYuoMM.js";
-import "../../image-ops-By4YfyWa.js";
-import "../../thinking-CJoSRIGR.js";
-import "../../path-alias-guards-CwRM04O1.js";
-import "../../sandbox-paths-Cn8i8Jxm.js";
-import "../../channel-actions-fV93bLjV.js";
-import "../../mime-CsUtzcn2.js";
-import "../../ssrf-0bPJMoZR.js";
-import "../../fetch-guard-CYl1q2XH.js";
-import "../../provider-web-search-COZNygbd.js";
-import "../../manager-Bw8JrihM.js";
-import "../../config-schema-CPzP2Ds6.js";
-import "../../channel-plugin-common-ClptUZHU.js";
-import { c as createAsyncComputedAccountStatusAdapter, u as createDefaultChannelRuntimeState } from "../../status-helpers-Cflmo90d.js";
-import { Y as createStaticReplyToModeResolver } from "../../conversation-runtime-nmWgJSXS.js";
-import { a as createEmptyChannelResult, o as createRawChannelSendResultAdapter } from "../../channel-send-result-DDWpviAF.js";
-import "../../runtime-whatsapp-boundary-XjdkYMz_.js";
-import "../../pairing-store-BGKLrjo6.js";
-import "../../json-store--JDX3zNL.js";
-import { i as createPairingPrefixStripper } from "../../channel-pairing-BrG9NqjP.js";
-import "../../secret-file-Bif7RlZ-.js";
-import "../../channel-config-schema-CgpS17zB.js";
-import "../../setup-binary-C2MYZTCc.js";
-import "../../archive-pOxyr9r4.js";
-import "../../fs-safe-DZyOgpPN.js";
-import "../../signal-cli-install-fVOL9FvX.js";
-import "../../setup-wizard-proxy-DoOpOF8S.js";
-import "../../setup-BI3ohdrT.js";
-import "../../dm-policy-shared-DtcQProI.js";
-import "../../runtime-env-DQOYrXVl.js";
-import "../../temp-path-B91lt0LF.js";
-import "../../diagnostic-CDTtMQBT.js";
-import "../../logging-CCTKg_fh.js";
-import "../../config-runtime-BYNizC50.js";
-import { n as isDangerousNameMatchingEnabled } from "../../dangerous-name-matching-BQW4HoPt.js";
-import "../../level-overrides-DzIzQ3ZY.js";
-import "../../exec-approvals-BF_Qfdq8.js";
-import "../../webhook-ingress-D-H5frou.js";
-import "../../system-events-BU_NYynX.js";
-import "../../ssrf-policy-DYINyIKC.js";
-import { l as isNumericTargetId, y as sendPayloadWithChunkedTextAndMedia } from "../../reply-payload-CiQ7TPgp.js";
-import "../../hook-runtime-BUYmDbaA.js";
-import "../../templating-BDXRiJUh.js";
-import "../../channel-reply-pipeline-BxH4-AP2.js";
-import "../../reply-history-n7nOPLta.js";
-import "../../commands-registry.data-BFXJWoqi.js";
-import "../../commands-registry-Bh9pJ817.js";
-import "../../frontmatter-CP5371Rm.js";
-import "../../env-overrides-BNSo89u5.js";
-import "../../skills-M0AZJeXx.js";
-import "../../skills-remote-BHxDA4Jw.js";
-import "../../workspace-dirs-DqDLiRvZ.js";
-import "../../pairing-token-DAszGmwD.js";
-import "../../skill-commands-D73dGR_l.js";
-import "../../config-CLRQPUSt.js";
-import "../../routes-XT2JfvT-.js";
-import "../../ssh-tunnel-LM52qY6N.js";
-import "../../server-middleware-BP59C6FL.js";
-import "../../provider-auth-ref-CQEp9sp3.js";
-import "../../provider-auth-helpers-Do3RFvdi.js";
-import "../../provider-api-key-auth-BEeRW3dq.js";
-import "../../pairing-labels-D27Y4Vv6.js";
-import "../../directory-runtime-D9Y42mW-.js";
-import "../../read-only-account-inspect-CJPRBFj7.js";
-import "../../src-BoNU6eQs.js";
-import "../../web-media-PKy3RbRG.js";
-import "../../media-understanding-BDOSvuM9.js";
-import "../../web-media-CiSbdGPs.js";
-import "../../state-paths-Dvb3Mfl3.js";
-import "../../llm-task-Br6Ixjlh.js";
-import "../../pi-model-discovery-DO3tFksS.js";
-import "../../exec-inline-eval-CpmxWJsW.js";
-import "../../target-registry-9OUOvlxj.js";
-import "../../external-content-DZI9vlJn.js";
-import "../../brave-onFD06fq.js";
-import "../../duckduckgo-CZuAOfiQ.js";
-import "../../exa-5bwgY04k.js";
-import "../../security-runtime-xlw0Fxx2.js";
-import "../../provider-usage-ClxTGn5c.js";
-import "../../provider-models-Bjv0V4OP.js";
-import "../../media-understanding-provider-DllGbg-v.js";
-import "../../media-understanding-provider-BDq4rFL-.js";
-import "../../provider-onboard-CSnPvkMM.js";
-import "../../onboard-BU8aRvq7.js";
-import "../../perplexity-web-search-provider-CI38RNUU.js";
-import "../../perplexity-CMZbsreI.js";
-import "../../model-definitions-CLagLj0g.js";
-import "../../onboard-0P7GBI2D.js";
-import "../../provider-catalog-CKHo9CRM.js";
-import "../../provider-models-Dmjtw6kn.js";
-import "../../stream-C-KGzzT0.js";
-import "../../web-search-CO1hvu_l.js";
-import "../../stagger-CFqdtCYL.js";
-import "../../command-secret-targets-DLs8jC2H.js";
-import "../../delivery-queue-DHURMSqX.js";
-import "../../channel-summary-Ctrv7moa.js";
-import "../../follow-redirects-CVAaqIk4.js";
-import "../../tool-policy-match-DQWWRSN4.js";
-import "../../runtime-CAdCdG-M.js";
-import "../../channel-status-BfM90KqH.js";
-import "../../discord-core-DLbIyXWy.js";
-import "../../cli-runtime-Cx1v7N7v.js";
-import "../../config-presence-DA3j8Nmi.js";
-import "../../query-expansion-BOJBTXsp.js";
-import "../../search-manager-DNBHwaee.js";
-import "../../acp-runtime-BHZj-SLU.js";
-import "../../telegram-core-DD8gCuaX.js";
-import "../../audit-BI48Fi3j.js";
-import "../../gateway-runtime-Dn2qAGY7.js";
-import "../../connection-auth-Nl2a3tDb.js";
-import { t as createAccountStatusSink } from "../../channel-lifecycle-DmiShiUP.js";
-import "../../mcp-config-CDIWSqVk.js";
-import "../../channel-setup-C5JbULY6.js";
-import { i as coerceStatusIssueAccountId, n as buildPassiveProbedChannelStatusSummary, o as readStatusIssueFields } from "../../extension-shared-B8dMu-tU.js";
-import "../../outbound-media-CVWWX2Ba.js";
-import "../../semver-DgFx6ze4.js";
-import "../../zalouser-BPCNqkr-.js";
-import "../../json-bigint-CbAcNBLP.js";
-import "../../runtime-api-DyobrjkL.js";
-import { a as listZaloGroupMembers, b as waitForZaloQrLogin, c as logoutZaloProfile, i as listZaloFriendsMatching, n as getZaloUserInfo, s as listZaloGroupsMatching, t as checkZaloAuthenticated, y as startZaloQrLogin } from "../../zalo-js-HULxcu6w.js";
-import { a as listZalouserAccountIds, i as getZcaUserInfo, n as zalouserSetupAdapter, r as writeQrDataUrlToTempFile, s as resolveZalouserAccountSync, t as zalouserSetupWizard } from "../../setup-surface-CiV2AJTU.js";
-import { a as sendReactionZalouser, c as getZalouserRuntime, f as resolveZalouserReactionMessageIds, i as sendMessageZalouser, l as setZalouserRuntime, m as findZalouserGroupEntry, n as sendImageZalouser, p as buildZalouserGroupCandidates, r as sendLinkZalouser } from "../../send-C_N0Xend.js";
-import { t as createZalouserPluginBase } from "../../shared-DsGPU2OP.js";
+import { _ as normalizeAccountId, g as DEFAULT_ACCOUNT_ID } from "../../session-key-D7XpmyVq.js";
+import { d as createDefaultChannelRuntimeState, l as createAsyncComputedAccountStatusAdapter } from "../../status-helpers-CtpWf3f1.js";
+import { l as isNumericTargetId, y as sendPayloadWithChunkedTextAndMedia } from "../../reply-payload-SzVz53hc.js";
+import { u as createScopedDmSecurityResolver } from "../../channel-config-helpers-B0S2z66F.js";
+import { n as createStaticReplyToModeResolver } from "../../threading-helpers-CfImLdqa.js";
+import { i as defineChannelPluginEntry, r as createChatChannelPlugin } from "../../core-BghMcc08.js";
+import { t as createAccountStatusSink } from "../../channel-lifecycle.core-CgpUnF4D.js";
+import { n as isDangerousNameMatchingEnabled } from "../../dangerous-name-matching-B1150NOt.js";
+import "../../conversation-runtime-DIsQmaYR.js";
+import { i as createPairingPrefixStripper } from "../../channel-pairing-Nk7oRFrM.js";
+import { i as coerceStatusIssueAccountId, n as buildPassiveProbedChannelStatusSummary, o as readStatusIssueFields } from "../../extension-shared-gP7gKXlS.js";
+import { a as createEmptyChannelResult, o as createRawChannelSendResultAdapter } from "../../channel-send-result-COXGPSxL.js";
+import { t as chunkTextForOutbound } from "../../text-chunking-QO5AWjBS.js";
+import "../../runtime-api-CpVzEa_i.js";
+import { a as listZaloGroupMembers, b as waitForZaloQrLogin, c as logoutZaloProfile, i as listZaloFriendsMatching, n as getZaloUserInfo, s as listZaloGroupsMatching, t as checkZaloAuthenticated, y as startZaloQrLogin } from "../../zalo-js-Cfmm506F.js";
+import { i as resolveZalouserAccountSync, n as listZalouserAccountIds, t as getZcaUserInfo } from "../../accounts-CExdekam.js";
+import { a as resolveZalouserReactionMessageIds, n as setZalouserRuntime, o as buildZalouserGroupCandidates, s as findZalouserGroupEntry, t as getZalouserRuntime } from "../../runtime-D8Qs98_e.js";
+import { n as zalouserSetupAdapter, r as writeQrDataUrlToTempFile, t as zalouserSetupWizard } from "../../setup-surface-C2b3V1Ci.js";
+import { a as sendReactionZalouser, i as sendMessageZalouser, n as sendImageZalouser, r as sendLinkZalouser } from "../../send-CIgpm3yW.js";
+import { i as resolveZalouserOutboundSessionRoute, n as parseZalouserDirectoryGroupId, r as parseZalouserOutboundTarget, t as normalizeZalouserTarget } from "../../session-route-Bk0ilJb6.js";
+import { t as createZalouserPluginBase } from "../../shared-DA1Dy1GC.js";
 import { Type } from "@sinclair/typebox";
 //#region extensions/zalouser/src/probe.ts
 async function probeZalouser(profile, timeoutMs) {
@@ -240,95 +38,6 @@ async function probeZalouser(profile, timeoutMs) {
 			error: error instanceof Error ? error.message : String(error)
 		};
 	}
-}
-//#endregion
-//#region extensions/zalouser/src/session-route.ts
-function stripZalouserTargetPrefix(raw) {
-	return raw.trim().replace(/^(zalouser|zlu):/i, "").trim();
-}
-function normalizeZalouserTarget(raw) {
-	const trimmed = stripZalouserTargetPrefix(raw);
-	if (!trimmed) return;
-	const lower = trimmed.toLowerCase();
-	if (lower.startsWith("group:")) {
-		const id = trimmed.slice(6).trim();
-		return id ? `group:${id}` : void 0;
-	}
-	if (lower.startsWith("g:")) {
-		const id = trimmed.slice(2).trim();
-		return id ? `group:${id}` : void 0;
-	}
-	if (lower.startsWith("user:")) {
-		const id = trimmed.slice(5).trim();
-		return id ? `user:${id}` : void 0;
-	}
-	if (lower.startsWith("dm:")) {
-		const id = trimmed.slice(3).trim();
-		return id ? `user:${id}` : void 0;
-	}
-	if (lower.startsWith("u:")) {
-		const id = trimmed.slice(2).trim();
-		return id ? `user:${id}` : void 0;
-	}
-	if (/^g-\S+$/i.test(trimmed)) return `group:${trimmed}`;
-	if (/^u-\S+$/i.test(trimmed)) return `user:${trimmed}`;
-	return trimmed;
-}
-function parseZalouserOutboundTarget(raw) {
-	const normalized = normalizeZalouserTarget(raw);
-	if (!normalized) throw new Error("Zalouser target is required");
-	const lowered = normalized.toLowerCase();
-	if (lowered.startsWith("group:")) {
-		const threadId = normalized.slice(6).trim();
-		if (!threadId) throw new Error("Zalouser group target is missing group id");
-		return {
-			threadId,
-			isGroup: true
-		};
-	}
-	if (lowered.startsWith("user:")) {
-		const threadId = normalized.slice(5).trim();
-		if (!threadId) throw new Error("Zalouser user target is missing user id");
-		return {
-			threadId,
-			isGroup: false
-		};
-	}
-	return {
-		threadId: normalized,
-		isGroup: false
-	};
-}
-function parseZalouserDirectoryGroupId(raw) {
-	const normalized = normalizeZalouserTarget(raw);
-	if (!normalized) throw new Error("Zalouser group target is required");
-	const lowered = normalized.toLowerCase();
-	if (lowered.startsWith("group:")) {
-		const groupId = normalized.slice(6).trim();
-		if (!groupId) throw new Error("Zalouser group target is missing group id");
-		return groupId;
-	}
-	if (lowered.startsWith("user:")) throw new Error("Zalouser group members lookup requires a group target (group:<id>)");
-	return normalized;
-}
-function resolveZalouserOutboundSessionRoute(params) {
-	const normalized = normalizeZalouserTarget(params.target);
-	if (!normalized) return null;
-	const isGroup = normalized.toLowerCase().startsWith("group:");
-	const peerId = normalized.replace(/^(group|user):/i, "").trim();
-	return buildChannelOutboundSessionRoute({
-		cfg: params.cfg,
-		agentId: params.agentId,
-		channel: "zalouser",
-		accountId: params.accountId,
-		peer: {
-			kind: isGroup ? "group" : "direct",
-			id: peerId
-		},
-		chatType: isGroup ? "group" : "direct",
-		from: isGroup ? `zalouser:group:${peerId}` : `zalouser:${peerId}`,
-		to: `zalouser:${peerId}`
-	});
 }
 //#endregion
 //#region extensions/zalouser/src/status-issues.ts
@@ -385,7 +94,7 @@ const zalouserRawSendResultAdapter = createRawChannelSendResultAdapter({
 			textChunkLimit: resolveZalouserOutboundTextChunkLimit(cfg, account.accountId)
 		});
 	},
-	sendMedia: async ({ to, text, mediaUrl, accountId, cfg, mediaLocalRoots }) => {
+	sendMedia: async ({ to, text, mediaUrl, accountId, cfg, mediaLocalRoots, mediaReadFile }) => {
 		const account = resolveZalouserAccountSync({
 			cfg,
 			accountId
@@ -396,6 +105,7 @@ const zalouserRawSendResultAdapter = createRawChannelSendResultAdapter({
 			isGroup: target.isGroup,
 			mediaUrl,
 			mediaLocalRoots,
+			mediaReadFile,
 			textMode: "markdown",
 			textChunkMode: resolveZalouserOutboundChunkMode(cfg, account.accountId),
 			textChunkLimit: resolveZalouserOutboundTextChunkLimit(cfg, account.accountId)
@@ -695,7 +405,7 @@ const zalouserPlugin = createChatChannelPlugin({
 					setStatus: ctx.setStatus
 				});
 				ctx.log?.info(`[${account.accountId}] starting zalouser provider${userLabel}`);
-				const { monitorZalouserProvider } = await import("../../monitor-B7vCDw_t.js");
+				const { monitorZalouserProvider } = await import("../../monitor-BgqbNLb8.js");
 				return monitorZalouserProvider({
 					account,
 					config: ctx.cfg,
@@ -734,7 +444,7 @@ const zalouserPlugin = createChatChannelPlugin({
 	} },
 	outbound: {
 		deliveryMode: "direct",
-		chunker: (text, limit) => getZalouserRuntime().channel.text.chunkMarkdownText(text, limit),
+		chunker: chunkTextForOutbound,
 		chunkerMode: "markdown",
 		sendPayload: async (ctx) => await sendPayloadWithChunkedTextAndMedia({
 			ctx,
@@ -781,14 +491,35 @@ function json(payload) {
 		details: payload
 	};
 }
-async function executeZalouserTool(_toolCallId, params, _signal, _onUpdate) {
+function resolveAmbientZalouserTarget(context) {
+	const deliveryContext = context?.deliveryContext;
+	const rawTarget = deliveryContext?.to;
+	if ((deliveryContext?.channel === void 0 || deliveryContext.channel === "zalouser") && typeof rawTarget === "string" && rawTarget.trim()) try {
+		return parseZalouserOutboundTarget(rawTarget);
+	} catch {}
+	if (deliveryContext?.channel && deliveryContext.channel !== "zalouser") return {};
+	const ambientThreadId = deliveryContext?.threadId;
+	if (typeof ambientThreadId === "string" && ambientThreadId.trim()) return { threadId: ambientThreadId.trim() };
+	if (typeof ambientThreadId === "number" && Number.isFinite(ambientThreadId)) return { threadId: String(ambientThreadId) };
+	return {};
+}
+function resolveZalouserSendTarget(params, context) {
+	const explicitThreadId = typeof params.threadId === "string" ? params.threadId.trim() : "";
+	const ambientTarget = resolveAmbientZalouserTarget(context);
+	return {
+		threadId: explicitThreadId || ambientTarget.threadId,
+		isGroup: typeof params.isGroup === "boolean" ? params.isGroup : ambientTarget.isGroup
+	};
+}
+async function executeZalouserTool(_toolCallId, params, _signal, _onUpdate, context) {
 	try {
 		switch (params.action) {
 			case "send": {
-				if (!params.threadId || !params.message) throw new Error("threadId and message required for send action");
-				const result = await sendMessageZalouser(params.threadId, params.message, {
+				const target = resolveZalouserSendTarget(params, context);
+				if (!target.threadId || !params.message) throw new Error("threadId and message required for send action");
+				const result = await sendMessageZalouser(target.threadId, params.message, {
 					profile: params.profile,
-					isGroup: params.isGroup
+					isGroup: target.isGroup
 				});
 				if (!result.ok) throw new Error(result.error || "Failed to send message");
 				return json({
@@ -797,12 +528,13 @@ async function executeZalouserTool(_toolCallId, params, _signal, _onUpdate) {
 				});
 			}
 			case "image": {
-				if (!params.threadId) throw new Error("threadId required for image action");
+				const target = resolveZalouserSendTarget(params, context);
+				if (!target.threadId) throw new Error("threadId required for image action");
 				if (!params.url) throw new Error("url required for image action");
-				const result = await sendImageZalouser(params.threadId, params.url, {
+				const result = await sendImageZalouser(target.threadId, params.url, {
 					profile: params.profile,
 					caption: params.message,
-					isGroup: params.isGroup
+					isGroup: target.isGroup
 				});
 				if (!result.ok) throw new Error(result.error || "Failed to send image");
 				return json({
@@ -811,11 +543,12 @@ async function executeZalouserTool(_toolCallId, params, _signal, _onUpdate) {
 				});
 			}
 			case "link": {
-				if (!params.threadId || !params.url) throw new Error("threadId and url required for link action");
-				const result = await sendLinkZalouser(params.threadId, params.url, {
+				const target = resolveZalouserSendTarget(params, context);
+				if (!target.threadId || !params.url) throw new Error("threadId and url required for link action");
+				const result = await sendLinkZalouser(target.threadId, params.url, {
 					profile: params.profile,
 					caption: params.message,
-					isGroup: params.isGroup
+					isGroup: target.isGroup
 				});
 				if (!result.ok) throw new Error(result.error || "Failed to send link");
 				return json({
@@ -841,6 +574,15 @@ async function executeZalouserTool(_toolCallId, params, _signal, _onUpdate) {
 		return json({ error: err instanceof Error ? err.message : String(err) });
 	}
 }
+function createZalouserTool(context) {
+	return {
+		name: "zalouser",
+		label: "Zalo Personal",
+		description: "Send messages and access data via Zalo personal account. Actions: send (text message), image (send image URL), link (send link), friends (list/search friends), groups (list groups), me (profile info), status (auth check).",
+		parameters: ZalouserToolSchema,
+		execute: async (toolCallId, params, signal, onUpdate) => await executeZalouserTool(toolCallId, params, signal, onUpdate, context)
+	};
+}
 //#endregion
 //#region extensions/zalouser/index.ts
 var zalouser_default = defineChannelPluginEntry({
@@ -850,13 +592,7 @@ var zalouser_default = defineChannelPluginEntry({
 	plugin: zalouserPlugin,
 	setRuntime: setZalouserRuntime,
 	registerFull(api) {
-		api.registerTool({
-			name: "zalouser",
-			label: "Zalo Personal",
-			description: "Send messages and access data via Zalo personal account. Actions: send (text message), image (send image URL), link (send link), friends (list/search friends), groups (list groups), me (profile info), status (auth check).",
-			parameters: ZalouserToolSchema,
-			execute: executeZalouserTool
-		});
+		api.registerTool((ctx) => createZalouserTool(ctx), { name: "zalouser" });
 	}
 });
 //#endregion

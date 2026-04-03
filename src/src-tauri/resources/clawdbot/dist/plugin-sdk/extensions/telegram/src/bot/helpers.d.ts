@@ -1,13 +1,26 @@
 import type { Chat, Message } from "@grammyjs/types";
-import { type NormalizedLocation } from "openclaw/plugin-sdk/channel-inbound";
 import type { TelegramDirectConfig, TelegramGroupConfig, TelegramTopicConfig } from "openclaw/plugin-sdk/config-runtime";
 import { readChannelAllowFromStore } from "openclaw/plugin-sdk/conversation-runtime";
 import { type NormalizedAllowFrom } from "../bot-access.js";
-import type { TelegramStreamMode } from "./types.js";
+import { buildSenderLabel, buildSenderName, expandTextLinks, extractTelegramLocation, getTelegramTextParts, hasBotMention, normalizeForwardedContext, resolveTelegramMediaPlaceholder, type TelegramForwardedContext } from "./body-helpers.js";
+import type { TelegramGetChat, TelegramStreamMode } from "./types.js";
+export { buildSenderLabel, buildSenderName, expandTextLinks, extractTelegramLocation, getTelegramTextParts, hasBotMention, normalizeForwardedContext, resolveTelegramMediaPlaceholder, };
+export type { TelegramForwardedContext, TelegramTextEntity } from "./body-helpers.js";
 export type TelegramThreadSpec = {
     id?: number;
     scope: "dm" | "forum" | "none";
 };
+export declare function extractTelegramForumFlag(value: unknown): boolean | undefined;
+export declare function resolveTelegramForumFlag(params: {
+    chatId: string | number;
+    chatType?: Chat["type"];
+    isGroup: boolean;
+    isForum?: boolean;
+    getChat?: TelegramGetChat;
+}): Promise<boolean>;
+export declare function withResolvedTelegramForumFlag<T extends {
+    chat: object;
+}>(message: T, isForum: boolean): T;
 export declare function resolveTelegramGroupAllowFromContext(params: {
     chatId: string | number;
     accountId?: string;
@@ -63,6 +76,14 @@ export declare function buildTelegramThreadParams(thread?: TelegramThreadSpec | 
     message_thread_id: number;
 } | undefined;
 /**
+ * Build a Telegram routing target that keeps real topic/thread ids in-band.
+ *
+ * This is used by generic reply plumbing that may not always carry a separate
+ * `threadId` field through every hop. General forum topic stays chat-scoped
+ * because Telegram rejects `message_thread_id=1` for message sends.
+ */
+export declare function buildTelegramRoutingTarget(chatId: number | string, thread?: TelegramThreadSpec | null): string;
+/**
  * Build thread params for typing indicators (sendChatAction).
  * Empirically, General topic (id=1) needs message_thread_id for typing to appear.
  */
@@ -101,23 +122,7 @@ export declare function buildTelegramParentPeer(params: {
     kind: "group";
     id: string;
 } | undefined;
-export declare function buildSenderName(msg: Message): string | undefined;
-export declare function resolveTelegramMediaPlaceholder(msg: Pick<Message, "photo" | "video" | "video_note" | "audio" | "voice" | "document" | "sticker"> | undefined | null): string | undefined;
-export declare function buildSenderLabel(msg: Message, senderId?: number | string): string;
 export declare function buildGroupLabel(msg: Message, chatId: number | string, messageThreadId?: number): string;
-export type TelegramTextEntity = NonNullable<Message["entities"]>[number];
-export declare function getTelegramTextParts(msg: Pick<Message, "text" | "caption" | "entities" | "caption_entities">): {
-    text: string;
-    entities: TelegramTextEntity[];
-};
-export declare function hasBotMention(msg: Message, botUsername: string): boolean;
-type TelegramTextLinkEntity = {
-    type: string;
-    offset: number;
-    length: number;
-    url?: string;
-};
-export declare function expandTextLinks(text: string, entities?: TelegramTextLinkEntity[] | null): string;
 export declare function resolveTelegramReplyId(raw?: string): number | undefined;
 export type TelegramReplyTarget = {
     id?: string;
@@ -128,20 +133,3 @@ export type TelegramReplyTarget = {
     forwardedFrom?: TelegramForwardedContext;
 };
 export declare function describeReplyTarget(msg: Message): TelegramReplyTarget | null;
-export type TelegramForwardedContext = {
-    from: string;
-    date?: number;
-    fromType: string;
-    fromId?: string;
-    fromUsername?: string;
-    fromTitle?: string;
-    fromSignature?: string;
-    /** Original chat type from forward_from_chat (e.g. "channel", "supergroup", "group"). */
-    fromChatType?: Chat["type"];
-    /** Original message ID in the source chat (channel forwards). */
-    fromMessageId?: number;
-};
-/** Extract forwarded message origin info from Telegram message. */
-export declare function normalizeForwardedContext(msg: Message): TelegramForwardedContext | null;
-export declare function extractTelegramLocation(msg: Message): NormalizedLocation | null;
-export {};

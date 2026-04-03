@@ -1,0 +1,55 @@
+import type { OpenClawConfig } from "../config/config.js";
+import type { BrowserConfig, BrowserProfileConfig } from "../config/types.browser.js";
+import type { SsrFPolicy } from "../infra/net/ssrf.js";
+export declare const DEFAULT_OPENCLAW_BROWSER_ENABLED = true;
+export declare const DEFAULT_BROWSER_EVALUATE_ENABLED = true;
+export declare const DEFAULT_OPENCLAW_BROWSER_COLOR = "#FF4500";
+export declare const DEFAULT_OPENCLAW_BROWSER_PROFILE_NAME = "openclaw";
+export declare const DEFAULT_BROWSER_DEFAULT_PROFILE_NAME = "openclaw";
+export declare const DEFAULT_AI_SNAPSHOT_MAX_CHARS = 80000;
+export declare const DEFAULT_UPLOAD_DIR: string;
+export type BrowserControlAuth = {
+    token?: string;
+    password?: string;
+};
+export type ResolvedBrowserConfig = {
+    enabled: boolean;
+    evaluateEnabled: boolean;
+    controlPort: number;
+    cdpPortRangeStart: number;
+    cdpPortRangeEnd: number;
+    cdpProtocol: "http" | "https";
+    cdpHost: string;
+    cdpIsLoopback: boolean;
+    remoteCdpTimeoutMs: number;
+    remoteCdpHandshakeTimeoutMs: number;
+    color: string;
+    executablePath?: string;
+    headless: boolean;
+    noSandbox: boolean;
+    attachOnly: boolean;
+    defaultProfile: string;
+    profiles: Record<string, BrowserProfileConfig>;
+    ssrfPolicy?: SsrFPolicy;
+    extraArgs: string[];
+};
+export type ResolvedBrowserProfile = {
+    name: string;
+    cdpPort: number;
+    cdpUrl: string;
+    cdpHost: string;
+    cdpIsLoopback: boolean;
+    userDataDir?: string;
+    color: string;
+    driver: "openclaw" | "existing-session";
+    attachOnly: boolean;
+};
+export declare function parseBrowserHttpUrl(raw: string, label: string): {
+    parsed: URL;
+    port: number;
+    normalized: string;
+};
+export declare function resolveBrowserConfig(cfg: BrowserConfig | undefined, rootConfig?: OpenClawConfig): ResolvedBrowserConfig;
+export declare function resolveProfile(resolved: ResolvedBrowserConfig, profileName: string): ResolvedBrowserProfile | null;
+export declare function resolveBrowserControlAuth(cfg: OpenClawConfig | undefined, env?: NodeJS.ProcessEnv): BrowserControlAuth;
+export declare function redactCdpUrl(cdpUrl: string | null | undefined): string | null | undefined;

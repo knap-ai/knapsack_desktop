@@ -1,73 +1,16 @@
-import "../../redact-BDinS1q9.js";
-import "../../errors-BxyFnvP3.js";
-import "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-idKIOMmb.js";
-import "../../theme-CdOoMzRk.js";
-import "../../globals-DBUMOBZ8.js";
-import "../../subsystem-DISldKSB.js";
-import "../../ansi-BEJF8NKS.js";
-import "../../boolean-C3GkJetE.js";
-import "../../env-Dnra1IpT.js";
-import "../../utils-CS0Ikux6.js";
-import "../../agent-scope-bjWqU22i.js";
-import "../../boundary-path-Dm0QJ7-y.js";
-import "../../boundary-file-read-DcZxlWD8.js";
-import "../../logger-BmpSCz93.js";
-import "../../exec-B5_AYfQG.js";
-import "../../workspace-D4K6QX9X.js";
-import "../../model-selection-BnFtDmP7.js";
-import "../../io-y3Az_Onx.js";
-import "../../shell-env-BOu7XeT_.js";
-import "../../safe-text-yavot2qw.js";
-import "../../version-CD3oP1-d.js";
-import "../../env-substitution-O6uabUmO.js";
-import "../../includes-Bj3eLUWH.js";
-import "../../zod-schema.providers-core-COy5nBQ0.js";
-import "../../legacy-web-search-BB-ZHEhz.js";
-import "../../registry-C5UkPpaO.js";
-import "../../config-state-Br0ucqMb.js";
-import "../../min-host-version-RMBWtIAR.js";
-import "../../manifest-registry-B5JNQdOM.js";
-import "../../runtime-guard-PhQ6PwQa.js";
-import "../../avatar-policy-B5nOfso_.js";
-import "../../ip-Ce8EDTBZ.js";
-import "../../zod-schema.agent-runtime-Dtg4Jy6G.js";
-import "../../zod-schema.core-BuVz8Rk7.js";
-import "../../config-D4zN4BRl.js";
-import "../../audit-fs-DTQIjp2r.js";
-import "../../resolve-B7S4PlnO.js";
-import "../../tailscale-CxY-91GZ.js";
-import "../../tailnet-DHiKSG7V.js";
-import "../../net-JAg9zL0G.js";
-import "../../auth-Buq0Niri.js";
-import "../../credentials-D8pfRimu.js";
-import "../../session-write-lock-va3qZE6f.js";
-import "../../ports-lsof-BLEgL_Gn.js";
-import "../../ports-FldL_Lhq.js";
-import "../../tool-catalog-BjSY4C4F.js";
-import "../../docker-Bhjg8g2t.js";
-import { _ as runSshSandboxCommand, b as createRemoteShellSandboxFsBridge, d as buildExecRemoteCommand, g as disposeSshSandboxSession, l as registerSandboxBackend, m as createSshSandboxSessionFromConfigText, v as shellEscape } from "../../sandbox-DTlKNieF.js";
-import "../../image-ops-By4YfyWa.js";
-import "../../path-alias-guards-CwRM04O1.js";
-import "../../sandbox-paths-Cn8i8Jxm.js";
-import "../../mime-CsUtzcn2.js";
-import "../../ssrf-0bPJMoZR.js";
-import "../../fs-safe-DZyOgpPN.js";
-import "../../frontmatter-CP5371Rm.js";
-import "../../env-overrides-BNSo89u5.js";
-import "../../skills-M0AZJeXx.js";
-import "../../config-CLRQPUSt.js";
-import "../../routes-XT2JfvT-.js";
-import "../../ssh-tunnel-LM52qY6N.js";
-import "../../server-middleware-BP59C6FL.js";
-import { t as runPluginCommandWithTimeout } from "../../run-command-DPUsJhO7.js";
-import "../../sandbox-cGECnmlx.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-Day5KPIY.js";
+import { t as buildPluginConfigSchema } from "../../config-schema-dIP9qvIK.js";
+import { _ as runSshSandboxCommand, b as createRemoteShellSandboxFsBridge, d as buildExecRemoteCommand, g as disposeSshSandboxSession, l as registerSandboxBackend, m as createSshSandboxSessionFromConfigText, v as shellEscape, x as createWritableRenameTargetResolver } from "../../sandbox-DD2udaMP.js";
+import { t as sanitizeEnvVars } from "../../sanitize-env-vars-BvpMkDN5.js";
+import "../../core-BghMcc08.js";
+import { t as runPluginCommandWithTimeout } from "../../run-command-ByGgkdeW.js";
+import "../../sandbox-CxQpLeou.js";
+import { t as zod_exports } from "../../zod-DCTDn17d.js";
 import { createRequire } from "node:module";
-import fs from "node:fs";
+import fsSync from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import fs$1 from "node:fs/promises";
+import fs from "node:fs/promises";
 //#region extensions/openshell/src/cli.ts
 const require = createRequire(import.meta.url);
 let cachedBundledOpenShellCommand;
@@ -75,7 +18,7 @@ function resolveBundledOpenShellCommand() {
 	if (cachedBundledOpenShellCommand !== void 0) return cachedBundledOpenShellCommand;
 	try {
 		const packageJsonPath = require.resolve("openshell/package.json");
-		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+		const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, "utf8"));
 		const relativeBin = typeof packageJson.bin === "string" ? packageJson.bin : packageJson.bin?.openshell;
 		cachedBundledOpenShellCommand = relativeBin ? path.resolve(path.dirname(packageJsonPath), relativeBin) : null;
 	} catch {
@@ -124,20 +67,11 @@ const DEFAULT_SOURCE = "openclaw";
 const DEFAULT_REMOTE_WORKSPACE_DIR = "/sandbox";
 const DEFAULT_REMOTE_AGENT_WORKSPACE_DIR = "/agent";
 const DEFAULT_TIMEOUT_MS = 12e4;
-function isRecord(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function trimString(value) {
-	if (typeof value !== "string") return;
-	return value.trim() || void 0;
-}
+const OPEN_SHELL_MANAGED_REMOTE_ROOTS = [DEFAULT_REMOTE_WORKSPACE_DIR, DEFAULT_REMOTE_AGENT_WORKSPACE_DIR];
 function normalizeProviders(value) {
-	if (value === void 0) return [];
-	if (!Array.isArray(value)) return null;
 	const seen = /* @__PURE__ */ new Set();
 	const providers = [];
-	for (const entry of value) {
-		if (typeof entry !== "string" || !entry.trim()) return null;
+	for (const entry of value ?? []) {
 		const normalized = entry.trim();
 		if (seen.has(normalized)) continue;
 		seen.add(normalized);
@@ -145,174 +79,200 @@ function normalizeProviders(value) {
 	}
 	return providers;
 }
-function normalizeRemotePath(value, fallback) {
+const nonEmptyTrimmedString = (message) => zod_exports.z.string({ error: message }).trim().min(1, { error: message });
+const OpenShellPluginConfigSchema = zod_exports.z.strictObject({
+	mode: zod_exports.z.enum(["mirror", "remote"], { error: "mode must be one of mirror, remote" }).optional(),
+	command: nonEmptyTrimmedString("command must be a non-empty string").optional(),
+	gateway: nonEmptyTrimmedString("gateway must be a non-empty string").optional(),
+	gatewayEndpoint: nonEmptyTrimmedString("gatewayEndpoint must be a non-empty string").optional(),
+	from: nonEmptyTrimmedString("from must be a non-empty string").optional(),
+	policy: nonEmptyTrimmedString("policy must be a non-empty string").optional(),
+	providers: zod_exports.z.array(zod_exports.z.string({ error: "providers must be an array of strings" }).trim().min(1, { error: "providers must be an array of strings" }), { error: "providers must be an array of strings" }).optional(),
+	gpu: zod_exports.z.boolean({ error: "gpu must be a boolean" }).optional(),
+	autoProviders: zod_exports.z.boolean({ error: "autoProviders must be a boolean" }).optional(),
+	remoteWorkspaceDir: nonEmptyTrimmedString("remoteWorkspaceDir must be a non-empty string").optional(),
+	remoteAgentWorkspaceDir: nonEmptyTrimmedString("remoteAgentWorkspaceDir must be a non-empty string").optional(),
+	timeoutSeconds: zod_exports.z.number({ error: "timeoutSeconds must be a number >= 1" }).min(1, { error: "timeoutSeconds must be a number >= 1" }).optional()
+});
+function formatOpenShellConfigIssue(issue) {
+	if (!issue) return "invalid config";
+	if (issue.code === "unrecognized_keys" && issue.keys.length > 0) return `unknown config key: ${issue.keys[0]}`;
+	if (issue.code === "invalid_type" && issue.path.length === 0) return "expected config object";
+	return issue.message;
+}
+function isManagedOpenShellRemotePath(value) {
+	return OPEN_SHELL_MANAGED_REMOTE_ROOTS.some((root) => value === root || value.startsWith(`${root}/`));
+}
+function normalizeOpenShellRemotePath(value, fallback, fieldName = "remote path") {
 	const candidate = value ?? fallback;
 	const normalized = path.posix.normalize(candidate.trim() || fallback);
-	if (!normalized.startsWith("/")) throw new Error(`OpenShell remote path must be absolute: ${candidate}`);
+	if (!normalized.startsWith("/")) throw new Error(`OpenShell ${fieldName} must be absolute: ${candidate}`);
+	if (!isManagedOpenShellRemotePath(normalized)) throw new Error(`OpenShell ${fieldName} must stay under ${OPEN_SHELL_MANAGED_REMOTE_ROOTS.join(" or ")}: ${candidate}`);
 	return normalized;
 }
 function createOpenShellPluginConfigSchema() {
-	const safeParse = (value) => {
+	return buildPluginConfigSchema(OpenShellPluginConfigSchema, { safeParse(value) {
 		if (value === void 0) return {
 			success: true,
 			data: void 0
 		};
-		if (!isRecord(value)) return {
-			success: false,
-			error: { issues: [{
-				path: [],
-				message: "expected config object"
-			}] }
-		};
-		const allowedKeys = new Set([
-			"mode",
-			"command",
-			"gateway",
-			"gatewayEndpoint",
-			"from",
-			"policy",
-			"providers",
-			"gpu",
-			"autoProviders",
-			"remoteWorkspaceDir",
-			"remoteAgentWorkspaceDir",
-			"timeoutSeconds"
-		]);
-		for (const key of Object.keys(value)) if (!allowedKeys.has(key)) return {
-			success: false,
-			error: { issues: [{
-				path: [key],
-				message: `unknown config key: ${key}`
-			}] }
-		};
-		const providers = normalizeProviders(value.providers);
-		if (providers === null) return {
-			success: false,
-			error: { issues: [{
-				path: ["providers"],
-				message: "providers must be an array of strings"
-			}] }
-		};
-		const timeoutSeconds = value.timeoutSeconds;
-		if (timeoutSeconds !== void 0 && (typeof timeoutSeconds !== "number" || !Number.isFinite(timeoutSeconds) || timeoutSeconds < 1)) return {
-			success: false,
-			error: { issues: [{
-				path: ["timeoutSeconds"],
-				message: "timeoutSeconds must be a number >= 1"
-			}] }
-		};
-		for (const key of ["gpu", "autoProviders"]) {
-			const candidate = value[key];
-			if (candidate !== void 0 && typeof candidate !== "boolean") return {
-				success: false,
-				error: { issues: [{
-					path: [key],
-					message: `${key} must be a boolean`
-				}] }
-			};
-		}
-		return {
+		const parsed = OpenShellPluginConfigSchema.safeParse(value);
+		if (parsed.success) return {
 			success: true,
-			data: {
-				mode: trimString(value.mode),
-				command: trimString(value.command),
-				gateway: trimString(value.gateway),
-				gatewayEndpoint: trimString(value.gatewayEndpoint),
-				from: trimString(value.from),
-				policy: trimString(value.policy),
-				providers,
-				gpu: value.gpu,
-				autoProviders: value.autoProviders,
-				remoteWorkspaceDir: trimString(value.remoteWorkspaceDir),
-				remoteAgentWorkspaceDir: trimString(value.remoteAgentWorkspaceDir),
-				timeoutSeconds
-			}
+			data: parsed.data
 		};
-	};
-	return {
-		safeParse,
-		jsonSchema: {
-			type: "object",
-			additionalProperties: false,
-			properties: {
-				command: { type: "string" },
-				mode: {
-					type: "string",
-					enum: ["mirror", "remote"]
-				},
-				gateway: { type: "string" },
-				gatewayEndpoint: { type: "string" },
-				from: { type: "string" },
-				policy: { type: "string" },
-				providers: {
-					type: "array",
-					items: { type: "string" }
-				},
-				gpu: { type: "boolean" },
-				autoProviders: { type: "boolean" },
-				remoteWorkspaceDir: { type: "string" },
-				remoteAgentWorkspaceDir: { type: "string" },
-				timeoutSeconds: {
-					type: "number",
-					minimum: 1
-				}
-			}
-		}
-	};
+		return {
+			success: false,
+			error: { issues: parsed.error.issues.map((issue) => ({
+				path: issue.path.filter((segment) => {
+					const kind = typeof segment;
+					return kind === "string" || kind === "number";
+				}),
+				message: formatOpenShellConfigIssue(issue)
+			})) }
+		};
+	} });
 }
 function resolveOpenShellPluginConfig(value) {
-	const parsed = createOpenShellPluginConfigSchema().safeParse?.(value);
-	if (!parsed || !parsed.success) {
-		const message = (parsed && !parsed.success ? parsed.error?.issues : void 0)?.map((issue) => issue.message).join(", ") || "invalid config";
+	if (value === void 0) return {
+		mode: DEFAULT_MODE,
+		command: DEFAULT_COMMAND,
+		gateway: void 0,
+		gatewayEndpoint: void 0,
+		from: DEFAULT_SOURCE,
+		policy: void 0,
+		providers: [],
+		gpu: false,
+		autoProviders: true,
+		remoteWorkspaceDir: DEFAULT_REMOTE_WORKSPACE_DIR,
+		remoteAgentWorkspaceDir: DEFAULT_REMOTE_AGENT_WORKSPACE_DIR,
+		timeoutMs: DEFAULT_TIMEOUT_MS
+	};
+	const parsed = OpenShellPluginConfigSchema.safeParse(value);
+	if (!parsed.success) {
+		const message = formatOpenShellConfigIssue(parsed.error.issues[0]);
 		throw new Error(`Invalid openshell plugin config: ${message}`);
 	}
-	const cfg = parsed.data ?? {} ?? {};
-	const mode = cfg.mode ?? DEFAULT_MODE;
-	if (mode !== "mirror" && mode !== "remote") throw new Error(`Invalid openshell plugin config: mode must be one of mirror, remote`);
+	const cfg = parsed.data;
 	return {
-		mode,
+		mode: cfg.mode ?? DEFAULT_MODE,
 		command: cfg.command ?? DEFAULT_COMMAND,
 		gateway: cfg.gateway,
 		gatewayEndpoint: cfg.gatewayEndpoint,
 		from: cfg.from ?? DEFAULT_SOURCE,
 		policy: cfg.policy,
-		providers: cfg.providers ?? [],
+		providers: normalizeProviders(cfg.providers),
 		gpu: cfg.gpu ?? false,
 		autoProviders: cfg.autoProviders ?? true,
-		remoteWorkspaceDir: normalizeRemotePath(cfg.remoteWorkspaceDir, DEFAULT_REMOTE_WORKSPACE_DIR),
-		remoteAgentWorkspaceDir: normalizeRemotePath(cfg.remoteAgentWorkspaceDir, DEFAULT_REMOTE_AGENT_WORKSPACE_DIR),
+		remoteWorkspaceDir: normalizeOpenShellRemotePath(cfg.remoteWorkspaceDir, DEFAULT_REMOTE_WORKSPACE_DIR, "remoteWorkspaceDir"),
+		remoteAgentWorkspaceDir: normalizeOpenShellRemotePath(cfg.remoteAgentWorkspaceDir, DEFAULT_REMOTE_AGENT_WORKSPACE_DIR, "remoteAgentWorkspaceDir"),
 		timeoutMs: typeof cfg.timeoutSeconds === "number" ? Math.floor(cfg.timeoutSeconds * 1e3) : DEFAULT_TIMEOUT_MS
 	};
 }
 //#endregion
 //#region extensions/openshell/src/mirror.ts
+const DEFAULT_OPEN_SHELL_MIRROR_EXCLUDE_DIRS = [
+	"hooks",
+	"git-hooks",
+	".git"
+];
+const COPY_TREE_FS_CONCURRENCY = 16;
+function createExcludeMatcher(excludeDirs) {
+	const excluded = new Set((excludeDirs ?? []).map((d) => d.toLowerCase()));
+	return (name) => excluded.has(name.toLowerCase());
+}
+function createConcurrencyLimiter(limit) {
+	let active = 0;
+	const queue = [];
+	const release = () => {
+		active -= 1;
+		queue.shift()?.();
+	};
+	return async (task) => {
+		if (active >= limit) await new Promise((resolve) => {
+			queue.push(resolve);
+		});
+		active += 1;
+		try {
+			return await task();
+		} finally {
+			release();
+		}
+	};
+}
+const runLimitedFs = createConcurrencyLimiter(COPY_TREE_FS_CONCURRENCY);
+async function lstatIfExists(targetPath) {
+	return await runLimitedFs(async () => await fs.lstat(targetPath)).catch(() => null);
+}
+async function copyTreeWithoutSymlinks(params) {
+	const stats = await runLimitedFs(async () => await fs.lstat(params.sourcePath));
+	if (stats.isSymbolicLink()) return;
+	const targetStats = await lstatIfExists(params.targetPath);
+	if (params.preserveTargetSymlinks && targetStats?.isSymbolicLink()) return;
+	if (stats.isDirectory()) {
+		await runLimitedFs(async () => await fs.mkdir(params.targetPath, { recursive: true }));
+		const entries = await runLimitedFs(async () => await fs.readdir(params.sourcePath));
+		await Promise.all(entries.map(async (entry) => {
+			await copyTreeWithoutSymlinks({
+				sourcePath: path.join(params.sourcePath, entry),
+				targetPath: path.join(params.targetPath, entry),
+				preserveTargetSymlinks: params.preserveTargetSymlinks
+			});
+		}));
+		return;
+	}
+	if (stats.isFile()) {
+		await runLimitedFs(async () => await fs.mkdir(path.dirname(params.targetPath), { recursive: true }));
+		await runLimitedFs(async () => await fs.copyFile(params.sourcePath, params.targetPath));
+	}
+}
 async function replaceDirectoryContents(params) {
-	await fs$1.mkdir(params.targetDir, { recursive: true });
-	const existing = await fs$1.readdir(params.targetDir);
-	await Promise.all(existing.map((entry) => fs$1.rm(path.join(params.targetDir, entry), {
-		recursive: true,
-		force: true
-	})));
-	const sourceEntries = await fs$1.readdir(params.sourceDir);
-	for (const entry of sourceEntries) await fs$1.cp(path.join(params.sourceDir, entry), path.join(params.targetDir, entry), {
-		recursive: true,
-		force: true,
-		dereference: false
-	});
+	const isExcluded = createExcludeMatcher(params.excludeDirs);
+	await fs.mkdir(params.targetDir, { recursive: true });
+	const existing = await fs.readdir(params.targetDir);
+	await Promise.all(existing.filter((entry) => !isExcluded(entry)).map(async (entry) => {
+		const targetPath = path.join(params.targetDir, entry);
+		if ((await lstatIfExists(targetPath))?.isSymbolicLink()) return;
+		await runLimitedFs(async () => await fs.rm(targetPath, {
+			recursive: true,
+			force: true
+		}));
+	}));
+	const sourceEntries = await fs.readdir(params.sourceDir);
+	for (const entry of sourceEntries) {
+		if (isExcluded(entry)) continue;
+		await copyTreeWithoutSymlinks({
+			sourcePath: path.join(params.sourceDir, entry),
+			targetPath: path.join(params.targetDir, entry),
+			preserveTargetSymlinks: true
+		});
+	}
+}
+async function stageDirectoryContents(params) {
+	const isExcluded = createExcludeMatcher(params.excludeDirs);
+	await fs.mkdir(params.targetDir, { recursive: true });
+	const sourceEntries = await fs.readdir(params.sourceDir);
+	for (const entry of sourceEntries) {
+		if (isExcluded(entry)) continue;
+		await copyTreeWithoutSymlinks({
+			sourcePath: path.join(params.sourceDir, entry),
+			targetPath: path.join(params.targetDir, entry)
+		});
+	}
 }
 async function movePathWithCopyFallback(params) {
 	try {
-		await fs$1.rename(params.from, params.to);
+		await fs.rename(params.from, params.to);
 		return;
 	} catch (error) {
 		if (error?.code !== "EXDEV") throw error;
 	}
-	await fs$1.cp(params.from, params.to, {
+	await fs.cp(params.from, params.to, {
 		recursive: true,
 		force: true,
 		dereference: false
 	});
-	await fs$1.rm(params.from, {
+	await fs.rm(params.from, {
 		recursive: true,
 		force: true
 	});
@@ -326,6 +286,7 @@ var OpenShellFsBridge = class {
 	constructor(sandbox, backend) {
 		this.sandbox = sandbox;
 		this.backend = backend;
+		this.resolveRenameTargets = createWritableRenameTargetResolver((target) => this.resolveTarget(target), (target, action) => this.ensureWritable(target, action));
 	}
 	resolvePath(params) {
 		const target = this.resolveTarget(params);
@@ -344,7 +305,7 @@ var OpenShellFsBridge = class {
 			allowMissingLeaf: false,
 			allowFinalSymlinkForUnlink: false
 		});
-		return await fs$1.readFile(hostPath);
+		return await fs.readFile(hostPath);
 	}
 	async writeFile(params) {
 		const target = this.resolveTarget(params);
@@ -358,10 +319,10 @@ var OpenShellFsBridge = class {
 		});
 		const buffer = Buffer.isBuffer(params.data) ? params.data : Buffer.from(params.data, params.encoding ?? "utf8");
 		const parentDir = path.dirname(hostPath);
-		if (params.mkdir !== false) await fs$1.mkdir(parentDir, { recursive: true });
+		if (params.mkdir !== false) await fs.mkdir(parentDir, { recursive: true });
 		const tempPath = path.join(parentDir, `.openclaw-openshell-write-${path.basename(hostPath)}-${process.pid}-${Date.now()}`);
-		await fs$1.writeFile(tempPath, buffer);
-		await fs$1.rename(tempPath, hostPath);
+		await fs.writeFile(tempPath, buffer);
+		await fs.rename(tempPath, hostPath);
 		await this.backend.syncLocalPathToRemote(hostPath, target.containerPath);
 	}
 	async mkdirp(params) {
@@ -374,7 +335,7 @@ var OpenShellFsBridge = class {
 			allowMissingLeaf: true,
 			allowFinalSymlinkForUnlink: false
 		});
-		await fs$1.mkdir(hostPath, { recursive: true });
+		await fs.mkdir(hostPath, { recursive: true });
 		await this.backend.runRemoteShellScript({
 			script: "mkdir -p -- \"$1\"",
 			args: [target.containerPath],
@@ -391,7 +352,7 @@ var OpenShellFsBridge = class {
 			allowMissingLeaf: params.force !== false,
 			allowFinalSymlinkForUnlink: true
 		});
-		await fs$1.rm(hostPath, {
+		await fs.rm(hostPath, {
 			recursive: params.recursive ?? false,
 			force: params.force !== false
 		});
@@ -403,18 +364,9 @@ var OpenShellFsBridge = class {
 		});
 	}
 	async rename(params) {
-		const from = this.resolveTarget({
-			filePath: params.from,
-			cwd: params.cwd
-		});
-		const to = this.resolveTarget({
-			filePath: params.to,
-			cwd: params.cwd
-		});
+		const { from, to } = this.resolveRenameTargets(params);
 		const fromHostPath = this.requireHostPath(from);
 		const toHostPath = this.requireHostPath(to);
-		this.ensureWritable(from, "rename files");
-		this.ensureWritable(to, "rename files");
 		await assertLocalPathSafety({
 			target: from,
 			root: from.mountHostRoot,
@@ -427,7 +379,7 @@ var OpenShellFsBridge = class {
 			allowMissingLeaf: true,
 			allowFinalSymlinkForUnlink: false
 		});
-		await fs$1.mkdir(path.dirname(toHostPath), { recursive: true });
+		await fs.mkdir(path.dirname(toHostPath), { recursive: true });
 		await movePathWithCopyFallback({
 			from: fromHostPath,
 			to: toHostPath
@@ -441,7 +393,7 @@ var OpenShellFsBridge = class {
 	async stat(params) {
 		const target = this.resolveTarget(params);
 		const hostPath = this.requireHostPath(target);
-		const stats = await fs$1.lstat(hostPath).catch(() => null);
+		const stats = await fs.lstat(hostPath).catch(() => null);
 		if (!stats) return null;
 		await assertLocalPathSafety({
 			target,
@@ -524,13 +476,13 @@ function isPathInside(root, target) {
 }
 async function assertLocalPathSafety(params) {
 	if (!params.target.hostPath) throw new Error(`Missing local host path for ${params.target.containerPath}`);
-	if (!isPathInside(await fs$1.realpath(params.root).catch(() => path.resolve(params.root)), await resolveCanonicalCandidate(params.target.hostPath))) throw new Error(`Sandbox path escapes allowed mounts; cannot access: ${params.target.containerPath}`);
+	if (!isPathInside(await fs.realpath(params.root).catch(() => path.resolve(params.root)), await resolveCanonicalCandidate(params.target.hostPath))) throw new Error(`Sandbox path escapes allowed mounts; cannot access: ${params.target.containerPath}`);
 	const relative = path.relative(params.root, params.target.hostPath);
 	const segments = relative.split(path.sep).filter(Boolean).slice(0, Math.max(0, relative.split(path.sep).filter(Boolean).length));
 	let cursor = params.root;
 	for (let index = 0; index < segments.length; index += 1) {
 		cursor = path.join(cursor, segments[index]);
-		const stats = await fs$1.lstat(cursor).catch(() => null);
+		const stats = await fs.lstat(cursor).catch(() => null);
 		if (!stats) {
 			if (index === segments.length - 1 && params.allowMissingLeaf) return;
 			continue;
@@ -543,8 +495,8 @@ async function resolveCanonicalCandidate(targetPath) {
 	const missing = [];
 	let cursor = path.resolve(targetPath);
 	while (true) {
-		if (await fs$1.lstat(cursor).then(() => true).catch(() => false)) {
-			const canonical = await fs$1.realpath(cursor).catch(() => cursor);
+		if (await fs.lstat(cursor).then(() => true).catch(() => false)) {
+			const canonical = await fs.realpath(cursor).catch(() => cursor);
 			return path.resolve(canonical, ...missing);
 		}
 		const parent = path.dirname(cursor);
@@ -555,6 +507,9 @@ async function resolveCanonicalCandidate(targetPath) {
 }
 //#endregion
 //#region extensions/openshell/src/backend.ts
+function buildOpenShellSshExecEnv() {
+	return sanitizeEnvVars(process.env).allowed;
+}
 function createOpenShellSandboxBackendFactory(params) {
 	return async (createParams) => await createOpenShellSandboxBackend({
 		...params,
@@ -629,7 +584,7 @@ async function createOpenShellSandboxBackend(params) {
 			});
 			return {
 				argv: pending.argv,
-				env: process.env,
+				env: buildOpenShellSshExecEnv(),
 				stdinMode: "pipe-open",
 				finalizeToken: pending.token
 			};
@@ -679,7 +634,7 @@ var OpenShellSandboxBackendImpl = class {
 				});
 				return {
 					argv: pending.argv,
-					env: process.env,
+					env: buildOpenShellSshExecEnv(),
 					stdinMode: "pipe-open",
 					finalizeToken: pending.token
 				};
@@ -766,8 +721,16 @@ var OpenShellSandboxBackendImpl = class {
 	async syncLocalPathToRemote(localPath, remotePath) {
 		await this.ensureSandboxExists();
 		await this.maybeSeedRemoteWorkspace();
-		const stats = await fs$1.lstat(localPath).catch(() => null);
+		const stats = await fs.lstat(localPath).catch(() => null);
 		if (!stats) {
+			await this.runRemoteShellScript({
+				script: "rm -rf -- \"$1\"",
+				args: [remotePath],
+				allowFailure: true
+			});
+			return;
+		}
+		if (stats.isSymbolicLink()) {
 			await this.runRemoteShellScript({
 				script: "rm -rf -- \"$1\"",
 				args: [remotePath],
@@ -858,7 +821,7 @@ var OpenShellSandboxBackendImpl = class {
 		}
 	}
 	async syncWorkspaceFromRemote() {
-		const tmpDir = await fs$1.mkdtemp(path.join(resolveOpenShellTmpRoot(), "openclaw-openshell-sync-"));
+		const tmpDir = await fs.mkdtemp(path.join(resolveOpenShellTmpRoot(), "openclaw-openshell-sync-"));
 		try {
 			const result = await runOpenShellCli({
 				context: this.params.execContext,
@@ -874,29 +837,42 @@ var OpenShellSandboxBackendImpl = class {
 			if (result.code !== 0) throw new Error(result.stderr.trim() || "openshell sandbox download failed");
 			await replaceDirectoryContents({
 				sourceDir: tmpDir,
-				targetDir: this.params.createParams.workspaceDir
+				targetDir: this.params.createParams.workspaceDir,
+				excludeDirs: DEFAULT_OPEN_SHELL_MIRROR_EXCLUDE_DIRS
 			});
 		} finally {
-			await fs$1.rm(tmpDir, {
+			await fs.rm(tmpDir, {
 				recursive: true,
 				force: true
 			});
 		}
 	}
 	async uploadPathToRemote(localPath, remotePath) {
-		const result = await runOpenShellCli({
-			context: this.params.execContext,
-			args: [
-				"sandbox",
-				"upload",
-				"--no-git-ignore",
-				this.params.execContext.sandboxName,
-				localPath,
-				remotePath
-			],
-			cwd: this.params.createParams.workspaceDir
-		});
-		if (result.code !== 0) throw new Error(result.stderr.trim() || "openshell sandbox upload failed");
+		const tmpDir = await fs.mkdtemp(path.join(resolveOpenShellTmpRoot(), "openclaw-openshell-upload-"));
+		try {
+			await stageDirectoryContents({
+				sourceDir: localPath,
+				targetDir: tmpDir
+			});
+			const result = await runOpenShellCli({
+				context: this.params.execContext,
+				args: [
+					"sandbox",
+					"upload",
+					"--no-git-ignore",
+					this.params.execContext.sandboxName,
+					tmpDir,
+					remotePath
+				],
+				cwd: this.params.createParams.workspaceDir
+			});
+			if (result.code !== 0) throw new Error(result.stderr.trim() || "openshell sandbox upload failed");
+		} finally {
+			await fs.rm(tmpDir, {
+				recursive: true,
+				force: true
+			});
+		}
 	}
 	async maybeSeedRemoteWorkspace() {
 		if (!this.remoteSeedPending) return;

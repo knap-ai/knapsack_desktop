@@ -1,5 +1,6 @@
 {
   "id": "openrouter",
+  "enabledByDefault": true,
   "providers": [
     "openrouter"
   ],
@@ -23,6 +24,11 @@
       "cliDescription": "OpenRouter API key"
     }
   ],
+  "contracts": {
+    "mediaUnderstandingProviders": [
+      "openrouter"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

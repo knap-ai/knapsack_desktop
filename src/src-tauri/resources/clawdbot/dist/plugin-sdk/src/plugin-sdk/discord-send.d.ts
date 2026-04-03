@@ -1,4 +1,5 @@
-import type { DiscordSendResult } from "../../extensions/discord/api.js";
+import type { OutboundMediaAccess } from "../media/load-options.js";
+import type { DiscordSendResult } from "./discord.js";
 type DiscordSendOptionInput = {
     replyToId?: string | null;
     accountId?: string | null;
@@ -6,7 +7,9 @@ type DiscordSendOptionInput = {
 };
 type DiscordSendMediaOptionInput = DiscordSendOptionInput & {
     mediaUrl?: string;
+    mediaAccess?: OutboundMediaAccess;
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
 };
 /** Build the common Discord send options from SDK-level reply payload fields. */
 export declare function buildDiscordSendOptions(input: DiscordSendOptionInput): {
@@ -18,7 +21,9 @@ export declare function buildDiscordSendOptions(input: DiscordSendOptionInput): 
 /** Extend the base Discord send options with media-specific fields. */
 export declare function buildDiscordSendMediaOptions(input: DiscordSendMediaOptionInput): {
     mediaUrl: string | undefined;
+    mediaAccess: OutboundMediaAccess | undefined;
     mediaLocalRoots: readonly string[] | undefined;
+    mediaReadFile: ((filePath: string) => Promise<Buffer>) | undefined;
     verbose: boolean;
     replyTo: string | undefined;
     accountId: string | undefined;
@@ -27,5 +32,5 @@ export declare function buildDiscordSendMediaOptions(input: DiscordSendMediaOpti
 /** Stamp raw Discord send results with the channel id expected by shared outbound flows. */
 export declare function tagDiscordChannelResult(result: DiscordSendResult): {
     channel: string;
-} & DiscordSendResult;
+} & import("@openclaw/discord/api.ts").DiscordSendResult;
 export {};

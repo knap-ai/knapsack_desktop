@@ -1,4 +1,7 @@
-import { t as definePluginEntry } from "../../plugin-entry-B2shVOQl.js";
+import { n as fetchWithSsrFGuard } from "../../fetch-guard-Lvq2pw52.js";
+import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import { a as ssrfPolicyFromAllowPrivateNetwork } from "../../ssrf-policy-B7Ivb-NK.js";
+import "../../api-Dv8lAN_k.js";
 //#region extensions/thread-ownership/index.ts
 const mentionedThreads = /* @__PURE__ */ new Map();
 const MENTION_TTL_MS = 300 * 1e3;
@@ -47,19 +50,28 @@ var thread_ownership_default = definePluginEntry({
 			cleanExpiredMentions();
 			if (mentionedThreads.has(`${channelId}:${threadTs}`)) return;
 			try {
-				const resp = await fetch(`${forwarderUrl}/api/v1/ownership/${channelId}/${threadTs}`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ agent_id: agentId }),
-					signal: AbortSignal.timeout(3e3)
+				const { response: resp, release } = await fetchWithSsrFGuard({
+					url: `${forwarderUrl}/api/v1/ownership/${channelId}/${threadTs}`,
+					init: {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ agent_id: agentId })
+					},
+					timeoutMs: 3e3,
+					policy: ssrfPolicyFromAllowPrivateNetwork(true),
+					auditContext: "thread-ownership"
 				});
-				if (resp.ok) return;
-				if (resp.status === 409) {
-					const body = await resp.json();
-					api.logger.info?.(`thread-ownership: cancelled send to ${channelId}:${threadTs} — owned by ${body.owner}`);
-					return { cancel: true };
+				try {
+					if (resp.ok) return;
+					if (resp.status === 409) {
+						const body = await resp.json();
+						api.logger.info?.(`thread-ownership: cancelled send to ${channelId}:${threadTs} — owned by ${body.owner}`);
+						return { cancel: true };
+					}
+					api.logger.warn?.(`thread-ownership: unexpected status ${resp.status}, allowing send`);
+				} finally {
+					await release();
 				}
-				api.logger.warn?.(`thread-ownership: unexpected status ${resp.status}, allowing send`);
 			} catch (err) {
 				api.logger.warn?.(`thread-ownership: ownership check failed (${String(err)}), allowing send`);
 			}

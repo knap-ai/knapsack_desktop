@@ -1,6 +1,8 @@
 import type { AnyAgentTool } from "./tools/common.js";
 export { expandToolGroups, normalizeToolList, normalizeToolName, resolveToolProfilePolicy, TOOL_GROUPS, } from "./tool-policy-shared.js";
 export type { ToolProfileId } from "./tool-policy-shared.js";
+export type OwnerOnlyToolApprovalClass = "control_plane" | "exec_capable" | "interactive";
+export declare function resolveOwnerOnlyToolApprovalClass(name: string): OwnerOnlyToolApprovalClass | undefined;
 export declare function isOwnerOnlyToolName(name: string): boolean;
 export declare function applyOwnerOnlyToolPolicy(tools: AnyAgentTool[], senderIsOwner: boolean): AnyAgentTool[];
 export type ToolPolicyLike = {

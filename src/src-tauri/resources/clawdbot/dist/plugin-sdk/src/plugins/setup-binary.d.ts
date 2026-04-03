@@ -1,1 +1,1 @@
-export declare function detectBinary(name: string): Promise<boolean>;
+export { detectBinary } from "../infra/detect-binary.js";

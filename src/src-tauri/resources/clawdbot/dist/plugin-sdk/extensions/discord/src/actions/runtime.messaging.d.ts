@@ -29,4 +29,5 @@ export declare const discordMessagingActionRuntime: {
 };
 export declare function handleDiscordMessagingAction(action: string, params: Record<string, unknown>, isActionEnabled: ActionGate<DiscordActionConfig>, options?: {
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
 }, cfg?: OpenClawConfig): Promise<AgentToolResult<unknown>>;

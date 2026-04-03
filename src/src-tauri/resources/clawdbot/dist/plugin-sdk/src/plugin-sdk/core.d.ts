@@ -1,37 +1,42 @@
 import type { ChannelOutboundAdapter, ChannelPairingAdapter, ChannelSecurityAdapter } from "../channels/plugins/types.adapters.js";
-import type { ChannelMessagingAdapter, ChannelOutboundSessionRoute, ChannelThreadingAdapter } from "../channels/plugins/types.core.js";
+import type { ChannelMessagingAdapter, ChannelOutboundSessionRoute, ChannelPollResult, ChannelThreadingAdapter } from "../channels/plugins/types.core.js";
 import type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { ReplyToMode } from "../config/types.base.js";
+import type { OutboundDeliveryResult } from "../infra/outbound/deliver.js";
 import type { PluginRuntime } from "../plugins/runtime/types.js";
 import type { OpenClawPluginApi, OpenClawPluginConfigSchema } from "../plugins/types.js";
-import { createTextPairingAdapter } from "./channel-pairing.js";
-import { createAttachedChannelResultAdapter } from "./channel-send-result.js";
-export type { AnyAgentTool, MediaUnderstandingProviderPlugin, OpenClawPluginConfigSchema, ProviderDiscoveryContext, ProviderCatalogContext, ProviderCatalogResult, ProviderAugmentModelCatalogContext, ProviderBuiltInModelSuppressionContext, ProviderBuiltInModelSuppressionResult, ProviderBuildMissingAuthMessageContext, ProviderCacheTtlEligibilityContext, ProviderDefaultThinkingPolicyContext, ProviderFetchUsageSnapshotContext, ProviderModernModelPolicyContext, ProviderPreparedRuntimeAuth, ProviderResolvedUsageAuth, ProviderPrepareExtraParamsContext, ProviderPrepareDynamicModelContext, ProviderPrepareRuntimeAuthContext, ProviderResolveUsageAuthContext, ProviderResolveDynamicModelContext, ProviderNormalizeResolvedModelContext, ProviderRuntimeModel, SpeechProviderPlugin, ProviderThinkingPolicyContext, ProviderWrapStreamFnContext, OpenClawPluginService, OpenClawPluginServiceContext, ProviderAuthContext, ProviderAuthDoctorHintContext, ProviderAuthMethodNonInteractiveContext, ProviderAuthMethod, ProviderAuthResult, OpenClawPluginToolContext, OpenClawPluginToolFactory, OpenClawPluginCommandDefinition, OpenClawPluginDefinition, PluginCommandContext, PluginLogger, PluginInteractiveTelegramHandlerContext, } from "../plugins/types.js";
+export type { AnyAgentTool, MediaUnderstandingProviderPlugin, OpenClawPluginApi, OpenClawPluginCommandDefinition, OpenClawPluginConfigSchema, OpenClawPluginDefinition, OpenClawPluginService, OpenClawPluginServiceContext, PluginCommandContext, PluginInteractiveTelegramHandlerContext, PluginLogger, ProviderAuthContext, ProviderAuthDoctorHintContext, ProviderAuthMethod, ProviderAuthMethodNonInteractiveContext, ProviderAuthResult, ProviderAugmentModelCatalogContext, ProviderBuildMissingAuthMessageContext, ProviderBuildUnknownModelHintContext, ProviderBuiltInModelSuppressionContext, ProviderBuiltInModelSuppressionResult, ProviderCacheTtlEligibilityContext, ProviderCatalogContext, ProviderCatalogResult, ProviderDefaultThinkingPolicyContext, ProviderDiscoveryContext, ProviderFetchUsageSnapshotContext, ProviderModernModelPolicyContext, ProviderNormalizeResolvedModelContext, ProviderNormalizeToolSchemasContext, ProviderPrepareDynamicModelContext, ProviderPrepareExtraParamsContext, ProviderPrepareRuntimeAuthContext, ProviderPreparedRuntimeAuth, ProviderReasoningOutputMode, ProviderReasoningOutputModeContext, ProviderReplayPolicy, ProviderReplayPolicyContext, ProviderResolveDynamicModelContext, ProviderResolvedUsageAuth, ProviderSanitizeReplayHistoryContext, ProviderResolveUsageAuthContext, ProviderRuntimeModel, ProviderThinkingPolicyContext, ProviderValidateReplayTurnsContext, ProviderWrapStreamFnContext, SpeechProviderPlugin, } from "./plugin-entry.js";
+export type { OpenClawPluginToolContext, OpenClawPluginToolFactory } from "../plugins/types.js";
 export type { OpenClawConfig } from "../config/config.js";
 export { isSecretRef } from "../config/types.secrets.js";
 export type { GatewayRequestHandlerOptions } from "../gateway/server-methods/types.js";
 export type { ChannelOutboundSessionRoute, ChannelMessagingAdapter, } from "../channels/plugins/types.core.js";
 export type { ProviderUsageSnapshot, UsageProviderId, UsageWindow, } from "../infra/provider-usage.types.js";
 export type { ChannelMessageActionContext } from "../channels/plugins/types.js";
-export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
-export type { OpenClawPluginApi } from "../plugins/types.js";
+export type { ChannelConfigUiHint, ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export type { PluginRuntime } from "../plugins/runtime/types.js";
-export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
+export type { BoundTaskFlowsRuntime, BoundTaskRunsRuntime, PluginRuntimeTaskFlows, PluginRuntimeTaskRuns, PluginRuntimeTasks, } from "../plugins/runtime/runtime-tasks.js";
+export type { TaskFlowDetail, TaskFlowView, TaskRunAggregateSummary, TaskRunCancelResult, TaskRunDetail, TaskRunView, } from "../plugins/runtime/task-domain-types.js";
 export { definePluginEntry } from "./plugin-entry.js";
+export { buildPluginConfigSchema, emptyPluginConfigSchema } from "../plugins/config-schema.js";
 export { KeyedAsyncQueue, enqueueKeyedTask } from "./keyed-async-queue.js";
+export { createDedupeCache, resolveGlobalDedupeCache } from "../infra/dedupe.js";
+export { generateSecureToken, generateSecureUuid } from "../infra/secure-random.js";
 export { delegateCompactionToRuntime } from "../context-engine/delegate.js";
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";
 export { applyAccountNameToChannelSection, migrateBaseNameToDefaultAccount, } from "../channels/plugins/setup-helpers.js";
 export { clearAccountEntryFields, deleteAccountFromConfigSection, setAccountEnabledInConfigSection, } from "../channels/plugins/config-helpers.js";
 export { formatPairingApproveHint, parseOptionalDelimitedEntries, } from "../channels/plugins/helpers.js";
-export { getChatChannelMeta } from "../channels/registry.js";
+export { getChatChannelMeta } from "../channels/chat-meta.js";
 export { channelTargetSchema, channelTargetsSchema, optionalStringEnum, stringEnum, } from "../agents/schema/typebox.js";
 export { DEFAULT_SECRET_FILE_MAX_BYTES, loadSecretFileSync, readSecretFileSync, tryReadSecretFileSync, } from "../infra/secret-file.js";
 export type { SecretFileReadOptions, SecretFileReadResult } from "../infra/secret-file.js";
 export { resolveGatewayBindUrl } from "../shared/gateway-bind-url.js";
 export type { GatewayBindUrlResult } from "../shared/gateway-bind-url.js";
+export { resolveGatewayPort } from "../config/paths.js";
+export { createSubsystemLogger } from "../logging/subsystem.js";
 export { normalizeAtHashSlug, normalizeHyphenSlug } from "../shared/string-normalization.js";
 export { resolveTailnetHostWithRunner } from "../shared/tailscale-status.js";
 export type { TailscaleStatusCommandResult, TailscaleStatusCommandRunner, } from "../shared/tailscale-status.js";
@@ -68,7 +73,17 @@ type DefineChannelPluginEntryOptions<TPlugin = ChannelPlugin> = {
     plugin: TPlugin;
     configSchema?: OpenClawPluginConfigSchema | (() => OpenClawPluginConfigSchema);
     setRuntime?: (runtime: PluginRuntime) => void;
+    registerCliMetadata?: (api: OpenClawPluginApi) => void;
     registerFull?: (api: OpenClawPluginApi) => void;
+};
+type DefinedChannelPluginEntry<TPlugin> = {
+    id: string;
+    name: string;
+    description: string;
+    configSchema: OpenClawPluginConfigSchema;
+    register: (api: OpenClawPluginApi) => void;
+    channelPlugin: TPlugin;
+    setChannelRuntime?: (runtime: PluginRuntime) => void;
 };
 type CreateChannelPluginBaseOptions<TResolvedAccount> = {
     id: ChannelPlugin<TResolvedAccount>["id"];
@@ -93,13 +108,7 @@ type CreatedChannelPluginBase<TResolvedAccount> = Pick<ChannelPlugin<TResolvedAc
  * optionally exposes extra full-runtime registration such as tools or gateway
  * handlers that only make sense outside setup-only registration modes.
  */
-export declare function defineChannelPluginEntry<TPlugin>({ id, name, description, plugin, configSchema, setRuntime, registerFull, }: DefineChannelPluginEntryOptions<TPlugin>): {
-    id: string;
-    name: string;
-    description: string;
-    configSchema: OpenClawPluginConfigSchema;
-    register: NonNullable<import("./plugin-entry.js").OpenClawPluginDefinition["register"]>;
-} & Pick<import("./plugin-entry.js").OpenClawPluginDefinition, "kind">;
+export declare function defineChannelPluginEntry<TPlugin>({ id, name, description, plugin, configSchema, setRuntime, registerCliMetadata, registerFull, }: DefineChannelPluginEntryOptions<TPlugin>): DefinedChannelPluginEntry<TPlugin>;
 /**
  * Minimal setup-entry helper for channels that ship a separate `setup-entry.ts`.
  *
@@ -132,7 +141,9 @@ type ChatChannelPairingOptions = {
         idLabel: string;
         message: string;
         normalizeAllowEntry?: ChannelPairingAdapter["normalizeAllowEntry"];
-        notify: Parameters<typeof createTextPairingAdapter>[0]["notify"];
+        notify: (params: Parameters<NonNullable<ChannelPairingAdapter["notifyApproval"]>>[0] & {
+            message: string;
+        }) => Promise<void> | void;
     };
 };
 type ChatChannelThreadingReplyModeOptions<TResolvedAccount> = {
@@ -149,8 +160,14 @@ type ChatChannelThreadingReplyModeOptions<TResolvedAccount> = {
 type ChatChannelThreadingOptions<TResolvedAccount> = ChatChannelThreadingReplyModeOptions<TResolvedAccount> & Omit<ChannelThreadingAdapter, "resolveReplyToMode">;
 type ChatChannelAttachedOutboundOptions = {
     base: Omit<ChannelOutboundAdapter, "sendText" | "sendMedia" | "sendPoll">;
-    attachedResults: Parameters<typeof createAttachedChannelResultAdapter>[0];
+    attachedResults: {
+        channel: string;
+        sendText?: (ctx: Parameters<NonNullable<ChannelOutboundAdapter["sendText"]>>[0]) => MaybePromise<Omit<OutboundDeliveryResult, "channel">>;
+        sendMedia?: (ctx: Parameters<NonNullable<ChannelOutboundAdapter["sendMedia"]>>[0]) => MaybePromise<Omit<OutboundDeliveryResult, "channel">>;
+        sendPoll?: (ctx: Parameters<NonNullable<ChannelOutboundAdapter["sendPoll"]>>[0]) => MaybePromise<Omit<ChannelPollResult, "channel">>;
+    };
 };
+type MaybePromise<T> = T | Promise<T>;
 export declare function createChatChannelPlugin<TResolvedAccount extends {
     accountId?: string | null;
 }, Probe = unknown, Audit = unknown>(params: {

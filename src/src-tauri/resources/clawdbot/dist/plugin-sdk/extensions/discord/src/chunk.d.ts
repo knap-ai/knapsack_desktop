@@ -1,4 +1,4 @@
-import { type ChunkMode } from "openclaw/plugin-sdk/reply-runtime";
+import { type ChunkMode } from "openclaw/plugin-sdk/reply-chunking";
 export type ChunkDiscordTextOpts = {
     /** Max characters per Discord message. Default: 2000. */
     maxChars?: number;

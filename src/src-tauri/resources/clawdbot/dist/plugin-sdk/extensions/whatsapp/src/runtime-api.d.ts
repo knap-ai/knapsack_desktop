@@ -2,4 +2,15 @@ export { buildChannelConfigSchema, createActionGate, DEFAULT_ACCOUNT_ID, formatW
 export { createWhatsAppOutboundBase, looksLikeWhatsAppTargetId, normalizeWhatsAppAllowFromEntries, normalizeWhatsAppMessagingTarget, resolveWhatsAppHeartbeatRecipients, resolveWhatsAppMentionStripRegexes, type ChannelMessageActionName, type DmPolicy, type GroupPolicy, type WhatsAppAccountConfig, } from "openclaw/plugin-sdk/whatsapp-shared";
 export { isWhatsAppGroupJid, isWhatsAppUserTarget, normalizeWhatsAppTarget, } from "./normalize-target.js";
 export { resolveWhatsAppOutboundTarget } from "./resolve-outbound-target.js";
-export { monitorWebChannel } from "./channel.runtime.js";
+export { resolveWhatsAppReactionLevel } from "./reaction-level.js";
+type MonitorWebChannel = typeof import("./channel.runtime.js").monitorWebChannel;
+export declare function monitorWebChannel(...args: Parameters<MonitorWebChannel>): ReturnType<MonitorWebChannel>;
+export declare function loadOutboundMediaFromUrl(mediaUrl: string, options?: {
+    maxBytes?: number;
+    mediaAccess?: {
+        localRoots?: readonly string[];
+        readFile?: (filePath: string) => Promise<Buffer>;
+    };
+    mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
+}): Promise<import("openclaw/plugin-sdk/web-media").WebMediaResult>;

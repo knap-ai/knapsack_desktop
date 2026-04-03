@@ -10,5 +10,5 @@ export declare function ensurePortAvailable(port: number): Promise<void>;
 export declare function handlePortError(err: unknown, port: number, context: string, runtime?: RuntimeEnv): Promise<never>;
 export { PortInUseError };
 export type { PortListener, PortListenerKind, PortUsage, PortUsageStatus };
-export { buildPortHints, classifyPortListener, formatPortDiagnostics } from "./ports-format.js";
+export { buildPortHints, classifyPortListener, formatPortDiagnostics, isDualStackLoopbackGatewayListeners, } from "./ports-format.js";
 export { inspectPortUsage } from "./ports-inspect.js";

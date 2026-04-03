@@ -1,4 +1,4 @@
-import { t as definePluginEntry } from "../../plugin-entry-B2shVOQl.js";
+import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 //#region extensions/phone-control/index.ts
@@ -8,6 +8,7 @@ const STATE_REL_PATH = [
 	"phone-control",
 	"armed.json"
 ];
+const PHONE_ADMIN_SCOPE = "operator.admin";
 const GROUP_COMMANDS = {
 	camera: ["camera.snap", "camera.clip"],
 	screen: ["screen.record"],
@@ -170,6 +171,10 @@ function parseGroup(raw) {
 	if (value === "camera" || value === "screen" || value === "writes" || value === "all") return value;
 	return null;
 }
+function requiresAdminToMutatePhoneControl(channel, gatewayClientScopes) {
+	if (Array.isArray(gatewayClientScopes)) return !gatewayClientScopes.includes(PHONE_ADMIN_SCOPE);
+	return channel === "webchat";
+}
 function formatStatus(state) {
 	if (!state) return "Phone control: disarmed.";
 	const until = state.expiresAtMs == null ? "manual disarm required" : `expires in ${formatDuration(Math.max(0, state.expiresAtMs - Date.now()))}`;
@@ -222,7 +227,7 @@ var phone_control_default = definePluginEntry({
 				if (!action || action === "help") return { text: `${formatStatus(await readArmState(statePath))}\n\n${formatHelp()}` };
 				if (action === "status") return { text: formatStatus(await readArmState(statePath)) };
 				if (action === "disarm") {
-					if (ctx.channel === "webchat" && !ctx.gatewayClientScopes?.includes("operator.admin")) return { text: "⚠️ /phone disarm requires operator.admin for internal gateway callers." };
+					if (requiresAdminToMutatePhoneControl(ctx.channel, ctx.gatewayClientScopes)) return { text: "⚠️ /phone disarm requires operator.admin." };
 					const res = await disarmNow({
 						api,
 						stateDir,
@@ -234,7 +239,7 @@ var phone_control_default = definePluginEntry({
 					return { text: `Phone control: disarmed.\nRemoved allowlist: ${res.removed.length > 0 ? res.removed.join(", ") : "none"}\nRestored denylist: ${restoredLabel}` };
 				}
 				if (action === "arm") {
-					if (ctx.channel === "webchat" && !ctx.gatewayClientScopes?.includes("operator.admin")) return { text: "⚠️ /phone arm requires operator.admin for internal gateway callers." };
+					if (requiresAdminToMutatePhoneControl(ctx.channel, ctx.gatewayClientScopes)) return { text: "⚠️ /phone arm requires operator.admin." };
 					const group = parseGroup(tokens[1]);
 					if (!group) return { text: `Usage: /phone arm <group> [duration]\nGroups: ${formatGroupList()}` };
 					const durationMs = parseDurationMs(tokens[2]) ?? 10 * 6e4;

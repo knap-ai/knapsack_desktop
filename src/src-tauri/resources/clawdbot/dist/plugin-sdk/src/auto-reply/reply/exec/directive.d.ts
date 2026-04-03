@@ -1,8 +1,8 @@
-import type { ExecAsk, ExecHost, ExecSecurity } from "../../../infra/exec-approvals.js";
+import { type ExecAsk, type ExecSecurity, type ExecTarget } from "../../../infra/exec-approvals.js";
 type ExecDirectiveParse = {
     cleaned: string;
     hasDirective: boolean;
-    execHost?: ExecHost;
+    execHost?: ExecTarget;
     execSecurity?: ExecSecurity;
     execAsk?: ExecAsk;
     execNode?: string;

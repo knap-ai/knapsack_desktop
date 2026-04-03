@@ -2,11 +2,12 @@ import { Button, type ButtonInteraction, type ComponentData } from "@buape/carbo
 import { ButtonStyle } from "discord-api-types/v10";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import type { DiscordExecApprovalConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { ExecApprovalDecision, ExecApprovalRequest, ExecApprovalResolved } from "openclaw/plugin-sdk/infra-runtime";
+import type { ExecApprovalDecision, ExecApprovalRequest, ExecApprovalResolved, PluginApprovalRequest, PluginApprovalResolved } from "openclaw/plugin-sdk/infra-runtime";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-export type { ExecApprovalRequest, ExecApprovalResolved };
-/** Extract Discord channel ID from a session key like "agent:main:discord:channel:123456789" */
-export declare function extractDiscordChannelId(sessionKey?: string | null): string | null;
+export { extractDiscordChannelId } from "../approval-native.js";
+export type { ExecApprovalRequest, ExecApprovalResolved, PluginApprovalRequest, PluginApprovalResolved, };
+type ApprovalRequest = ExecApprovalRequest | PluginApprovalRequest;
+type ApprovalResolved = ExecApprovalResolved | PluginApprovalResolved;
 export declare function buildExecApprovalCustomId(approvalId: string, action: ExecApprovalDecision): string;
 export declare function parseExecApprovalData(data: ComponentData): {
     approvalId: string;
@@ -22,19 +23,17 @@ export type DiscordExecApprovalHandlerOpts = {
     onResolve?: (id: string, decision: ExecApprovalDecision) => Promise<void>;
 };
 export declare class DiscordExecApprovalHandler {
-    private gatewayClient;
-    private pending;
-    private requestCache;
+    private readonly runtime;
     private opts;
-    private started;
     constructor(opts: DiscordExecApprovalHandlerOpts);
-    shouldHandle(request: ExecApprovalRequest): boolean;
+    shouldHandle(request: ApprovalRequest): boolean;
     start(): Promise<void>;
     stop(): Promise<void>;
-    private handleGatewayEvent;
-    private handleApprovalRequested;
-    private handleApprovalResolved;
-    private handleApprovalTimeout;
+    handleApprovalRequested(request: ApprovalRequest): Promise<void>;
+    handleApprovalResolved(resolved: ApprovalResolved): Promise<void>;
+    handleApprovalTimeout(approvalId: string, _source?: "channel" | "dm"): Promise<void>;
+    private finalizeResolved;
+    private finalizeExpired;
     private finalizeMessage;
     private updateMessage;
     resolveApproval(approvalId: string, decision: ExecApprovalDecision): Promise<boolean>;

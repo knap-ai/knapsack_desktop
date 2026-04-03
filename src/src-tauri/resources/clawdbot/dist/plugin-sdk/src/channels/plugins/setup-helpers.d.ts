@@ -1,3 +1,4 @@
+import { type ZodType } from "zod";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ChannelSetupAdapter } from "./types.adapters.js";
 import type { ChannelSetupInput } from "./types.core.js";
@@ -40,6 +41,27 @@ export declare function createPatchedAccountSetupAdapter(params: {
     validateInput?: ChannelSetupAdapter["validateInput"];
     buildPatch: (input: ChannelSetupInput) => Record<string, unknown>;
 }): ChannelSetupAdapter;
+export declare function createZodSetupInputValidator<T extends ChannelSetupInput>(params: {
+    schema: ZodType<T>;
+    validate?: (params: {
+        cfg: OpenClawConfig;
+        accountId: string;
+        input: T;
+    }) => string | null;
+}): NonNullable<ChannelSetupAdapter["validateInput"]>;
+type SetupInputPresenceRequirement = {
+    someOf: string[];
+    message: string;
+};
+export declare function createSetupInputPresenceValidator(params: {
+    defaultAccountOnlyEnvError?: string;
+    whenNotUseEnv?: SetupInputPresenceRequirement[];
+    validate?: (params: {
+        cfg: OpenClawConfig;
+        accountId: string;
+        input: ChannelSetupInput;
+    }) => string | null;
+}): NonNullable<ChannelSetupAdapter["validateInput"]>;
 export declare function createEnvPatchedAccountSetupAdapter(params: {
     channelKey: string;
     alwaysUseAccounts?: boolean;

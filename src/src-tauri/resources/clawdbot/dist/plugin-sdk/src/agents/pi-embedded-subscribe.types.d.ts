@@ -37,6 +37,7 @@ export type SubscribeEmbeddedPiSessionParams = {
         data: Record<string, unknown>;
     }) => void | Promise<void>;
     enforceFinalTag?: boolean;
+    silentExpected?: boolean;
     config?: OpenClawConfig;
     sessionKey?: string;
     /** Ephemeral session UUID — regenerated on /new and /reset. */

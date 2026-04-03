@@ -1,5 +1,10 @@
 import type { ModelCompatConfig } from "../config/types.models.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
+export declare function normalizeToolParameterSchema(schema: unknown, options?: {
+    modelProvider?: string;
+    modelId?: string;
+    modelCompat?: ModelCompatConfig;
+}): unknown;
 export declare function normalizeToolParameters(tool: AnyAgentTool, options?: {
     modelProvider?: string;
     modelId?: string;

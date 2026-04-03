@@ -1,3 +1,4 @@
+import { INTERNAL_RUNTIME_CONTEXT_BEGIN, INTERNAL_RUNTIME_CONTEXT_END } from "./internal-runtime-context.js";
 export type AgentInternalEventType = "task_completion";
 export type AgentTaskCompletionInternalEvent = {
     type: "task_completion";
@@ -13,4 +14,5 @@ export type AgentTaskCompletionInternalEvent = {
     replyInstruction: string;
 };
 export type AgentInternalEvent = AgentTaskCompletionInternalEvent;
+export { INTERNAL_RUNTIME_CONTEXT_BEGIN, INTERNAL_RUNTIME_CONTEXT_END };
 export declare function formatAgentInternalEventsForPrompt(events?: AgentInternalEvent[]): string;

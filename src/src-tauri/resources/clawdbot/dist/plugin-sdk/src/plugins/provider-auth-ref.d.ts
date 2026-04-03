@@ -16,6 +16,7 @@ export declare function resolveRefFallbackInput(params: {
     config: OpenClawConfig;
     provider: string;
     preferredEnvVar?: string;
+    env?: NodeJS.ProcessEnv;
 }): {
     ref: SecretRef;
     resolvedValue: string;
@@ -26,6 +27,7 @@ export declare function promptSecretRefForSetup(params: {
     prompter: WizardPrompter;
     preferredEnvVar?: string;
     copy?: SecretRefSetupPromptCopy;
+    env?: NodeJS.ProcessEnv;
 }): Promise<{
     ref: SecretRef;
     resolvedValue: string;

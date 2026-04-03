@@ -1,9 +1,6 @@
 import { n as redactSensitiveText } from "../../redact-BDinS1q9.js";
-import { c as registerLogTransport } from "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import "../../tmp-openclaw-dir-idKIOMmb.js";
-import { t as emptyPluginConfigSchema } from "../../config-schema-S4LJDwIg.js";
-import { r as onDiagnosticEvent, t as emitDiagnosticEvent } from "../../diagnostic-events-DLiZiw1x.js";
-import "../../diagnostics-otel-DAhTkbUZ.js";
-import "../../api-C2Nxy89z.js";
+import { c as registerLogTransport } from "../../logger-BCzP_yik.js";
+import { n as emptyPluginConfigSchema } from "../../config-schema-dIP9qvIK.js";
+import { r as onDiagnosticEvent, t as emitDiagnosticEvent } from "../../diagnostic-events-ROhwFcx1.js";
+import "../../api-CtoL8SLO.js";
 export { emitDiagnosticEvent, emptyPluginConfigSchema, onDiagnosticEvent, redactSensitiveText, registerLogTransport };

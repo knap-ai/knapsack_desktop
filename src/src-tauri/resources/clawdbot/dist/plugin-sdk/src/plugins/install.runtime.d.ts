@@ -7,11 +7,11 @@ import { type NpmIntegrityDrift, type NpmSpecResolution, resolveArchiveSourcePat
 import { ensureInstallTargetAvailable, resolveCanonicalInstallTarget } from "../infra/install-target.js";
 import { finalizeNpmSpecArchiveInstall, installFromNpmSpecArchiveWithInstaller } from "../infra/npm-pack-install.js";
 import { validateRegistryNpmSpec } from "../infra/npm-registry-spec.js";
-import { resolveRuntimeServiceVersion } from "../version.js";
+import { resolveCompatibilityHostVersion, resolveRuntimeServiceVersion } from "../version.js";
 import { detectBundleManifestFormat, loadBundleManifest } from "./bundle-manifest.js";
-import { scanBundleInstallSource, scanPackageInstallSource } from "./install-security-scan.js";
+import { scanBundleInstallSource, scanFileInstallSource, scanPackageInstallSource } from "./install-security-scan.js";
 import { getPackageManifestMetadata, loadPluginManifest, resolvePackageExtensionEntries } from "./manifest.js";
 import { checkMinHostVersion } from "./min-host-version.js";
 import { isPathInside } from "./path-safety.js";
 export type { NpmIntegrityDrift, NpmSpecResolution };
-export { checkMinHostVersion, detectBundleManifestFormat, ensureInstallTargetAvailable, fileExists, finalizeNpmSpecArchiveInstall, getPackageManifestMetadata, installFromNpmSpecArchiveWithInstaller, installPackageDir, isPathInside, loadBundleManifest, loadPluginManifest, readJsonFile, resolveArchiveKind, resolveArchiveSourcePath, resolveCanonicalInstallTarget, resolveExistingInstallPath, resolveInstallModeOptions, resolvePackageExtensionEntries, resolveRuntimeServiceVersion, resolveTimedInstallModeOptions, scanBundleInstallSource, scanPackageInstallSource, validateRegistryNpmSpec, withExtractedArchiveRoot, writeFileFromPathWithinRoot, };
+export { checkMinHostVersion, detectBundleManifestFormat, ensureInstallTargetAvailable, fileExists, finalizeNpmSpecArchiveInstall, getPackageManifestMetadata, installFromNpmSpecArchiveWithInstaller, installPackageDir, isPathInside, loadBundleManifest, loadPluginManifest, readJsonFile, resolveArchiveKind, resolveArchiveSourcePath, resolveCanonicalInstallTarget, resolveExistingInstallPath, resolveInstallModeOptions, resolvePackageExtensionEntries, resolveCompatibilityHostVersion, resolveRuntimeServiceVersion, resolveTimedInstallModeOptions, scanBundleInstallSource, scanFileInstallSource, scanPackageInstallSource, validateRegistryNpmSpec, withExtractedArchiveRoot, writeFileFromPathWithinRoot, };

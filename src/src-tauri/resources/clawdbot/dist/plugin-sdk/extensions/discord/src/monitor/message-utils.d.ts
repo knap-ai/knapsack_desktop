@@ -1,11 +1,18 @@
 import type { ChannelType, Client, Message } from "@buape/carbon";
 import { type APIStickerItem } from "discord-api-types/v10";
-import type { SsrFPolicy } from "openclaw/plugin-sdk/infra-runtime";
 import { type FetchLike } from "openclaw/plugin-sdk/media-runtime";
+import type { SsrFPolicy } from "openclaw/plugin-sdk/ssrf-runtime";
 export type DiscordMediaInfo = {
     path: string;
     contentType?: string;
     placeholder: string;
+};
+type DiscordMediaResolveOptions = {
+    fetchImpl?: FetchLike;
+    ssrfPolicy?: SsrFPolicy;
+    readIdleTimeoutMs?: number;
+    totalTimeoutMs?: number;
+    abortSignal?: AbortSignal;
 };
 export type DiscordChannelInfo = {
     type: ChannelType;
@@ -22,8 +29,8 @@ export declare function resolveDiscordMessageChannelId(params: {
 export declare function resolveDiscordChannelInfo(client: Client, channelId: string): Promise<DiscordChannelInfo | null>;
 export declare function resolveDiscordMessageStickers(message: Message): APIStickerItem[];
 export declare function hasDiscordMessageStickers(message: Message): boolean;
-export declare function resolveMediaList(message: Message, maxBytes: number, fetchImpl?: FetchLike, ssrfPolicy?: SsrFPolicy): Promise<DiscordMediaInfo[]>;
-export declare function resolveForwardedMediaList(message: Message, maxBytes: number, fetchImpl?: FetchLike, ssrfPolicy?: SsrFPolicy): Promise<DiscordMediaInfo[]>;
+export declare function resolveMediaList(message: Message, maxBytes: number, options?: DiscordMediaResolveOptions): Promise<DiscordMediaInfo[]>;
+export declare function resolveForwardedMediaList(message: Message, maxBytes: number, options?: DiscordMediaResolveOptions): Promise<DiscordMediaInfo[]>;
 export declare function resolveDiscordEmbedText(embed?: {
     title?: string | null;
     description?: string | null;
@@ -43,3 +50,4 @@ export declare function buildDiscordMediaPayload(mediaList: Array<{
     MediaUrls?: string[];
     MediaTypes?: string[];
 };
+export {};

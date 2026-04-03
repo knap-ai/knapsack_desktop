@@ -6,4 +6,3 @@ export declare function getShellConfig(): {
 export declare function resolveShellFromPath(name: string): string | undefined;
 export declare function detectRuntimeShell(): string | undefined;
 export declare function sanitizeBinaryOutput(text: string): string;
-export declare function killProcessTree(pid: number): void;

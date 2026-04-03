@@ -1,55 +1,18 @@
-import "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import "../../tmp-openclaw-dir-idKIOMmb.js";
-import "../../theme-CdOoMzRk.js";
-import "../../globals-DBUMOBZ8.js";
-import "../../subsystem-DISldKSB.js";
-import "../../ansi-BEJF8NKS.js";
-import "../../boolean-C3GkJetE.js";
-import "../../env-Dnra1IpT.js";
-import "../../utils-CS0Ikux6.js";
-import "../../agent-scope-bjWqU22i.js";
-import "../../boundary-path-Dm0QJ7-y.js";
-import "../../boundary-file-read-DcZxlWD8.js";
-import "../../logger-BmpSCz93.js";
-import "../../exec-B5_AYfQG.js";
-import "../../workspace-D4K6QX9X.js";
-import "../../model-selection-BnFtDmP7.js";
-import "../../io-y3Az_Onx.js";
-import "../../shell-env-BOu7XeT_.js";
-import "../../safe-text-yavot2qw.js";
-import "../../version-CD3oP1-d.js";
-import "../../env-substitution-O6uabUmO.js";
-import "../../includes-Bj3eLUWH.js";
-import "../../zod-schema.providers-core-COy5nBQ0.js";
-import "../../legacy-web-search-BB-ZHEhz.js";
-import "../../registry-C5UkPpaO.js";
-import "../../config-state-Br0ucqMb.js";
-import "../../min-host-version-RMBWtIAR.js";
-import "../../manifest-registry-B5JNQdOM.js";
-import "../../runtime-guard-PhQ6PwQa.js";
-import "../../avatar-policy-B5nOfso_.js";
-import "../../ip-Ce8EDTBZ.js";
-import "../../zod-schema.agent-runtime-Dtg4Jy6G.js";
-import "../../zod-schema.core-BuVz8Rk7.js";
-import "../../config-D4zN4BRl.js";
-import "../../message-channel-BliByQBl.js";
-import "../../store-C5UK26Ce.js";
-import "../../runtime-Iz8uZ7EU.js";
-import "../../plugins-B09-vgme.js";
-import "../../sessions-D9ZgHCHb.js";
-import "../../paths-rhN9LKM_.js";
-import "../../session-write-lock-va3qZE6f.js";
-import { a as omitEnvKeysCaseInsensitive, r as listKnownProviderAuthEnvVarNames } from "../../provider-env-vars-CpUJqT5v.js";
-import { a as registerAcpRuntimeBackend, s as unregisterAcpRuntimeBackend, v as AcpRuntimeError } from "../../manager-Bw8JrihM.js";
-import { a as resolveWindowsSpawnProgramCandidate, n as materializeWindowsSpawnProgram, t as applyWindowsSpawnProgramPolicy } from "../../windows-spawn-uPUAWgwm.js";
-import "../../acp-runtime-BHZj-SLU.js";
-import "../../provider-env-vars-BZsct107.js";
-import "../../runtime-api-CgxpCldS.js";
+import { t as safeParseJsonWithSchema } from "../../zod-parse-BsZdqqVw.js";
+import { a as omitEnvKeysCaseInsensitive, r as listKnownProviderAuthEnvVarNames } from "../../provider-env-vars-BgFCVfb6.js";
+import { t as buildPluginConfigSchema } from "../../config-schema-dIP9qvIK.js";
+import { An as AcpRuntimeError, _n as registerAcpRuntimeBackend, yn as unregisterAcpRuntimeBackend } from "../../pi-embedded-BYdcxQ5A.js";
+import { a as resolveWindowsSpawnProgramCandidate, n as materializeWindowsSpawnProgram, t as applyWindowsSpawnProgramPolicy } from "../../windows-spawn-Bwy9t01K.js";
+import "../../core-BghMcc08.js";
+import "../../extension-shared-gP7gKXlS.js";
+import { t as zod_exports } from "../../zod-DCTDn17d.js";
+import "../../runtime-api-CJnMwxK7.js";
 import { fileURLToPath } from "node:url";
-import fs, { accessSync, constants, existsSync, readFileSync, statSync } from "node:fs";
+import fsSync, { accessSync, constants, existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
+import { z } from "zod";
 import { createInterface } from "node:readline";
 //#region extensions/acpx/src/config.ts
 const ACPX_PERMISSION_MODES = [
@@ -58,10 +21,10 @@ const ACPX_PERMISSION_MODES = [
 	"deny-all"
 ];
 const ACPX_NON_INTERACTIVE_POLICIES = ["deny", "fail"];
-const ACPX_PINNED_VERSION = "0.3.1";
+const ACPX_PLUGIN_TOOLS_MCP_SERVER_NAME = "openclaw-plugin-tools";
 const ACPX_BIN_NAME = process.platform === "win32" ? "acpx.cmd" : "acpx";
 function isAcpxPluginRoot(dir) {
-	return fs.existsSync(path.join(dir, "openclaw.plugin.json")) && fs.existsSync(path.join(dir, "package.json"));
+	return fsSync.existsSync(path.join(dir, "openclaw.plugin.json")) && fsSync.existsSync(path.join(dir, "package.json"));
 }
 function resolveNearestAcpxPluginRoot(moduleUrl) {
 	let cursor = path.dirname(fileURLToPath(moduleUrl));
@@ -83,6 +46,9 @@ function resolveAcpxPluginRoot(moduleUrl = import.meta.url) {
 	return resolveWorkspaceAcpxPluginRoot(resolvedRoot) ?? resolvedRoot;
 }
 const ACPX_PLUGIN_ROOT = resolveAcpxPluginRoot();
+const acpxVersion = JSON.parse(fsSync.readFileSync(path.join(ACPX_PLUGIN_ROOT, "package.json"), "utf8"))?.dependencies?.acpx;
+if (typeof acpxVersion !== "string" || acpxVersion.trim() === "") throw new Error(`Could not read acpx version from ${path.join(ACPX_PLUGIN_ROOT, "package.json")} — expected a non-empty string at dependencies.acpx`);
+const ACPX_PINNED_VERSION = acpxVersion.replace(/^[^0-9]*/, "");
 const ACPX_BUNDLED_BIN = path.join(ACPX_PLUGIN_ROOT, "node_modules", ".bin", ACPX_BIN_NAME);
 function buildAcpxLocalInstallCommand(version = ACPX_PINNED_VERSION) {
 	return `npm install --omit=dev --no-save --package-lock=false acpx@${version}`;
@@ -92,116 +58,43 @@ const DEFAULT_PERMISSION_MODE = "approve-reads";
 const DEFAULT_NON_INTERACTIVE_POLICY = "fail";
 const DEFAULT_QUEUE_OWNER_TTL_SECONDS = .1;
 const DEFAULT_STRICT_WINDOWS_CMD_WRAPPER = true;
-function isRecord$1(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isPermissionMode(value) {
-	return ACPX_PERMISSION_MODES.includes(value);
-}
-function isNonInteractivePermissionPolicy(value) {
-	return ACPX_NON_INTERACTIVE_POLICIES.includes(value);
-}
-function isMcpServerConfig(value) {
-	if (!isRecord$1(value)) return false;
-	if (typeof value.command !== "string" || value.command.trim() === "") return false;
-	if (value.args !== void 0) {
-		if (!Array.isArray(value.args)) return false;
-		for (const arg of value.args) if (typeof arg !== "string") return false;
-	}
-	if (value.env !== void 0) {
-		if (!isRecord$1(value.env)) return false;
-		for (const envValue of Object.values(value.env)) if (typeof envValue !== "string") return false;
-	}
-	return true;
+const nonEmptyTrimmedString = (message) => zod_exports.z.string({ error: message }).trim().min(1, { error: message });
+const McpServerConfigSchema = zod_exports.z.object({
+	command: nonEmptyTrimmedString("command must be a non-empty string").describe("Command to run the MCP server"),
+	args: zod_exports.z.array(zod_exports.z.string({ error: "args must be an array of strings" }), { error: "args must be an array of strings" }).optional().describe("Arguments to pass to the command"),
+	env: zod_exports.z.record(zod_exports.z.string(), zod_exports.z.string({ error: "env values must be strings" }), { error: "env must be an object of strings" }).optional().describe("Environment variables for the MCP server")
+});
+const AcpxPluginConfigSchema = zod_exports.z.strictObject({
+	command: nonEmptyTrimmedString("command must be a non-empty string").optional(),
+	expectedVersion: nonEmptyTrimmedString("expectedVersion must be a non-empty string").optional(),
+	cwd: nonEmptyTrimmedString("cwd must be a non-empty string").optional(),
+	permissionMode: zod_exports.z.enum(ACPX_PERMISSION_MODES, { error: `permissionMode must be one of: ${ACPX_PERMISSION_MODES.join(", ")}` }).optional(),
+	nonInteractivePermissions: zod_exports.z.enum(ACPX_NON_INTERACTIVE_POLICIES, { error: `nonInteractivePermissions must be one of: ${ACPX_NON_INTERACTIVE_POLICIES.join(", ")}` }).optional(),
+	pluginToolsMcpBridge: zod_exports.z.boolean({ error: "pluginToolsMcpBridge must be a boolean" }).optional(),
+	strictWindowsCmdWrapper: zod_exports.z.boolean({ error: "strictWindowsCmdWrapper must be a boolean" }).optional(),
+	timeoutSeconds: zod_exports.z.number({ error: "timeoutSeconds must be a number >= 0.001" }).min(.001, { error: "timeoutSeconds must be a number >= 0.001" }).optional(),
+	queueOwnerTtlSeconds: zod_exports.z.number({ error: "queueOwnerTtlSeconds must be a number >= 0" }).min(0, { error: "queueOwnerTtlSeconds must be a number >= 0" }).optional(),
+	mcpServers: zod_exports.z.record(zod_exports.z.string(), McpServerConfigSchema).optional()
+});
+function formatAcpxConfigIssue(issue) {
+	if (!issue) return "invalid config";
+	if (issue.code === "unrecognized_keys" && issue.keys.length > 0) return `unknown config key: ${issue.keys[0]}`;
+	if (issue.code === "invalid_type" && issue.path.length === 0) return "expected config object";
+	return issue.message;
 }
 function parseAcpxPluginConfig(value) {
 	if (value === void 0) return {
 		ok: true,
 		value: void 0
 	};
-	if (!isRecord$1(value)) return {
+	const parsed = AcpxPluginConfigSchema.safeParse(value);
+	if (!parsed.success) return {
 		ok: false,
-		message: "expected config object"
+		message: formatAcpxConfigIssue(parsed.error.issues[0])
 	};
-	const allowedKeys = new Set([
-		"command",
-		"expectedVersion",
-		"cwd",
-		"permissionMode",
-		"nonInteractivePermissions",
-		"strictWindowsCmdWrapper",
-		"timeoutSeconds",
-		"queueOwnerTtlSeconds",
-		"mcpServers"
-	]);
-	for (const key of Object.keys(value)) if (!allowedKeys.has(key)) return {
-		ok: false,
-		message: `unknown config key: ${key}`
-	};
-	const command = value.command;
-	if (command !== void 0 && (typeof command !== "string" || command.trim() === "")) return {
-		ok: false,
-		message: "command must be a non-empty string"
-	};
-	const expectedVersion = value.expectedVersion;
-	if (expectedVersion !== void 0 && (typeof expectedVersion !== "string" || expectedVersion.trim() === "")) return {
-		ok: false,
-		message: "expectedVersion must be a non-empty string"
-	};
-	const cwd = value.cwd;
-	if (cwd !== void 0 && (typeof cwd !== "string" || cwd.trim() === "")) return {
-		ok: false,
-		message: "cwd must be a non-empty string"
-	};
-	const permissionMode = value.permissionMode;
-	if (permissionMode !== void 0 && (typeof permissionMode !== "string" || !isPermissionMode(permissionMode))) return {
-		ok: false,
-		message: `permissionMode must be one of: ${ACPX_PERMISSION_MODES.join(", ")}`
-	};
-	const nonInteractivePermissions = value.nonInteractivePermissions;
-	if (nonInteractivePermissions !== void 0 && (typeof nonInteractivePermissions !== "string" || !isNonInteractivePermissionPolicy(nonInteractivePermissions))) return {
-		ok: false,
-		message: `nonInteractivePermissions must be one of: ${ACPX_NON_INTERACTIVE_POLICIES.join(", ")}`
-	};
-	const timeoutSeconds = value.timeoutSeconds;
-	if (timeoutSeconds !== void 0 && (typeof timeoutSeconds !== "number" || !Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0)) return {
-		ok: false,
-		message: "timeoutSeconds must be a positive number"
-	};
-	const strictWindowsCmdWrapper = value.strictWindowsCmdWrapper;
-	if (strictWindowsCmdWrapper !== void 0 && typeof strictWindowsCmdWrapper !== "boolean") return {
-		ok: false,
-		message: "strictWindowsCmdWrapper must be a boolean"
-	};
-	const queueOwnerTtlSeconds = value.queueOwnerTtlSeconds;
-	if (queueOwnerTtlSeconds !== void 0 && (typeof queueOwnerTtlSeconds !== "number" || !Number.isFinite(queueOwnerTtlSeconds) || queueOwnerTtlSeconds < 0)) return {
-		ok: false,
-		message: "queueOwnerTtlSeconds must be a non-negative number"
-	};
-	const mcpServers = value.mcpServers;
-	if (mcpServers !== void 0) {
-		if (!isRecord$1(mcpServers)) return {
-			ok: false,
-			message: "mcpServers must be an object"
-		};
-		for (const [key, serverConfig] of Object.entries(mcpServers)) if (!isMcpServerConfig(serverConfig)) return {
-			ok: false,
-			message: `mcpServers.${key} must have a command string, optional args array, and optional env object`
-		};
-	}
 	return {
 		ok: true,
-		value: {
-			command: typeof command === "string" ? command.trim() : void 0,
-			expectedVersion: typeof expectedVersion === "string" ? expectedVersion.trim() : void 0,
-			cwd: typeof cwd === "string" ? cwd.trim() : void 0,
-			permissionMode: typeof permissionMode === "string" ? permissionMode : void 0,
-			nonInteractivePermissions: typeof nonInteractivePermissions === "string" ? nonInteractivePermissions : void 0,
-			strictWindowsCmdWrapper: typeof strictWindowsCmdWrapper === "boolean" ? strictWindowsCmdWrapper : void 0,
-			timeoutSeconds: typeof timeoutSeconds === "number" ? timeoutSeconds : void 0,
-			queueOwnerTtlSeconds: typeof queueOwnerTtlSeconds === "number" ? queueOwnerTtlSeconds : void 0,
-			mcpServers
-		}
+		value: parsed.data
 	};
 }
 function resolveConfiguredCommand(params) {
@@ -213,67 +106,40 @@ function resolveConfiguredCommand(params) {
 	}
 	return configured;
 }
-function createAcpxPluginConfigSchema() {
-	return {
-		safeParse(value) {
-			const parsed = parseAcpxPluginConfig(value);
-			if (parsed.ok) return {
-				success: true,
-				data: parsed.value
-			};
-			return {
-				success: false,
-				error: { issues: [{
-					path: [],
-					message: parsed.message
-				}] }
-			};
-		},
-		jsonSchema: {
-			type: "object",
-			additionalProperties: false,
-			properties: {
-				command: { type: "string" },
-				expectedVersion: { type: "string" },
-				cwd: { type: "string" },
-				permissionMode: {
-					type: "string",
-					enum: [...ACPX_PERMISSION_MODES]
-				},
-				nonInteractivePermissions: {
-					type: "string",
-					enum: [...ACPX_NON_INTERACTIVE_POLICIES]
-				},
-				strictWindowsCmdWrapper: { type: "boolean" },
-				timeoutSeconds: {
-					type: "number",
-					minimum: .001
-				},
-				queueOwnerTtlSeconds: {
-					type: "number",
-					minimum: 0
-				},
-				mcpServers: {
-					type: "object",
-					additionalProperties: {
-						type: "object",
-						properties: {
-							command: { type: "string" },
-							args: {
-								type: "array",
-								items: { type: "string" }
-							},
-							env: {
-								type: "object",
-								additionalProperties: { type: "string" }
-							}
-						},
-						required: ["command"]
-					}
-				}
-			}
-		}
+function resolveOpenClawRoot(currentRoot) {
+	if (path.basename(currentRoot) === "acpx" && path.basename(path.dirname(currentRoot)) === "extensions") {
+		const parent = path.dirname(path.dirname(currentRoot));
+		if (path.basename(parent) === "dist") return path.dirname(parent);
+		return parent;
+	}
+	return path.resolve(currentRoot, "..");
+}
+function resolvePluginToolsMcpServerConfig(moduleUrl = import.meta.url) {
+	const openClawRoot = resolveOpenClawRoot(resolveAcpxPluginRoot(moduleUrl));
+	const distEntry = path.join(openClawRoot, "dist", "mcp", "plugin-tools-serve.js");
+	if (fsSync.existsSync(distEntry)) return {
+		command: process.execPath,
+		args: [distEntry]
 	};
+	const sourceEntry = path.join(openClawRoot, "src", "mcp", "plugin-tools-serve.ts");
+	return {
+		command: process.execPath,
+		args: [
+			"--import",
+			"tsx",
+			sourceEntry
+		]
+	};
+}
+function resolveConfiguredMcpServers(params) {
+	const resolved = { ...params.mcpServers ?? {} };
+	if (!params.pluginToolsMcpBridge) return resolved;
+	if (resolved["openclaw-plugin-tools"]) throw new Error(`mcpServers.${ACPX_PLUGIN_TOOLS_MCP_SERVER_NAME} is reserved when pluginToolsMcpBridge=true`);
+	resolved[ACPX_PLUGIN_TOOLS_MCP_SERVER_NAME] = resolvePluginToolsMcpServerConfig(params.moduleUrl);
+	return resolved;
+}
+function createAcpxPluginConfigSchema() {
+	return buildPluginConfigSchema(AcpxPluginConfigSchema);
 }
 function toAcpMcpServers(mcpServers) {
 	return Object.entries(mcpServers).map(([name, server]) => ({
@@ -299,20 +165,28 @@ function resolveAcpxPluginConfig(params) {
 	const allowPluginLocalInstall = command === ACPX_BUNDLED_BIN;
 	const stripProviderAuthEnvVars = command === ACPX_BUNDLED_BIN;
 	const configuredExpectedVersion = normalized.expectedVersion;
-	const expectedVersion = configuredExpectedVersion === "any" ? void 0 : configuredExpectedVersion ?? (allowPluginLocalInstall ? "0.3.1" : void 0);
+	const expectedVersion = configuredExpectedVersion === "any" ? void 0 : configuredExpectedVersion ?? (allowPluginLocalInstall ? ACPX_PINNED_VERSION : void 0);
+	const installCommand = buildAcpxLocalInstallCommand(expectedVersion ?? ACPX_PINNED_VERSION);
+	const pluginToolsMcpBridge = normalized.pluginToolsMcpBridge === true;
+	const mcpServers = resolveConfiguredMcpServers({
+		mcpServers: normalized.mcpServers,
+		pluginToolsMcpBridge,
+		moduleUrl: params.moduleUrl
+	});
 	return {
 		command,
 		expectedVersion,
 		allowPluginLocalInstall,
 		stripProviderAuthEnvVars,
-		installCommand: buildAcpxLocalInstallCommand(expectedVersion ?? "0.3.1"),
+		installCommand,
 		cwd,
 		permissionMode: normalized.permissionMode ?? DEFAULT_PERMISSION_MODE,
 		nonInteractivePermissions: normalized.nonInteractivePermissions ?? DEFAULT_NON_INTERACTIVE_POLICY,
+		pluginToolsMcpBridge,
 		strictWindowsCmdWrapper: normalized.strictWindowsCmdWrapper ?? DEFAULT_STRICT_WINDOWS_CMD_WRAPPER,
 		timeoutSeconds: normalized.timeoutSeconds,
 		queueOwnerTtlSeconds: normalized.queueOwnerTtlSeconds ?? DEFAULT_QUEUE_OWNER_TTL_SECONDS,
-		mcpServers: normalized.mcpServers ?? {}
+		mcpServers
 	};
 }
 //#endregion
@@ -340,6 +214,10 @@ function resolveExecutableFromPath(command, runtime) {
 		if (isExecutableFile(candidate, runtime.platform)) return candidate;
 	}
 }
+function resolveNodeExecPath(runtime) {
+	if (runtime.execPath && isExecutableFile(runtime.execPath, runtime.platform)) return runtime.execPath;
+	return resolveExecutableFromPath("node", runtime) ?? runtime.execPath;
+}
 function resolveNodeShebangScriptPath(command, runtime) {
 	const commandPath = path.isAbsolute(command) || command.includes(path.sep) ? command : resolveExecutableFromPath(command, runtime);
 	if (!commandPath || !isExecutableFile(commandPath, runtime.platform)) return;
@@ -361,7 +239,7 @@ function resolveSpawnCommand(params, options, runtime = DEFAULT_RUNTIME) {
 				resolution: "direct"
 			});
 			return {
-				command: runtime.execPath,
+				command: resolveNodeExecPath(runtime),
 				args: [nodeShebangScript, ...params.args]
 			};
 		}
@@ -418,6 +296,13 @@ function createAbortError() {
 	error.name = "AbortError";
 	return error;
 }
+async function collectStreamOutput(stream) {
+	let output = "";
+	try {
+		for await (const chunk of stream) output += String(chunk);
+	} catch {}
+	return output;
+}
 function spawnWithResolvedCommand(params, options) {
 	const resolved = resolveSpawnCommand({
 		command: params.command,
@@ -471,18 +356,13 @@ async function spawnAndCollect(params, options, runtime) {
 		stdout: "",
 		stderr: "",
 		code: null,
+		signal: null,
 		error: createAbortError()
 	};
 	const child = spawnWithResolvedCommand(params, options);
 	child.stdin.end();
-	let stdout = "";
-	let stderr = "";
-	child.stdout.on("data", (chunk) => {
-		stdout += String(chunk);
-	});
-	child.stderr.on("data", (chunk) => {
-		stderr += String(chunk);
-	});
+	const stdoutPromise = collectStreamOutput(child.stdout);
+	const stderrPromise = collectStreamOutput(child.stderr);
 	let abortKillTimer;
 	let aborted = false;
 	const onAbort = () => {
@@ -501,10 +381,12 @@ async function spawnAndCollect(params, options, runtime) {
 	runtime?.signal?.addEventListener("abort", onAbort, { once: true });
 	try {
 		const exit = await waitForExit(child);
+		const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
 		return {
 			stdout,
 			stderr,
 			code: exit.code,
+			signal: exit.signal,
 			error: aborted ? createAbortError() : exit.error
 		};
 	} finally {
@@ -546,14 +428,14 @@ function resolveVersionFromPackage(command, cwd) {
 	const commandPath = path.isAbsolute(command) ? command : path.resolve(cwd, command);
 	let current;
 	try {
-		current = path.dirname(fs.realpathSync(commandPath));
+		current = path.dirname(fsSync.realpathSync(commandPath));
 	} catch {
 		return null;
 	}
 	while (true) {
 		const packageJsonPath = path.join(current, "package.json");
 		try {
-			const parsed = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+			const parsed = JSON.parse(fsSync.readFileSync(packageJsonPath, "utf8"));
 			if (parsed.name === "acpx" && typeof parsed.version === "string" && parsed.version.trim()) return parsed.version.trim();
 		} catch {}
 		const parent = path.dirname(current);
@@ -578,7 +460,7 @@ function resolveVersionCheckResult(params) {
 }
 async function checkAcpxVersion(params) {
 	const expectedVersion = params.expectedVersion?.trim() || void 0;
-	const installCommand = buildAcpxLocalInstallCommand(expectedVersion ?? "0.3.1");
+	const installCommand = buildAcpxLocalInstallCommand(expectedVersion ?? ACPX_PINNED_VERSION);
 	const cwd = params.cwd ?? ACPX_PLUGIN_ROOT;
 	const hasExpectedVersion = isExpectedVersionConfigured(expectedVersion);
 	const probeArgs = hasExpectedVersion ? ["--version"] : ["--help"];
@@ -658,7 +540,7 @@ async function ensureAcpx(params) {
 	pendingEnsure = (async () => {
 		const pluginRoot = params.pluginRoot ?? ACPX_PLUGIN_ROOT;
 		const expectedVersion = params.expectedVersion?.trim() || void 0;
-		const installVersion = expectedVersion ?? "0.3.1";
+		const installVersion = expectedVersion ?? ACPX_PINNED_VERSION;
 		const allowInstall = params.allowInstall ?? true;
 		const precheck = await checkAcpxVersion({
 			command: params.command,
@@ -735,25 +617,39 @@ function buildPermissionArgs(mode) {
 	return ["--approve-reads"];
 }
 //#endregion
-//#region extensions/acpx/src/runtime-internals/events.ts
-function toAcpxErrorEvent(value) {
+//#region extensions/acpx/src/runtime-internals/control-errors.ts
+function parseControlJsonError(value) {
 	if (!isRecord(value)) return null;
-	if (asTrimmedString(value.type) !== "error") return null;
+	const error = isRecord(value.error) ? value.error : null;
+	if (!error) return null;
+	const message = asTrimmedString(error.message) || "acpx reported an error";
+	const codeValue = error.code;
 	return {
-		message: asTrimmedString(value.message) || "acpx reported an error",
-		code: asOptionalString(value.code),
-		retryable: asOptionalBoolean(value.retryable)
+		message,
+		code: typeof codeValue === "number" && Number.isFinite(codeValue) ? String(codeValue) : asOptionalString(codeValue),
+		retryable: asOptionalBoolean(error.retryable)
 	};
+}
+//#endregion
+//#region extensions/acpx/src/runtime-internals/events.ts
+const AcpxJsonObjectSchema = z.record(z.string(), z.unknown());
+const AcpxErrorEventSchema = z.object({
+	type: z.literal("error"),
+	message: z.string().trim().min(1).catch("acpx reported an error"),
+	code: z.string().optional(),
+	retryable: z.boolean().optional()
+});
+function toAcpxErrorEvent(value) {
+	const parsed = AcpxErrorEventSchema.safeParse(value);
+	return parsed.success ? parsed.data : null;
 }
 function parseJsonLines(value) {
 	const events = [];
 	for (const line of value.split(/\r?\n/)) {
 		const trimmed = line.trim();
 		if (!trimmed) continue;
-		try {
-			const parsed = JSON.parse(trimmed);
-			if (isRecord(parsed)) events.push(parsed);
-		} catch {}
+		const parsed = safeParseJsonWithSchema(AcpxJsonObjectSchema, trimmed);
+		if (parsed) events.push(parsed);
 	}
 	return events;
 }
@@ -858,16 +754,11 @@ function createToolCallEvent(params) {
 function parsePromptEventLine(line) {
 	const trimmed = line.trim();
 	if (!trimmed) return null;
-	let parsed;
-	try {
-		parsed = JSON.parse(trimmed);
-	} catch {
-		return {
-			type: "status",
-			text: trimmed
-		};
-	}
-	if (!isRecord(parsed)) return null;
+	const parsed = safeParseJsonWithSchema(AcpxJsonObjectSchema, trimmed);
+	if (!parsed) return {
+		type: "status",
+		text: trimmed
+	};
 	const structured = resolveStructuredPromptPayload(parsed);
 	const type = structured.type;
 	const payload = structured.payload;
@@ -966,11 +857,20 @@ function parsePromptEventLine(line) {
 //#endregion
 //#region extensions/acpx/src/runtime-internals/mcp-agent-command.ts
 const ACPX_BUILTIN_AGENT_COMMANDS = {
-	codex: "npx @zed-industries/codex-acp",
-	claude: "npx -y @zed-industries/claude-agent-acp",
-	gemini: "gemini",
+	pi: "npx -y pi-acp@0.0.22",
+	openclaw: "openclaw acp",
+	codex: "npx -y @zed-industries/codex-acp@0.9.5",
+	claude: "npx -y @zed-industries/claude-agent-acp@0.21.0",
+	gemini: "gemini --acp",
+	cursor: "cursor-agent acp",
+	copilot: "copilot --acp --stdio",
+	droid: "droid exec --output-format acp",
+	iflow: "iflow --experimental-acp",
+	kilocode: "npx -y @kilocode/cli acp",
+	kimi: "kimi acp",
+	kiro: "kiro-cli acp",
 	opencode: "npx -y opencode-ai acp",
-	pi: "npx pi-acp"
+	qwen: "qwen --acp"
 };
 const MCP_PROXY_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "mcp-proxy.mjs");
 function normalizeAgentName(value) {
@@ -1021,7 +921,7 @@ async function resolveAcpxAgentCommand(params) {
 		cwd: params.cwd,
 		stripProviderAuthEnvVars: params.stripProviderAuthEnvVars,
 		spawnOptions: params.spawnOptions
-	}))[normalizedAgent] ?? ACPX_BUILTIN_AGENT_COMMANDS[normalizedAgent] ?? params.agent;
+	}))[normalizedAgent] ?? ACPX_BUILTIN_AGENT_COMMANDS[normalizedAgent] ?? null;
 }
 function buildMcpProxyAgentCommand(params) {
 	const payload = Buffer.from(JSON.stringify({
@@ -1056,13 +956,32 @@ function formatAcpxExitMessage(params) {
 		"ACPX blocked a write/exec permission request in a non-interactive session.",
 		formatPermissionModeGuidance()
 	].join(" ");
-	return stderr || `acpx exited with code ${params.exitCode ?? "unknown"}`;
+	if (stderr) return stderr;
+	if (params.signal) return `acpx exited with signal ${params.signal}`;
+	return `acpx exited with code ${params.exitCode ?? "unknown"}`;
+}
+function didAcpxProcessExitWithFailure(params) {
+	return params.exitCode !== null && params.exitCode !== void 0 ? params.exitCode !== 0 : params.signal !== null && params.signal !== void 0;
 }
 function summarizeLogText(text, maxChars = 240) {
 	const normalized = text.trim().replace(/\s+/g, " ");
 	if (!normalized) return "";
 	if (normalized.length <= maxChars) return normalized;
 	return `${normalized.slice(0, maxChars)}...`;
+}
+function shouldRetainNamedSessionForDeadStatus(detail) {
+	if (asTrimmedString(detail?.status)?.toLowerCase() !== "dead") return false;
+	return (asTrimmedString(detail?.summary)?.toLowerCase())?.includes("queue owner unavailable") ?? false;
+}
+function resolveResumeSessionIdFromDetail(detail) {
+	return asOptionalString(detail?.acpxSessionId) ?? asOptionalString(detail?.agentSessionId);
+}
+function formatAcpxControlErrorMessage(params) {
+	const baseMessage = params.code ? `${params.code}: ${params.message}` : params.message;
+	const stderrSummary = summarizeLogText(params.stderr);
+	if (!stderrSummary) return baseMessage;
+	if (/^(?:internal error|acpx reported an error)$/i.test(params.message) && !baseMessage.includes(stderrSummary)) return `${baseMessage} | ${stderrSummary}`;
+	return baseMessage;
 }
 function findSessionIdentifierEvent(events) {
 	return events.find((event) => asOptionalString(event.agentSessionId) || asOptionalString(event.acpxSessionId) || asOptionalString(event.acpxRecordId));
@@ -1156,7 +1075,10 @@ var AcpxRuntime = class {
 		};
 		try {
 			const result = await this.runHelpCheck();
-			if (result.error != null || (result.code ?? 0) !== 0) return {
+			if (result.error != null || didAcpxProcessExitWithFailure({
+				exitCode: result.code,
+				signal: result.signal
+			})) return {
 				ok: false,
 				failure: {
 					kind: "help-check",
@@ -1204,6 +1126,34 @@ var AcpxRuntime = class {
 			fallbackCode: "ACP_SESSION_INIT_FAILED"
 		});
 	}
+	async replaceDeadNamedSession(params) {
+		const resumeSessionId = resolveResumeSessionIdFromDetail(params.detail);
+		if (!resumeSessionId) {
+			this.logger?.warn?.(`acpx ensureSession repairing dead named session with fresh session owner: session=${params.sessionName} cwd=${params.cwd} ${params.logContext}`);
+			return await this.createNamedSession({
+				agent: params.agent,
+				cwd: params.cwd,
+				sessionName: params.sessionName
+			});
+		}
+		this.logger?.warn?.(`acpx ensureSession repairing dead named session by resuming backend session: session=${params.sessionName} cwd=${params.cwd} resumeSessionId=${resumeSessionId} ${params.logContext}`);
+		try {
+			return await this.createNamedSession({
+				agent: params.agent,
+				cwd: params.cwd,
+				sessionName: params.sessionName,
+				resumeSessionId
+			});
+		} catch (error) {
+			if (!(error instanceof AcpRuntimeError) || error.code !== "ACP_SESSION_INIT_FAILED") throw error;
+			this.logger?.warn?.(`acpx ensureSession dead-session resume repair failed; retrying with fresh session owner: session=${params.sessionName} cwd=${params.cwd} resumeSessionId=${resumeSessionId} error=${summarizeLogText(error.message) || "<empty>"} ${params.logContext}`);
+			return await this.createNamedSession({
+				agent: params.agent,
+				cwd: params.cwd,
+				sessionName: params.sessionName
+			});
+		}
+	}
 	async shouldReplaceEnsuredSession(params) {
 		const args = await this.buildVerbArgs({
 			agent: params.agent,
@@ -1224,20 +1174,30 @@ var AcpxRuntime = class {
 			});
 		} catch (error) {
 			this.logger?.warn?.(`acpx ensureSession status probe failed: session=${params.sessionName} cwd=${params.cwd} error=${summarizeLogText(error instanceof Error ? error.message : String(error)) || "<empty>"}`);
-			return false;
+			return { replace: false };
 		}
 		if (events.some((event) => toAcpxErrorEvent(event)?.code === "NO_SESSION")) {
 			this.logger?.warn?.(`acpx ensureSession replacing missing named session: session=${params.sessionName} cwd=${params.cwd}`);
-			return true;
+			return { replace: true };
 		}
 		const detail = events.find((event) => !toAcpxErrorEvent(event));
 		const status = asTrimmedString(detail?.status)?.toLowerCase();
 		if (status === "dead") {
 			const summary = summarizeLogText(asOptionalString(detail?.summary) ?? "");
+			if (shouldRetainNamedSessionForDeadStatus(detail)) return {
+				replace: true,
+				replacementEvents: await this.replaceDeadNamedSession({
+					detail,
+					sessionName: params.sessionName,
+					agent: params.agent,
+					cwd: params.cwd,
+					logContext: `status=${status} summary=${summary || "<empty>"}`
+				})
+			};
 			this.logger?.warn?.(`acpx ensureSession replacing dead named session: session=${params.sessionName} cwd=${params.cwd} status=${status} summary=${summary || "<empty>"}`);
-			return true;
+			return { replace: true };
 		}
-		return false;
+		return { replace: false };
 	}
 	async recoverEnsureFailure(params) {
 		const errorMessage = summarizeLogText(params.error instanceof Error ? params.error.message : String(params.error));
@@ -1265,24 +1225,45 @@ var AcpxRuntime = class {
 		}
 		if (events.some((event) => toAcpxErrorEvent(event)?.code === "NO_SESSION")) {
 			this.logger?.warn?.(`acpx ensureSession creating named session after ensure failure and missing status: session=${params.sessionName} cwd=${params.cwd}`);
-			return await this.createNamedSession({
-				agent: params.agent,
-				cwd: params.cwd,
-				sessionName: params.sessionName
-			});
+			return {
+				events: await this.createNamedSession({
+					agent: params.agent,
+					cwd: params.cwd,
+					sessionName: params.sessionName
+				}),
+				skipPostEnsureReplacement: true
+			};
 		}
-		const status = asTrimmedString(events.find((event) => !toAcpxErrorEvent(event))?.status)?.toLowerCase();
+		const detail = events.find((event) => !toAcpxErrorEvent(event));
+		const status = asTrimmedString(detail?.status)?.toLowerCase();
 		if (status === "dead") {
+			const summary = summarizeLogText(asOptionalString(detail?.summary) ?? "");
+			if (shouldRetainNamedSessionForDeadStatus(detail)) return {
+				events: await this.replaceDeadNamedSession({
+					detail,
+					sessionName: params.sessionName,
+					agent: params.agent,
+					cwd: params.cwd,
+					logContext: `status=${status} summary=${summary || "<empty>"}`
+				}),
+				skipPostEnsureReplacement: true
+			};
 			this.logger?.warn?.(`acpx ensureSession replacing dead named session after ensure failure: session=${params.sessionName} cwd=${params.cwd}`);
-			return await this.createNamedSession({
-				agent: params.agent,
-				cwd: params.cwd,
-				sessionName: params.sessionName
-			});
+			return {
+				events: await this.createNamedSession({
+					agent: params.agent,
+					cwd: params.cwd,
+					sessionName: params.sessionName
+				}),
+				skipPostEnsureReplacement: true
+			};
 		}
 		if (status === "alive" || findSessionIdentifierEvent(events)) {
 			this.logger?.warn?.(`acpx ensureSession reusing live named session after ensure failure: session=${params.sessionName} cwd=${params.cwd} status=${status || "unknown"}`);
-			return events;
+			return {
+				events,
+				skipPostEnsureReplacement: false
+			};
 		}
 		return null;
 	}
@@ -1295,6 +1276,7 @@ var AcpxRuntime = class {
 		const mode = input.mode;
 		const resumeSessionId = asTrimmedString(input.resumeSessionId);
 		let events;
+		let skipPostEnsureReplacement = false;
 		if (resumeSessionId) events = await this.createNamedSession({
 			agent,
 			cwd,
@@ -1324,22 +1306,26 @@ var AcpxRuntime = class {
 				error
 			});
 			if (!recovered) throw error;
-			events = recovered;
+			events = recovered.events;
+			skipPostEnsureReplacement = recovered.skipPostEnsureReplacement;
 		}
 		if (events.length === 0) this.logger?.warn?.(`acpx ensureSession returned no events after sessions ensure: session=${sessionName} agent=${agent} cwd=${cwd}`);
 		let ensuredEvent = findSessionIdentifierEvent(events);
-		if (ensuredEvent && !resumeSessionId && await this.shouldReplaceEnsuredSession({
-			sessionName,
-			agent,
-			cwd
-		})) {
-			events = await this.createNamedSession({
+		if (ensuredEvent && !resumeSessionId && !skipPostEnsureReplacement) {
+			const replacement = await this.shouldReplaceEnsuredSession({
+				sessionName,
 				agent,
-				cwd,
-				sessionName
+				cwd
 			});
-			if (events.length === 0) this.logger?.warn?.(`acpx ensureSession returned no events after replacing dead session: session=${sessionName} agent=${agent} cwd=${cwd}`);
-			ensuredEvent = findSessionIdentifierEvent(events);
+			if (replacement.replace) {
+				events = replacement.replacementEvents ?? await this.createNamedSession({
+					agent,
+					cwd,
+					sessionName
+				});
+				if (events.length === 0) this.logger?.warn?.(`acpx ensureSession returned no events after replacing dead session: session=${sessionName} agent=${agent} cwd=${cwd}`);
+				ensuredEvent = findSessionIdentifierEvent(events);
+			}
 		}
 		if (!ensuredEvent && !resumeSessionId) {
 			events = await this.createNamedSession({
@@ -1443,12 +1429,16 @@ var AcpxRuntime = class {
 				if (spawnFailure === "missing-cwd") throw new AcpRuntimeError("ACP_TURN_FAILED", `ACP runtime working directory does not exist: ${state.cwd}`, { cause: exit.error });
 				throw new AcpRuntimeError("ACP_TURN_FAILED", exit.error.message, { cause: exit.error });
 			}
-			if ((exit.code ?? 0) !== 0 && !sawError) {
+			if (didAcpxProcessExitWithFailure({
+				exitCode: exit.code,
+				signal: exit.signal
+			}) && !sawError) {
 				yield {
 					type: "error",
 					message: formatAcpxExitMessage({
 						stderr,
-						exitCode: exit.code
+						exitCode: exit.code,
+						signal: exit.signal
 					})
 				};
 				return;
@@ -1703,14 +1693,16 @@ var AcpxRuntime = class {
 		const cacheKey = `${params.cwd}::${params.agent}`;
 		const cached = this.mcpProxyAgentCommandCache.get(cacheKey);
 		if (cached) return cached;
+		const targetCommand = await resolveAcpxAgentCommand({
+			acpxCommand: this.config.command,
+			cwd: params.cwd,
+			agent: params.agent,
+			stripProviderAuthEnvVars: this.config.stripProviderAuthEnvVars,
+			spawnOptions: this.spawnCommandOptions
+		});
+		if (!targetCommand) return null;
 		const resolved = buildMcpProxyAgentCommand({
-			targetCommand: await resolveAcpxAgentCommand({
-				acpxCommand: this.config.command,
-				cwd: params.cwd,
-				agent: params.agent,
-				stripProviderAuthEnvVars: this.config.stripProviderAuthEnvVars,
-				spawnOptions: this.spawnCommandOptions
-			}),
+			targetCommand,
 			mcpServers: toAcpMcpServers(this.config.mcpServers)
 		});
 		this.mcpProxyAgentCommandCache.set(cacheKey, resolved);
@@ -1733,20 +1725,43 @@ var AcpxRuntime = class {
 			throw new AcpRuntimeError(params.fallbackCode, result.error.message, { cause: result.error });
 		}
 		const events = parseJsonLines(result.stdout);
-		const errorEvent = events.map((event) => toAcpxErrorEvent(event)).find(Boolean) ?? null;
+		const errorEvent = events.map((event) => toAcpxErrorEvent(event) ?? parseControlJsonError(event)).find(Boolean) ?? null;
 		if (errorEvent) {
 			if (params.ignoreNoSession && errorEvent.code === "NO_SESSION") return events;
-			throw new AcpRuntimeError(params.fallbackCode, errorEvent.code ? `${errorEvent.code}: ${errorEvent.message}` : errorEvent.message);
+			throw new AcpRuntimeError(params.fallbackCode, formatAcpxControlErrorMessage({
+				code: errorEvent.code,
+				message: errorEvent.message,
+				stderr: result.stderr
+			}));
 		}
-		if ((result.code ?? 0) !== 0) throw new AcpRuntimeError(params.fallbackCode, formatAcpxExitMessage({
+		if (didAcpxProcessExitWithFailure({
+			exitCode: result.code,
+			signal: result.signal
+		})) throw new AcpRuntimeError(params.fallbackCode, formatAcpxExitMessage({
 			stderr: result.stderr,
-			exitCode: result.code
+			exitCode: result.code,
+			signal: result.signal
 		}));
 		return events;
 	}
 };
 //#endregion
 //#region extensions/acpx/src/service.ts
+const DEFAULT_HEALTH_PROBE_RETRY_DELAYS_MS = [
+	250,
+	1e3,
+	2500
+];
+function delay(ms) {
+	if (ms <= 0) return Promise.resolve();
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+function formatDoctorFailureMessage(report) {
+	const detailText = report.details?.filter(Boolean).join("; ").trim();
+	return detailText ? `${report.message} (${detailText})` : report.message;
+}
 function createDefaultRuntime(params) {
 	return new AcpxRuntime(params.pluginConfig, {
 		logger: params.logger,
@@ -1763,6 +1778,8 @@ function createAcpxRuntimeService(params = {}) {
 				rawConfig: params.pluginConfig,
 				workspaceDir: ctx.workspaceDir
 			});
+			if (ctx.workspaceDir?.trim()) await fs.mkdir(ctx.workspaceDir, { recursive: true });
+			const healthProbeRetryDelaysMs = params.healthProbeRetryDelaysMs ?? DEFAULT_HEALTH_PROBE_RETRY_DELAYS_MS;
 			runtime = (params.runtimeFactory ?? createDefaultRuntime)({
 				pluginConfig,
 				queueOwnerTtlSeconds: pluginConfig.queueOwnerTtlSeconds,
@@ -1789,9 +1806,25 @@ function createAcpxRuntimeService(params = {}) {
 						spawnOptions: { strictWindowsCmdWrapper: pluginConfig.strictWindowsCmdWrapper }
 					});
 					if (currentRevision !== lifecycleRevision) return;
-					await runtime?.probeAvailability();
-					if (runtime?.isHealthy()) ctx.logger.info("acpx runtime backend ready");
-					else ctx.logger.warn("acpx runtime backend probe failed after local install");
+					let lastFailureMessage;
+					for (let attempt = 0; attempt <= healthProbeRetryDelaysMs.length; attempt += 1) {
+						await runtime?.probeAvailability();
+						if (currentRevision !== lifecycleRevision) return;
+						if (runtime?.isHealthy()) {
+							ctx.logger.info(attempt === 0 ? "acpx runtime backend ready" : `acpx runtime backend ready after ${attempt + 1} probe attempts`);
+							return;
+						}
+						const doctorReport = await runtime?.doctor?.();
+						if (currentRevision !== lifecycleRevision) return;
+						if (doctorReport) lastFailureMessage = formatDoctorFailureMessage(doctorReport);
+						else lastFailureMessage = "acpx runtime backend remained unhealthy after probe";
+						const retryDelayMs = healthProbeRetryDelaysMs[attempt];
+						if (retryDelayMs == null) break;
+						ctx.logger.warn(`acpx runtime backend probe attempt ${attempt + 1} failed: ${lastFailureMessage}; retrying in ${retryDelayMs}ms`);
+						await delay(retryDelayMs);
+						if (currentRevision !== lifecycleRevision) return;
+					}
+					ctx.logger.warn(`acpx runtime backend probe failed: ${lastFailureMessage ?? "backend remained unhealthy after setup"}`);
 				} catch (err) {
 					if (currentRevision !== lifecycleRevision) return;
 					ctx.logger.warn(`acpx runtime setup failed: ${err instanceof Error ? err.message : String(err)}`);

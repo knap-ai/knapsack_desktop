@@ -1,50 +1,6 @@
-import "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import "../../tmp-openclaw-dir-idKIOMmb.js";
-import "../../theme-CdOoMzRk.js";
-import "../../globals-DBUMOBZ8.js";
-import "../../subsystem-DISldKSB.js";
-import "../../ansi-BEJF8NKS.js";
-import "../../boolean-C3GkJetE.js";
-import "../../env-Dnra1IpT.js";
-import "../../utils-CS0Ikux6.js";
-import "../../agent-scope-bjWqU22i.js";
-import "../../boundary-path-Dm0QJ7-y.js";
-import "../../boundary-file-read-DcZxlWD8.js";
-import "../../logger-BmpSCz93.js";
-import "../../exec-B5_AYfQG.js";
-import "../../workspace-D4K6QX9X.js";
-import "../../model-selection-BnFtDmP7.js";
-import { zt as resolveActiveTalkProviderConfig } from "../../io-y3Az_Onx.js";
-import "../../shell-env-BOu7XeT_.js";
-import "../../safe-text-yavot2qw.js";
-import "../../version-CD3oP1-d.js";
-import "../../env-substitution-O6uabUmO.js";
-import "../../includes-Bj3eLUWH.js";
-import "../../zod-schema.providers-core-COy5nBQ0.js";
-import "../../legacy-web-search-BB-ZHEhz.js";
-import "../../registry-C5UkPpaO.js";
-import "../../config-state-Br0ucqMb.js";
-import "../../min-host-version-RMBWtIAR.js";
-import "../../manifest-registry-B5JNQdOM.js";
-import "../../runtime-guard-PhQ6PwQa.js";
-import "../../avatar-policy-B5nOfso_.js";
-import "../../ip-Ce8EDTBZ.js";
-import "../../zod-schema.agent-runtime-Dtg4Jy6G.js";
-import "../../zod-schema.core-BuVz8Rk7.js";
-import "../../config-D4zN4BRl.js";
-import "../../message-channel-BliByQBl.js";
-import "../../store-C5UK26Ce.js";
-import "../../runtime-Iz8uZ7EU.js";
-import "../../plugins-B09-vgme.js";
-import "../../sessions-D9ZgHCHb.js";
-import "../../paths-rhN9LKM_.js";
-import "../../session-write-lock-va3qZE6f.js";
-import "../../commands-C6oAw_H-.js";
-import "../../issue-format-BtLIwOtN.js";
-import { t as definePluginEntry } from "../../plugin-entry-B2shVOQl.js";
-import "../../logging-CCTKg_fh.js";
-import "../../config-runtime-BYNizC50.js";
+import { Vt as resolveActiveTalkProviderConfig } from "../../io-DhtVmzAJ.js";
+import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import "../../config-runtime-CmISCurQ.js";
 //#region extensions/talk-voice/index.ts
 function mask(s, keep = 6) {
 	const trimmed = s.trim();
@@ -112,6 +68,11 @@ function resolveCommandLabel(channel) {
 function asProviderBaseUrl(value) {
 	return asTrimmedString(value) || void 0;
 }
+const TALK_ADMIN_SCOPE = "operator.admin";
+function requiresAdminToSetVoice(channel, gatewayClientScopes) {
+	if (Array.isArray(gatewayClientScopes)) return !gatewayClientScopes.includes(TALK_ADMIN_SCOPE);
+	return channel === "webchat";
+}
 var talk_voice_default = definePluginEntry({
 	id: "talk-voice",
 	name: "Talk Voice",
@@ -150,6 +111,7 @@ var talk_voice_default = definePluginEntry({
 					}
 				}
 				if (action === "set") {
+					if (requiresAdminToSetVoice(ctx.channel, ctx.gatewayClientScopes)) return { text: `⚠️ ${commandLabel} set requires operator.admin.` };
 					const query = tokens.slice(1).join(" ").trim();
 					if (!query) return { text: `Usage: ${commandLabel} set <voiceId|name>` };
 					let voices;

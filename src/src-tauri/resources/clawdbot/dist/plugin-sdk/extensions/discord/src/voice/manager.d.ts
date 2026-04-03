@@ -15,7 +15,6 @@ export declare class DiscordVoiceManager {
     private readonly voiceEnabled;
     private autoJoinTask;
     private readonly ownerAllowFrom;
-    private readonly allowDangerousNameMatching;
     private readonly speakerContextCache;
     constructor(params: {
         client: Client;

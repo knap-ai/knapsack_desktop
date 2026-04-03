@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { FixedWindowRateLimiter } from "./webhook-memory-guards.js";
 export type WebhookBodyReadProfile = "pre-auth" | "post-auth";
-export { isRequestBodyLimitError, readRequestBodyWithLimit, requestBodyErrorToText, } from "../infra/http-body.js";
+export { installRequestBodyLimitGuard, isRequestBodyLimitError, readJsonBodyWithLimit, readRequestBodyWithLimit, requestBodyErrorToText, } from "../infra/http-body.js";
 export declare const WEBHOOK_BODY_READ_DEFAULTS: Readonly<{
     preAuth: {
         maxBytes: number;

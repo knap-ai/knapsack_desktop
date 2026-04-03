@@ -22,6 +22,11 @@
       "help": "Optional Sonar/OpenRouter model override."
     }
   },
+  "contracts": {
+    "webSearchProviders": [
+      "perplexity"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

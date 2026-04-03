@@ -17,8 +17,12 @@ export declare function modelKey(provider: string, model: string): string;
 export declare function legacyModelKey(provider: string, model: string): string | null;
 export { findNormalizedProviderKey, findNormalizedProviderValue, normalizeProviderId, normalizeProviderIdForAuth, };
 export declare function isCliProvider(provider: string, cfg?: OpenClawConfig): boolean;
-export declare function normalizeModelRef(provider: string, model: string): ModelRef;
-export declare function parseModelRef(raw: string, defaultProvider: string): ModelRef | null;
+type ModelRefNormalizeOptions = {
+    allowPluginNormalization?: boolean;
+};
+export declare function normalizeModelRef(provider: string, model: string, options?: ModelRefNormalizeOptions): ModelRef;
+type ParseModelRefOptions = ModelRefNormalizeOptions;
+export declare function parseModelRef(raw: string, defaultProvider: string, options?: ParseModelRefOptions): ModelRef | null;
 export declare function inferUniqueProviderFromConfiguredModels(params: {
     cfg: OpenClawConfig;
     model: string;
@@ -31,11 +35,13 @@ export declare function buildConfiguredAllowlistKeys(params: {
 export declare function buildModelAliasIndex(params: {
     cfg: OpenClawConfig;
     defaultProvider: string;
+    allowPluginNormalization?: boolean;
 }): ModelAliasIndex;
 export declare function resolveModelRefFromString(params: {
     raw: string;
     defaultProvider: string;
     aliasIndex?: ModelAliasIndex;
+    allowPluginNormalization?: boolean;
 }): {
     ref: ModelRef;
     alias?: string;
@@ -44,6 +50,7 @@ export declare function resolveConfiguredModelRef(params: {
     cfg: OpenClawConfig;
     defaultProvider: string;
     defaultModel: string;
+    allowPluginNormalization?: boolean;
 }): ModelRef;
 export declare function resolveDefaultModelForAgent(params: {
     cfg: OpenClawConfig;

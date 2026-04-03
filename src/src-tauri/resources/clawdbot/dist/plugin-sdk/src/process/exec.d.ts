@@ -28,6 +28,15 @@ export type CommandOptions = {
     windowsVerbatimArguments?: boolean;
     noOutputTimeoutMs?: number;
 };
+export declare function resolveProcessExitCode(params: {
+    explicitCode: number | null | undefined;
+    childExitCode: number | null | undefined;
+    resolvedSignal: NodeJS.Signals | null;
+    usesWindowsExitCodeShim: boolean;
+    timedOut: boolean;
+    noOutputTimedOut: boolean;
+    killIssuedByTimeout: boolean;
+}): number | null;
 export declare function resolveCommandEnv(params: {
     argv: string[];
     env?: NodeJS.ProcessEnv;

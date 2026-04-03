@@ -7,6 +7,8 @@ export type ApiKeyStorageOptions = {
 };
 export type WriteOAuthCredentialsOptions = {
     syncSiblingAgents?: boolean;
+    profileName?: string;
+    displayName?: string;
 };
 export declare function buildApiKeyCredential(provider: string, input: SecretInput, metadata?: Record<string, string>, options?: ApiKeyStorageOptions): {
     type: "api_key";
@@ -20,6 +22,7 @@ export declare function applyAuthProfileConfig(cfg: OpenClawConfig, params: {
     provider: string;
     mode: "api_key" | "oauth" | "token";
     email?: string;
+    displayName?: string;
     preferProfileFirst?: boolean;
 }): OpenClawConfig;
 export declare function writeOAuthCredentials(provider: string, creds: OAuthCredentials, agentDir?: string, options?: WriteOAuthCredentialsOptions): Promise<string>;

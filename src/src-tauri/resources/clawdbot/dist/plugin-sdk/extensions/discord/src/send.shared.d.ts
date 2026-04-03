@@ -2,9 +2,9 @@ import { Embed, RequestClient, type MessagePayloadFile, type MessagePayloadObjec
 import type { RESTAPIPoll } from "discord-api-types/rest/v10";
 import { type APIEmbed } from "discord-api-types/v10";
 import { type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { RetryRunner } from "openclaw/plugin-sdk/infra-runtime";
 import { type PollInput } from "openclaw/plugin-sdk/media-runtime";
 import type { ChunkMode } from "openclaw/plugin-sdk/reply-runtime";
+import type { RetryRunner } from "openclaw/plugin-sdk/retry-runtime";
 import { createDiscordClient, resolveDiscordRest } from "./client.js";
 type DiscordRequest = RetryRunner;
 export type DiscordSendComponentFactory = (text: string) => TopLevelComponents[];
@@ -71,7 +71,7 @@ declare function sendDiscordText(rest: RequestClient, channelId: string, text: s
     id: string;
     channel_id: string;
 }>;
-declare function sendDiscordMedia(rest: RequestClient, channelId: string, text: string, mediaUrl: string, filename: string | undefined, mediaLocalRoots: readonly string[] | undefined, maxBytes: number | undefined, replyTo: string | undefined, request: DiscordRequest, maxLinesPerMessage?: number, components?: DiscordSendComponents, embeds?: DiscordSendEmbeds, chunkMode?: ChunkMode, silent?: boolean): Promise<{
+declare function sendDiscordMedia(rest: RequestClient, channelId: string, text: string, mediaUrl: string, filename: string | undefined, mediaLocalRoots: readonly string[] | undefined, mediaReadFile: ((filePath: string) => Promise<Buffer>) | undefined, maxBytes: number | undefined, replyTo: string | undefined, request: DiscordRequest, maxLinesPerMessage?: number, components?: DiscordSendComponents, embeds?: DiscordSendEmbeds, chunkMode?: ChunkMode, silent?: boolean): Promise<{
     id: string;
     channel_id: string;
 }>;

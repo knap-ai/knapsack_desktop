@@ -1,4 +1,1 @@
-export declare function renderQrPngBase64(input: string, opts?: {
-    scale?: number;
-    marginModules?: number;
-}): Promise<string>;
+export { renderQrPngBase64 } from "openclaw/plugin-sdk/media-runtime";

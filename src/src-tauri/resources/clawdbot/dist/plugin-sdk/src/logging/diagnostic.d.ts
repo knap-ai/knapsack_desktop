@@ -60,7 +60,9 @@ export declare function logToolLoopAction(params: SessionRef & {
     pairedToolName?: string;
 }): void;
 export declare function logActiveRuns(): void;
-export declare function startDiagnosticHeartbeat(config?: OpenClawConfig): void;
+export declare function startDiagnosticHeartbeat(config?: OpenClawConfig, opts?: {
+    getConfig?: () => OpenClawConfig;
+}): void;
 export declare function stopDiagnosticHeartbeat(): void;
 export declare function getDiagnosticSessionStateCountForTest(): number;
 export declare function resetDiagnosticStateForTest(): void;

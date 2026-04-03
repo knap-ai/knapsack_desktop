@@ -1,25 +1,23 @@
-import { auditDiscordChannelPermissions as auditDiscordChannelPermissionsImpl, listDiscordDirectoryGroupsLive as listDiscordDirectoryGroupsLiveImpl, listDiscordDirectoryPeersLive as listDiscordDirectoryPeersLiveImpl, monitorDiscordProvider as monitorDiscordProviderImpl, probeDiscord as probeDiscordImpl, resolveDiscordChannelAllowlist as resolveDiscordChannelAllowlistImpl, resolveDiscordUserAllowlist as resolveDiscordUserAllowlistImpl } from "../../plugin-sdk/discord.js";
-import { createThreadDiscord as createThreadDiscordImpl, deleteMessageDiscord as deleteMessageDiscordImpl, editChannelDiscord as editChannelDiscordImpl, editMessageDiscord as editMessageDiscordImpl, pinMessageDiscord as pinMessageDiscordImpl, sendDiscordComponentMessage as sendDiscordComponentMessageImpl, sendMessageDiscord as sendMessageDiscordImpl, sendPollDiscord as sendPollDiscordImpl, sendTypingDiscord as sendTypingDiscordImpl, unpinMessageDiscord as unpinMessageDiscordImpl } from "../../plugin-sdk/discord.js";
 export declare const runtimeDiscordOps: {
-    auditChannelPermissions: typeof auditDiscordChannelPermissionsImpl;
-    listDirectoryGroupsLive: typeof listDiscordDirectoryGroupsLiveImpl;
-    listDirectoryPeersLive: typeof listDiscordDirectoryPeersLiveImpl;
-    probeDiscord: typeof probeDiscordImpl;
-    resolveChannelAllowlist: typeof resolveDiscordChannelAllowlistImpl;
-    resolveUserAllowlist: typeof resolveDiscordUserAllowlistImpl;
-    sendComponentMessage: typeof sendDiscordComponentMessageImpl;
-    sendMessageDiscord: typeof sendMessageDiscordImpl;
-    sendPollDiscord: typeof sendPollDiscordImpl;
-    monitorDiscordProvider: typeof monitorDiscordProviderImpl;
+    auditChannelPermissions: typeof import("@openclaw/discord/runtime-api.ts").auditDiscordChannelPermissions;
+    listDirectoryGroupsLive: typeof import("@openclaw/discord/runtime-api.ts").listDiscordDirectoryGroupsLive;
+    listDirectoryPeersLive: typeof import("@openclaw/discord/runtime-api.ts").listDiscordDirectoryPeersLive;
+    probeDiscord: typeof import("@openclaw/discord/api.ts").probeDiscord;
+    resolveChannelAllowlist: typeof import("@openclaw/discord/runtime-api.ts").resolveDiscordChannelAllowlist;
+    resolveUserAllowlist: typeof import("@openclaw/discord/runtime-api.ts").resolveDiscordUserAllowlist;
+    sendComponentMessage: typeof import("@openclaw/discord/runtime-api.ts").sendDiscordComponentMessage;
+    sendMessageDiscord: typeof import("@openclaw/discord/runtime-api.ts").sendMessageDiscord;
+    sendPollDiscord: typeof import("@openclaw/discord/runtime-api.ts").sendPollDiscord;
+    monitorDiscordProvider: typeof import("@openclaw/discord/runtime-api.ts").monitorDiscordProvider;
     typing: {
-        pulse: typeof sendTypingDiscordImpl;
+        pulse: typeof import("@openclaw/discord/runtime-api.ts").sendTypingDiscord;
     };
     conversationActions: {
-        editMessage: typeof editMessageDiscordImpl;
-        deleteMessage: typeof deleteMessageDiscordImpl;
-        pinMessage: typeof pinMessageDiscordImpl;
-        unpinMessage: typeof unpinMessageDiscordImpl;
-        createThread: typeof createThreadDiscordImpl;
-        editChannel: typeof editChannelDiscordImpl;
+        editMessage: typeof import("@openclaw/discord/runtime-api.ts").editMessageDiscord;
+        deleteMessage: typeof import("@openclaw/discord/runtime-api.ts").deleteMessageDiscord;
+        pinMessage: typeof import("@openclaw/discord/runtime-api.ts").pinMessageDiscord;
+        unpinMessage: typeof import("@openclaw/discord/runtime-api.ts").unpinMessageDiscord;
+        createThread: typeof import("@openclaw/discord/runtime-api.ts").createThreadDiscord;
+        editChannel: typeof import("@openclaw/discord/runtime-api.ts").editChannelDiscord;
     };
 };

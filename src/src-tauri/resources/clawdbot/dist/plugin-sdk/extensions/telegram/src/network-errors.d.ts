@@ -17,6 +17,7 @@ export declare function isTelegramPollingNetworkError(err: unknown): boolean;
 export declare function isSafeToRetrySendError(err: unknown): boolean;
 /** Returns true for HTTP 5xx server errors (error may have been processed). */
 export declare function isTelegramServerError(err: unknown): boolean;
+export declare function isTelegramRateLimitError(err: unknown): boolean;
 /** Returns true for HTTP 4xx client errors (Telegram explicitly rejected, not applied). */
 export declare function isTelegramClientRejection(err: unknown): boolean;
 export declare function isRecoverableTelegramNetworkError(err: unknown, options?: {

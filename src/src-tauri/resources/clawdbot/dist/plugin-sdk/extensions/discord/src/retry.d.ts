@@ -1,4 +1,4 @@
-import { type RetryConfig, type RetryRunner } from "openclaw/plugin-sdk/infra-runtime";
+import { type RetryConfig, type RetryRunner } from "openclaw/plugin-sdk/retry-runtime";
 export declare const DISCORD_RETRY_DEFAULTS: {
     attempts: number;
     minDelayMs: number;

@@ -155,22 +155,32 @@ export declare function sendControlledSubagentMessage(params: {
     status: "forbidden";
     error: string;
     runId?: undefined;
+    text?: undefined;
+    replyText?: undefined;
+} | {
+    status: "done";
+    runId: string;
+    text: string;
+    error?: undefined;
     replyText?: undefined;
 } | {
     status: "timeout";
     runId: string;
     error?: undefined;
+    text?: undefined;
     replyText?: undefined;
 } | {
     status: "error";
     runId: string;
     error: string;
+    text?: undefined;
     replyText?: undefined;
 } | {
     status: "ok";
     runId: string;
     replyText: string | undefined;
     error?: undefined;
+    text?: undefined;
 }>;
 export declare function resolveControlledSubagentTarget(runs: SubagentRunRecord[], token: string | undefined, options?: {
     recentMinutes?: number;

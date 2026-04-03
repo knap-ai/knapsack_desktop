@@ -1,5 +1,5 @@
-import { type OpenClawConfig } from "openclaw/plugin-sdk/account-resolution";
-import type { TelegramAccountConfig, TelegramActionConfig } from "../runtime-api.js";
+import { type OpenClawConfig } from "openclaw/plugin-sdk/account-core";
+import type { TelegramAccountConfig, TelegramActionConfig } from "openclaw/plugin-sdk/telegram-core";
 export type ResolvedTelegramAccount = {
     accountId: string;
     enabled: boolean;

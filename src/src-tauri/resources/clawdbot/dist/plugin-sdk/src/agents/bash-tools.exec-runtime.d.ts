@@ -1,19 +1,26 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import { type ExecHost } from "../infra/exec-approvals.js";
+import { type ExecHost, type ExecApprovalDecision, type ExecTarget } from "../infra/exec-approvals.js";
 import type { ProcessSession } from "./bash-process-registry.js";
 import type { ExecToolDetails } from "./bash-tools.exec-types.js";
 import type { BashSandboxConfig } from "./bash-tools.shared.js";
 export { applyPathPrepend, findPathKey, normalizePathPrepend } from "../infra/path-prepend.js";
-export { normalizeExecAsk, normalizeExecHost, normalizeExecSecurity, } from "../infra/exec-approvals.js";
+export { normalizeExecAsk, normalizeExecHost, normalizeExecSecurity, normalizeExecTarget, } from "../infra/exec-approvals.js";
 import type { RunExit } from "../process/supervisor/types.js";
+/**
+ * Detect cursor key mode from PTY output chunk.
+ * Uses lastIndexOf to find the *last* toggle in the chunk.
+ * Returns "application" if smkx is the last toggle, "normal" if rmkx is last,
+ * or null if no toggle is found.
+ */
+export declare function detectCursorKeyMode(raw: string): "application" | "normal" | null;
 export declare function sanitizeHostBaseEnv(env: Record<string, string>): Record<string, string>;
 export declare function validateHostEnv(env: Record<string, string>): void;
 export declare const DEFAULT_MAX_OUTPUT: number;
 export declare const DEFAULT_PENDING_MAX_OUTPUT: number;
 export declare const DEFAULT_PATH: string;
 export declare const DEFAULT_NOTIFY_TAIL_CHARS = 400;
-export declare const DEFAULT_APPROVAL_TIMEOUT_MS = 120000;
-export declare const DEFAULT_APPROVAL_REQUEST_TIMEOUT_MS = 130000;
+export declare const DEFAULT_APPROVAL_TIMEOUT_MS = 1800000;
+export declare const DEFAULT_APPROVAL_REQUEST_TIMEOUT_MS: number;
 export declare const execSchema: import("@sinclair/typebox").TObject<{
     command: import("@sinclair/typebox").TString;
     workdir: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -54,7 +61,23 @@ export type ExecProcessHandle = {
     promise: Promise<ExecProcessOutcome>;
     kill: () => void;
 };
-export declare function renderExecHostLabel(host: ExecHost): "sandbox" | "gateway" | "node";
+export declare function renderExecHostLabel(host: ExecHost): "node" | "sandbox" | "gateway";
+export declare function renderExecTargetLabel(target: ExecTarget): "auto" | "node" | "sandbox" | "gateway";
+export declare function isRequestedExecTargetAllowed(params: {
+    configuredTarget: ExecTarget;
+    requestedTarget: ExecTarget;
+}): boolean;
+export declare function resolveExecTarget(params: {
+    configuredTarget?: ExecTarget;
+    requestedTarget?: ExecTarget | null;
+    elevatedRequested: boolean;
+    sandboxAvailable: boolean;
+}): {
+    configuredTarget: ExecTarget;
+    requestedTarget: ExecTarget | null;
+    selectedTarget: ExecTarget;
+    effectiveHost: ExecHost;
+};
 export declare function normalizeNotifyOutput(value: string): string;
 export declare function applyShellPath(env: Record<string, string>, shellPath?: string | null): void;
 export declare function createApprovalSlug(id: string): string;
@@ -62,8 +85,9 @@ export declare function buildApprovalPendingMessage(params: {
     warningText?: string;
     approvalSlug: string;
     approvalId: string;
+    allowedDecisions?: readonly ExecApprovalDecision[];
     command: string;
-    cwd: string;
+    cwd: string | undefined;
     host: "gateway" | "node";
     nodeId?: string;
 }): string;

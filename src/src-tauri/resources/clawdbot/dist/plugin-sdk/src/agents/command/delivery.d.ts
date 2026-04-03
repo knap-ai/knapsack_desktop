@@ -1,3 +1,4 @@
+import type { ReplyPayload } from "../../auto-reply/types.js";
 import { type CliDeps } from "../../cli/outbound-send-deps.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
@@ -5,6 +6,16 @@ import type { OutboundSessionContext } from "../../infra/outbound/session-contex
 import type { RuntimeEnv } from "../../runtime.js";
 import type { AgentCommandOpts } from "./types.js";
 type RunResult = Awaited<ReturnType<(typeof import("../pi-embedded.js"))["runEmbeddedPiAgent"]>>;
+export declare function normalizeAgentCommandReplyPayloads(params: {
+    cfg: OpenClawConfig;
+    opts: AgentCommandOpts;
+    outboundSession: OutboundSessionContext | undefined;
+    payloads: RunResult["payloads"];
+    result: RunResult;
+    deliveryChannel?: string;
+    accountId?: string;
+    applyChannelTransforms?: boolean;
+}): ReplyPayload[];
 export declare function deliverAgentCommandResult(params: {
     cfg: OpenClawConfig;
     deps: CliDeps;

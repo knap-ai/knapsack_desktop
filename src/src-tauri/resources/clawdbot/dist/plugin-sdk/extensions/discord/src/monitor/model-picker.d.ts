@@ -1,6 +1,6 @@
 import { type ComponentData, type MessagePayloadObject, type TopLevelComponents } from "@buape/carbon";
-import { type ModelsProviderData } from "openclaw/plugin-sdk/command-auth";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { ModelsProviderData } from "openclaw/plugin-sdk/models-provider-runtime";
 export declare const DISCORD_MODEL_PICKER_CUSTOM_ID_KEY = "mdlpk";
 export declare const DISCORD_CUSTOM_ID_MAX_CHARS = 100;
 export declare const DISCORD_COMPONENT_MAX_ROWS = 5;

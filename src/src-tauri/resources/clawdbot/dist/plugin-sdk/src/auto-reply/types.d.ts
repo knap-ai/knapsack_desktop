@@ -1,9 +1,12 @@
 import type { ImageContent } from "@mariozechner/pi-ai";
 import type { InteractiveReply } from "../interactive/payload.js";
+import type { PromptImageOrderEntry } from "../media/prompt-image-order.js";
 import type { TypingController } from "./reply/typing.js";
 export type BlockReplyContext = {
     abortSignal?: AbortSignal;
     timeoutMs?: number;
+    /** Source assistant message index from the upstream stream, when available. */
+    assistantMessageIndex?: number;
 };
 /** Context passed to onModelSelected callback with actual model used. */
 export type ModelSelectedContext = {
@@ -19,6 +22,8 @@ export type GetReplyOptions = {
     abortSignal?: AbortSignal;
     /** Optional inbound images (used for webchat attachments). */
     images?: ImageContent[];
+    /** Original inline/offloaded attachment order for inbound images. */
+    imageOrder?: PromptImageOrderEntry[];
     /** Notifies when an agent run actually starts (useful for webchat command handling). */
     onAgentRunStart?: (runId: string) => void;
     onReplyStart?: () => Promise<void> | void;
@@ -42,6 +47,10 @@ export type GetReplyOptions = {
     onReasoningEnd?: () => Promise<void> | void;
     /** Called when a new assistant message starts (e.g., after tool call or thinking block). */
     onAssistantMessageStart?: () => Promise<void> | void;
+    /** Called synchronously when a block reply is logically emitted, before async
+     * delivery drains. Useful for channels that need to rotate preview state at
+     * block boundaries without waiting for transport acks. */
+    onBlockReplyQueued?: (payload: ReplyPayload, context?: BlockReplyContext) => Promise<void> | void;
     onBlockReply?: (payload: ReplyPayload, context?: BlockReplyContext) => Promise<void> | void;
     onToolResult?: (payload: ReplyPayload) => Promise<void> | void;
     /** Called when a tool phase starts/updates, before summary payloads are emitted. */
@@ -93,3 +102,8 @@ export type ReplyPayload = {
     /** Channel-specific payload data (per-channel envelope). */
     channelData?: Record<string, unknown>;
 };
+export type ReplyPayloadMetadata = {
+    assistantMessageIndex?: number;
+};
+export declare function setReplyPayloadMetadata<T extends object>(payload: T, metadata: ReplyPayloadMetadata): T;
+export declare function getReplyPayloadMetadata(payload: object): ReplyPayloadMetadata | undefined;

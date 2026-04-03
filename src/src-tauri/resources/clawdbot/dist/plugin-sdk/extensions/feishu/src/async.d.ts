@@ -10,3 +10,4 @@ export declare function raceWithTimeoutAndAbort<T>(promise: Promise<T>, options?
     timeoutMs?: number;
     abortSignal?: AbortSignal;
 }): Promise<RaceWithTimeoutAndAbortResult<T>>;
+export declare function waitForAbortableDelay(delayMs: number, abortSignal?: AbortSignal): Promise<boolean>;

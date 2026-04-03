@@ -1,20 +1,17 @@
-import { a as __toCommonJS, i as __require, n as __esmMin, o as __toESM, r as __exportAll, t as __commonJSMin } from "../../chunk-DORXReHP.js";
+import { a as __require, n as __esmMin, o as __toCommonJS, r as __exportAll, s as __toESM, t as __commonJSMin } from "../../chunk-iyeSoAlh.js";
 import { n as redactSensitiveText } from "../../redact-BDinS1q9.js";
-import { c as registerLogTransport } from "../../logger-kwZIqwuw.js";
-import "../../paths-ViKUYWUK.js";
-import "../../tmp-openclaw-dir-idKIOMmb.js";
-import { t as definePluginEntry } from "../../plugin-entry-B2shVOQl.js";
-import { r as onDiagnosticEvent } from "../../diagnostic-events-DLiZiw1x.js";
-import { t as require_src$29 } from "../../src-BoNU6eQs.js";
-import "../../diagnostics-otel-DAhTkbUZ.js";
-import { a as require_reader, c as require_inquire, i as require_rpc, l as require_aspromise, n as require_index_minimal, o as require_writer, r as require_roots, s as require_minimal$1, t as require_minimal } from "../../minimal-Doz_iD-a.js";
-import { a as diag, i as metrics, n as init_esm$2, o as SpanStatusCode, r as trace, t as esm_exports$2 } from "../../esm-Ce39l3XC.js";
-import "../../api-C2Nxy89z.js";
+import { c as registerLogTransport } from "../../logger-BCzP_yik.js";
+import { r as onDiagnosticEvent } from "../../diagnostic-events-ROhwFcx1.js";
+import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import { a as diag, i as metrics, n as init_esm$2, o as SpanStatusCode, r as trace, t as esm_exports$2 } from "../../esm-f9_5lsST.js";
+import { a as require_reader, i as require_rpc, m as require_aspromise, n as require_index_minimal, o as require_writer, r as require_roots, s as require_minimal$1, t as require_minimal, u as require_inquire } from "../../minimal-CeFBjVKO.js";
+import { t as require_src$29 } from "../../src-Dhzek8ho.js";
+import "../../api-CtoL8SLO.js";
+import * as zlib$2 from "zlib";
 import { Readable } from "stream";
 import * as fs$6 from "fs";
-import * as zlib$2 from "zlib";
 import * as path$7 from "path";
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/OTLPExporterBase.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/OTLPExporterBase.js
 var OTLPExporterBase;
 var init_OTLPExporterBase = __esmMin((() => {
 	OTLPExporterBase = class {
@@ -39,7 +36,7 @@ var init_OTLPExporterBase = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/types.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/types.js
 var OTLPExporterError;
 var init_types = __esmMin((() => {
 	OTLPExporterError = class extends Error {
@@ -54,7 +51,7 @@ var init_types = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/shared-configuration.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/shared-configuration.js
 function validateTimeoutMillis(timeoutMillis) {
 	if (Number.isFinite(timeoutMillis) && timeoutMillis > 0) return timeoutMillis;
 	throw new Error(`Configuration: timeoutMillis is invalid, expected number greater than 0 (actual: '${timeoutMillis}')`);
@@ -84,7 +81,7 @@ function getSharedConfigurationDefaults() {
 }
 var init_shared_configuration = __esmMin((() => {}));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/legacy-node-configuration.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/legacy-node-configuration.js
 var CompressionAlgorithm;
 var init_legacy_node_configuration = __esmMin((() => {
 	(function(CompressionAlgorithm) {
@@ -93,7 +90,7 @@ var init_legacy_node_configuration = __esmMin((() => {
 	})(CompressionAlgorithm || (CompressionAlgorithm = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/bounded-queue-export-promise-handler.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/bounded-queue-export-promise-handler.js
 /**
 * Promise queue for keeping track of export promises. Finished promises will be auto-dequeued.
 * Allows for awaiting all promises in the queue.
@@ -130,7 +127,7 @@ var init_bounded_queue_export_promise_handler = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
+//#region node_modules/@opentelemetry/core/build/src/trace/suppress-tracing.js
 var require_suppress_tracing = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isTracingSuppressed = exports.unsuppressTracing = exports.suppressTracing = void 0;
@@ -149,7 +146,7 @@ var require_suppress_tracing = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isTracingSuppressed = isTracingSuppressed;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/baggage/constants.js
+//#region node_modules/@opentelemetry/core/build/src/baggage/constants.js
 var require_constants$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BAGGAGE_MAX_TOTAL_LENGTH = exports.BAGGAGE_MAX_PER_NAME_VALUE_PAIRS = exports.BAGGAGE_MAX_NAME_VALUE_PAIRS = exports.BAGGAGE_HEADER = exports.BAGGAGE_ITEMS_SEPARATOR = exports.BAGGAGE_PROPERTIES_SEPARATOR = exports.BAGGAGE_KEY_PAIR_SEPARATOR = void 0;
@@ -162,7 +159,7 @@ var require_constants$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.BAGGAGE_MAX_TOTAL_LENGTH = 8192;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/baggage/utils.js
+//#region node_modules/@opentelemetry/core/build/src/baggage/utils.js
 var require_utils$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.parseKeyPairsIntoRecord = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = void 0;
@@ -227,7 +224,7 @@ var require_utils$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.parseKeyPairsIntoRecord = parseKeyPairsIntoRecord;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
+//#region node_modules/@opentelemetry/core/build/src/baggage/propagation/W3CBaggagePropagator.js
 var require_W3CBaggagePropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.W3CBaggagePropagator = void 0;
@@ -275,7 +272,7 @@ var require_W3CBaggagePropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.W3CBaggagePropagator = W3CBaggagePropagator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
+//#region node_modules/@opentelemetry/core/build/src/common/anchored-clock.js
 var require_anchored_clock = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AnchoredClock = void 0;
@@ -323,7 +320,7 @@ var require_anchored_clock = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.AnchoredClock = AnchoredClock;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/common/attributes.js
+//#region node_modules/@opentelemetry/core/build/src/common/attributes.js
 var require_attributes = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isAttributeValue = exports.isAttributeKey = exports.sanitizeAttributes = void 0;
@@ -385,7 +382,7 @@ var require_attributes = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
+//#region node_modules/@opentelemetry/core/build/src/common/logging-error-handler.js
 var require_logging_error_handler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.loggingErrorHandler = void 0;
@@ -428,7 +425,7 @@ var require_logging_error_handler = /* @__PURE__ */ __commonJSMin(((exports) => 
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
+//#region node_modules/@opentelemetry/core/build/src/common/global-error-handler.js
 var require_global_error_handler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.globalErrorHandler = exports.setGlobalErrorHandler = void 0;
@@ -454,7 +451,7 @@ var require_global_error_handler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.globalErrorHandler = globalErrorHandler;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/platform/node/environment.js
+//#region node_modules/@opentelemetry/core/build/src/platform/node/environment.js
 var require_environment$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getStringListFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports.getNumberFromEnv = void 0;
@@ -529,7 +526,7 @@ var require_environment$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getStringListFromEnv = getStringListFromEnv;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/common/globalThis.js
+//#region node_modules/@opentelemetry/core/build/src/common/globalThis.js
 var require_globalThis = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports._globalThis = void 0;
@@ -539,14 +536,14 @@ var require_globalThis = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports._globalThis = globalThis;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/version.js
+//#region node_modules/@opentelemetry/core/build/src/version.js
 var require_version$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.VERSION = void 0;
-	exports.VERSION = "2.6.0";
+	exports.VERSION = "2.6.1";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+semantic-conventions@1.40.0/node_modules/@opentelemetry/semantic-conventions/build/esm/internal/utils.js
+//#region node_modules/@opentelemetry/semantic-conventions/build/esm/internal/utils.js
 /**
 * Creates a const map from the given values
 * @param values - An array of values to be used as keys and values in the map.
@@ -1330,7 +1327,7 @@ var init_SemanticAttributes = __esmMin((() => {
 	MessageTypeValues = /* @__PURE__ */ createConstMap([TMP_MESSAGETYPEVALUES_SENT, TMP_MESSAGETYPEVALUES_RECEIVED]);
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+semantic-conventions@1.40.0/node_modules/@opentelemetry/semantic-conventions/build/esm/trace/index.js
+//#region node_modules/@opentelemetry/semantic-conventions/build/esm/trace/index.js
 var init_trace = __esmMin((() => {
 	init_SemanticAttributes();
 })), TMP_CLOUD_PROVIDER, TMP_CLOUD_ACCOUNT_ID, TMP_CLOUD_REGION, TMP_CLOUD_AVAILABILITY_ZONE, TMP_CLOUD_PLATFORM, TMP_AWS_ECS_CONTAINER_ARN, TMP_AWS_ECS_CLUSTER_ARN, TMP_AWS_ECS_LAUNCHTYPE, TMP_AWS_ECS_TASK_ARN, TMP_AWS_ECS_TASK_FAMILY, TMP_AWS_ECS_TASK_REVISION, TMP_AWS_EKS_CLUSTER_ARN, TMP_AWS_LOG_GROUP_NAMES, TMP_AWS_LOG_GROUP_ARNS, TMP_AWS_LOG_STREAM_NAMES, TMP_AWS_LOG_STREAM_ARNS, TMP_CONTAINER_NAME, TMP_CONTAINER_ID, TMP_CONTAINER_RUNTIME, TMP_CONTAINER_IMAGE_NAME, TMP_CONTAINER_IMAGE_TAG, TMP_DEPLOYMENT_ENVIRONMENT, TMP_DEVICE_ID, TMP_DEVICE_MODEL_IDENTIFIER, TMP_DEVICE_MODEL_NAME, TMP_FAAS_NAME, TMP_FAAS_ID, TMP_FAAS_VERSION, TMP_FAAS_INSTANCE, TMP_FAAS_MAX_MEMORY, TMP_HOST_ID, TMP_HOST_NAME, TMP_HOST_TYPE, TMP_HOST_ARCH, TMP_HOST_IMAGE_NAME, TMP_HOST_IMAGE_ID, TMP_HOST_IMAGE_VERSION, TMP_K8S_CLUSTER_NAME, TMP_K8S_NODE_NAME, TMP_K8S_NODE_UID, TMP_K8S_NAMESPACE_NAME, TMP_K8S_POD_UID, TMP_K8S_POD_NAME, TMP_K8S_CONTAINER_NAME, TMP_K8S_REPLICASET_UID, TMP_K8S_REPLICASET_NAME, TMP_K8S_DEPLOYMENT_UID, TMP_K8S_DEPLOYMENT_NAME, TMP_K8S_STATEFULSET_UID, TMP_K8S_STATEFULSET_NAME, TMP_K8S_DAEMONSET_UID, TMP_K8S_DAEMONSET_NAME, TMP_K8S_JOB_UID, TMP_K8S_JOB_NAME, TMP_K8S_CRONJOB_UID, TMP_K8S_CRONJOB_NAME, TMP_OS_TYPE, TMP_OS_DESCRIPTION, TMP_OS_NAME, TMP_OS_VERSION, TMP_PROCESS_PID, TMP_PROCESS_EXECUTABLE_NAME, TMP_PROCESS_EXECUTABLE_PATH, TMP_PROCESS_COMMAND, TMP_PROCESS_COMMAND_LINE, TMP_PROCESS_COMMAND_ARGS, TMP_PROCESS_OWNER, TMP_PROCESS_RUNTIME_NAME, TMP_PROCESS_RUNTIME_VERSION, TMP_PROCESS_RUNTIME_DESCRIPTION, TMP_SERVICE_NAME, TMP_SERVICE_NAMESPACE, TMP_SERVICE_INSTANCE_ID, TMP_SERVICE_VERSION, TMP_TELEMETRY_SDK_NAME, TMP_TELEMETRY_SDK_LANGUAGE, TMP_TELEMETRY_SDK_VERSION, TMP_TELEMETRY_AUTO_VERSION, TMP_WEBENGINE_NAME, TMP_WEBENGINE_VERSION, TMP_WEBENGINE_DESCRIPTION, SEMRESATTRS_CLOUD_PROVIDER, SEMRESATTRS_CLOUD_ACCOUNT_ID, SEMRESATTRS_CLOUD_REGION, SEMRESATTRS_CLOUD_AVAILABILITY_ZONE, SEMRESATTRS_CLOUD_PLATFORM, SEMRESATTRS_AWS_ECS_CONTAINER_ARN, SEMRESATTRS_AWS_ECS_CLUSTER_ARN, SEMRESATTRS_AWS_ECS_LAUNCHTYPE, SEMRESATTRS_AWS_ECS_TASK_ARN, SEMRESATTRS_AWS_ECS_TASK_FAMILY, SEMRESATTRS_AWS_ECS_TASK_REVISION, SEMRESATTRS_AWS_EKS_CLUSTER_ARN, SEMRESATTRS_AWS_LOG_GROUP_NAMES, SEMRESATTRS_AWS_LOG_GROUP_ARNS, SEMRESATTRS_AWS_LOG_STREAM_NAMES, SEMRESATTRS_AWS_LOG_STREAM_ARNS, SEMRESATTRS_CONTAINER_NAME, SEMRESATTRS_CONTAINER_ID, SEMRESATTRS_CONTAINER_RUNTIME, SEMRESATTRS_CONTAINER_IMAGE_NAME, SEMRESATTRS_CONTAINER_IMAGE_TAG, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT, SEMRESATTRS_DEVICE_ID, SEMRESATTRS_DEVICE_MODEL_IDENTIFIER, SEMRESATTRS_DEVICE_MODEL_NAME, SEMRESATTRS_FAAS_NAME, SEMRESATTRS_FAAS_ID, SEMRESATTRS_FAAS_VERSION, SEMRESATTRS_FAAS_INSTANCE, SEMRESATTRS_FAAS_MAX_MEMORY, SEMRESATTRS_HOST_ID, SEMRESATTRS_HOST_NAME, SEMRESATTRS_HOST_TYPE, SEMRESATTRS_HOST_ARCH, SEMRESATTRS_HOST_IMAGE_NAME, SEMRESATTRS_HOST_IMAGE_ID, SEMRESATTRS_HOST_IMAGE_VERSION, SEMRESATTRS_K8S_CLUSTER_NAME, SEMRESATTRS_K8S_NODE_NAME, SEMRESATTRS_K8S_NODE_UID, SEMRESATTRS_K8S_NAMESPACE_NAME, SEMRESATTRS_K8S_POD_UID, SEMRESATTRS_K8S_POD_NAME, SEMRESATTRS_K8S_CONTAINER_NAME, SEMRESATTRS_K8S_REPLICASET_UID, SEMRESATTRS_K8S_REPLICASET_NAME, SEMRESATTRS_K8S_DEPLOYMENT_UID, SEMRESATTRS_K8S_DEPLOYMENT_NAME, SEMRESATTRS_K8S_STATEFULSET_UID, SEMRESATTRS_K8S_STATEFULSET_NAME, SEMRESATTRS_K8S_DAEMONSET_UID, SEMRESATTRS_K8S_DAEMONSET_NAME, SEMRESATTRS_K8S_JOB_UID, SEMRESATTRS_K8S_JOB_NAME, SEMRESATTRS_K8S_CRONJOB_UID, SEMRESATTRS_K8S_CRONJOB_NAME, SEMRESATTRS_OS_TYPE, SEMRESATTRS_OS_DESCRIPTION, SEMRESATTRS_OS_NAME, SEMRESATTRS_OS_VERSION, SEMRESATTRS_PROCESS_PID, SEMRESATTRS_PROCESS_EXECUTABLE_NAME, SEMRESATTRS_PROCESS_EXECUTABLE_PATH, SEMRESATTRS_PROCESS_COMMAND, SEMRESATTRS_PROCESS_COMMAND_LINE, SEMRESATTRS_PROCESS_COMMAND_ARGS, SEMRESATTRS_PROCESS_OWNER, SEMRESATTRS_PROCESS_RUNTIME_NAME, SEMRESATTRS_PROCESS_RUNTIME_VERSION, SEMRESATTRS_PROCESS_RUNTIME_DESCRIPTION, SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_NAMESPACE, SEMRESATTRS_SERVICE_INSTANCE_ID, SEMRESATTRS_SERVICE_VERSION, SEMRESATTRS_TELEMETRY_SDK_NAME, SEMRESATTRS_TELEMETRY_SDK_LANGUAGE, SEMRESATTRS_TELEMETRY_SDK_VERSION, SEMRESATTRS_TELEMETRY_AUTO_VERSION, SEMRESATTRS_WEBENGINE_NAME, SEMRESATTRS_WEBENGINE_VERSION, SEMRESATTRS_WEBENGINE_DESCRIPTION, SemanticResourceAttributes, TMP_CLOUDPROVIDERVALUES_ALIBABA_CLOUD, TMP_CLOUDPROVIDERVALUES_AWS, TMP_CLOUDPROVIDERVALUES_AZURE, TMP_CLOUDPROVIDERVALUES_GCP, CLOUDPROVIDERVALUES_ALIBABA_CLOUD, CLOUDPROVIDERVALUES_AZURE, CloudProviderValues, TMP_CLOUDPLATFORMVALUES_ALIBABA_CLOUD_ECS, TMP_CLOUDPLATFORMVALUES_ALIBABA_CLOUD_FC, TMP_CLOUDPLATFORMVALUES_AWS_EC2, TMP_CLOUDPLATFORMVALUES_AWS_ECS, TMP_CLOUDPLATFORMVALUES_AWS_EKS, TMP_CLOUDPLATFORMVALUES_AWS_LAMBDA, TMP_CLOUDPLATFORMVALUES_AWS_ELASTIC_BEANSTALK, TMP_CLOUDPLATFORMVALUES_AZURE_VM, TMP_CLOUDPLATFORMVALUES_AZURE_CONTAINER_INSTANCES, TMP_CLOUDPLATFORMVALUES_AZURE_AKS, TMP_CLOUDPLATFORMVALUES_AZURE_FUNCTIONS, TMP_CLOUDPLATFORMVALUES_AZURE_APP_SERVICE, TMP_CLOUDPLATFORMVALUES_GCP_COMPUTE_ENGINE, TMP_CLOUDPLATFORMVALUES_GCP_CLOUD_RUN, TMP_CLOUDPLATFORMVALUES_GCP_KUBERNETES_ENGINE, TMP_CLOUDPLATFORMVALUES_GCP_CLOUD_FUNCTIONS, TMP_CLOUDPLATFORMVALUES_GCP_APP_ENGINE, CLOUDPLATFORMVALUES_ALIBABA_CLOUD_ECS, CLOUDPLATFORMVALUES_ALIBABA_CLOUD_FC, CLOUDPLATFORMVALUES_AWS_EC2, CLOUDPLATFORMVALUES_AWS_ECS, CLOUDPLATFORMVALUES_AWS_EKS, CLOUDPLATFORMVALUES_AWS_LAMBDA, CLOUDPLATFORMVALUES_AWS_ELASTIC_BEANSTALK, CLOUDPLATFORMVALUES_AZURE_VM, CLOUDPLATFORMVALUES_AZURE_CONTAINER_INSTANCES, CLOUDPLATFORMVALUES_AZURE_AKS, CLOUDPLATFORMVALUES_AZURE_FUNCTIONS, CLOUDPLATFORMVALUES_AZURE_APP_SERVICE, CLOUDPLATFORMVALUES_GCP_COMPUTE_ENGINE, CLOUDPLATFORMVALUES_GCP_CLOUD_RUN, CLOUDPLATFORMVALUES_GCP_KUBERNETES_ENGINE, CLOUDPLATFORMVALUES_GCP_CLOUD_FUNCTIONS, CLOUDPLATFORMVALUES_GCP_APP_ENGINE, CloudPlatformValues, TMP_AWSECSLAUNCHTYPEVALUES_EC2, TMP_AWSECSLAUNCHTYPEVALUES_FARGATE, AWSECSLAUNCHTYPEVALUES_FARGATE, AwsEcsLaunchtypeValues, TMP_HOSTARCHVALUES_AMD64, TMP_HOSTARCHVALUES_ARM32, TMP_HOSTARCHVALUES_ARM64, TMP_HOSTARCHVALUES_IA64, TMP_HOSTARCHVALUES_PPC32, TMP_HOSTARCHVALUES_PPC64, TMP_HOSTARCHVALUES_X86, HOSTARCHVALUES_AMD64, HOSTARCHVALUES_ARM32, HOSTARCHVALUES_ARM64, HOSTARCHVALUES_IA64, HOSTARCHVALUES_PPC32, HOSTARCHVALUES_PPC64, HostArchValues, TMP_OSTYPEVALUES_WINDOWS, TMP_OSTYPEVALUES_LINUX, TMP_OSTYPEVALUES_DARWIN, TMP_OSTYPEVALUES_FREEBSD, TMP_OSTYPEVALUES_NETBSD, TMP_OSTYPEVALUES_OPENBSD, TMP_OSTYPEVALUES_DRAGONFLYBSD, TMP_OSTYPEVALUES_HPUX, TMP_OSTYPEVALUES_AIX, TMP_OSTYPEVALUES_SOLARIS, TMP_OSTYPEVALUES_Z_OS, OSTYPEVALUES_WINDOWS, OSTYPEVALUES_LINUX, OSTYPEVALUES_DARWIN, OSTYPEVALUES_FREEBSD, OSTYPEVALUES_NETBSD, OSTYPEVALUES_OPENBSD, OSTYPEVALUES_DRAGONFLYBSD, OSTYPEVALUES_HPUX, OSTYPEVALUES_SOLARIS, OSTYPEVALUES_Z_OS, OsTypeValues, TMP_TELEMETRYSDKLANGUAGEVALUES_CPP, TMP_TELEMETRYSDKLANGUAGEVALUES_DOTNET, TMP_TELEMETRYSDKLANGUAGEVALUES_ERLANG, TMP_TELEMETRYSDKLANGUAGEVALUES_GO, TMP_TELEMETRYSDKLANGUAGEVALUES_JAVA, TMP_TELEMETRYSDKLANGUAGEVALUES_NODEJS, TMP_TELEMETRYSDKLANGUAGEVALUES_PHP, TMP_TELEMETRYSDKLANGUAGEVALUES_PYTHON, TMP_TELEMETRYSDKLANGUAGEVALUES_RUBY, TMP_TELEMETRYSDKLANGUAGEVALUES_WEBJS, TELEMETRYSDKLANGUAGEVALUES_DOTNET, TELEMETRYSDKLANGUAGEVALUES_ERLANG, TELEMETRYSDKLANGUAGEVALUES_JAVA, TELEMETRYSDKLANGUAGEVALUES_NODEJS, TELEMETRYSDKLANGUAGEVALUES_PYTHON, TELEMETRYSDKLANGUAGEVALUES_RUBY, TELEMETRYSDKLANGUAGEVALUES_WEBJS, TelemetrySdkLanguageValues;
@@ -1737,7 +1734,7 @@ var init_SemanticResourceAttributes = __esmMin((() => {
 	]);
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+semantic-conventions@1.40.0/node_modules/@opentelemetry/semantic-conventions/build/esm/resource/index.js
+//#region node_modules/@opentelemetry/semantic-conventions/build/esm/resource/index.js
 var init_resource = __esmMin((() => {
 	init_SemanticResourceAttributes();
 })), ATTR_ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT, ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT_VALUE_ABORTED, ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT_VALUE_HANDLED, ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT_VALUE_SKIPPED, ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT_VALUE_UNHANDLED, ATTR_ASPNETCORE_DIAGNOSTICS_HANDLER_TYPE, ATTR_ASPNETCORE_RATE_LIMITING_POLICY, ATTR_ASPNETCORE_RATE_LIMITING_RESULT, ASPNETCORE_RATE_LIMITING_RESULT_VALUE_ACQUIRED, ASPNETCORE_RATE_LIMITING_RESULT_VALUE_ENDPOINT_LIMITER, ASPNETCORE_RATE_LIMITING_RESULT_VALUE_GLOBAL_LIMITER, ASPNETCORE_RATE_LIMITING_RESULT_VALUE_REQUEST_CANCELED, ATTR_ASPNETCORE_REQUEST_IS_UNHANDLED, ATTR_ASPNETCORE_ROUTING_IS_FALLBACK, ATTR_ASPNETCORE_ROUTING_MATCH_STATUS, ASPNETCORE_ROUTING_MATCH_STATUS_VALUE_FAILURE, ASPNETCORE_ROUTING_MATCH_STATUS_VALUE_SUCCESS, ATTR_ASPNETCORE_USER_IS_AUTHENTICATED, ATTR_CLIENT_ADDRESS, ATTR_CLIENT_PORT, ATTR_CODE_COLUMN_NUMBER, ATTR_CODE_FILE_PATH, ATTR_CODE_FUNCTION_NAME, ATTR_CODE_LINE_NUMBER, ATTR_CODE_STACKTRACE, ATTR_DB_COLLECTION_NAME, ATTR_DB_NAMESPACE, ATTR_DB_OPERATION_BATCH_SIZE, ATTR_DB_OPERATION_NAME, ATTR_DB_QUERY_SUMMARY, ATTR_DB_QUERY_TEXT, ATTR_DB_RESPONSE_STATUS_CODE, ATTR_DB_STORED_PROCEDURE_NAME, ATTR_DB_SYSTEM_NAME, DB_SYSTEM_NAME_VALUE_MARIADB, DB_SYSTEM_NAME_VALUE_MICROSOFT_SQL_SERVER, DB_SYSTEM_NAME_VALUE_MYSQL, DB_SYSTEM_NAME_VALUE_POSTGRESQL, ATTR_DOTNET_GC_HEAP_GENERATION, DOTNET_GC_HEAP_GENERATION_VALUE_GEN0, DOTNET_GC_HEAP_GENERATION_VALUE_GEN1, DOTNET_GC_HEAP_GENERATION_VALUE_GEN2, ATTR_ERROR_TYPE, ERROR_TYPE_VALUE_OTHER, ATTR_EXCEPTION_ESCAPED, ATTR_EXCEPTION_MESSAGE, ATTR_EXCEPTION_STACKTRACE, ATTR_EXCEPTION_TYPE, ATTR_HTTP_REQUEST_HEADER, ATTR_HTTP_REQUEST_METHOD, HTTP_REQUEST_METHOD_VALUE_OTHER, HTTP_REQUEST_METHOD_VALUE_CONNECT, HTTP_REQUEST_METHOD_VALUE_DELETE, HTTP_REQUEST_METHOD_VALUE_HEAD, HTTP_REQUEST_METHOD_VALUE_OPTIONS, HTTP_REQUEST_METHOD_VALUE_PATCH, HTTP_REQUEST_METHOD_VALUE_POST, HTTP_REQUEST_METHOD_VALUE_TRACE, ATTR_HTTP_REQUEST_METHOD_ORIGINAL, ATTR_HTTP_REQUEST_RESEND_COUNT, ATTR_HTTP_RESPONSE_HEADER, ATTR_HTTP_RESPONSE_STATUS_CODE, ATTR_HTTP_ROUTE, ATTR_JVM_GC_ACTION, ATTR_JVM_GC_NAME, ATTR_JVM_MEMORY_POOL_NAME, ATTR_JVM_MEMORY_TYPE, JVM_MEMORY_TYPE_VALUE_HEAP, JVM_MEMORY_TYPE_VALUE_NON_HEAP, ATTR_JVM_THREAD_DAEMON, ATTR_JVM_THREAD_STATE, JVM_THREAD_STATE_VALUE_BLOCKED, JVM_THREAD_STATE_VALUE_RUNNABLE, JVM_THREAD_STATE_VALUE_TERMINATED, JVM_THREAD_STATE_VALUE_TIMED_WAITING, JVM_THREAD_STATE_VALUE_WAITING, ATTR_NETWORK_LOCAL_ADDRESS, ATTR_NETWORK_LOCAL_PORT, ATTR_NETWORK_PEER_ADDRESS, ATTR_NETWORK_PEER_PORT, ATTR_NETWORK_PROTOCOL_NAME, ATTR_NETWORK_PROTOCOL_VERSION, ATTR_NETWORK_TRANSPORT, NETWORK_TRANSPORT_VALUE_PIPE, NETWORK_TRANSPORT_VALUE_QUIC, NETWORK_TRANSPORT_VALUE_UNIX, ATTR_NETWORK_TYPE, NETWORK_TYPE_VALUE_IPV4, NETWORK_TYPE_VALUE_IPV6, ATTR_OTEL_SCOPE_NAME, ATTR_OTEL_SCOPE_VERSION, ATTR_OTEL_STATUS_CODE, OTEL_STATUS_CODE_VALUE_ERROR, ATTR_OTEL_STATUS_DESCRIPTION, ATTR_SERVER_ADDRESS, ATTR_SERVER_PORT, ATTR_SERVICE_INSTANCE_ID, ATTR_SERVICE_NAME, ATTR_SERVICE_NAMESPACE, ATTR_SERVICE_VERSION, ATTR_SIGNALR_CONNECTION_STATUS, SIGNALR_CONNECTION_STATUS_VALUE_APP_SHUTDOWN, SIGNALR_CONNECTION_STATUS_VALUE_NORMAL_CLOSURE, SIGNALR_CONNECTION_STATUS_VALUE_TIMEOUT, ATTR_SIGNALR_TRANSPORT, SIGNALR_TRANSPORT_VALUE_LONG_POLLING, SIGNALR_TRANSPORT_VALUE_SERVER_SENT_EVENTS, SIGNALR_TRANSPORT_VALUE_WEB_SOCKETS, ATTR_TELEMETRY_SDK_LANGUAGE, TELEMETRY_SDK_LANGUAGE_VALUE_DOTNET, TELEMETRY_SDK_LANGUAGE_VALUE_ERLANG, TELEMETRY_SDK_LANGUAGE_VALUE_JAVA, TELEMETRY_SDK_LANGUAGE_VALUE_NODEJS, TELEMETRY_SDK_LANGUAGE_VALUE_PYTHON, TELEMETRY_SDK_LANGUAGE_VALUE_RUBY, TELEMETRY_SDK_LANGUAGE_VALUE_RUST, TELEMETRY_SDK_LANGUAGE_VALUE_SWIFT, TELEMETRY_SDK_LANGUAGE_VALUE_WEBJS, ATTR_TELEMETRY_SDK_NAME, ATTR_TELEMETRY_SDK_VERSION, ATTR_URL_FRAGMENT, ATTR_URL_FULL, ATTR_URL_PATH, ATTR_URL_QUERY, ATTR_URL_SCHEME, ATTR_USER_AGENT_ORIGINAL;
@@ -1870,7 +1867,7 @@ var init_stable_attributes = __esmMin((() => {
 	ATTR_USER_AGENT_ORIGINAL = "user_agent.original";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+semantic-conventions@1.40.0/node_modules/@opentelemetry/semantic-conventions/build/esm/stable_metrics.js
+//#region node_modules/@opentelemetry/semantic-conventions/build/esm/stable_metrics.js
 var METRIC_ASPNETCORE_DIAGNOSTICS_EXCEPTIONS, METRIC_ASPNETCORE_RATE_LIMITING_ACTIVE_REQUEST_LEASES, METRIC_ASPNETCORE_RATE_LIMITING_QUEUED_REQUESTS, METRIC_ASPNETCORE_RATE_LIMITING_REQUEST_TIME_IN_QUEUE, METRIC_ASPNETCORE_RATE_LIMITING_REQUEST_LEASE_DURATION, METRIC_ASPNETCORE_RATE_LIMITING_REQUESTS, METRIC_ASPNETCORE_ROUTING_MATCH_ATTEMPTS, METRIC_DB_CLIENT_OPERATION_DURATION, METRIC_DOTNET_ASSEMBLY_COUNT, METRIC_DOTNET_EXCEPTIONS, METRIC_DOTNET_GC_COLLECTIONS, METRIC_DOTNET_GC_HEAP_TOTAL_ALLOCATED, METRIC_DOTNET_GC_LAST_COLLECTION_HEAP_FRAGMENTATION_SIZE, METRIC_DOTNET_GC_LAST_COLLECTION_HEAP_SIZE, METRIC_DOTNET_GC_LAST_COLLECTION_MEMORY_COMMITTED_SIZE, METRIC_DOTNET_GC_PAUSE_TIME, METRIC_DOTNET_JIT_COMPILATION_TIME, METRIC_DOTNET_JIT_COMPILED_IL_SIZE, METRIC_DOTNET_JIT_COMPILED_METHODS, METRIC_DOTNET_MONITOR_LOCK_CONTENTIONS, METRIC_DOTNET_PROCESS_CPU_COUNT, METRIC_DOTNET_PROCESS_CPU_TIME, METRIC_DOTNET_PROCESS_MEMORY_WORKING_SET, METRIC_DOTNET_THREAD_POOL_QUEUE_LENGTH, METRIC_DOTNET_THREAD_POOL_THREAD_COUNT, METRIC_DOTNET_THREAD_POOL_WORK_ITEM_COUNT, METRIC_DOTNET_TIMER_COUNT, METRIC_HTTP_CLIENT_REQUEST_DURATION, METRIC_HTTP_SERVER_REQUEST_DURATION, METRIC_JVM_CLASS_COUNT, METRIC_JVM_CLASS_LOADED, METRIC_JVM_CLASS_UNLOADED, METRIC_JVM_CPU_COUNT, METRIC_JVM_CPU_RECENT_UTILIZATION, METRIC_JVM_CPU_TIME, METRIC_JVM_GC_DURATION, METRIC_JVM_MEMORY_COMMITTED, METRIC_JVM_MEMORY_LIMIT, METRIC_JVM_MEMORY_USED, METRIC_JVM_MEMORY_USED_AFTER_LAST_GC, METRIC_JVM_THREAD_COUNT, METRIC_KESTREL_ACTIVE_CONNECTIONS, METRIC_KESTREL_ACTIVE_TLS_HANDSHAKES, METRIC_KESTREL_CONNECTION_DURATION, METRIC_KESTREL_QUEUED_CONNECTIONS, METRIC_KESTREL_QUEUED_REQUESTS, METRIC_KESTREL_REJECTED_CONNECTIONS, METRIC_KESTREL_TLS_HANDSHAKE_DURATION, METRIC_KESTREL_UPGRADED_CONNECTIONS, METRIC_SIGNALR_SERVER_ACTIVE_CONNECTIONS, METRIC_SIGNALR_SERVER_CONNECTION_DURATION;
 var init_stable_metrics = __esmMin((() => {
 	METRIC_ASPNETCORE_DIAGNOSTICS_EXCEPTIONS = "aspnetcore.diagnostics.exceptions";
@@ -1926,13 +1923,13 @@ var init_stable_metrics = __esmMin((() => {
 	METRIC_SIGNALR_SERVER_CONNECTION_DURATION = "signalr.server.connection.duration";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+semantic-conventions@1.40.0/node_modules/@opentelemetry/semantic-conventions/build/esm/stable_events.js
+//#region node_modules/@opentelemetry/semantic-conventions/build/esm/stable_events.js
 var EVENT_EXCEPTION;
 var init_stable_events = __esmMin((() => {
 	EVENT_EXCEPTION = "exception";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+semantic-conventions@1.40.0/node_modules/@opentelemetry/semantic-conventions/build/esm/index.js
+//#region node_modules/@opentelemetry/semantic-conventions/build/esm/index.js
 var esm_exports$1 = /* @__PURE__ */ __exportAll({
 	ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT_VALUE_ABORTED: () => ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT_VALUE_ABORTED,
 	ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT_VALUE_HANDLED: () => ASPNETCORE_DIAGNOSTICS_EXCEPTION_RESULT_VALUE_HANDLED,
@@ -2544,7 +2541,7 @@ var init_esm$1 = __esmMin((() => {
 	init_stable_events();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/semconv.js
+//#region node_modules/@opentelemetry/core/build/src/semconv.js
 var require_semconv$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ATTR_PROCESS_RUNTIME_NAME = void 0;
@@ -2558,7 +2555,7 @@ var require_semconv$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ATTR_PROCESS_RUNTIME_NAME = "process.runtime.name";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
+//#region node_modules/@opentelemetry/core/build/src/platform/node/sdk-info.js
 var require_sdk_info = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SDK_INFO = void 0;
@@ -2574,7 +2571,7 @@ var require_sdk_info = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/core/build/src/platform/node/index.js
 var require_node$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = void 0;
@@ -2623,7 +2620,7 @@ var require_node$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.otperformance = performance;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/platform/index.js
+//#region node_modules/@opentelemetry/core/build/src/platform/index.js
 var require_platform$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = void 0;
@@ -2672,7 +2669,7 @@ var require_platform$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/common/time.js
+//#region node_modules/@opentelemetry/core/build/src/common/time.js
 var require_time = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.addHrTimes = exports.isTimeInput = exports.isTimeInputHrTime = exports.hrTimeToMicroseconds = exports.hrTimeToMilliseconds = exports.hrTimeToNanoseconds = exports.hrTimeToTimeStamp = exports.hrTimeDuration = exports.timeInputToHrTime = exports.hrTime = exports.getTimeOrigin = exports.millisToHrTime = void 0;
@@ -2797,7 +2794,7 @@ var require_time = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.addHrTimes = addHrTimes;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/common/timer-util.js
+//#region node_modules/@opentelemetry/core/build/src/common/timer-util.js
 var require_timer_util = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.unrefTimer = void 0;
@@ -2811,7 +2808,7 @@ var require_timer_util = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.unrefTimer = unrefTimer;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/ExportResult.js
+//#region node_modules/@opentelemetry/core/build/src/ExportResult.js
 var require_ExportResult = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ExportResultCode = void 0;
@@ -2821,7 +2818,7 @@ var require_ExportResult = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.ExportResultCode || (exports.ExportResultCode = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/propagation/composite.js
+//#region node_modules/@opentelemetry/core/build/src/propagation/composite.js
 var require_composite = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.CompositePropagator = void 0;
@@ -2881,7 +2878,7 @@ var require_composite = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.CompositePropagator = CompositePropagator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/internal/validators.js
+//#region node_modules/@opentelemetry/core/build/src/internal/validators.js
 var require_validators = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.validateValue = exports.validateKey = void 0;
@@ -2913,7 +2910,7 @@ var require_validators = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.validateValue = validateValue;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/trace/TraceState.js
+//#region node_modules/@opentelemetry/core/build/src/trace/TraceState.js
 var require_TraceState = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TraceState = void 0;
@@ -2972,7 +2969,7 @@ var require_TraceState = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
+//#region node_modules/@opentelemetry/core/build/src/trace/W3CTraceContextPropagator.js
 var require_W3CTraceContextPropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.W3CTraceContextPropagator = exports.parseTraceParent = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = void 0;
@@ -3040,7 +3037,7 @@ var require_W3CTraceContextPropagator = /* @__PURE__ */ __commonJSMin(((exports)
 	exports.W3CTraceContextPropagator = W3CTraceContextPropagator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
+//#region node_modules/@opentelemetry/core/build/src/trace/rpc-metadata.js
 var require_rpc_metadata = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getRPCMetadata = exports.deleteRPCMetadata = exports.setRPCMetadata = exports.RPCType = void 0;
@@ -3062,7 +3059,7 @@ var require_rpc_metadata = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getRPCMetadata = getRPCMetadata;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
+//#region node_modules/@opentelemetry/core/build/src/utils/lodash.merge.js
 var require_lodash_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isPlainObject = void 0;
@@ -3185,7 +3182,7 @@ var require_lodash_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/utils/merge.js
+//#region node_modules/@opentelemetry/core/build/src/utils/merge.js
 var require_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.merge = void 0;
@@ -3296,7 +3293,7 @@ var require_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/utils/timeout.js
+//#region node_modules/@opentelemetry/core/build/src/utils/timeout.js
 var require_timeout = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.callWithTimeout = exports.TimeoutError = void 0;
@@ -3337,7 +3334,7 @@ var require_timeout = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.callWithTimeout = callWithTimeout;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/utils/url.js
+//#region node_modules/@opentelemetry/core/build/src/utils/url.js
 var require_url = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isUrlIgnored = exports.urlMatches = void 0;
@@ -3359,7 +3356,7 @@ var require_url = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isUrlIgnored = isUrlIgnored;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/utils/promise.js
+//#region node_modules/@opentelemetry/core/build/src/utils/promise.js
 var require_promise = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Deferred = void 0;
@@ -3386,7 +3383,7 @@ var require_promise = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Deferred = Deferred;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/utils/callback.js
+//#region node_modules/@opentelemetry/core/build/src/utils/callback.js
 var require_callback = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BindOnceFuture = void 0;
@@ -3424,7 +3421,7 @@ var require_callback = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.BindOnceFuture = BindOnceFuture;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/utils/configuration.js
+//#region node_modules/@opentelemetry/core/build/src/utils/configuration.js
 var require_configuration = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.diagLogLevelFromString = void 0;
@@ -3454,7 +3451,7 @@ var require_configuration = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.diagLogLevelFromString = diagLogLevelFromString;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/internal/exporter.js
+//#region node_modules/@opentelemetry/core/build/src/internal/exporter.js
 var require_exporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports._export = void 0;
@@ -3474,7 +3471,7 @@ var require_exporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports._export = _export;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+core@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/core/build/src/index.js
+//#region node_modules/@opentelemetry/core/build/src/index.js
 var require_src$28 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.internal = exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = void 0;
@@ -3795,7 +3792,7 @@ var require_src$28 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.internal = { _export: require_exporter()._export };
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/logging-response-handler.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/logging-response-handler.js
 function isPartialSuccessResponse(response) {
 	return Object.prototype.hasOwnProperty.call(response, "partialSuccess");
 }
@@ -3812,7 +3809,7 @@ var init_logging_response_handler = __esmMin((() => {
 	init_esm$2();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/otlp-export-delegate.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/otlp-export-delegate.js
 /**
 * Creates a generic delegate for OTLP exports which only contains parts of the OTLP export that are shared across all
 * signals.
@@ -3897,7 +3894,7 @@ var init_otlp_export_delegate = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/otlp-network-export-delegate.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/otlp-network-export-delegate.js
 function createOtlpNetworkExportDelegate(options, serializer, transport) {
 	return createOtlpExportDelegate({
 		transport,
@@ -3910,7 +3907,7 @@ var init_otlp_network_export_delegate = __esmMin((() => {
 	init_otlp_export_delegate();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/index.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/index.js
 var esm_exports = /* @__PURE__ */ __exportAll({
 	CompressionAlgorithm: () => CompressionAlgorithm,
 	OTLPExporterBase: () => OTLPExporterBase,
@@ -3927,7 +3924,7 @@ var init_esm = __esmMin((() => {
 	init_otlp_network_export_delegate();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/generated/root.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/generated/root.js
 var require_root$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	var $protobuf = require_minimal();
@@ -15622,7 +15619,7 @@ var require_root$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = $root;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/common/internal.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/internal.js
 var require_internal$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.toAnyValue = exports.toKeyValue = exports.toAttributes = exports.createInstrumentationScope = exports.createResource = void 0;
@@ -15682,7 +15679,7 @@ var require_internal$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.toAnyValue = toAnyValue;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/logs/internal.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/internal.js
 var require_internal$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.toLogAttributes = exports.createExportLogsServiceRequest = void 0;
@@ -15751,7 +15748,7 @@ var require_internal$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.toLogAttributes = toLogAttributes;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/common/hex-to-binary.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/hex-to-binary.js
 var require_hex_to_binary = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.hexToBinary = void 0;
@@ -15773,7 +15770,7 @@ var require_hex_to_binary = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.hexToBinary = hexToBinary;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/common/utils.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/utils.js
 var require_utils$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JSON_ENCODER = exports.PROTOBUF_ENCODER = exports.encodeAsString = exports.encodeAsLongBits = exports.toLongBits = exports.hrTimeToNanos = void 0;
@@ -15834,7 +15831,7 @@ var require_utils$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/logs.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/logs.js
 var require_logs$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProtobufLogsSerializer = void 0;
@@ -15854,7 +15851,7 @@ var require_logs$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/index.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/index.js
 var require_protobuf$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProtobufLogsSerializer = void 0;
@@ -15867,7 +15864,7 @@ var require_protobuf$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/export/AggregationTemporality.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/export/AggregationTemporality.js
 var require_AggregationTemporality = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AggregationTemporality = void 0;
@@ -15877,7 +15874,7 @@ var require_AggregationTemporality = /* @__PURE__ */ __commonJSMin(((exports) =>
 	})(exports.AggregationTemporality || (exports.AggregationTemporality = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/export/MetricData.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/export/MetricData.js
 var require_MetricData = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.DataPointType = exports.InstrumentType = void 0;
@@ -15916,7 +15913,7 @@ var require_MetricData = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.DataPointType || (exports.DataPointType = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/utils.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/utils.js
 var require_utils$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.equalsCaseInsensitive = exports.binarySearchUB = exports.setEquals = exports.callWithTimeout = exports.TimeoutError = exports.instrumentationScopeId = exports.hashAttributes = void 0;
@@ -16007,7 +16004,7 @@ var require_utils$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.equalsCaseInsensitive = equalsCaseInsensitive;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/types.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/types.js
 var require_types$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AggregatorKind = void 0;
@@ -16020,7 +16017,7 @@ var require_types$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.AggregatorKind || (exports.AggregatorKind = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/Drop.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/Drop.js
 var require_Drop = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.DropAggregator = void 0;
@@ -16036,7 +16033,7 @@ var require_Drop = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.DropAggregator = DropAggregator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/Histogram.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/Histogram.js
 var require_Histogram = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.HistogramAggregator = exports.HistogramAccumulation = void 0;
@@ -16195,7 +16192,7 @@ var require_Histogram = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.HistogramAggregator = HistogramAggregator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/Buckets.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/Buckets.js
 var require_Buckets = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Buckets = void 0;
@@ -16432,7 +16429,7 @@ var require_Buckets = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/ieee754.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/ieee754.js
 var require_ieee754 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getSignificand = exports.getNormalBase2 = exports.MIN_VALUE = exports.MAX_NORMAL_EXPONENT = exports.MIN_NORMAL_EXPONENT = exports.SIGNIFICAND_WIDTH = void 0;
@@ -16505,7 +16502,7 @@ var require_ieee754 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getSignificand = getSignificand;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/util.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/util.js
 var require_util$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.nextGreaterSquare = exports.ldexp = void 0;
@@ -16547,7 +16544,7 @@ var require_util$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.nextGreaterSquare = nextGreaterSquare;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/types.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/types.js
 var require_types$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MappingError = void 0;
@@ -16555,7 +16552,7 @@ var require_types$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.MappingError = MappingError;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/ExponentMapping.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/ExponentMapping.js
 var require_ExponentMapping = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ExponentMapping = void 0;
@@ -16616,7 +16613,7 @@ var require_ExponentMapping = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ExponentMapping = ExponentMapping;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/LogarithmMapping.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/LogarithmMapping.js
 var require_LogarithmMapping = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LogarithmMapping = void 0;
@@ -16686,7 +16683,7 @@ var require_LogarithmMapping = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.LogarithmMapping = LogarithmMapping;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/getMapping.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/exponential-histogram/mapping/getMapping.js
 var require_getMapping = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getMapping = void 0;
@@ -16713,7 +16710,7 @@ var require_getMapping = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getMapping = getMapping;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/ExponentialHistogram.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/ExponentialHistogram.js
 var require_ExponentialHistogram = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ExponentialHistogramAggregator = exports.ExponentialHistogramAccumulation = void 0;
@@ -17121,7 +17118,7 @@ var require_ExponentialHistogram = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ExponentialHistogramAggregator = ExponentialHistogramAggregator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/LastValue.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/LastValue.js
 var require_LastValue = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LastValueAggregator = exports.LastValueAccumulation = void 0;
@@ -17193,7 +17190,7 @@ var require_LastValue = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.LastValueAggregator = LastValueAggregator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/Sum.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/Sum.js
 var require_Sum = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SumAggregator = exports.SumAccumulation = void 0;
@@ -17275,7 +17272,7 @@ var require_Sum = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.SumAggregator = SumAggregator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/index.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/aggregator/index.js
 var require_aggregator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SumAggregator = exports.SumAccumulation = exports.LastValueAggregator = exports.LastValueAccumulation = exports.ExponentialHistogramAggregator = exports.ExponentialHistogramAccumulation = exports.HistogramAggregator = exports.HistogramAccumulation = exports.DropAggregator = void 0;
@@ -17340,7 +17337,7 @@ var require_aggregator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/Aggregation.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/Aggregation.js
 var require_Aggregation = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.DEFAULT_AGGREGATION = exports.EXPONENTIAL_HISTOGRAM_AGGREGATION = exports.HISTOGRAM_AGGREGATION = exports.LAST_VALUE_AGGREGATION = exports.SUM_AGGREGATION = exports.DROP_AGGREGATION = exports.DefaultAggregation = exports.ExponentialHistogramAggregation = exports.ExplicitBucketHistogramAggregation = exports.HistogramAggregation = exports.LastValueAggregation = exports.SumAggregation = exports.DropAggregation = void 0;
@@ -17479,7 +17476,7 @@ var require_Aggregation = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.DEFAULT_AGGREGATION = new DefaultAggregation();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/AggregationOption.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/AggregationOption.js
 var require_AggregationOption = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.toAggregation = exports.AggregationType = void 0;
@@ -17514,7 +17511,7 @@ var require_AggregationOption = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.toAggregation = toAggregation;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/export/AggregationSelector.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/export/AggregationSelector.js
 var require_AggregationSelector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.DEFAULT_AGGREGATION_TEMPORALITY_SELECTOR = exports.DEFAULT_AGGREGATION_SELECTOR = void 0;
@@ -17528,7 +17525,7 @@ var require_AggregationSelector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.DEFAULT_AGGREGATION_TEMPORALITY_SELECTOR = DEFAULT_AGGREGATION_TEMPORALITY_SELECTOR;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/export/MetricReader.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/export/MetricReader.js
 var require_MetricReader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MetricReader = void 0;
@@ -17608,7 +17605,7 @@ var require_MetricReader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.MetricReader = MetricReader;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/export/PeriodicExportingMetricReader.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/export/PeriodicExportingMetricReader.js
 var require_PeriodicExportingMetricReader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PeriodicExportingMetricReader = void 0;
@@ -17687,7 +17684,7 @@ var require_PeriodicExportingMetricReader = /* @__PURE__ */ __commonJSMin(((expo
 	exports.PeriodicExportingMetricReader = PeriodicExportingMetricReader;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/export/InMemoryMetricExporter.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/export/InMemoryMetricExporter.js
 var require_InMemoryMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InMemoryMetricExporter = void 0;
@@ -17739,7 +17736,7 @@ var require_InMemoryMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) =>
 	exports.InMemoryMetricExporter = InMemoryMetricExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/export/ConsoleMetricExporter.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/export/ConsoleMetricExporter.js
 var require_ConsoleMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ConsoleMetricExporter = void 0;
@@ -17779,7 +17776,7 @@ var require_ConsoleMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => 
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/default-service-name.js
+//#region node_modules/@opentelemetry/resources/build/src/default-service-name.js
 var require_default_service_name = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports._clearDefaultServiceNameCache = exports.defaultServiceName = void 0;
@@ -17806,7 +17803,7 @@ var require_default_service_name = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports._clearDefaultServiceNameCache = _clearDefaultServiceNameCache;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/utils.js
+//#region node_modules/@opentelemetry/resources/build/src/utils.js
 var require_utils$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isPromiseLike = void 0;
@@ -17816,7 +17813,7 @@ var require_utils$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isPromiseLike = isPromiseLike;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/ResourceImpl.js
+//#region node_modules/@opentelemetry/resources/build/src/ResourceImpl.js
 var require_ResourceImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.defaultResource = exports.emptyResource = exports.resourceFromDetectedResource = exports.resourceFromAttributes = void 0;
@@ -17928,7 +17925,7 @@ var require_ResourceImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detect-resources.js
+//#region node_modules/@opentelemetry/resources/build/src/detect-resources.js
 var require_detect_resources = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.detectResources = void 0;
@@ -17954,7 +17951,7 @@ var require_detect_resources = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.detectResources = detectResources;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/EnvDetector.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/EnvDetector.js
 var require_EnvDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.envDetector = void 0;
@@ -18034,7 +18031,7 @@ var require_EnvDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.envDetector = new EnvDetector();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/semconv.js
+//#region node_modules/@opentelemetry/resources/build/src/semconv.js
 var require_semconv$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ATTR_WEBENGINE_VERSION = exports.ATTR_WEBENGINE_NAME = exports.ATTR_WEBENGINE_DESCRIPTION = exports.ATTR_SERVICE_NAMESPACE = exports.ATTR_SERVICE_INSTANCE_ID = exports.ATTR_PROCESS_RUNTIME_VERSION = exports.ATTR_PROCESS_RUNTIME_NAME = exports.ATTR_PROCESS_RUNTIME_DESCRIPTION = exports.ATTR_PROCESS_PID = exports.ATTR_PROCESS_OWNER = exports.ATTR_PROCESS_EXECUTABLE_PATH = exports.ATTR_PROCESS_EXECUTABLE_NAME = exports.ATTR_PROCESS_COMMAND_ARGS = exports.ATTR_PROCESS_COMMAND = exports.ATTR_OS_VERSION = exports.ATTR_OS_TYPE = exports.ATTR_K8S_POD_NAME = exports.ATTR_K8S_NAMESPACE_NAME = exports.ATTR_K8S_DEPLOYMENT_NAME = exports.ATTR_K8S_CLUSTER_NAME = exports.ATTR_HOST_TYPE = exports.ATTR_HOST_NAME = exports.ATTR_HOST_IMAGE_VERSION = exports.ATTR_HOST_IMAGE_NAME = exports.ATTR_HOST_IMAGE_ID = exports.ATTR_HOST_ID = exports.ATTR_HOST_ARCH = exports.ATTR_CONTAINER_NAME = exports.ATTR_CONTAINER_IMAGE_TAGS = exports.ATTR_CONTAINER_IMAGE_NAME = exports.ATTR_CONTAINER_ID = exports.ATTR_CLOUD_REGION = exports.ATTR_CLOUD_PROVIDER = exports.ATTR_CLOUD_AVAILABILITY_ZONE = exports.ATTR_CLOUD_ACCOUNT_ID = void 0;
@@ -18351,7 +18348,7 @@ var require_semconv$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ATTR_WEBENGINE_VERSION = "webengine.version";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/machine-id/getMachineId.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/machine-id/getMachineId.js
 var require_getMachineId = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getMachineId = void 0;
@@ -18360,19 +18357,19 @@ var require_getMachineId = /* @__PURE__ */ __commonJSMin(((exports) => {
 	async function getMachineId() {
 		if (!getMachineIdImpl) switch (process$1.platform) {
 			case "darwin":
-				getMachineIdImpl = (await import("../../getMachineId-darwin-DhKjDs_z.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-darwin-B0vFI88w.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "linux":
-				getMachineIdImpl = (await import("../../getMachineId-linux-B86NjWai.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-linux-DyKXO1GR.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "freebsd":
-				getMachineIdImpl = (await import("../../getMachineId-bsd-CnCbGrY0.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-bsd-n7DTX4Vb.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "win32":
-				getMachineIdImpl = (await import("../../getMachineId-win-BBJTRgom.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-win-voSnZbIe.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			default:
-				getMachineIdImpl = (await import("../../getMachineId-unsupported-CeT8VMGZ.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-unsupported-2_LYjKwC.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 		}
 		return getMachineIdImpl();
@@ -18380,7 +18377,7 @@ var require_getMachineId = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getMachineId = getMachineId;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/utils.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/utils.js
 var require_utils$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.normalizeType = exports.normalizeArch = void 0;
@@ -18403,7 +18400,7 @@ var require_utils$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.normalizeType = normalizeType;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/HostDetector.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/HostDetector.js
 var require_HostDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.hostDetector = void 0;
@@ -18427,7 +18424,7 @@ var require_HostDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.hostDetector = new HostDetector();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/OSDetector.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/OSDetector.js
 var require_OSDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.osDetector = void 0;
@@ -18449,7 +18446,7 @@ var require_OSDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.osDetector = new OSDetector();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/ProcessDetector.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/ProcessDetector.js
 var require_ProcessDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.processDetector = void 0;
@@ -18488,7 +18485,7 @@ var require_ProcessDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.processDetector = new ProcessDetector();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/ServiceInstanceIdDetector.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/ServiceInstanceIdDetector.js
 var require_ServiceInstanceIdDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.serviceInstanceIdDetector = void 0;
@@ -18508,7 +18505,7 @@ var require_ServiceInstanceIdDetector = /* @__PURE__ */ __commonJSMin(((exports)
 	exports.serviceInstanceIdDetector = new ServiceInstanceIdDetector();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/platform/node/index.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/index.js
 var require_node$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = void 0;
@@ -18542,7 +18539,7 @@ var require_node$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/platform/index.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/platform/index.js
 var require_platform$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = void 0;
@@ -18573,7 +18570,7 @@ var require_platform$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/NoopDetector.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/NoopDetector.js
 var require_NoopDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.noopDetector = exports.NoopDetector = void 0;
@@ -18586,7 +18583,7 @@ var require_NoopDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.noopDetector = new NoopDetector();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/detectors/index.js
+//#region node_modules/@opentelemetry/resources/build/src/detectors/index.js
 var require_detectors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.noopDetector = exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = exports.envDetector = void 0;
@@ -18631,7 +18628,7 @@ var require_detectors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+resources@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/resources/build/src/index.js
+//#region node_modules/@opentelemetry/resources/build/src/index.js
 var require_src$27 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.defaultServiceName = exports.emptyResource = exports.defaultResource = exports.resourceFromAttributes = exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = exports.envDetector = exports.detectResources = void 0;
@@ -18701,7 +18698,7 @@ var require_src$27 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/ViewRegistry.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/ViewRegistry.js
 var require_ViewRegistry = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ViewRegistry = void 0;
@@ -18725,7 +18722,7 @@ var require_ViewRegistry = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ViewRegistry = ViewRegistry;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/InstrumentDescriptor.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/InstrumentDescriptor.js
 var require_InstrumentDescriptor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isValidName = exports.isDescriptorCompatibleWith = exports.createInstrumentDescriptorWithView = exports.createInstrumentDescriptor = void 0;
@@ -18765,7 +18762,7 @@ var require_InstrumentDescriptor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isValidName = isValidName;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/Instruments.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/Instruments.js
 var require_Instruments = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isObservableInstrument = exports.ObservableUpDownCounterInstrument = exports.ObservableGaugeInstrument = exports.ObservableCounterInstrument = exports.ObservableInstrument = exports.HistogramInstrument = exports.GaugeInstrument = exports.CounterInstrument = exports.UpDownCounterInstrument = exports.SyncInstrument = void 0;
@@ -18885,7 +18882,7 @@ var require_Instruments = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isObservableInstrument = isObservableInstrument;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/Meter.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/Meter.js
 var require_Meter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Meter = void 0;
@@ -18972,7 +18969,7 @@ var require_Meter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Meter = Meter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/MetricStorage.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/MetricStorage.js
 var require_MetricStorage = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MetricStorage = void 0;
@@ -19002,7 +18999,7 @@ var require_MetricStorage = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.MetricStorage = MetricStorage;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/HashMap.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/HashMap.js
 var require_HashMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AttributeHashMap = exports.HashMap = void 0;
@@ -19068,7 +19065,7 @@ var require_HashMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.AttributeHashMap = AttributeHashMap;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/DeltaMetricProcessor.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/DeltaMetricProcessor.js
 var require_DeltaMetricProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.DeltaMetricProcessor = void 0;
@@ -19142,7 +19139,7 @@ var require_DeltaMetricProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.DeltaMetricProcessor = DeltaMetricProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/TemporalMetricProcessor.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/TemporalMetricProcessor.js
 var require_TemporalMetricProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TemporalMetricProcessor = void 0;
@@ -19236,7 +19233,7 @@ var require_TemporalMetricProcessor = /* @__PURE__ */ __commonJSMin(((exports) =
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/AsyncMetricStorage.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/AsyncMetricStorage.js
 var require_AsyncMetricStorage = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AsyncMetricStorage = void 0;
@@ -19283,7 +19280,7 @@ var require_AsyncMetricStorage = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.AsyncMetricStorage = AsyncMetricStorage;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/RegistrationConflicts.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/RegistrationConflicts.js
 var require_RegistrationConflicts = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getConflictResolutionRecipe = exports.getDescriptionResolutionRecipe = exports.getTypeConflictResolutionRecipe = exports.getUnitConflictResolutionRecipe = exports.getValueTypeConflictResolutionRecipe = exports.getIncompatibilityDetails = void 0;
@@ -19336,7 +19333,7 @@ var require_RegistrationConflicts = /* @__PURE__ */ __commonJSMin(((exports) => 
 	exports.getConflictResolutionRecipe = getConflictResolutionRecipe;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/MetricStorageRegistry.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/MetricStorageRegistry.js
 var require_MetricStorageRegistry = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MetricStorageRegistry = void 0;
@@ -19405,7 +19402,7 @@ var require_MetricStorageRegistry = /* @__PURE__ */ __commonJSMin(((exports) => 
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/MultiWritableMetricStorage.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/MultiWritableMetricStorage.js
 var require_MultiWritableMetricStorage = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MultiMetricStorage = void 0;
@@ -19426,7 +19423,7 @@ var require_MultiWritableMetricStorage = /* @__PURE__ */ __commonJSMin(((exports
 	exports.MultiMetricStorage = MultiMetricStorage;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/ObservableResult.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/ObservableResult.js
 var require_ObservableResult = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchObservableResultImpl = exports.ObservableResultImpl = void 0;
@@ -19497,7 +19494,7 @@ var require_ObservableResult = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.BatchObservableResultImpl = BatchObservableResultImpl;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/ObservableRegistry.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/ObservableRegistry.js
 var require_ObservableRegistry = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ObservableRegistry = void 0;
@@ -19592,7 +19589,7 @@ var require_ObservableRegistry = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ObservableRegistry = ObservableRegistry;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/SyncMetricStorage.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/SyncMetricStorage.js
 var require_SyncMetricStorage = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SyncMetricStorage = void 0;
@@ -19634,7 +19631,7 @@ var require_SyncMetricStorage = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.SyncMetricStorage = SyncMetricStorage;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/AttributesProcessor.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/AttributesProcessor.js
 var require_AttributesProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createDenyListAttributesProcessor = exports.createAllowListAttributesProcessor = exports.createMultiAttributesProcessor = exports.createNoopAttributesProcessor = void 0;
@@ -19718,7 +19715,7 @@ var require_AttributesProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const NOOP = new NoopAttributesProcessor();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/MeterSharedState.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/MeterSharedState.js
 var require_MeterSharedState = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MeterSharedState = void 0;
@@ -19807,7 +19804,7 @@ var require_MeterSharedState = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.MeterSharedState = MeterSharedState;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/MeterProviderSharedState.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/MeterProviderSharedState.js
 var require_MeterProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MeterProviderSharedState = void 0;
@@ -19844,7 +19841,7 @@ var require_MeterProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports) 
 	exports.MeterProviderSharedState = MeterProviderSharedState;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/state/MetricCollector.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/state/MetricCollector.js
 var require_MetricCollector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MetricCollector = void 0;
@@ -19908,7 +19905,7 @@ var require_MetricCollector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.MetricCollector = MetricCollector;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/Predicate.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/Predicate.js
 var require_Predicate = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ExactPredicate = exports.PatternPredicate = void 0;
@@ -19952,7 +19949,7 @@ var require_Predicate = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ExactPredicate = ExactPredicate;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/InstrumentSelector.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/InstrumentSelector.js
 var require_InstrumentSelector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InstrumentSelector = void 0;
@@ -19979,7 +19976,7 @@ var require_InstrumentSelector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.InstrumentSelector = InstrumentSelector;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/MeterSelector.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/MeterSelector.js
 var require_MeterSelector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MeterSelector = void 0;
@@ -20009,7 +20006,7 @@ var require_MeterSelector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.MeterSelector = MeterSelector;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/view/View.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/view/View.js
 var require_View = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.View = void 0;
@@ -20115,7 +20112,7 @@ var require_View = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.View = View;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/MeterProvider.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/MeterProvider.js
 var require_MeterProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MeterProvider = void 0;
@@ -20187,7 +20184,7 @@ var require_MeterProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.MeterProvider = MeterProvider;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-metrics@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-metrics/build/src/index.js
+//#region node_modules/@opentelemetry/sdk-metrics/build/src/index.js
 var require_src$26 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TimeoutError = exports.createDenyListAttributesProcessor = exports.createAllowListAttributesProcessor = exports.AggregationType = exports.MeterProvider = exports.ConsoleMetricExporter = exports.InMemoryMetricExporter = exports.PeriodicExportingMetricReader = exports.MetricReader = exports.InstrumentType = exports.DataPointType = exports.AggregationTemporality = void 0;
@@ -20275,7 +20272,7 @@ var require_src$26 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/metrics/internal-types.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/metrics/internal-types.js
 var require_internal_types = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.EAggregationTemporality = void 0;
@@ -20345,7 +20342,7 @@ var require_internal_types = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.EAggregationTemporality || (exports.EAggregationTemporality = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/metrics/internal.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/metrics/internal.js
 var require_internal$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createExportMetricsServiceRequest = exports.toMetric = exports.toScopeMetrics = exports.toResourceMetrics = void 0;
@@ -20477,7 +20474,7 @@ var require_internal$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.createExportMetricsServiceRequest = createExportMetricsServiceRequest;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/metrics/protobuf/metrics.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/metrics/protobuf/metrics.js
 var require_metrics$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProtobufMetricsSerializer = void 0;
@@ -20497,7 +20494,7 @@ var require_metrics$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/metrics/protobuf/index.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/metrics/protobuf/index.js
 var require_protobuf$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProtobufMetricsSerializer = void 0;
@@ -20510,7 +20507,7 @@ var require_protobuf$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/trace/internal.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/trace/internal.js
 var require_internal = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createExportTraceServiceRequest = exports.toOtlpSpanEvent = exports.toOtlpLink = exports.sdkSpanToOtlpSpan = void 0;
@@ -20630,7 +20627,7 @@ var require_internal = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/trace/protobuf/trace.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/trace/protobuf/trace.js
 var require_trace$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProtobufTraceSerializer = void 0;
@@ -20650,7 +20647,7 @@ var require_trace$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/trace/protobuf/index.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/trace/protobuf/index.js
 var require_protobuf = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProtobufTraceSerializer = void 0;
@@ -20663,7 +20660,7 @@ var require_protobuf = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/logs/json/logs.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/json/logs.js
 var require_logs$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonLogsSerializer = void 0;
@@ -20682,7 +20679,7 @@ var require_logs$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/logs/json/index.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/json/index.js
 var require_json$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonLogsSerializer = void 0;
@@ -20695,7 +20692,7 @@ var require_json$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/metrics/json/metrics.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/metrics/json/metrics.js
 var require_metrics = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonMetricsSerializer = void 0;
@@ -20714,7 +20711,7 @@ var require_metrics = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/metrics/json/index.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/metrics/json/index.js
 var require_json$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonMetricsSerializer = void 0;
@@ -20727,7 +20724,7 @@ var require_json$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/trace/json/trace.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/trace/json/trace.js
 var require_trace = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonTraceSerializer = void 0;
@@ -20746,7 +20743,7 @@ var require_trace = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/trace/json/index.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/trace/json/index.js
 var require_json = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonTraceSerializer = void 0;
@@ -20759,7 +20756,7 @@ var require_json = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-transformer@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-transformer/build/src/index.js
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/index.js
 var require_src$25 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonTraceSerializer = exports.JsonMetricsSerializer = exports.JsonLogsSerializer = exports.ProtobufTraceSerializer = exports.ProtobufMetricsSerializer = exports.ProtobufLogsSerializer = void 0;
@@ -20807,7 +20804,7 @@ var require_src$25 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/util.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/util.js
 /**
 * Parses headers from config leaving only those that have defined values
 * @param partialHeaders
@@ -20824,7 +20821,7 @@ var init_util = __esmMin((() => {
 	init_esm$2();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/otlp-http-configuration.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/otlp-http-configuration.js
 function mergeHeaders(userProvidedHeaders, fallbackHeaders, defaultHeaders) {
 	return async () => {
 		const requiredHeaders = { ...await defaultHeaders() };
@@ -20867,7 +20864,7 @@ var init_otlp_http_configuration = __esmMin((() => {
 	init_util();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/otlp-node-http-configuration.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/otlp-node-http-configuration.js
 function httpAgentFactoryFromOptions(options) {
 	return async (protocol) => {
 		const isInsecure = protocol === "http:";
@@ -20901,7 +20898,7 @@ var init_otlp_node_http_configuration = __esmMin((() => {
 	init_otlp_http_configuration();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/is-export-retryable.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/is-export-retryable.js
 function isExportHTTPErrorRetryable(statusCode) {
 	return statusCode === 429 || statusCode === 502 || statusCode === 503 || statusCode === 504;
 }
@@ -20915,13 +20912,13 @@ function parseRetryAfterToMills(retryAfter) {
 }
 var init_is_export_retryable = __esmMin((() => {}));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/version.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/version.js
 var VERSION;
 var init_version = __esmMin((() => {
-	VERSION = "0.213.0";
+	VERSION = "0.214.0";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/transport/http-transport-utils.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/transport/http-transport-utils.js
 /**
 * Sends data using http
 * @param request
@@ -20931,71 +20928,72 @@ var init_version = __esmMin((() => {
 * @param userAgent
 * @param agent
 * @param data
-* @param onDone
 * @param timeoutMillis
 */
-function sendWithHttp(request, url, headers, compression, userAgent, agent, data, onDone, timeoutMillis) {
-	const parsedUrl = new URL(url);
-	if (userAgent) headers["User-Agent"] = `${userAgent} ${DEFAULT_USER_AGENT}`;
-	else headers["User-Agent"] = DEFAULT_USER_AGENT;
-	const req = request({
-		hostname: parsedUrl.hostname,
-		port: parsedUrl.port,
-		path: parsedUrl.pathname,
-		method: "POST",
-		headers,
-		agent
-	}, (res) => {
-		const responseData = [];
-		res.on("data", (chunk) => responseData.push(chunk));
-		res.on("end", () => {
-			if (res.statusCode && res.statusCode <= 299) onDone({
-				status: "success",
-				data: Buffer.concat(responseData)
+function sendWithHttp(request, url, headers, compression, userAgent, agent, data, timeoutMillis) {
+	return new Promise((resolve) => {
+		const parsedUrl = new URL(url);
+		if (userAgent) headers["User-Agent"] = `${userAgent} ${DEFAULT_USER_AGENT}`;
+		else headers["User-Agent"] = DEFAULT_USER_AGENT;
+		const req = request({
+			hostname: parsedUrl.hostname,
+			port: parsedUrl.port,
+			path: parsedUrl.pathname,
+			method: "POST",
+			headers,
+			agent
+		}, (res) => {
+			const responseData = [];
+			res.on("data", (chunk) => responseData.push(chunk));
+			res.on("end", () => {
+				if (res.statusCode && res.statusCode <= 299) resolve({
+					status: "success",
+					data: Buffer.concat(responseData)
+				});
+				else if (res.statusCode && isExportHTTPErrorRetryable(res.statusCode)) resolve({
+					status: "retryable",
+					retryInMillis: parseRetryAfterToMills(res.headers["retry-after"])
+				});
+				else resolve({
+					status: "failure",
+					error: new OTLPExporterError(res.statusMessage, res.statusCode, Buffer.concat(responseData).toString())
+				});
 			});
-			else if (res.statusCode && isExportHTTPErrorRetryable(res.statusCode)) onDone({
-				status: "retryable",
-				retryInMillis: parseRetryAfterToMills(res.headers["retry-after"])
-			});
-			else onDone({
-				status: "failure",
-				error: new OTLPExporterError(res.statusMessage, res.statusCode, Buffer.concat(responseData).toString())
+			res.on("error", (error) => {
+				if (res.statusCode && res.statusCode <= 299) resolve({ status: "success" });
+				else if (res.statusCode && isExportHTTPErrorRetryable(res.statusCode)) resolve({
+					status: "retryable",
+					error,
+					retryInMillis: parseRetryAfterToMills(res.headers["retry-after"])
+				});
+				else resolve({
+					status: "failure",
+					error
+				});
 			});
 		});
-		res.on("error", (error) => {
-			if (res.statusCode && res.statusCode <= 299) onDone({ status: "success" });
-			else if (res.statusCode && isExportHTTPErrorRetryable(res.statusCode)) onDone({
+		req.setTimeout(timeoutMillis, () => {
+			req.destroy();
+			resolve({
 				status: "retryable",
-				error,
-				retryInMillis: parseRetryAfterToMills(res.headers["retry-after"])
+				error: /* @__PURE__ */ new Error("Request timed out")
 			});
-			else onDone({
+		});
+		req.on("error", (error) => {
+			if (isHttpTransportNetworkErrorRetryable(error)) resolve({
+				status: "retryable",
+				error
+			});
+			else resolve({
 				status: "failure",
 				error
 			});
 		});
-	});
-	req.setTimeout(timeoutMillis, () => {
-		req.destroy();
-		onDone({
-			status: "retryable",
-			error: /* @__PURE__ */ new Error("Request timed out")
-		});
-	});
-	req.on("error", (error) => {
-		if (isHttpTransportNetworkErrorRetryable(error)) onDone({
-			status: "retryable",
-			error
-		});
-		else onDone({
-			status: "failure",
-			error
-		});
-	});
-	compressAndSend(req, compression, data, (error) => {
-		onDone({
-			status: "failure",
-			error
+		compressAndSend(req, compression, data, (error) => {
+			resolve({
+				status: "failure",
+				error
+			});
 		});
 	});
 }
@@ -21035,7 +21033,7 @@ var init_http_transport_utils = __esmMin((() => {
 	DEFAULT_USER_AGENT = `OTel-OTLP-Exporter-JavaScript/${VERSION}`;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/transport/http-exporter-transport.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/transport/http-exporter-transport.js
 async function requestFunctionFactory(protocol) {
 	const { request } = await (protocol === "http:" ? import("http") : import("https"));
 	return request;
@@ -21055,11 +21053,7 @@ var init_http_exporter_transport = __esmMin((() => {
 		async send(data, timeoutMillis) {
 			const { agent, request } = await this._loadUtils();
 			const headers = await this._parameters.headers();
-			return new Promise((resolve) => {
-				sendWithHttp(request, this._parameters.url, headers, this._parameters.compression, this._parameters.userAgent, agent, data, (result) => {
-					resolve(result);
-				}, timeoutMillis);
-			});
+			return sendWithHttp(request, this._parameters.url, headers, this._parameters.compression, this._parameters.userAgent, agent, data, timeoutMillis);
 		}
 		shutdown() {}
 		async _loadUtils() {
@@ -21077,7 +21071,7 @@ var init_http_exporter_transport = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/retrying-transport.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/retrying-transport.js
 /**
 * Get a pseudo-random jitter that falls in the range of [-JITTER, +JITTER]
 */
@@ -21139,7 +21133,7 @@ var init_retrying_transport = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/otlp-http-export-delegate.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/otlp-http-export-delegate.js
 function createOtlpHttpExportDelegate(options, serializer) {
 	return createOtlpExportDelegate({
 		transport: createRetryingTransport({ transport: createHttpExporterTransport(options) }),
@@ -21154,7 +21148,7 @@ var init_otlp_http_export_delegate = __esmMin((() => {
 	init_retrying_transport();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/shared-env-configuration.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/shared-env-configuration.js
 function parseAndValidateTimeoutFromEnv(timeoutEnvVar) {
 	const envTimeout = (0, import_src$9.getNumberFromEnv)(timeoutEnvVar);
 	if (envTimeout != null) {
@@ -21189,7 +21183,7 @@ var init_shared_env_configuration = __esmMin((() => {
 	init_esm$2();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/otlp-node-http-env-configuration.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/otlp-node-http-env-configuration.js
 function getStaticHeadersFromEnv(signalIdentifier) {
 	const signalSpecificRawHeaders = (0, import_src$8.getStringFromEnv)(`OTEL_EXPORTER_OTLP_${signalIdentifier}_HEADERS`);
 	const nonSignalSpecificRawHeaders = (0, import_src$8.getStringFromEnv)("OTEL_EXPORTER_OTLP_HEADERS");
@@ -21282,7 +21276,7 @@ var init_otlp_node_http_env_configuration = __esmMin((() => {
 	init_otlp_node_http_configuration();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/convert-legacy-http-options.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/convert-legacy-http-options.js
 function convertLegacyHeaders(config) {
 	if (typeof config.headers === "function") return config.headers;
 	return wrapStaticHeadersInFunction(config.headers);
@@ -21291,7 +21285,7 @@ var init_convert_legacy_http_options = __esmMin((() => {
 	init_shared_configuration();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/convert-legacy-node-http-options.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/convert-legacy-node-http-options.js
 function convertLegacyAgentOptions(config) {
 	if (typeof config.httpAgentOptions === "function") return config.httpAgentOptions;
 	let legacy = config.httpAgentOptions;
@@ -21329,7 +21323,7 @@ var init_convert_legacy_node_http_options = __esmMin((() => {
 	init_convert_legacy_http_options();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-exporter-base/build/esm/index-node-http.js
+//#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/index-node-http.js
 var index_node_http_exports = /* @__PURE__ */ __exportAll({
 	convertLegacyHttpOptions: () => convertLegacyHttpOptions,
 	createOtlpHttpExportDelegate: () => createOtlpHttpExportDelegate,
@@ -21343,7 +21337,7 @@ var init_index_node_http = __esmMin((() => {
 	init_convert_legacy_node_http_options();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/node/OTLPLogExporter.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/node/OTLPLogExporter.js
 var require_OTLPLogExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -21361,7 +21355,7 @@ var require_OTLPLogExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPLogExporter = OTLPLogExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/node/index.js
 var require_node$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -21374,7 +21368,7 @@ var require_node$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/index.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/index.js
 var require_platform$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -21387,7 +21381,7 @@ var require_platform$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/index.js
 var require_src$24 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -21400,7 +21394,7 @@ var require_src$24 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/OTLPMetricExporterOptions.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/OTLPMetricExporterOptions.js
 var require_OTLPMetricExporterOptions = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AggregationTemporalityPreference = void 0;
@@ -21411,7 +21405,7 @@ var require_OTLPMetricExporterOptions = /* @__PURE__ */ __commonJSMin(((exports)
 	})(exports.AggregationTemporalityPreference || (exports.AggregationTemporalityPreference = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/OTLPMetricExporterBase.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/OTLPMetricExporterBase.js
 var require_OTLPMetricExporterBase = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = void 0;
@@ -21484,7 +21478,7 @@ var require_OTLPMetricExporterBase = /* @__PURE__ */ __commonJSMin(((exports) =>
 	exports.OTLPMetricExporterBase = OTLPMetricExporterBase;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/node/OTLPMetricExporter.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/node/OTLPMetricExporter.js
 var require_OTLPMetricExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -21502,7 +21496,7 @@ var require_OTLPMetricExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPMetricExporter = OTLPMetricExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/node/index.js
 var require_node$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -21515,7 +21509,7 @@ var require_node$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/index.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/index.js
 var require_platform$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -21528,7 +21522,7 @@ var require_platform$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/index.js
 var require_src$23 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = exports.AggregationTemporalityPreference = exports.OTLPMetricExporter = void 0;
@@ -21573,7 +21567,7 @@ var require_src$23 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/node/OTLPMetricExporter.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/node/OTLPMetricExporter.js
 var require_OTLPMetricExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -21588,7 +21582,7 @@ var require_OTLPMetricExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPMetricExporter = OTLPMetricExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/node/index.js
 var require_node$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -21601,7 +21595,7 @@ var require_node$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/index.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/index.js
 var require_platform$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -21614,7 +21608,7 @@ var require_platform$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/index.js
 var require_src$22 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -21627,7 +21621,7 @@ var require_src$22 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/node/OTLPTraceExporter.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/node/OTLPTraceExporter.js
 var require_OTLPTraceExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -21645,7 +21639,7 @@ var require_OTLPTraceExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPTraceExporter = OTLPTraceExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/node/index.js
 var require_node$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -21658,7 +21652,7 @@ var require_node$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/index.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/index.js
 var require_platform$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -21671,7 +21665,7 @@ var require_platform$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-proto@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/index.js
 var require_src$21 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -21684,7 +21678,7 @@ var require_src$21 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+api-logs@0.213.0/node_modules/@opentelemetry/api-logs/build/src/types/LogRecord.js
+//#region node_modules/@opentelemetry/api-logs/build/src/types/LogRecord.js
 var require_LogRecord = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SeverityNumber = void 0;
@@ -21717,7 +21711,7 @@ var require_LogRecord = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.SeverityNumber || (exports.SeverityNumber = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+api-logs@0.213.0/node_modules/@opentelemetry/api-logs/build/src/NoopLogger.js
+//#region node_modules/@opentelemetry/api-logs/build/src/NoopLogger.js
 var require_NoopLogger = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NOOP_LOGGER = exports.NoopLogger = void 0;
@@ -21728,7 +21722,7 @@ var require_NoopLogger = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.NOOP_LOGGER = new NoopLogger();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+api-logs@0.213.0/node_modules/@opentelemetry/api-logs/build/src/internal/global-utils.js
+//#region node_modules/@opentelemetry/api-logs/build/src/internal/global-utils.js
 var require_global_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.API_BACKWARDS_COMPATIBILITY_VERSION = exports.makeGetter = exports._global = exports.GLOBAL_LOGS_API_KEY = void 0;
@@ -21756,7 +21750,7 @@ var require_global_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.API_BACKWARDS_COMPATIBILITY_VERSION = 1;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+api-logs@0.213.0/node_modules/@opentelemetry/api-logs/build/src/NoopLoggerProvider.js
+//#region node_modules/@opentelemetry/api-logs/build/src/NoopLoggerProvider.js
 var require_NoopLoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NOOP_LOGGER_PROVIDER = exports.NoopLoggerProvider = void 0;
@@ -21770,7 +21764,7 @@ var require_NoopLoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.NOOP_LOGGER_PROVIDER = new NoopLoggerProvider();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+api-logs@0.213.0/node_modules/@opentelemetry/api-logs/build/src/ProxyLogger.js
+//#region node_modules/@opentelemetry/api-logs/build/src/ProxyLogger.js
 var require_ProxyLogger = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProxyLogger = void 0;
@@ -21805,7 +21799,7 @@ var require_ProxyLogger = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ProxyLogger = ProxyLogger;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+api-logs@0.213.0/node_modules/@opentelemetry/api-logs/build/src/ProxyLoggerProvider.js
+//#region node_modules/@opentelemetry/api-logs/build/src/ProxyLoggerProvider.js
 var require_ProxyLoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProxyLoggerProvider = void 0;
@@ -21843,7 +21837,7 @@ var require_ProxyLoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ProxyLoggerProvider = ProxyLoggerProvider;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+api-logs@0.213.0/node_modules/@opentelemetry/api-logs/build/src/api/logs.js
+//#region node_modules/@opentelemetry/api-logs/build/src/api/logs.js
 var require_logs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LogsAPI = void 0;
@@ -21889,7 +21883,7 @@ var require_logs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+api-logs@0.213.0/node_modules/@opentelemetry/api-logs/build/src/index.js
+//#region node_modules/@opentelemetry/api-logs/build/src/index.js
 var require_src$20 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.logs = exports.NoopLogger = exports.NOOP_LOGGER = exports.SeverityNumber = void 0;
@@ -21916,7 +21910,7 @@ var require_src$20 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.logs = require_logs().LogsAPI.getInstance();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/utils/validation.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/utils/validation.js
 var require_validation = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isLogAttributeValue = void 0;
@@ -21952,7 +21946,7 @@ var require_validation = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/LogRecordImpl.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/LogRecordImpl.js
 var require_LogRecordImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LogRecordImpl = void 0;
@@ -21971,7 +21965,8 @@ var require_LogRecordImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 		_severityNumber;
 		_body;
 		_eventName;
-		totalAttributesCount = 0;
+		_attributesCount = 0;
+		_droppedAttributesCount = 0;
 		_isReadonly = false;
 		_logRecordLimits;
 		set severityText(severityText) {
@@ -22003,7 +21998,7 @@ var require_LogRecordImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 			this._eventName = eventName;
 		}
 		get droppedAttributesCount() {
-			return this.totalAttributesCount - Object.keys(this.attributes).length;
+			return this._droppedAttributesCount;
 		}
 		constructor(_sharedState, instrumentationScope, logRecord) {
 			const { timestamp, observedTimestamp, eventName, severityNumber, severityText, body, attributes = {}, exception, context } = logRecord;
@@ -22034,12 +22029,14 @@ var require_LogRecordImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 				api.diag.warn(`Invalid attribute value set for key: ${key}`);
 				return this;
 			}
-			this.totalAttributesCount += 1;
-			if (Object.keys(this.attributes).length >= this._logRecordLimits.attributeCountLimit && !Object.prototype.hasOwnProperty.call(this.attributes, key)) {
-				if (this.droppedAttributesCount === 1) api.diag.warn("Dropping extra attributes.");
+			const isNewKey = !Object.prototype.hasOwnProperty.call(this.attributes, key);
+			if (isNewKey && this._attributesCount >= this._logRecordLimits.attributeCountLimit) {
+				this._droppedAttributesCount++;
+				if (this._droppedAttributesCount === 1) api.diag.warn("Dropping extra attributes.");
 				return this;
 			}
 			this.attributes[key] = this._truncateToSize(value);
+			if (isNewKey) this._attributesCount++;
 			return this;
 		}
 		setAttributes(attributes) {
@@ -22124,7 +22121,7 @@ var require_LogRecordImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.LogRecordImpl = LogRecordImpl;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/Logger.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/Logger.js
 var require_Logger = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Logger = void 0;
@@ -22175,7 +22172,7 @@ var require_Logger = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Logger = Logger;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/export/NoopLogRecordProcessor.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/export/NoopLogRecordProcessor.js
 var require_NoopLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NoopLogRecordProcessor = void 0;
@@ -22191,7 +22188,7 @@ var require_NoopLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) =>
 	exports.NoopLogRecordProcessor = NoopLogRecordProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/MultiLogRecordProcessor.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/MultiLogRecordProcessor.js
 var require_MultiLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MultiLogRecordProcessor = void 0;
@@ -22221,7 +22218,7 @@ var require_MultiLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) =
 	exports.MultiLogRecordProcessor = MultiLogRecordProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/internal/utils.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/internal/utils.js
 var require_utils$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getInstrumentationScopeKey = void 0;
@@ -22236,7 +22233,7 @@ var require_utils$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getInstrumentationScopeKey = getInstrumentationScopeKey;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/internal/LoggerProviderSharedState.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/internal/LoggerProviderSharedState.js
 var require_LoggerProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LoggerProviderSharedState = exports.DEFAULT_LOGGER_CONFIGURATOR = void 0;
@@ -22294,7 +22291,7 @@ var require_LoggerProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports)
 	exports.LoggerProviderSharedState = LoggerProviderSharedState;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/LoggerProvider.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/LoggerProvider.js
 var require_LoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LoggerProvider = exports.DEFAULT_LOGGER_NAME = void 0;
@@ -22372,7 +22369,7 @@ var require_LoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.LoggerProvider = LoggerProvider;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/export/ConsoleLogRecordExporter.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/export/ConsoleLogRecordExporter.js
 var require_ConsoleLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ConsoleLogRecordExporter = void 0;
@@ -22430,7 +22427,7 @@ var require_ConsoleLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports) 
 	exports.ConsoleLogRecordExporter = ConsoleLogRecordExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/export/SimpleLogRecordProcessor.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/export/SimpleLogRecordProcessor.js
 var require_SimpleLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SimpleLogRecordProcessor = void 0;
@@ -22479,7 +22476,7 @@ var require_SimpleLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) 
 	exports.SimpleLogRecordProcessor = SimpleLogRecordProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/export/InMemoryLogRecordExporter.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/export/InMemoryLogRecordExporter.js
 var require_InMemoryLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InMemoryLogRecordExporter = void 0;
@@ -22519,7 +22516,7 @@ var require_InMemoryLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports)
 	exports.InMemoryLogRecordExporter = InMemoryLogRecordExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/export/BatchLogRecordProcessorBase.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/export/BatchLogRecordProcessorBase.js
 var require_BatchLogRecordProcessorBase = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchLogRecordProcessorBase = void 0;
@@ -22631,7 +22628,7 @@ var require_BatchLogRecordProcessorBase = /* @__PURE__ */ __commonJSMin(((export
 	exports.BatchLogRecordProcessorBase = BatchLogRecordProcessorBase;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/platform/node/export/BatchLogRecordProcessor.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/platform/node/export/BatchLogRecordProcessor.js
 var require_BatchLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchLogRecordProcessor = void 0;
@@ -22642,7 +22639,7 @@ var require_BatchLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) =
 	exports.BatchLogRecordProcessor = BatchLogRecordProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/platform/node/index.js
 var require_node$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchLogRecordProcessor = void 0;
@@ -22655,7 +22652,7 @@ var require_node$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/platform/index.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/platform/index.js
 var require_platform$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchLogRecordProcessor = void 0;
@@ -22668,7 +22665,7 @@ var require_platform$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/config/LoggerConfigurators.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/config/LoggerConfigurators.js
 var require_LoggerConfigurators = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createLoggerConfigurator = void 0;
@@ -22733,7 +22730,7 @@ var require_LoggerConfigurators = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-logs@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-logs/build/src/index.js
+//#region node_modules/@opentelemetry/sdk-logs/build/src/index.js
 var require_src$19 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createLoggerConfigurator = exports.BatchLogRecordProcessor = exports.InMemoryLogRecordExporter = exports.SimpleLogRecordProcessor = exports.ConsoleLogRecordExporter = exports.LoggerProvider = void 0;
@@ -22781,7 +22778,7 @@ var require_src$19 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+context-async-hooks@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/context-async-hooks/build/src/AbstractAsyncHooksContextManager.js
+//#region node_modules/@opentelemetry/context-async-hooks/build/src/AbstractAsyncHooksContextManager.js
 var require_AbstractAsyncHooksContextManager = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AbstractAsyncHooksContextManager = void 0;
@@ -22926,7 +22923,7 @@ var require_AbstractAsyncHooksContextManager = /* @__PURE__ */ __commonJSMin(((e
 	exports.AbstractAsyncHooksContextManager = AbstractAsyncHooksContextManager;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+context-async-hooks@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/context-async-hooks/build/src/AsyncHooksContextManager.js
+//#region node_modules/@opentelemetry/context-async-hooks/build/src/AsyncHooksContextManager.js
 var require_AsyncHooksContextManager = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AsyncHooksContextManager = void 0;
@@ -23020,7 +23017,7 @@ var require_AsyncHooksContextManager = /* @__PURE__ */ __commonJSMin(((exports) 
 	exports.AsyncHooksContextManager = AsyncHooksContextManager;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+context-async-hooks@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/context-async-hooks/build/src/AsyncLocalStorageContextManager.js
+//#region node_modules/@opentelemetry/context-async-hooks/build/src/AsyncLocalStorageContextManager.js
 var require_AsyncLocalStorageContextManager = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AsyncLocalStorageContextManager = void 0;
@@ -23051,7 +23048,7 @@ var require_AsyncLocalStorageContextManager = /* @__PURE__ */ __commonJSMin(((ex
 	exports.AsyncLocalStorageContextManager = AsyncLocalStorageContextManager;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+context-async-hooks@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/context-async-hooks/build/src/index.js
+//#region node_modules/@opentelemetry/context-async-hooks/build/src/index.js
 var require_src$18 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AsyncLocalStorageContextManager = exports.AsyncHooksContextManager = void 0;
@@ -23071,14 +23068,14 @@ var require_src$18 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/enums.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/enums.js
 var require_enums = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ExceptionEventName = void 0;
 	exports.ExceptionEventName = "exception";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/Span.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/Span.js
 var require_Span = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SpanImpl = void 0;
@@ -23125,12 +23122,12 @@ var require_Span = /* @__PURE__ */ __commonJSMin(((exports) => {
 			this._performanceOffset = now - (this._performanceStartTime + core_1.otperformance.timeOrigin);
 			this._startTimeProvided = opts.startTime != null;
 			this._spanLimits = opts.spanLimits;
-			this._attributeValueLengthLimit = this._spanLimits.attributeValueLengthLimit || 0;
+			this._attributeValueLengthLimit = this._spanLimits.attributeValueLengthLimit ?? 0;
 			this._spanProcessor = opts.spanProcessor;
 			this.name = opts.name;
 			this.parentSpanContext = opts.parentSpanContext;
 			this.kind = opts.kind;
-			this.links = opts.links || [];
+			if (opts.links) for (const link of opts.links) this.addLink(link);
 			this.startTime = this._getTime(opts.startTime ?? now);
 			this.resource = opts.resource;
 			this.instrumentationScope = opts.scope;
@@ -23162,7 +23159,7 @@ var require_Span = /* @__PURE__ */ __commonJSMin(((exports) => {
 			return this;
 		}
 		setAttributes(attributes) {
-			for (const [k, v] of Object.entries(attributes)) this.setAttribute(k, v);
+			for (const key in attributes) if (Object.prototype.hasOwnProperty.call(attributes, key)) this.setAttribute(key, attributes[key]);
 			return this;
 		}
 		/**
@@ -23189,30 +23186,76 @@ var require_Span = /* @__PURE__ */ __commonJSMin(((exports) => {
 				if (!(0, core_1.isTimeInput)(timeStamp)) timeStamp = attributesOrStartTime;
 				attributesOrStartTime = void 0;
 			}
-			const attributes = (0, core_1.sanitizeAttributes)(attributesOrStartTime);
+			const sanitized = (0, core_1.sanitizeAttributes)(attributesOrStartTime);
+			const { attributePerEventCountLimit } = this._spanLimits;
+			const attributes = {};
+			let droppedAttributesCount = 0;
+			let eventAttributesCount = 0;
+			for (const attr in sanitized) {
+				if (!Object.prototype.hasOwnProperty.call(sanitized, attr)) continue;
+				const attrVal = sanitized[attr];
+				if (attributePerEventCountLimit !== void 0 && eventAttributesCount >= attributePerEventCountLimit) {
+					droppedAttributesCount++;
+					continue;
+				}
+				attributes[attr] = this._truncateToSize(attrVal);
+				eventAttributesCount++;
+			}
 			this.events.push({
 				name,
 				attributes,
 				time: this._getTime(timeStamp),
-				droppedAttributesCount: 0
+				droppedAttributesCount
 			});
 			return this;
 		}
 		addLink(link) {
-			this.links.push(link);
+			if (this._isSpanEnded()) return this;
+			const { linkCountLimit } = this._spanLimits;
+			if (linkCountLimit === 0) {
+				this._droppedLinksCount++;
+				return this;
+			}
+			if (linkCountLimit !== void 0 && this.links.length >= linkCountLimit) {
+				if (this._droppedLinksCount === 0) api_1.diag.debug("Dropping extra links.");
+				this.links.shift();
+				this._droppedLinksCount++;
+			}
+			const { attributePerLinkCountLimit } = this._spanLimits;
+			const sanitized = (0, core_1.sanitizeAttributes)(link.attributes);
+			const attributes = {};
+			let droppedAttributesCount = 0;
+			let linkAttributesCount = 0;
+			for (const attr in sanitized) {
+				if (!Object.prototype.hasOwnProperty.call(sanitized, attr)) continue;
+				const attrVal = sanitized[attr];
+				if (attributePerLinkCountLimit !== void 0 && linkAttributesCount >= attributePerLinkCountLimit) {
+					droppedAttributesCount++;
+					continue;
+				}
+				attributes[attr] = this._truncateToSize(attrVal);
+				linkAttributesCount++;
+			}
+			const processedLink = { context: link.context };
+			if (linkAttributesCount > 0) processedLink.attributes = attributes;
+			if (droppedAttributesCount > 0) processedLink.droppedAttributesCount = droppedAttributesCount;
+			this.links.push(processedLink);
 			return this;
 		}
 		addLinks(links) {
-			this.links.push(...links);
+			for (const link of links) this.addLink(link);
 			return this;
 		}
 		setStatus(status) {
 			if (this._isSpanEnded()) return this;
-			this.status = { ...status };
-			if (this.status.message != null && typeof status.message !== "string") {
-				api_1.diag.warn(`Dropping invalid status.message of type '${typeof status.message}', expected 'string'`);
-				delete this.status.message;
+			if (status.code === api_1.SpanStatusCode.UNSET) return this;
+			if (this.status.code === api_1.SpanStatusCode.OK) return this;
+			const newStatus = { code: status.code };
+			if (status.code === api_1.SpanStatusCode.ERROR) {
+				if (typeof status.message === "string") newStatus.message = status.message;
+				else if (status.message != null) api_1.diag.warn(`Dropping invalid status.message of type '${typeof status.message}', expected 'string'`);
 			}
+			this.status = newStatus;
 			return this;
 		}
 		updateName(name) {
@@ -23233,6 +23276,7 @@ var require_Span = /* @__PURE__ */ __commonJSMin(((exports) => {
 				this._duration = [0, 0];
 			}
 			if (this._droppedEventsCount > 0) api_1.diag.warn(`Dropped ${this._droppedEventsCount} events because eventCountLimit reached`);
+			if (this._droppedLinksCount > 0) api_1.diag.warn(`Dropped ${this._droppedLinksCount} links because linkCountLimit reached`);
 			if (this._spanProcessor.onEnding) this._spanProcessor.onEnding(this);
 			this._recordEndMetrics?.();
 			this._ended = true;
@@ -23314,7 +23358,7 @@ var require_Span = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.SpanImpl = SpanImpl;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/Sampler.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/Sampler.js
 var require_Sampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SamplingDecision = void 0;
@@ -23337,7 +23381,7 @@ var require_Sampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.SamplingDecision || (exports.SamplingDecision = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/sampler/AlwaysOffSampler.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/sampler/AlwaysOffSampler.js
 var require_AlwaysOffSampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AlwaysOffSampler = void 0;
@@ -23354,7 +23398,7 @@ var require_AlwaysOffSampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.AlwaysOffSampler = AlwaysOffSampler;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/sampler/AlwaysOnSampler.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/sampler/AlwaysOnSampler.js
 var require_AlwaysOnSampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AlwaysOnSampler = void 0;
@@ -23371,7 +23415,7 @@ var require_AlwaysOnSampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.AlwaysOnSampler = AlwaysOnSampler;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/sampler/ParentBasedSampler.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/sampler/ParentBasedSampler.js
 var require_ParentBasedSampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ParentBasedSampler = void 0;
@@ -23417,7 +23461,7 @@ var require_ParentBasedSampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ParentBasedSampler = ParentBasedSampler;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/sampler/TraceIdRatioBasedSampler.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/sampler/TraceIdRatioBasedSampler.js
 var require_TraceIdRatioBasedSampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TraceIdRatioBasedSampler = void 0;
@@ -23454,7 +23498,7 @@ var require_TraceIdRatioBasedSampler = /* @__PURE__ */ __commonJSMin(((exports) 
 	exports.TraceIdRatioBasedSampler = TraceIdRatioBasedSampler;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/config.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/config.js
 var require_config = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.buildSamplerFromEnv = exports.loadDefaultConfig = void 0;
@@ -23531,7 +23575,7 @@ var require_config = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/utility.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/utility.js
 var require_utility = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.reconfigureLimits = exports.mergeConfig = exports.DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = exports.DEFAULT_ATTRIBUTE_COUNT_LIMIT = void 0;
@@ -23572,7 +23616,7 @@ var require_utility = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.reconfigureLimits = reconfigureLimits;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/export/BatchSpanProcessorBase.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/export/BatchSpanProcessorBase.js
 var require_BatchSpanProcessorBase = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchSpanProcessorBase = void 0;
@@ -23720,7 +23764,7 @@ var require_BatchSpanProcessorBase = /* @__PURE__ */ __commonJSMin(((exports) =>
 	exports.BatchSpanProcessorBase = BatchSpanProcessorBase;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/export/BatchSpanProcessor.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/export/BatchSpanProcessor.js
 var require_BatchSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchSpanProcessor = void 0;
@@ -23731,7 +23775,7 @@ var require_BatchSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.BatchSpanProcessor = BatchSpanProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/RandomIdGenerator.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/RandomIdGenerator.js
 var require_RandomIdGenerator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.RandomIdGenerator = void 0;
@@ -23761,7 +23805,7 @@ var require_RandomIdGenerator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/index.js
 var require_node$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.RandomIdGenerator = exports.BatchSpanProcessor = void 0;
@@ -23781,7 +23825,7 @@ var require_node$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/platform/index.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/platform/index.js
 var require_platform$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.RandomIdGenerator = exports.BatchSpanProcessor = void 0;
@@ -23800,7 +23844,7 @@ var require_platform$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/semconv.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/semconv.js
 var require_semconv$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.METRIC_OTEL_SDK_SPAN_STARTED = exports.METRIC_OTEL_SDK_SPAN_LIVE = exports.ATTR_OTEL_SPAN_SAMPLING_RESULT = exports.ATTR_OTEL_SPAN_PARENT_ORIGIN = void 0;
@@ -23832,7 +23876,7 @@ var require_semconv$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.METRIC_OTEL_SDK_SPAN_STARTED = "otel.sdk.span.started";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/TracerMetrics.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/TracerMetrics.js
 var require_TracerMetrics = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TracerMetrics = void 0;
@@ -23884,14 +23928,14 @@ var require_TracerMetrics = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/version.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/version.js
 var require_version$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.VERSION = void 0;
-	exports.VERSION = "2.6.0";
+	exports.VERSION = "2.6.1";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/Tracer.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/Tracer.js
 var require_Tracer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Tracer = void 0;
@@ -24021,7 +24065,7 @@ var require_Tracer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Tracer = Tracer;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/MultiSpanProcessor.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/MultiSpanProcessor.js
 var require_MultiSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MultiSpanProcessor = void 0;
@@ -24069,7 +24113,7 @@ var require_MultiSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.MultiSpanProcessor = MultiSpanProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/BasicTracerProvider.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/BasicTracerProvider.js
 var require_BasicTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BasicTracerProvider = exports.ForceFlushState = void 0;
@@ -24148,7 +24192,7 @@ var require_BasicTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.BasicTracerProvider = BasicTracerProvider;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/export/ConsoleSpanExporter.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/export/ConsoleSpanExporter.js
 var require_ConsoleSpanExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ConsoleSpanExporter = void 0;
@@ -24216,7 +24260,7 @@ var require_ConsoleSpanExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ConsoleSpanExporter = ConsoleSpanExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/export/InMemorySpanExporter.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/export/InMemorySpanExporter.js
 var require_InMemorySpanExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InMemorySpanExporter = void 0;
@@ -24262,7 +24306,7 @@ var require_InMemorySpanExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.InMemorySpanExporter = InMemorySpanExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/export/SimpleSpanProcessor.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/export/SimpleSpanProcessor.js
 var require_SimpleSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SimpleSpanProcessor = void 0;
@@ -24312,7 +24356,7 @@ var require_SimpleSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.SimpleSpanProcessor = SimpleSpanProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/export/NoopSpanProcessor.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/export/NoopSpanProcessor.js
 var require_NoopSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NoopSpanProcessor = void 0;
@@ -24330,7 +24374,7 @@ var require_NoopSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.NoopSpanProcessor = NoopSpanProcessor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-base@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-base/build/src/index.js
+//#region node_modules/@opentelemetry/sdk-trace-base/build/src/index.js
 var require_src$17 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SamplingDecision = exports.TraceIdRatioBasedSampler = exports.ParentBasedSampler = exports.AlwaysOnSampler = exports.AlwaysOffSampler = exports.NoopSpanProcessor = exports.SimpleSpanProcessor = exports.InMemorySpanExporter = exports.ConsoleSpanExporter = exports.RandomIdGenerator = exports.BatchSpanProcessor = exports.BasicTracerProvider = void 0;
@@ -24419,7 +24463,7 @@ var require_src$17 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-node@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-node/build/src/NodeTracerProvider.js
+//#region node_modules/@opentelemetry/sdk-trace-node/build/src/NodeTracerProvider.js
 var require_NodeTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NodeTracerProvider = void 0;
@@ -24473,7 +24517,7 @@ var require_NodeTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.NodeTracerProvider = NodeTracerProvider;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-trace-node@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-trace-node/build/src/index.js
+//#region node_modules/@opentelemetry/sdk-trace-node/build/src/index.js
 var require_src$16 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TraceIdRatioBasedSampler = exports.SimpleSpanProcessor = exports.SamplingDecision = exports.RandomIdGenerator = exports.ParentBasedSampler = exports.NoopSpanProcessor = exports.InMemorySpanExporter = exports.ConsoleSpanExporter = exports.BatchSpanProcessor = exports.BasicTracerProvider = exports.AlwaysOnSampler = exports.AlwaysOffSampler = exports.NodeTracerProvider = void 0;
@@ -24559,7 +24603,7 @@ var require_src$16 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/autoLoaderUtils.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/autoLoaderUtils.js
 var require_autoLoaderUtils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.disableInstrumentations = exports.enableInstrumentations = void 0;
@@ -24589,7 +24633,7 @@ var require_autoLoaderUtils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.disableInstrumentations = disableInstrumentations;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/autoLoader.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/autoLoader.js
 var require_autoLoader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.registerInstrumentations = void 0;
@@ -24615,7 +24659,7 @@ var require_autoLoader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.registerInstrumentations = registerInstrumentations;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/semver.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/semver.js
 var require_semver = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.satisfies = void 0;
@@ -24882,7 +24926,7 @@ var require_semver = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/shimmer.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/shimmer.js
 var require_shimmer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.massUnwrap = exports.unwrap = exports.massWrap = exports.wrap = void 0;
@@ -24980,7 +25024,7 @@ var require_shimmer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	shimmer.massUnwrap = exports.massUnwrap;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/instrumentation.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/instrumentation.js
 var require_instrumentation$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InstrumentationAbstract = void 0;
@@ -25093,7 +25137,7 @@ var require_instrumentation$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.InstrumentationAbstract = InstrumentationAbstract;
 }));
 //#endregion
-//#region node_modules/.pnpm/module-details-from-path@1.0.4/node_modules/module-details-from-path/index.js
+//#region node_modules/module-details-from-path/index.js
 var require_module_details_from_path = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var sep = __require("path").sep;
 	module.exports = function(file) {
@@ -25120,7 +25164,7 @@ var require_module_details_from_path = /* @__PURE__ */ __commonJSMin(((exports, 
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/require-in-the-middle@8.0.1/node_modules/require-in-the-middle/index.js
+//#region node_modules/require-in-the-middle/index.js
 var require_require_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const path$6 = __require("path");
 	const Module = __require("module");
@@ -25322,7 +25366,7 @@ var require_require_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, mod
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/platform/node/ModuleNameTrie.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/platform/node/ModuleNameTrie.js
 var require_ModuleNameTrie = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ModuleNameTrie = exports.ModuleNameSeparator = void 0;
@@ -25391,7 +25435,7 @@ var require_ModuleNameTrie = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ModuleNameTrie = ModuleNameTrie;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/platform/node/RequireInTheMiddleSingleton.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/platform/node/RequireInTheMiddleSingleton.js
 var require_RequireInTheMiddleSingleton = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.RequireInTheMiddleSingleton = void 0;
@@ -25467,7 +25511,7 @@ var require_RequireInTheMiddleSingleton = /* @__PURE__ */ __commonJSMin(((export
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/import-in-the-middle@3.0.0/node_modules/import-in-the-middle/lib/register.js
+//#region node_modules/import-in-the-middle/lib/register.js
 var require_register = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const importHooks = [];
 	const setters = /* @__PURE__ */ new WeakMap();
@@ -25512,7 +25556,7 @@ var require_register = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.toHook = toHook;
 }));
 //#endregion
-//#region node_modules/.pnpm/import-in-the-middle@3.0.0/node_modules/import-in-the-middle/index.js
+//#region node_modules/import-in-the-middle/index.js
 var require_import_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const path$4 = __require("path");
 	const moduleDetailsFromPath = require_module_details_from_path();
@@ -25658,7 +25702,7 @@ var require_import_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, modu
 	module.exports.createAddHookMessageChannel = createAddHookMessageChannel;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/utils.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/utils.js
 var require_utils$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isWrapped = exports.safeExecuteInTheMiddleAsync = exports.safeExecuteInTheMiddle = void 0;
@@ -25710,7 +25754,7 @@ var require_utils$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.isWrapped = isWrapped;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/platform/node/instrumentation.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/platform/node/instrumentation.js
 var require_instrumentation = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InstrumentationBase = void 0;
@@ -25784,11 +25828,13 @@ var require_instrumentation = /* @__PURE__ */ __commonJSMin(((exports) => {
 			});
 		};
 		_warnOnPreloadedModules() {
+			const nodeRequire = globalThis.require;
+			if (!nodeRequire?.resolve || !nodeRequire?.cache) return;
 			this._modules.forEach((module$1) => {
 				const { name } = module$1;
 				try {
-					const resolvedModule = __require.resolve(name);
-					if (__require.cache[resolvedModule]) this._diag.warn(`Module ${name} has been loaded before ${this.instrumentationName} so it might not work, please initialize it before requiring ${name}`);
+					const resolvedModule = nodeRequire.resolve(name);
+					if (nodeRequire.cache[resolvedModule]?.loaded) this._diag.warn(`Module ${name} has been loaded before ${this.instrumentationName} so it might not work, please initialize it before requiring ${name}`);
 				} catch {}
 			});
 		}
@@ -25922,7 +25968,7 @@ var require_instrumentation = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/platform/node/normalize.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/platform/node/normalize.js
 var require_normalize = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.normalize = void 0;
@@ -25935,7 +25981,7 @@ var require_normalize = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/platform/node/index.js
 var require_node$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.normalize = exports.InstrumentationBase = void 0;
@@ -25955,7 +26001,7 @@ var require_node$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/platform/index.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/platform/index.js
 var require_platform$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.normalize = exports.InstrumentationBase = void 0;
@@ -25974,7 +26020,7 @@ var require_platform$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/instrumentationNodeModuleDefinition.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/instrumentationNodeModuleDefinition.js
 var require_instrumentationNodeModuleDefinition = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InstrumentationNodeModuleDefinition = void 0;
@@ -25995,7 +26041,7 @@ var require_instrumentationNodeModuleDefinition = /* @__PURE__ */ __commonJSMin(
 	exports.InstrumentationNodeModuleDefinition = InstrumentationNodeModuleDefinition;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/instrumentationNodeModuleFile.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/instrumentationNodeModuleFile.js
 var require_instrumentationNodeModuleFile = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InstrumentationNodeModuleFile = void 0;
@@ -26015,7 +26061,7 @@ var require_instrumentationNodeModuleFile = /* @__PURE__ */ __commonJSMin(((expo
 	exports.InstrumentationNodeModuleFile = InstrumentationNodeModuleFile;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/semconvStability.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/semconvStability.js
 var require_semconvStability = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.semconvStabilityFromStr = exports.SemconvStability = void 0;
@@ -26086,7 +26132,7 @@ var require_semconvStability = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.semconvStabilityFromStr = semconvStabilityFromStr;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+instrumentation@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/instrumentation/build/src/index.js
+//#region node_modules/@opentelemetry/instrumentation/build/src/index.js
 var require_src$15 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.semconvStabilityFromStr = exports.SemconvStability = exports.safeExecuteInTheMiddleAsync = exports.safeExecuteInTheMiddle = exports.isWrapped = exports.InstrumentationNodeModuleFile = exports.InstrumentationNodeModuleDefinition = exports.InstrumentationBase = exports.registerInstrumentations = void 0;
@@ -26152,7 +26198,7 @@ var require_src$15 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/node/OTLPLogExporter.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/node/OTLPLogExporter.js
 var require_OTLPLogExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -26170,7 +26216,7 @@ var require_OTLPLogExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPLogExporter = OTLPLogExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/node/index.js
 var require_node$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -26183,7 +26229,7 @@ var require_node$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/index.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/platform/index.js
 var require_platform$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -26196,7 +26242,7 @@ var require_platform$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-http/build/src/index.js
 var require_src$14 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -26209,14 +26255,14 @@ var require_src$14 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-grpc-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/version.js
+//#region node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/version.js
 var require_version = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.VERSION = void 0;
-	exports.VERSION = "0.213.0";
+	exports.VERSION = "0.214.0";
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/constants.js
+//#region node_modules/@grpc/grpc-js/build/src/constants.js
 var require_constants$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.DEFAULT_MAX_RECEIVE_MESSAGE_LENGTH = exports.DEFAULT_MAX_SEND_MESSAGE_LENGTH = exports.Propagate = exports.LogVerbosity = exports.Status = void 0;
@@ -26263,7 +26309,7 @@ var require_constants$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.DEFAULT_MAX_RECEIVE_MESSAGE_LENGTH = 4 * 1024 * 1024;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/package.json
+//#region node_modules/@grpc/grpc-js/package.json
 var require_package = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {
 		"name": "@grpc/grpc-js",
@@ -26348,7 +26394,7 @@ var require_package = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/logging.js
+//#region node_modules/@grpc/grpc-js/build/src/logging.js
 var require_logging = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var _a, _b, _c, _d;
 	Object.defineProperty(exports, "__esModule", { value: true });
@@ -26430,7 +26476,7 @@ var require_logging = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/error.js
+//#region node_modules/@grpc/grpc-js/build/src/error.js
 var require_error = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getErrorMessage = getErrorMessage;
@@ -26445,7 +26491,7 @@ var require_error = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/metadata.js
+//#region node_modules/@grpc/grpc-js/build/src/metadata.js
 var require_metadata = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Metadata = void 0;
@@ -26650,7 +26696,7 @@ var require_metadata = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/call-credentials.js
+//#region node_modules/@grpc/grpc-js/build/src/call-credentials.js
 var require_call_credentials = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.CallCredentials = void 0;
@@ -26764,7 +26810,7 @@ var require_call_credentials = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/tls-helpers.js
+//#region node_modules/@grpc/grpc-js/build/src/tls-helpers.js
 var require_tls_helpers = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.CIPHER_SUITES = void 0;
@@ -26782,7 +26828,7 @@ var require_tls_helpers = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/uri-parser.js
+//#region node_modules/@grpc/grpc-js/build/src/uri-parser.js
 var require_uri_parser = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.parseUri = parseUri;
@@ -26839,7 +26885,7 @@ var require_uri_parser = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/resolver.js
+//#region node_modules/@grpc/grpc-js/build/src/resolver.js
 var require_resolver = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.CHANNEL_ARGS_CONFIG_SELECTOR_KEY = void 0;
@@ -26900,7 +26946,7 @@ var require_resolver = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/channel-credentials.js
+//#region node_modules/@grpc/grpc-js/build/src/channel-credentials.js
 var require_channel_credentials = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ChannelCredentials = void 0;
@@ -27252,7 +27298,7 @@ var require_channel_credentials = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/load-balancer.js
+//#region node_modules/@grpc/grpc-js/build/src/load-balancer.js
 var require_load_balancer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createChildChannelControlHelper = createChildChannelControlHelper;
@@ -27330,7 +27376,7 @@ var require_load_balancer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/service-config.js
+//#region node_modules/@grpc/grpc-js/build/src/service-config.js
 var require_service_config = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.validateRetryThrottling = validateRetryThrottling;
@@ -27525,7 +27571,7 @@ var require_service_config = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/connectivity-state.js
+//#region node_modules/@grpc/grpc-js/build/src/connectivity-state.js
 var require_connectivity_state = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ConnectivityState = void 0;
@@ -27539,7 +27585,7 @@ var require_connectivity_state = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(ConnectivityState || (exports.ConnectivityState = ConnectivityState = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/picker.js
+//#region node_modules/@grpc/grpc-js/build/src/picker.js
 var require_picker = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.QueuePicker = exports.UnavailablePicker = exports.PickResultType = void 0;
@@ -27610,7 +27656,7 @@ var require_picker = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.QueuePicker = QueuePicker;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/backoff-timeout.js
+//#region node_modules/@grpc/grpc-js/build/src/backoff-timeout.js
 var require_backoff_timeout = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BackoffTimeout = void 0;
@@ -27772,7 +27818,7 @@ var require_backoff_timeout = /* @__PURE__ */ __commonJSMin(((exports) => {
 	BackoffTimeout.nextId = 0;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/load-balancer-child-handler.js
+//#region node_modules/@grpc/grpc-js/build/src/load-balancer-child-handler.js
 var require_load_balancer_child_handler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ChildLoadBalancerHandler = void 0;
@@ -27882,7 +27928,7 @@ var require_load_balancer_child_handler = /* @__PURE__ */ __commonJSMin(((export
 	exports.ChildLoadBalancerHandler = ChildLoadBalancerHandler;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/resolving-load-balancer.js
+//#region node_modules/@grpc/grpc-js/build/src/resolving-load-balancer.js
 var require_resolving_load_balancer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ResolvingLoadBalancer = void 0;
@@ -28101,7 +28147,7 @@ var require_resolving_load_balancer = /* @__PURE__ */ __commonJSMin(((exports) =
 	exports.ResolvingLoadBalancer = ResolvingLoadBalancer;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/channel-options.js
+//#region node_modules/@grpc/grpc-js/build/src/channel-options.js
 var require_channel_options = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.recognizedOptions = void 0;
@@ -28154,7 +28200,7 @@ var require_channel_options = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/subchannel-address.js
+//#region node_modules/@grpc/grpc-js/build/src/subchannel-address.js
 var require_subchannel_address = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.EndpointMap = void 0;
@@ -28277,7 +28323,7 @@ var require_subchannel_address = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.EndpointMap = EndpointMap;
 }));
 //#endregion
-//#region node_modules/.pnpm/@js-sdsl+ordered-map@4.4.2/node_modules/@js-sdsl/ordered-map/dist/cjs/index.js
+//#region node_modules/@js-sdsl/ordered-map/dist/cjs/index.js
 var require_cjs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "t", { value: true });
 	var TreeNode = class {
@@ -28975,7 +29021,7 @@ var require_cjs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OrderedMap = OrderedMap;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/admin.js
+//#region node_modules/@grpc/grpc-js/build/src/admin.js
 var require_admin = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.registerAdminService = registerAdminService;
@@ -28992,7 +29038,7 @@ var require_admin = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/call.js
+//#region node_modules/@grpc/grpc-js/build/src/call.js
 var require_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ClientDuplexStreamImpl = exports.ClientWritableStreamImpl = exports.ClientReadableStreamImpl = exports.ClientUnaryCallImpl = void 0;
@@ -29121,7 +29167,7 @@ var require_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ClientDuplexStreamImpl = ClientDuplexStreamImpl;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/call-interface.js
+//#region node_modules/@grpc/grpc-js/build/src/call-interface.js
 var require_call_interface = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InterceptingListenerImpl = void 0;
@@ -29196,7 +29242,7 @@ var require_call_interface = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.InterceptingListenerImpl = InterceptingListenerImpl;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/client-interceptors.js
+//#region node_modules/@grpc/grpc-js/build/src/client-interceptors.js
 var require_client_interceptors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InterceptingCall = exports.RequesterBuilder = exports.ListenerBuilder = exports.InterceptorConfigurationError = void 0;
@@ -29545,7 +29591,7 @@ var require_client_interceptors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/client.js
+//#region node_modules/@grpc/grpc-js/build/src/client.js
 var require_client = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Client = void 0;
@@ -29889,7 +29935,7 @@ var require_client = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Client = Client;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/make-client.js
+//#region node_modules/@grpc/grpc-js/build/src/make-client.js
 var require_make_client = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.makeClientConstructor = makeClientConstructor;
@@ -29987,7 +30033,7 @@ var require_make_client = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/lodash.camelcase@4.3.0/node_modules/lodash.camelcase/index.js
+//#region node_modules/lodash.camelcase/index.js
 var require_lodash_camelcase = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	* lodash (Custom Build) <https://lodash.com/>
@@ -30630,7 +30676,7 @@ var require_lodash_camelcase = /* @__PURE__ */ __commonJSMin(((exports, module) 
 	module.exports = camelCase;
 }));
 //#endregion
-//#region node_modules/.pnpm/@protobufjs+codegen@2.0.4/node_modules/@protobufjs/codegen/index.js
+//#region node_modules/@protobufjs/codegen/index.js
 var require_codegen = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = codegen;
 	/**
@@ -30712,7 +30758,7 @@ var require_codegen = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	codegen.verbose = false;
 }));
 //#endregion
-//#region node_modules/.pnpm/@protobufjs+fetch@1.1.0/node_modules/@protobufjs/fetch/index.js
+//#region node_modules/@protobufjs/fetch/index.js
 var require_fetch = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = fetch;
 	var asPromise = require_aspromise();
@@ -30793,7 +30839,7 @@ var require_fetch = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@protobufjs+path@1.1.2/node_modules/@protobufjs/path/index.js
+//#region node_modules/@protobufjs/path/index.js
 var require_path = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* A minimal path module to resolve Unix, Windows and URL paths alike.
@@ -30830,7 +30876,7 @@ var require_path = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/namespace.js
+//#region node_modules/protobufjs/src/namespace.js
 var require_namespace = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Namespace;
 	var ReflectionObject = require_object();
@@ -31233,7 +31279,7 @@ var require_namespace = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/mapfield.js
+//#region node_modules/protobufjs/src/mapfield.js
 var require_mapfield = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = MapField;
 	var Field = require_field();
@@ -31338,7 +31384,7 @@ var require_mapfield = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/method.js
+//#region node_modules/protobufjs/src/method.js
 var require_method = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Method;
 	var ReflectionObject = require_object();
@@ -31480,7 +31526,7 @@ var require_method = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/service.js
+//#region node_modules/protobufjs/src/service.js
 var require_service = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Service;
 	var Namespace = require_namespace();
@@ -31641,7 +31687,7 @@ var require_service = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/message.js
+//#region node_modules/protobufjs/src/message.js
 var require_message = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Message;
 	var util = require_minimal$1();
@@ -31763,7 +31809,7 @@ var require_message = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/decoder.js
+//#region node_modules/protobufjs/src/decoder.js
 var require_decoder = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = decoder;
 	var Enum = require_enum(), types = require_types$2(), util = require_util$2();
@@ -31817,7 +31863,7 @@ var require_decoder = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/verifier.js
+//#region node_modules/protobufjs/src/verifier.js
 var require_verifier = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = verifier;
 	var Enum = require_enum(), util = require_util$2();
@@ -31934,7 +31980,7 @@ var require_verifier = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/converter.js
+//#region node_modules/protobufjs/src/converter.js
 var require_converter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Runtime message from/to plain object converters.
@@ -32121,7 +32167,7 @@ var require_converter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/wrappers.js
+//#region node_modules/protobufjs/src/wrappers.js
 var require_wrappers = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Wrappers for common types.
@@ -32194,7 +32240,7 @@ var require_wrappers = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/type.js
+//#region node_modules/protobufjs/src/type.js
 var require_type$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Type;
 	var Namespace = require_namespace();
@@ -32637,7 +32683,7 @@ var require_type$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/root.js
+//#region node_modules/protobufjs/src/root.js
 var require_root = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Root;
 	var Namespace = require_namespace();
@@ -32919,7 +32965,7 @@ var require_root = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/util.js
+//#region node_modules/protobufjs/src/util.js
 var require_util$2 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
 	* Various utility functions.
@@ -33097,7 +33143,7 @@ var require_util$2 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	} });
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/types.js
+//#region node_modules/protobufjs/src/types.js
 var require_types$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* Common type constants.
@@ -33287,7 +33333,7 @@ var require_types$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	]);
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/field.js
+//#region node_modules/protobufjs/src/field.js
 var require_field = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Field;
 	var ReflectionObject = require_object();
@@ -33625,7 +33671,7 @@ var require_field = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/oneof.js
+//#region node_modules/protobufjs/src/oneof.js
 var require_oneof = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = OneOf;
 	var ReflectionObject = require_object();
@@ -33806,7 +33852,7 @@ var require_oneof = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/object.js
+//#region node_modules/protobufjs/src/object.js
 var require_object = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = ReflectionObject;
 	ReflectionObject.className = "ReflectionObject";
@@ -34098,7 +34144,7 @@ var require_object = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/enum.js
+//#region node_modules/protobufjs/src/enum.js
 var require_enum = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Enum;
 	var ReflectionObject = require_object();
@@ -34276,7 +34322,7 @@ var require_enum = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/encoder.js
+//#region node_modules/protobufjs/src/encoder.js
 var require_encoder = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = encoder;
 	var Enum = require_enum(), types = require_types$2(), util = require_util$2();
@@ -34328,7 +34374,7 @@ var require_encoder = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/index-light.js
+//#region node_modules/protobufjs/src/index-light.js
 var require_index_light = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var protobuf = module.exports = require_index_minimal();
 	protobuf.build = "light";
@@ -34413,7 +34459,7 @@ var require_index_light = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	protobuf.Field._configure(protobuf.Type);
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/tokenize.js
+//#region node_modules/protobufjs/src/tokenize.js
 var require_tokenize = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = tokenize;
 	var delimRe = /[\s{}=;:[\],'"()<>]/g, stringDoubleRe = /(?:"([^"\\]*(?:\\.[^"\\]*)*)")/g, stringSingleRe = /(?:'([^'\\]*(?:\\.[^'\\]*)*)')/g;
@@ -34719,7 +34765,7 @@ var require_tokenize = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/parse.js
+//#region node_modules/protobufjs/src/parse.js
 var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = parse;
 	parse.filename = null;
@@ -35370,7 +35416,7 @@ var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 * @variation 2
 */
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/common.js
+//#region node_modules/protobufjs/src/common.js
 var require_common$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = common;
 	var commonRe = /\/|\./;
@@ -35536,7 +35582,7 @@ var require_common$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/src/index.js
+//#region node_modules/protobufjs/src/index.js
 var require_src$13 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var protobuf = module.exports = require_index_light();
 	protobuf.build = "full";
@@ -35546,12 +35592,12 @@ var require_src$13 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	protobuf.Root._configure(protobuf.Type, protobuf.parse, protobuf.common);
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/index.js
+//#region node_modules/protobufjs/index.js
 var require_protobufjs = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_src$13();
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/google/protobuf/descriptor.json
+//#region node_modules/protobufjs/google/protobuf/descriptor.json
 var require_descriptor$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = { "nested": { "google": { "nested": { "protobuf": {
 		"options": {
@@ -36709,7 +36755,7 @@ var require_descriptor$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	} } } } };
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/ext/descriptor/index.js
+//#region node_modules/protobufjs/ext/descriptor/index.js
 var require_descriptor = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var $protobuf = require_protobufjs();
 	module.exports = exports = $protobuf.descriptor = $protobuf.Root.fromJSON(require_descriptor$1()).lookup(".google.protobuf");
@@ -37572,7 +37618,7 @@ var require_descriptor = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 * }
 */
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/google/protobuf/api.json
+//#region node_modules/protobufjs/google/protobuf/api.json
 var require_api = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = { "nested": { "google": { "nested": { "protobuf": { "nested": {
 		"Api": { "fields": {
@@ -37670,7 +37716,7 @@ var require_api = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	} } } } } };
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/google/protobuf/source_context.json
+//#region node_modules/protobufjs/google/protobuf/source_context.json
 var require_source_context = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = { "nested": { "google": { "nested": { "protobuf": { "nested": { "SourceContext": { "fields": { "fileName": {
 		"type": "string",
@@ -37678,7 +37724,7 @@ var require_source_context = /* @__PURE__ */ __commonJSMin(((exports, module) =>
 	} } } } } } } } };
 }));
 //#endregion
-//#region node_modules/.pnpm/protobufjs@7.5.4/node_modules/protobufjs/google/protobuf/type.json
+//#region node_modules/protobufjs/google/protobuf/type.json
 var require_type = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = { "nested": { "google": { "nested": { "protobuf": { "nested": {
 		"Type": { "fields": {
@@ -37854,7 +37900,7 @@ var require_type = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	} } } } } };
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+proto-loader@0.8.0/node_modules/@grpc/proto-loader/build/src/util.js
+//#region node_modules/@grpc/proto-loader/build/src/util.js
 var require_util$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* @license
@@ -37935,7 +37981,7 @@ var require_util$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.addCommonProtos = addCommonProtos;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+proto-loader@0.8.0/node_modules/@grpc/proto-loader/build/src/index.js
+//#region node_modules/@grpc/proto-loader/build/src/index.js
 var require_src$12 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
 	* @license
@@ -38144,7 +38190,7 @@ var require_src$12 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	(0, util_1.addCommonProtos)();
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/channelz.js
+//#region node_modules/@grpc/grpc-js/build/src/channelz.js
 var require_channelz = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.registerChannelzSocket = exports.registerChannelzServer = exports.registerChannelzSubchannel = exports.registerChannelzChannel = exports.ChannelzCallTrackerStub = exports.ChannelzCallTracker = exports.ChannelzChildrenTrackerStub = exports.ChannelzChildrenTracker = exports.ChannelzTrace = exports.ChannelzTraceStub = void 0;
@@ -38651,7 +38697,7 @@ var require_channelz = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/call-number.js
+//#region node_modules/@grpc/grpc-js/build/src/call-number.js
 var require_call_number = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getNextCallNumber = getNextCallNumber;
@@ -38661,7 +38707,7 @@ var require_call_number = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/compression-algorithms.js
+//#region node_modules/@grpc/grpc-js/build/src/compression-algorithms.js
 var require_compression_algorithms = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.CompressionAlgorithms = void 0;
@@ -38673,7 +38719,7 @@ var require_compression_algorithms = /* @__PURE__ */ __commonJSMin(((exports) =>
 	})(CompressionAlgorithms || (exports.CompressionAlgorithms = CompressionAlgorithms = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/filter.js
+//#region node_modules/@grpc/grpc-js/build/src/filter.js
 var require_filter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BaseFilter = void 0;
@@ -38697,7 +38743,7 @@ var require_filter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.BaseFilter = BaseFilter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/compression-filter.js
+//#region node_modules/@grpc/grpc-js/build/src/compression-filter.js
 var require_compression_filter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.CompressionFilterFactory = exports.CompressionFilter = void 0;
@@ -38929,7 +38975,7 @@ var require_compression_filter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.CompressionFilterFactory = CompressionFilterFactory;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/control-plane-status.js
+//#region node_modules/@grpc/grpc-js/build/src/control-plane-status.js
 var require_control_plane_status = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.restrictControlPlaneStatusCode = restrictControlPlaneStatusCode;
@@ -38956,7 +39002,7 @@ var require_control_plane_status = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/deadline.js
+//#region node_modules/@grpc/grpc-js/build/src/deadline.js
 var require_deadline = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.minDeadline = minDeadline;
@@ -39030,7 +39076,7 @@ var require_deadline = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/filter-stack.js
+//#region node_modules/@grpc/grpc-js/build/src/filter-stack.js
 var require_filter_stack = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.FilterStackFactory = exports.FilterStack = void 0;
@@ -39087,7 +39133,7 @@ var require_filter_stack = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/single-subchannel-channel.js
+//#region node_modules/@grpc/grpc-js/build/src/single-subchannel-channel.js
 var require_single_subchannel_channel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SingleSubchannelChannel = void 0;
@@ -39273,7 +39319,7 @@ var require_single_subchannel_channel = /* @__PURE__ */ __commonJSMin(((exports)
 	exports.SingleSubchannelChannel = SingleSubchannelChannel;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/subchannel.js
+//#region node_modules/@grpc/grpc-js/build/src/subchannel.js
 var require_subchannel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Subchannel = void 0;
@@ -39575,7 +39621,7 @@ var require_subchannel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Subchannel = Subchannel;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/environment.js
+//#region node_modules/@grpc/grpc-js/build/src/environment.js
 var require_environment = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var _a;
 	Object.defineProperty(exports, "__esModule", { value: true });
@@ -39583,7 +39629,7 @@ var require_environment = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.GRPC_NODE_USE_ALTERNATIVE_RESOLVER = ((_a = process.env.GRPC_NODE_USE_ALTERNATIVE_RESOLVER) !== null && _a !== void 0 ? _a : "false") === "true";
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/resolver-dns.js
+//#region node_modules/@grpc/grpc-js/build/src/resolver-dns.js
 var require_resolver_dns = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.DEFAULT_PORT = void 0;
@@ -39833,7 +39879,7 @@ var require_resolver_dns = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/http_proxy.js
+//#region node_modules/@grpc/grpc-js/build/src/http_proxy.js
 var require_http_proxy = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.parseCIDR = parseCIDR;
@@ -40001,7 +40047,7 @@ var require_http_proxy = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/stream-decoder.js
+//#region node_modules/@grpc/grpc-js/build/src/stream-decoder.js
 var require_stream_decoder = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.StreamDecoder = void 0;
@@ -40074,7 +40120,7 @@ var require_stream_decoder = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.StreamDecoder = StreamDecoder;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/subchannel-call.js
+//#region node_modules/@grpc/grpc-js/build/src/subchannel-call.js
 var require_subchannel_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Http2SubchannelCall = void 0;
@@ -40451,7 +40497,7 @@ var require_subchannel_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Http2SubchannelCall = Http2SubchannelCall;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/transport.js
+//#region node_modules/@grpc/grpc-js/build/src/transport.js
 var require_transport = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Http2SubchannelConnector = void 0;
@@ -40923,7 +40969,7 @@ var require_transport = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.Http2SubchannelConnector = Http2SubchannelConnector;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/subchannel-pool.js
+//#region node_modules/@grpc/grpc-js/build/src/subchannel-pool.js
 var require_subchannel_pool = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SubchannelPool = void 0;
@@ -41017,7 +41063,7 @@ var require_subchannel_pool = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/load-balancing-call.js
+//#region node_modules/@grpc/grpc-js/build/src/load-balancing-call.js
 var require_load_balancing_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LoadBalancingCall = void 0;
@@ -41236,7 +41282,7 @@ var require_load_balancing_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.LoadBalancingCall = LoadBalancingCall;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/resolving-call.js
+//#region node_modules/@grpc/grpc-js/build/src/resolving-call.js
 var require_resolving_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ResolvingCall = void 0;
@@ -41475,7 +41521,7 @@ var require_resolving_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ResolvingCall = ResolvingCall;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/retrying-call.js
+//#region node_modules/@grpc/grpc-js/build/src/retrying-call.js
 var require_retrying_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.RetryingCall = exports.MessageBufferTracker = exports.RetryThrottler = void 0;
@@ -42005,7 +42051,7 @@ var require_retrying_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.RetryingCall = RetryingCall;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/subchannel-interface.js
+//#region node_modules/@grpc/grpc-js/build/src/subchannel-interface.js
 var require_subchannel_interface = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BaseSubchannelWrapper = void 0;
@@ -42091,7 +42137,7 @@ var require_subchannel_interface = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.BaseSubchannelWrapper = BaseSubchannelWrapper;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/internal-channel.js
+//#region node_modules/@grpc/grpc-js/build/src/internal-channel.js
 var require_internal_channel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InternalChannel = exports.SUBCHANNEL_ARGS_EXCLUDE_KEY_PREFIX = void 0;
@@ -42518,7 +42564,7 @@ var require_internal_channel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.InternalChannel = InternalChannel;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/channel.js
+//#region node_modules/@grpc/grpc-js/build/src/channel.js
 var require_channel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ChannelImplementation = void 0;
@@ -42562,7 +42608,7 @@ var require_channel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ChannelImplementation = ChannelImplementation;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/server-call.js
+//#region node_modules/@grpc/grpc-js/build/src/server-call.js
 var require_server_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ServerDuplexStreamImpl = exports.ServerWritableStreamImpl = exports.ServerReadableStreamImpl = exports.ServerUnaryCallImpl = void 0;
@@ -42760,7 +42806,7 @@ var require_server_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ServerDuplexStreamImpl = ServerDuplexStreamImpl;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/server-credentials.js
+//#region node_modules/@grpc/grpc-js/build/src/server-credentials.js
 var require_server_credentials = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ServerCredentials = void 0;
@@ -42979,7 +43025,7 @@ var require_server_credentials = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/duration.js
+//#region node_modules/@grpc/grpc-js/build/src/duration.js
 var require_duration = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.durationMessageToDuration = durationMessageToDuration;
@@ -43029,7 +43075,7 @@ var require_duration = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/orca.js
+//#region node_modules/@grpc/grpc-js/build/src/orca.js
 var require_orca = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OrcaOobMetricsSubchannelWrapper = exports.GRPC_METRICS_HEADER = exports.ServerMetricRecorder = exports.PerRequestMetricRecorder = void 0;
@@ -43302,7 +43348,7 @@ var require_orca = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/server-interceptors.js
+//#region node_modules/@grpc/grpc-js/build/src/server-interceptors.js
 var require_server_interceptors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BaseServerInterceptingCall = exports.ServerInterceptingCall = exports.ResponderBuilder = exports.ServerListenerBuilder = void 0;
@@ -43971,7 +44017,7 @@ var require_server_interceptors = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/server.js
+//#region node_modules/@grpc/grpc-js/build/src/server.js
 var require_server = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var __runInitializers = exports && exports.__runInitializers || function(thisArg, initializers, value) {
 		var useValue = arguments.length > 2;
@@ -45267,7 +45313,7 @@ var require_server = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/status-builder.js
+//#region node_modules/@grpc/grpc-js/build/src/status-builder.js
 var require_status_builder = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.StatusBuilder = void 0;
@@ -45315,7 +45361,7 @@ var require_status_builder = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.StatusBuilder = StatusBuilder;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/load-balancer-pick-first.js
+//#region node_modules/@grpc/grpc-js/build/src/load-balancer-pick-first.js
 var require_load_balancer_pick_first = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LeafLoadBalancer = exports.PickFirstLoadBalancer = exports.PickFirstLoadBalancingConfig = void 0;
@@ -45714,7 +45760,7 @@ var require_load_balancer_pick_first = /* @__PURE__ */ __commonJSMin(((exports) 
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/certificate-provider.js
+//#region node_modules/@grpc/grpc-js/build/src/certificate-provider.js
 var require_certificate_provider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.FileWatcherCertificateProvider = void 0;
@@ -45808,7 +45854,7 @@ var require_certificate_provider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.FileWatcherCertificateProvider = FileWatcherCertificateProvider;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/experimental.js
+//#region node_modules/@grpc/grpc-js/build/src/experimental.js
 var require_experimental = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SUBCHANNEL_ARGS_EXCLUDE_KEY_PREFIX = exports.createCertificateProviderChannelCredentials = exports.FileWatcherCertificateProvider = exports.createCertificateProviderServerCredentials = exports.createServerCredentialsWithInterceptors = exports.BaseSubchannelWrapper = exports.registerAdminService = exports.FilterStackFactory = exports.BaseFilter = exports.statusOrFromError = exports.statusOrFromValue = exports.PickResultType = exports.QueuePicker = exports.UnavailablePicker = exports.ChildLoadBalancerHandler = exports.EndpointMap = exports.endpointHasAddress = exports.endpointToString = exports.subchannelAddressToString = exports.LeafLoadBalancer = exports.isLoadBalancerNameRegistered = exports.parseLoadBalancingConfig = exports.selectLbConfigFromList = exports.registerLoadBalancerType = exports.createChildChannelControlHelper = exports.BackoffTimeout = exports.parseDuration = exports.durationToMs = exports.splitHostPort = exports.uriToString = exports.CHANNEL_ARGS_CONFIG_SELECTOR_KEY = exports.createResolver = exports.registerResolver = exports.log = exports.trace = void 0;
@@ -46043,7 +46089,7 @@ var require_experimental = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/resolver-uds.js
+//#region node_modules/@grpc/grpc-js/build/src/resolver-uds.js
 var require_resolver_uds = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.setup = setup;
@@ -46077,7 +46123,7 @@ var require_resolver_uds = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/resolver-ip.js
+//#region node_modules/@grpc/grpc-js/build/src/resolver-ip.js
 var require_resolver_ip = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.setup = setup;
@@ -46165,7 +46211,7 @@ var require_resolver_ip = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/load-balancer-round-robin.js
+//#region node_modules/@grpc/grpc-js/build/src/load-balancer-round-robin.js
 var require_load_balancer_round_robin = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.RoundRobinLoadBalancer = void 0;
@@ -46301,7 +46347,7 @@ var require_load_balancer_round_robin = /* @__PURE__ */ __commonJSMin(((exports)
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/load-balancer-outlier-detection.js
+//#region node_modules/@grpc/grpc-js/build/src/load-balancer-outlier-detection.js
 var require_load_balancer_outlier_detection = /* @__PURE__ */ __commonJSMin(((exports) => {
 	var _a;
 	Object.defineProperty(exports, "__esModule", { value: true });
@@ -46713,7 +46759,7 @@ var require_load_balancer_outlier_detection = /* @__PURE__ */ __commonJSMin(((ex
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/priority-queue.js
+//#region node_modules/@grpc/grpc-js/build/src/priority-queue.js
 var require_priority_queue = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PriorityQueue = void 0;
@@ -46816,7 +46862,7 @@ var require_priority_queue = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.PriorityQueue = PriorityQueue;
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/load-balancer-weighted-round-robin.js
+//#region node_modules/@grpc/grpc-js/build/src/load-balancer-weighted-round-robin.js
 var require_load_balancer_weighted_round_robin = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.WeightedRoundRobinLoadBalancingConfig = void 0;
@@ -47087,7 +47133,7 @@ var require_load_balancer_weighted_round_robin = /* @__PURE__ */ __commonJSMin((
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@grpc+grpc-js@1.14.3/node_modules/@grpc/grpc-js/build/src/index.js
+//#region node_modules/@grpc/grpc-js/build/src/index.js
 var require_src$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.experimental = exports.ServerMetricRecorder = exports.ServerInterceptingCall = exports.ResponderBuilder = exports.ServerListenerBuilder = exports.addAdminServicesToServer = exports.getChannelzHandlers = exports.getChannelzServiceDefinition = exports.InterceptorConfigurationError = exports.InterceptingCall = exports.RequesterBuilder = exports.ListenerBuilder = exports.StatusBuilder = exports.getClientChannel = exports.ServerCredentials = exports.Server = exports.setLogVerbosity = exports.setLogger = exports.load = exports.loadObject = exports.CallCredentials = exports.ChannelCredentials = exports.waitForClientReady = exports.closeClient = exports.Channel = exports.makeGenericClientConstructor = exports.makeClientConstructor = exports.loadPackageDefinition = exports.Client = exports.compressionAlgorithms = exports.propagate = exports.connectivityState = exports.status = exports.logVerbosity = exports.Metadata = exports.credentials = void 0;
@@ -47336,7 +47382,7 @@ var require_src$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})();
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-grpc-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/create-service-client-constructor.js
+//#region node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/create-service-client-constructor.js
 var require_create_service_client_constructor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createServiceClientConstructor = void 0;
@@ -47371,7 +47417,7 @@ var require_create_service_client_constructor = /* @__PURE__ */ __commonJSMin(((
 	exports.createServiceClientConstructor = createServiceClientConstructor;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-grpc-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/grpc-exporter-transport.js
+//#region node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/grpc-exporter-transport.js
 var require_grpc_exporter_transport = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createOtlpGrpcExporterTransport = exports.GrpcExporterTransport = exports.createEmptyMetadata = exports.createSslCredentials = exports.createInsecureCredentials = void 0;
@@ -47461,7 +47507,7 @@ var require_grpc_exporter_transport = /* @__PURE__ */ __commonJSMin(((exports) =
 	exports.createOtlpGrpcExporterTransport = createOtlpGrpcExporterTransport;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-grpc-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/configuration/otlp-grpc-configuration.js
+//#region node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/configuration/otlp-grpc-configuration.js
 var require_otlp_grpc_configuration = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getOtlpGrpcDefaultConfiguration = exports.mergeOtlpGrpcConfigurationWithDefaults = exports.validateAndNormalizeUrl = void 0;
@@ -47512,7 +47558,7 @@ var require_otlp_grpc_configuration = /* @__PURE__ */ __commonJSMin(((exports) =
 	exports.getOtlpGrpcDefaultConfiguration = getOtlpGrpcDefaultConfiguration;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-grpc-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/configuration/otlp-grpc-env-configuration.js
+//#region node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/configuration/otlp-grpc-env-configuration.js
 var require_otlp_grpc_env_configuration = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getOtlpGrpcConfigurationFromEnv = void 0;
@@ -47628,11 +47674,10 @@ var require_otlp_grpc_env_configuration = /* @__PURE__ */ __commonJSMin(((export
 	exports.getOtlpGrpcConfigurationFromEnv = getOtlpGrpcConfigurationFromEnv;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-grpc-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/configuration/convert-legacy-otlp-grpc-options.js
+//#region node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/configuration/convert-legacy-otlp-grpc-options.js
 var require_convert_legacy_otlp_grpc_options = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.convertLegacyOtlpGrpcOptions = void 0;
-	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const otlp_grpc_configuration_1 = require_otlp_grpc_configuration();
 	const grpc_exporter_transport_1 = require_grpc_exporter_transport();
 	const otlp_grpc_env_configuration_1 = require_otlp_grpc_env_configuration();
@@ -47642,7 +47687,6 @@ var require_convert_legacy_otlp_grpc_options = /* @__PURE__ */ __commonJSMin(((e
 	* @param signalIdentifier
 	*/
 	function convertLegacyOtlpGrpcOptions(config, signalIdentifier) {
-		if (config.headers) api_1.diag.warn("Headers cannot be set when using grpc");
 		const userProvidedCredentials = config.credentials;
 		return (0, otlp_grpc_configuration_1.mergeOtlpGrpcConfigurationWithDefaults)({
 			url: config.url,
@@ -47659,7 +47703,7 @@ var require_convert_legacy_otlp_grpc_options = /* @__PURE__ */ __commonJSMin(((e
 	exports.convertLegacyOtlpGrpcOptions = convertLegacyOtlpGrpcOptions;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-grpc-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/otlp-grpc-export-delegate.js
+//#region node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/otlp-grpc-export-delegate.js
 var require_otlp_grpc_export_delegate = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createOtlpGrpcExportDelegate = void 0;
@@ -47679,7 +47723,7 @@ var require_otlp_grpc_export_delegate = /* @__PURE__ */ __commonJSMin(((exports)
 	exports.createOtlpGrpcExportDelegate = createOtlpGrpcExportDelegate;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+otlp-grpc-exporter-base@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/index.js
+//#region node_modules/@opentelemetry/otlp-grpc-exporter-base/build/src/index.js
 var require_src$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createOtlpGrpcExportDelegate = exports.convertLegacyOtlpGrpcOptions = void 0;
@@ -47699,7 +47743,7 @@ var require_src$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-grpc@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-grpc/build/src/OTLPLogExporter.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-grpc/build/src/OTLPLogExporter.js
 var require_OTLPLogExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -47717,7 +47761,7 @@ var require_OTLPLogExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPLogExporter = OTLPLogExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-logs-otlp-grpc@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-logs-otlp-grpc/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-logs-otlp-grpc/build/src/index.js
 var require_src$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
@@ -47730,7 +47774,7 @@ var require_src$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-prometheus@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-prometheus/build/src/PrometheusSerializer.js
+//#region node_modules/@opentelemetry/exporter-prometheus/build/src/PrometheusSerializer.js
 var require_PrometheusSerializer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PrometheusSerializer = void 0;
@@ -47928,7 +47972,7 @@ var require_PrometheusSerializer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.PrometheusSerializer = PrometheusSerializer;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-prometheus@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-prometheus/build/src/PrometheusExporter.js
+//#region node_modules/@opentelemetry/exporter-prometheus/build/src/PrometheusExporter.js
 var require_PrometheusExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PrometheusExporter = void 0;
@@ -48072,7 +48116,7 @@ var require_PrometheusExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-prometheus@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-prometheus/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-prometheus/build/src/index.js
 var require_src$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PrometheusSerializer = exports.PrometheusExporter = void 0;
@@ -48092,7 +48136,7 @@ var require_src$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/node/OTLPTraceExporter.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/node/OTLPTraceExporter.js
 var require_OTLPTraceExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -48110,7 +48154,7 @@ var require_OTLPTraceExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPTraceExporter = OTLPTraceExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/node/index.js
 var require_node$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -48123,7 +48167,7 @@ var require_node$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/index.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/platform/index.js
 var require_platform$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -48136,7 +48180,7 @@ var require_platform$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-http@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-http/build/src/index.js
 var require_src$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -48149,7 +48193,7 @@ var require_src$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-grpc@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-grpc/build/src/OTLPTraceExporter.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-grpc/build/src/OTLPTraceExporter.js
 var require_OTLPTraceExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -48167,7 +48211,7 @@ var require_OTLPTraceExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPTraceExporter = OTLPTraceExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-trace-otlp-grpc@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-trace-otlp-grpc/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-trace-otlp-grpc/build/src/index.js
 var require_src$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
@@ -48180,7 +48224,7 @@ var require_src$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-zipkin@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-zipkin/build/src/platform/node/util.js
+//#region node_modules/@opentelemetry/exporter-zipkin/build/src/platform/node/util.js
 var require_util = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.prepareSend = void 0;
@@ -48242,7 +48286,7 @@ var require_util = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.prepareSend = prepareSend;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-zipkin@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-zipkin/build/src/platform/node/index.js
+//#region node_modules/@opentelemetry/exporter-zipkin/build/src/platform/node/index.js
 var require_node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.prepareSend = void 0;
@@ -48255,7 +48299,7 @@ var require_node = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-zipkin@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-zipkin/build/src/platform/index.js
+//#region node_modules/@opentelemetry/exporter-zipkin/build/src/platform/index.js
 var require_platform = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.prepareSend = void 0;
@@ -48268,7 +48312,7 @@ var require_platform = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-zipkin@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-zipkin/build/src/types.js
+//#region node_modules/@opentelemetry/exporter-zipkin/build/src/types.js
 var require_types$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SpanKind = void 0;
@@ -48280,7 +48324,7 @@ var require_types$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.SpanKind || (exports.SpanKind = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-zipkin@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-zipkin/build/src/transform.js
+//#region node_modules/@opentelemetry/exporter-zipkin/build/src/transform.js
 var require_transform = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports._toZipkinAnnotations = exports._toZipkinTags = exports.toZipkinSpan = exports.defaultStatusErrorTagName = exports.defaultStatusCodeTagName = void 0;
@@ -48340,7 +48384,7 @@ var require_transform = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports._toZipkinAnnotations = _toZipkinAnnotations;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-zipkin@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-zipkin/build/src/utils.js
+//#region node_modules/@opentelemetry/exporter-zipkin/build/src/utils.js
 var require_utils$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.prepareGetHeaders = void 0;
@@ -48352,7 +48396,7 @@ var require_utils$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.prepareGetHeaders = prepareGetHeaders;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-zipkin@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-zipkin/build/src/zipkin.js
+//#region node_modules/@opentelemetry/exporter-zipkin/build/src/zipkin.js
 var require_zipkin = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ZipkinExporter = void 0;
@@ -48452,7 +48496,7 @@ var require_zipkin = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ZipkinExporter = ZipkinExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-zipkin@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-zipkin/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-zipkin/build/src/index.js
 var require_src$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ZipkinExporter = exports.prepareSend = void 0;
@@ -48472,7 +48516,7 @@ var require_src$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-b3@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-b3/build/src/common.js
+//#region node_modules/@opentelemetry/propagator-b3/build/src/common.js
 var require_common = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3_DEBUG_FLAG_KEY = void 0;
@@ -48480,7 +48524,7 @@ var require_common = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.B3_DEBUG_FLAG_KEY = (0, (init_esm$2(), __toCommonJS(esm_exports$2)).createContextKey)("OpenTelemetry Context Key B3 Debug Flag");
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-b3@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-b3/build/src/constants.js
+//#region node_modules/@opentelemetry/propagator-b3/build/src/constants.js
 var require_constants = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.X_B3_FLAGS = exports.X_B3_PARENT_SPAN_ID = exports.X_B3_SAMPLED = exports.X_B3_SPAN_ID = exports.X_B3_TRACE_ID = exports.B3_CONTEXT_HEADER = void 0;
@@ -48493,7 +48537,7 @@ var require_constants = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.X_B3_FLAGS = "x-b3-flags";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-b3@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-b3/build/src/B3MultiPropagator.js
+//#region node_modules/@opentelemetry/propagator-b3/build/src/B3MultiPropagator.js
 var require_B3MultiPropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3MultiPropagator = void 0;
@@ -48585,7 +48629,7 @@ var require_B3MultiPropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.B3MultiPropagator = B3MultiPropagator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-b3@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-b3/build/src/B3SinglePropagator.js
+//#region node_modules/@opentelemetry/propagator-b3/build/src/B3SinglePropagator.js
 var require_B3SinglePropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3SinglePropagator = void 0;
@@ -48641,7 +48685,7 @@ var require_B3SinglePropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.B3SinglePropagator = B3SinglePropagator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-b3@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-b3/build/src/types.js
+//#region node_modules/@opentelemetry/propagator-b3/build/src/types.js
 var require_types = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3InjectEncoding = void 0;
@@ -48651,7 +48695,7 @@ var require_types = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.B3InjectEncoding || (exports.B3InjectEncoding = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-b3@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-b3/build/src/B3Propagator.js
+//#region node_modules/@opentelemetry/propagator-b3/build/src/B3Propagator.js
 var require_B3Propagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3Propagator = void 0;
@@ -48697,7 +48741,7 @@ var require_B3Propagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.B3Propagator = B3Propagator;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-b3@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-b3/build/src/index.js
+//#region node_modules/@opentelemetry/propagator-b3/build/src/index.js
 var require_src$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3InjectEncoding = exports.X_B3_TRACE_ID = exports.X_B3_SPAN_ID = exports.X_B3_SAMPLED = exports.X_B3_PARENT_SPAN_ID = exports.X_B3_FLAGS = exports.B3_CONTEXT_HEADER = exports.B3Propagator = void 0;
@@ -48754,7 +48798,7 @@ var require_src$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-jaeger@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-jaeger/build/src/JaegerPropagator.js
+//#region node_modules/@opentelemetry/propagator-jaeger/build/src/JaegerPropagator.js
 var require_JaegerPropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JaegerPropagator = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.UBER_TRACE_ID_HEADER = void 0;
@@ -48845,7 +48889,7 @@ var require_JaegerPropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+propagator-jaeger@2.6.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/propagator-jaeger/build/src/index.js
+//#region node_modules/@opentelemetry/propagator-jaeger/build/src/index.js
 var require_src$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.UBER_TRACE_ID_HEADER = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.JaegerPropagator = void 0;
@@ -48870,7 +48914,7 @@ var require_src$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-grpc@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-grpc/build/src/OTLPMetricExporter.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-grpc/build/src/OTLPMetricExporter.js
 var require_OTLPMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -48888,7 +48932,7 @@ var require_OTLPMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.OTLPMetricExporter = OTLPMetricExporter;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+exporter-metrics-otlp-grpc@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/exporter-metrics-otlp-grpc/build/src/index.js
+//#region node_modules/@opentelemetry/exporter-metrics-otlp-grpc/build/src/index.js
 var require_src$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
@@ -48901,10 +48945,10 @@ var require_src$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-node@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-node/build/src/utils.js
+//#region node_modules/@opentelemetry/sdk-node/build/src/utils.js
 var require_utils$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.getInstanceID = exports.getLogRecordProcessorsFromConfiguration = exports.getLogRecordExporter = exports.getBatchLogRecordProcessorFromEnv = exports.getBatchLogRecordProcessorConfigFromEnv = exports.getLoggerProviderConfigFromEnv = exports.getOtlpMetricExporterFromEnv = exports.getPeriodicExportingMetricReaderFromEnv = exports.getNonNegativeNumberFromEnv = exports.getKeyListFromObjectArray = exports.setupPropagator = exports.setupContextManager = exports.getPropagatorFromConfiguration = exports.getPropagatorFromEnv = exports.getSpanProcessorsFromEnv = exports.getOtlpProtocolFromEnv = exports.getResourceDetectorsFromConfiguration = exports.getResourceDetectorsFromEnv = exports.getResourceFromConfiguration = void 0;
+	exports.getInstanceID = exports.getMeterViewsFromConfiguration = exports.getAggregationType = exports.getInstrumentType = exports.getMeterReadersFromConfiguration = exports.getLogRecordProcessorsFromConfiguration = exports.getLogRecordExporter = exports.getBatchLogRecordProcessorFromEnv = exports.getBatchLogRecordProcessorConfigFromEnv = exports.getLoggerProviderConfigFromEnv = exports.getPeriodicMetricReaderFromConfiguration = exports.getOtlpMetricExporterFromEnv = exports.getPeriodicExportingMetricReaderFromEnv = exports.getNonNegativeNumberFromEnv = exports.getKeyListFromObjectArray = exports.setupPropagator = exports.setupContextManager = exports.getPropagatorFromConfiguration = exports.getPropagatorFromEnv = exports.getSpanProcessorsFromEnv = exports.getOtlpProtocolFromEnv = exports.getResourceDetectorsFromConfiguration = exports.getResourceDetectorsFromEnv = exports.getResourceFromConfiguration = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const core_1 = require_src$28();
 	const exporter_trace_otlp_proto_1 = require_src$21();
@@ -48960,20 +49004,14 @@ var require_utils$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	}
 	exports.getResourceDetectorsFromEnv = getResourceDetectorsFromEnv;
 	function getResourceDetectorsFromConfiguration(config) {
-		const resourceDetectors = new Map([
-			[RESOURCE_DETECTOR_HOST, resources_1.hostDetector],
-			[RESOURCE_DETECTOR_OS, resources_1.osDetector],
-			[RESOURCE_DETECTOR_SERVICE_INSTANCE_ID, resources_1.serviceInstanceIdDetector],
-			[RESOURCE_DETECTOR_PROCESS, resources_1.processDetector],
-			[RESOURCE_DETECTOR_ENVIRONMENT, resources_1.envDetector]
-		]);
-		const resourceDetectorsFromConfig = config.node_resource_detectors ?? [];
-		if (resourceDetectorsFromConfig.includes("all")) return [...resourceDetectors.values()].flat();
-		if (resourceDetectorsFromConfig.includes("none")) return [];
-		return resourceDetectorsFromConfig.flatMap((detector) => {
-			const resourceDetector = resourceDetectors.get(detector);
-			if (!resourceDetector) api_1.diag.warn(`Invalid resource detector "${detector}" specified`);
-			return resourceDetector || [];
+		return (config.resource?.["detection/development"]?.detectors ?? []).flatMap((detector) => {
+			const result = [];
+			if (detector.host != null) result.push(resources_1.hostDetector);
+			if (detector.os != null) result.push(resources_1.osDetector);
+			if (detector.process != null) result.push(resources_1.processDetector);
+			if (detector.service != null) result.push(resources_1.serviceInstanceIdDetector);
+			if (detector.env != null) result.push(resources_1.envDetector);
+			return result;
 		});
 	}
 	exports.getResourceDetectorsFromConfiguration = getResourceDetectorsFromConfiguration;
@@ -49150,6 +49188,26 @@ var require_utils$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 		return new exporter_metrics_otlp_proto_1.OTLPMetricExporter();
 	}
 	exports.getOtlpMetricExporterFromEnv = getOtlpMetricExporterFromEnv;
+	function getPeriodicMetricReaderFromConfiguration(periodic) {
+		if (periodic.exporter) {
+			let exporter;
+			if (periodic.exporter.otlp_http) {
+				const encoding = periodic.exporter.otlp_http.encoding;
+				if (encoding === "json") exporter = new exporter_metrics_otlp_http_1.OTLPMetricExporter({ compression: periodic.exporter.otlp_http.compression === "gzip" ? otlp_exporter_base_1.CompressionAlgorithm.GZIP : otlp_exporter_base_1.CompressionAlgorithm.NONE });
+				else if (encoding === "protobuf") exporter = new exporter_metrics_otlp_proto_1.OTLPMetricExporter({ compression: periodic.exporter.otlp_http.compression === "gzip" ? otlp_exporter_base_1.CompressionAlgorithm.GZIP : otlp_exporter_base_1.CompressionAlgorithm.NONE });
+				else api_1.diag.warn(`Unsupported OTLP metrics encoding: ${encoding}.`);
+			}
+			if (periodic.exporter.otlp_grpc) exporter = new exporter_metrics_otlp_grpc_1.OTLPMetricExporter({ compression: periodic.exporter.otlp_grpc.compression === "gzip" ? otlp_exporter_base_1.CompressionAlgorithm.GZIP : otlp_exporter_base_1.CompressionAlgorithm.NONE });
+			if (exporter) return new sdk_metrics_1.PeriodicExportingMetricReader({
+				exportIntervalMillis: periodic.interval ?? 6e4,
+				exportTimeoutMillis: periodic.timeout ?? 3e4,
+				exporter
+			});
+			if (periodic.exporter.console) return new sdk_metrics_1.PeriodicExportingMetricReader({ exporter: new sdk_metrics_1.ConsoleMetricExporter() });
+		}
+		api_1.diag.warn(`Unsupported Metric Exporter.`);
+	}
+	exports.getPeriodicMetricReaderFromConfiguration = getPeriodicMetricReaderFromConfiguration;
 	/**
 	* Get LoggerProviderConfig from environment variables.
 	*/
@@ -49208,6 +49266,99 @@ var require_utils$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 		if (logRecordProcessors.length > 0) return logRecordProcessors;
 	}
 	exports.getLogRecordProcessorsFromConfiguration = getLogRecordProcessorsFromConfiguration;
+	function getMeterReadersFromConfiguration(config) {
+		const metricReaders = [];
+		config.meter_provider?.readers?.forEach((reader) => {
+			if (reader.periodic) {
+				const periodicReader = getPeriodicMetricReaderFromConfiguration(reader.periodic);
+				if (periodicReader) metricReaders.push(periodicReader);
+			}
+		});
+		if (metricReaders.length > 0) return metricReaders;
+	}
+	exports.getMeterReadersFromConfiguration = getMeterReadersFromConfiguration;
+	function getInstrumentType(instrument) {
+		switch (instrument) {
+			case "counter": return sdk_metrics_1.InstrumentType.COUNTER;
+			case "gauge": return sdk_metrics_1.InstrumentType.GAUGE;
+			case "histogram": return sdk_metrics_1.InstrumentType.HISTOGRAM;
+			case "observable_counter": return sdk_metrics_1.InstrumentType.OBSERVABLE_COUNTER;
+			case "observable_gauge": return sdk_metrics_1.InstrumentType.OBSERVABLE_GAUGE;
+			case "observable_up_down_counter": return sdk_metrics_1.InstrumentType.OBSERVABLE_UP_DOWN_COUNTER;
+			case "up_down_counter": return sdk_metrics_1.InstrumentType.UP_DOWN_COUNTER;
+			default:
+				api_1.diag.warn(`Unsupported instrument type: ${instrument}`);
+				return;
+		}
+	}
+	exports.getInstrumentType = getInstrumentType;
+	function getAggregationType(aggregation) {
+		if (aggregation.default) return { type: sdk_metrics_1.AggregationType.DEFAULT };
+		if (aggregation.drop) return { type: sdk_metrics_1.AggregationType.DROP };
+		if (aggregation.explicit_bucket_histogram) return {
+			type: sdk_metrics_1.AggregationType.EXPLICIT_BUCKET_HISTOGRAM,
+			options: {
+				recordMinMax: aggregation.explicit_bucket_histogram.record_min_max ?? true,
+				boundaries: aggregation.explicit_bucket_histogram.boundaries ?? [
+					0,
+					5,
+					10,
+					25,
+					50,
+					75,
+					100,
+					250,
+					500,
+					750,
+					1e3,
+					2500,
+					5e3,
+					7500,
+					1e4
+				]
+			}
+		};
+		if (aggregation.base2_exponential_bucket_histogram) return {
+			type: sdk_metrics_1.AggregationType.EXPONENTIAL_HISTOGRAM,
+			options: {
+				recordMinMax: aggregation.base2_exponential_bucket_histogram.record_min_max ?? true,
+				maxSize: aggregation.base2_exponential_bucket_histogram.max_size
+			}
+		};
+		if (aggregation.last_value) return { type: sdk_metrics_1.AggregationType.LAST_VALUE };
+		if (aggregation.sum) return { type: sdk_metrics_1.AggregationType.SUM };
+		api_1.diag.warn(`Unsupported aggregation type`);
+	}
+	exports.getAggregationType = getAggregationType;
+	function getMeterViewsFromConfiguration(config) {
+		const metricViews = [];
+		config.meter_provider?.views?.forEach((view) => {
+			const viewOption = {};
+			if (view.selector) {
+				if (view.selector.instrument_name) viewOption.instrumentName = view.selector.instrument_name;
+				if (view.selector.instrument_type) {
+					const instrumentType = getInstrumentType(view.selector.instrument_type);
+					if (instrumentType) viewOption.instrumentType = instrumentType;
+				}
+				if (view.selector.unit) viewOption.instrumentUnit = view.selector.unit;
+				if (view.selector.meter_name) viewOption.meterName = view.selector.meter_name;
+				if (view.selector.meter_version) viewOption.meterVersion = view.selector.meter_version;
+				if (view.selector.meter_schema_url) viewOption.meterSchemaUrl = view.selector.meter_schema_url;
+			}
+			if (view.stream) {
+				viewOption.name = view.stream.name ?? view.selector?.instrument_name;
+				viewOption.aggregationCardinalityLimit = view.stream.aggregation_cardinality_limit ?? 2e3;
+				if (view.stream.description) viewOption.description = view.stream.description;
+				if (view.stream.aggregation) {
+					const aggregationType = getAggregationType(view.stream.aggregation);
+					if (aggregationType) viewOption.aggregation = aggregationType;
+				}
+			}
+			if (Object.keys(viewOption).length > 0) metricViews.push(viewOption);
+		});
+		if (metricViews.length > 0) return metricViews;
+	}
+	exports.getMeterViewsFromConfiguration = getMeterViewsFromConfiguration;
 	function getInstanceID(config) {
 		if (config.resource?.attributes) for (let i = 0; i < config.resource.attributes.length; i++) {
 			const element = config.resource.attributes[i];
@@ -49217,7 +49368,7 @@ var require_utils$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getInstanceID = getInstanceID;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-node@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+//#region node_modules/@opentelemetry/sdk-node/build/src/sdk.js
 var require_sdk = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NodeSDK = void 0;
@@ -49434,7 +49585,7 @@ var require_sdk = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.NodeSDK = NodeSDK;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/models/configModel.js
+//#region node_modules/@opentelemetry/configuration/build/src/models/configModel.js
 var require_configModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.initializeDefaultConfiguration = void 0;
@@ -49450,7 +49601,7 @@ var require_configModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.initializeDefaultConfiguration = initializeDefaultConfiguration;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/models/meterProviderModel.js
+//#region node_modules/@opentelemetry/configuration/build/src/models/meterProviderModel.js
 var require_meterProviderModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InstrumentType = exports.ExporterDefaultHistogramAggregation = exports.ExporterTemporalityPreference = exports.ExperimentalPrometheusTranslationStrategy = exports.ExemplarFilter = exports.initializeDefaultMeterProviderConfiguration = void 0;
@@ -49494,7 +49645,7 @@ var require_meterProviderModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.InstrumentType || (exports.InstrumentType = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/models/commonModel.js
+//#region node_modules/@opentelemetry/configuration/build/src/models/commonModel.js
 var require_commonModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SeverityNumber = exports.OtlpHttpEncoding = void 0;
@@ -49530,7 +49681,7 @@ var require_commonModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.SeverityNumber || (exports.SeverityNumber = {}));
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/models/tracerProviderModel.js
+//#region node_modules/@opentelemetry/configuration/build/src/models/tracerProviderModel.js
 var require_tracerProviderModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.initializeDefaultTracerProviderConfiguration = void 0;
@@ -49556,7 +49707,7 @@ var require_tracerProviderModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.initializeDefaultTracerProviderConfiguration = initializeDefaultTracerProviderConfiguration;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/models/loggerProviderModel.js
+//#region node_modules/@opentelemetry/configuration/build/src/models/loggerProviderModel.js
 var require_loggerProviderModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.initializeDefaultLoggerProviderConfiguration = void 0;
@@ -49570,7 +49721,7 @@ var require_loggerProviderModel = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.initializeDefaultLoggerProviderConfiguration = initializeDefaultLoggerProviderConfiguration;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/utils.js
+//#region node_modules/@opentelemetry/configuration/build/src/utils.js
 var require_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getHttpTlsConfig = exports.getGrpcTlsConfig = exports.envVariableSubstitution = exports.getStringListFromConfigFile = exports.getStringFromConfigFile = exports.getNumberListFromConfigFile = exports.getNumberFromConfigFile = exports.getBooleanListFromConfigFile = exports.getBooleanFromConfigFile = void 0;
@@ -49733,10 +49884,10 @@ var require_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getHttpTlsConfig = getHttpTlsConfig;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/EnvironmentConfigFactory.js
+//#region node_modules/@opentelemetry/configuration/build/src/EnvironmentConfigFactory.js
 var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.setLoggerProvider = exports.setMeterProvider = exports.setTracerProvider = exports.setPropagators = exports.setAttributeLimits = exports.setResources = exports.EnvironmentConfigFactory = void 0;
+	exports.setLoggerProvider = exports.setMeterProvider = exports.setTracerProvider = exports.setSampler = exports.setPropagators = exports.setAttributeLimits = exports.setResources = exports.EnvironmentConfigFactory = void 0;
 	const configModel_1 = require_configModel();
 	const core_1 = require_src$28();
 	const meterProviderModel_1 = require_meterProviderModel();
@@ -49755,8 +49906,6 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 			this._config.disabled = (0, core_1.getBooleanFromEnv)("OTEL_SDK_DISABLED");
 			const logLevel = (0, core_1.diagLogLevelFromString)((0, core_1.getStringFromEnv)("OTEL_LOG_LEVEL"));
 			if (logLevel) this._config.log_level = logLevel;
-			const nodeResourceDetectors = (0, core_1.getStringListFromEnv)("OTEL_NODE_RESOURCE_DETECTORS");
-			if (nodeResourceDetectors) this._config.node_resource_detectors = nodeResourceDetectors;
 			setResources(this._config);
 			setAttributeLimits(this._config);
 			setPropagators(this._config);
@@ -49791,6 +49940,21 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 				});
 			}
 		}
+		const nodeDetectors = (0, core_1.getStringListFromEnv)("OTEL_NODE_RESOURCE_DETECTORS");
+		if (nodeDetectors && nodeDetectors.length > 0 && !nodeDetectors.includes("none")) {
+			const all = nodeDetectors.includes("all");
+			const detectors = [];
+			if (all || nodeDetectors.includes("container")) detectors.push({ container: {} });
+			if (all || nodeDetectors.includes("host")) detectors.push({ host: {} });
+			if (all || nodeDetectors.includes("os")) detectors.push({ os: {} });
+			if (all || nodeDetectors.includes("process")) detectors.push({ process: {} });
+			if (all || nodeDetectors.includes("serviceinstance")) detectors.push({ service: {} });
+			if (all || nodeDetectors.includes("env")) detectors.push({ env: {} });
+			if (detectors.length > 0) {
+				if (config.resource["detection/development"] == null) config.resource["detection/development"] = {};
+				config.resource["detection/development"].detectors = detectors;
+			}
+		}
 	}
 	exports.setResources = setResources;
 	function setAttributeLimits(config) {
@@ -49815,6 +49979,36 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 		if (compositeList) config.propagator.composite_list = compositeList;
 	}
 	exports.setPropagators = setPropagators;
+	function setSampler(config) {
+		const sampler = (0, core_1.getStringFromEnv)("OTEL_TRACES_SAMPLER");
+		const arg = (0, core_1.getStringFromEnv)("OTEL_TRACES_SAMPLER_ARG");
+		if (!sampler || !config.tracer_provider) return;
+		const ratio = arg ? parseFloat(arg) : 1;
+		switch (sampler) {
+			case "always_on":
+				config.tracer_provider.sampler = { always_on: {} };
+				break;
+			case "always_off":
+				config.tracer_provider.sampler = { always_off: {} };
+				break;
+			case "traceidratio":
+				config.tracer_provider.sampler = { trace_id_ratio_based: { ratio } };
+				break;
+			case "parentbased_always_on":
+				config.tracer_provider.sampler = { parent_based: { root: { always_on: {} } } };
+				break;
+			case "parentbased_always_off":
+				config.tracer_provider.sampler = { parent_based: { root: { always_off: {} } } };
+				break;
+			case "parentbased_traceidratio":
+				config.tracer_provider.sampler = { parent_based: { root: { trace_id_ratio_based: { ratio } } } };
+				break;
+			default:
+				api_1.diag.warn(`Unknown sampler type: ${sampler}`);
+				break;
+		}
+	}
+	exports.setSampler = setSampler;
 	function setTracerProvider(config) {
 		const exportersType = Array.from(new Set((0, core_1.getStringListFromEnv)("OTEL_TRACES_EXPORTER")));
 		if (exportersType.length === 0) return;
@@ -49823,6 +50017,7 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 			return;
 		}
 		config.tracer_provider = (0, tracerProviderModel_1.initializeDefaultTracerProviderConfiguration)();
+		setSampler(config);
 		const attributeValueLengthLimit = (0, core_1.getNumberFromEnv)("OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT");
 		if (attributeValueLengthLimit) config.tracer_provider.limits.attribute_value_length_limit = attributeValueLengthLimit;
 		const attributeCountLimit = (0, core_1.getNumberFromEnv)("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT");
@@ -50076,7 +50271,7 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 	exports.setLoggerProvider = setLoggerProvider;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/FileConfigFactory.js
+//#region node_modules/@opentelemetry/configuration/build/src/FileConfigFactory.js
 var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.setLoggerProvider = exports.getSeverity = exports.setMeterProvider = exports.getTemporalityPreference = exports.setTracerProvider = exports.setPropagator = exports.setAttributeLimits = exports.setResourceAttributes = exports.parseConfigFile = exports.hasValidConfigFile = exports.FileConfigFactory = void 0;
@@ -50102,10 +50297,10 @@ var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 	exports.FileConfigFactory = FileConfigFactory;
 	function hasValidConfigFile() {
-		const configFile = (0, core_1.getStringFromEnv)("OTEL_EXPERIMENTAL_CONFIG_FILE");
+		const configFile = (0, core_1.getStringFromEnv)("OTEL_CONFIG_FILE");
 		if (configFile) {
 			if (!(configFile.endsWith(".yaml") || configFile.endsWith(".yml")) || !fs$1.existsSync(configFile)) {
-				api_1.diag.warn(`Config file ${configFile} set on OTEL_EXPERIMENTAL_CONFIG_FILE is not valid`);
+				api_1.diag.warn(`Config file ${configFile} set on OTEL_CONFIG_FILE is not valid`);
 				return false;
 			}
 			return true;
@@ -50115,7 +50310,7 @@ var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.hasValidConfigFile = hasValidConfigFile;
 	function parseConfigFile(config) {
 		const supportedFileVersions = ["1.0-rc.3"];
-		const configFile = (0, core_1.getStringFromEnv)("OTEL_EXPERIMENTAL_CONFIG_FILE") || "";
+		const configFile = (0, core_1.getStringFromEnv)("OTEL_CONFIG_FILE") || "";
 		const file = fs$1.readFileSync(configFile, "utf8");
 		const parsedContent = yaml.parse(file);
 		if (parsedContent["file_format"] && supportedFileVersions.includes(parsedContent["file_format"])) {
@@ -50129,6 +50324,8 @@ var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 				if (schemaUrl) config.resource.schema_url = schemaUrl;
 			}
 			setResourceAttributes(config, parsedContent["resource"]?.["attributes"], parsedContent["resource"]?.["attributes_list"]);
+			const detectionConfig = parsedContent["resource"]?.["detection/development"];
+			if (detectionConfig) config.resource["detection/development"] = parseDetectionDevelopment(detectionConfig);
 			setAttributeLimits(config, parsedContent["attribute_limits"]);
 			setPropagator(config, parsedContent["propagator"]);
 			setTracerProvider(config, parsedContent["tracer_provider"]);
@@ -50190,6 +50387,32 @@ var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 		}
 	}
 	exports.setResourceAttributes = setResourceAttributes;
+	function parseDetectionDevelopment(detection) {
+		const result = {};
+		if (detection["attributes"]) {
+			result.attributes = {};
+			const included = detection["attributes"]["included"];
+			if (Array.isArray(included)) result.attributes.included = included.filter((v) => typeof v === "string");
+			const excluded = detection["attributes"]["excluded"];
+			if (Array.isArray(excluded)) result.attributes.excluded = excluded.filter((v) => typeof v === "string");
+		}
+		if (Array.isArray(detection["detectors"])) {
+			result.detectors = [];
+			for (let i = 0; i < detection["detectors"].length; i++) {
+				const d = detection["detectors"][i];
+				if (typeof d !== "object" || d === null) continue;
+				const detector = {};
+				if ("container" in d) detector.container = d.container ?? {};
+				if ("env" in d) detector.env = d.env ?? {};
+				if ("host" in d) detector.host = d.host ?? {};
+				if ("os" in d) detector.os = d.os ?? {};
+				if ("process" in d) detector.process = d.process ?? {};
+				if ("service" in d) detector.service = d.service ?? {};
+				result.detectors.push(detector);
+			}
+		}
+		return result;
+	}
 	function setAttributeLimits(config, attrLimits) {
 		if (attrLimits) {
 			if (config.attribute_limits == null) config.attribute_limits = { attribute_count_limit: 128 };
@@ -50223,6 +50446,80 @@ var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 		}
 	}
 	exports.setPropagator = setPropagator;
+	function parseComposableSampler(sampler) {
+		const samplerType = Object.keys(sampler)[0];
+		let parsedSampler = {};
+		switch (samplerType) {
+			case "always_on":
+				parsedSampler = { always_on: sampler["always_on"] ?? void 0 };
+				break;
+			case "always_off":
+				parsedSampler = { always_off: sampler["always_off"] ?? void 0 };
+				break;
+			case "parent_threshold": {
+				const s = sampler["parent_threshold"];
+				if (s?.root) parsedSampler = { parent_threshold: { root: parseComposableSampler(s.root) } };
+				break;
+			}
+			case "probability": {
+				const s = sampler["probability"];
+				parsedSampler = { probability: { ratio: (0, utils_1.getNumberFromConfigFile)(s?.ratio) ?? 1 } };
+				break;
+			}
+			case "rule_based": {
+				const rb = sampler["rule_based"];
+				if (rb) {
+					parsedSampler = { rule_based: {} };
+					if (rb.rules) parsedSampler.rule_based.rules = rb.rules.map((rule) => ({
+						...rule,
+						sampler: rule.sampler ? parseComposableSampler(rule.sampler) : {}
+					}));
+				}
+				break;
+			}
+		}
+		return parsedSampler;
+	}
+	function parseSampler(sampler) {
+		const samplerType = Object.keys(sampler)[0];
+		let parsedSampler = {};
+		switch (samplerType) {
+			case "always_on":
+				parsedSampler = { always_on: sampler["always_on"] ?? void 0 };
+				break;
+			case "always_off":
+				parsedSampler = { always_off: sampler["always_off"] ?? void 0 };
+				break;
+			case "trace_id_ratio_based": {
+				const s = sampler["trace_id_ratio_based"];
+				parsedSampler = { trace_id_ratio_based: { ratio: (0, utils_1.getNumberFromConfigFile)(s?.ratio) ?? 1 } };
+				break;
+			}
+			case "parent_based": {
+				const s = sampler["parent_based"];
+				if (s) {
+					parsedSampler = { parent_based: {} };
+					if (s.root) parsedSampler.parent_based.root = parseSampler(s.root);
+					if (s.remote_parent_sampled) parsedSampler.parent_based.remote_parent_sampled = parseSampler(s.remote_parent_sampled);
+					if (s.remote_parent_not_sampled) parsedSampler.parent_based.remote_parent_not_sampled = parseSampler(s.remote_parent_not_sampled);
+					if (s.local_parent_sampled) parsedSampler.parent_based.local_parent_sampled = parseSampler(s.local_parent_sampled);
+					if (s.local_parent_not_sampled) parsedSampler.parent_based.local_parent_not_sampled = parseSampler(s.local_parent_not_sampled);
+				}
+				break;
+			}
+			case "probability/development": {
+				const s = sampler["probability/development"];
+				parsedSampler = { "probability/development": { ratio: (0, utils_1.getNumberFromConfigFile)(s?.ratio) ?? 1 } };
+				break;
+			}
+			case "composite/development": {
+				const s = sampler["composite/development"];
+				if (s) parsedSampler = { "composite/development": parseComposableSampler(s) };
+				break;
+			}
+		}
+		return parsedSampler;
+	}
 	function getConfigHeaders(h) {
 		if (h) {
 			const headers = [];
@@ -50339,6 +50636,7 @@ var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 				const linkAttributeCountLimit = (0, utils_1.getNumberFromConfigFile)(tracerProvider["limits"]["link_attribute_count_limit"]);
 				if (linkAttributeCountLimit) config.tracer_provider.limits.link_attribute_count_limit = linkAttributeCountLimit;
 			}
+			if (tracerProvider["sampler"]) config.tracer_provider.sampler = parseSampler(tracerProvider["sampler"]);
 			for (let i = 0; i < tracerProvider["processors"].length; i++) {
 				const processorType = Object.keys(tracerProvider["processors"][i])[0];
 				if (processorType === "batch") {
@@ -50751,7 +51049,7 @@ var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.setLoggerProvider = setLoggerProvider;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/ConfigFactory.js
+//#region node_modules/@opentelemetry/configuration/build/src/ConfigFactory.js
 var require_ConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createConfigFactory = void 0;
@@ -50764,7 +51062,7 @@ var require_ConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.createConfigFactory = createConfigFactory;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+configuration@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/configuration/build/src/index.js
+//#region node_modules/@opentelemetry/configuration/build/src/index.js
 var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createConfigFactory = void 0;
@@ -50777,7 +51075,7 @@ var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-node@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-node/build/src/semconv.js
+//#region node_modules/@opentelemetry/sdk-node/build/src/semconv.js
 var require_semconv = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ATTR_SERVICE_NAMESPACE = exports.ATTR_SERVICE_INSTANCE_ID = exports.ATTR_PROCESS_PID = exports.ATTR_HOST_NAME = void 0;
@@ -50844,7 +51142,7 @@ var require_semconv = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.ATTR_SERVICE_NAMESPACE = "service.namespace";
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-node@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-node/build/src/start.js
+//#region node_modules/@opentelemetry/sdk-node/build/src/start.js
 var require_start = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.setupResource = exports.startNodeSDK = void 0;
@@ -50853,6 +51151,7 @@ var require_start = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const utils_1 = require_utils$1();
 	const instrumentation_1 = require_src$15();
 	const sdk_logs_1 = require_src$19();
+	const sdk_metrics_1 = require_src$26();
 	const api_logs_1 = require_src$20();
 	const resources_1 = require_src$27();
 	const context_async_hooks_1 = require_src$18();
@@ -50872,10 +51171,12 @@ var require_start = /* @__PURE__ */ __commonJSMin(((exports) => {
 		const components = create(config, sdkOptions);
 		api_1.context.setGlobalContextManager(components.contextManager);
 		if (components.loggerProvider) api_logs_1.logs.setGlobalLoggerProvider(components.loggerProvider);
+		if (components.meterProvider) api_1.metrics.setGlobalMeterProvider(components.meterProvider);
 		if (components.propagator) api_1.propagation.setGlobalPropagator(components.propagator);
 		const shutdownFn = async () => {
 			const promises = [];
 			if (components.loggerProvider) promises.push(components.loggerProvider.shutdown());
+			if (components.meterProvider) promises.push(components.meterProvider.shutdown());
 			await Promise.all(promises);
 		};
 		return { shutdown: shutdownFn };
@@ -50897,13 +51198,22 @@ var require_start = /* @__PURE__ */ __commonJSMin(((exports) => {
 			resource,
 			processors: logProcessors
 		});
+		const meterReaders = (0, utils_1.getMeterReadersFromConfiguration)(config);
+		if (meterReaders) {
+			const meterViews = (0, utils_1.getMeterViewsFromConfiguration)(config);
+			components.meterProvider = new sdk_metrics_1.MeterProvider({
+				resource,
+				readers: meterReaders,
+				views: meterViews ?? []
+			});
+		}
 		return components;
 	}
 	function setupResource(config, sdkOptions) {
 		let resource = (0, utils_1.getResourceFromConfiguration)(config) ?? (0, resources_1.defaultResource)();
 		let resourceDetectors = [];
 		if (sdkOptions.resourceDetectors != null) resourceDetectors = sdkOptions.resourceDetectors;
-		else if (config.node_resource_detectors) resourceDetectors = (0, utils_1.getResourceDetectorsFromConfiguration)(config);
+		else if (config.resource?.["detection/development"]?.detectors) resourceDetectors = (0, utils_1.getResourceDetectorsFromConfiguration)(config);
 		if (resourceDetectors.length > 0) {
 			const internalConfig = { detectors: resourceDetectors };
 			resource = resource.merge((0, resources_1.detectResources)(internalConfig));
@@ -50915,7 +51225,7 @@ var require_start = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.setupResource = setupResource;
 }));
 //#endregion
-//#region node_modules/.pnpm/@opentelemetry+sdk-node@0.213.0_@opentelemetry+api@1.9.0/node_modules/@opentelemetry/sdk-node/build/src/index.js
+//#region node_modules/@opentelemetry/sdk-node/build/src/index.js
 var require_src = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.startNodeSDK = exports.NodeSDK = exports.tracing = exports.resources = exports.node = exports.metrics = exports.logs = exports.core = exports.contextBase = exports.api = void 0;

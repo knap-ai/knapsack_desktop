@@ -14,6 +14,7 @@
  */
 import { EventEmitter } from "node:events";
 import WebSocket, { type ClientOptions } from "ws";
+import { type ProviderRequestTransportOverrides } from "./provider-request-config.js";
 export interface ResponseObject {
     id: string;
     object: "response";
@@ -51,10 +52,10 @@ export type OutputItem = {
     arguments: string;
     status?: "in_progress" | "completed";
 } | {
-    type: "reasoning";
+    type: "reasoning" | `reasoning.${string}`;
     id: string;
     content?: string;
-    summary?: string;
+    summary?: unknown;
 };
 export interface ResponseCreatedEvent {
     type: "response.created";
@@ -180,6 +181,7 @@ export type InputItem = {
     output: string;
 } | {
     type: "reasoning";
+    id?: string;
     content?: string;
     encrypted_content?: string;
     summary?: string;
@@ -220,6 +222,10 @@ export interface ResponseCreateEvent {
         effort?: "low" | "medium" | "high";
         summary?: "auto" | "concise" | "detailed";
     };
+    text?: {
+        verbosity?: "low" | "medium" | "high";
+        [key: string]: unknown;
+    };
     truncation?: "auto" | "disabled";
     [key: string]: unknown;
 }
@@ -237,6 +243,8 @@ export interface OpenAIWebSocketManagerOptions {
     backoffDelaysMs?: readonly number[];
     /** Custom socket factory for tests. */
     socketFactory?: (url: string, options: ClientOptions) => WebSocket;
+    /** Optional transport overrides for provider-owned auth or TLS wiring. */
+    request?: ProviderRequestTransportOverrides;
 }
 type InternalEvents = {
     message: [event: OpenAIWebSocketEvent];
@@ -273,6 +281,7 @@ export declare class OpenAIWebSocketManager extends EventEmitter<InternalEvents>
     private readonly maxRetries;
     private readonly backoffDelaysMs;
     private readonly socketFactory;
+    private readonly request?;
     constructor(options?: OpenAIWebSocketManagerOptions);
     /**
      * Returns the previous_response_id from the last completed response,

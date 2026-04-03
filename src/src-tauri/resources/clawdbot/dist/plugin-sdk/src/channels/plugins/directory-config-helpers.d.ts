@@ -23,12 +23,24 @@ export declare function listInspectedDirectoryEntriesFromSources<InspectedAccoun
     resolveSources: (account: InspectedAccount) => Iterable<unknown>[];
     normalizeId: (entry: string) => string | null | undefined;
 }): ChannelDirectoryEntry[];
+export declare function createInspectedDirectoryEntriesLister<InspectedAccount>(params: {
+    kind: "user" | "group";
+    inspectAccount: (cfg: OpenClawConfig, accountId?: string | null) => InspectedAccount | null | undefined;
+    resolveSources: (account: InspectedAccount) => Iterable<unknown>[];
+    normalizeId: (entry: string) => string | null | undefined;
+}): (configParams: DirectoryConfigParams) => Promise<ChannelDirectoryEntry[]>;
 export declare function listResolvedDirectoryEntriesFromSources<ResolvedAccount>(params: DirectoryConfigParams & {
     kind: "user" | "group";
     resolveAccount: (cfg: OpenClawConfig, accountId?: string | null) => ResolvedAccount;
     resolveSources: (account: ResolvedAccount) => Iterable<unknown>[];
     normalizeId: (entry: string) => string | null | undefined;
 }): ChannelDirectoryEntry[];
+export declare function createResolvedDirectoryEntriesLister<ResolvedAccount>(params: {
+    kind: "user" | "group";
+    resolveAccount: (cfg: OpenClawConfig, accountId?: string | null) => ResolvedAccount;
+    resolveSources: (account: ResolvedAccount) => Iterable<unknown>[];
+    normalizeId: (entry: string) => string | null | undefined;
+}): (configParams: DirectoryConfigParams) => Promise<ChannelDirectoryEntry[]>;
 export declare function listDirectoryUserEntriesFromAllowFrom(params: {
     allowFrom?: readonly unknown[];
     query?: string | null;

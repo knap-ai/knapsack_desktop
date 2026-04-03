@@ -9,6 +9,6 @@ export type EnvSanitizationOptions = {
     customAllowedPatterns?: ReadonlyArray<RegExp>;
 };
 export declare function validateEnvVarValue(value: string): string | undefined;
-export declare function sanitizeEnvVars(envVars: Record<string, string>, options?: EnvSanitizationOptions): EnvVarSanitizationResult;
+export declare function sanitizeEnvVars(envVars: Record<string, string | undefined>, options?: EnvSanitizationOptions): EnvVarSanitizationResult;
 export declare function getBlockedPatterns(): string[];
 export declare function getAllowedPatterns(): string[];

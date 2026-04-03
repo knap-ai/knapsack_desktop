@@ -4,4 +4,5 @@ export declare function maybePersistResolvedTelegramTarget(params: {
     rawTarget: string;
     resolvedChatId: string;
     verbose?: boolean;
+    gatewayClientScopes?: readonly string[];
 }): Promise<void>;

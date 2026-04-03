@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import { type PluginCandidate } from "./discovery.js";
-import { type PluginManifest } from "./manifest.js";
+import { type PluginManifest, type PluginManifestChannelConfig, type PluginManifestContracts } from "./manifest.js";
 import type { PluginBundleFormat, PluginConfigUiHint, PluginDiagnostic, PluginFormat, PluginKind, PluginOrigin } from "./types.js";
 export type PluginManifestRecord = {
     id: string;
@@ -8,12 +8,14 @@ export type PluginManifestRecord = {
     description?: string;
     version?: string;
     enabledByDefault?: boolean;
+    autoEnableWhenConfiguredProviders?: string[];
     format?: PluginFormat;
     bundleFormat?: PluginBundleFormat;
     bundleCapabilities?: string[];
-    kind?: PluginKind;
+    kind?: PluginKind | PluginKind[];
     channels: string[];
     providers: string[];
+    cliBackends: string[];
     providerAuthEnvVars?: Record<string, string[]>;
     providerAuthChoices?: PluginManifest["providerAuthChoices"];
     skills: string[];
@@ -29,9 +31,13 @@ export type PluginManifestRecord = {
     schemaCacheKey?: string;
     configSchema?: Record<string, unknown>;
     configUiHints?: Record<string, PluginConfigUiHint>;
+    contracts?: PluginManifestContracts;
+    channelConfigs?: Record<string, PluginManifestChannelConfig>;
     channelCatalogMeta?: {
         id: string;
-        preferOver?: string[];
+        label?: string;
+        blurb?: string;
+        preferOver?: readonly string[];
     };
 };
 export type PluginManifestRegistry = {

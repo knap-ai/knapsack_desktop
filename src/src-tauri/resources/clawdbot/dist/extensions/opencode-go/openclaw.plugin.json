@@ -1,5 +1,6 @@
 {
   "id": "opencode-go",
+  "enabledByDefault": true,
   "providers": [
     "opencode-go"
   ],

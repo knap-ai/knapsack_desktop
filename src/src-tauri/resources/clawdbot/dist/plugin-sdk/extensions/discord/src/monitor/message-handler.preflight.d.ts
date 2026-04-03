@@ -1,4 +1,4 @@
-import { type SessionBindingRecord } from "openclaw/plugin-sdk/conversation-runtime";
+import type { SessionBindingRecord } from "openclaw/plugin-sdk/conversation-runtime";
 import type { DiscordMessagePreflightContext, DiscordMessagePreflightParams } from "./message-handler.preflight.types.js";
 export type { DiscordMessagePreflightContext, DiscordMessagePreflightParams, } from "./message-handler.preflight.types.js";
 export declare function resolvePreflightMentionRequirement(params: {

@@ -19,7 +19,7 @@ export type DispatchWrapperTrustPlan = {
     blockedWrapper?: string;
 };
 export declare function isDispatchWrapperExecutable(token: string): boolean;
-export declare function unwrapKnownDispatchWrapperInvocation(argv: string[]): DispatchWrapperUnwrapResult;
-export declare function unwrapDispatchWrappersForResolution(argv: string[], maxDepth?: number): string[];
-export declare function resolveDispatchWrapperTrustPlan(argv: string[], maxDepth?: number): DispatchWrapperTrustPlan;
+export declare function unwrapKnownDispatchWrapperInvocation(argv: string[], platform?: NodeJS.Platform): DispatchWrapperUnwrapResult;
+export declare function unwrapDispatchWrappersForResolution(argv: string[], maxDepth?: number, platform?: NodeJS.Platform): string[];
+export declare function resolveDispatchWrapperTrustPlan(argv: string[], maxDepth?: number, platform?: NodeJS.Platform): DispatchWrapperTrustPlan;
 export declare function hasDispatchEnvManipulation(argv: string[]): boolean;

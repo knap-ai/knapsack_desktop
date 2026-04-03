@@ -6,5 +6,5 @@ export declare function resolveFeishuSendTarget(params: {
 }): {
     client: import("@larksuiteoapi/node-sdk").Client;
     receiveId: string;
-    receiveIdType: "chat_id" | "open_id" | "user_id";
+    receiveIdType: "chat_id" | "user_id" | "open_id";
 };

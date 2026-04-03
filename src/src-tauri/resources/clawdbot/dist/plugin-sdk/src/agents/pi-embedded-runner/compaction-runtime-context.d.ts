@@ -25,6 +25,22 @@ export type EmbeddedCompactionRuntimeContext = {
     extraSystemPrompt?: string;
     ownerNumbers?: string[];
 };
+/**
+ * Resolve the effective compaction target from config, falling back to the
+ * caller-supplied provider/model and optionally applying runtime defaults.
+ */
+export declare function resolveEmbeddedCompactionTarget(params: {
+    config?: OpenClawConfig;
+    provider?: string | null;
+    modelId?: string | null;
+    authProfileId?: string | null;
+    defaultProvider?: string;
+    defaultModel?: string;
+}): {
+    provider: string | undefined;
+    model: string | undefined;
+    authProfileId: string | undefined;
+};
 export declare function buildEmbeddedCompactionRuntimeContext(params: {
     sessionKey?: string | null;
     messageChannel?: string | null;

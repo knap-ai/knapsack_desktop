@@ -6,12 +6,17 @@ import type { ReplyDispatcher, ReplyDispatchKind } from "./reply-dispatcher.js";
 export type AcpDispatchDeliveryMeta = {
     toolCallId?: string;
     allowEdit?: boolean;
+    skipTts?: boolean;
 };
 export type AcpDispatchDeliveryCoordinator = {
     startReplyLifecycle: () => Promise<void>;
     deliver: (kind: ReplyDispatchKind, payload: ReplyPayload, meta?: AcpDispatchDeliveryMeta) => Promise<boolean>;
     getBlockCount: () => number;
     getAccumulatedBlockText: () => string;
+    settleVisibleText: () => Promise<void>;
+    hasDeliveredFinalReply: () => boolean;
+    hasDeliveredVisibleText: () => boolean;
+    hasFailedVisibleTextDelivery: () => boolean;
     getRoutedCounts: () => Record<ReplyDispatchKind, number>;
     applyRoutedCounts: (counts: Record<ReplyDispatchKind, number>) => void;
 };
@@ -22,6 +27,7 @@ export declare function createAcpDispatchDeliveryCoordinator(params: {
     inboundAudio: boolean;
     sessionTtsAuto?: TtsAutoMode;
     ttsChannel?: string;
+    suppressUserDelivery?: boolean;
     shouldRouteToOriginating: boolean;
     originatingChannel?: string;
     originatingTo?: string;

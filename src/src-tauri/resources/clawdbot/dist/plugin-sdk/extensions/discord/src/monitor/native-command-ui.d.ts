@@ -1,4 +1,4 @@
-import { Button, Row, StringSelectMenu, type ButtonInteraction, type CommandInteraction, type ComponentData, type StringSelectMenuInteraction } from "@buape/carbon";
+import { Button, Row, StringSelectMenu, type AutocompleteInteraction, type ButtonInteraction, type CommandInteraction, type ComponentData, type StringSelectMenuInteraction } from "@buape/carbon";
 import { type ChatCommandDefinition, type CommandArgDefinition, type CommandArgs } from "openclaw/plugin-sdk/command-auth";
 import type { OpenClawConfig, loadConfig } from "openclaw/plugin-sdk/config-runtime";
 import { type DiscordModelPickerCommandContext } from "./model-picker.js";
@@ -37,6 +37,15 @@ export declare function shouldOpenDiscordModelPickerFromCommand(params: {
     command: ChatCommandDefinition;
     commandArgs?: CommandArgs;
 }): DiscordModelPickerCommandContext | null;
+export declare function resolveDiscordNativeChoiceContext(params: {
+    interaction: AutocompleteInteraction;
+    cfg: ReturnType<typeof loadConfig>;
+    accountId: string;
+    threadBindings: ThreadBindingManager;
+}): Promise<{
+    provider?: string;
+    model?: string;
+} | null>;
 export declare function replyWithDiscordModelPickerProviders(params: {
     interaction: CommandInteraction | ButtonInteraction | StringSelectMenuInteraction;
     cfg: ReturnType<typeof loadConfig>;

@@ -10,7 +10,14 @@ type SlackSendOpts = {
     token?: string;
     accountId?: string;
     mediaUrl?: string;
+    mediaAccess?: {
+        localRoots?: readonly string[];
+        readFile?: (filePath: string) => Promise<Buffer>;
+    };
+    uploadFileName?: string;
+    uploadTitle?: string;
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
     client?: WebClient;
     threadTs?: string;
     identity?: SlackSendIdentity;
@@ -20,5 +27,6 @@ export type SlackSendResult = {
     messageId: string;
     channelId: string;
 };
+export declare function clearSlackDmChannelCache(): void;
 export declare function sendMessageSlack(to: string, message: string, opts?: SlackSendOpts): Promise<SlackSendResult>;
 export {};

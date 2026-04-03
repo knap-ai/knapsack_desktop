@@ -1,8 +1,8 @@
 import { type ButtonInteraction, type ChannelSelectMenuInteraction, type ComponentData, type MentionableSelectMenuInteraction, type ModalInteraction, type RoleSelectMenuInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction } from "@buape/carbon";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import type { DiscordAccountConfig } from "openclaw/plugin-sdk/config-runtime";
-import { resolvePinnedMainDmOwnerFromAllowlist } from "openclaw/plugin-sdk/security-runtime";
-import { type DiscordComponentEntry, type DiscordModalEntry } from "../components.js";
+import * as conversationRuntime from "openclaw/plugin-sdk/conversation-runtime";
+import type { DiscordComponentEntry, DiscordModalEntry } from "../components.js";
 import { type DiscordGuildEntryResolved, resolveDiscordChannelConfigWithFallback, resolveDiscordGuildEntry } from "./allow-list.js";
 import { formatDiscordUserTag } from "./format.js";
 export declare const AGENT_BUTTON_KEY = "agent";
@@ -36,11 +36,13 @@ export type ComponentInteractionContext = NonNullable<Awaited<ReturnType<typeof 
  */
 export declare function buildAgentButtonCustomId(componentId: string): string;
 export declare function buildAgentSelectCustomId(componentId: string): string;
+declare const resolvePinnedMainDmOwnerFromAllowlist: typeof conversationRuntime.resolvePinnedMainDmOwnerFromAllowlist;
 export declare function resolveAgentComponentRoute(params: {
     ctx: AgentComponentContext;
     rawGuildId: string | undefined;
     memberRoleIds: string[];
     isDirectMessage: boolean;
+    isGroupDm: boolean;
     userId: string;
     channelId: string;
     parentId: string | undefined;
@@ -69,6 +71,7 @@ export declare function resolveComponentInteractionContext(params: {
     };
     rawGuildId: string | undefined;
     isDirectMessage: boolean;
+    isGroupDm: boolean;
     memberRoleIds: string[];
 } | null>;
 export declare function ensureGuildComponentMemberAllowed(params: {
@@ -85,6 +88,7 @@ export declare function ensureGuildComponentMemberAllowed(params: {
     componentLabel: string;
     unauthorizedReply: string;
     allowNameMatching: boolean;
+    groupPolicy: "open" | "disabled" | "allowlist";
 }): Promise<boolean>;
 export declare function ensureComponentUserAllowed(params: {
     entry: DiscordComponentEntry;
@@ -133,6 +137,7 @@ export declare function resolveInteractionContextWithDmAuth(params: {
     };
     rawGuildId: string | undefined;
     isDirectMessage: boolean;
+    isGroupDm: boolean;
     memberRoleIds: string[];
 } | null>;
 export declare function parseDiscordComponentData(data: ComponentData, customId?: string): {

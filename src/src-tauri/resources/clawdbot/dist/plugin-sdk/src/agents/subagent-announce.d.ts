@@ -1,6 +1,12 @@
+import { loadConfig } from "../config/config.js";
+import { callGateway } from "../gateway/call.js";
 import { type DeliveryContext } from "../utils/delivery-context.js";
+import { type SubagentRunOutcome } from "./subagent-announce-output.js";
 import type { SpawnSubagentMode } from "./subagent-spawn.js";
-export declare function captureSubagentCompletionReply(sessionKey: string): Promise<string | undefined>;
+type SubagentAnnounceDeps = {
+    callGateway: typeof callGateway;
+    loadConfig: typeof loadConfig;
+};
 export declare function buildSubagentSystemPrompt(params: {
     requesterSessionKey?: string;
     requesterOrigin?: DeliveryContext;
@@ -14,10 +20,8 @@ export declare function buildSubagentSystemPrompt(params: {
     /** Config value: max allowed spawn depth. */
     maxSpawnDepth?: number;
 }): string;
-export type SubagentRunOutcome = {
-    status: "ok" | "error" | "timeout" | "unknown";
-    error?: string;
-};
+export { captureSubagentCompletionReply } from "./subagent-announce-output.js";
+export type { SubagentRunOutcome } from "./subagent-announce-output.js";
 export type SubagentAnnounceType = "subagent task" | "cron job";
 export declare function runSubagentAnnounceFlow(params: {
     childSessionKey: string;
@@ -46,3 +50,6 @@ export declare function runSubagentAnnounceFlow(params: {
     signal?: AbortSignal;
     bestEffortDeliver?: boolean;
 }): Promise<boolean>;
+export declare const __testing: {
+    setDepsForTest(overrides?: Partial<SubagentAnnounceDeps>): void;
+};

@@ -1,0 +1,24 @@
+import type { CoreConfig, MatrixConfig } from "../types.js";
+export { resolveMatrixConfigFieldPath, resolveMatrixConfigPath, shouldStoreMatrixAccountAtTopLevel, } from "./config-paths.js";
+export type MatrixAccountPatch = {
+    name?: string | null;
+    enabled?: boolean;
+    homeserver?: string | null;
+    allowPrivateNetwork?: boolean | null;
+    proxy?: string | null;
+    userId?: string | null;
+    accessToken?: MatrixConfig["accessToken"] | null;
+    password?: MatrixConfig["password"] | null;
+    deviceId?: string | null;
+    deviceName?: string | null;
+    avatarUrl?: string | null;
+    encryption?: boolean | null;
+    initialSyncLimit?: number | null;
+    allowBots?: MatrixConfig["allowBots"] | null;
+    dm?: MatrixConfig["dm"] | null;
+    groupPolicy?: MatrixConfig["groupPolicy"] | null;
+    groupAllowFrom?: MatrixConfig["groupAllowFrom"] | null;
+    groups?: MatrixConfig["groups"] | null;
+    rooms?: MatrixConfig["rooms"] | null;
+};
+export declare function updateMatrixAccountConfig(cfg: CoreConfig, accountId: string, patch: MatrixAccountPatch): CoreConfig;

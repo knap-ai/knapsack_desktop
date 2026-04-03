@@ -1,14 +1,14 @@
-import { t as ensureMatrixCryptoRuntime } from "../../deps-CdgTng7j.js";
+import { t as ensureMatrixCryptoRuntime } from "../../deps-BOLaC-JZ.js";
 import { createRequire } from "node:module";
-import fs from "node:fs";
+import fsSync from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 //#region extensions/matrix/src/matrix/legacy-crypto-inspector.ts
 function resolveLegacyMachineStorePath(params) {
 	const hashedDir = path.join(params.cryptoRootDir, crypto.createHash("sha256").update(params.deviceId).digest("hex"));
-	if (fs.existsSync(path.join(hashedDir, "matrix-sdk-crypto.sqlite3"))) return hashedDir;
-	if (fs.existsSync(path.join(params.cryptoRootDir, "matrix-sdk-crypto.sqlite3"))) return params.cryptoRootDir;
-	const match = fs.readdirSync(params.cryptoRootDir, { withFileTypes: true }).find((entry) => entry.isDirectory() && fs.existsSync(path.join(params.cryptoRootDir, entry.name, "matrix-sdk-crypto.sqlite3")));
+	if (fsSync.existsSync(path.join(hashedDir, "matrix-sdk-crypto.sqlite3"))) return hashedDir;
+	if (fsSync.existsSync(path.join(params.cryptoRootDir, "matrix-sdk-crypto.sqlite3"))) return params.cryptoRootDir;
+	const match = fsSync.readdirSync(params.cryptoRootDir, { withFileTypes: true }).find((entry) => entry.isDirectory() && fsSync.existsSync(path.join(params.cryptoRootDir, entry.name, "matrix-sdk-crypto.sqlite3")));
 	return match ? path.join(params.cryptoRootDir, match.name) : null;
 }
 async function inspectLegacyMatrixCryptoStore(params) {

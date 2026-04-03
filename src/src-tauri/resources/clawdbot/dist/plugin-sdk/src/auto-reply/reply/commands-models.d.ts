@@ -9,6 +9,8 @@ export type ModelsProviderData = {
         provider: string;
         model: string;
     };
+    /** Map from provider/model to human-readable display name (when different from model ID). */
+    modelNames: Map<string, string>;
 };
 /**
  * Build provider/model data from config and catalog.

@@ -1,7 +1,6 @@
 import type { SecretRefSource } from "../config/types.secrets.js";
 export declare const MINIMAX_OAUTH_MARKER = "minimax-oauth";
 export declare const OAUTH_API_KEY_MARKER_PREFIX = "oauth:";
-export declare const QWEN_OAUTH_MARKER = "qwen-oauth";
 export declare const OLLAMA_LOCAL_AUTH_MARKER = "ollama-local";
 export declare const CUSTOM_LOCAL_AUTH_MARKER = "custom-local";
 export declare const GCP_VERTEX_CREDENTIALS_MARKER = "gcp-vertex-credentials";

@@ -13,4 +13,5 @@ export type RuntimeVersionEnv = {
 export declare const RUNTIME_SERVICE_VERSION_FALLBACK = "unknown";
 export declare function resolveUsableRuntimeVersion(version: string | undefined): string | undefined;
 export declare function resolveRuntimeServiceVersion(env?: RuntimeVersionEnv, fallback?: string): string;
+export declare function resolveCompatibilityHostVersion(env?: RuntimeVersionEnv, fallback?: string): string;
 export declare const VERSION: string;

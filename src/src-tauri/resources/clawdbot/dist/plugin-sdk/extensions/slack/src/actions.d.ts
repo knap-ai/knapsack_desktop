@@ -40,8 +40,15 @@ export declare function removeOwnSlackReactions(channelId: string, messageId: st
 export declare function listSlackReactions(channelId: string, messageId: string, opts?: SlackActionClientOpts): Promise<SlackMessageSummary["reactions"]>;
 export declare function sendSlackMessage(to: string, content: string, opts?: SlackActionClientOpts & {
     mediaUrl?: string;
+    mediaAccess?: {
+        localRoots?: readonly string[];
+        readFile?: (filePath: string) => Promise<Buffer>;
+    };
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
     threadTs?: string;
+    uploadFileName?: string;
+    uploadTitle?: string;
     blocks?: (Block | KnownBlock)[];
 }): Promise<import("./send.js").SlackSendResult>;
 export declare function editSlackMessage(channelId: string, messageId: string, content: string, opts?: SlackActionClientOpts & {

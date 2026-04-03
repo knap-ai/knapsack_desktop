@@ -1,6 +1,8 @@
 export declare const HEARTBEAT_TOKEN = "HEARTBEAT_OK";
 export declare const SILENT_REPLY_TOKEN = "NO_REPLY";
 export declare function isSilentReplyText(text: string | undefined, token?: string): boolean;
+export declare function isSilentReplyEnvelopeText(text: string | undefined, token?: string): boolean;
+export declare function isSilentReplyPayloadText(text: string | undefined, token?: string): boolean;
 /**
  * Strip a trailing silent reply token from mixed-content text.
  * Returns the remaining text with the token removed (trimmed).

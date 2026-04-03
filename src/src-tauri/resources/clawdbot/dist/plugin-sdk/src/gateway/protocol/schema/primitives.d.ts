@@ -9,7 +9,7 @@ export declare const InputProvenanceSchema: import("@sinclair/typebox").TObject<
     sourceChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     sourceTool: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
-export declare const GatewayClientIdSchema: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "webchat-ui" | "openclaw-control-ui" | "webchat" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "test" | "fingerprint" | "openclaw-probe">[]>;
+export declare const GatewayClientIdSchema: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "webchat" | "webchat-ui" | "openclaw-control-ui" | "openclaw-tui" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "test" | "fingerprint" | "openclaw-probe">[]>;
 export declare const GatewayClientModeSchema: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"node" | "cli" | "webchat" | "test" | "ui" | "backend" | "probe">[]>;
 export declare const SecretRefSourceSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"env">, import("@sinclair/typebox").TLiteral<"file">, import("@sinclair/typebox").TLiteral<"exec">]>;
 export declare const SecretRefSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{

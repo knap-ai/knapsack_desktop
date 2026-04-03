@@ -1,6 +1,14 @@
 {
   "id": "minimax",
+  "enabledByDefault": true,
+  "legacyPluginIds": [
+    "minimax-portal-auth"
+  ],
   "providers": [
+    "minimax",
+    "minimax-portal"
+  ],
+  "autoEnableWhenConfiguredProviders": [
     "minimax",
     "minimax-portal"
   ],
@@ -28,6 +36,12 @@
       "provider": "minimax",
       "method": "api-global",
       "choiceId": "minimax-global-api",
+      "deprecatedChoiceIds": [
+        "minimax",
+        "minimax-api",
+        "minimax-cloud",
+        "minimax-api-lightning"
+      ],
       "choiceLabel": "MiniMax API key (Global)",
       "choiceHint": "Global endpoint - api.minimax.io",
       "groupId": "minimax",
@@ -52,6 +66,9 @@
       "provider": "minimax",
       "method": "api-cn",
       "choiceId": "minimax-cn-api",
+      "deprecatedChoiceIds": [
+        "minimax-api-key-cn"
+      ],
       "choiceLabel": "MiniMax API key (CN)",
       "choiceHint": "CN endpoint - api.minimaxi.com",
       "groupId": "minimax",
@@ -63,6 +80,16 @@
       "cliDescription": "MiniMax API key"
     }
   ],
+  "contracts": {
+    "mediaUnderstandingProviders": [
+      "minimax",
+      "minimax-portal"
+    ],
+    "imageGenerationProviders": [
+      "minimax",
+      "minimax-portal"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

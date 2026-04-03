@@ -9,6 +9,12 @@ export type ActiveEmbeddedRunSnapshot = {
     messages?: unknown[];
     inFlightPrompt?: string;
 };
+export type EmbeddedRunModelSwitchRequest = {
+    provider: string;
+    model: string;
+    authProfileId?: string;
+    authProfileIdSource?: "auto" | "user";
+};
 export declare function queueEmbeddedPiMessage(sessionId: string, text: string): boolean;
 /**
  * Abort embedded PI runs.
@@ -24,6 +30,8 @@ export declare function isEmbeddedPiRunActive(sessionId: string): boolean;
 export declare function isEmbeddedPiRunStreaming(sessionId: string): boolean;
 export declare function getActiveEmbeddedRunCount(): number;
 export declare function getActiveEmbeddedRunSnapshot(sessionId: string): ActiveEmbeddedRunSnapshot | undefined;
+export declare function requestEmbeddedRunModelSwitch(sessionId: string, request: EmbeddedRunModelSwitchRequest): boolean;
+export declare function consumeEmbeddedRunModelSwitch(sessionId: string): EmbeddedRunModelSwitchRequest | undefined;
 /**
  * Wait for active embedded runs to drain.
  *

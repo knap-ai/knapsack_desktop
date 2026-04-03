@@ -1,5 +1,5 @@
 import type { MsgContext } from "../auto-reply/templating.js";
-import { type GroupKeyResolution, type SessionEntry } from "../config/sessions.js";
+import type { GroupKeyResolution, SessionEntry } from "../config/sessions/types.js";
 export type InboundLastRouteUpdate = {
     sessionKey: string;
     channel: SessionEntry["lastChannel"];

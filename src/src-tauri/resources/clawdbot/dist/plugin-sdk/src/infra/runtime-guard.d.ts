@@ -16,5 +16,7 @@ export declare function isAtLeast(version: Semver | null, minimum: Semver): bool
 export declare function detectRuntime(): RuntimeDetails;
 export declare function runtimeSatisfies(details: RuntimeDetails): boolean;
 export declare function isSupportedNodeVersion(version: string | null): boolean;
+export declare function parseMinimumNodeEngine(engine: string | null): Semver | null;
+export declare function nodeVersionSatisfiesEngine(version: string | null, engine: string | null): boolean | null;
 export declare function assertSupportedRuntime(runtime?: RuntimeEnv, details?: RuntimeDetails): void;
 export {};

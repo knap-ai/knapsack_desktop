@@ -11,4 +11,6 @@ export declare function resolveBundledWebSearchResolutionConfig(params: {
 }): {
     config: PluginLoadOptions["config"];
     normalized: NormalizedPluginsConfig;
+    activationSourceConfig?: PluginLoadOptions["config"];
+    autoEnabledReasons: Record<string, string[]>;
 };

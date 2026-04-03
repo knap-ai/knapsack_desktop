@@ -7,5 +7,9 @@ type WarningParams = {
     entry: SessionEntry;
     warning: SessionMaintenanceWarning;
 };
+declare function resetSessionMaintenanceWarningForTests(): void;
+export declare const __testing: {
+    readonly resetSessionMaintenanceWarningForTests: typeof resetSessionMaintenanceWarningForTests;
+};
 export declare function deliverSessionMaintenanceWarning(params: WarningParams): Promise<void>;
 export {};

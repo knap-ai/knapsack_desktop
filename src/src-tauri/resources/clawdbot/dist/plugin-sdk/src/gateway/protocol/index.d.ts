@@ -1,6 +1,6 @@
 import AjvPkg, { type ErrorObject } from "ajv";
 import type { SessionsPatchResult } from "../session-utils.types.js";
-import { type AgentEvent, AgentEventSchema, type AgentIdentityParams, AgentIdentityParamsSchema, type AgentIdentityResult, AgentIdentityResultSchema, AgentParamsSchema, type AgentSummary, AgentSummarySchema, type AgentsFileEntry, AgentsFileEntrySchema, type AgentsCreateParams, AgentsCreateParamsSchema, type AgentsCreateResult, AgentsCreateResultSchema, type AgentsUpdateParams, AgentsUpdateParamsSchema, type AgentsUpdateResult, AgentsUpdateResultSchema, type AgentsDeleteParams, AgentsDeleteParamsSchema, type AgentsDeleteResult, AgentsDeleteResultSchema, type AgentsFilesGetParams, AgentsFilesGetParamsSchema, type AgentsFilesGetResult, AgentsFilesGetResultSchema, type AgentsFilesListParams, AgentsFilesListParamsSchema, type AgentsFilesListResult, AgentsFilesListResultSchema, type AgentsFilesSetParams, AgentsFilesSetParamsSchema, type AgentsFilesSetResult, AgentsFilesSetResultSchema, type AgentsListParams, AgentsListParamsSchema, type AgentsListResult, AgentsListResultSchema, type AgentWaitParams, type ChannelsLogoutParams, ChannelsLogoutParamsSchema, type TalkConfigParams, TalkConfigParamsSchema, type TalkConfigResult, TalkConfigResultSchema, type TalkSpeakParams, TalkSpeakParamsSchema, type TalkSpeakResult, TalkSpeakResultSchema, type ChannelsStatusParams, ChannelsStatusParamsSchema, type ChannelsStatusResult, ChannelsStatusResultSchema, type ChatEvent, ChatEventSchema, ChatHistoryParamsSchema, type ChatInjectParams, ChatInjectParamsSchema, ChatSendParamsSchema, type ConfigApplyParams, ConfigApplyParamsSchema, type ConfigGetParams, ConfigGetParamsSchema, type ConfigPatchParams, ConfigPatchParamsSchema, ConfigSchemaLookupParamsSchema, ConfigSchemaLookupResultSchema, type ConfigSchemaParams, ConfigSchemaParamsSchema, type ConfigSchemaResponse, ConfigSchemaResponseSchema, type ConfigSetParams, ConfigSetParamsSchema, type ConnectParams, ConnectParamsSchema, type CronAddParams, CronAddParamsSchema, type CronJob, CronJobSchema, type CronListParams, CronListParamsSchema, type CronRemoveParams, CronRemoveParamsSchema, type CronRunLogEntry, type CronRunParams, CronRunParamsSchema, type CronRunsParams, CronRunsParamsSchema, type CronStatusParams, CronStatusParamsSchema, type CronUpdateParams, CronUpdateParamsSchema, type DevicePairApproveParams, type DevicePairListParams, type DevicePairRejectParams, type ExecApprovalsGetParams, type ExecApprovalsSetParams, type ExecApprovalsSnapshot, ErrorCodes, type ErrorShape, ErrorShapeSchema, type EventFrame, EventFrameSchema, errorShape, type GatewayFrame, GatewayFrameSchema, type HelloOk, HelloOkSchema, type LogsTailParams, LogsTailParamsSchema, type LogsTailResult, LogsTailResultSchema, ModelsListParamsSchema, type NodeEventParams, type NodePendingDrainParams, NodePendingDrainParamsSchema, type NodePendingDrainResult, NodePendingDrainResultSchema, type NodePendingEnqueueParams, NodePendingEnqueueParamsSchema, type NodePendingEnqueueResult, NodePendingEnqueueResultSchema, type NodeInvokeParams, NodeInvokeParamsSchema, type NodeInvokeResultParams, type NodeListParams, NodeListParamsSchema, NodePendingAckParamsSchema, type NodePairApproveParams, NodePairApproveParamsSchema, type NodePairListParams, NodePairListParamsSchema, type NodePairRejectParams, NodePairRejectParamsSchema, type NodePairRequestParams, NodePairRequestParamsSchema, type NodePairVerifyParams, NodePairVerifyParamsSchema, type PollParams, PollParamsSchema, PROTOCOL_VERSION, PushTestParamsSchema, PushTestResultSchema, type PresenceEntry, PresenceEntrySchema, ProtocolSchemas, type RequestFrame, RequestFrameSchema, type ResponseFrame, ResponseFrameSchema, SendParamsSchema, SessionsAbortParamsSchema, type SessionsCompactParams, SessionsCompactParamsSchema, SessionsCreateParamsSchema, type SessionsDeleteParams, SessionsDeleteParamsSchema, type SessionsListParams, SessionsListParamsSchema, type SessionsPatchParams, SessionsPatchParamsSchema, type SessionsPreviewParams, SessionsPreviewParamsSchema, type SessionsResetParams, SessionsResetParamsSchema, type SessionsResolveParams, SessionsResolveParamsSchema, SessionsSendParamsSchema, type SessionsUsageParams, SessionsUsageParamsSchema, type ShutdownEvent, ShutdownEventSchema, type SkillsBinsParams, type SkillsBinsResult, type SkillsInstallParams, SkillsInstallParamsSchema, type SkillsStatusParams, SkillsStatusParamsSchema, type SkillsUpdateParams, SkillsUpdateParamsSchema, type ToolsCatalogParams, ToolsCatalogParamsSchema, type ToolsCatalogResult, type Snapshot, SnapshotSchema, type StateVersion, StateVersionSchema, type TalkModeParams, type TickEvent, TickEventSchema, type UpdateRunParams, UpdateRunParamsSchema, type WakeParams, WakeParamsSchema, type WebLoginStartParams, WebLoginStartParamsSchema, type WebLoginWaitParams, WebLoginWaitParamsSchema, type WizardCancelParams, WizardCancelParamsSchema, type WizardNextParams, WizardNextParamsSchema, type WizardNextResult, WizardNextResultSchema, type WizardStartParams, WizardStartParamsSchema, type WizardStartResult, WizardStartResultSchema, type WizardStatusParams, WizardStatusParamsSchema, type WizardStatusResult, WizardStatusResultSchema, type WizardStep, WizardStepSchema } from "./schema.js";
+import { type AgentEvent, AgentEventSchema, type AgentIdentityParams, AgentIdentityParamsSchema, type AgentIdentityResult, AgentIdentityResultSchema, AgentParamsSchema, type AgentSummary, AgentSummarySchema, type AgentsFileEntry, AgentsFileEntrySchema, type AgentsCreateParams, AgentsCreateParamsSchema, type AgentsCreateResult, AgentsCreateResultSchema, type AgentsUpdateParams, AgentsUpdateParamsSchema, type AgentsUpdateResult, AgentsUpdateResultSchema, type AgentsDeleteParams, AgentsDeleteParamsSchema, type AgentsDeleteResult, AgentsDeleteResultSchema, type AgentsFilesGetParams, AgentsFilesGetParamsSchema, type AgentsFilesGetResult, AgentsFilesGetResultSchema, type AgentsFilesListParams, AgentsFilesListParamsSchema, type AgentsFilesListResult, AgentsFilesListResultSchema, type AgentsFilesSetParams, AgentsFilesSetParamsSchema, type AgentsFilesSetResult, AgentsFilesSetResultSchema, type AgentsListParams, AgentsListParamsSchema, type AgentsListResult, AgentsListResultSchema, type AgentWaitParams, type ChannelsLogoutParams, ChannelsLogoutParamsSchema, type TalkConfigParams, TalkConfigParamsSchema, type TalkConfigResult, TalkConfigResultSchema, type TalkSpeakParams, TalkSpeakParamsSchema, type TalkSpeakResult, TalkSpeakResultSchema, type ChannelsStatusParams, ChannelsStatusParamsSchema, type ChannelsStatusResult, ChannelsStatusResultSchema, type ChatEvent, ChatEventSchema, ChatHistoryParamsSchema, type ChatInjectParams, ChatInjectParamsSchema, ChatSendParamsSchema, type ConfigApplyParams, ConfigApplyParamsSchema, type ConfigGetParams, ConfigGetParamsSchema, type ConfigPatchParams, ConfigPatchParamsSchema, ConfigSchemaLookupParamsSchema, ConfigSchemaLookupResultSchema, type ConfigSchemaParams, ConfigSchemaParamsSchema, type ConfigSchemaResponse, ConfigSchemaResponseSchema, type ConfigSetParams, ConfigSetParamsSchema, type ConnectParams, ConnectParamsSchema, type CronAddParams, CronAddParamsSchema, type CronJob, CronJobSchema, type CronListParams, CronListParamsSchema, type CronRemoveParams, CronRemoveParamsSchema, type CronRunLogEntry, type CronRunParams, CronRunParamsSchema, type CronRunsParams, CronRunsParamsSchema, type CronStatusParams, CronStatusParamsSchema, type CronUpdateParams, CronUpdateParamsSchema, type DevicePairApproveParams, type DevicePairListParams, type DevicePairRejectParams, type ExecApprovalsGetParams, type ExecApprovalsSetParams, type ExecApprovalsSnapshot, ErrorCodes, type ErrorShape, ErrorShapeSchema, type EventFrame, EventFrameSchema, errorShape, type GatewayFrame, GatewayFrameSchema, type HelloOk, HelloOkSchema, type LogsTailParams, LogsTailParamsSchema, type LogsTailResult, LogsTailResultSchema, ModelsListParamsSchema, type NodeEventParams, type NodePendingDrainParams, NodePendingDrainParamsSchema, type NodePendingDrainResult, NodePendingDrainResultSchema, type NodePendingEnqueueParams, NodePendingEnqueueParamsSchema, type NodePendingEnqueueResult, NodePendingEnqueueResultSchema, type NodeInvokeParams, NodeInvokeParamsSchema, type NodeInvokeResultParams, type NodeListParams, NodeListParamsSchema, NodePendingAckParamsSchema, type NodePairApproveParams, NodePairApproveParamsSchema, type NodePairListParams, NodePairListParamsSchema, type NodePairRejectParams, NodePairRejectParamsSchema, type NodePairRequestParams, NodePairRequestParamsSchema, type NodePairVerifyParams, NodePairVerifyParamsSchema, type PollParams, PollParamsSchema, PROTOCOL_VERSION, PushTestParamsSchema, PushTestResultSchema, type PresenceEntry, PresenceEntrySchema, ProtocolSchemas, type RequestFrame, RequestFrameSchema, type ResponseFrame, ResponseFrameSchema, SendParamsSchema, SessionsAbortParamsSchema, type SessionsCompactParams, SessionsCompactParamsSchema, SessionsCreateParamsSchema, type SessionsDeleteParams, SessionsDeleteParamsSchema, type SessionsListParams, SessionsListParamsSchema, type SessionsPatchParams, SessionsPatchParamsSchema, type SessionsPreviewParams, SessionsPreviewParamsSchema, type SessionsResetParams, SessionsResetParamsSchema, type SessionsResolveParams, SessionsResolveParamsSchema, SessionsSendParamsSchema, type SessionsUsageParams, SessionsUsageParamsSchema, type ShutdownEvent, ShutdownEventSchema, type SkillsBinsParams, type SkillsBinsResult, type SkillsInstallParams, SkillsInstallParamsSchema, type SkillsStatusParams, SkillsStatusParamsSchema, type SkillsUpdateParams, SkillsUpdateParamsSchema, type ToolsCatalogParams, ToolsCatalogParamsSchema, type ToolsCatalogResult, type ToolsEffectiveParams, ToolsEffectiveParamsSchema, type ToolsEffectiveResult, type Snapshot, SnapshotSchema, type StateVersion, StateVersionSchema, type TalkModeParams, type TickEvent, TickEventSchema, type UpdateRunParams, UpdateRunParamsSchema, type WakeParams, WakeParamsSchema, type WebLoginStartParams, WebLoginStartParamsSchema, type WebLoginWaitParams, WebLoginWaitParamsSchema, type WizardCancelParams, WizardCancelParamsSchema, type WizardNextParams, WizardNextParamsSchema, type WizardNextResult, WizardNextResultSchema, type WizardStartParams, WizardStartParamsSchema, type WizardStartResult, WizardStartResultSchema, type WizardStatusParams, WizardStatusParamsSchema, type WizardStatusResult, WizardStatusResultSchema, type WizardStep, WizardStepSchema } from "./schema.js";
 export declare const validateConnectParams: AjvPkg.ValidateFunction<{
     commands?: string[] | undefined;
     permissions?: {
@@ -14,6 +14,8 @@ export declare const validateConnectParams: AjvPkg.ValidateFunction<{
     } | undefined;
     role?: string | undefined;
     scopes?: string[] | undefined;
+    caps?: string[] | undefined;
+    pathEnv?: string | undefined;
     device?: {
         id: string;
         publicKey: string;
@@ -21,22 +23,20 @@ export declare const validateConnectParams: AjvPkg.ValidateFunction<{
         signedAt: number;
         nonce: string;
     } | undefined;
-    userAgent?: string | undefined;
-    caps?: string[] | undefined;
-    pathEnv?: string | undefined;
     locale?: string | undefined;
+    userAgent?: string | undefined;
+    minProtocol: number;
+    maxProtocol: number;
     client: {
         displayName?: string | undefined;
         deviceFamily?: string | undefined;
         modelIdentifier?: string | undefined;
         instanceId?: string | undefined;
-        id: "cli" | "webchat-ui" | "openclaw-control-ui" | "webchat" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "test" | "fingerprint" | "openclaw-probe";
+        id: "cli" | "webchat" | "webchat-ui" | "openclaw-control-ui" | "openclaw-tui" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "test" | "fingerprint" | "openclaw-probe";
         version: string;
         mode: "node" | "cli" | "webchat" | "test" | "ui" | "backend" | "probe";
         platform: string;
     };
-    minProtocol: number;
-    maxProtocol: number;
 }>;
 export declare const validateRequestFrame: AjvPkg.ValidateFunction<{
     params?: unknown;
@@ -78,16 +78,16 @@ export declare const validateSendParams: AjvPkg.ValidateFunction<{
 export declare const validatePollParams: AjvPkg.ValidateFunction<{
     channel?: string | undefined;
     silent?: boolean | undefined;
-    accountId?: string | undefined;
     threadId?: string | undefined;
+    accountId?: string | undefined;
     maxSelections?: number | undefined;
     durationSeconds?: number | undefined;
     durationHours?: number | undefined;
     isAnonymous?: boolean | undefined;
     options: string[];
     to: string;
-    idempotencyKey: string;
     question: string;
+    idempotencyKey: string;
 }>;
 export declare const validateAgentParams: AjvPkg.ValidateFunction<{
     message: any;
@@ -107,7 +107,7 @@ export declare const validateAgentWaitParams: AjvPkg.ValidateFunction<{
 }>;
 export declare const validateWakeParams: AjvPkg.ValidateFunction<{
     text: string;
-    mode: "next-heartbeat" | "now";
+    mode: "now" | "next-heartbeat";
 }>;
 export declare const validateAgentsListParams: AjvPkg.ValidateFunction<{}>;
 export declare const validateAgentsCreateParams: AjvPkg.ValidateFunction<{
@@ -118,9 +118,9 @@ export declare const validateAgentsCreateParams: AjvPkg.ValidateFunction<{
 }>;
 export declare const validateAgentsUpdateParams: AjvPkg.ValidateFunction<{
     name?: string | undefined;
-    workspace?: string | undefined;
-    model?: string | undefined;
     avatar?: string | undefined;
+    model?: string | undefined;
+    workspace?: string | undefined;
     agentId: string;
 }>;
 export declare const validateAgentsDeleteParams: AjvPkg.ValidateFunction<{
@@ -143,8 +143,8 @@ export declare const validateNodePairRequestParams: AjvPkg.ValidateFunction<{
     commands?: string[] | undefined;
     silent?: boolean | undefined;
     version?: string | undefined;
-    displayName?: string | undefined;
     platform?: string | undefined;
+    displayName?: string | undefined;
     deviceFamily?: string | undefined;
     remoteIp?: string | undefined;
     modelIdentifier?: string | undefined;
@@ -179,8 +179,8 @@ export declare const validateNodeInvokeParams: AjvPkg.ValidateFunction<{
     timeoutMs?: number | undefined;
     params?: unknown;
     command: string;
-    idempotencyKey: string;
     nodeId: string;
+    idempotencyKey: string;
 }>;
 export declare const validateNodeInvokeResultParams: AjvPkg.ValidateFunction<{
     error?: {
@@ -232,8 +232,8 @@ export declare const validateSessionsListParams: AjvPkg.ValidateFunction<{
     search?: string | undefined;
     label?: string | undefined;
     agentId?: string | undefined;
-    spawnedBy?: string | undefined;
     limit?: number | undefined;
+    spawnedBy?: string | undefined;
     activeMinutes?: number | undefined;
     includeGlobal?: boolean | undefined;
     includeUnknown?: boolean | undefined;
@@ -241,8 +241,8 @@ export declare const validateSessionsListParams: AjvPkg.ValidateFunction<{
     includeLastMessage?: boolean | undefined;
 }>;
 export declare const validateSessionsPreviewParams: AjvPkg.ValidateFunction<{
-    limit?: number | undefined;
     maxChars?: number | undefined;
+    limit?: number | undefined;
     keys: string[];
 }>;
 export declare const validateSessionsResolveParams: AjvPkg.ValidateFunction<{
@@ -266,8 +266,8 @@ export declare const validateSessionsCreateParams: AjvPkg.ValidateFunction<{
 export declare const validateSessionsSendParams: AjvPkg.ValidateFunction<{
     thinking?: string | undefined;
     timeoutMs?: number | undefined;
-    idempotencyKey?: string | undefined;
     attachments?: unknown[] | undefined;
+    idempotencyKey?: string | undefined;
     message: string;
     key: string;
 }>;
@@ -354,14 +354,15 @@ export declare const validateConfigSchemaLookupResult: AjvPkg.ValidateFunction<{
         placeholder?: string | undefined;
         group?: string | undefined;
         advanced?: boolean | undefined;
-        help?: string | undefined;
         order?: number | undefined;
         tags?: string[] | undefined;
+        help?: string | undefined;
         sensitive?: boolean | undefined;
         itemTemplate?: unknown;
     } | undefined;
     hintPath?: string | undefined;
     path: string;
+    schema: unknown;
     children: {
         type?: string | string[] | undefined;
         hint?: {
@@ -369,9 +370,9 @@ export declare const validateConfigSchemaLookupResult: AjvPkg.ValidateFunction<{
             placeholder?: string | undefined;
             group?: string | undefined;
             advanced?: boolean | undefined;
-            help?: string | undefined;
             order?: number | undefined;
             tags?: string[] | undefined;
+            help?: string | undefined;
             sensitive?: boolean | undefined;
             itemTemplate?: unknown;
         } | undefined;
@@ -381,7 +382,6 @@ export declare const validateConfigSchemaLookupResult: AjvPkg.ValidateFunction<{
         required: boolean;
         hasChildren: boolean;
     }[];
-    schema: unknown;
 }>;
 export declare const validateWizardStartParams: AjvPkg.ValidateFunction<{
     mode?: "local" | "remote" | undefined;
@@ -416,12 +416,6 @@ export declare const validateTalkConfigResult: AjvPkg.ValidateFunction<{
             seamColor?: string | undefined;
         } | undefined;
         talk?: {
-            voiceId?: string | undefined;
-            voiceAliases?: {
-                [x: string]: string;
-            } | undefined;
-            modelId?: string | undefined;
-            outputFormat?: string | undefined;
             apiKey?: string | {
                 source: "env";
                 provider: string;
@@ -435,18 +429,18 @@ export declare const validateTalkConfigResult: AjvPkg.ValidateFunction<{
                 provider: string;
                 id: string;
             } | undefined;
+            modelId?: string | undefined;
+            voiceId?: string | undefined;
+            voiceAliases?: {
+                [x: string]: string;
+            } | undefined;
+            outputFormat?: string | undefined;
             interruptOnSpeech?: boolean | undefined;
             silenceTimeoutMs?: number | undefined;
         } | {
             provider?: string | undefined;
             providers?: {
                 [x: string]: {
-                    voiceId?: string | undefined;
-                    voiceAliases?: {
-                        [x: string]: string;
-                    } | undefined;
-                    modelId?: string | undefined;
-                    outputFormat?: string | undefined;
                     apiKey?: string | {
                         source: "env";
                         provider: string;
@@ -460,14 +454,14 @@ export declare const validateTalkConfigResult: AjvPkg.ValidateFunction<{
                         provider: string;
                         id: string;
                     } | undefined;
+                    modelId?: string | undefined;
+                    voiceId?: string | undefined;
+                    voiceAliases?: {
+                        [x: string]: string;
+                    } | undefined;
+                    outputFormat?: string | undefined;
                 };
             } | undefined;
-            voiceId?: string | undefined;
-            voiceAliases?: {
-                [x: string]: string;
-            } | undefined;
-            modelId?: string | undefined;
-            outputFormat?: string | undefined;
             apiKey?: string | {
                 source: "env";
                 provider: string;
@@ -481,17 +475,17 @@ export declare const validateTalkConfigResult: AjvPkg.ValidateFunction<{
                 provider: string;
                 id: string;
             } | undefined;
+            modelId?: string | undefined;
+            voiceId?: string | undefined;
+            voiceAliases?: {
+                [x: string]: string;
+            } | undefined;
+            outputFormat?: string | undefined;
             interruptOnSpeech?: boolean | undefined;
             silenceTimeoutMs?: number | undefined;
             resolved: {
                 provider: string;
                 config: {
-                    voiceId?: string | undefined;
-                    voiceAliases?: {
-                        [x: string]: string;
-                    } | undefined;
-                    modelId?: string | undefined;
-                    outputFormat?: string | undefined;
                     apiKey?: string | {
                         source: "env";
                         provider: string;
@@ -505,6 +499,12 @@ export declare const validateTalkConfigResult: AjvPkg.ValidateFunction<{
                         provider: string;
                         id: string;
                     } | undefined;
+                    modelId?: string | undefined;
+                    voiceId?: string | undefined;
+                    voiceAliases?: {
+                        [x: string]: string;
+                    } | undefined;
+                    outputFormat?: string | undefined;
                 };
             };
         } | undefined;
@@ -513,15 +513,15 @@ export declare const validateTalkConfigResult: AjvPkg.ValidateFunction<{
 export declare const validateTalkSpeakParams: AjvPkg.ValidateFunction<{
     style?: number | undefined;
     normalize?: string | undefined;
-    voiceId?: string | undefined;
-    modelId?: string | undefined;
-    outputFormat?: string | undefined;
     language?: string | undefined;
-    seed?: number | undefined;
-    stability?: number | undefined;
+    modelId?: string | undefined;
+    voiceId?: string | undefined;
+    outputFormat?: string | undefined;
     speed?: number | undefined;
+    stability?: number | undefined;
     similarity?: number | undefined;
     speakerBoost?: boolean | undefined;
+    seed?: number | undefined;
     text: string;
 }>;
 export declare const validateTalkSpeakResult: AjvPkg.ValidateFunction<{
@@ -548,9 +548,14 @@ export declare const validateToolsCatalogParams: AjvPkg.ValidateFunction<{
     agentId?: string | undefined;
     includePlugins?: boolean | undefined;
 }>;
+export declare const validateToolsEffectiveParams: AjvPkg.ValidateFunction<{
+    agentId?: string | undefined;
+    sessionKey: string;
+}>;
 export declare const validateSkillsBinsParams: AjvPkg.ValidateFunction<{}>;
 export declare const validateSkillsInstallParams: AjvPkg.ValidateFunction<{
     timeoutMs?: number | undefined;
+    dangerouslyForceUnsafeInstall?: boolean | undefined;
     name: string;
     installId: string;
 } | {
@@ -564,8 +569,8 @@ export declare const validateSkillsUpdateParams: AjvPkg.ValidateFunction<{
     env?: {
         [x: string]: string;
     } | undefined;
-    enabled?: boolean | undefined;
     apiKey?: string | undefined;
+    enabled?: boolean | undefined;
     skillKey: string;
 } | {
     all?: boolean | undefined;
@@ -573,9 +578,9 @@ export declare const validateSkillsUpdateParams: AjvPkg.ValidateFunction<{
     source: "clawhub";
 }>;
 export declare const validateCronListParams: AjvPkg.ValidateFunction<{
+    query?: string | undefined;
     enabled?: "all" | "disabled" | "enabled" | undefined;
     limit?: number | undefined;
-    query?: string | undefined;
     offset?: number | undefined;
     includeDisabled?: boolean | undefined;
     sortBy?: "name" | "updatedAtMs" | "nextRunAtMs" | undefined;
@@ -585,9 +590,8 @@ export declare const validateCronStatusParams: AjvPkg.ValidateFunction<{}>;
 export declare const validateCronAddParams: AjvPkg.ValidateFunction<{
     agentId?: string | null | undefined;
     sessionKey?: string | null | undefined;
-    enabled?: boolean | undefined;
     description?: string | undefined;
-    deleteAfterRun?: boolean | undefined;
+    enabled?: boolean | undefined;
     delivery?: {
         channel?: string | undefined;
         accountId?: string | undefined;
@@ -625,29 +629,27 @@ export declare const validateCronAddParams: AjvPkg.ValidateFunction<{
         mode: "webhook";
         to: string;
     } | undefined;
+    deleteAfterRun?: boolean | undefined;
     failureAlert?: false | {
         channel?: string | undefined;
         mode?: "webhook" | "announce" | undefined;
         accountId?: string | undefined;
         to?: string | undefined;
-        after?: number | undefined;
         cooldownMs?: number | undefined;
+        after?: number | undefined;
     } | undefined;
     name: string;
     payload: {
         text: string;
         kind: "systemEvent";
     } | {
-        channel?: string | undefined;
         thinking?: string | undefined;
+        timeoutSeconds?: number | undefined;
         model?: string | undefined;
         fallbacks?: string[] | undefined;
-        to?: string | undefined;
-        timeoutSeconds?: number | undefined;
-        lightContext?: boolean | undefined;
-        deliver?: boolean | undefined;
-        bestEffortDeliver?: boolean | undefined;
         allowUnsafeExternalContent?: boolean | undefined;
+        lightContext?: boolean | undefined;
+        toolsAllow?: unknown;
         message: unknown;
         kind: "agentTurn";
     };
@@ -665,7 +667,7 @@ export declare const validateCronAddParams: AjvPkg.ValidateFunction<{
         expr: string;
     };
     sessionTarget: string;
-    wakeMode: "next-heartbeat" | "now";
+    wakeMode: "now" | "next-heartbeat";
 }>;
 export declare const validateCronUpdateParams: AjvPkg.ValidateFunction<{
     id: string;
@@ -684,16 +686,16 @@ export declare const validateCronRunParams: AjvPkg.ValidateFunction<{
 }>;
 export declare const validateCronRunsParams: AjvPkg.ValidateFunction<{
     id?: string | undefined;
+    query?: string | undefined;
     status?: "skipped" | "all" | "error" | "ok" | undefined;
     scope?: "all" | "job" | undefined;
     limit?: number | undefined;
     jobId?: string | undefined;
-    query?: string | undefined;
     offset?: number | undefined;
+    deliveryStatus?: "unknown" | "delivered" | "not-delivered" | "not-requested" | undefined;
     sortDir?: "desc" | "asc" | undefined;
     statuses?: ("skipped" | "error" | "ok")[] | undefined;
     deliveryStatuses?: ("unknown" | "delivered" | "not-delivered" | "not-requested")[] | undefined;
-    deliveryStatus?: "unknown" | "delivered" | "not-delivered" | "not-requested" | undefined;
 }>;
 export declare const validateDevicePairListParams: AjvPkg.ValidateFunction<{}>;
 export declare const validateDevicePairApproveParams: AjvPkg.ValidateFunction<{
@@ -722,10 +724,17 @@ export declare const validateExecApprovalsSetParams: AjvPkg.ValidateFunction<{
             path?: string | undefined;
             token?: string | undefined;
         } | undefined;
+        defaults?: {
+            security?: string | undefined;
+            ask?: string | undefined;
+            askFallback?: string | undefined;
+            autoAllowSkills?: boolean | undefined;
+        } | undefined;
         agents?: {
             [x: string]: {
                 allowlist?: {
                     id?: string | undefined;
+                    argPattern?: string | undefined;
                     lastUsedAt?: number | undefined;
                     lastUsedCommand?: string | undefined;
                     lastResolvedPath?: string | undefined;
@@ -736,12 +745,6 @@ export declare const validateExecApprovalsSetParams: AjvPkg.ValidateFunction<{
                 askFallback?: string | undefined;
                 autoAllowSkills?: boolean | undefined;
             };
-        } | undefined;
-        defaults?: {
-            security?: string | undefined;
-            ask?: string | undefined;
-            askFallback?: string | undefined;
-            autoAllowSkills?: boolean | undefined;
         } | undefined;
         version: 1;
     };
@@ -754,8 +757,8 @@ export declare const validateExecApprovalRequestParams: AjvPkg.ValidateFunction<
     command?: string | undefined;
     agentId?: string | null | undefined;
     sessionKey?: string | null | undefined;
-    timeoutMs?: number | undefined;
     resolvedPath?: string | null | undefined;
+    timeoutMs?: number | undefined;
     security?: string | null | undefined;
     ask?: string | null | undefined;
     cwd?: string | null | undefined;
@@ -772,8 +775,8 @@ export declare const validateExecApprovalRequestParams: AjvPkg.ValidateFunction<
         agentId: string | null;
         sessionKey: string | null;
         argv: string[];
-        cwd: string | null;
         commandText: string;
+        cwd: string | null;
     } | undefined;
     turnSourceChannel?: string | null | undefined;
     turnSourceTo?: string | null | undefined;
@@ -782,6 +785,26 @@ export declare const validateExecApprovalRequestParams: AjvPkg.ValidateFunction<
     twoPhase?: boolean | undefined;
 }>;
 export declare const validateExecApprovalResolveParams: AjvPkg.ValidateFunction<{
+    id: string;
+    decision: string;
+}>;
+export declare const validatePluginApprovalRequestParams: AjvPkg.ValidateFunction<{
+    agentId?: string | undefined;
+    sessionKey?: string | undefined;
+    timeoutMs?: number | undefined;
+    pluginId?: string | undefined;
+    toolCallId?: string | undefined;
+    toolName?: string | undefined;
+    turnSourceChannel?: string | undefined;
+    turnSourceTo?: string | undefined;
+    turnSourceAccountId?: string | undefined;
+    turnSourceThreadId?: string | number | undefined;
+    twoPhase?: boolean | undefined;
+    severity?: string | undefined;
+    title: string;
+    description: string;
+}>;
+export declare const validatePluginApprovalResolveParams: AjvPkg.ValidateFunction<{
     id: string;
     decision: string;
 }>;
@@ -795,10 +818,17 @@ export declare const validateExecApprovalsNodeSetParams: AjvPkg.ValidateFunction
             path?: string | undefined;
             token?: string | undefined;
         } | undefined;
+        defaults?: {
+            security?: string | undefined;
+            ask?: string | undefined;
+            askFallback?: string | undefined;
+            autoAllowSkills?: boolean | undefined;
+        } | undefined;
         agents?: {
             [x: string]: {
                 allowlist?: {
                     id?: string | undefined;
+                    argPattern?: string | undefined;
                     lastUsedAt?: number | undefined;
                     lastUsedCommand?: string | undefined;
                     lastResolvedPath?: string | undefined;
@@ -809,12 +839,6 @@ export declare const validateExecApprovalsNodeSetParams: AjvPkg.ValidateFunction
                 askFallback?: string | undefined;
                 autoAllowSkills?: boolean | undefined;
             };
-        } | undefined;
-        defaults?: {
-            security?: string | undefined;
-            ask?: string | undefined;
-            askFallback?: string | undefined;
-            autoAllowSkills?: boolean | undefined;
         } | undefined;
         version: 1;
     };
@@ -879,5 +903,5 @@ export declare const validateWebLoginWaitParams: AjvPkg.ValidateFunction<{
     accountId?: string | undefined;
 }>;
 export declare function formatValidationErrors(errors: ErrorObject[] | null | undefined): string;
-export { ConnectParamsSchema, HelloOkSchema, RequestFrameSchema, ResponseFrameSchema, EventFrameSchema, GatewayFrameSchema, PresenceEntrySchema, SnapshotSchema, ErrorShapeSchema, StateVersionSchema, AgentEventSchema, ChatEventSchema, SendParamsSchema, PollParamsSchema, AgentParamsSchema, AgentIdentityParamsSchema, AgentIdentityResultSchema, WakeParamsSchema, PushTestParamsSchema, PushTestResultSchema, NodePairRequestParamsSchema, NodePairListParamsSchema, NodePairApproveParamsSchema, NodePairRejectParamsSchema, NodePairVerifyParamsSchema, NodeListParamsSchema, NodePendingAckParamsSchema, NodeInvokeParamsSchema, NodePendingDrainParamsSchema, NodePendingDrainResultSchema, NodePendingEnqueueParamsSchema, NodePendingEnqueueResultSchema, SessionsListParamsSchema, SessionsPreviewParamsSchema, SessionsResolveParamsSchema, SessionsCreateParamsSchema, SessionsSendParamsSchema, SessionsAbortParamsSchema, SessionsPatchParamsSchema, SessionsResetParamsSchema, SessionsDeleteParamsSchema, SessionsCompactParamsSchema, SessionsUsageParamsSchema, ConfigGetParamsSchema, ConfigSetParamsSchema, ConfigApplyParamsSchema, ConfigPatchParamsSchema, ConfigSchemaParamsSchema, ConfigSchemaLookupParamsSchema, ConfigSchemaResponseSchema, ConfigSchemaLookupResultSchema, WizardStartParamsSchema, WizardNextParamsSchema, WizardCancelParamsSchema, WizardStatusParamsSchema, WizardStepSchema, WizardNextResultSchema, WizardStartResultSchema, WizardStatusResultSchema, TalkConfigParamsSchema, TalkConfigResultSchema, TalkSpeakParamsSchema, TalkSpeakResultSchema, ChannelsStatusParamsSchema, ChannelsStatusResultSchema, ChannelsLogoutParamsSchema, WebLoginStartParamsSchema, WebLoginWaitParamsSchema, AgentSummarySchema, AgentsFileEntrySchema, AgentsCreateParamsSchema, AgentsCreateResultSchema, AgentsUpdateParamsSchema, AgentsUpdateResultSchema, AgentsDeleteParamsSchema, AgentsDeleteResultSchema, AgentsFilesListParamsSchema, AgentsFilesListResultSchema, AgentsFilesGetParamsSchema, AgentsFilesGetResultSchema, AgentsFilesSetParamsSchema, AgentsFilesSetResultSchema, AgentsListParamsSchema, AgentsListResultSchema, ModelsListParamsSchema, SkillsStatusParamsSchema, ToolsCatalogParamsSchema, SkillsInstallParamsSchema, SkillsUpdateParamsSchema, CronJobSchema, CronListParamsSchema, CronStatusParamsSchema, CronAddParamsSchema, CronUpdateParamsSchema, CronRemoveParamsSchema, CronRunParamsSchema, CronRunsParamsSchema, LogsTailParamsSchema, LogsTailResultSchema, ChatHistoryParamsSchema, ChatSendParamsSchema, ChatInjectParamsSchema, UpdateRunParamsSchema, TickEventSchema, ShutdownEventSchema, ProtocolSchemas, PROTOCOL_VERSION, ErrorCodes, errorShape, };
-export type { GatewayFrame, ConnectParams, HelloOk, RequestFrame, ResponseFrame, EventFrame, PresenceEntry, Snapshot, ErrorShape, StateVersion, AgentEvent, AgentIdentityParams, AgentIdentityResult, AgentWaitParams, ChatEvent, TickEvent, ShutdownEvent, WakeParams, NodePairRequestParams, NodePairListParams, NodePairApproveParams, DevicePairListParams, DevicePairApproveParams, DevicePairRejectParams, ConfigGetParams, ConfigSetParams, ConfigApplyParams, ConfigPatchParams, ConfigSchemaParams, ConfigSchemaResponse, WizardStartParams, WizardNextParams, WizardCancelParams, WizardStatusParams, WizardStep, WizardNextResult, WizardStartResult, WizardStatusResult, TalkConfigParams, TalkConfigResult, TalkSpeakParams, TalkSpeakResult, TalkModeParams, ChannelsStatusParams, ChannelsStatusResult, ChannelsLogoutParams, WebLoginStartParams, WebLoginWaitParams, AgentSummary, AgentsFileEntry, AgentsCreateParams, AgentsCreateResult, AgentsUpdateParams, AgentsUpdateResult, AgentsDeleteParams, AgentsDeleteResult, AgentsFilesListParams, AgentsFilesListResult, AgentsFilesGetParams, AgentsFilesGetResult, AgentsFilesSetParams, AgentsFilesSetResult, AgentsListParams, AgentsListResult, SkillsStatusParams, ToolsCatalogParams, ToolsCatalogResult, SkillsBinsParams, SkillsBinsResult, SkillsInstallParams, SkillsUpdateParams, NodePairRejectParams, NodePairVerifyParams, NodeListParams, NodeInvokeParams, NodeInvokeResultParams, NodeEventParams, NodePendingDrainParams, NodePendingDrainResult, NodePendingEnqueueParams, NodePendingEnqueueResult, SessionsListParams, SessionsPreviewParams, SessionsResolveParams, SessionsPatchParams, SessionsPatchResult, SessionsResetParams, SessionsDeleteParams, SessionsCompactParams, SessionsUsageParams, CronJob, CronListParams, CronStatusParams, CronAddParams, CronUpdateParams, CronRemoveParams, CronRunParams, CronRunsParams, CronRunLogEntry, ExecApprovalsGetParams, ExecApprovalsSetParams, ExecApprovalsSnapshot, LogsTailParams, LogsTailResult, PollParams, UpdateRunParams, ChatInjectParams, };
+export { ConnectParamsSchema, HelloOkSchema, RequestFrameSchema, ResponseFrameSchema, EventFrameSchema, GatewayFrameSchema, PresenceEntrySchema, SnapshotSchema, ErrorShapeSchema, StateVersionSchema, AgentEventSchema, ChatEventSchema, SendParamsSchema, PollParamsSchema, AgentParamsSchema, AgentIdentityParamsSchema, AgentIdentityResultSchema, WakeParamsSchema, PushTestParamsSchema, PushTestResultSchema, NodePairRequestParamsSchema, NodePairListParamsSchema, NodePairApproveParamsSchema, NodePairRejectParamsSchema, NodePairVerifyParamsSchema, NodeListParamsSchema, NodePendingAckParamsSchema, NodeInvokeParamsSchema, NodePendingDrainParamsSchema, NodePendingDrainResultSchema, NodePendingEnqueueParamsSchema, NodePendingEnqueueResultSchema, SessionsListParamsSchema, SessionsPreviewParamsSchema, SessionsResolveParamsSchema, SessionsCreateParamsSchema, SessionsSendParamsSchema, SessionsAbortParamsSchema, SessionsPatchParamsSchema, SessionsResetParamsSchema, SessionsDeleteParamsSchema, SessionsCompactParamsSchema, SessionsUsageParamsSchema, ConfigGetParamsSchema, ConfigSetParamsSchema, ConfigApplyParamsSchema, ConfigPatchParamsSchema, ConfigSchemaParamsSchema, ConfigSchemaLookupParamsSchema, ConfigSchemaResponseSchema, ConfigSchemaLookupResultSchema, WizardStartParamsSchema, WizardNextParamsSchema, WizardCancelParamsSchema, WizardStatusParamsSchema, WizardStepSchema, WizardNextResultSchema, WizardStartResultSchema, WizardStatusResultSchema, TalkConfigParamsSchema, TalkConfigResultSchema, TalkSpeakParamsSchema, TalkSpeakResultSchema, ChannelsStatusParamsSchema, ChannelsStatusResultSchema, ChannelsLogoutParamsSchema, WebLoginStartParamsSchema, WebLoginWaitParamsSchema, AgentSummarySchema, AgentsFileEntrySchema, AgentsCreateParamsSchema, AgentsCreateResultSchema, AgentsUpdateParamsSchema, AgentsUpdateResultSchema, AgentsDeleteParamsSchema, AgentsDeleteResultSchema, AgentsFilesListParamsSchema, AgentsFilesListResultSchema, AgentsFilesGetParamsSchema, AgentsFilesGetResultSchema, AgentsFilesSetParamsSchema, AgentsFilesSetResultSchema, AgentsListParamsSchema, AgentsListResultSchema, ModelsListParamsSchema, SkillsStatusParamsSchema, ToolsCatalogParamsSchema, ToolsEffectiveParamsSchema, SkillsInstallParamsSchema, SkillsUpdateParamsSchema, CronJobSchema, CronListParamsSchema, CronStatusParamsSchema, CronAddParamsSchema, CronUpdateParamsSchema, CronRemoveParamsSchema, CronRunParamsSchema, CronRunsParamsSchema, LogsTailParamsSchema, LogsTailResultSchema, ChatHistoryParamsSchema, ChatSendParamsSchema, ChatInjectParamsSchema, UpdateRunParamsSchema, TickEventSchema, ShutdownEventSchema, ProtocolSchemas, PROTOCOL_VERSION, ErrorCodes, errorShape, };
+export type { GatewayFrame, ConnectParams, HelloOk, RequestFrame, ResponseFrame, EventFrame, PresenceEntry, Snapshot, ErrorShape, StateVersion, AgentEvent, AgentIdentityParams, AgentIdentityResult, AgentWaitParams, ChatEvent, TickEvent, ShutdownEvent, WakeParams, NodePairRequestParams, NodePairListParams, NodePairApproveParams, DevicePairListParams, DevicePairApproveParams, DevicePairRejectParams, ConfigGetParams, ConfigSetParams, ConfigApplyParams, ConfigPatchParams, ConfigSchemaParams, ConfigSchemaResponse, WizardStartParams, WizardNextParams, WizardCancelParams, WizardStatusParams, WizardStep, WizardNextResult, WizardStartResult, WizardStatusResult, TalkConfigParams, TalkConfigResult, TalkSpeakParams, TalkSpeakResult, TalkModeParams, ChannelsStatusParams, ChannelsStatusResult, ChannelsLogoutParams, WebLoginStartParams, WebLoginWaitParams, AgentSummary, AgentsFileEntry, AgentsCreateParams, AgentsCreateResult, AgentsUpdateParams, AgentsUpdateResult, AgentsDeleteParams, AgentsDeleteResult, AgentsFilesListParams, AgentsFilesListResult, AgentsFilesGetParams, AgentsFilesGetResult, AgentsFilesSetParams, AgentsFilesSetResult, AgentsListParams, AgentsListResult, SkillsStatusParams, ToolsCatalogParams, ToolsCatalogResult, ToolsEffectiveParams, ToolsEffectiveResult, SkillsBinsParams, SkillsBinsResult, SkillsInstallParams, SkillsUpdateParams, NodePairRejectParams, NodePairVerifyParams, NodeListParams, NodeInvokeParams, NodeInvokeResultParams, NodeEventParams, NodePendingDrainParams, NodePendingDrainResult, NodePendingEnqueueParams, NodePendingEnqueueResult, SessionsListParams, SessionsPreviewParams, SessionsResolveParams, SessionsPatchParams, SessionsPatchResult, SessionsResetParams, SessionsDeleteParams, SessionsCompactParams, SessionsUsageParams, CronJob, CronListParams, CronStatusParams, CronAddParams, CronUpdateParams, CronRemoveParams, CronRunParams, CronRunsParams, CronRunLogEntry, ExecApprovalsGetParams, ExecApprovalsSetParams, ExecApprovalsSnapshot, LogsTailParams, LogsTailResult, PollParams, UpdateRunParams, ChatInjectParams, };

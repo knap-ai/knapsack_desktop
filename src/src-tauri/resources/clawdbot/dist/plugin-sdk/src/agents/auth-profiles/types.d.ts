@@ -1,12 +1,23 @@
-import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SecretRef } from "../../config/types.secrets.js";
+export type OAuthProvider = string;
+export type OAuthCredentials = {
+    access: string;
+    refresh: string;
+    expires: number;
+    provider?: OAuthProvider;
+    email?: string;
+    enterpriseUrl?: string;
+    projectId?: string;
+    accountId?: string;
+};
 export type ApiKeyCredential = {
     type: "api_key";
     provider: string;
     key?: string;
     keyRef?: SecretRef;
     email?: string;
+    displayName?: string;
     /** Optional provider-specific metadata (e.g., account IDs, gateway IDs). */
     metadata?: Record<string, string>;
 };
@@ -22,12 +33,14 @@ export type TokenCredential = {
     /** Optional expiry timestamp (ms since epoch). */
     expires?: number;
     email?: string;
+    displayName?: string;
 };
 export type OAuthCredential = OAuthCredentials & {
     type: "oauth";
     provider: string;
     clientId?: string;
     email?: string;
+    displayName?: string;
 };
 export type AuthProfileCredential = ApiKeyCredential | TokenCredential | OAuthCredential;
 export type AuthProfileFailureReason = "auth" | "auth_permanent" | "format" | "overloaded" | "rate_limit" | "billing" | "timeout" | "model_not_found" | "session_expired" | "unknown";
@@ -35,6 +48,8 @@ export type AuthProfileFailureReason = "auth" | "auth_permanent" | "format" | "o
 export type ProfileUsageStats = {
     lastUsed?: number;
     cooldownUntil?: number;
+    cooldownReason?: AuthProfileFailureReason;
+    cooldownModel?: string;
     disabledUntil?: number;
     disabledReason?: AuthProfileFailureReason;
     errorCount?: number;

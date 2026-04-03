@@ -1,9 +1,10 @@
-import type { AuthProfileStore } from "./types.js";
+import type { AuthProfileStore, OAuthCredential } from "./types.js";
 type ExternalCliSyncOptions = {
     log?: boolean;
 };
+export declare function shouldReplaceStoredOAuthCredential(existing: OAuthCredential | undefined, incoming: OAuthCredential): boolean;
 /**
- * Sync OAuth credentials from external CLI tools (Qwen Code CLI, MiniMax CLI, Codex CLI)
+ * Sync OAuth credentials from external CLI tools (MiniMax CLI, Codex CLI)
  * into the store.
  *
  * Returns true if any credentials were updated.

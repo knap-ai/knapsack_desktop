@@ -1,6 +1,7 @@
 export declare const GATEWAY_CLIENT_IDS: {
     readonly WEBCHAT_UI: "webchat-ui";
     readonly CONTROL_UI: "openclaw-control-ui";
+    readonly TUI: "openclaw-tui";
     readonly WEBCHAT: "webchat";
     readonly CLI: "cli";
     readonly GATEWAY_CLIENT: "gateway-client";
@@ -16,6 +17,7 @@ export type GatewayClientId = (typeof GATEWAY_CLIENT_IDS)[keyof typeof GATEWAY_C
 export declare const GATEWAY_CLIENT_NAMES: {
     readonly WEBCHAT_UI: "webchat-ui";
     readonly CONTROL_UI: "openclaw-control-ui";
+    readonly TUI: "openclaw-tui";
     readonly WEBCHAT: "webchat";
     readonly CLI: "cli";
     readonly GATEWAY_CLIENT: "gateway-client";

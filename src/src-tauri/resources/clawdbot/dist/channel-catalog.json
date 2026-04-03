@@ -2,7 +2,7 @@
   "entries": [
     {
       "name": "@openclaw/bluebubbles",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw BlueBubbles channel plugin",
       "openclaw": {
         "channel": {
@@ -24,14 +24,13 @@
         },
         "install": {
           "npmSpec": "@openclaw/bluebubbles",
-          "localPath": "extensions/bluebubbles",
           "defaultChoice": "npm"
         }
       }
     },
     {
       "name": "@openclaw/discord",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw Discord channel plugin",
       "openclaw": {
         "channel": {
@@ -42,18 +41,18 @@
           "docsPath": "/channels/discord",
           "docsLabel": "discord",
           "blurb": "very well supported right now.",
-          "systemImage": "bubble.left.and.bubble.right"
+          "systemImage": "bubble.left.and.bubble.right",
+          "markdownCapable": true
         },
         "install": {
           "npmSpec": "@openclaw/discord",
-          "localPath": "extensions/discord",
           "defaultChoice": "npm"
         }
       }
     },
     {
       "name": "@openclaw/feishu",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw Feishu/Lark channel plugin (community maintained by @m1heng)",
       "openclaw": {
         "channel": {
@@ -71,23 +70,22 @@
         },
         "install": {
           "npmSpec": "@openclaw/feishu",
-          "localPath": "extensions/feishu",
           "defaultChoice": "npm"
         }
       }
     },
     {
       "name": "@openclaw/msteams",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw Microsoft Teams channel plugin",
       "openclaw": {
         "channel": {
           "id": "msteams",
           "label": "Microsoft Teams",
-          "selectionLabel": "Microsoft Teams (Bot Framework)",
+          "selectionLabel": "Microsoft Teams (Teams SDK)",
           "docsPath": "/channels/msteams",
           "docsLabel": "msteams",
-          "blurb": "Bot Framework; enterprise support.",
+          "blurb": "Teams SDK; enterprise support.",
           "aliases": [
             "teams"
           ],
@@ -95,14 +93,13 @@
         },
         "install": {
           "npmSpec": "@openclaw/msteams",
-          "localPath": "extensions/msteams",
           "defaultChoice": "npm"
         }
       }
     },
     {
       "name": "@openclaw/nextcloud-talk",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw Nextcloud Talk channel plugin",
       "openclaw": {
         "channel": {
@@ -121,14 +118,13 @@
         },
         "install": {
           "npmSpec": "@openclaw/nextcloud-talk",
-          "localPath": "extensions/nextcloud-talk",
           "defaultChoice": "npm"
         }
       }
     },
     {
       "name": "@openclaw/nostr",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw Nostr channel plugin for NIP-04 encrypted DMs",
       "openclaw": {
         "channel": {
@@ -143,14 +139,34 @@
         },
         "install": {
           "npmSpec": "@openclaw/nostr",
-          "localPath": "extensions/nostr",
+          "defaultChoice": "npm"
+        }
+      }
+    },
+    {
+      "name": "@openclaw/qqbot",
+      "version": "2026.4.1-beta.1",
+      "description": "OpenClaw QQ Bot channel plugin",
+      "openclaw": {
+        "channel": {
+          "id": "qqbot",
+          "label": "QQ Bot",
+          "selectionLabel": "QQ Bot (Official API)",
+          "detailLabel": "QQ Bot",
+          "docsPath": "/channels/qqbot",
+          "docsLabel": "qqbot",
+          "blurb": "connect to QQ via official QQ Bot API with group chat and direct message support.",
+          "systemImage": "bubble.left.and.bubble.right"
+        },
+        "install": {
+          "npmSpec": "@openclaw/qqbot",
           "defaultChoice": "npm"
         }
       }
     },
     {
       "name": "@openclaw/whatsapp",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw WhatsApp channel plugin",
       "openclaw": {
         "channel": {
@@ -165,14 +181,13 @@
         },
         "install": {
           "npmSpec": "@openclaw/whatsapp",
-          "localPath": "extensions/whatsapp",
           "defaultChoice": "npm"
         }
       }
     },
     {
       "name": "@openclaw/zalo",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw Zalo channel plugin",
       "openclaw": {
         "channel": {
@@ -190,14 +205,13 @@
         },
         "install": {
           "npmSpec": "@openclaw/zalo",
-          "localPath": "extensions/zalo",
           "defaultChoice": "npm"
         }
       }
     },
     {
       "name": "@openclaw/zalouser",
-      "version": "2026.3.22",
+      "version": "2026.4.1-beta.1",
       "description": "OpenClaw Zalo Personal Account plugin via native zca-js integration",
       "openclaw": {
         "channel": {
@@ -215,7 +229,6 @@
         },
         "install": {
           "npmSpec": "@openclaw/zalouser",
-          "localPath": "extensions/zalouser",
           "defaultChoice": "npm"
         }
       }

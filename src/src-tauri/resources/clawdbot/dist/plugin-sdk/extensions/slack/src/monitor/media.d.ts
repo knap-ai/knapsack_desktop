@@ -34,6 +34,7 @@ export declare function resolveSlackAttachmentContent(params: {
 export type SlackThreadStarter = {
     text: string;
     userId?: string;
+    botId?: string;
     ts?: string;
     files?: SlackFile[];
 };

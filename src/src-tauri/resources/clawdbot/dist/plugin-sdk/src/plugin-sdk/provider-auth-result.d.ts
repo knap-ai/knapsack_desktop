@@ -8,6 +8,8 @@ export declare function buildOauthProviderAuthResult(params: {
     refresh?: string | null;
     expires?: number | null;
     email?: string | null;
+    displayName?: string | null;
+    profileName?: string | null;
     profilePrefix?: string;
     credentialExtra?: Record<string, unknown>;
     configPatch?: Partial<OpenClawConfig>;

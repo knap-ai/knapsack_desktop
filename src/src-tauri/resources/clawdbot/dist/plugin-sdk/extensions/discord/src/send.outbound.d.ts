@@ -1,7 +1,7 @@
 import { type RequestClient } from "@buape/carbon";
 import { type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { RetryConfig } from "openclaw/plugin-sdk/infra-runtime";
 import type { PollInput } from "openclaw/plugin-sdk/media-runtime";
+import type { RetryConfig } from "openclaw/plugin-sdk/retry-runtime";
 import { type DiscordSendComponents, type DiscordSendEmbeds } from "./send.shared.js";
 import type { DiscordSendResult } from "./send.types.js";
 type DiscordSendOpts = {
@@ -10,7 +10,12 @@ type DiscordSendOpts = {
     accountId?: string;
     mediaUrl?: string;
     filename?: string;
+    mediaAccess?: {
+        localRoots?: readonly string[];
+        readFile?: (filePath: string) => Promise<Buffer>;
+    };
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
     verbose?: boolean;
     rest?: RequestClient;
     replyTo?: string;

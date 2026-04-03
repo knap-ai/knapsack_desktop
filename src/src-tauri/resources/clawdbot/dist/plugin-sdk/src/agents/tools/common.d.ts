@@ -2,6 +2,7 @@ import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { ImageSanitizationLimits } from "../image-sanitization.js";
 export type AnyAgentTool = AgentTool<any, unknown> & {
     ownerOnly?: boolean;
+    displaySummary?: string;
 };
 export type StringParamOptions = {
     required?: boolean;

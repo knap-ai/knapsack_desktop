@@ -7,6 +7,7 @@ export declare function buildReplyPayloads(params: {
     payloads: ReplyPayload[];
     isHeartbeat: boolean;
     didLogHeartbeatStrip: boolean;
+    silentExpected?: boolean;
     blockStreamingEnabled: boolean;
     blockReplyPipeline: BlockReplyPipeline | null;
     /** Payload keys sent directly (not via pipeline) during tool flush. */

@@ -1,4 +1,3 @@
-import "../../provider-model-minimax-DSmX4BNO.js";
-import { t as detectZaiEndpoint } from "../../provider-zai-endpoint-DvwnCAuE.js";
-import "../../runtime-api-fOIBcl1j.js";
+import { t as detectZaiEndpoint } from "../../provider-zai-endpoint-Cwtdsxf0.js";
+import "../../runtime-api-HUXeSxrV.js";
 export { detectZaiEndpoint };

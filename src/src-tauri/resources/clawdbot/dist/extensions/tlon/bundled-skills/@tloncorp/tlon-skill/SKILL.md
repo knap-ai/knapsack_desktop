@@ -1,21 +1,27 @@
 ---
 name: tlon
-description: Interact with Tlon/Urbit API. Use for contacts (get/update profiles), listing channels/groups, fetching message history, posting to channels, sending DMs, group management, and exposing content to the clearweb.
+description: Interact with Tlon/Urbit API. Use for reading activity, message history, contacts, channels, and groups. Also for group/channel administration, profile management, and exposing content to the clearweb.
 ---
 
 # Tlon Skill
 
-Use the `tlon` command for all Tlon operations.
+Use the `tlon` command for reading data, managing channels/groups/contacts, and administration.
+
+## OpenClaw
+
+When running as an OpenClaw skill, use the built-in `message` tool for sending outbound messages (DMs and channel posts). The `tlon` command is for reading data, administration, and management — not for sending messages. The `message` tool routes through the proper delivery infrastructure (threading, bot profile, rate limiting).
 
 ## Installation
 
 **npm (Node.js):**
+
 ```bash
 npm install @tloncorp/tlon-skill
 tlon channels groups
 ```
 
 **Direct binary (no Node required):**
+
 ```bash
 curl -L https://registry.npmjs.org/@tloncorp/tlon-skill-darwin-arm64/-/tlon-skill-darwin-arm64-0.1.0.tgz | tar -xz
 ./package/tlon channels groups
@@ -23,10 +29,10 @@ curl -L https://registry.npmjs.org/@tloncorp/tlon-skill-darwin-arm64/-/tlon-skil
 
 Replace `darwin-arm64` with `darwin-x64` or `linux-x64` as needed.
 
-
 ## Configuration
 
 **CLI Flags (highest priority):**
+
 ```bash
 # Cookie-based auth (fastest - ship parsed from cookie name)
 tlon --url https://your-ship.tlon.network --cookie "urbauth-~your-ship=0v..." <command>
@@ -39,6 +45,7 @@ tlon --config ~/ships/my-ship.json <command>
 ```
 
 Config file format:
+
 ```json
 // Cookie-based (ship derived from cookie)
 {"url": "...", "cookie": "urbauth-~ship=..."}
@@ -48,6 +55,7 @@ Config file format:
 ```
 
 **Environment Variables:**
+
 ```bash
 # Cookie-based (ship derived from cookie)
 export URBIT_URL="https://your-ship.tlon.network"
@@ -64,6 +72,7 @@ export URBIT_CODE="sampel-ticlyt-migfun-falmel"
 **Resolution order:** CLI flags → `TLON_CONFIG_FILE` → `URL + COOKIE` → `URL + SHIP + CODE` → `--ship` with cache → OpenClaw config → cached ships (auto-select if only one)
 
 **Cookie vs Code:**
+
 - **Cookie-based:** Uses pre-authenticated session cookie. Ship is parsed from the cookie name (`urbauth-~ship=...`). Fastest option.
 - **Code-based:** Performs login to get session cookie. Requires URL + ship + code.
 
@@ -74,6 +83,7 @@ You can provide both cookie and code — cookie is used first, code serves as fa
 The skill automatically caches auth cookies to `~/.tlon/cache/<ship>.json` after successful authentication. This makes subsequent invocations much faster by skipping the login request.
 
 **How it works:**
+
 ```bash
 # First time - authenticates and caches
 $ tlon --url https://zod.tlon.network --ship ~zod --code abcd-efgh contacts self
@@ -90,14 +100,13 @@ $ tlon --ship ~bus contacts self
 ```
 
 **Cache behavior:**
+
 - Cached cookies are URL-specific (won't use a cookie for the wrong host)
 - If only one ship is cached, it's auto-selected (no flags needed)
 - If multiple ships are cached, you'll be prompted to specify with `--ship`
 - The skill reminds you when you pass credentials that aren't needed
 
 **Clear cache:** `rm ~/.tlon/cache/*.json`
-
-
 
 ## Multi-Ship Usage
 
@@ -138,7 +147,6 @@ List and manage channels. DMs and group DMs show nicknames when available.
 
 ```bash
 tlon channels dms                                          # List DM contacts (with nicknames)
-tlon channels group-dms                                    # List group DMs (clubs, with nicknames)
 tlon channels groups                                       # List subscribed groups
 tlon channels all                                          # List everything
 tlon channels info chat/~host/slug                         # Get channel details
@@ -155,6 +163,7 @@ tlon channels del-readers ~host/group chat/~host/slug admin    # Open viewing
 ```
 
 Notes on permissions:
+
 - Empty writers list = anyone in the group can post (default for chat)
 - Empty readers list = anyone in the group can view (default)
 - Diaries default to admin-only writers
@@ -206,6 +215,19 @@ tlon groups update-role ~host/slug role-id --title "..." # Update a role
 tlon groups assign-role ~host/slug role-id ~ship1        # Assign role
 tlon groups remove-role ~host/slug role-id ~ship1        # Remove role
 
+# Admin
+tlon groups promote ~host/slug ~ship1 [~ship2 ...]      # Promote member(s) to admin
+tlon groups demote ~host/slug ~ship1 [~ship2 ...]       # Demote member(s) from admin
+
+Roles vs Admin:
+- Regular roles are for organizing members and controlling channel read/write permissions.
+- Admin is a special privilege on top of a role. Admins can manage group settings,
+  channels, members, and roles.
+- `promote` creates an "admin" role (if one doesn't exist), grants it admin privileges,
+  and assigns it to the specified members. `demote` removes that role from them.
+- To grant admin to members who already share a role, use `set-admin` on that role
+  via the backend directly (not yet exposed in the Tlon app UI).
+
 # Channels
 tlon groups add-channel ~host/slug "Name" [--kind chat|diary|heap]
 ```
@@ -239,18 +261,21 @@ tlon hooks rest 0v1a                                     # Stop cron job
 ```
 
 Notes:
+
 - Hook IDs are @uv format (e.g., `0v1a.2b3c4...`)
 - Schedules use @dr format: `~h1` (1 hour), `~m30` (30 minutes), `~d1` (1 day)
 - Hooks run in order when triggered; use `order` to set priority
 - Use `config` to pass channel-specific settings to a hook instance
 
 **Writing Hooks:** See `references/hooks.md` for full documentation on writing hooks, including:
+
 - Event types (`on-post`, `on-reply`, `cron`, `wake`)
 - Bowl context (channel, group, config access)
 - Effects (channel actions, group actions, scheduled wakes)
 - Config handling with clam (`;;`)
 
 **Examples:** See `references/hooks-examples/` for starter templates:
+
 - `auto-react.hoon` — React to new posts with emoji
 - `delete-old-posts.hoon` — Cron job to clean up old messages
 - `word-filter.hoon` — Block posts containing banned words
@@ -263,19 +288,26 @@ Read and search message history. Authors are shown with nicknames when available
 tlon messages dm ~sampel --limit 20                      # DM history (max 50)
 tlon messages channel chat/~host/slug --limit 20         # Channel history (max 50)
 tlon messages search "query" --channel chat/~host/slug   # Search messages
+tlon messages context chat/~host/slug 170.141... --limit 5  # Messages around a post
+tlon messages post chat/~host/slug 170.141...            # Fetch single post with replies
 ```
 
 Options: `--limit N`, `--resolve-cites`
 
+The `context` command fetches N messages before and after a given post ID — useful for
+finding surrounding conversation when you have a post from search or activity.
+For DMs, use the ship name as the channel: `tlon messages context ~sampel 170.141...`
+
+The `post` command fetches a single post with its replies/thread. For DM posts,
+pass `--author ~ship` (required for DM lookups).
+
+**Tip:** Use `search` to find a message, then `context` with its ID to see the surrounding conversation.
+
 ### DMs
 
-Manage direct messages.
+Manage direct messages — reactions, invites, and deletions.
 
 ```bash
-# Group DMs (clubs)
-tlon dms send <club-id> "hello"                          # Send to group DM
-tlon dms reply <club-id> ~author/170.141... "reply"      # Reply in group DM
-
 # Management
 tlon dms react ~sampel ~author/170.141... "👍"           # React to a DM
 tlon dms unreact ~sampel ~author/170.141...              # Remove reaction
@@ -297,6 +329,7 @@ tlon expose url diary/~host/blog/170.141...              # Get the public URL
 ```
 
 Cite path formats:
+
 - Simplified: `chat/~host/channel/170.141...` (auto-expands)
 - Full: `/1/chan/chat/~host/channel/msg/170.141...`
 
@@ -330,13 +363,21 @@ The `--content` file should be Story JSON format (array of verses with headers, 
 
 ### Upload
 
-Upload images to Tlon storage.
+Upload files to Tlon storage from a URL, local path, or stdin.
 
 ```bash
-tlon upload https://example.com/image.png    # Upload image from URL
+tlon upload https://example.com/image.png         # Upload from URL
+tlon upload ./photo.jpg                            # Upload local file
+tlon upload ~/Pictures/screenshot.png              # Upload with absolute path
+tlon upload ./mystery-file -t image/webp           # Override content type
+cat image.png | tlon upload --stdin -t image/png   # Upload from stdin
 ```
 
-Returns the uploaded image URL for use in posts, profiles, etc.
+Options: `-t`/`--type` (override MIME type), `--stdin` (read from stdin)
+
+Content type is auto-detected from file extension for local files. For stdin, `-t` is recommended (defaults to `application/octet-stream`).
+
+Returns the uploaded URL for use in posts, profiles, etc.
 
 ### Settings (OpenClaw)
 

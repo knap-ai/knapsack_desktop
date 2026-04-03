@@ -1,4 +1,5 @@
 import { Logger as TsLogger } from "tslog";
+import { shouldSkipMutatingLoggingConfigRead } from "./config.js";
 import type { ConsoleStyle } from "./console.js";
 import { type LogLevel } from "./levels.js";
 export declare const DEFAULT_LOG_DIR: string;
@@ -21,7 +22,6 @@ type ResolvedSettings = {
 export type LoggerResolvedSettings = ResolvedSettings;
 export type LogTransportRecord = Record<string, unknown>;
 export type LogTransport = (logObj: LogTransportRecord) => void;
-declare function shouldSkipLoadConfigFallback(argv?: string[]): boolean;
 export declare function isFileLogLevelEnabled(level: LogLevel): boolean;
 export declare function getLogger(): TsLogger<LogObj>;
 export declare function getChildLogger(bindings?: Record<string, unknown>, opts?: {
@@ -43,6 +43,6 @@ export declare function setLoggerOverride(settings: LoggerSettings | null): void
 export declare function resetLogger(): void;
 export declare function registerLogTransport(transport: LogTransport): () => void;
 export declare const __test__: {
-    shouldSkipLoadConfigFallback: typeof shouldSkipLoadConfigFallback;
+    shouldSkipMutatingLoggingConfigRead: typeof shouldSkipMutatingLoggingConfigRead;
 };
 export {};

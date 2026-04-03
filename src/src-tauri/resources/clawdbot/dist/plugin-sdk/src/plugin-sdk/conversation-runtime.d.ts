@@ -12,6 +12,7 @@ export { DISCORD_THREAD_BINDING_CHANNEL, MATRIX_THREAD_BINDING_CHANNEL, formatTh
 export type { ConfiguredBindingConversation, ConfiguredBindingResolution, CompiledConfiguredBinding, StatefulBindingTargetDescriptor, } from "../channels/plugins/binding-types.js";
 export type { StatefulBindingTargetDriver, StatefulBindingTargetReadyResult, StatefulBindingTargetResetResult, StatefulBindingTargetSessionResult, } from "../channels/plugins/stateful-target-drivers.js";
 export { type BindingStatus, type BindingTargetKind, type ConversationRef, SessionBindingError, type SessionBindingAdapter, type SessionBindingAdapterCapabilities, type SessionBindingBindInput, type SessionBindingCapabilities, type SessionBindingPlacement, type SessionBindingRecord, type SessionBindingService, type SessionBindingUnbindInput, getSessionBindingService, isSessionBindingError, registerSessionBindingAdapter, unregisterSessionBindingAdapter, } from "../infra/outbound/session-binding-service.js";
+export { __testing } from "../infra/outbound/session-binding-service.js";
 export * from "../pairing/pairing-challenge.js";
 export { resolvePairingIdLabel } from "../pairing/pairing-labels.js";
 export * from "../pairing/pairing-messages.js";

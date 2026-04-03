@@ -1,16 +1,21 @@
-import { r as __exportAll } from "../../chunk-DORXReHP.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-idKIOMmb.js";
-import { t as definePluginEntry } from "../../plugin-entry-B2shVOQl.js";
-import "../../diffs-DFgm8gZd.js";
-import "../../api-D0vgtPY-.js";
+import { r as __exportAll } from "../../chunk-iyeSoAlh.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-Day5KPIY.js";
+import { p as resolveRequestClientIp } from "../../net-D3XSbNNz.js";
+import { t as buildPluginConfigSchema } from "../../config-schema-dIP9qvIK.js";
+import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import "../../core-BghMcc08.js";
+import { t as zod_exports } from "../../zod-DCTDn17d.js";
+import "../../api-CZ642G1h.js";
+import "../../runtime-api-GGM2auxM.js";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { constants } from "node:fs";
 import path from "node:path";
-import fs$1 from "node:fs/promises";
+import fs from "node:fs/promises";
 import crypto from "node:crypto";
 import { Type } from "@sinclair/typebox";
 import { chromium } from "playwright-core";
+import { RegisteredCustomThemes, ResolvedThemes, ResolvingThemes, parsePatchFiles, resolveLanguage } from "@pierre/diffs";
 //#region extensions/diffs/src/types.ts
 const DIFF_LAYOUTS = ["unified", "split"];
 const DIFF_MODES = [
@@ -33,6 +38,39 @@ const DIFF_IMAGE_QUALITY_PRESETS = [
 const DIFF_OUTPUT_FORMATS = ["png", "pdf"];
 const DIFF_ARTIFACT_ID_PATTERN = /^[0-9a-f]{20}$/;
 const DIFF_ARTIFACT_TOKEN_PATTERN = /^[0-9a-f]{48}$/;
+//#endregion
+//#region extensions/diffs/src/url.ts
+const DEFAULT_GATEWAY_PORT = 18789;
+function buildViewerUrl(params) {
+	const normalizedBase = normalizeViewerBaseUrl(params.baseUrl?.trim() || resolveGatewayBaseUrl(params.config));
+	const viewerPath = params.viewerPath.startsWith("/") ? params.viewerPath : `/${params.viewerPath}`;
+	const parsedBase = new URL(normalizedBase);
+	parsedBase.pathname = `${parsedBase.pathname === "/" ? "" : parsedBase.pathname.replace(/\/+$/, "")}${viewerPath}`;
+	parsedBase.search = "";
+	parsedBase.hash = "";
+	return parsedBase.toString();
+}
+function normalizeViewerBaseUrl(raw, fieldName = "baseUrl") {
+	let parsed;
+	try {
+		parsed = new URL(raw);
+	} catch {
+		throw new Error(`Invalid ${fieldName}: ${raw}`);
+	}
+	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error(`${fieldName} must use http or https: ${raw}`);
+	if (parsed.search || parsed.hash) throw new Error(`${fieldName} must not include query/hash: ${raw}`);
+	parsed.search = "";
+	parsed.hash = "";
+	parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+	return parsed.toString().replace(/\/+$/, "");
+}
+function resolveGatewayBaseUrl(config) {
+	const scheme = config.gateway?.tls?.enabled ? "https" : "http";
+	const port = typeof config.gateway?.port === "number" ? config.gateway.port : DEFAULT_GATEWAY_PORT;
+	const customHost = config.gateway?.customBindHost?.trim();
+	if (config.gateway?.bind === "custom" && customHost) return `${scheme}://${customHost}:${port}`;
+	return `${scheme}://127.0.0.1:${port}`;
+}
 //#endregion
 //#region extensions/diffs/src/config.ts
 const DEFAULT_IMAGE_QUALITY_PROFILES = {
@@ -69,146 +107,113 @@ const DEFAULT_DIFFS_TOOL_DEFAULTS = {
 	mode: "both"
 };
 const DEFAULT_DIFFS_PLUGIN_SECURITY = { allowRemoteViewer: false };
-const diffsPluginConfigSchema = {
-	safeParse(value) {
-		if (value === void 0) return {
-			success: true,
-			data: void 0
-		};
+const VIEWER_BASE_URL_JSON_SCHEMA = {
+	type: "string",
+	format: "uri",
+	pattern: "^[Hh][Tt][Tt][Pp][Ss]?://",
+	not: { pattern: "[?#]" }
+};
+const DiffsPluginJsonSchemaSource = zod_exports.z.strictObject({
+	viewerBaseUrl: zod_exports.z.string().superRefine((value, ctx) => {
 		try {
-			return {
-				success: true,
-				data: resolveDiffsPluginDefaults(value)
-			};
+			normalizeViewerBaseUrl(value, "viewerBaseUrl");
 		} catch (error) {
-			return {
-				success: false,
-				error: { issues: [{
-					path: [],
-					message: error instanceof Error ? error.message : String(error)
-				}] }
-			};
+			ctx.addIssue({
+				code: "custom",
+				message: error instanceof Error ? error.message : "Invalid viewerBaseUrl"
+			});
 		}
-	},
+	}).optional(),
+	defaults: zod_exports.z.strictObject({
+		fontFamily: zod_exports.z.string().default(DEFAULT_DIFFS_TOOL_DEFAULTS.fontFamily).optional(),
+		fontSize: zod_exports.z.number().min(10).max(24).default(DEFAULT_DIFFS_TOOL_DEFAULTS.fontSize).optional(),
+		lineSpacing: zod_exports.z.number().min(1).max(3).default(DEFAULT_DIFFS_TOOL_DEFAULTS.lineSpacing).optional(),
+		layout: zod_exports.z.enum(DIFF_LAYOUTS).default(DEFAULT_DIFFS_TOOL_DEFAULTS.layout).optional(),
+		showLineNumbers: zod_exports.z.boolean().default(DEFAULT_DIFFS_TOOL_DEFAULTS.showLineNumbers).optional(),
+		diffIndicators: zod_exports.z.enum(DIFF_INDICATORS).default(DEFAULT_DIFFS_TOOL_DEFAULTS.diffIndicators).optional(),
+		wordWrap: zod_exports.z.boolean().default(DEFAULT_DIFFS_TOOL_DEFAULTS.wordWrap).optional(),
+		background: zod_exports.z.boolean().default(DEFAULT_DIFFS_TOOL_DEFAULTS.background).optional(),
+		theme: zod_exports.z.enum(DIFF_THEMES).default(DEFAULT_DIFFS_TOOL_DEFAULTS.theme).optional(),
+		fileFormat: zod_exports.z.enum(DIFF_OUTPUT_FORMATS).default(DEFAULT_DIFFS_TOOL_DEFAULTS.fileFormat).optional(),
+		format: zod_exports.z.enum(DIFF_OUTPUT_FORMATS).optional(),
+		fileQuality: zod_exports.z.enum(DIFF_IMAGE_QUALITY_PRESETS).default(DEFAULT_DIFFS_TOOL_DEFAULTS.fileQuality).optional(),
+		fileScale: zod_exports.z.number().min(1).max(4).optional(),
+		fileMaxWidth: zod_exports.z.number().min(640).max(2400).optional(),
+		imageFormat: zod_exports.z.enum(DIFF_OUTPUT_FORMATS).optional(),
+		imageQuality: zod_exports.z.enum(DIFF_IMAGE_QUALITY_PRESETS).optional(),
+		imageScale: zod_exports.z.number().min(1).max(4).optional(),
+		imageMaxWidth: zod_exports.z.number().min(640).max(2400).optional(),
+		mode: zod_exports.z.enum(DIFF_MODES).default(DEFAULT_DIFFS_TOOL_DEFAULTS.mode).optional()
+	}).optional(),
+	security: zod_exports.z.strictObject({ allowRemoteViewer: zod_exports.z.boolean().default(DEFAULT_DIFFS_PLUGIN_SECURITY.allowRemoteViewer).optional() }).optional()
+});
+const diffsPluginConfigSchemaBase = buildPluginConfigSchema(DiffsPluginJsonSchemaSource, { safeParse(value) {
+	if (value === void 0) return {
+		success: true,
+		data: void 0
+	};
+	const result = DiffsPluginJsonSchemaSource.safeParse(value);
+	if (result.success) return {
+		success: true,
+		data: buildDiffsPluginConfigShape(result.data)
+	};
+	return {
+		success: false,
+		error: { issues: result.error.issues.map((issue) => ({
+			path: issue.path.filter((segment) => {
+				const kind = typeof segment;
+				return kind === "string" || kind === "number";
+			}),
+			message: issue.message
+		})) }
+	};
+} });
+const diffsPluginConfigSchema = {
+	...diffsPluginConfigSchemaBase,
 	jsonSchema: {
-		type: "object",
-		additionalProperties: false,
+		...diffsPluginConfigSchemaBase.jsonSchema,
 		properties: {
-			defaults: {
-				type: "object",
-				additionalProperties: false,
-				properties: {
-					fontFamily: {
-						type: "string",
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.fontFamily
-					},
-					fontSize: {
-						type: "number",
-						minimum: 10,
-						maximum: 24,
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.fontSize
-					},
-					lineSpacing: {
-						type: "number",
-						minimum: 1,
-						maximum: 3,
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.lineSpacing
-					},
-					layout: {
-						type: "string",
-						enum: [...DIFF_LAYOUTS],
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.layout
-					},
-					showLineNumbers: {
-						type: "boolean",
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.showLineNumbers
-					},
-					diffIndicators: {
-						type: "string",
-						enum: [...DIFF_INDICATORS],
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.diffIndicators
-					},
-					wordWrap: {
-						type: "boolean",
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.wordWrap
-					},
-					background: {
-						type: "boolean",
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.background
-					},
-					theme: {
-						type: "string",
-						enum: [...DIFF_THEMES],
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.theme
-					},
-					fileFormat: {
-						type: "string",
-						enum: [...DIFF_OUTPUT_FORMATS],
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.fileFormat
-					},
-					format: {
-						type: "string",
-						enum: [...DIFF_OUTPUT_FORMATS]
-					},
-					fileQuality: {
-						type: "string",
-						enum: [...DIFF_IMAGE_QUALITY_PRESETS],
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.fileQuality
-					},
-					fileScale: {
-						type: "number",
-						minimum: 1,
-						maximum: 4,
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.fileScale
-					},
-					fileMaxWidth: {
-						type: "number",
-						minimum: 640,
-						maximum: 2400,
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.fileMaxWidth
-					},
-					imageFormat: {
-						type: "string",
-						enum: [...DIFF_OUTPUT_FORMATS]
-					},
-					imageQuality: {
-						type: "string",
-						enum: [...DIFF_IMAGE_QUALITY_PRESETS]
-					},
-					imageScale: {
-						type: "number",
-						minimum: 1,
-						maximum: 4
-					},
-					imageMaxWidth: {
-						type: "number",
-						minimum: 640,
-						maximum: 2400
-					},
-					mode: {
-						type: "string",
-						enum: [...DIFF_MODES],
-						default: DEFAULT_DIFFS_TOOL_DEFAULTS.mode
-					}
-				}
-			},
-			security: {
-				type: "object",
-				additionalProperties: false,
-				properties: { allowRemoteViewer: {
-					type: "boolean",
-					default: DEFAULT_DIFFS_PLUGIN_SECURITY.allowRemoteViewer
-				} }
-			}
+			...diffsPluginConfigSchemaBase.jsonSchema.properties,
+			viewerBaseUrl: VIEWER_BASE_URL_JSON_SCHEMA
 		}
 	}
 };
+function resolveConfiguredValue(options) {
+	const alias = options.aliases.find((value) => value !== void 0);
+	if (alias !== void 0 && options.primary === options.schemaDefault) return alias;
+	return options.primary ?? alias;
+}
+function buildDiffsPluginConfigShape(config) {
+	const viewerBaseUrl = resolveDiffsPluginViewerBaseUrl(config);
+	return {
+		...viewerBaseUrl !== void 0 ? { viewerBaseUrl } : {},
+		...config.defaults !== void 0 ? { defaults: resolveDiffsPluginDefaults(config) } : {},
+		...config.security !== void 0 ? { security: resolveDiffsPluginSecurity(config) } : {}
+	};
+}
 function resolveDiffsPluginDefaults(config) {
 	if (!config || typeof config !== "object" || Array.isArray(config)) return { ...DEFAULT_DIFFS_TOOL_DEFAULTS };
 	const defaults = config.defaults;
 	if (!defaults || typeof defaults !== "object" || Array.isArray(defaults)) return { ...DEFAULT_DIFFS_TOOL_DEFAULTS };
-	const fileQuality = normalizeFileQuality$1(defaults.fileQuality ?? defaults.imageQuality);
+	const fileQuality = normalizeFileQuality$1(resolveConfiguredValue({
+		primary: defaults.fileQuality,
+		aliases: [defaults.imageQuality],
+		schemaDefault: DEFAULT_DIFFS_TOOL_DEFAULTS.fileQuality
+	}));
 	const profile = DEFAULT_IMAGE_QUALITY_PROFILES[fileQuality];
+	const fileFormat = resolveConfiguredValue({
+		primary: defaults.fileFormat,
+		aliases: [defaults.imageFormat, defaults.format],
+		schemaDefault: DEFAULT_DIFFS_TOOL_DEFAULTS.fileFormat
+	});
+	const fileScale = resolveConfiguredValue({
+		primary: defaults.fileScale,
+		aliases: [defaults.imageScale]
+	});
+	const fileMaxWidth = resolveConfiguredValue({
+		primary: defaults.fileMaxWidth,
+		aliases: [defaults.imageMaxWidth]
+	});
 	return {
 		fontFamily: normalizeFontFamily(defaults.fontFamily),
 		fontSize: normalizeFontSize(defaults.fontSize),
@@ -219,10 +224,10 @@ function resolveDiffsPluginDefaults(config) {
 		wordWrap: defaults.wordWrap !== false,
 		background: defaults.background !== false,
 		theme: normalizeTheme$2(defaults.theme),
-		fileFormat: normalizeFileFormat(defaults.fileFormat ?? defaults.imageFormat ?? defaults.format),
+		fileFormat: normalizeFileFormat(fileFormat),
 		fileQuality,
-		fileScale: normalizeFileScale(defaults.fileScale ?? defaults.imageScale, profile.scale),
-		fileMaxWidth: normalizeFileMaxWidth(defaults.fileMaxWidth ?? defaults.imageMaxWidth, profile.maxWidth),
+		fileScale: normalizeFileScale(fileScale, profile.scale),
+		fileMaxWidth: normalizeFileMaxWidth(fileMaxWidth, profile.maxWidth),
 		mode: normalizeMode$1(defaults.mode)
 	};
 }
@@ -232,13 +237,19 @@ function resolveDiffsPluginSecurity(config) {
 	if (!security || typeof security !== "object" || Array.isArray(security)) return { ...DEFAULT_DIFFS_PLUGIN_SECURITY };
 	return { allowRemoteViewer: security.allowRemoteViewer === true };
 }
+function resolveDiffsPluginViewerBaseUrl(config) {
+	if (!config || typeof config !== "object" || Array.isArray(config)) return;
+	const viewerBaseUrl = config.viewerBaseUrl;
+	if (typeof viewerBaseUrl !== "string") return;
+	const normalized = viewerBaseUrl.trim();
+	return normalized ? normalizeViewerBaseUrl(normalized) : void 0;
+}
 function normalizeFontFamily(fontFamily) {
 	return fontFamily?.trim() || DEFAULT_DIFFS_TOOL_DEFAULTS.fontFamily;
 }
 function normalizeFontSize(fontSize) {
 	if (fontSize === void 0 || !Number.isFinite(fontSize)) return DEFAULT_DIFFS_TOOL_DEFAULTS.fontSize;
-	const rounded = Math.floor(fontSize);
-	return Math.min(Math.max(rounded, 10), 24);
+	return Math.min(Math.max(Math.floor(fontSize), 10), 24);
 }
 function normalizeLineSpacing(lineSpacing) {
 	if (lineSpacing === void 0 || !Number.isFinite(lineSpacing)) return DEFAULT_DIFFS_TOOL_DEFAULTS.lineSpacing;
@@ -266,8 +277,7 @@ function normalizeFileScale(fileScale, fallback) {
 }
 function normalizeFileMaxWidth(fileMaxWidth, fallback) {
 	if (fileMaxWidth === void 0 || !Number.isFinite(fileMaxWidth)) return fallback;
-	const rounded = Math.round(fileMaxWidth);
-	return Math.min(Math.max(rounded, 640), 2400);
+	return Math.min(Math.max(Math.round(fileMaxWidth), 640), 2400);
 }
 function normalizeMode$1(mode) {
 	return mode && DIFF_MODES.includes(mode) ? mode : DEFAULT_DIFFS_TOOL_DEFAULTS.mode;
@@ -290,8 +300,32 @@ function resolveDiffImageRenderOptions(params) {
 const VIEWER_ASSET_PREFIX = "/plugins/diffs/assets/";
 const VIEWER_LOADER_PATH = `${VIEWER_ASSET_PREFIX}viewer.js`;
 const VIEWER_RUNTIME_PATH = `${VIEWER_ASSET_PREFIX}viewer-runtime.js`;
-const VIEWER_RUNTIME_FILE_URL = new URL("../assets/viewer-runtime.js", import.meta.url);
+const VIEWER_RUNTIME_RELATIVE_IMPORT_PATH = "./viewer-runtime.js";
+const VIEWER_RUNTIME_CANDIDATE_RELATIVE_PATHS = ["./assets/viewer-runtime.js", "../assets/viewer-runtime.js"];
 let runtimeAssetCache = null;
+function isMissingFileError(error) {
+	return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+async function resolveViewerRuntimeFileUrl(params = {}) {
+	const baseUrl = params.baseUrl ?? import.meta.url;
+	const stat = params.stat ?? ((path) => fs.stat(path));
+	let missingFileError = null;
+	for (const relativePath of VIEWER_RUNTIME_CANDIDATE_RELATIVE_PATHS) {
+		const candidateUrl = new URL(relativePath, baseUrl);
+		try {
+			await stat(fileURLToPath(candidateUrl));
+			return candidateUrl;
+		} catch (error) {
+			if (isMissingFileError(error)) {
+				missingFileError = error;
+				continue;
+			}
+			throw error;
+		}
+	}
+	if (missingFileError) throw missingFileError;
+	throw new Error("viewer runtime asset candidates were not checked");
+}
 async function getServedViewerAsset(pathname) {
 	if (pathname !== VIEWER_LOADER_PATH && pathname !== VIEWER_RUNTIME_PATH) return null;
 	const assets = await loadViewerAssets();
@@ -306,15 +340,15 @@ async function getServedViewerAsset(pathname) {
 	return null;
 }
 async function loadViewerAssets() {
-	const runtimePath = fileURLToPath(VIEWER_RUNTIME_FILE_URL);
-	const runtimeStat = await fs$1.stat(runtimePath);
+	const runtimePath = fileURLToPath(await resolveViewerRuntimeFileUrl());
+	const runtimeStat = await fs.stat(runtimePath);
 	if (runtimeAssetCache && runtimeAssetCache.mtimeMs === runtimeStat.mtimeMs) return runtimeAssetCache;
-	const runtimeBody = await fs$1.readFile(runtimePath);
+	const runtimeBody = await fs.readFile(runtimePath);
 	const hash = crypto.createHash("sha1").update(runtimeBody).digest("hex").slice(0, 12);
 	runtimeAssetCache = {
 		mtimeMs: runtimeStat.mtimeMs,
 		runtimeBody,
-		loaderBody: `import "${VIEWER_RUNTIME_PATH}?v=${hash}";\n`
+		loaderBody: `import "${VIEWER_RUNTIME_RELATIVE_IMPORT_PATH}?v=${hash}";\n`
 	};
 	return runtimeAssetCache;
 }
@@ -343,7 +377,10 @@ function createDiffsHttpHandler(params) {
 		if (!parsed) return false;
 		if (parsed.pathname.startsWith("/plugins/diffs/assets/")) return await serveAsset(req, res, parsed.pathname, params.logger);
 		if (!parsed.pathname.startsWith(VIEW_PREFIX)) return false;
-		const access = resolveViewerAccess(req);
+		const access = resolveViewerAccess(req, {
+			trustedProxies: params.trustedProxies,
+			allowRealIpFallback: params.allowRealIpFallback
+		});
 		if (!access.localRequest && params.allowRemoteViewer !== true) {
 			respondText(res, 404, "Diff not found");
 			return true;
@@ -445,11 +482,13 @@ function hasProxyForwardingHints(req) {
 	const headers = req.headers ?? {};
 	return Boolean(headers["x-forwarded-for"] || headers["x-real-ip"] || headers.forwarded || headers["x-forwarded-host"] || headers["x-forwarded-proto"]);
 }
-function resolveViewerAccess(req) {
-	const remoteKey = normalizeRemoteClientKey(req.socket?.remoteAddress);
+function resolveViewerAccess(req, params) {
+	const proxyHintsPresent = hasProxyForwardingHints(req);
+	const clientIp = proxyHintsPresent || (params.trustedProxies?.length ?? 0) > 0 ? resolveRequestClientIp(req, params.trustedProxies ? [...params.trustedProxies] : void 0, params.allowRealIpFallback === true) : req.socket?.remoteAddress;
+	const remoteKey = normalizeRemoteClientKey(clientIp ?? req.socket?.remoteAddress);
 	return {
 		remoteKey,
-		localRequest: isLoopbackClientIp(remoteKey) && !hasProxyForwardingHints(req)
+		localRequest: !proxyHintsPresent && typeof clientIp === "string" && isLoopbackClientIp(remoteKey)
 	};
 }
 function recordRemoteFailure(limiter, access) {
@@ -559,8 +598,8 @@ var DiffArtifactStore = class {
 			htmlPath,
 			...params.context ? { context: params.context } : {}
 		};
-		await fs$1.mkdir(artifactDir, { recursive: true });
-		await fs$1.writeFile(htmlPath, params.html, "utf8");
+		await fs.mkdir(artifactDir, { recursive: true });
+		await fs.writeFile(htmlPath, params.html, "utf8");
 		await this.writeMeta(meta);
 		this.scheduleCleanup();
 		return meta;
@@ -579,7 +618,7 @@ var DiffArtifactStore = class {
 		const meta = await this.readMeta(id);
 		if (!meta) throw new Error(`Diff artifact not found: ${id}`);
 		const htmlPath = this.normalizeStoredPath(meta.htmlPath, "htmlPath");
-		return await fs$1.readFile(htmlPath, "utf8");
+		return await fs.readFile(htmlPath, "utf8");
 	}
 	async updateFilePath(id, filePath) {
 		const meta = await this.readMeta(id);
@@ -616,7 +655,7 @@ var DiffArtifactStore = class {
 			filePath: this.normalizeStoredPath(filePath, "filePath"),
 			...params.context ? { context: params.context } : {}
 		};
-		await fs$1.mkdir(artifactDir, { recursive: true });
+		await fs.mkdir(artifactDir, { recursive: true });
 		await this.writeStandaloneMeta(meta);
 		this.scheduleCleanup();
 		return {
@@ -634,7 +673,7 @@ var DiffArtifactStore = class {
 	}
 	async cleanupExpired() {
 		await this.ensureRoot();
-		const entries = await fs$1.readdir(this.rootDir, { withFileTypes: true }).catch(() => []);
+		const entries = await fs.readdir(this.rootDir, { withFileTypes: true }).catch(() => []);
 		const now = Date.now();
 		await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
 			const id = entry.name;
@@ -649,13 +688,13 @@ var DiffArtifactStore = class {
 				return;
 			}
 			const artifactPath = this.artifactDir(id);
-			const stat = await fs$1.stat(artifactPath).catch(() => null);
+			const stat = await fs.stat(artifactPath).catch(() => null);
 			if (!stat) return;
 			if (now - stat.mtimeMs > SWEEP_FALLBACK_AGE_MS) await this.deleteArtifact(id);
 		}));
 	}
 	async ensureRoot() {
-		await fs$1.mkdir(this.rootDir, { recursive: true });
+		await fs.mkdir(this.rootDir, { recursive: true });
 	}
 	maybeCleanupExpired() {
 		const now = Date.now();
@@ -706,11 +745,11 @@ var DiffArtifactStore = class {
 		return path.join(this.artifactDir(id), fileName);
 	}
 	async writeJsonMeta(id, fileName, data) {
-		await fs$1.writeFile(this.metaFilePath(id, fileName), JSON.stringify(data, null, 2), "utf8");
+		await fs.writeFile(this.metaFilePath(id, fileName), JSON.stringify(data, null, 2), "utf8");
 	}
 	async readJsonMeta(id, fileName, context) {
 		try {
-			const raw = await fs$1.readFile(this.metaFilePath(id, fileName), "utf8");
+			const raw = await fs.readFile(this.metaFilePath(id, fileName), "utf8");
 			return JSON.parse(raw);
 		} catch (error) {
 			if (isFileNotFound(error)) return null;
@@ -719,7 +758,7 @@ var DiffArtifactStore = class {
 		}
 	}
 	async deleteArtifact(id) {
-		await fs$1.rm(this.artifactDir(id), {
+		await fs.rm(this.artifactDir(id), {
 			recursive: true,
 			force: true
 		}).catch(() => {});
@@ -775,6 +814,7 @@ const SHARED_BROWSER_KEY = "__default__";
 const IMAGE_SIZE_LIMIT_ERROR = "Diff frame did not render within image size limits.";
 const PDF_REFERENCE_PAGE_HEIGHT_PX = 1056;
 const MAX_PDF_PAGES = 50;
+const LOCAL_VIEWER_BASE_HREF = "http://127.0.0.1/plugins/diffs/view/local/local";
 let sharedBrowserState = null;
 let executablePathCache = null;
 var PlaywrightDiffScreenshotter = class {
@@ -783,7 +823,7 @@ var PlaywrightDiffScreenshotter = class {
 		this.browserIdleMs = params.browserIdleMs ?? DEFAULT_BROWSER_IDLE_MS;
 	}
 	async screenshotHtml(params) {
-		await fs$1.mkdir(path.dirname(params.outputPath), { recursive: true });
+		await fs.mkdir(path.dirname(params.outputPath), { recursive: true });
 		const lease = await acquireSharedBrowser({
 			config: this.config,
 			idleMs: this.browserIdleMs
@@ -946,7 +986,7 @@ var PlaywrightDiffScreenshotter = class {
 };
 function injectBaseHref(html) {
 	if (html.includes("<base ")) return html;
-	return html.replace("<head>", "<head><base href=\"http://127.0.0.1/\" />");
+	return html.replace("<head>", `<head><base href="${LOCAL_VIEWER_BASE_HREF}" />`);
 }
 async function resolveBrowserExecutablePath(config) {
 	const cacheKey = JSON.stringify({
@@ -1124,117 +1164,69 @@ async function assertExecutable(candidate, label) {
 }
 async function isExecutable(candidate) {
 	try {
-		await fs$1.access(candidate, constants.X_OK);
+		await fs.access(candidate, constants.X_OK);
 		return true;
 	} catch {
 		return false;
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/constants.js
-const COMMIT_METADATA_SPLIT = /(?=^From [a-f0-9]+ .+$)/m;
-const GIT_DIFF_FILE_BREAK_REGEX = /(?=^diff --git)/gm;
-const UNIFIED_DIFF_FILE_BREAK_REGEX = /(?=^---\s+\S)/gm;
-const FILE_CONTEXT_BLOB = /(?=^@@ )/gm;
-const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: (.*))?/m;
-const SPLIT_WITH_NEWLINES = /(?<=\n)/;
-const FILENAME_HEADER_REGEX = /^(---|\+\+\+)\s+([^\t\r\n]+)/;
-const FILENAME_HEADER_REGEX_GIT = /^(---|\+\+\+)\s+[ab]\/([^\t\r\n]+)/;
-const ALTERNATE_FILE_NAMES_GIT = /^diff --git (?:"a\/(.+?)"|a\/(.+?)) (?:"b\/(.+?)"|b\/(.+?))$/;
-const INDEX_LINE_METADATA = /^index ([0-9a-f]+)\.\.([0-9a-f]+)(?: (\d+))?$/i;
-const HEADER_PREFIX_SLOT_ID = "header-prefix";
-const HEADER_METADATA_SLOT_ID = "header-metadata";
-const DEFAULT_THEMES = {
-	dark: "pierre-dark",
-	light: "pierre-light"
-};
-const UNSAFE_CSS_ATTRIBUTE = "data-unsafe-css";
-const CORE_CSS_ATTRIBUTE = "data-core-css";
-const DEFAULT_EXPANDED_REGION = Object.freeze({
-	fromStart: 0,
-	fromEnd: 0
-});
-const DEFAULT_RENDER_RANGE = {
-	startingLine: 0,
-	totalLines: Infinity,
-	bufferBefore: 0,
-	bufferAfter: 0
-};
+//#region node_modules/@pierre/diffs/dist/sprite.js
+const SVGSpriteSheet = `<svg data-icon-sprite aria-hidden="true" width="0" height="0">
+  <symbol id="diffs-icon-arrow-right-short" viewBox="0 0 16 16">
+    <path d="M8.47 4.22a.75.75 0 0 0 0 1.06l1.97 1.97H3.75a.75.75 0 0 0 0 1.5h6.69l-1.97 1.97a.75.75 0 1 0 1.06 1.06l3.25-3.25a.75.75 0 0 0 0-1.06L9.53 4.22a.75.75 0 0 0-1.06 0"/>
+  </symbol>
+  <symbol id="diffs-icon-brand-github" viewBox="0 0 16 16">
+    <path d="M8 0c4.42 0 8 3.58 8 8a8.01 8.01 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27s-1.36.09-2 .27c-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8"/>
+  </symbol>
+  <symbol id="diffs-icon-chevron" viewBox="0 0 16 16">
+    <path d="M1.47 4.47a.75.75 0 0 1 1.06 0L8 9.94l5.47-5.47a.75.75 0 1 1 1.06 1.06l-6 6a.75.75 0 0 1-1.06 0l-6-6a.75.75 0 0 1 0-1.06"/>
+  </symbol>
+  <symbol id="diffs-icon-chevrons-narrow" viewBox="0 0 10 16">
+    <path d="M4.47 2.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1-1.06 1.06L5 3.81 2.28 6.53a.75.75 0 0 1-1.06-1.06zM1.22 9.47a.75.75 0 0 1 1.06 0L5 12.19l2.72-2.72a.75.75 0 0 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0l-3.25-3.25a.75.75 0 0 1 0-1.06"/>
+  </symbol>
+  <symbol id="diffs-icon-diff-split" viewBox="0 0 16 16">
+    <path d="M14 0H8.5v16H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2m-1.5 6.5v1h1a.5.5 0 0 1 0 1h-1v1a.5.5 0 0 1-1 0v-1h-1a.5.5 0 0 1 0-1h1v-1a.5.5 0 0 1 1 0"/><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5.5V0zm.5 7.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1" opacity=".3"/>
+  </symbol>
+  <symbol id="diffs-icon-diff-unified" viewBox="0 0 16 16">
+    <path fill-rule="evenodd" d="M16 14a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V8.5h16zm-8-4a.5.5 0 0 0-.5.5v1h-1a.5.5 0 0 0 0 1h1v1a.5.5 0 0 0 1 0v-1h1a.5.5 0 0 0 0-1h-1v-1A.5.5 0 0 0 8 10" clip-rule="evenodd"/><path fill-rule="evenodd" d="M14 0a2 2 0 0 1 2 2v5.5H0V2a2 2 0 0 1 2-2zM6.5 3.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1z" clip-rule="evenodd" opacity=".4"/>
+  </symbol>
+  <symbol id="diffs-icon-expand" viewBox="0 0 16 16">
+    <path d="M3.47 5.47a.75.75 0 0 1 1.06 0L8 8.94l3.47-3.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 0-1.06"/>
+  </symbol>
+  <symbol id="diffs-icon-expand-all" viewBox="0 0 16 16">
+    <path d="M11.47 9.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 1 1 1.06-1.06L8 12.94zM7.526 1.418a.75.75 0 0 1 1.004.052l4 4a.75.75 0 1 1-1.06 1.06L8 3.06 4.53 6.53a.75.75 0 1 1-1.06-1.06l4-4z"/>
+  </symbol>
+  <symbol id="diffs-icon-file-code" viewBox="0 0 16 16">
+    <path d="M10.75 0c.199 0 .39.08.53.22l3.5 3.5c.14.14.22.331.22.53v9A2.75 2.75 0 0 1 12.25 16h-8.5A2.75 2.75 0 0 1 1 13.25V2.75A2.75 2.75 0 0 1 3.75 0zm-7 1.5c-.69 0-1.25.56-1.25 1.25v10.5c0 .69.56 1.25 1.25 1.25h8.5c.69 0 1.25-.56 1.25-1.25V5h-1.25A2.25 2.25 0 0 1 10 2.75V1.5z"/><path d="M7.248 6.19a.75.75 0 0 1 .063 1.058L5.753 9l1.558 1.752a.75.75 0 0 1-1.122.996l-2-2.25a.75.75 0 0 1 0-.996l2-2.25a.75.75 0 0 1 1.06-.063M8.69 7.248a.75.75 0 1 1 1.12-.996l2 2.25a.75.75 0 0 1 0 .996l-2 2.25a.75.75 0 1 1-1.12-.996L10.245 9z"/>
+  </symbol>
+  <symbol id="diffs-icon-plus" viewBox="0 0 16 16">
+    <path d="M8 3a.75.75 0 0 1 .75.75v3.5h3.5a.75.75 0 0 1 0 1.5h-3.5v3.5a.75.75 0 0 1-1.5 0v-3.5h-3.5a.75.75 0 0 1 0-1.5h3.5v-3.5A.75.75 0 0 1 8 3"/>
+  </symbol>
+  <symbol id="diffs-icon-symbol-added" viewBox="0 0 16 16">
+    <path d="M8 4a.75.75 0 0 1 .75.75v2.5h2.5a.75.75 0 0 1 0 1.5h-2.5v2.5a.75.75 0 0 1-1.5 0v-2.5h-2.5a.75.75 0 0 1 0-1.5h2.5v-2.5A.75.75 0 0 1 8 4"/><path d="M1.788 4.296c.196-.88.478-1.381.802-1.706s.826-.606 1.706-.802C5.194 1.588 6.387 1.5 8 1.5s2.806.088 3.704.288c.88.196 1.381.478 1.706.802s.607.826.802 1.706c.2.898.288 2.091.288 3.704s-.088 2.806-.288 3.704c-.195.88-.478 1.381-.802 1.706s-.826.607-1.706.802c-.898.2-2.091.288-3.704.288s-2.806-.088-3.704-.288c-.88-.195-1.381-.478-1.706-.802s-.606-.826-.802-1.706C1.588 10.806 1.5 9.613 1.5 8s.088-2.806.288-3.704M8 0C1.412 0 0 1.412 0 8s1.412 8 8 8 8-1.412 8-8-1.412-8-8-8"/>
+  </symbol>
+  <symbol id="diffs-icon-symbol-deleted" viewBox="0 0 16 16">
+    <path d="M4 8a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 8"/><path d="M1.788 4.296c.196-.88.478-1.381.802-1.706s.826-.606 1.706-.802C5.194 1.588 6.387 1.5 8 1.5s2.806.088 3.704.288c.88.196 1.381.478 1.706.802s.607.826.802 1.706c.2.898.288 2.091.288 3.704s-.088 2.806-.288 3.704c-.195.88-.478 1.381-.802 1.706s-.826.607-1.706.802c-.898.2-2.091.288-3.704.288s-2.806-.088-3.704-.288c-.88-.195-1.381-.478-1.706-.802s-.606-.826-.802-1.706C1.588 10.806 1.5 9.613 1.5 8s.088-2.806.288-3.704M8 0C1.412 0 0 1.412 0 8s1.412 8 8 8 8-1.412 8-8-1.412-8-8-8"/>
+  </symbol>
+  <symbol id="diffs-icon-symbol-diffstat" viewBox="0 0 16 16">
+    <path d="M1.788 4.296c.196-.88.478-1.381.802-1.706s.826-.606 1.706-.802C5.194 1.588 6.387 1.5 8 1.5s2.806.088 3.704.288c.88.196 1.381.478 1.706.802s.607.826.802 1.706c.2.898.288 2.091.288 3.704s-.088 2.806-.288 3.704c-.195.88-.478 1.381-.802 1.706s-.826.607-1.706.802c-.898.2-2.091.288-3.704.288s-2.806-.088-3.704-.288c-.88-.195-1.381-.478-1.706-.802s-.606-.826-.802-1.706C1.588 10.806 1.5 9.613 1.5 8s.088-2.806.288-3.704M8 0C1.412 0 0 1.412 0 8s1.412 8 8 8 8-1.412 8-8-1.412-8-8-8"/><path d="M8.75 4.296a.75.75 0 0 0-1.5 0V6.25h-2a.75.75 0 0 0 0 1.5h2v1.5h1.5v-1.5h2a.75.75 0 0 0 0-1.5h-2zM5.25 10a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5z"/>
+  </symbol>
+  <symbol id="diffs-icon-symbol-ignored" viewBox="0 0 16 16">
+    <path d="M1.5 8c0 1.613.088 2.806.288 3.704.196.88.478 1.381.802 1.706s.826.607 1.706.802c.898.2 2.091.288 3.704.288s2.806-.088 3.704-.288c.88-.195 1.381-.478 1.706-.802s.607-.826.802-1.706c.2-.898.288-2.091.288-3.704s-.088-2.806-.288-3.704c-.195-.88-.478-1.381-.802-1.706s-.826-.606-1.706-.802C10.806 1.588 9.613 1.5 8 1.5s-2.806.088-3.704.288c-.88.196-1.381.478-1.706.802s-.606.826-.802 1.706C1.588 5.194 1.5 6.387 1.5 8M0 8c0-6.588 1.412-8 8-8s8 1.412 8 8-1.412 8-8 8-8-1.412-8-8m11.53-2.47a.75.75 0 0 0-1.06-1.06l-6 6a.75.75 0 1 0 1.06 1.06z"/>
+  </symbol>
+  <symbol id="diffs-icon-symbol-modified" viewBox="0 0 16 16">
+    <path d="M1.5 8c0 1.613.088 2.806.288 3.704.196.88.478 1.381.802 1.706s.826.607 1.706.802c.898.2 2.091.288 3.704.288s2.806-.088 3.704-.288c.88-.195 1.381-.478 1.706-.802s.607-.826.802-1.706c.2-.898.288-2.091.288-3.704s-.088-2.806-.288-3.704c-.195-.88-.478-1.381-.802-1.706s-.826-.606-1.706-.802C10.806 1.588 9.613 1.5 8 1.5s-2.806.088-3.704.288c-.88.196-1.381.478-1.706.802s-.606.826-.802 1.706C1.588 5.194 1.5 6.387 1.5 8M0 8c0-6.588 1.412-8 8-8s8 1.412 8 8-1.412 8-8 8-8-1.412-8-8m8 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
+  </symbol>
+  <symbol id="diffs-icon-symbol-moved" viewBox="0 0 16 16">
+    <path d="M1.788 4.296c.196-.88.478-1.381.802-1.706s.826-.606 1.706-.802C5.194 1.588 6.387 1.5 8 1.5s2.806.088 3.704.288c.88.196 1.381.478 1.706.802s.607.826.802 1.706c.2.898.288 2.091.288 3.704s-.088 2.806-.288 3.704c-.195.88-.478 1.381-.802 1.706s-.826.607-1.706.802c-.898.2-2.091.288-3.704.288s-2.806-.088-3.704-.288c-.88-.195-1.381-.478-1.706-.802s-.606-.826-.802-1.706C1.588 10.806 1.5 9.613 1.5 8s.088-2.806.288-3.704M8 0C1.412 0 0 1.412 0 8s1.412 8 8 8 8-1.412 8-8-1.412-8-8-8"/><path d="M8.495 4.695a.75.75 0 0 0-.05 1.06L10.486 8l-2.041 2.246a.75.75 0 0 0 1.11 1.008l2.5-2.75a.75.75 0 0 0 0-1.008l-2.5-2.75a.75.75 0 0 0-1.06-.051m-4 0a.75.75 0 0 0-.05 1.06l2.044 2.248-1.796 1.995a.75.75 0 0 0 1.114 1.004l2.25-2.5a.75.75 0 0 0-.002-1.007l-2.5-2.75a.75.75 0 0 0-1.06-.05"/>
+  </symbol>
+  <symbol id="diffs-icon-symbol-ref" viewBox="0 0 16 16">
+    <path d="M1.5 8c0 1.613.088 2.806.288 3.704.196.88.478 1.381.802 1.706.286.286.71.54 1.41.73V1.86c-.7.19-1.124.444-1.41.73-.324.325-.606.826-.802 1.706C1.588 5.194 1.5 6.387 1.5 8m4 6.397c.697.07 1.522.103 2.5.103 1.613 0 2.806-.088 3.704-.288.88-.195 1.381-.478 1.706-.802s.607-.826.802-1.706c.2-.898.288-2.091.288-3.704s-.088-2.806-.288-3.704c-.195-.88-.478-1.381-.802-1.706s-.826-.606-1.706-.802C10.806 1.588 9.613 1.5 8 1.5c-.978 0-1.803.033-2.5.103zM0 8c0-6.588 1.412-8 8-8s8 1.412 8 8-1.412 8-8 8-8-1.412-8-8m7-2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z"/>
+  </symbol>
+</svg>`;
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/hast_utils.js
-function createTextNodeElement(value) {
-	return {
-		type: "text",
-		value
-	};
-}
-function createHastElement({ tagName, children = [], properties = {} }) {
-	return {
-		type: "element",
-		tagName,
-		properties,
-		children
-	};
-}
-function createIconElement({ name, width = 16, height = 16, properties }) {
-	return createHastElement({
-		tagName: "svg",
-		properties: {
-			width,
-			height,
-			viewBox: "0 0 16 16",
-			...properties
-		},
-		children: [createHastElement({
-			tagName: "use",
-			properties: { href: `#${name.replace(/^#/, "")}` }
-		})]
-	});
-}
-function findCodeElement(nodes) {
-	let firstChild = nodes.children[0];
-	while (firstChild != null) {
-		if (firstChild.type === "element" && firstChild.tagName === "code") return firstChild;
-		if ("children" in firstChild) firstChild = firstChild.children[0];
-		else firstChild = null;
-	}
-}
-function createGutterWrapper(children) {
-	return createHastElement({
-		tagName: "div",
-		properties: { "data-gutter": "" },
-		children
-	});
-}
-function createGutterItem(lineType, lineNumber, lineIndex, properties = {}) {
-	return createHastElement({
-		tagName: "div",
-		properties: {
-			"data-line-type": lineType,
-			"data-column-number": lineNumber,
-			"data-line-index": lineIndex,
-			...properties
-		},
-		children: lineNumber != null ? [createHastElement({
-			tagName: "span",
-			properties: { "data-line-number-content": "" },
-			children: [createTextNodeElement(`${lineNumber}`)]
-		})] : void 0
-	});
-}
-function createGutterGap(type, bufferType, size) {
-	return createHastElement({
-		tagName: "div",
-		properties: {
-			"data-gutter-buffer": bufferType,
-			"data-buffer-size": size,
-			"data-line-type": bufferType === "annotation" ? void 0 : type,
-			style: bufferType === "annotation" ? `grid-row: span ${size};` : `grid-row: span ${size};min-height:calc(${size} * 1lh);`
-		}
-	});
-}
-//#endregion
-//#region node_modules/.pnpm/html-void-elements@3.0.0/node_modules/html-void-elements/index.js
+//#region node_modules/html-void-elements/index.js
 /**
 * List of HTML void tag names.
 *
@@ -1263,7 +1255,7 @@ const htmlVoidElements = [
 	"wbr"
 ];
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/util/schema.js
+//#region node_modules/property-information/lib/util/schema.js
 /**
 * @import {Schema as SchemaType, Space} from 'property-information'
 */
@@ -1289,7 +1281,7 @@ Schema.prototype.normal = {};
 Schema.prototype.property = {};
 Schema.prototype.space = void 0;
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/util/merge.js
+//#region node_modules/property-information/lib/util/merge.js
 /**
 * @import {Info, Space} from 'property-information'
 */
@@ -1313,7 +1305,7 @@ function merge(definitions, space) {
 	return new Schema(property, normal, space);
 }
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/normalize.js
+//#region node_modules/property-information/lib/normalize.js
 /**
 * Get the cleaned case insensitive form of an attribute or property.
 *
@@ -1327,7 +1319,7 @@ function normalize(value) {
 	return value.toLowerCase();
 }
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/util/info.js
+//#region node_modules/property-information/lib/util/info.js
 /**
 * @import {Info as InfoType} from 'property-information'
 */
@@ -1359,7 +1351,7 @@ Info.prototype.property = "";
 Info.prototype.spaceSeparated = false;
 Info.prototype.space = void 0;
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/util/types.js
+//#region node_modules/property-information/lib/util/types.js
 var types_exports = /* @__PURE__ */ __exportAll({
 	boolean: () => boolean,
 	booleanish: () => booleanish,
@@ -1381,7 +1373,7 @@ function increment() {
 	return 2 ** ++powers;
 }
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/util/defined-info.js
+//#region node_modules/property-information/lib/util/defined-info.js
 /**
 * @import {Space} from 'property-information'
 */
@@ -1427,7 +1419,7 @@ function mark(values, key, value) {
 	if (value) values[key] = value;
 }
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/util/create.js
+//#region node_modules/property-information/lib/util/create.js
 /**
 * @import {Info, Space} from 'property-information'
 */
@@ -1476,7 +1468,7 @@ function create(definition) {
 	return new Schema(properties, normals, definition.space);
 }
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/aria.js
+//#region node_modules/property-information/lib/aria.js
 const aria = create({
 	properties: {
 		ariaActiveDescendant: null,
@@ -1534,7 +1526,7 @@ const aria = create({
 	}
 });
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/util/case-sensitive-transform.js
+//#region node_modules/property-information/lib/util/case-sensitive-transform.js
 /**
 * @param {Record<string, string>} attributes
 *   Attributes.
@@ -1547,7 +1539,7 @@ function caseSensitiveTransform(attributes, attribute) {
 	return attribute in attributes ? attributes[attribute] : attribute;
 }
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/util/case-insensitive-transform.js
+//#region node_modules/property-information/lib/util/case-insensitive-transform.js
 /**
 * @param {Record<string, string>} attributes
 *   Attributes.
@@ -1560,7 +1552,7 @@ function caseInsensitiveTransform(attributes, property) {
 	return caseSensitiveTransform(attributes, property.toLowerCase());
 }
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/html.js
+//#region node_modules/property-information/lib/html.js
 const html$3 = create({
 	attributes: {
 		acceptcharset: "accept-charset",
@@ -1872,7 +1864,7 @@ const html$3 = create({
 	transform: caseInsensitiveTransform
 });
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/svg.js
+//#region node_modules/property-information/lib/svg.js
 const svg$1 = create({
 	attributes: {
 		accentHeight: "accent-height",
@@ -2430,7 +2422,7 @@ const svg$1 = create({
 	transform: caseSensitiveTransform
 });
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/xlink.js
+//#region node_modules/property-information/lib/xlink.js
 const xlink = create({
 	properties: {
 		xLinkActuate: null,
@@ -2447,7 +2439,7 @@ const xlink = create({
 	}
 });
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/xmlns.js
+//#region node_modules/property-information/lib/xmlns.js
 const xmlns = create({
 	attributes: { xmlnsxlink: "xmlns:xlink" },
 	properties: {
@@ -2458,7 +2450,7 @@ const xmlns = create({
 	transform: caseInsensitiveTransform
 });
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/xml.js
+//#region node_modules/property-information/lib/xml.js
 const xml = create({
 	properties: {
 		xmlBase: null,
@@ -2471,7 +2463,7 @@ const xml = create({
 	}
 });
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/lib/find.js
+//#region node_modules/property-information/lib/find.js
 /**
 * @import {Schema} from 'property-information'
 */
@@ -2548,7 +2540,7 @@ function camelcase($0) {
 	return $0.charAt(1).toUpperCase();
 }
 //#endregion
-//#region node_modules/.pnpm/property-information@7.1.0/node_modules/property-information/index.js
+//#region node_modules/property-information/index.js
 const html$2 = merge([
 	aria,
 	html$3,
@@ -2564,7 +2556,7 @@ const svg = merge([
 	xml
 ], "svg");
 //#endregion
-//#region node_modules/.pnpm/zwitch@2.0.4/node_modules/zwitch/index.js
+//#region node_modules/zwitch/index.js
 /**
 * @callback Handler
 *   Handle a value, with a certain ID field set to a certain value.
@@ -2669,7 +2661,7 @@ function zwitch(key, options) {
 	return one;
 }
 //#endregion
-//#region node_modules/.pnpm/stringify-entities@4.0.4/node_modules/stringify-entities/lib/core.js
+//#region node_modules/stringify-entities/lib/core.js
 /**
 * @typedef CoreOptions
 * @property {ReadonlyArray<string>} [subset=[]]
@@ -2746,7 +2738,7 @@ function charactersToExpression(subset) {
 	return new RegExp("(?:" + groups.join("|") + ")", "g");
 }
 //#endregion
-//#region node_modules/.pnpm/stringify-entities@4.0.4/node_modules/stringify-entities/lib/util/to-hexadecimal.js
+//#region node_modules/stringify-entities/lib/util/to-hexadecimal.js
 const hexadecimalRegex = /[\dA-Fa-f]/;
 /**
 * Configurable ways to encode characters as hexadecimal references.
@@ -2761,7 +2753,7 @@ function toHexadecimal(code, next, omit) {
 	return omit && next && !hexadecimalRegex.test(String.fromCharCode(next)) ? value : value + ";";
 }
 //#endregion
-//#region node_modules/.pnpm/stringify-entities@4.0.4/node_modules/stringify-entities/lib/util/to-decimal.js
+//#region node_modules/stringify-entities/lib/util/to-decimal.js
 const decimalRegex = /\d/;
 /**
 * Configurable ways to encode characters as decimal references.
@@ -2776,7 +2768,7 @@ function toDecimal(code, next, omit) {
 	return omit && next && !decimalRegex.test(String.fromCharCode(next)) ? value : value + ";";
 }
 //#endregion
-//#region node_modules/.pnpm/character-entities-legacy@3.0.0/node_modules/character-entities-legacy/index.js
+//#region node_modules/character-entities-legacy/index.js
 /**
 * List of legacy HTML named character references that don’t need a trailing semicolon.
 *
@@ -2891,7 +2883,7 @@ const characterEntitiesLegacy = [
 	"yuml"
 ];
 //#endregion
-//#region node_modules/.pnpm/character-entities-html4@2.1.0/node_modules/character-entities-html4/index.js
+//#region node_modules/character-entities-html4/index.js
 /**
 * Map of named character references from HTML 4.
 *
@@ -3152,7 +3144,7 @@ const characterEntitiesHtml4 = {
 	euro: "€"
 };
 //#endregion
-//#region node_modules/.pnpm/stringify-entities@4.0.4/node_modules/stringify-entities/lib/constant/dangerous.js
+//#region node_modules/stringify-entities/lib/constant/dangerous.js
 /**
 * List of legacy (that don’t need a trailing `;`) named references which could,
 * depending on what follows them, turn into a different meaning
@@ -3170,7 +3162,7 @@ const dangerous = [
 	"times"
 ];
 //#endregion
-//#region node_modules/.pnpm/stringify-entities@4.0.4/node_modules/stringify-entities/lib/util/to-named.js
+//#region node_modules/stringify-entities/lib/util/to-named.js
 const own$1 = {}.hasOwnProperty;
 /**
 * `characterEntitiesHtml4` but inverted.
@@ -3202,7 +3194,7 @@ function toNamed(code, next, omit, attribute) {
 	return "";
 }
 //#endregion
-//#region node_modules/.pnpm/stringify-entities@4.0.4/node_modules/stringify-entities/lib/util/format-smart.js
+//#region node_modules/stringify-entities/lib/util/format-smart.js
 /**
 * @typedef FormatSmartOptions
 * @property {boolean} [useNamedReferences=false]
@@ -3239,7 +3231,7 @@ function formatSmart(code, next, options) {
 	return named && (!options.useShortestReferences || named.length < numeric.length) ? named : numeric;
 }
 //#endregion
-//#region node_modules/.pnpm/stringify-entities@4.0.4/node_modules/stringify-entities/lib/index.js
+//#region node_modules/stringify-entities/lib/index.js
 /**
 * @typedef {import('./core.js').CoreOptions & import('./util/format-smart.js').FormatSmartOptions} Options
 * @typedef {import('./core.js').CoreOptions} LightOptions
@@ -3258,7 +3250,7 @@ function stringifyEntities(value, options) {
 	return core(value, Object.assign({ format: formatSmart }, options));
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/handle/comment.js
+//#region node_modules/hast-util-to-html/lib/handle/comment.js
 /**
 * @import {Comment, Parents} from 'hast'
 * @import {State} from '../index.js'
@@ -3290,7 +3282,7 @@ function comment(node, _1, _2, state) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/handle/doctype.js
+//#region node_modules/hast-util-to-html/lib/handle/doctype.js
 /**
 * @import {Doctype, Parents} from 'hast'
 * @import {State} from '../index.js'
@@ -3313,7 +3305,7 @@ function doctype(_1, _2, _3, state) {
 	return "<!" + (state.settings.upperDoctype ? "DOCTYPE" : "doctype") + (state.settings.tightDoctype ? "" : " ") + "html>";
 }
 //#endregion
-//#region node_modules/.pnpm/ccount@2.0.1/node_modules/ccount/index.js
+//#region node_modules/ccount/index.js
 /**
 * Count how often a character (or substring) is used in a string.
 *
@@ -3336,7 +3328,7 @@ function ccount(value, character) {
 	return count;
 }
 //#endregion
-//#region node_modules/.pnpm/comma-separated-tokens@2.0.3/node_modules/comma-separated-tokens/index.js
+//#region node_modules/comma-separated-tokens/index.js
 /**
 * Serialize an array of strings or numbers to comma-separated tokens.
 *
@@ -3352,7 +3344,7 @@ function stringify$2(values, options) {
 	return (values[values.length - 1] === "" ? [...values, ""] : values).join((settings.padRight ? " " : "") + "," + (settings.padLeft === false ? "" : " ")).trim();
 }
 //#endregion
-//#region node_modules/.pnpm/space-separated-tokens@2.0.2/node_modules/space-separated-tokens/index.js
+//#region node_modules/space-separated-tokens/index.js
 /**
 * Serialize an array of strings as space separated-tokens.
 *
@@ -3365,7 +3357,7 @@ function stringify$1(values) {
 	return values.join(" ").trim();
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-whitespace@3.0.0/node_modules/hast-util-whitespace/lib/index.js
+//#region node_modules/hast-util-whitespace/lib/index.js
 /**
 * @typedef {import('hast').Nodes} Nodes
 */
@@ -3392,7 +3384,7 @@ function empty(value) {
 	return value.replace(re$1, "") === "";
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/omission/util/siblings.js
+//#region node_modules/hast-util-to-html/lib/omission/util/siblings.js
 /**
 * @import {Parents, RootContent} from 'hast'
 */
@@ -3433,7 +3425,7 @@ function siblings(increment) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/omission/omission.js
+//#region node_modules/hast-util-to-html/lib/omission/omission.js
 /**
 * @import {Element, Parents} from 'hast'
 */
@@ -3472,7 +3464,7 @@ function omission(handlers) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/omission/closing.js
+//#region node_modules/hast-util-to-html/lib/omission/closing.js
 /**
 * @import {Element, Parents} from 'hast'
 */
@@ -3737,7 +3729,7 @@ function cells(_, index, parent) {
 	return !next || next.type === "element" && (next.tagName === "td" || next.tagName === "th");
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/omission/opening.js
+//#region node_modules/hast-util-to-html/lib/omission/opening.js
 /**
 * @import {Element, Parents} from 'hast'
 */
@@ -3830,7 +3822,7 @@ function tbody(node, index, parent) {
 	return Boolean(head && head.type === "element" && head.tagName === "tr");
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/handle/element.js
+//#region node_modules/hast-util-to-html/lib/handle/element.js
 /**
 * @import {Element, Parents, Properties} from 'hast'
 * @import {State} from '../index.js'
@@ -3947,7 +3939,7 @@ function serializeAttribute(state, key, value) {
 	return name + (result ? "=" + result : result);
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/handle/text.js
+//#region node_modules/hast-util-to-html/lib/handle/text.js
 /**
 * @import {Parents, Text} from 'hast'
 * @import {Raw} from 'mdast-util-to-hast'
@@ -3972,7 +3964,7 @@ function text(node, _, parent, state) {
 	return parent && parent.type === "element" && (parent.tagName === "script" || parent.tagName === "style") ? node.value : stringifyEntities(node.value, Object.assign({}, state.settings.characterReferences, { subset: textEntitySubset }));
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/handle/raw.js
+//#region node_modules/hast-util-to-html/lib/handle/raw.js
 /**
 * @import {Parents} from 'hast'
 * @import {Raw} from 'mdast-util-to-hast'
@@ -3996,7 +3988,7 @@ function raw(node, index, parent, state) {
 	return state.settings.allowDangerousHtml ? node.value : text(node, index, parent, state);
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/handle/root.js
+//#region node_modules/hast-util-to-html/lib/handle/root.js
 /**
 * @import {Parents, Root} from 'hast'
 * @import {State} from '../index.js'
@@ -4019,7 +4011,7 @@ function root(node, _1, _2, state) {
 	return state.all(node);
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/handle/index.js
+//#region node_modules/hast-util-to-html/lib/handle/index.js
 /**
 * @import {Nodes, Parents} from 'hast'
 * @import {State} from '../index.js'
@@ -4059,11 +4051,10 @@ function invalid(node) {
 *   Never.
 */
 function unknown(node_) {
-	const node = node_;
-	throw new Error("Cannot compile unknown node `" + node.type + "`");
+	throw new Error("Cannot compile unknown node `" + node_.type + "`");
 }
 //#endregion
-//#region node_modules/.pnpm/hast-util-to-html@9.0.5/node_modules/hast-util-to-html/lib/index.js
+//#region node_modules/hast-util-to-html/lib/index.js
 /**
 * @import {Nodes, Parents, RootContent} from 'hast'
 * @import {Schema} from 'property-information'
@@ -4298,19 +4289,155 @@ function all(parent) {
 	return results.join("");
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/languages/constants.js
+//#region node_modules/@pierre/diffs/dist/ssr/renderHTML.js
+function renderHTML(children) {
+	return `${SVGSpriteSheet}${toHtml(children)}`;
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/style.js
+var style_default = "@layer base, theme, rendered, unsafe;\n\n@layer base {\n  :host {\n    --diffs-font-fallback:\n      'SF Mono', Monaco, Consolas, 'Ubuntu Mono', 'Liberation Mono',\n      'Courier New', monospace;\n    --diffs-header-font-fallback:\n      system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',\n      'Noto Sans', 'Liberation Sans', Arial, sans-serif;\n\n    --diffs-mixer: light-dark(black, white);\n    --diffs-gap-fallback: 8px;\n\n    --diffs-added-light: #0dbe4e;\n    --diffs-added-dark: #5ecc71;\n    --diffs-modified-light: #009fff;\n    --diffs-modified-dark: #69b1ff;\n    --diffs-deleted-light: #ff2e3f;\n    --diffs-deleted-dark: #ff6762;\n\n    /*\n    // Available CSS Color Overrides\n    --diffs-bg-buffer-override\n    --diffs-bg-hover-override\n    --diffs-bg-context-override\n    --diffs-bg-separator-override\n\n    --diffs-fg-number-override\n    --diffs-fg-number-addition-override\n    --diffs-fg-number-deletion-override\n    --diffs-fg-conflict-marker-override\n\n    --diffs-deletion-color-override\n    --diffs-addition-color-override\n    --diffs-modified-color-override\n\n    --diffs-bg-deletion-override\n    --diffs-bg-deletion-number-override\n    --diffs-bg-deletion-hover-override\n    --diffs-bg-deletion-emphasis-override\n\n    --diffs-bg-addition-override\n    --diffs-bg-addition-number-override\n    --diffs-bg-addition-hover-override\n    --diffs-bg-addition-emphasis-override\n\n    // Line Selection Color Overrides (for enableLineSelection)\n    --diffs-selection-color-override\n    --diffs-bg-selection-override\n    --diffs-bg-selection-number-override\n    --diffs-bg-selection-background-override\n    --diffs-bg-selection-number-background-override\n\n    // Available CSS Layout Overrides\n    --diffs-gap-inline\n    --diffs-gap-block\n    --diffs-gap-style\n    --diffs-tab-size\n  */\n\n    color-scheme: light dark;\n    display: block;\n    font-family: var(\n      --diffs-header-font-family,\n      var(--diffs-header-font-fallback)\n    );\n    font-size: var(--diffs-font-size, 13px);\n    line-height: var(--diffs-line-height, 20px);\n    font-feature-settings: var(--diffs-font-features);\n\n    /* NOTE(amadeus): we cannot use 'in oklch' because current versions of cursor\n     * and vscode use an older build of chrome that appears to have a bug with\n     * color-mix and 'in oklch', so use 'in lab' instead */\n    --diffs-bg: light-dark(\n      var(--diffs-light-bg, #fff),\n      var(--diffs-dark-bg, #000)\n    );\n    --diffs-bg-buffer: var(\n      --diffs-bg-buffer-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-mixer)),\n        color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-mixer))\n      )\n    );\n    --diffs-bg-hover: var(\n      --diffs-bg-hover-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 97%, var(--diffs-mixer)),\n        color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-mixer))\n      )\n    );\n\n    --diffs-bg-context: var(\n      --diffs-bg-context-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 98.5%, var(--diffs-mixer)),\n        color-mix(in lab, var(--diffs-bg) 92.5%, var(--diffs-mixer))\n      )\n    );\n    --diffs-bg-context-number: var(\n      --diffs-bg-context-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg-context) 80%, var(--diffs-bg)),\n        color-mix(in lab, var(--diffs-bg-context) 60%, var(--diffs-bg))\n      )\n    );\n    --diffs-bg-conflict-marker: var(\n      --diffs-bg-conflict-marker-override,\n      light-dark(\n        color-mix(\n          in lab,\n          var(--diffs-bg-context) 88%,\n          var(--diffs-modified-base)\n        ),\n        color-mix(\n          in lab,\n          var(--diffs-bg-context) 80%,\n          var(--diffs-modified-base)\n        )\n      )\n    );\n    --diffs-bg-conflict-current: var(\n      --diffs-bg-conflict-current-override,\n      light-dark(#e5f8ea, #274432)\n    );\n    --diffs-bg-conflict-base: var(\n      --diffs-bg-conflict-base-override,\n      light-dark(\n        color-mix(\n          in lab,\n          var(--diffs-bg-context) 90%,\n          var(--diffs-modified-base)\n        ),\n        color-mix(\n          in lab,\n          var(--diffs-bg-context) 82%,\n          var(--diffs-modified-base)\n        )\n      )\n    );\n    --diffs-bg-conflict-incoming: var(\n      --diffs-bg-conflict-incoming-override,\n      light-dark(#e6f1ff, #253b5a)\n    );\n    --diffs-bg-conflict-marker-number: var(\n      --diffs-bg-conflict-marker-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg-conflict-marker) 72%, var(--diffs-bg)),\n        color-mix(in lab, var(--diffs-bg-conflict-marker) 54%, var(--diffs-bg))\n      )\n    );\n    --diffs-bg-conflict-current-number: var(\n      --diffs-bg-conflict-current-number-override,\n      light-dark(#d7f1de, #30533d)\n    );\n    --diffs-bg-conflict-base-number: var(\n      --diffs-bg-conflict-base-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg-conflict-base) 72%, var(--diffs-bg)),\n        color-mix(in lab, var(--diffs-bg-conflict-base) 54%, var(--diffs-bg))\n      )\n    );\n    --diffs-bg-conflict-incoming-number: var(\n      --diffs-bg-conflict-incoming-number-override,\n      light-dark(#d8e8ff, #2f4b73)\n    );\n    --conflict-bg-current: var(\n      --conflict-bg-current-override,\n      var(--diffs-bg-addition)\n    );\n    --conflict-bg-incoming: var(\n      --conflict-bg-incoming-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-modified-base)),\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-modified-base))\n      )\n    );\n    --conflict-bg-current-number: var(\n      --conflict-bg-current-number-override,\n      var(--diffs-bg-addition-number)\n    );\n    --conflict-bg-incoming-number: var(\n      --conflict-bg-incoming-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-modified-base)),\n        color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-modified-base))\n      )\n    );\n    --conflict-bg-current-header: var(\n      --conflict-bg-current-header-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 78%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 68%, var(--diffs-addition-base))\n      )\n    );\n    --conflict-bg-incoming-header: var(\n      --conflict-bg-incoming-header-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 78%, var(--diffs-modified-base)),\n        color-mix(in lab, var(--diffs-bg) 68%, var(--diffs-modified-base))\n      )\n    );\n    --conflict-bg-current-header-number: var(\n      --conflict-bg-current-header-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 72%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 62%, var(--diffs-addition-base))\n      )\n    );\n    --conflict-bg-incoming-header-number: var(\n      --conflict-bg-incoming-header-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 72%, var(--diffs-modified-base)),\n        color-mix(in lab, var(--diffs-bg) 62%, var(--diffs-modified-base))\n      )\n    );\n\n    --diffs-bg-separator: var(\n      --diffs-bg-separator-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 96%, var(--diffs-mixer)),\n        color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-mixer))\n      )\n    );\n\n    --diffs-fg: light-dark(var(--diffs-light, #000), var(--diffs-dark, #fff));\n    --diffs-fg-number: var(\n      --diffs-fg-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-fg) 65%, var(--diffs-bg)),\n        color-mix(in lab, var(--diffs-fg) 65%, var(--diffs-bg))\n      )\n    );\n    --diffs-fg-conflict-marker: var(\n      --diffs-fg-conflict-marker-override,\n      var(--diffs-fg-number)\n    );\n\n    --diffs-deletion-base: var(\n      --diffs-deletion-color-override,\n      light-dark(\n        var(\n          --diffs-light-deletion-color,\n          var(--diffs-deletion-color, var(--diffs-deleted-light))\n        ),\n        var(\n          --diffs-dark-deletion-color,\n          var(--diffs-deletion-color, var(--diffs-deleted-dark))\n        )\n      )\n    );\n    --diffs-addition-base: var(\n      --diffs-addition-color-override,\n      light-dark(\n        var(\n          --diffs-light-addition-color,\n          var(--diffs-addition-color, var(--diffs-added-light))\n        ),\n        var(\n          --diffs-dark-addition-color,\n          var(--diffs-addition-color, var(--diffs-added-dark))\n        )\n      )\n    );\n    --diffs-modified-base: var(\n      --diffs-modified-color-override,\n      light-dark(\n        var(\n          --diffs-light-modified-color,\n          var(--diffs-modified-color, var(--diffs-modified-light))\n        ),\n        var(\n          --diffs-dark-modified-color,\n          var(--diffs-modified-color, var(--diffs-modified-dark))\n        )\n      )\n    );\n\n    /* NOTE(amadeus): we cannot use 'in oklch' because current versions of cursor\n   * and vscode use an older build of chrome that appears to have a bug with\n   * color-mix and 'in oklch', so use 'in lab' instead */\n    --diffs-bg-deletion: var(\n      --diffs-bg-deletion-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-deletion-base)),\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-deletion-base))\n      )\n    );\n    --diffs-bg-deletion-number: var(\n      --diffs-bg-deletion-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-deletion-base)),\n        color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-deletion-base))\n      )\n    );\n    --diffs-bg-deletion-hover: var(\n      --diffs-bg-deletion-hover-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-deletion-base)),\n        color-mix(in lab, var(--diffs-bg) 75%, var(--diffs-deletion-base))\n      )\n    );\n    --diffs-bg-deletion-emphasis: var(\n      --diffs-bg-deletion-emphasis-override,\n      light-dark(\n        rgb(from var(--diffs-deletion-base) r g b / 0.15),\n        rgb(from var(--diffs-deletion-base) r g b / 0.2)\n      )\n    );\n\n    --diffs-bg-addition: var(\n      --diffs-bg-addition-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-addition-base))\n      )\n    );\n    --diffs-bg-addition-number: var(\n      --diffs-bg-addition-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-addition-base))\n      )\n    );\n    --diffs-bg-addition-hover: var(\n      --diffs-bg-addition-hover-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 70%, var(--diffs-addition-base))\n      )\n    );\n    --diffs-bg-addition-emphasis: var(\n      --diffs-bg-addition-emphasis-override,\n      light-dark(\n        rgb(from var(--diffs-addition-base) r g b / 0.15),\n        rgb(from var(--diffs-addition-base) r g b / 0.2)\n      )\n    );\n\n    --diffs-selection-base: var(--diffs-modified-base);\n    --diffs-selection-number-fg: light-dark(\n      color-mix(in lab, var(--diffs-selection-base) 65%, var(--diffs-mixer)),\n      color-mix(in lab, var(--diffs-selection-base) 75%, var(--diffs-mixer))\n    );\n    --diffs-bg-selection: var(\n      --diffs-bg-selection-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 82%, var(--diffs-selection-base)),\n        color-mix(in lab, var(--diffs-bg) 75%, var(--diffs-selection-base))\n      )\n    );\n    --diffs-bg-selection-number: var(\n      --diffs-bg-selection-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 75%, var(--diffs-selection-base)),\n        color-mix(in lab, var(--diffs-bg) 60%, var(--diffs-selection-base))\n      )\n    );\n\n    background-color: var(--diffs-bg);\n    color: var(--diffs-fg);\n  }\n\n  /* NOTE(mdo): Some semantic HTML elements (e.g. `pre`, `code`) have default\n * user-agent styles. These must be overridden to use our custom styles. */\n  pre,\n  code,\n  [data-error-wrapper] {\n    isolation: isolate;\n    margin: 0;\n    padding: 0;\n    display: block;\n    outline: none;\n    font-family: var(--diffs-font-family, var(--diffs-font-fallback));\n  }\n\n  pre,\n  code {\n    background-color: var(--diffs-bg);\n  }\n\n  code {\n    contain: content;\n  }\n\n  *,\n  *::before,\n  *::after {\n    box-sizing: border-box;\n  }\n\n  [data-icon-sprite] {\n    display: none;\n  }\n\n  /* NOTE(mdo): Headers and separators are within pre/code, so we need to reset\n   * their font-family explicitly. */\n  [data-diffs-header],\n  [data-separator] {\n    font-family: var(\n      --diffs-header-font-family,\n      var(--diffs-header-font-fallback)\n    );\n  }\n\n  [data-file-info] {\n    padding: 10px;\n    font-weight: 700;\n    color: var(--fg);\n    /* NOTE(amadeus): we cannot use 'in oklch' because current versions of cursor\n   * and vscode use an older build of chrome that appears to have a bug with\n   * color-mix and 'in oklch', so use 'in lab' instead */\n    background-color: color-mix(in lab, var(--bg) 98%, var(--fg));\n    border-block: 1px solid color-mix(in lab, var(--bg) 95%, var(--fg));\n  }\n\n  [data-diff],\n  [data-file] {\n    /* This feels a bit crazy to me... so I need to think about it a bit more... */\n    --diffs-grid-number-column-width: minmax(min-content, max-content);\n    --diffs-code-grid: var(--diffs-grid-number-column-width) 1fr;\n\n    &[data-dehydrated] {\n      --diffs-code-grid: var(--diffs-grid-number-column-width) minmax(0, 1fr);\n    }\n\n    &:hover [data-code]::-webkit-scrollbar-thumb {\n      background-color: var(--diffs-bg-context);\n    }\n  }\n\n  [data-line] span {\n    color: light-dark(\n      var(--diffs-token-light, var(--diffs-light)),\n      var(--diffs-token-dark, var(--diffs-dark))\n    );\n    background-color: light-dark(\n      var(--diffs-token-light-bg, inherit),\n      var(--diffs-token-dark-bg, inherit)\n    );\n    font-weight: light-dark(\n      var(--diffs-token-light-font-weight, inherit),\n      var(--diffs-token-dark-font-weight, inherit)\n    );\n    font-style: light-dark(\n      var(--diffs-token-light-font-style, inherit),\n      var(--diffs-token-dark-font-style, inherit)\n    );\n    -webkit-text-decoration: light-dark(\n      var(--diffs-token-light-text-decoration, inherit),\n      var(--diffs-token-dark-text-decoration, inherit)\n    );\n            text-decoration: light-dark(\n      var(--diffs-token-light-text-decoration, inherit),\n      var(--diffs-token-dark-text-decoration, inherit)\n    );\n  }\n\n  [data-line],\n  [data-gutter-buffer],\n  [data-line-annotation],\n  [data-no-newline] {\n    color: var(--diffs-fg);\n    background-color: var(--diffs-line-bg, var(--diffs-bg));\n  }\n\n  [data-no-newline] {\n    -webkit-user-select: none;\n            user-select: none;\n\n    span {\n      opacity: 0.6;\n    }\n  }\n\n  [data-diff-type='split'][data-overflow='scroll'] {\n    display: grid;\n    grid-template-columns: 1fr 1fr;\n\n    [data-additions] {\n      border-left: 1px solid var(--diffs-bg);\n    }\n\n    [data-deletions] {\n      border-right: 1px solid var(--diffs-bg);\n    }\n  }\n\n  [data-code] {\n    display: grid;\n    grid-auto-flow: dense;\n    grid-template-columns: var(--diffs-code-grid);\n    overflow: scroll clip;\n    overscroll-behavior-x: none;\n    tab-size: var(--diffs-tab-size, 2);\n    align-self: flex-start;\n    padding-top: var(--diffs-gap-block, var(--diffs-gap-fallback));\n    padding-bottom: max(\n      0px,\n      calc(var(--diffs-gap-block, var(--diffs-gap-fallback)) - 6px)\n    );\n  }\n\n  [data-container-size] {\n    container-type: inline-size;\n  }\n\n  [data-code]::-webkit-scrollbar {\n    width: 0;\n    height: 6px;\n  }\n\n  [data-code]::-webkit-scrollbar-track {\n    background: transparent;\n  }\n\n  [data-code]::-webkit-scrollbar-thumb {\n    background-color: transparent;\n    border: 1px solid transparent;\n    background-clip: content-box;\n    border-radius: 3px;\n  }\n\n  [data-code]::-webkit-scrollbar-corner {\n    background-color: transparent;\n  }\n\n  /*\n   * If we apply these rules globally it will mean that webkit will opt into the\n   * standards compliant version of custom css scrollbars, which we do not want\n   * because the custom stuff will look better\n  */\n  @supports (-moz-appearance: none) {\n    [data-code] {\n      scrollbar-width: thin;\n      scrollbar-color: var(--diffs-bg-context) transparent;\n      padding-bottom: var(--diffs-gap-block, var(--diffs-gap-fallback));\n    }\n  }\n\n  [data-diffs-header] ~ [data-diff],\n  [data-diffs-header] ~ [data-file] {\n    [data-code],\n    &[data-overflow='wrap'] {\n      padding-top: 0;\n    }\n  }\n\n  [data-gutter] {\n    display: grid;\n    grid-template-rows: subgrid;\n    grid-template-columns: subgrid;\n    grid-column: 1;\n    z-index: 3;\n    position: relative;\n    background-color: var(--diffs-bg);\n\n    [data-gutter-buffer],\n    [data-column-number] {\n      border-right: var(--diffs-gap-style, 2px solid var(--diffs-bg));\n    }\n  }\n\n  [data-content] {\n    display: grid;\n    grid-template-rows: subgrid;\n    grid-template-columns: subgrid;\n    grid-column: 2;\n    min-width: 0;\n  }\n\n  [data-diff-type='split'][data-overflow='wrap'] {\n    display: grid;\n    grid-auto-flow: dense;\n    grid-template-columns: repeat(2, var(--diffs-code-grid));\n    padding-block: var(--diffs-gap-block, var(--diffs-gap-fallback));\n\n    [data-deletions] {\n      display: contents;\n\n      [data-gutter] {\n        grid-column: 1;\n      }\n\n      [data-content] {\n        grid-column: 2;\n        border-right: 1px solid var(--diffs-bg);\n      }\n    }\n\n    [data-additions] {\n      display: contents;\n\n      [data-gutter] {\n        grid-column: 3;\n        border-left: 1px solid var(--diffs-bg);\n      }\n\n      [data-content] {\n        grid-column: 4;\n      }\n    }\n  }\n\n  [data-overflow='scroll'] [data-gutter] {\n    position: sticky;\n    left: 0;\n  }\n\n  [data-line-annotation][data-selected-line] {\n    background-color: unset;\n\n    &::before {\n      content: '';\n      /* FIXME(amadeus): This needs to be audited ... */\n      position: sticky;\n      top: 0;\n      left: 0;\n      display: block;\n      border-right: var(--diffs-gap-style, 1px solid var(--diffs-bg));\n      background-color: var(--diffs-bg-selection-number);\n    }\n\n    [data-annotation-content] {\n      background-color: var(--diffs-bg-selection);\n    }\n  }\n\n  [data-interactive-lines] [data-line] {\n    cursor: pointer;\n  }\n\n  [data-content-buffer],\n  [data-gutter-buffer] {\n    position: relative;\n    -webkit-user-select: none;\n            user-select: none;\n    min-height: 1lh;\n  }\n\n  [data-gutter-buffer='annotation'] {\n    min-height: 0;\n  }\n\n  [data-gutter-buffer='buffer'] {\n    background-size: 8px 8px;\n    background-position: 0 0;\n    background-origin: border-box;\n    background-color: var(--diffs-bg);\n    /* This is incredibley expensive... */\n    background-image: repeating-linear-gradient(\n      -45deg,\n      transparent,\n      transparent calc(3px * 1.414),\n      rgb(from var(--diffs-bg-buffer) r g b / 0.8) calc(3px * 1.414),\n      rgb(from var(--diffs-bg-buffer) r g b / 0.8) calc(4px * 1.414)\n    );\n  }\n\n  [data-content-buffer] {\n    grid-column: 1;\n    /* We multiply by 1.414 (√2) to better approximate the diagonal repeat distance */\n    background-size: 8px 8px;\n    background-position: 5px 0;\n    background-origin: border-box;\n    background-color: var(--diffs-bg);\n    /* This is incredibley expensive... */\n    background-image: repeating-linear-gradient(\n      -45deg,\n      transparent,\n      transparent calc(3px * 1.414),\n      var(--diffs-bg-buffer) calc(3px * 1.414),\n      var(--diffs-bg-buffer) calc(4px * 1.414)\n    );\n  }\n\n  [data-separator] {\n    box-sizing: content-box;\n    background-color: var(--diffs-bg);\n  }\n\n  [data-separator='simple'] {\n    min-height: 4px;\n  }\n\n  [data-separator='line-info'],\n  [data-separator='line-info-basic'],\n  [data-separator='metadata'],\n  [data-separator='simple'] {\n    background-color: var(--diffs-bg-separator);\n  }\n\n  [data-separator='line-info'],\n  [data-separator='line-info-basic'],\n  [data-separator='metadata'] {\n    height: 32px;\n    position: relative;\n  }\n\n  [data-separator-wrapper] {\n    -webkit-user-select: none;\n            user-select: none;\n    fill: currentColor;\n    position: absolute;\n    inset-inline: 0;\n    display: flex;\n    align-items: center;\n    background-color: var(--diffs-bg);\n    height: 100%;\n  }\n\n  [data-content] [data-separator-wrapper] {\n    display: none;\n  }\n\n  [data-separator='metadata'] [data-separator-wrapper] {\n    inset-inline: 100% auto;\n    padding-inline: 1ch;\n    height: 100%;\n    background-color: var(--diffs-bg-separator);\n    color: var(--diffs-fg-number);\n    white-space: nowrap;\n    overflow: hidden;\n    text-overflow: ellipsis;\n    min-width: min-content;\n  }\n\n  [data-separator='line-info'] {\n    margin-block: var(--diffs-gap-block, var(--diffs-gap-fallback));\n  }\n\n  [data-separator='line-info-basic'],\n  [data-separator='metadata'] {\n    margin-block: 0;\n  }\n\n  [data-separator='line-info'][data-separator-first] {\n    margin-top: 0;\n  }\n\n  [data-separator='line-info'][data-separator-last] {\n    margin-bottom: 0;\n  }\n\n  [data-expand-index] [data-separator-wrapper] {\n    display: grid;\n    grid-template-columns: 32px auto;\n  }\n\n  [data-expand-index] [data-separator-wrapper][data-separator-multi-button] {\n    grid-template-columns: 32px 32px auto;\n  }\n\n  [data-expand-button],\n  [data-separator-content] {\n    display: flex;\n    flex: 0 0 auto;\n    align-items: center;\n    background-color: var(--diffs-bg-separator);\n  }\n\n  [data-expand-button] {\n    justify-content: center;\n    flex-shrink: 0;\n    cursor: pointer;\n    min-width: 32px;\n    align-self: stretch;\n    color: var(--diffs-fg-number);\n    border-right: 2px solid var(--diffs-bg);\n\n    &:hover {\n      color: var(--diffs-fg);\n    }\n  }\n\n  [data-expand-down] [data-icon] {\n    transform: scaleY(-1);\n  }\n\n  [data-separator-content] {\n    flex: 1 1 auto;\n    padding: 0 1ch;\n    height: 100%;\n    color: var(--diffs-fg-number);\n\n    overflow: hidden;\n    justify-content: flex-start;\n  }\n\n  [data-separator='line-info'],\n  [data-separator='line-info-basic'] {\n    [data-separator-content] {\n      height: 100%;\n      -webkit-user-select: none;\n              user-select: none;\n      overflow: clip;\n    }\n  }\n\n  @supports (width: 1cqi) {\n    [data-unified] {\n      [data-separator='line-info'] [data-separator-wrapper] {\n        padding-inline: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n        width: 100cqi;\n\n        [data-separator-content] {\n          border-radius: 6px;\n        }\n      }\n\n      [data-separator='line-info'][data-expand-index]\n        [data-separator-wrapper]\n        [data-separator-content] {\n        border-top-left-radius: unset;\n        border-bottom-left-radius: unset;\n      }\n    }\n\n    [data-gutter] {\n      [data-separator='line-info'] [data-separator-wrapper] {\n        padding-left: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n      }\n\n      [data-separator='line-info'] [data-separator-content] {\n        border-top-left-radius: 6px;\n        border-bottom-left-radius: 6px;\n      }\n\n      [data-separator='line-info'][data-expand-index] [data-separator-content] {\n        border-top-left-radius: unset;\n        border-bottom-left-radius: unset;\n      }\n    }\n\n    [data-additions] {\n      [data-content] [data-separator='line-info'] {\n        background-color: var(--diffs-bg);\n\n        [data-separator-wrapper] {\n          display: none;\n        }\n      }\n\n      [data-gutter] [data-separator='line-info'] [data-separator-wrapper] {\n        display: block;\n        height: 100%;\n        background-color: var(--diffs-bg-separator);\n        border-top-right-radius: 6px;\n        border-bottom-right-radius: 6px;\n\n        [data-separator-content],\n        [data-expand-button] {\n          display: none;\n        }\n      }\n    }\n\n    [data-overflow='scroll']\n      [data-additions]\n      [data-gutter]\n      [data-separator='line-info']\n      [data-separator-wrapper] {\n      width: calc(100cqi - var(--diffs-gap-inline, var(--diffs-gap-fallback)));\n    }\n\n    [data-overflow='wrap']\n      [data-additions]\n      [data-content]\n      [data-separator='line-info']\n      [data-separator-wrapper] {\n      background-color: var(--diffs-bg-separator);\n      display: block;\n      height: 100%;\n      margin-right: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n      border-top-right-radius: 6px;\n      border-bottom-right-radius: 6px;\n\n      [data-separator-content],\n      [data-expand-button] {\n        display: none;\n      }\n    }\n\n    [data-separator='line-info'] [data-separator-wrapper] {\n      [data-expand-both],\n      [data-expand-down],\n      [data-expand-up] {\n        border-top-left-radius: 6px;\n        border-bottom-left-radius: 6px;\n      }\n    }\n\n    @media (pointer: fine) {\n      [data-separator='line-info'] [data-separator-wrapper] {\n        &[data-separator-multi-button] {\n          [data-expand-up] {\n            border-top-left-radius: 6px;\n            border-bottom-left-radius: unset;\n          }\n\n          [data-expand-down] {\n            border-bottom-left-radius: 6px;\n            border-top-left-radius: unset;\n          }\n        }\n      }\n    }\n  }\n\n  @media (pointer: coarse) {\n    [data-separator='line-info-basic']\n      [data-separator-wrapper][data-separator-multi-button] {\n      grid-template-columns: 34px 34px auto;\n\n      [data-separator-content] {\n        grid-column: unset;\n        grid-row: unset;\n      }\n    }\n\n    @supports (width: 1cqi) {\n      [data-separator='line-info'] [data-separator-wrapper] {\n        [data-expand-both],\n        [data-expand-down],\n        [data-expand-up] {\n          border-top-left-radius: 6px;\n          border-bottom-left-radius: 6px;\n        }\n\n        &[data-separator-multi-button] {\n          [data-expand-up] {\n            border-top-left-radius: 6px;\n            border-bottom-left-radius: 6px;\n          }\n\n          [data-expand-down] {\n            border-bottom-left-radius: unset;\n            border-top-left-radius: unset;\n          }\n        }\n      }\n    }\n  }\n\n  @media (pointer: fine) {\n    [data-separator-wrapper][data-separator-multi-button] {\n      display: grid;\n      grid-template-rows: 50% 50%;\n\n      [data-separator-content] {\n        grid-column: 2;\n        grid-row: 1 / -1;\n        min-width: min-content;\n      }\n\n      [data-expand-button] {\n        grid-column: 1;\n      }\n    }\n\n    [data-separator='line-info'] [data-separator-wrapper],\n    [data-separator='line-info']\n      [data-separator-wrapper][data-separator-multi-button] {\n      grid-template-columns: 34px auto;\n    }\n\n    [data-separator='line-info-basic'][data-expand-index]\n      [data-separator-wrapper] {\n      grid-template-columns: 100% auto;\n    }\n\n    [data-separator='line-info'],\n    [data-separator='line-info-basic'] {\n      [data-separator-multi-button] {\n        [data-expand-up] {\n          border-bottom: 1px solid var(--diffs-bg);\n          border-right: 2px solid var(--diffs-bg);\n        }\n        [data-expand-down] {\n          border-top: 1px solid var(--diffs-bg);\n          border-right: 2px solid var(--diffs-bg);\n        }\n      }\n    }\n  }\n\n  [data-additions] [data-gutter] [data-separator-wrapper],\n  [data-additions] [data-separator='line-info-basic'] [data-separator-wrapper],\n  [data-content] [data-separator-wrapper] {\n    display: none;\n  }\n\n  [data-line-annotation],\n  [data-gutter-buffer='annotation'] {\n    --diffs-line-bg: var(--diffs-bg-context);\n  }\n\n  [data-merge-conflict-actions],\n  [data-gutter-buffer='merge-conflict-action'] {\n    --diffs-line-bg: var(--diffs-bg-context);\n  }\n\n  [data-has-merge-conflict] [data-line-annotation],\n  [data-has-merge-conflict] [data-gutter-buffer='annotation'] {\n    --diffs-line-bg: var(--diffs-bg);\n  }\n\n  [data-has-merge-conflict] [data-gutter-buffer='merge-conflict-action'] {\n    --diffs-line-bg: var(--diffs-bg);\n  }\n\n  [data-line-annotation] {\n    min-height: var(--diffs-annotation-min-height, 0);\n    z-index: 2;\n  }\n\n  [data-merge-conflict-actions] {\n    z-index: 2;\n  }\n\n  [data-separator='custom'] {\n    display: grid;\n    grid-template-columns: subgrid;\n  }\n\n  [data-line],\n  [data-column-number],\n  [data-no-newline] {\n    position: relative;\n    padding-inline: 1ch;\n  }\n\n  [data-indicators='classic'] [data-line] {\n    padding-inline-start: 2ch;\n  }\n\n  [data-indicators='classic'] {\n    [data-line-type='change-addition'],\n    [data-line-type='change-deletion'] {\n      &[data-no-newline],\n      &[data-line] {\n        &::before {\n          display: inline-block;\n          width: 1ch;\n          height: 1lh;\n          position: absolute;\n          top: 0;\n          left: 0;\n          -webkit-user-select: none;\n                  user-select: none;\n        }\n      }\n    }\n\n    [data-line-type='change-addition'] {\n      &[data-line],\n      &[data-no-newline] {\n        &::before {\n          content: '+';\n          color: var(--diffs-addition-base);\n        }\n      }\n    }\n\n    [data-line-type='change-deletion'] {\n      &[data-line],\n      &[data-no-newline] {\n        &::before {\n          content: '-';\n          color: var(--diffs-deletion-base);\n        }\n      }\n    }\n  }\n\n  [data-indicators='bars'] {\n    [data-line-type='change-deletion'],\n    [data-line-type='change-addition'] {\n      &[data-column-number] {\n        &::before {\n          content: '';\n          display: block;\n          width: 4px;\n          height: 100%;\n          position: absolute;\n          top: 0;\n          left: 0;\n          -webkit-user-select: none;\n                  user-select: none;\n          contain: strict;\n        }\n      }\n    }\n\n    [data-line-type='change-deletion'] {\n      &[data-column-number] {\n        &::before {\n          background-image: linear-gradient(\n            0deg,\n            var(--diffs-bg-deletion) 50%,\n            var(--diffs-deletion-base) 50%\n          );\n          background-repeat: repeat;\n          background-size: 2px 2px;\n          background-size: calc(1lh / round(1lh / 2px))\n            calc(1lh / round(1lh / 2px));\n        }\n      }\n    }\n\n    [data-line-type='change-addition'] {\n      &[data-column-number] {\n        &::before {\n          background-color: var(--diffs-addition-base);\n        }\n      }\n    }\n  }\n\n  [data-overflow='wrap'] {\n    [data-line],\n    [data-annotation-content] {\n      white-space: pre-wrap;\n      word-break: break-word;\n    }\n  }\n\n  [data-overflow='scroll'] [data-line] {\n    white-space: pre;\n    min-height: 1lh;\n  }\n\n  [data-column-number] {\n    box-sizing: content-box;\n    text-align: right;\n    -webkit-user-select: none;\n            user-select: none;\n    background-color: var(--diffs-bg);\n    color: var(--diffs-fg-number);\n    padding-left: 2ch;\n  }\n\n  [data-line-number-content] {\n    display: inline-block;\n    min-width: var(\n      --diffs-min-number-column-width,\n      var(--diffs-min-number-column-width-default, 3ch)\n    );\n  }\n\n  [data-disable-line-numbers] {\n    [data-column-number] {\n      min-width: 4px;\n      padding: 0;\n    }\n\n    [data-line-number-content] {\n      display: none;\n    }\n\n    [data-gutter-utility-slot] {\n      right: unset;\n      left: 0;\n      justify-content: flex-start;\n    }\n\n    &[data-indicators='bars'] [data-gutter-utility-slot] {\n      /* Using 5px here because theres a 1px separator after the bar */\n      left: 5px;\n    }\n  }\n\n  [data-file][data-disable-line-numbers] {\n    [data-gutter-buffer],\n    [data-column-number] {\n      min-width: 0;\n      border-right: 0;\n    }\n  }\n\n  [data-interactive-line-numbers] [data-column-number] {\n    cursor: pointer;\n  }\n\n  [data-diff-span] {\n    border-radius: 3px;\n    -webkit-box-decoration-break: clone;\n            box-decoration-break: clone;\n  }\n\n  [data-line-type='change-addition'] {\n    &[data-column-number] {\n      color: var(\n        --diffs-fg-number-addition-override,\n        var(--diffs-addition-base)\n      );\n    }\n\n    > [data-diff-span] {\n      background-color: var(--diffs-bg-addition-emphasis);\n    }\n  }\n\n  [data-line-type='change-deletion'] {\n    &[data-column-number] {\n      color: var(\n        --diffs-fg-number-deletion-override,\n        var(--diffs-deletion-base)\n      );\n    }\n\n    [data-diff-span] {\n      background-color: var(--diffs-bg-deletion-emphasis);\n    }\n  }\n\n  [data-background] [data-line-type='change-addition'] {\n    --diffs-line-bg: var(--diffs-bg-addition);\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg-addition-number);\n    }\n  }\n\n  [data-background] [data-line-type='change-deletion'] {\n    --diffs-line-bg: var(--diffs-bg-deletion);\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg-deletion-number);\n    }\n  }\n\n  [data-merge-conflict='marker-start'],\n  [data-merge-conflict='marker-base'],\n  [data-merge-conflict='marker-separator'],\n  [data-merge-conflict='marker-end'] {\n    padding-left: 1ch;\n    color: var(--diffs-fg);\n  }\n\n  [data-merge-conflict='marker-start'],\n  [data-merge-conflict='marker-end'] {\n    display: flex;\n    align-items: center;\n\n    &::after {\n      color: var(--diffs-fg-conflict-marker);\n      font-style: normal;\n      font-size: 0.75rem;\n      line-height: 1.25rem;\n      padding-left: 1ch;\n      font-family: var(\n        --diffs-header-font-family,\n        var(--diffs-header-font-fallback)\n      );\n    }\n  }\n\n  [data-merge-conflict='marker-start']::after {\n    content: '(Current Change)';\n  }\n\n  [data-merge-conflict='marker-end']::after {\n    content: '(Incoming Change)';\n  }\n\n  [data-merge-conflict='marker-base'],\n  [data-merge-conflict='marker-end'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--diffs-bg-conflict-marker);\n    }\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg-conflict-marker-number);\n      color: var(--diffs-fg-conflict-marker);\n\n      [data-line-number-content] {\n        color: var(--diffs-fg-conflict-marker);\n      }\n    }\n  }\n\n  [data-merge-conflict='current'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--conflict-bg-current);\n    }\n\n    &[data-column-number] {\n      background-color: var(--conflict-bg-current-number);\n      color: var(--diffs-addition-base);\n    }\n  }\n\n  [data-gutter-buffer='merge-conflict-marker-start'],\n  [data-merge-conflict='marker-start'] {\n    background-color: var(--conflict-bg-current-header);\n  }\n\n  [data-gutter-buffer='merge-conflict-marker-end'],\n  [data-merge-conflict='marker-end'] {\n    background-color: var(--conflict-bg-incoming-header);\n  }\n\n  [data-merge-conflict='marker-separator'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--diffs-bg);\n    }\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg);\n    }\n  }\n\n  [data-merge-conflict='base'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--diffs-bg-conflict-base);\n    }\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg-conflict-base-number);\n      color: var(--diffs-modified-base);\n    }\n  }\n\n  [data-merge-conflict='incoming'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--conflict-bg-incoming);\n    }\n\n    &[data-column-number] {\n      background-color: var(--conflict-bg-incoming-number);\n      color: var(--diffs-modified-base);\n    }\n  }\n\n  @media (pointer: fine) {\n    [data-column-number],\n    [data-line] {\n      &[data-hovered] {\n        background-color: var(--diffs-bg-hover);\n      }\n    }\n\n    [data-background] {\n      [data-column-number],\n      [data-line] {\n        &[data-hovered] {\n          &[data-line-type='change-deletion'] {\n            background-color: var(--diffs-bg-deletion-hover);\n          }\n\n          &[data-line-type='change-addition'] {\n            background-color: var(--diffs-bg-addition-hover);\n          }\n        }\n      }\n    }\n  }\n\n  [data-diffs-header='default'] {\n    position: relative;\n    background-color: var(--diffs-bg);\n    display: flex;\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n    gap: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n    min-height: calc(\n      1lh + (var(--diffs-gap-block, var(--diffs-gap-fallback)) * 3)\n    );\n    padding-inline: 16px;\n    top: 0;\n    z-index: 2;\n  }\n\n  [data-header-content] {\n    display: flex;\n    flex-direction: row;\n    align-items: center;\n    gap: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n    min-width: 0;\n    white-space: nowrap;\n  }\n\n  [data-header-content] [data-prev-name],\n  [data-header-content] [data-title] {\n    direction: rtl;\n    overflow: hidden;\n    text-overflow: ellipsis;\n    min-width: 0;\n    white-space: nowrap;\n  }\n\n  [data-prev-name] {\n    opacity: 0.7;\n  }\n\n  [data-rename-icon] {\n    fill: currentColor;\n    flex-shrink: 0;\n    flex-grow: 0;\n  }\n\n  [data-diffs-header='default'] [data-metadata] {\n    display: flex;\n    align-items: center;\n    gap: 1ch;\n    white-space: nowrap;\n  }\n\n  [data-diffs-header='default'] [data-additions-count] {\n    font-family: var(--diffs-font-family, var(--diffs-font-fallback));\n    color: var(--diffs-addition-base);\n  }\n\n  [data-diffs-header='default'] [data-deletions-count] {\n    font-family: var(--diffs-font-family, var(--diffs-font-fallback));\n    color: var(--diffs-deletion-base);\n  }\n\n  [data-annotation-content] {\n    position: relative;\n    display: flow-root;\n    align-self: flex-start;\n    z-index: 2;\n    min-width: 0;\n    isolation: isolate;\n  }\n\n  [data-merge-conflict-actions-content] {\n    display: flex;\n    align-items: center;\n    gap: 0.25rem;\n    padding-inline: 0.5rem;\n    min-height: 1.75rem;\n    font-family: var(\n      --diffs-header-font-family,\n      var(--diffs-header-font-fallback)\n    );\n    font-size: 0.75rem;\n    line-height: 1.2;\n    color: var(--diffs-fg);\n  }\n\n  [data-merge-conflict-action] {\n    appearance: none;\n    border: 0;\n    background: transparent;\n    color: var(--diffs-fg-number);\n    font: inherit;\n    font-style: normal;\n    cursor: pointer;\n    padding: 0;\n  }\n\n  [data-merge-conflict-action]:hover {\n    color: var(--diffs-fg);\n  }\n\n  [data-merge-conflict-action='current']:hover {\n    color: var(--diffs-addition-base);\n  }\n\n  [data-merge-conflict-action='incoming']:hover {\n    color: var(--diffs-modified-base);\n  }\n\n  [data-merge-conflict-action-separator] {\n    color: var(--diffs-fg-number);\n    opacity: 0.6;\n    -webkit-user-select: none;\n            user-select: none;\n  }\n\n  /* Sticky positioning has a composite costs, so we should _only_ pay it if we\n   * need to */\n  [data-overflow='scroll'] [data-annotation-content] {\n    position: sticky;\n    width: var(--diffs-column-content-width, auto);\n    left: var(--diffs-column-number-width, 0);\n  }\n\n  [data-overflow='scroll'] [data-merge-conflict-actions-content] {\n    position: sticky;\n    width: var(--diffs-column-content-width, auto);\n    left: var(--diffs-column-number-width, 0);\n  }\n\n  /* Undo some of the stuff that the 'pre' tag does */\n  [data-annotation-slot] {\n    text-wrap-mode: wrap;\n    word-break: normal;\n    white-space-collapse: collapse;\n  }\n\n  [data-change-icon] {\n    fill: currentColor;\n    flex-shrink: 0;\n  }\n\n  [data-change-icon='change'],\n  [data-change-icon='rename-pure'],\n  [data-change-icon='rename-changed'] {\n    color: var(--diffs-modified-base);\n  }\n\n  [data-change-icon='new'] {\n    color: var(--diffs-addition-base);\n  }\n\n  [data-change-icon='deleted'] {\n    color: var(--diffs-deletion-base);\n  }\n\n  [data-change-icon='file'] {\n    opacity: 0.6;\n  }\n\n  /* Line selection highlighting */\n  [data-selected-line] {\n    &[data-gutter-buffer='annotation'],\n    &[data-column-number] {\n      color: var(--diffs-selection-number-fg);\n      background-color: var(--diffs-bg-selection-number);\n    }\n\n    &[data-line] {\n      background-color: var(--diffs-bg-selection);\n    }\n  }\n\n  [data-line-type='change-addition'],\n  [data-line-type='change-deletion'] {\n    &[data-selected-line] {\n      &[data-line],\n      &[data-line][data-hovered] {\n        background-color: light-dark(\n          color-mix(\n            in lab,\n            var(--diffs-line-bg, var(--diffs-bg)) 82%,\n            var(--diffs-selection-base)\n          ),\n          color-mix(\n            in lab,\n            var(--diffs-line-bg, var(--diffs-bg)) 75%,\n            var(--diffs-selection-base)\n          )\n        );\n      }\n\n      &[data-column-number],\n      &[data-column-number][data-hovered] {\n        color: var(--diffs-selection-number-fg);\n        background-color: light-dark(\n          color-mix(\n            in lab,\n            var(--diffs-line-bg, var(--diffs-bg)) 75%,\n            var(--diffs-selection-base)\n          ),\n          color-mix(\n            in lab,\n            var(--diffs-line-bg, var(--diffs-bg)) 60%,\n            var(--diffs-selection-base)\n          )\n        );\n      }\n    }\n  }\n\n  [data-gutter-utility-slot] {\n    position: absolute;\n    top: 0;\n    bottom: 0;\n    right: 0;\n    display: flex;\n    justify-content: flex-end;\n  }\n\n  [data-unmodified-lines] {\n    display: block;\n    overflow: hidden;\n    min-width: 0;\n    text-overflow: ellipsis;\n    white-space: nowrap;\n    flex: 0 1 auto;\n  }\n\n  [data-error-wrapper] {\n    overflow: auto;\n    padding: var(--diffs-gap-block, var(--diffs-gap-fallback))\n      var(--diffs-gap-inline, var(--diffs-gap-fallback));\n    max-height: 400px;\n    scrollbar-width: none;\n\n    [data-error-message] {\n      font-weight: bold;\n      font-size: 18px;\n      color: var(--diffs-deletion-base);\n    }\n\n    [data-error-stack] {\n      color: var(--diffs-fg-number);\n    }\n  }\n\n  [data-placeholder] {\n    contain: strict;\n  }\n\n  [data-utility-button] {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    border: none;\n    appearance: none;\n    width: 1lh;\n    height: 1lh;\n    margin-right: calc((1lh - 1ch) * -1);\n    padding: 0;\n    cursor: pointer;\n    font-size: var(--diffs-font-size, 13px);\n    line-height: var(--diffs-line-height, 20px);\n    border-radius: 4px;\n    background-color: var(--diffs-modified-base);\n    color: var(--diffs-bg);\n    fill: currentColor;\n    position: relative;\n    z-index: 4;\n  }\n}\n";
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/cssWrappers.js
+const LAYER_ORDER = `@layer base, theme, rendered, unsafe;`;
+function wrapCoreCSS(mainCSS) {
+	return `${LAYER_ORDER}
+${style_default}
+@layer theme {
+  ${mainCSS}
+}`;
+}
+function wrapUnsafeCSS(unsafeCSS) {
+	return `${LAYER_ORDER}
+@layer unsafe {
+  ${unsafeCSS}
+}`;
+}
+function wrapThemeCSS(themeCSS, themeType = "system") {
+	return `${LAYER_ORDER}
+@layer rendered {
+  :host {${themeType === "system" ? "" : `
+  color-scheme: ${themeType};`}
+  ${themeCSS}
+  }
+}`;
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/constants.js
+const GIT_DIFF_FILE_BREAK_REGEX = /(?=^diff --git)/gm;
+const FILE_CONTEXT_BLOB = /(?=^@@ )/gm;
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: (.*))?/m;
+const SPLIT_WITH_NEWLINES = /(?<=\n)/;
+const FILENAME_HEADER_REGEX = /^(---|\+\+\+)\s+([^\t\r\n]+)/;
+const FILENAME_HEADER_REGEX_GIT = /^(---|\+\+\+)\s+[ab]\/([^\t\r\n]+)/;
+const ALTERNATE_FILE_NAMES_GIT = /^diff --git (?:"a\/(.+?)"|a\/(.+?)) (?:"b\/(.+?)"|b\/(.+?))$/;
+const INDEX_LINE_METADATA = /^index ([0-9a-f]+)\.\.([0-9a-f]+)(?: (\d+))?$/i;
+const HEADER_PREFIX_SLOT_ID = "header-prefix";
+const HEADER_METADATA_SLOT_ID = "header-metadata";
+const CUSTOM_HEADER_SLOT_ID = "header-custom";
+const DEFAULT_THEMES = {
+	dark: "pierre-dark",
+	light: "pierre-light"
+};
+const THEME_CSS_ATTRIBUTE = "data-theme-css";
+const UNSAFE_CSS_ATTRIBUTE = "data-unsafe-css";
+const CORE_CSS_ATTRIBUTE = "data-core-css";
+const DEFAULT_EXPANDED_REGION = Object.freeze({
+	fromStart: 0,
+	fromEnd: 0
+});
+const DEFAULT_RENDER_RANGE = {
+	startingLine: 0,
+	totalLines: Infinity,
+	bufferBefore: 0,
+	bufferAfter: 0
+};
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/hast_utils.js
+function createTextNodeElement(value) {
+	return {
+		type: "text",
+		value
+	};
+}
+function createHastElement({ tagName, children = [], properties = {} }) {
+	return {
+		type: "element",
+		tagName,
+		properties,
+		children
+	};
+}
+function createIconElement({ name, width = 16, height = 16, properties }) {
+	return createHastElement({
+		tagName: "svg",
+		properties: {
+			width,
+			height,
+			viewBox: "0 0 16 16",
+			...properties
+		},
+		children: [createHastElement({
+			tagName: "use",
+			properties: { href: `#${name.replace(/^#/, "")}` }
+		})]
+	});
+}
+function findCodeElement(nodes) {
+	let firstChild = nodes.children[0];
+	while (firstChild != null) {
+		if (firstChild.type === "element" && firstChild.tagName === "code") return firstChild;
+		if ("children" in firstChild) firstChild = firstChild.children[0];
+		else firstChild = null;
+	}
+}
+function createGutterWrapper(children) {
+	return createHastElement({
+		tagName: "div",
+		properties: { "data-gutter": "" },
+		children
+	});
+}
+function createGutterItem(lineType, lineNumber, lineIndex, properties = {}) {
+	return createHastElement({
+		tagName: "div",
+		properties: {
+			"data-line-type": lineType,
+			"data-column-number": lineNumber,
+			"data-line-index": lineIndex,
+			...properties
+		},
+		children: lineNumber != null ? [createHastElement({
+			tagName: "span",
+			properties: { "data-line-number-content": "" },
+			children: [createTextNodeElement(`${lineNumber}`)]
+		})] : void 0
+	});
+}
+function createGutterGap(type, bufferType, size) {
+	return createHastElement({
+		tagName: "div",
+		properties: {
+			"data-gutter-buffer": bufferType,
+			"data-buffer-size": size,
+			"data-line-type": bufferType === "annotation" ? void 0 : type,
+			style: bufferType === "annotation" ? `grid-row: span ${size};` : `grid-row: span ${size};min-height:calc(${size} * 1lh);`
+		}
+	});
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/highlighter/languages/constants.js
 const ResolvedLanguages = /* @__PURE__ */ new Map();
 const ResolvingLanguages = /* @__PURE__ */ new Map();
 const RegisteredCustomLanguages = /* @__PURE__ */ new Map();
 const AttachedLanguages = /* @__PURE__ */ new Set();
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/languages/areLanguagesAttached.js
+//#region node_modules/@pierre/diffs/dist/highlighter/languages/areLanguagesAttached.js
 function areLanguagesAttached(languages) {
 	for (const language of Array.isArray(languages) ? languages : [languages]) if (!AttachedLanguages.has(language)) return false;
 	return true;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/languages/attachResolvedLanguages.js
+//#region node_modules/@pierre/diffs/dist/highlighter/languages/attachResolvedLanguages.js
 function attachResolvedLanguages(resolvedLanguages, highlighter) {
 	resolvedLanguages = Array.isArray(resolvedLanguages) ? resolvedLanguages : [resolvedLanguages];
 	for (const resolvedLang of resolvedLanguages) {
@@ -4325,12 +4452,12 @@ function attachResolvedLanguages(resolvedLanguages, highlighter) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/isWorkerContext.js
+//#region node_modules/@pierre/diffs/dist/utils/isWorkerContext.js
 function isWorkerContext() {
 	return typeof WorkerGlobalScope !== "undefined" && typeof self !== "undefined" && self instanceof WorkerGlobalScope;
 }
 //#endregion
-//#region node_modules/.pnpm/@shikijs+types@3.23.0/node_modules/@shikijs/types/dist/index.mjs
+//#region node_modules/@shikijs/types/dist/index.mjs
 var ShikiError$2 = class extends Error {
 	constructor(message) {
 		super(message);
@@ -4338,7 +4465,7 @@ var ShikiError$2 = class extends Error {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@shikijs+vscode-textmate@10.0.2/node_modules/@shikijs/vscode-textmate/dist/index.js
+//#region node_modules/@shikijs/vscode-textmate/dist/index.js
 function clone(something) {
 	return doClone(something);
 }
@@ -6651,7 +6778,7 @@ var Registry$1 = class {
 };
 var INITIAL = StateStackImpl.NULL;
 //#endregion
-//#region node_modules/.pnpm/@shikijs+core@3.23.0/node_modules/@shikijs/core/dist/index.mjs
+//#region node_modules/@shikijs/core/dist/index.mjs
 function resolveColorReplacements(theme, options) {
 	const replacements = typeof theme === "string" ? {} : { ...theme.colorReplacements };
 	const themeName = typeof theme === "string" ? theme : theme.name;
@@ -8415,324 +8542,324 @@ function createSingletonShorthands(createHighlighter, config) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/shiki@3.23.0/node_modules/shiki/dist/langs.mjs
+//#region node_modules/shiki/dist/langs.mjs
 const bundledLanguagesInfo = [
 	{
 		"id": "abap",
 		"name": "ABAP",
-		"import": (() => import("../../abap-fIKT7EXZ.js"))
+		"import": (() => import("../../abap-HY_3MwgY.js"))
 	},
 	{
 		"id": "actionscript-3",
 		"name": "ActionScript",
-		"import": (() => import("../../actionscript-3-CdKWL7HU.js"))
+		"import": (() => import("../../actionscript-3-CIjLE_IX.js"))
 	},
 	{
 		"id": "ada",
 		"name": "Ada",
-		"import": (() => import("../../ada-YSXrOT3k.js"))
+		"import": (() => import("../../ada-D-MOHwZe.js"))
 	},
 	{
 		"id": "angular-html",
 		"name": "Angular HTML",
-		"import": (() => import("../../angular-html-W9Znf98m.js"))
+		"import": (() => import("../../angular-html-CRcxvyiE.js"))
 	},
 	{
 		"id": "angular-ts",
 		"name": "Angular TypeScript",
-		"import": (() => import("../../angular-ts-FekqDUfy.js"))
+		"import": (() => import("../../angular-ts-Bi0OPHJ1.js"))
 	},
 	{
 		"id": "apache",
 		"name": "Apache Conf",
-		"import": (() => import("../../apache-yg0BYEVH.js"))
+		"import": (() => import("../../apache-CE2Y6ExJ.js"))
 	},
 	{
 		"id": "apex",
 		"name": "Apex",
-		"import": (() => import("../../apex-EbAaZL45.js"))
+		"import": (() => import("../../apex-Blst8fCh.js"))
 	},
 	{
 		"id": "apl",
 		"name": "APL",
-		"import": (() => import("../../apl-CNwedXss.js"))
+		"import": (() => import("../../apl-9Umffxtf.js"))
 	},
 	{
 		"id": "applescript",
 		"name": "AppleScript",
-		"import": (() => import("../../applescript-BzSRgbFA.js"))
+		"import": (() => import("../../applescript-CNDesQBL.js"))
 	},
 	{
 		"id": "ara",
 		"name": "Ara",
-		"import": (() => import("../../ara-13h95J1P.js"))
+		"import": (() => import("../../ara-aI5C3LKq.js"))
 	},
 	{
 		"id": "asciidoc",
 		"name": "AsciiDoc",
 		"aliases": ["adoc"],
-		"import": (() => import("../../asciidoc-BS6gyGNv.js"))
+		"import": (() => import("../../asciidoc-DPvxzovw.js"))
 	},
 	{
 		"id": "asm",
 		"name": "Assembly",
-		"import": (() => import("../../asm-S3zQ8eWX.js"))
+		"import": (() => import("../../asm-Dlmyk0ib.js"))
 	},
 	{
 		"id": "astro",
 		"name": "Astro",
-		"import": (() => import("../../astro-XNFKshXS.js"))
+		"import": (() => import("../../astro-B9QjM7yR.js"))
 	},
 	{
 		"id": "awk",
 		"name": "AWK",
-		"import": (() => import("../../awk-_ZOWV66f.js"))
+		"import": (() => import("../../awk-BzpR0weS.js"))
 	},
 	{
 		"id": "ballerina",
 		"name": "Ballerina",
-		"import": (() => import("../../ballerina-BE3wfCef.js"))
+		"import": (() => import("../../ballerina-BcScen4H.js"))
 	},
 	{
 		"id": "bat",
 		"name": "Batch File",
 		"aliases": ["batch"],
-		"import": (() => import("../../bat-DaPSJuLX.js"))
+		"import": (() => import("../../bat-N11QhVtj.js"))
 	},
 	{
 		"id": "beancount",
 		"name": "Beancount",
-		"import": (() => import("../../beancount-DnPlaFJC.js"))
+		"import": (() => import("../../beancount-DdCJsnpQ.js"))
 	},
 	{
 		"id": "berry",
 		"name": "Berry",
 		"aliases": ["be"],
-		"import": (() => import("../../berry-GJMy6EOo.js"))
+		"import": (() => import("../../berry-Pb9cQhMU.js"))
 	},
 	{
 		"id": "bibtex",
 		"name": "BibTeX",
-		"import": (() => import("../../bibtex-DDF53Q6q.js"))
+		"import": (() => import("../../bibtex-Xvb1fncz.js"))
 	},
 	{
 		"id": "bicep",
 		"name": "Bicep",
-		"import": (() => import("../../bicep-BZmoQJbe.js"))
+		"import": (() => import("../../bicep-BByzuyXO.js"))
 	},
 	{
 		"id": "bird2",
 		"name": "BIRD2 Configuration",
 		"aliases": ["bird"],
-		"import": (() => import("../../bird2-5wY53y1H.js"))
+		"import": (() => import("../../bird2-D-zecAz5.js"))
 	},
 	{
 		"id": "blade",
 		"name": "Blade",
-		"import": (() => import("../../blade-DRn36-rc.js"))
+		"import": (() => import("../../blade-CAL5_8-W.js"))
 	},
 	{
 		"id": "bsl",
 		"name": "1C (Enterprise)",
 		"aliases": ["1c"],
-		"import": (() => import("../../bsl-CnQPZ-vK.js"))
+		"import": (() => import("../../bsl-CnbzH4Yu.js"))
 	},
 	{
 		"id": "c",
 		"name": "C",
-		"import": (() => import("../../c-QYO6hSjz.js"))
+		"import": (() => import("../../c-CgnfbfwL.js"))
 	},
 	{
 		"id": "c3",
 		"name": "C3",
-		"import": (() => import("../../c3-CY_oT6Sb.js"))
+		"import": (() => import("../../c3-E3uCF3V5.js"))
 	},
 	{
 		"id": "cadence",
 		"name": "Cadence",
 		"aliases": ["cdc"],
-		"import": (() => import("../../cadence-CVsZLrjV.js"))
+		"import": (() => import("../../cadence-Do3AER1l.js"))
 	},
 	{
 		"id": "cairo",
 		"name": "Cairo",
-		"import": (() => import("../../cairo-DmEcE44J.js"))
+		"import": (() => import("../../cairo-2Vw_pwf7.js"))
 	},
 	{
 		"id": "clarity",
 		"name": "Clarity",
-		"import": (() => import("../../clarity-RyDDi9jg.js"))
+		"import": (() => import("../../clarity-yp-ZgGSr.js"))
 	},
 	{
 		"id": "clojure",
 		"name": "Clojure",
 		"aliases": ["clj"],
-		"import": (() => import("../../clojure-DUhD-Cgi.js"))
+		"import": (() => import("../../clojure-WzfNc5zB.js"))
 	},
 	{
 		"id": "cmake",
 		"name": "CMake",
-		"import": (() => import("../../cmake-CKLen1F3.js"))
+		"import": (() => import("../../cmake-B74Yp6r_.js"))
 	},
 	{
 		"id": "cobol",
 		"name": "COBOL",
-		"import": (() => import("../../cobol-CwlAg_z_.js"))
+		"import": (() => import("../../cobol-DpcUiMTW.js"))
 	},
 	{
 		"id": "codeowners",
 		"name": "CODEOWNERS",
-		"import": (() => import("../../codeowners-CG9gaRP8.js"))
+		"import": (() => import("../../codeowners-CUcwIerj.js"))
 	},
 	{
 		"id": "codeql",
 		"name": "CodeQL",
 		"aliases": ["ql"],
-		"import": (() => import("../../codeql-BCzWOUXe.js"))
+		"import": (() => import("../../codeql-CPhvKwQ1.js"))
 	},
 	{
 		"id": "coffee",
 		"name": "CoffeeScript",
 		"aliases": ["coffeescript"],
-		"import": (() => import("../../coffee-CEMp5PFD.js"))
+		"import": (() => import("../../coffee-DUolGKSX.js"))
 	},
 	{
 		"id": "common-lisp",
 		"name": "Common Lisp",
 		"aliases": ["lisp"],
-		"import": (() => import("../../common-lisp-RgcN-orx.js"))
+		"import": (() => import("../../common-lisp-DHfmSmml.js"))
 	},
 	{
 		"id": "coq",
 		"name": "Coq",
-		"import": (() => import("../../coq-Cy9ksNk3.js"))
+		"import": (() => import("../../coq-D-K9c8my.js"))
 	},
 	{
 		"id": "cpp",
 		"name": "C++",
 		"aliases": ["c++"],
-		"import": (() => import("../../cpp-eYxlyJQ2.js"))
+		"import": (() => import("../../cpp-CdqMmu9r.js"))
 	},
 	{
 		"id": "crystal",
 		"name": "Crystal",
-		"import": (() => import("../../crystal-Cxp3vnmK.js"))
+		"import": (() => import("../../crystal-BbV4QEUE.js"))
 	},
 	{
 		"id": "csharp",
 		"name": "C#",
 		"aliases": ["c#", "cs"],
-		"import": (() => import("../../csharp-DRca3kCD.js"))
+		"import": (() => import("../../csharp-DREKZH0v.js"))
 	},
 	{
 		"id": "css",
 		"name": "CSS",
-		"import": (() => import("../../css-icaj9dHt.js"))
+		"import": (() => import("../../css-D9JUcxEZ.js"))
 	},
 	{
 		"id": "csv",
 		"name": "CSV",
-		"import": (() => import("../../csv-0fQezVRU.js"))
+		"import": (() => import("../../csv-s9gVf5DT.js"))
 	},
 	{
 		"id": "cue",
 		"name": "CUE",
-		"import": (() => import("../../cue-KXnYjI--.js"))
+		"import": (() => import("../../cue-BfbvevXo.js"))
 	},
 	{
 		"id": "cypher",
 		"name": "Cypher",
 		"aliases": ["cql"],
-		"import": (() => import("../../cypher-BTLzMGWJ.js"))
+		"import": (() => import("../../cypher-B7gUysqG.js"))
 	},
 	{
 		"id": "d",
 		"name": "D",
-		"import": (() => import("../../d-yJ0f1_S9.js"))
+		"import": (() => import("../../d-DWCIbMmP.js"))
 	},
 	{
 		"id": "dart",
 		"name": "Dart",
-		"import": (() => import("../../dart-xKh4TMm0.js"))
+		"import": (() => import("../../dart-_HXv5dgU.js"))
 	},
 	{
 		"id": "dax",
 		"name": "DAX",
-		"import": (() => import("../../dax-DOD518HL.js"))
+		"import": (() => import("../../dax-Br63eszG.js"))
 	},
 	{
 		"id": "desktop",
 		"name": "Desktop",
-		"import": (() => import("../../desktop-BUbEtyWX.js"))
+		"import": (() => import("../../desktop-Besdfsvf.js"))
 	},
 	{
 		"id": "diff",
 		"name": "Diff",
-		"import": (() => import("../../diff-BSlgWrnH.js"))
+		"import": (() => import("../../diff-C1BhE3Ma.js"))
 	},
 	{
 		"id": "docker",
 		"name": "Dockerfile",
 		"aliases": ["dockerfile"],
-		"import": (() => import("../../docker-Bhr0HWwC.js"))
+		"import": (() => import("../../docker-B-hBCzBl.js"))
 	},
 	{
 		"id": "dotenv",
 		"name": "dotEnv",
-		"import": (() => import("../../dotenv-B2QTA3Y8.js"))
+		"import": (() => import("../../dotenv-CX4GuHNz.js"))
 	},
 	{
 		"id": "dream-maker",
 		"name": "Dream Maker",
-		"import": (() => import("../../dream-maker-C1dZqvOu.js"))
+		"import": (() => import("../../dream-maker-YkQItaYf.js"))
 	},
 	{
 		"id": "edge",
 		"name": "Edge",
-		"import": (() => import("../../edge-FuegpxWx.js"))
+		"import": (() => import("../../edge-Dy0B7lAp.js"))
 	},
 	{
 		"id": "elixir",
 		"name": "Elixir",
-		"import": (() => import("../../elixir-B27DiSZa.js"))
+		"import": (() => import("../../elixir-Bc8mH4dn.js"))
 	},
 	{
 		"id": "elm",
 		"name": "Elm",
-		"import": (() => import("../../elm-lmGm_noQ.js"))
+		"import": (() => import("../../elm-BfsAtj8z.js"))
 	},
 	{
 		"id": "emacs-lisp",
 		"name": "Emacs Lisp",
 		"aliases": ["elisp"],
-		"import": (() => import("../../emacs-lisp-DdV4OIIF.js"))
+		"import": (() => import("../../emacs-lisp-BlN1LacA.js"))
 	},
 	{
 		"id": "erb",
 		"name": "ERB",
-		"import": (() => import("../../erb-C4DU5Poq.js"))
+		"import": (() => import("../../erb-DUxx1_Hd.js"))
 	},
 	{
 		"id": "erlang",
 		"name": "Erlang",
 		"aliases": ["erl"],
-		"import": (() => import("../../erlang-DFOBWM1v.js"))
+		"import": (() => import("../../erlang-CKC8Ksh8.js"))
 	},
 	{
 		"id": "fennel",
 		"name": "Fennel",
-		"import": (() => import("../../fennel-CPCIpv5y.js"))
+		"import": (() => import("../../fennel-D7mvhb3b.js"))
 	},
 	{
 		"id": "fish",
 		"name": "Fish",
-		"import": (() => import("../../fish-BszYyyH2.js"))
+		"import": (() => import("../../fish-pyY3Vft4.js"))
 	},
 	{
 		"id": "fluent",
 		"name": "Fluent",
 		"aliases": ["ftl"],
-		"import": (() => import("../../fluent-D4repWtF.js"))
+		"import": (() => import("../../fluent-D275451V.js"))
 	},
 	{
 		"id": "fortran-fixed-form",
@@ -8742,7 +8869,7 @@ const bundledLanguagesInfo = [
 			"for",
 			"f77"
 		],
-		"import": (() => import("../../fortran-fixed-form-CHOskIEw.js"))
+		"import": (() => import("../../fortran-fixed-form-5_Ox7I9J.js"))
 	},
 	{
 		"id": "fortran-free-form",
@@ -8754,186 +8881,186 @@ const bundledLanguagesInfo = [
 			"f08",
 			"f18"
 		],
-		"import": (() => import("../../fortran-free-form-CPjJgl-s.js"))
+		"import": (() => import("../../fortran-free-form-DL76Q2yj.js"))
 	},
 	{
 		"id": "fsharp",
 		"name": "F#",
 		"aliases": ["f#", "fs"],
-		"import": (() => import("../../fsharp-DI8hL7V4.js"))
+		"import": (() => import("../../fsharp-D2O9wO-s.js"))
 	},
 	{
 		"id": "gdresource",
 		"name": "GDResource",
 		"aliases": ["tscn", "tres"],
-		"import": (() => import("../../gdresource-D60gY1_1.js"))
+		"import": (() => import("../../gdresource-BIiaOLPo.js"))
 	},
 	{
 		"id": "gdscript",
 		"name": "GDScript",
 		"aliases": ["gd"],
-		"import": (() => import("../../gdscript-BsyG4HDo.js"))
+		"import": (() => import("../../gdscript-BR_3dBfl.js"))
 	},
 	{
 		"id": "gdshader",
 		"name": "GDShader",
-		"import": (() => import("../../gdshader-C_Ez8TwS.js"))
+		"import": (() => import("../../gdshader-CmiM7LkH.js"))
 	},
 	{
 		"id": "genie",
 		"name": "Genie",
-		"import": (() => import("../../genie-D6BCw8nk.js"))
+		"import": (() => import("../../genie-DNA3tvTf.js"))
 	},
 	{
 		"id": "gherkin",
 		"name": "Gherkin",
-		"import": (() => import("../../gherkin-BPA-3ZVu.js"))
+		"import": (() => import("../../gherkin-xmoyD4Bs.js"))
 	},
 	{
 		"id": "git-commit",
 		"name": "Git Commit Message",
-		"import": (() => import("../../git-commit-DNoP5sHO.js"))
+		"import": (() => import("../../git-commit-DU9UBQNW.js"))
 	},
 	{
 		"id": "git-rebase",
 		"name": "Git Rebase Message",
-		"import": (() => import("../../git-rebase-zsUtwOLk.js"))
+		"import": (() => import("../../git-rebase-CZDuP5ME.js"))
 	},
 	{
 		"id": "gleam",
 		"name": "Gleam",
-		"import": (() => import("../../gleam-D2FIBXSa.js"))
+		"import": (() => import("../../gleam-BD3-oUkJ.js"))
 	},
 	{
 		"id": "glimmer-js",
 		"name": "Glimmer JS",
 		"aliases": ["gjs"],
-		"import": (() => import("../../glimmer-js-ljjGXgr7.js"))
+		"import": (() => import("../../glimmer-js-HIsZ99LC.js"))
 	},
 	{
 		"id": "glimmer-ts",
 		"name": "Glimmer TS",
 		"aliases": ["gts"],
-		"import": (() => import("../../glimmer-ts-Cv9T6Fr2.js"))
+		"import": (() => import("../../glimmer-ts-DndiABgS.js"))
 	},
 	{
 		"id": "glsl",
 		"name": "GLSL",
-		"import": (() => import("../../glsl-DSCZioeK.js"))
+		"import": (() => import("../../glsl-ifIdtYJ2.js"))
 	},
 	{
 		"id": "gn",
 		"name": "GN",
-		"import": (() => import("../../gn-DjIjSMya.js"))
+		"import": (() => import("../../gn-TZsMMf8R.js"))
 	},
 	{
 		"id": "gnuplot",
 		"name": "Gnuplot",
-		"import": (() => import("../../gnuplot-DEfaezq7.js"))
+		"import": (() => import("../../gnuplot-2mba6Xhf.js"))
 	},
 	{
 		"id": "go",
 		"name": "Go",
-		"import": (() => import("../../go-DnOwU7qC.js"))
+		"import": (() => import("../../go-BMwJ27X1.js"))
 	},
 	{
 		"id": "graphql",
 		"name": "GraphQL",
 		"aliases": ["gql"],
-		"import": (() => import("../../graphql-Cz2A0aMa.js"))
+		"import": (() => import("../../graphql-66vsPFOR.js"))
 	},
 	{
 		"id": "groovy",
 		"name": "Groovy",
-		"import": (() => import("../../groovy-DHASziRV.js"))
+		"import": (() => import("../../groovy-BHvMhixz.js"))
 	},
 	{
 		"id": "hack",
 		"name": "Hack",
-		"import": (() => import("../../hack-Csxf3rzY.js"))
+		"import": (() => import("../../hack-ZUgEB4Uk.js"))
 	},
 	{
 		"id": "haml",
 		"name": "Ruby Haml",
-		"import": (() => import("../../haml-BgoLEqC2.js"))
+		"import": (() => import("../../haml-Cc3T2ZrH.js"))
 	},
 	{
 		"id": "handlebars",
 		"name": "Handlebars",
 		"aliases": ["hbs"],
-		"import": (() => import("../../handlebars-Cddkc4lX.js"))
+		"import": (() => import("../../handlebars-Dw7TTsf8.js"))
 	},
 	{
 		"id": "haskell",
 		"name": "Haskell",
 		"aliases": ["hs"],
-		"import": (() => import("../../haskell-D92ICxNM.js"))
+		"import": (() => import("../../haskell-Ba5NTvwE.js"))
 	},
 	{
 		"id": "haxe",
 		"name": "Haxe",
-		"import": (() => import("../../haxe-Cp31kG-w.js"))
+		"import": (() => import("../../haxe-i9uSOcfn.js"))
 	},
 	{
 		"id": "hcl",
 		"name": "HashiCorp HCL",
-		"import": (() => import("../../hcl-B2kOsnNX.js"))
+		"import": (() => import("../../hcl-rnei6FJm.js"))
 	},
 	{
 		"id": "hjson",
 		"name": "Hjson",
-		"import": (() => import("../../hjson-ESKYsUZ9.js"))
+		"import": (() => import("../../hjson-CSDGlaZY.js"))
 	},
 	{
 		"id": "hlsl",
 		"name": "HLSL",
-		"import": (() => import("../../hlsl-o0HDZuq7.js"))
+		"import": (() => import("../../hlsl-cRJIlapm.js"))
 	},
 	{
 		"id": "html",
 		"name": "HTML",
-		"import": (() => import("../../html-CrzqvuT7.js"))
+		"import": (() => import("../../html-BmH5EC7_.js"))
 	},
 	{
 		"id": "html-derivative",
 		"name": "HTML (Derivative)",
-		"import": (() => import("../../html-derivative-C0OCN5b1.js"))
+		"import": (() => import("../../html-derivative-IuR_RwY3.js"))
 	},
 	{
 		"id": "http",
 		"name": "HTTP",
-		"import": (() => import("../../http-ClaTpXHd.js"))
+		"import": (() => import("../../http-HCQVDa20.js"))
 	},
 	{
 		"id": "hurl",
 		"name": "Hurl",
-		"import": (() => import("../../hurl-D5TcsFkw.js"))
+		"import": (() => import("../../hurl-6g6kO6RK.js"))
 	},
 	{
 		"id": "hxml",
 		"name": "HXML",
-		"import": (() => import("../../hxml-RnBjucJl.js"))
+		"import": (() => import("../../hxml-cQKMNlqO.js"))
 	},
 	{
 		"id": "hy",
 		"name": "Hy",
-		"import": (() => import("../../hy-iByfA2Fv.js"))
+		"import": (() => import("../../hy-DjddL1JW.js"))
 	},
 	{
 		"id": "imba",
 		"name": "Imba",
-		"import": (() => import("../../imba-CCiHiD7J.js"))
+		"import": (() => import("../../imba-Dh0sgiIc.js"))
 	},
 	{
 		"id": "ini",
 		"name": "INI",
 		"aliases": ["properties"],
-		"import": (() => import("../../ini-BIEv1KrW.js"))
+		"import": (() => import("../../ini-6bcosZzX.js"))
 	},
 	{
 		"id": "java",
 		"name": "Java",
-		"import": (() => import("../../java-DGqUsLJo.js"))
+		"import": (() => import("../../java-BLiEygPk.js"))
 	},
 	{
 		"id": "javascript",
@@ -8943,463 +9070,463 @@ const bundledLanguagesInfo = [
 			"cjs",
 			"mjs"
 		],
-		"import": (() => import("../../javascript-JmaG_HH7.js"))
+		"import": (() => import("../../javascript-Bkd61Oo4.js"))
 	},
 	{
 		"id": "jinja",
 		"name": "Jinja",
-		"import": (() => import("../../jinja-T5KIDJ8N.js"))
+		"import": (() => import("../../jinja-BkFXVPC9.js"))
 	},
 	{
 		"id": "jison",
 		"name": "Jison",
-		"import": (() => import("../../jison-VedO6YeF.js"))
+		"import": (() => import("../../jison-CqpZMO87.js"))
 	},
 	{
 		"id": "json",
 		"name": "JSON",
-		"import": (() => import("../../json-Bgs1bACO.js"))
+		"import": (() => import("../../json-D3-_62VV.js"))
 	},
 	{
 		"id": "json5",
 		"name": "JSON5",
-		"import": (() => import("../../json5-Cx-D3RPV.js"))
+		"import": (() => import("../../json5-7TbSJbCX.js"))
 	},
 	{
 		"id": "jsonc",
 		"name": "JSON with Comments",
-		"import": (() => import("../../jsonc-OGX0WUNh.js"))
+		"import": (() => import("../../jsonc-C5TTPgVK.js"))
 	},
 	{
 		"id": "jsonl",
 		"name": "JSON Lines",
-		"import": (() => import("../../jsonl-q5tEpIrb.js"))
+		"import": (() => import("../../jsonl-WkZcbQAA.js"))
 	},
 	{
 		"id": "jsonnet",
 		"name": "Jsonnet",
-		"import": (() => import("../../jsonnet-CyoJqECV.js"))
+		"import": (() => import("../../jsonnet-BQLs447b.js"))
 	},
 	{
 		"id": "jssm",
 		"name": "JSSM",
 		"aliases": ["fsl"],
-		"import": (() => import("../../jssm-DWgU3CYl.js"))
+		"import": (() => import("../../jssm-D1yHYM0-.js"))
 	},
 	{
 		"id": "jsx",
 		"name": "JSX",
-		"import": (() => import("../../jsx-4vyaj4bm.js"))
+		"import": (() => import("../../jsx-DuEOvlk7.js"))
 	},
 	{
 		"id": "julia",
 		"name": "Julia",
 		"aliases": ["jl"],
-		"import": (() => import("../../julia-DEu3CPwF.js"))
+		"import": (() => import("../../julia-BQHRI2f_.js"))
 	},
 	{
 		"id": "just",
 		"name": "Just",
-		"import": (() => import("../../just-CyM8Pynv.js"))
+		"import": (() => import("../../just-DhRZlTSG.js"))
 	},
 	{
 		"id": "kdl",
 		"name": "KDL",
-		"import": (() => import("../../kdl-g6qXHSIm.js"))
+		"import": (() => import("../../kdl-De_GN8Wj.js"))
 	},
 	{
 		"id": "kotlin",
 		"name": "Kotlin",
 		"aliases": ["kt", "kts"],
-		"import": (() => import("../../kotlin-Cx6NX-nk.js"))
+		"import": (() => import("../../kotlin-CT-Vjnjo.js"))
 	},
 	{
 		"id": "kusto",
 		"name": "Kusto",
 		"aliases": ["kql"],
-		"import": (() => import("../../kusto-D_5E74Lq.js"))
+		"import": (() => import("../../kusto-BozHXD_A.js"))
 	},
 	{
 		"id": "latex",
 		"name": "LaTeX",
-		"import": (() => import("../../latex-BpQ4z9mo.js"))
+		"import": (() => import("../../latex-B0_Ww71p.js"))
 	},
 	{
 		"id": "lean",
 		"name": "Lean 4",
 		"aliases": ["lean4"],
-		"import": (() => import("../../lean-q_d2Aq_p.js"))
+		"import": (() => import("../../lean-CqI6g4aq.js"))
 	},
 	{
 		"id": "less",
 		"name": "Less",
-		"import": (() => import("../../less-CRblEIZi.js"))
+		"import": (() => import("../../less-p9OjMMUM.js"))
 	},
 	{
 		"id": "liquid",
 		"name": "Liquid",
-		"import": (() => import("../../liquid-DnsYmTd4.js"))
+		"import": (() => import("../../liquid-BeM8COc7.js"))
 	},
 	{
 		"id": "llvm",
 		"name": "LLVM IR",
-		"import": (() => import("../../llvm-6VTo4E3Q.js"))
+		"import": (() => import("../../llvm-MLNbO-iz.js"))
 	},
 	{
 		"id": "log",
 		"name": "Log file",
-		"import": (() => import("../../log-BrCf4-gt.js"))
+		"import": (() => import("../../log-DBXa0FJP.js"))
 	},
 	{
 		"id": "logo",
 		"name": "Logo",
-		"import": (() => import("../../logo-Ddd_4nIa.js"))
+		"import": (() => import("../../logo-7fsQzkZo.js"))
 	},
 	{
 		"id": "lua",
 		"name": "Lua",
-		"import": (() => import("../../lua-DCy-UMl5.js"))
+		"import": (() => import("../../lua-DK_VyVgI.js"))
 	},
 	{
 		"id": "luau",
 		"name": "Luau",
-		"import": (() => import("../../luau-DyiNbfCQ.js"))
+		"import": (() => import("../../luau-Bhz7aClL.js"))
 	},
 	{
 		"id": "make",
 		"name": "Makefile",
 		"aliases": ["makefile"],
-		"import": (() => import("../../make-NHCMd68h.js"))
+		"import": (() => import("../../make-BiTw67VM.js"))
 	},
 	{
 		"id": "markdown",
 		"name": "Markdown",
 		"aliases": ["md"],
-		"import": (() => import("../../markdown-xm0TLQZ8.js"))
+		"import": (() => import("../../markdown-BBbcHQRS.js"))
 	},
 	{
 		"id": "marko",
 		"name": "Marko",
-		"import": (() => import("../../marko-TREgRDl5.js"))
+		"import": (() => import("../../marko-DEQbyr6t.js"))
 	},
 	{
 		"id": "matlab",
 		"name": "MATLAB",
-		"import": (() => import("../../matlab-D2Ie6KLV.js"))
+		"import": (() => import("../../matlab-Thjb_i80.js"))
 	},
 	{
 		"id": "mdc",
 		"name": "MDC",
-		"import": (() => import("../../mdc-9sNflmHX.js"))
+		"import": (() => import("../../mdc-C0WdaUUJ.js"))
 	},
 	{
 		"id": "mdx",
 		"name": "MDX",
-		"import": (() => import("../../mdx-CcXL2IQS.js"))
+		"import": (() => import("../../mdx-Botjbbfj.js"))
 	},
 	{
 		"id": "mermaid",
 		"name": "Mermaid",
 		"aliases": ["mmd"],
-		"import": (() => import("../../mermaid-PLI8VxB9.js"))
+		"import": (() => import("../../mermaid-DGPQvgpr.js"))
 	},
 	{
 		"id": "mipsasm",
 		"name": "MIPS Assembly",
 		"aliases": ["mips"],
-		"import": (() => import("../../mipsasm-D9jRROtL.js"))
+		"import": (() => import("../../mipsasm-BejRDI8O.js"))
 	},
 	{
 		"id": "mojo",
 		"name": "Mojo",
-		"import": (() => import("../../mojo-CSfO6bf4.js"))
+		"import": (() => import("../../mojo-CpA0yoag.js"))
 	},
 	{
 		"id": "moonbit",
 		"name": "MoonBit",
 		"aliases": ["mbt", "mbti"],
-		"import": (() => import("../../moonbit-D4cmUE9D.js"))
+		"import": (() => import("../../moonbit-D8cJSRRj.js"))
 	},
 	{
 		"id": "move",
 		"name": "Move",
-		"import": (() => import("../../move-k_-qA0OZ.js"))
+		"import": (() => import("../../move-D-ZhhY5p.js"))
 	},
 	{
 		"id": "narrat",
 		"name": "Narrat Language",
 		"aliases": ["nar"],
-		"import": (() => import("../../narrat-CYqhwaMU.js"))
+		"import": (() => import("../../narrat-CiG66U_N.js"))
 	},
 	{
 		"id": "nextflow",
 		"name": "Nextflow",
 		"aliases": ["nf"],
-		"import": (() => import("../../nextflow-CYKJr7jE.js"))
+		"import": (() => import("../../nextflow-7FIcz3vZ.js"))
 	},
 	{
 		"id": "nextflow-groovy",
 		"name": "nextflow-groovy",
-		"import": (() => import("../../nextflow-groovy-CsGOtqOV.js"))
+		"import": (() => import("../../nextflow-groovy-BzQ8Aw7v.js"))
 	},
 	{
 		"id": "nginx",
 		"name": "Nginx",
-		"import": (() => import("../../nginx-DJurh8xW.js"))
+		"import": (() => import("../../nginx-CgAJP4JZ.js"))
 	},
 	{
 		"id": "nim",
 		"name": "Nim",
-		"import": (() => import("../../nim-BWstrEcT.js"))
+		"import": (() => import("../../nim-DvPfDhuP.js"))
 	},
 	{
 		"id": "nix",
 		"name": "Nix",
-		"import": (() => import("../../nix-B-KmJLnc.js"))
+		"import": (() => import("../../nix-BZ7K0tgf.js"))
 	},
 	{
 		"id": "nushell",
 		"name": "nushell",
 		"aliases": ["nu"],
-		"import": (() => import("../../nushell-r6cp4GiL.js"))
+		"import": (() => import("../../nushell-Dzd1fOb8.js"))
 	},
 	{
 		"id": "objective-c",
 		"name": "Objective-C",
 		"aliases": ["objc"],
-		"import": (() => import("../../objective-c-BZ7A01uy.js"))
+		"import": (() => import("../../objective-c-DeEq3Svi.js"))
 	},
 	{
 		"id": "objective-cpp",
 		"name": "Objective-C++",
-		"import": (() => import("../../objective-cpp-D6GhSVPg.js"))
+		"import": (() => import("../../objective-cpp-GgiO_Tld.js"))
 	},
 	{
 		"id": "ocaml",
 		"name": "OCaml",
-		"import": (() => import("../../ocaml-DbYNyuFc.js"))
+		"import": (() => import("../../ocaml-DdhZ91Yh.js"))
 	},
 	{
 		"id": "odin",
 		"name": "Odin",
-		"import": (() => import("../../odin-DU9HRvty.js"))
+		"import": (() => import("../../odin-CPaRuybF.js"))
 	},
 	{
 		"id": "openscad",
 		"name": "OpenSCAD",
 		"aliases": ["scad"],
-		"import": (() => import("../../openscad-B2c4aPQr.js"))
+		"import": (() => import("../../openscad-DpyD-M8s.js"))
 	},
 	{
 		"id": "pascal",
 		"name": "Pascal",
-		"import": (() => import("../../pascal-C6XlTx-W.js"))
+		"import": (() => import("../../pascal-X-DvVOhd.js"))
 	},
 	{
 		"id": "perl",
 		"name": "Perl",
-		"import": (() => import("../../perl-Dmbt_CVI.js"))
+		"import": (() => import("../../perl-iuv_4Yrc.js"))
 	},
 	{
 		"id": "php",
 		"name": "PHP",
-		"import": (() => import("../../php-pk7QPWlG.js"))
+		"import": (() => import("../../php-C3fHxU2i.js"))
 	},
 	{
 		"id": "pkl",
 		"name": "Pkl",
-		"import": (() => import("../../pkl-B6wZnXy7.js"))
+		"import": (() => import("../../pkl-J9yRn-V1.js"))
 	},
 	{
 		"id": "plsql",
 		"name": "PL/SQL",
-		"import": (() => import("../../plsql-C4UJ0wXL.js"))
+		"import": (() => import("../../plsql-E5YGWN98.js"))
 	},
 	{
 		"id": "po",
 		"name": "Gettext PO",
 		"aliases": ["pot", "potx"],
-		"import": (() => import("../../po-DlEX06Rv.js"))
+		"import": (() => import("../../po-BuoljiDZ.js"))
 	},
 	{
 		"id": "polar",
 		"name": "Polar",
-		"import": (() => import("../../polar-BueDHUBo.js"))
+		"import": (() => import("../../polar-CoQbzOh2.js"))
 	},
 	{
 		"id": "postcss",
 		"name": "PostCSS",
-		"import": (() => import("../../postcss-CZa9QvGY.js"))
+		"import": (() => import("../../postcss-CcOlVma9.js"))
 	},
 	{
 		"id": "powerquery",
 		"name": "PowerQuery",
-		"import": (() => import("../../powerquery-DI1sx_z_.js"))
+		"import": (() => import("../../powerquery-1m6RCtzb.js"))
 	},
 	{
 		"id": "powershell",
 		"name": "PowerShell",
 		"aliases": ["ps", "ps1"],
-		"import": (() => import("../../powershell-D8-4VEqG.js"))
+		"import": (() => import("../../powershell-DBo_Cy-p.js"))
 	},
 	{
 		"id": "prisma",
 		"name": "Prisma",
-		"import": (() => import("../../prisma-Cd6rc9wv.js"))
+		"import": (() => import("../../prisma-OAmcWqMD.js"))
 	},
 	{
 		"id": "prolog",
 		"name": "Prolog",
-		"import": (() => import("../../prolog-DKzSrRQq.js"))
+		"import": (() => import("../../prolog-FA7SjaG_.js"))
 	},
 	{
 		"id": "proto",
 		"name": "Protocol Buffer 3",
 		"aliases": ["protobuf"],
-		"import": (() => import("../../proto-i9VkEHX3.js"))
+		"import": (() => import("../../proto-DRHfzIvZ.js"))
 	},
 	{
 		"id": "pug",
 		"name": "Pug",
 		"aliases": ["jade"],
-		"import": (() => import("../../pug-Bc-fVDOc.js"))
+		"import": (() => import("../../pug-0GT9NDqP.js"))
 	},
 	{
 		"id": "puppet",
 		"name": "Puppet",
-		"import": (() => import("../../puppet-bcmUzYN2.js"))
+		"import": (() => import("../../puppet-4UzYRN_R.js"))
 	},
 	{
 		"id": "purescript",
 		"name": "PureScript",
-		"import": (() => import("../../purescript-nVRdw3Na.js"))
+		"import": (() => import("../../purescript-CTn6PCQD.js"))
 	},
 	{
 		"id": "python",
 		"name": "Python",
 		"aliases": ["py"],
-		"import": (() => import("../../python-B4knLEUF.js"))
+		"import": (() => import("../../python-BQ9nkkqU.js"))
 	},
 	{
 		"id": "qml",
 		"name": "QML",
-		"import": (() => import("../../qml-CUCkCfAB.js"))
+		"import": (() => import("../../qml-BwZGDpkP.js"))
 	},
 	{
 		"id": "qmldir",
 		"name": "QML Directory",
-		"import": (() => import("../../qmldir-DLslzqlt.js"))
+		"import": (() => import("../../qmldir-D-sBIszD.js"))
 	},
 	{
 		"id": "qss",
 		"name": "Qt Style Sheets",
-		"import": (() => import("../../qss-60U7jeGD.js"))
+		"import": (() => import("../../qss-CbgV2xsb.js"))
 	},
 	{
 		"id": "r",
 		"name": "R",
-		"import": (() => import("../../r-BjO9TYYs.js"))
+		"import": (() => import("../../r-C1pOHc_X.js"))
 	},
 	{
 		"id": "racket",
 		"name": "Racket",
-		"import": (() => import("../../racket-C1XPDn68.js"))
+		"import": (() => import("../../racket-Rj1G1G6W.js"))
 	},
 	{
 		"id": "raku",
 		"name": "Raku",
 		"aliases": ["perl6"],
-		"import": (() => import("../../raku-ueogv7Xd.js"))
+		"import": (() => import("../../raku-E_dwzA_a.js"))
 	},
 	{
 		"id": "razor",
 		"name": "ASP.NET Razor",
-		"import": (() => import("../../razor-CGE4biXw.js"))
+		"import": (() => import("../../razor-BemhqDDI.js"))
 	},
 	{
 		"id": "reg",
 		"name": "Windows Registry Script",
-		"import": (() => import("../../reg-BZFUjXxB.js"))
+		"import": (() => import("../../reg-pOA9U8cG.js"))
 	},
 	{
 		"id": "regexp",
 		"name": "RegExp",
 		"aliases": ["regex"],
-		"import": (() => import("../../regexp-L_pKp0SF.js"))
+		"import": (() => import("../../regexp-D-lIkW3w.js"))
 	},
 	{
 		"id": "rel",
 		"name": "Rel",
-		"import": (() => import("../../rel-DLa-qZjO.js"))
+		"import": (() => import("../../rel-D_QWes1M.js"))
 	},
 	{
 		"id": "riscv",
 		"name": "RISC-V",
-		"import": (() => import("../../riscv-Dy78_vJV.js"))
+		"import": (() => import("../../riscv-CdykQ1to.js"))
 	},
 	{
 		"id": "ron",
 		"name": "RON",
-		"import": (() => import("../../ron-bEQ6Dr53.js"))
+		"import": (() => import("../../ron-CAFi76kN.js"))
 	},
 	{
 		"id": "rosmsg",
 		"name": "ROS Interface",
-		"import": (() => import("../../rosmsg-k8JMHwB6.js"))
+		"import": (() => import("../../rosmsg-B8-EjwDK.js"))
 	},
 	{
 		"id": "rst",
 		"name": "reStructuredText",
-		"import": (() => import("../../rst-BjDlKLIE.js"))
+		"import": (() => import("../../rst-CiIruaN2.js"))
 	},
 	{
 		"id": "ruby",
 		"name": "Ruby",
 		"aliases": ["rb"],
-		"import": (() => import("../../ruby-NVjHLDpj.js"))
+		"import": (() => import("../../ruby-CSMoK-T7.js"))
 	},
 	{
 		"id": "rust",
 		"name": "Rust",
 		"aliases": ["rs"],
-		"import": (() => import("../../rust-BxzEVKCm.js"))
+		"import": (() => import("../../rust-C3NOpx-T.js"))
 	},
 	{
 		"id": "sas",
 		"name": "SAS",
-		"import": (() => import("../../sas-T2_1xe_4.js"))
+		"import": (() => import("../../sas-DG1y35r6.js"))
 	},
 	{
 		"id": "sass",
 		"name": "Sass",
-		"import": (() => import("../../sass-B9N8rFSO.js"))
+		"import": (() => import("../../sass-BH0yt6IN.js"))
 	},
 	{
 		"id": "scala",
 		"name": "Scala",
-		"import": (() => import("../../scala-BVB4xJXi.js"))
+		"import": (() => import("../../scala-Bbm9WjA8.js"))
 	},
 	{
 		"id": "scheme",
 		"name": "Scheme",
-		"import": (() => import("../../scheme-CrHpu9Pv.js"))
+		"import": (() => import("../../scheme-DfgGxOi4.js"))
 	},
 	{
 		"id": "scss",
 		"name": "SCSS",
-		"import": (() => import("../../scss-Bm45Fyjr.js"))
+		"import": (() => import("../../scss-BB27z9eb.js"))
 	},
 	{
 		"id": "sdbl",
 		"name": "1C (Query)",
 		"aliases": ["1c-query"],
-		"import": (() => import("../../sdbl-DbedI1h3.js"))
+		"import": (() => import("../../sdbl-IxiX2ZfI.js"))
 	},
 	{
 		"id": "shaderlab",
 		"name": "ShaderLab",
 		"aliases": ["shader"],
-		"import": (() => import("../../shaderlab-PjWjF6PD.js"))
+		"import": (() => import("../../shaderlab-D0SiCgYj.js"))
 	},
 	{
 		"id": "shellscript",
@@ -9410,150 +9537,150 @@ const bundledLanguagesInfo = [
 			"shell",
 			"zsh"
 		],
-		"import": (() => import("../../shellscript-CeoqF29Z.js"))
+		"import": (() => import("../../shellscript-D1sjMUHE.js"))
 	},
 	{
 		"id": "shellsession",
 		"name": "Shell Session",
 		"aliases": ["console"],
-		"import": (() => import("../../shellsession-Dg1rkskE.js"))
+		"import": (() => import("../../shellsession-BYNehl67.js"))
 	},
 	{
 		"id": "smalltalk",
 		"name": "Smalltalk",
-		"import": (() => import("../../smalltalk-dtjPCwtA.js"))
+		"import": (() => import("../../smalltalk-BxbQWemC.js"))
 	},
 	{
 		"id": "solidity",
 		"name": "Solidity",
-		"import": (() => import("../../solidity-C9ZaTcrf.js"))
+		"import": (() => import("../../solidity-Cs418oVt.js"))
 	},
 	{
 		"id": "soy",
 		"name": "Closure Templates",
 		"aliases": ["closure-templates"],
-		"import": (() => import("../../soy-C57WgzHF.js"))
+		"import": (() => import("../../soy-DcfT3HxY.js"))
 	},
 	{
 		"id": "sparql",
 		"name": "SPARQL",
-		"import": (() => import("../../sparql-Dl5Fibg2.js"))
+		"import": (() => import("../../sparql-CIS2Tyc8.js"))
 	},
 	{
 		"id": "splunk",
 		"name": "Splunk Query Language",
 		"aliases": ["spl"],
-		"import": (() => import("../../splunk-DLxSstHT.js"))
+		"import": (() => import("../../splunk-BkGoHJKl.js"))
 	},
 	{
 		"id": "sql",
 		"name": "SQL",
-		"import": (() => import("../../sql-DoV_f-i-.js"))
+		"import": (() => import("../../sql-DJnnwjsS.js"))
 	},
 	{
 		"id": "ssh-config",
 		"name": "SSH Config",
-		"import": (() => import("../../ssh-config-BuNlKvy7.js"))
+		"import": (() => import("../../ssh-config-20i0Wtwd.js"))
 	},
 	{
 		"id": "stata",
 		"name": "Stata",
-		"import": (() => import("../../stata-ov10sQwq.js"))
+		"import": (() => import("../../stata-DM9Vx2hK.js"))
 	},
 	{
 		"id": "stylus",
 		"name": "Stylus",
 		"aliases": ["styl"],
-		"import": (() => import("../../stylus-XzPqE7AI.js"))
+		"import": (() => import("../../stylus-DR_x5xI4.js"))
 	},
 	{
 		"id": "surrealql",
 		"name": "SurrealQL",
 		"aliases": ["surql"],
-		"import": (() => import("../../surrealql-CX8m4okg.js"))
+		"import": (() => import("../../surrealql-DCafE5x7.js"))
 	},
 	{
 		"id": "svelte",
 		"name": "Svelte",
-		"import": (() => import("../../svelte-D7-1gqvg.js"))
+		"import": (() => import("../../svelte-CoqWmmWd.js"))
 	},
 	{
 		"id": "swift",
 		"name": "Swift",
-		"import": (() => import("../../swift-DV3xOztu.js"))
+		"import": (() => import("../../swift-CV5KTcWc.js"))
 	},
 	{
 		"id": "system-verilog",
 		"name": "SystemVerilog",
-		"import": (() => import("../../system-verilog-DtXLwBTJ.js"))
+		"import": (() => import("../../system-verilog-BUfKglPs.js"))
 	},
 	{
 		"id": "systemd",
 		"name": "Systemd Units",
-		"import": (() => import("../../systemd-CZ0hxwxg.js"))
+		"import": (() => import("../../systemd-CdcLBDcA.js"))
 	},
 	{
 		"id": "talonscript",
 		"name": "TalonScript",
 		"aliases": ["talon"],
-		"import": (() => import("../../talonscript-CBUthwip.js"))
+		"import": (() => import("../../talonscript-BpZWt4Ab.js"))
 	},
 	{
 		"id": "tasl",
 		"name": "Tasl",
-		"import": (() => import("../../tasl-BTrAuSGY.js"))
+		"import": (() => import("../../tasl-DO0u21wS.js"))
 	},
 	{
 		"id": "tcl",
 		"name": "Tcl",
-		"import": (() => import("../../tcl-C3KUPGE_.js"))
+		"import": (() => import("../../tcl-Bbmga3VR.js"))
 	},
 	{
 		"id": "templ",
 		"name": "Templ",
-		"import": (() => import("../../templ-C9yPZtun.js"))
+		"import": (() => import("../../templ-1AncAN2E.js"))
 	},
 	{
 		"id": "terraform",
 		"name": "Terraform",
 		"aliases": ["tf", "tfvars"],
-		"import": (() => import("../../terraform-CV3gkXpv.js"))
+		"import": (() => import("../../terraform-DXc1DEQ4.js"))
 	},
 	{
 		"id": "tex",
 		"name": "TeX",
-		"import": (() => import("../../tex-D_XSD6bG.js"))
+		"import": (() => import("../../tex-BG3NsI-W.js"))
 	},
 	{
 		"id": "toml",
 		"name": "TOML",
-		"import": (() => import("../../toml-BAxE4v2Y.js"))
+		"import": (() => import("../../toml-BcQbARai.js"))
 	},
 	{
 		"id": "ts-tags",
 		"name": "TypeScript with Tags",
 		"aliases": ["lit"],
-		"import": (() => import("../../ts-tags-Bori5ouC.js"))
+		"import": (() => import("../../ts-tags-Dmx3ExqO.js"))
 	},
 	{
 		"id": "tsv",
 		"name": "TSV",
-		"import": (() => import("../../tsv-C0eTTzTH.js"))
+		"import": (() => import("../../tsv-D-ix1L3e.js"))
 	},
 	{
 		"id": "tsx",
 		"name": "TSX",
-		"import": (() => import("../../tsx-CJ9XtzPi.js"))
+		"import": (() => import("../../tsx-DGQUb1qA.js"))
 	},
 	{
 		"id": "turtle",
 		"name": "Turtle",
-		"import": (() => import("../../turtle-Bu63K8WA.js"))
+		"import": (() => import("../../turtle-BKm89eDG.js"))
 	},
 	{
 		"id": "twig",
 		"name": "Twig",
-		"import": (() => import("../../twig-2p2MkZJ2.js"))
+		"import": (() => import("../../twig-ETK8evB9.js"))
 	},
 	{
 		"id": "typescript",
@@ -9563,131 +9690,131 @@ const bundledLanguagesInfo = [
 			"cts",
 			"mts"
 		],
-		"import": (() => import("../../typescript-D3Lq2kHR.js"))
+		"import": (() => import("../../typescript-D_5lWgVM.js"))
 	},
 	{
 		"id": "typespec",
 		"name": "TypeSpec",
 		"aliases": ["tsp"],
-		"import": (() => import("../../typespec-Csgplla9.js"))
+		"import": (() => import("../../typespec-JJM3tUzc.js"))
 	},
 	{
 		"id": "typst",
 		"name": "Typst",
 		"aliases": ["typ"],
-		"import": (() => import("../../typst-D7fMptBj.js"))
+		"import": (() => import("../../typst-CCXk1tne.js"))
 	},
 	{
 		"id": "v",
 		"name": "V",
-		"import": (() => import("../../v-BgMhbaog.js"))
+		"import": (() => import("../../v-BChFU85d.js"))
 	},
 	{
 		"id": "vala",
 		"name": "Vala",
-		"import": (() => import("../../vala-BNdjzRmw.js"))
+		"import": (() => import("../../vala-CdheuW1M.js"))
 	},
 	{
 		"id": "vb",
 		"name": "Visual Basic",
 		"aliases": ["cmd"],
-		"import": (() => import("../../vb-DUGei180.js"))
+		"import": (() => import("../../vb-BgV05YTk.js"))
 	},
 	{
 		"id": "verilog",
 		"name": "Verilog",
-		"import": (() => import("../../verilog-zKvcJbC1.js"))
+		"import": (() => import("../../verilog-D5fGwilG.js"))
 	},
 	{
 		"id": "vhdl",
 		"name": "VHDL",
-		"import": (() => import("../../vhdl-DF135etK.js"))
+		"import": (() => import("../../vhdl-Bgtx6no9.js"))
 	},
 	{
 		"id": "viml",
 		"name": "Vim Script",
 		"aliases": ["vim", "vimscript"],
-		"import": (() => import("../../viml-B9O0kk9T.js"))
+		"import": (() => import("../../viml-DjZzpBhR.js"))
 	},
 	{
 		"id": "vue",
 		"name": "Vue",
-		"import": (() => import("../../vue-BM9yYxjR.js"))
+		"import": (() => import("../../vue-BsYMimlm.js"))
 	},
 	{
 		"id": "vue-html",
 		"name": "Vue HTML",
-		"import": (() => import("../../vue-html-W1Z3bTTu.js"))
+		"import": (() => import("../../vue-html-BwTqLHoR.js"))
 	},
 	{
 		"id": "vue-vine",
 		"name": "Vue Vine",
-		"import": (() => import("../../vue-vine-CqIvH0bs.js"))
+		"import": (() => import("../../vue-vine-D7huHjXo.js"))
 	},
 	{
 		"id": "vyper",
 		"name": "Vyper",
 		"aliases": ["vy"],
-		"import": (() => import("../../vyper-CFBX5RBk.js"))
+		"import": (() => import("../../vyper-CMYkBLqV.js"))
 	},
 	{
 		"id": "wasm",
 		"name": "WebAssembly",
-		"import": (() => import("../../wasm-7dPmnUaQ.js"))
+		"import": (() => import("../../wasm-DsL5i3TY.js"))
 	},
 	{
 		"id": "wenyan",
 		"name": "Wenyan",
 		"aliases": ["文言"],
-		"import": (() => import("../../wenyan-ClyJDMp-.js"))
+		"import": (() => import("../../wenyan-BvGtjq_T.js"))
 	},
 	{
 		"id": "wgsl",
 		"name": "WGSL",
-		"import": (() => import("../../wgsl-EGU_5IEr.js"))
+		"import": (() => import("../../wgsl-B8sSjqUo.js"))
 	},
 	{
 		"id": "wikitext",
 		"name": "Wikitext",
 		"aliases": ["mediawiki", "wiki"],
-		"import": (() => import("../../wikitext-DyLQecok.js"))
+		"import": (() => import("../../wikitext-BcVC1t2k.js"))
 	},
 	{
 		"id": "wit",
 		"name": "WebAssembly Interface Types",
-		"import": (() => import("../../wit-BQ_7eqbO.js"))
+		"import": (() => import("../../wit-BqncDOuZ.js"))
 	},
 	{
 		"id": "wolfram",
 		"name": "Wolfram",
 		"aliases": ["wl"],
-		"import": (() => import("../../wolfram-CYAyFTQC.js"))
+		"import": (() => import("../../wolfram-YzrUFJa5.js"))
 	},
 	{
 		"id": "xml",
 		"name": "XML",
-		"import": (() => import("../../xml-BRBE4Jfx.js"))
+		"import": (() => import("../../xml-C8MAl4-o.js"))
 	},
 	{
 		"id": "xsl",
 		"name": "XSL",
-		"import": (() => import("../../xsl-ByfIytVN.js"))
+		"import": (() => import("../../xsl-McKe4NOx.js"))
 	},
 	{
 		"id": "yaml",
 		"name": "YAML",
 		"aliases": ["yml"],
-		"import": (() => import("../../yaml-CH7kANt3.js"))
+		"import": (() => import("../../yaml-BGyeNis8.js"))
 	},
 	{
 		"id": "zenscript",
 		"name": "ZenScript",
-		"import": (() => import("../../zenscript-02Xfggt8.js"))
+		"import": (() => import("../../zenscript-mXcjAm-K.js"))
 	},
 	{
 		"id": "zig",
 		"name": "Zig",
-		"import": (() => import("../../zig-UEKjmKQK.js"))
+		"import": (() => import("../../zig-Xr7PcL7U.js"))
 	}
 ];
 const bundledLanguagesBase = Object.fromEntries(bundledLanguagesInfo.map((i) => [i.id, i.import]));
@@ -9701,395 +9828,395 @@ const bundledThemes = Object.fromEntries([
 		"id": "andromeeda",
 		"displayName": "Andromeeda",
 		"type": "dark",
-		"import": (() => import("../../andromeeda-Bajt3Ik_.js"))
+		"import": (() => import("../../andromeeda-DEbvilyK.js"))
 	},
 	{
 		"id": "aurora-x",
 		"displayName": "Aurora X",
 		"type": "dark",
-		"import": (() => import("../../aurora-x-CUkIj5EA.js"))
+		"import": (() => import("../../aurora-x-BiWS56Cb.js"))
 	},
 	{
 		"id": "ayu-dark",
 		"displayName": "Ayu Dark",
 		"type": "dark",
-		"import": (() => import("../../ayu-dark-DAR51ZhH.js"))
+		"import": (() => import("../../ayu-dark-jEZ6rm5s.js"))
 	},
 	{
 		"id": "ayu-light",
 		"displayName": "Ayu Light",
 		"type": "light",
-		"import": (() => import("../../ayu-light-CAnkHhfV.js"))
+		"import": (() => import("../../ayu-light-ByjZqw7Q.js"))
 	},
 	{
 		"id": "ayu-mirage",
 		"displayName": "Ayu Mirage",
 		"type": "dark",
-		"import": (() => import("../../ayu-mirage-C0omGN_-.js"))
+		"import": (() => import("../../ayu-mirage-DebOD4W4.js"))
 	},
 	{
 		"id": "catppuccin-frappe",
 		"displayName": "Catppuccin Frappé",
 		"type": "dark",
-		"import": (() => import("../../catppuccin-frappe-ohEuKT4G.js"))
+		"import": (() => import("../../catppuccin-frappe-Ciflc986.js"))
 	},
 	{
 		"id": "catppuccin-latte",
 		"displayName": "Catppuccin Latte",
 		"type": "light",
-		"import": (() => import("../../catppuccin-latte-Dq1Y5Iwj.js"))
+		"import": (() => import("../../catppuccin-latte-CAZaw0Ko.js"))
 	},
 	{
 		"id": "catppuccin-macchiato",
 		"displayName": "Catppuccin Macchiato",
 		"type": "dark",
-		"import": (() => import("../../catppuccin-macchiato-72VOTfMI.js"))
+		"import": (() => import("../../catppuccin-macchiato-BiGygtJO.js"))
 	},
 	{
 		"id": "catppuccin-mocha",
 		"displayName": "Catppuccin Mocha",
 		"type": "dark",
-		"import": (() => import("../../catppuccin-mocha-BIvki4F7.js"))
+		"import": (() => import("../../catppuccin-mocha-ZBFhsiec.js"))
 	},
 	{
 		"id": "dark-plus",
 		"displayName": "Dark Plus",
 		"type": "dark",
-		"import": (() => import("../../dark-plus-DR0iG4l9.js"))
+		"import": (() => import("../../dark-plus-BUcgj4Xq.js"))
 	},
 	{
 		"id": "dracula",
 		"displayName": "Dracula Theme",
 		"type": "dark",
-		"import": (() => import("../../dracula-D763zlVc.js"))
+		"import": (() => import("../../dracula-BENXi6BS.js"))
 	},
 	{
 		"id": "dracula-soft",
 		"displayName": "Dracula Theme Soft",
 		"type": "dark",
-		"import": (() => import("../../dracula-soft-LRIwnW4C.js"))
+		"import": (() => import("../../dracula-soft-S7S6a9KY.js"))
 	},
 	{
 		"id": "everforest-dark",
 		"displayName": "Everforest Dark",
 		"type": "dark",
-		"import": (() => import("../../everforest-dark-DoFaw4GK.js"))
+		"import": (() => import("../../everforest-dark-Bum8Y9wn.js"))
 	},
 	{
 		"id": "everforest-light",
 		"displayName": "Everforest Light",
 		"type": "light",
-		"import": (() => import("../../everforest-light-CqCRWxDP.js"))
+		"import": (() => import("../../everforest-light-Dpm4r5P5.js"))
 	},
 	{
 		"id": "github-dark",
 		"displayName": "GitHub Dark",
 		"type": "dark",
-		"import": (() => import("../../github-dark-BvS-Cojj.js"))
+		"import": (() => import("../../github-dark-Chp-sL8-.js"))
 	},
 	{
 		"id": "github-dark-default",
 		"displayName": "GitHub Dark Default",
 		"type": "dark",
-		"import": (() => import("../../github-dark-default-D7HP7d6b.js"))
+		"import": (() => import("../../github-dark-default-DSunr2SN.js"))
 	},
 	{
 		"id": "github-dark-dimmed",
 		"displayName": "GitHub Dark Dimmed",
 		"type": "dark",
-		"import": (() => import("../../github-dark-dimmed-ByxR12mD.js"))
+		"import": (() => import("../../github-dark-dimmed-DH_rgc8S.js"))
 	},
 	{
 		"id": "github-dark-high-contrast",
 		"displayName": "GitHub Dark High Contrast",
 		"type": "dark",
-		"import": (() => import("../../github-dark-high-contrast-C5wrKEDs.js"))
+		"import": (() => import("../../github-dark-high-contrast-C6jSWtl4.js"))
 	},
 	{
 		"id": "github-light",
 		"displayName": "GitHub Light",
 		"type": "light",
-		"import": (() => import("../../github-light-Lpicnjwi.js"))
+		"import": (() => import("../../github-light-BDrIB4oh.js"))
 	},
 	{
 		"id": "github-light-default",
 		"displayName": "GitHub Light Default",
 		"type": "light",
-		"import": (() => import("../../github-light-default-BIvOOVhV.js"))
+		"import": (() => import("../../github-light-default-PdPFnUK0.js"))
 	},
 	{
 		"id": "github-light-high-contrast",
 		"displayName": "GitHub Light High Contrast",
 		"type": "light",
-		"import": (() => import("../../github-light-high-contrast-DgYtSzLD.js"))
+		"import": (() => import("../../github-light-high-contrast-CoxssrpS.js"))
 	},
 	{
 		"id": "gruvbox-dark-hard",
 		"displayName": "Gruvbox Dark Hard",
 		"type": "dark",
-		"import": (() => import("../../gruvbox-dark-hard-RUwH3fUZ.js"))
+		"import": (() => import("../../gruvbox-dark-hard-peS_yZ0F.js"))
 	},
 	{
 		"id": "gruvbox-dark-medium",
 		"displayName": "Gruvbox Dark Medium",
 		"type": "dark",
-		"import": (() => import("../../gruvbox-dark-medium-BfIGyXqS.js"))
+		"import": (() => import("../../gruvbox-dark-medium-B1uPMH3W.js"))
 	},
 	{
 		"id": "gruvbox-dark-soft",
 		"displayName": "Gruvbox Dark Soft",
 		"type": "dark",
-		"import": (() => import("../../gruvbox-dark-soft-DnuBAsdC.js"))
+		"import": (() => import("../../gruvbox-dark-soft-B6NeYg3C.js"))
 	},
 	{
 		"id": "gruvbox-light-hard",
 		"displayName": "Gruvbox Light Hard",
 		"type": "light",
-		"import": (() => import("../../gruvbox-light-hard-D-vwQn-X.js"))
+		"import": (() => import("../../gruvbox-light-hard-B_xLEdGs.js"))
 	},
 	{
 		"id": "gruvbox-light-medium",
 		"displayName": "Gruvbox Light Medium",
 		"type": "light",
-		"import": (() => import("../../gruvbox-light-medium-vESgNjLO.js"))
+		"import": (() => import("../../gruvbox-light-medium-BQ6CK1je.js"))
 	},
 	{
 		"id": "gruvbox-light-soft",
 		"displayName": "Gruvbox Light Soft",
 		"type": "light",
-		"import": (() => import("../../gruvbox-light-soft-B6S8KzuB.js"))
+		"import": (() => import("../../gruvbox-light-soft-CvME-Xbn.js"))
 	},
 	{
 		"id": "horizon",
 		"displayName": "Horizon",
 		"type": "dark",
-		"import": (() => import("../../horizon-lrue3ZVm.js"))
+		"import": (() => import("../../horizon-BSNuPz0t.js"))
 	},
 	{
 		"id": "horizon-bright",
 		"displayName": "Horizon Bright",
 		"type": "dark",
-		"import": (() => import("../../horizon-bright-CO9_NaVz.js"))
+		"import": (() => import("../../horizon-bright-Dj2PTjdA.js"))
 	},
 	{
 		"id": "houston",
 		"displayName": "Houston",
 		"type": "dark",
-		"import": (() => import("../../houston-B9bVMGM7.js"))
+		"import": (() => import("../../houston-Bw9lKUU4.js"))
 	},
 	{
 		"id": "kanagawa-dragon",
 		"displayName": "Kanagawa Dragon",
 		"type": "dark",
-		"import": (() => import("../../kanagawa-dragon-CNgrQlXz.js"))
+		"import": (() => import("../../kanagawa-dragon-DyDEtjis.js"))
 	},
 	{
 		"id": "kanagawa-lotus",
 		"displayName": "Kanagawa Lotus",
 		"type": "light",
-		"import": (() => import("../../kanagawa-lotus-CUQ4lkGO.js"))
+		"import": (() => import("../../kanagawa-lotus-BqZhS8md.js"))
 	},
 	{
 		"id": "kanagawa-wave",
 		"displayName": "Kanagawa Wave",
 		"type": "dark",
-		"import": (() => import("../../kanagawa-wave-Bw_gy2JL.js"))
+		"import": (() => import("../../kanagawa-wave-DMkDoABA.js"))
 	},
 	{
 		"id": "laserwave",
 		"displayName": "LaserWave",
 		"type": "dark",
-		"import": (() => import("../../laserwave-BZBn85SX.js"))
+		"import": (() => import("../../laserwave-DdQWEFpj.js"))
 	},
 	{
 		"id": "light-plus",
 		"displayName": "Light Plus",
 		"type": "light",
-		"import": (() => import("../../light-plus-_-WmVmzw.js"))
+		"import": (() => import("../../light-plus-CRJx-1ZA.js"))
 	},
 	{
 		"id": "material-theme",
 		"displayName": "Material Theme",
 		"type": "dark",
-		"import": (() => import("../../material-theme-BUu5PguA.js"))
+		"import": (() => import("../../material-theme-KMtlMYfB.js"))
 	},
 	{
 		"id": "material-theme-darker",
 		"displayName": "Material Theme Darker",
 		"type": "dark",
-		"import": (() => import("../../material-theme-darker-DDOLEuZB.js"))
+		"import": (() => import("../../material-theme-darker-CCbsPOT_.js"))
 	},
 	{
 		"id": "material-theme-lighter",
 		"displayName": "Material Theme Lighter",
 		"type": "light",
-		"import": (() => import("../../material-theme-lighter-B2jaHcuI.js"))
+		"import": (() => import("../../material-theme-lighter-BlqIZBC9.js"))
 	},
 	{
 		"id": "material-theme-ocean",
 		"displayName": "Material Theme Ocean",
 		"type": "dark",
-		"import": (() => import("../../material-theme-ocean-DeoHRILX.js"))
+		"import": (() => import("../../material-theme-ocean-2KRkLivT.js"))
 	},
 	{
 		"id": "material-theme-palenight",
 		"displayName": "Material Theme Palenight",
 		"type": "dark",
-		"import": (() => import("../../material-theme-palenight-Cg6wC7iK.js"))
+		"import": (() => import("../../material-theme-palenight-Btt_cJeM.js"))
 	},
 	{
 		"id": "min-dark",
 		"displayName": "Min Dark",
 		"type": "dark",
-		"import": (() => import("../../min-dark-COaM3Tq0.js"))
+		"import": (() => import("../../min-dark-jbhUvGVh.js"))
 	},
 	{
 		"id": "min-light",
 		"displayName": "Min Light",
 		"type": "light",
-		"import": (() => import("../../min-light-Dv6stXX9.js"))
+		"import": (() => import("../../min-light-Bkt9hrQJ.js"))
 	},
 	{
 		"id": "monokai",
 		"displayName": "Monokai",
 		"type": "dark",
-		"import": (() => import("../../monokai-DzYRr_qe.js"))
+		"import": (() => import("../../monokai-DYx_6lVG.js"))
 	},
 	{
 		"id": "night-owl",
 		"displayName": "Night Owl",
 		"type": "dark",
-		"import": (() => import("../../night-owl-mWBoTlmE.js"))
+		"import": (() => import("../../night-owl-C06p5da4.js"))
 	},
 	{
 		"id": "night-owl-light",
 		"displayName": "Night Owl Light",
 		"type": "light",
-		"import": (() => import("../../night-owl-light-BMcYrKAs.js"))
+		"import": (() => import("../../night-owl-light-DDfltb1H.js"))
 	},
 	{
 		"id": "nord",
 		"displayName": "Nord",
 		"type": "dark",
-		"import": (() => import("../../nord-CWexW_SZ.js"))
+		"import": (() => import("../../nord-C5FEJdFL.js"))
 	},
 	{
 		"id": "one-dark-pro",
 		"displayName": "One Dark Pro",
 		"type": "dark",
-		"import": (() => import("../../one-dark-pro-B5D_NXEC.js"))
+		"import": (() => import("../../one-dark-pro-BZZMLWiZ.js"))
 	},
 	{
 		"id": "one-light",
 		"displayName": "One Light",
 		"type": "light",
-		"import": (() => import("../../one-light-MT-hx0AV.js"))
+		"import": (() => import("../../one-light-CsDj_7xj.js"))
 	},
 	{
 		"id": "plastic",
 		"displayName": "Plastic",
 		"type": "dark",
-		"import": (() => import("../../plastic-B2t2WLaA.js"))
+		"import": (() => import("../../plastic-Bjx6aaWB.js"))
 	},
 	{
 		"id": "poimandres",
 		"displayName": "Poimandres",
 		"type": "dark",
-		"import": (() => import("../../poimandres-DJqOpD7K.js"))
+		"import": (() => import("../../poimandres-Chh5wFSa.js"))
 	},
 	{
 		"id": "red",
 		"displayName": "Red",
 		"type": "dark",
-		"import": (() => import("../../red-COkLtrXl.js"))
+		"import": (() => import("../../red-BD80n9yP.js"))
 	},
 	{
 		"id": "rose-pine",
 		"displayName": "Rosé Pine",
 		"type": "dark",
-		"import": (() => import("../../rose-pine-C5_mAWEg.js"))
+		"import": (() => import("../../rose-pine-Bevv7LkA.js"))
 	},
 	{
 		"id": "rose-pine-dawn",
 		"displayName": "Rosé Pine Dawn",
 		"type": "light",
-		"import": (() => import("../../rose-pine-dawn-jG6BrUFt.js"))
+		"import": (() => import("../../rose-pine-dawn-CvAjg4ba.js"))
 	},
 	{
 		"id": "rose-pine-moon",
 		"displayName": "Rosé Pine Moon",
 		"type": "dark",
-		"import": (() => import("../../rose-pine-moon-Dlx87SC_.js"))
+		"import": (() => import("../../rose-pine-moon-1uuW6BLj.js"))
 	},
 	{
 		"id": "slack-dark",
 		"displayName": "Slack Dark",
 		"type": "dark",
-		"import": (() => import("../../slack-dark-DN0npnsJ.js"))
+		"import": (() => import("../../slack-dark-BoGlOvUE.js"))
 	},
 	{
 		"id": "slack-ochin",
 		"displayName": "Slack Ochin",
 		"type": "light",
-		"import": (() => import("../../slack-ochin-DdUt8ZVx.js"))
+		"import": (() => import("../../slack-ochin-CcXi78t1.js"))
 	},
 	{
 		"id": "snazzy-light",
 		"displayName": "Snazzy Light",
 		"type": "light",
-		"import": (() => import("../../snazzy-light-DXW8I1od.js"))
+		"import": (() => import("../../snazzy-light-_70WYkkp.js"))
 	},
 	{
 		"id": "solarized-dark",
 		"displayName": "Solarized Dark",
 		"type": "dark",
-		"import": (() => import("../../solarized-dark-DxQdRszc.js"))
+		"import": (() => import("../../solarized-dark-CM_wugrl.js"))
 	},
 	{
 		"id": "solarized-light",
 		"displayName": "Solarized Light",
 		"type": "light",
-		"import": (() => import("../../solarized-light-CoT4utAN.js"))
+		"import": (() => import("../../solarized-light-qXD5tv-w.js"))
 	},
 	{
 		"id": "synthwave-84",
 		"displayName": "Synthwave '84",
 		"type": "dark",
-		"import": (() => import("../../synthwave-84-CeTkS_a5.js"))
+		"import": (() => import("../../synthwave-84-1wqWdK1d.js"))
 	},
 	{
 		"id": "tokyo-night",
 		"displayName": "Tokyo Night",
 		"type": "dark",
-		"import": (() => import("../../tokyo-night-BZX-AYU8.js"))
+		"import": (() => import("../../tokyo-night-S1a-Y4g2.js"))
 	},
 	{
 		"id": "vesper",
 		"displayName": "Vesper",
 		"type": "dark",
-		"import": (() => import("../../vesper-CxDHpabE.js"))
+		"import": (() => import("../../vesper-BoGHF2y_.js"))
 	},
 	{
 		"id": "vitesse-black",
 		"displayName": "Vitesse Black",
 		"type": "dark",
-		"import": (() => import("../../vitesse-black-DfI63oaQ.js"))
+		"import": (() => import("../../vitesse-black-DcPrzJGI.js"))
 	},
 	{
 		"id": "vitesse-dark",
 		"displayName": "Vitesse Dark",
 		"type": "dark",
-		"import": (() => import("../../vitesse-dark-C1i1lJGu.js"))
+		"import": (() => import("../../vitesse-dark-R0VrcXab.js"))
 	},
 	{
 		"id": "vitesse-light",
 		"displayName": "Vitesse Light",
 		"type": "light",
-		"import": (() => import("../../vitesse-light-D006mb62.js"))
+		"import": (() => import("../../vitesse-light-DrXG28fQ.js"))
 	}
 ].map((i) => [i.id, i.import]));
 //#endregion
-//#region node_modules/.pnpm/@shikijs+engine-oniguruma@3.23.0/node_modules/@shikijs/engine-oniguruma/dist/index.mjs
+//#region node_modules/@shikijs/engine-oniguruma/dist/index.mjs
 var ShikiError = class extends Error {
 	constructor(message) {
 		super(message);
@@ -10475,15 +10602,15 @@ async function createOnigurumaEngine(options) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/shiki@3.23.0/node_modules/shiki/dist/bundle-full.mjs
+//#region node_modules/shiki/dist/bundle-full.mjs
 const createHighlighter = /* @__PURE__ */ createBundledHighlighter({
 	langs: bundledLanguages,
 	themes: bundledThemes,
-	engine: () => createOnigurumaEngine(import("../../wasm-DhWG51uv.js"))
+	engine: () => createOnigurumaEngine(import("../../wasm-C4NRP536.js"))
 });
 const { codeToHtml, codeToHast, codeToTokens, codeToTokensBase, codeToTokensWithThemes, getSingletonHighlighter, getLastGrammarState } = /* @__PURE__ */ createSingletonShorthands(createHighlighter, { guessEmbeddedLanguages });
 //#endregion
-//#region node_modules/.pnpm/oniguruma-parser@0.12.1/node_modules/oniguruma-parser/dist/utils.js
+//#region node_modules/oniguruma-parser/dist/utils.js
 function r$2(e) {
 	if ([...e].length !== 1) throw new Error(`Expected "${e}" to be a single code point`);
 	return e.codePointAt(0);
@@ -10512,7 +10639,7 @@ function u(e, t) {
 	return e;
 }
 //#endregion
-//#region node_modules/.pnpm/oniguruma-parser@0.12.1/node_modules/oniguruma-parser/dist/tokenizer/tokenize.js
+//#region node_modules/oniguruma-parser/dist/tokenizer/tokenize.js
 const m$1 = o$1`\[\^?`, b$1 = `c.? | C(?:-.?)?|${o$1`[pP]\{(?:\^?[-\x20_]*[A-Za-z][-\x20\w]*\})?`}|${o$1`x[89A-Fa-f]\p{AHex}(?:\\x[89A-Fa-f]\p{AHex})*`}|${o$1`u(?:\p{AHex}{4})? | x\{[^\}]*\}? | x\p{AHex}{0,2}`}|${o$1`o\{[^\}]*\}?`}|${o$1`\d{1,3}`}`, y$1 = /[?*+][?+]?|\{(?:\d+(?:,\d*)?|,\d+)\}\??/, C$1 = new RegExp(o$1`
   \\ (?:
     ${b$1}
@@ -11005,7 +11132,7 @@ function te$1(e) {
 	return n;
 }
 //#endregion
-//#region node_modules/.pnpm/oniguruma-parser@0.12.1/node_modules/oniguruma-parser/dist/parser/node-utils.js
+//#region node_modules/oniguruma-parser/dist/parser/node-utils.js
 function o(e, t) {
 	if (!Array.isArray(e.body)) throw new Error("Expected node with body array");
 	if (e.body.length !== 1) return !1;
@@ -11027,7 +11154,7 @@ const y = new Set([
 	"Subroutine"
 ]);
 //#endregion
-//#region node_modules/.pnpm/oniguruma-parser@0.12.1/node_modules/oniguruma-parser/dist/parser/parse.js
+//#region node_modules/oniguruma-parser/dist/parser/parse.js
 function J(e, r = {}) {
 	const n = {
 		flags: "",
@@ -11447,7 +11574,7 @@ function D(e) {
 	return u(e, "Unclosed group");
 }
 //#endregion
-//#region node_modules/.pnpm/oniguruma-parser@0.12.1/node_modules/oniguruma-parser/dist/traverser/traverse.js
+//#region node_modules/oniguruma-parser/dist/traverser/traverse.js
 function S(a, v, N = null) {
 	function u$1(e, s) {
 		for (let t = 0; t < e.length; t++) {
@@ -11534,7 +11661,7 @@ function l(a) {
 	return a;
 }
 //#endregion
-//#region node_modules/.pnpm/regex@6.1.0/node_modules/regex/src/utils-internals.js
+//#region node_modules/regex/src/utils-internals.js
 const noncapturingDelim = String.raw`\(\?(?:[:=!>A-Za-z\-]|<[=!]|\(DEFINE\))`;
 /**
 Updates the array in place by incrementing each value greater than or equal to the threshold.
@@ -11555,7 +11682,7 @@ function spliceStr(str, pos, oldValue, newValue) {
 	return str.slice(0, pos) + newValue + str.slice(pos + oldValue.length);
 }
 //#endregion
-//#region node_modules/.pnpm/regex-utilities@2.3.0/node_modules/regex-utilities/src/index.js
+//#region node_modules/regex-utilities/src/index.js
 const Context = Object.freeze({
 	DEFAULT: "DEFAULT",
 	CHAR_CLASS: "CHAR_CLASS"
@@ -11700,7 +11827,7 @@ function getGroupContents(expression, contentsStartPos) {
 	return expression.slice(contentsStartPos, contentsEndPos);
 }
 //#endregion
-//#region node_modules/.pnpm/regex@6.1.0/node_modules/regex/src/atomic.js
+//#region node_modules/regex/src/atomic.js
 /**
 @import {PluginData, PluginResult} from './regex.js';
 */
@@ -11847,7 +11974,7 @@ function possessive(expression) {
 	return { pattern: expression };
 }
 //#endregion
-//#region node_modules/.pnpm/regex-recursion@6.0.2/node_modules/regex-recursion/src/index.js
+//#region node_modules/regex-recursion/src/index.js
 const r$1 = String.raw;
 const recursiveToken = r$1`\(\?R=(?<rDepth>[^\)]+)\)|${r$1`\\g<(?<gRNameOrNum>[^>&]+)&R=(?<gRDepth>[^>]+)>`}`;
 const namedCaptureDelim = r$1`\(\?<(?![=!])(?<captureName>[^>]+)>`;
@@ -12054,22 +12181,36 @@ function mapCaptureTransfers(captureTransfers, left, reps, numCapturesAddedInExp
 	return captureTransfers;
 }
 //#endregion
-//#region node_modules/.pnpm/oniguruma-to-es@4.3.4/node_modules/oniguruma-to-es/dist/esm/index.js
+//#region node_modules/oniguruma-to-es/dist/esm/index.js
 var cp = String.fromCodePoint;
 var r = String.raw;
-var envFlags = {
-	flagGroups: true,
-	unicodeSets: true
-};
+var envFlags = {};
+var globalRegExp = globalThis.RegExp;
+envFlags.flagGroups = (() => {
+	try {
+		new globalRegExp("(?i:)");
+	} catch {
+		return false;
+	}
+	return true;
+})();
+envFlags.unicodeSets = (() => {
+	try {
+		new globalRegExp("[[]]", "v");
+	} catch {
+		return false;
+	}
+	return true;
+})();
 envFlags.bugFlagVLiteralHyphenIsRange = envFlags.unicodeSets ? (() => {
 	try {
-		new RegExp(r`[\d\-a]`, "v");
+		new globalRegExp(r`[\d\-a]`, "v");
 	} catch {
 		return true;
 	}
 	return false;
 })() : false;
-envFlags.bugNestedClassIgnoresNegation = envFlags.unicodeSets && (/* @__PURE__ */ new RegExp("[[^a]]", "v")).test("a");
+envFlags.bugNestedClassIgnoresNegation = envFlags.unicodeSets && new globalRegExp("[[^a]]", "v").test("a");
 function getNewCurrentFlags(current, { enable, disable }) {
 	return {
 		dotAll: !disable?.dotAll && !!(enable?.dotAll || current.dotAll),
@@ -13418,7 +13559,7 @@ function toRegExpDetails(pattern, options) {
 	return details;
 }
 //#endregion
-//#region node_modules/.pnpm/@shikijs+engine-javascript@3.23.0/node_modules/@shikijs/engine-javascript/dist/shared/engine-javascript.hzpS1_41.mjs
+//#region node_modules/@shikijs/engine-javascript/dist/shared/engine-javascript.hzpS1_41.mjs
 const MAX = 4294967295;
 var JavaScriptScanner = class {
 	constructor(patterns, options = {}) {
@@ -13492,7 +13633,7 @@ var JavaScriptScanner = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/@shikijs+engine-javascript@3.23.0/node_modules/@shikijs/engine-javascript/dist/engine-compile.mjs
+//#region node_modules/@shikijs/engine-javascript/dist/engine-compile.mjs
 function defaultJavaScriptRegexConstructor(pattern, options) {
 	return toRegExp(pattern, {
 		global: true,
@@ -13524,8 +13665,8 @@ function createJavaScriptRegexEngine(options = {}) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/languages/resolveLanguage.js
-async function resolveLanguage(lang) {
+//#region node_modules/@pierre/diffs/dist/highlighter/languages/resolveLanguage.js
+async function resolveLanguage$1(lang) {
 	if (isWorkerContext()) throw new Error(`resolveLanguage("${lang}") cannot be called from a worker context. Languages must be pre-resolved on the main thread and passed to the worker via the resolvedLanguages parameter.`);
 	const resolver = ResolvingLanguages.get(lang);
 	if (resolver != null) return resolver;
@@ -13548,29 +13689,29 @@ async function resolveLanguage(lang) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/languages/getResolvedOrResolveLanguage.js
+//#region node_modules/@pierre/diffs/dist/highlighter/languages/getResolvedOrResolveLanguage.js
 function getResolvedOrResolveLanguage(language) {
-	return ResolvedLanguages.get(language) ?? resolveLanguage(language);
+	return ResolvedLanguages.get(language) ?? resolveLanguage$1(language);
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/themes/constants.js
-const ResolvedThemes = /* @__PURE__ */ new Map();
-const ResolvingThemes = /* @__PURE__ */ new Map();
-const RegisteredCustomThemes = /* @__PURE__ */ new Map();
+//#region node_modules/@pierre/diffs/dist/highlighter/themes/constants.js
+const ResolvedThemes$1 = /* @__PURE__ */ new Map();
+const ResolvingThemes$1 = /* @__PURE__ */ new Map();
+const RegisteredCustomThemes$1 = /* @__PURE__ */ new Map();
 const AttachedThemes = /* @__PURE__ */ new Set();
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/themes/attachResolvedThemes.js
+//#region node_modules/@pierre/diffs/dist/highlighter/themes/attachResolvedThemes.js
 function attachResolvedThemes(themes, highlighter) {
 	themes = Array.isArray(themes) ? themes : [themes];
 	for (let themeRef of themes) {
 		let resolvedTheme;
 		if (typeof themeRef === "string") {
-			resolvedTheme = ResolvedThemes.get(themeRef);
+			resolvedTheme = ResolvedThemes$1.get(themeRef);
 			if (resolvedTheme == null) throw new Error(`loadResolvedThemes: ${themeRef} is not resolved, you must resolve it before calling loadResolvedThemes`);
 		} else {
 			resolvedTheme = themeRef;
 			themeRef = themeRef.name;
-			if (!ResolvedThemes.has(themeRef)) ResolvedThemes.set(themeRef, resolvedTheme);
+			if (!ResolvedThemes$1.has(themeRef)) ResolvedThemes$1.set(themeRef, resolvedTheme);
 		}
 		if (AttachedThemes.has(themeRef)) continue;
 		AttachedThemes.add(themeRef);
@@ -13578,55 +13719,55 @@ function attachResolvedThemes(themes, highlighter) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/themes/resolveTheme.js
+//#region node_modules/@pierre/diffs/dist/highlighter/themes/resolveTheme.js
 async function resolveTheme(themeName) {
 	if (isWorkerContext()) throw new Error(`resolveTheme("${themeName}") cannot be called from a worker context. Themes must be pre-resolved on the main thread and passed to the worker via the resolvedLanguages parameter.`);
-	const resolver = ResolvingThemes.get(themeName);
+	const resolver = ResolvingThemes$1.get(themeName);
 	if (resolver != null) return resolver;
 	try {
-		const loader = RegisteredCustomThemes.get(themeName) ?? bundledThemes[themeName];
+		const loader = RegisteredCustomThemes$1.get(themeName) ?? bundledThemes[themeName];
 		if (loader == null) throw new Error(`resolveTheme: No valid loader for ${themeName}`);
 		const resolver$1 = loader().then((result) => {
 			return normalizeAndCacheResolvedTheme(themeName, "default" in result ? result.default : result);
 		});
-		ResolvingThemes.set(themeName, resolver$1);
+		ResolvingThemes$1.set(themeName, resolver$1);
 		const theme = await resolver$1;
 		if (theme.name !== themeName) throw new Error(`resolvedTheme: themeName: ${themeName} does not match theme.name: ${theme.name}`);
-		ResolvedThemes.set(theme.name, theme);
+		ResolvedThemes$1.set(theme.name, theme);
 		return theme;
 	} finally {
-		ResolvingThemes.delete(themeName);
+		ResolvingThemes$1.delete(themeName);
 	}
 }
 function normalizeAndCacheResolvedTheme(themeName, themeData) {
-	const resolvedTheme = ResolvedThemes.get(themeName);
+	const resolvedTheme = ResolvedThemes$1.get(themeName);
 	if (resolvedTheme != null) return resolvedTheme;
 	themeData = normalizeTheme$1(themeData);
-	ResolvedThemes.set(themeName, themeData);
+	ResolvedThemes$1.set(themeName, themeData);
 	return themeData;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/themes/getResolvedOrResolveTheme.js
+//#region node_modules/@pierre/diffs/dist/highlighter/themes/getResolvedOrResolveTheme.js
 function getResolvedOrResolveTheme(themeName) {
-	return ResolvedThemes.get(themeName) ?? resolveTheme(themeName);
+	return ResolvedThemes$1.get(themeName) ?? resolveTheme(themeName);
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/themes/registerCustomTheme.js
+//#region node_modules/@pierre/diffs/dist/highlighter/themes/registerCustomTheme.js
 function registerCustomTheme(themeName, loader) {
-	if (RegisteredCustomThemes.has(themeName)) {
+	if (RegisteredCustomThemes$1.has(themeName)) {
 		console.error("SharedHighlight.registerCustomTheme: theme name already registered", themeName);
 		return;
 	}
-	RegisteredCustomThemes.set(themeName, loader);
+	RegisteredCustomThemes$1.set(themeName, loader);
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/shared_highlighter.js
+//#region node_modules/@pierre/diffs/dist/highlighter/shared_highlighter.js
 let highlighter;
 async function getSharedHighlighter({ themes, langs, preferredHighlighter = "shiki-js" }) {
 	highlighter ??= createHighlighter({
 		themes: [],
 		langs: ["text"],
-		engine: preferredHighlighter === "shiki-wasm" ? createOnigurumaEngine(import("../../wasm-DhWG51uv.js")) : createJavaScriptRegexEngine()
+		engine: preferredHighlighter === "shiki-wasm" ? createOnigurumaEngine(import("../../wasm-C4NRP536.js")) : createJavaScriptRegexEngine()
 	});
 	const instance = isHighlighterLoading(highlighter) ? await highlighter : highlighter;
 	highlighter = instance;
@@ -13657,21 +13798,21 @@ function isHighlighterLoading(h = highlighter) {
 	return h != null && "then" in h;
 }
 registerCustomTheme("pierre-dark", async () => {
-	const m = await import("../../pierre-dark-Ymm8YjV1.js");
+	const m = await import("../../pierre-dark-BoB16TJ1.js");
 	return {
 		...m.default ?? m,
 		name: "pierre-dark"
 	};
 });
 registerCustomTheme("pierre-light", async () => {
-	const m = await import("../../pierre-light-DSddozy_.js");
+	const m = await import("../../pierre-light-ZFREnTeQ.js");
 	return {
 		...m.default ?? m,
 		name: "pierre-light"
 	};
 });
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getThemes.js
+//#region node_modules/@pierre/diffs/dist/utils/getThemes.js
 function getThemes(theme = DEFAULT_THEMES) {
 	const themesArr = [];
 	if (typeof theme === "string") themesArr.push(theme);
@@ -13682,25 +13823,25 @@ function getThemes(theme = DEFAULT_THEMES) {
 	return themesArr;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/highlighter/themes/areThemesAttached.js
+//#region node_modules/@pierre/diffs/dist/highlighter/themes/areThemesAttached.js
 function areThemesAttached(themes) {
 	for (const theme of getThemes(themes)) if (!AttachedThemes.has(theme)) return false;
 	return true;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/areRenderRangesEqual.js
+//#region node_modules/@pierre/diffs/dist/utils/areRenderRangesEqual.js
 function areRenderRangesEqual(renderRangeA, renderRangeB) {
 	if (renderRangeA == null || renderRangeB == null) return renderRangeA === renderRangeB;
 	return renderRangeA.startingLine === renderRangeB.startingLine && renderRangeA.totalLines === renderRangeB.totalLines && renderRangeA.bufferBefore === renderRangeB.bufferBefore && renderRangeA.bufferAfter === renderRangeB.bufferAfter;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/areThemesEqual.js
+//#region node_modules/@pierre/diffs/dist/utils/areThemesEqual.js
 function areThemesEqual(themeA, themeB) {
 	if (themeA == null || themeB == null || typeof themeA === "string" || typeof themeB === "string") return themeA === themeB;
 	return themeA.dark === themeB.dark && themeA.light === themeB.light;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createAnnotationElement.js
+//#region node_modules/@pierre/diffs/dist/utils/createAnnotationElement.js
 function createAnnotationElement(span) {
 	return createHastElement({
 		tagName: "div",
@@ -13716,7 +13857,19 @@ function createAnnotationElement(span) {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getIconForType.js
+//#region node_modules/@pierre/diffs/dist/utils/createContentColumn.js
+function createContentColumn(children, rowCount) {
+	return createHastElement({
+		tagName: "div",
+		children,
+		properties: {
+			"data-content": "",
+			style: `grid-row: span ${rowCount}`
+		}
+	});
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/getIconForType.js
 function getIconForType(type) {
 	switch (type) {
 		case "file": return "diffs-icon-file-code";
@@ -13728,22 +13881,23 @@ function getIconForType(type) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createFileHeaderElement.js
-function createFileHeaderElement({ fileOrDiff, themeStyles, themeType }) {
+//#region node_modules/@pierre/diffs/dist/utils/createFileHeaderElement.js
+function createFileHeaderElement({ fileOrDiff, mode }) {
 	const fileDiff = "type" in fileOrDiff ? fileOrDiff : void 0;
 	const properties = {
-		"data-diffs-header": "",
-		"data-change-type": fileDiff?.type,
-		"data-theme-type": themeType !== "system" ? themeType : void 0,
-		style: themeStyles
+		"data-diffs-header": mode,
+		"data-change-type": fileDiff?.type
 	};
 	return createHastElement({
 		tagName: "div",
-		children: [createHeaderElement({
+		children: [mode === "custom" ? createHastElement({
+			tagName: "slot",
+			properties: { name: CUSTOM_HEADER_SLOT_ID }
+		}) : createHeaderElement({
 			name: fileOrDiff.name,
 			prevName: "prevName" in fileOrDiff ? fileOrDiff.prevName : void 0,
 			iconType: fileDiff?.type ?? "file"
-		}), createMetadataElement(fileDiff)],
+		}), ...mode === "custom" ? [] : [createMetadataElement(fileDiff)]],
 		properties
 	});
 }
@@ -13758,7 +13912,10 @@ function createHeaderElement({ name, prevName, iconType }) {
 	if (prevName != null) {
 		children.push(createHastElement({
 			tagName: "div",
-			children: [createTextNodeElement(prevName)],
+			children: [createHastElement({
+				tagName: "bdi",
+				children: [createTextNodeElement(prevName)]
+			})],
 			properties: { "data-prev-name": "" }
 		}));
 		children.push(createIconElement({
@@ -13768,7 +13925,10 @@ function createHeaderElement({ name, prevName, iconType }) {
 	}
 	children.push(createHastElement({
 		tagName: "div",
-		children: [createTextNodeElement(name)],
+		children: [createHastElement({
+			tagName: "bdi",
+			children: [createTextNodeElement(name)]
+		})],
 		properties: { "data-title": "" }
 	}));
 	return createHastElement({
@@ -13808,15 +13968,15 @@ function createMetadataElement(fileDiff) {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createPreElement.js
+//#region node_modules/@pierre/diffs/dist/utils/createPreElement.js
 function createPreElement(options) {
 	return createHastElement({
 		tagName: "pre",
 		properties: createPreWrapperProperties(options)
 	});
 }
-function createPreWrapperProperties({ diffIndicators, disableBackground, disableLineNumbers, overflow, split, themeType, themeStyles, totalLines, type, customProperties }) {
-	const properties = {
+function createPreWrapperProperties({ diffIndicators, disableBackground, disableLineNumbers, overflow, split, totalLines, type, customProperties }) {
+	return {
 		...customProperties,
 		"data-diff": type === "diff" ? "" : void 0,
 		"data-file": type === "file" ? "" : void 0,
@@ -13825,15 +13985,12 @@ function createPreWrapperProperties({ diffIndicators, disableBackground, disable
 		"data-disable-line-numbers": disableLineNumbers ? "" : void 0,
 		"data-background": !disableBackground ? "" : void 0,
 		"data-indicators": diffIndicators === "bars" || diffIndicators === "classic" ? diffIndicators : void 0,
-		"data-theme-type": themeType !== "system" ? themeType : void 0,
-		style: themeStyles,
-		tabIndex: 0
+		tabIndex: 0,
+		style: `--diffs-min-number-column-width-default:${`${totalLines}`.length}ch;`
 	};
-	properties.style += `--diffs-min-number-column-width-default:${`${totalLines}`.length}ch;`;
-	return properties;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getFiletypeFromFileName.js
+//#region node_modules/@pierre/diffs/dist/utils/getFiletypeFromFileName.js
 const CUSTOM_EXTENSION_TO_FILE_FORMAT = /* @__PURE__ */ new Map();
 const EXTENSION_TO_FILE_FORMAT = {
 	"1c": "1c",
@@ -14177,7 +14334,7 @@ function getFiletypeFromFileName(fileName) {
 	return EXTENSION_TO_FILE_FORMAT[simpleMatch] ?? "text";
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getHighlighterOptions.js
+//#region node_modules/@pierre/diffs/dist/utils/getHighlighterOptions.js
 function getHighlighterOptions(lang, { theme, preferredHighlighter = "shiki-js" }) {
 	return {
 		langs: [lang ?? "text"],
@@ -14186,283 +14343,12 @@ function getHighlighterOptions(lang, { theme, preferredHighlighter = "shiki-js" 
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getLineAnnotationName.js
+//#region node_modules/@pierre/diffs/dist/utils/getLineAnnotationName.js
 function getLineAnnotationName(annotation) {
 	return `annotation-${"side" in annotation ? `${annotation.side}-` : ""}${annotation.lineNumber}`;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/cleanLastNewline.js
-function cleanLastNewline(contents) {
-	return contents.replace(/\n$|\r\n$/, "");
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/processLine.js
-function processLine(node, line, state) {
-	const lineInfo = typeof state.lineInfo === "function" ? state.lineInfo(line) : state.lineInfo[line - 1];
-	if (lineInfo == null) {
-		const errorMessage = `processLine: line ${line}, contains no state.lineInfo`;
-		console.error(errorMessage, {
-			node,
-			line,
-			state
-		});
-		throw new Error(errorMessage);
-	}
-	node.tagName = "div";
-	node.properties["data-line"] = lineInfo.lineNumber;
-	node.properties["data-alt-line"] = lineInfo.altLineNumber;
-	node.properties["data-line-type"] = lineInfo.type;
-	node.properties["data-line-index"] = lineInfo.lineIndex;
-	if (node.children.length === 0) node.children.push(createTextNodeElement("\n"));
-	return node;
-}
-//#endregion
-//#region node_modules/.pnpm/@shikijs+transformers@3.23.0/node_modules/@shikijs/transformers/dist/index.mjs
-function transformerStyleToClass(options = {}) {
-	const { classPrefix = "__shiki_", classSuffix = "", classReplacer = (className) => className } = options;
-	const classToStyle = /* @__PURE__ */ new Map();
-	function stringifyStyle(style) {
-		return Object.entries(style).map(([key, value]) => `${key}:${value}`).join(";");
-	}
-	function registerStyle(style) {
-		let className = classPrefix + cyrb53(typeof style === "string" ? style : stringifyStyle(style)) + classSuffix;
-		className = classReplacer(className);
-		if (!classToStyle.has(className)) classToStyle.set(className, typeof style === "string" ? style : { ...style });
-		return className;
-	}
-	return {
-		name: "@shikijs/transformers:style-to-class",
-		pre(t) {
-			if (!t.properties.style) return;
-			const className = registerStyle(t.properties.style);
-			delete t.properties.style;
-			this.addClassToHast(t, className);
-		},
-		tokens(lines) {
-			for (const line of lines) for (const token of line) {
-				if (!token.htmlStyle) continue;
-				const className = registerStyle(token.htmlStyle);
-				token.htmlStyle = {};
-				token.htmlAttrs ||= {};
-				if (!token.htmlAttrs.class) token.htmlAttrs.class = className;
-				else token.htmlAttrs.class += ` ${className}`;
-			}
-		},
-		getClassRegistry() {
-			return classToStyle;
-		},
-		getCSS() {
-			let css = "";
-			for (const [className, style] of classToStyle.entries()) css += `.${className}{${typeof style === "string" ? style : stringifyStyle(style)}}`;
-			return css;
-		},
-		clearRegistry() {
-			classToStyle.clear();
-		}
-	};
-}
-function cyrb53(str, seed = 0) {
-	let h1 = 3735928559 ^ seed;
-	let h2 = 1103547991 ^ seed;
-	for (let i = 0, ch; i < str.length; i++) {
-		ch = str.charCodeAt(i);
-		h1 = Math.imul(h1 ^ ch, 2654435761);
-		h2 = Math.imul(h2 ^ ch, 1597334677);
-	}
-	h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507);
-	h1 ^= Math.imul(h2 ^ h2 >>> 13, 3266489909);
-	h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507);
-	h2 ^= Math.imul(h1 ^ h1 >>> 13, 3266489909);
-	return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36).slice(0, 6);
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createTransformerWithState.js
-function createTransformerWithState(useCSSClasses = false) {
-	const state = { lineInfo: [] };
-	const transformers = [{
-		line(node) {
-			delete node.properties.class;
-			return node;
-		},
-		pre(pre) {
-			const code = findCodeElement(pre);
-			const children = [];
-			if (code != null) {
-				let index = 1;
-				for (const node of code.children) {
-					if (node.type !== "element") continue;
-					children.push(processLine(node, index, state));
-					index++;
-				}
-				code.children = children;
-			}
-			return pre;
-		}
-	}];
-	if (useCSSClasses) transformers.push(tokenStyleNormalizer, toClass);
-	return {
-		state,
-		transformers,
-		toClass
-	};
-}
-const toClass = transformerStyleToClass({ classPrefix: "hl-" });
-const tokenStyleNormalizer = {
-	name: "token-style-normalizer",
-	tokens(lines) {
-		for (const line of lines) for (const token of line) {
-			if (token.htmlStyle != null) continue;
-			const style = {};
-			if (token.color != null) style.color = token.color;
-			if (token.bgColor != null) style["background-color"] = token.bgColor;
-			if (token.fontStyle != null && token.fontStyle !== 0) {
-				if ((token.fontStyle & 1) !== 0) style["font-style"] = "italic";
-				if ((token.fontStyle & 2) !== 0) style["font-weight"] = "bold";
-				if ((token.fontStyle & 4) !== 0) style["text-decoration"] = "underline";
-			}
-			if (Object.keys(style).length > 0) token.htmlStyle = style;
-		}
-	}
-};
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/formatCSSVariablePrefix.js
-function formatCSSVariablePrefix(type) {
-	return `--${type === "token" ? "diffs-token" : "diffs"}-`;
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getHighlighterThemeStyles.js
-function getHighlighterThemeStyles({ theme = DEFAULT_THEMES, highlighter, prefix }) {
-	let styles = "";
-	if (typeof theme === "string") {
-		const themeData = highlighter.getTheme(theme);
-		styles += `color:${themeData.fg};`;
-		styles += `background-color:${themeData.bg};`;
-		styles += `${formatCSSVariablePrefix("global")}fg:${themeData.fg};`;
-		styles += `${formatCSSVariablePrefix("global")}bg:${themeData.bg};`;
-		styles += getThemeVariables(themeData, prefix);
-	} else {
-		let themeData = highlighter.getTheme(theme.dark);
-		styles += `${formatCSSVariablePrefix("global")}dark:${themeData.fg};`;
-		styles += `${formatCSSVariablePrefix("global")}dark-bg:${themeData.bg};`;
-		styles += getThemeVariables(themeData, "dark");
-		themeData = highlighter.getTheme(theme.light);
-		styles += `${formatCSSVariablePrefix("global")}light:${themeData.fg};`;
-		styles += `${formatCSSVariablePrefix("global")}light-bg:${themeData.bg};`;
-		styles += getThemeVariables(themeData, "light");
-	}
-	return styles;
-}
-function getThemeVariables(themeData, modePrefix) {
-	modePrefix = modePrefix != null ? `${modePrefix}-` : "";
-	let styles = "";
-	const additionGreen = themeData.colors?.["gitDecoration.addedResourceForeground"] ?? themeData.colors?.["terminal.ansiGreen"];
-	if (additionGreen != null) styles += `${formatCSSVariablePrefix("global")}${modePrefix}addition-color:${additionGreen};`;
-	const deletionRed = themeData.colors?.["gitDecoration.deletedResourceForeground"] ?? themeData.colors?.["terminal.ansiRed"];
-	if (deletionRed != null) styles += `${formatCSSVariablePrefix("global")}${modePrefix}deletion-color:${deletionRed};`;
-	const modifiedBlue = themeData.colors?.["gitDecoration.modifiedResourceForeground"] ?? themeData.colors?.["terminal.ansiBlue"];
-	if (modifiedBlue != null) styles += `${formatCSSVariablePrefix("global")}${modePrefix}modified-color:${modifiedBlue};`;
-	return styles;
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getLineNodes.js
-function getLineNodes(nodes) {
-	let firstChild = nodes.children[0];
-	while (firstChild != null) {
-		if (firstChild.type === "element" && firstChild.tagName === "code") return firstChild.children;
-		if ("children" in firstChild) firstChild = firstChild.children[0];
-		else firstChild = null;
-	}
-	console.error(nodes);
-	throw new Error("getLineNodes: Unable to find children");
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createContentColumn.js
-function createContentColumn(children, rowCount) {
-	return createHastElement({
-		tagName: "div",
-		children,
-		properties: {
-			"data-content": "",
-			style: `grid-row: span ${rowCount}`
-		}
-	});
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/sprite.js
-const SVGSpriteSheet = `<svg data-icon-sprite aria-hidden="true" width="0" height="0">
-  <symbol id="diffs-icon-arrow-right-short" viewBox="0 0 16 16">
-    <path d="M8.47 4.22a.75.75 0 0 0 0 1.06l1.97 1.97H3.75a.75.75 0 0 0 0 1.5h6.69l-1.97 1.97a.75.75 0 1 0 1.06 1.06l3.25-3.25a.75.75 0 0 0 0-1.06L9.53 4.22a.75.75 0 0 0-1.06 0"/>
-  </symbol>
-  <symbol id="diffs-icon-brand-github" viewBox="0 0 16 16">
-    <path d="M8 0c4.42 0 8 3.58 8 8a8.01 8.01 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27s-1.36.09-2 .27c-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8"/>
-  </symbol>
-  <symbol id="diffs-icon-chevron" viewBox="0 0 16 16">
-    <path d="M1.47 4.47a.75.75 0 0 1 1.06 0L8 9.94l5.47-5.47a.75.75 0 1 1 1.06 1.06l-6 6a.75.75 0 0 1-1.06 0l-6-6a.75.75 0 0 1 0-1.06"/>
-  </symbol>
-  <symbol id="diffs-icon-chevrons-narrow" viewBox="0 0 10 16">
-    <path d="M4.47 2.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1-1.06 1.06L5 3.81 2.28 6.53a.75.75 0 0 1-1.06-1.06zM1.22 9.47a.75.75 0 0 1 1.06 0L5 12.19l2.72-2.72a.75.75 0 0 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0l-3.25-3.25a.75.75 0 0 1 0-1.06"/>
-  </symbol>
-  <symbol id="diffs-icon-diff-split" viewBox="0 0 16 16">
-    <path d="M14 0H8.5v16H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2m-1.5 6.5v1h1a.5.5 0 0 1 0 1h-1v1a.5.5 0 0 1-1 0v-1h-1a.5.5 0 0 1 0-1h1v-1a.5.5 0 0 1 1 0"/><path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5.5V0zm.5 7.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1" opacity=".3"/>
-  </symbol>
-  <symbol id="diffs-icon-diff-unified" viewBox="0 0 16 16">
-    <path fill-rule="evenodd" d="M16 14a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V8.5h16zm-8-4a.5.5 0 0 0-.5.5v1h-1a.5.5 0 0 0 0 1h1v1a.5.5 0 0 0 1 0v-1h1a.5.5 0 0 0 0-1h-1v-1A.5.5 0 0 0 8 10" clip-rule="evenodd"/><path fill-rule="evenodd" d="M14 0a2 2 0 0 1 2 2v5.5H0V2a2 2 0 0 1 2-2zM6.5 3.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1z" clip-rule="evenodd" opacity=".4"/>
-  </symbol>
-  <symbol id="diffs-icon-expand" viewBox="0 0 16 16">
-    <path d="M3.47 5.47a.75.75 0 0 1 1.06 0L8 8.94l3.47-3.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 0-1.06"/>
-  </symbol>
-  <symbol id="diffs-icon-expand-all" viewBox="0 0 16 16">
-    <path d="M11.47 9.47a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 1 1 1.06-1.06L8 12.94zM7.526 1.418a.75.75 0 0 1 1.004.052l4 4a.75.75 0 1 1-1.06 1.06L8 3.06 4.53 6.53a.75.75 0 1 1-1.06-1.06l4-4z"/>
-  </symbol>
-  <symbol id="diffs-icon-file-code" viewBox="0 0 16 16">
-    <path d="M10.75 0c.199 0 .39.08.53.22l3.5 3.5c.14.14.22.331.22.53v9A2.75 2.75 0 0 1 12.25 16h-8.5A2.75 2.75 0 0 1 1 13.25V2.75A2.75 2.75 0 0 1 3.75 0zm-7 1.5c-.69 0-1.25.56-1.25 1.25v10.5c0 .69.56 1.25 1.25 1.25h8.5c.69 0 1.25-.56 1.25-1.25V5h-1.25A2.25 2.25 0 0 1 10 2.75V1.5z"/><path d="M7.248 6.19a.75.75 0 0 1 .063 1.058L5.753 9l1.558 1.752a.75.75 0 0 1-1.122.996l-2-2.25a.75.75 0 0 1 0-.996l2-2.25a.75.75 0 0 1 1.06-.063M8.69 7.248a.75.75 0 1 1 1.12-.996l2 2.25a.75.75 0 0 1 0 .996l-2 2.25a.75.75 0 1 1-1.12-.996L10.245 9z"/>
-  </symbol>
-  <symbol id="diffs-icon-plus" viewBox="0 0 16 16">
-    <path d="M8 3a.75.75 0 0 1 .75.75v3.5h3.5a.75.75 0 0 1 0 1.5h-3.5v3.5a.75.75 0 0 1-1.5 0v-3.5h-3.5a.75.75 0 0 1 0-1.5h3.5v-3.5A.75.75 0 0 1 8 3"/>
-  </symbol>
-  <symbol id="diffs-icon-symbol-added" viewBox="0 0 16 16">
-    <path d="M8 4a.75.75 0 0 1 .75.75v2.5h2.5a.75.75 0 0 1 0 1.5h-2.5v2.5a.75.75 0 0 1-1.5 0v-2.5h-2.5a.75.75 0 0 1 0-1.5h2.5v-2.5A.75.75 0 0 1 8 4"/><path d="M1.788 4.296c.196-.88.478-1.381.802-1.706s.826-.606 1.706-.802C5.194 1.588 6.387 1.5 8 1.5s2.806.088 3.704.288c.88.196 1.381.478 1.706.802s.607.826.802 1.706c.2.898.288 2.091.288 3.704s-.088 2.806-.288 3.704c-.195.88-.478 1.381-.802 1.706s-.826.607-1.706.802c-.898.2-2.091.288-3.704.288s-2.806-.088-3.704-.288c-.88-.195-1.381-.478-1.706-.802s-.606-.826-.802-1.706C1.588 10.806 1.5 9.613 1.5 8s.088-2.806.288-3.704M8 0C1.412 0 0 1.412 0 8s1.412 8 8 8 8-1.412 8-8-1.412-8-8-8"/>
-  </symbol>
-  <symbol id="diffs-icon-symbol-deleted" viewBox="0 0 16 16">
-    <path d="M4 8a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 4 8"/><path d="M1.788 4.296c.196-.88.478-1.381.802-1.706s.826-.606 1.706-.802C5.194 1.588 6.387 1.5 8 1.5s2.806.088 3.704.288c.88.196 1.381.478 1.706.802s.607.826.802 1.706c.2.898.288 2.091.288 3.704s-.088 2.806-.288 3.704c-.195.88-.478 1.381-.802 1.706s-.826.607-1.706.802c-.898.2-2.091.288-3.704.288s-2.806-.088-3.704-.288c-.88-.195-1.381-.478-1.706-.802s-.606-.826-.802-1.706C1.588 10.806 1.5 9.613 1.5 8s.088-2.806.288-3.704M8 0C1.412 0 0 1.412 0 8s1.412 8 8 8 8-1.412 8-8-1.412-8-8-8"/>
-  </symbol>
-  <symbol id="diffs-icon-symbol-diffstat" viewBox="0 0 16 16">
-    <path d="M1.788 4.296c.196-.88.478-1.381.802-1.706s.826-.606 1.706-.802C5.194 1.588 6.387 1.5 8 1.5s2.806.088 3.704.288c.88.196 1.381.478 1.706.802s.607.826.802 1.706c.2.898.288 2.091.288 3.704s-.088 2.806-.288 3.704c-.195.88-.478 1.381-.802 1.706s-.826.607-1.706.802c-.898.2-2.091.288-3.704.288s-2.806-.088-3.704-.288c-.88-.195-1.381-.478-1.706-.802s-.606-.826-.802-1.706C1.588 10.806 1.5 9.613 1.5 8s.088-2.806.288-3.704M8 0C1.412 0 0 1.412 0 8s1.412 8 8 8 8-1.412 8-8-1.412-8-8-8"/><path d="M8.75 4.296a.75.75 0 0 0-1.5 0V6.25h-2a.75.75 0 0 0 0 1.5h2v1.5h1.5v-1.5h2a.75.75 0 0 0 0-1.5h-2zM5.25 10a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5z"/>
-  </symbol>
-  <symbol id="diffs-icon-symbol-ignored" viewBox="0 0 16 16">
-    <path d="M1.5 8c0 1.613.088 2.806.288 3.704.196.88.478 1.381.802 1.706s.826.607 1.706.802c.898.2 2.091.288 3.704.288s2.806-.088 3.704-.288c.88-.195 1.381-.478 1.706-.802s.607-.826.802-1.706c.2-.898.288-2.091.288-3.704s-.088-2.806-.288-3.704c-.195-.88-.478-1.381-.802-1.706s-.826-.606-1.706-.802C10.806 1.588 9.613 1.5 8 1.5s-2.806.088-3.704.288c-.88.196-1.381.478-1.706.802s-.606.826-.802 1.706C1.588 5.194 1.5 6.387 1.5 8M0 8c0-6.588 1.412-8 8-8s8 1.412 8 8-1.412 8-8 8-8-1.412-8-8m11.53-2.47a.75.75 0 0 0-1.06-1.06l-6 6a.75.75 0 1 0 1.06 1.06z"/>
-  </symbol>
-  <symbol id="diffs-icon-symbol-modified" viewBox="0 0 16 16">
-    <path d="M1.5 8c0 1.613.088 2.806.288 3.704.196.88.478 1.381.802 1.706s.826.607 1.706.802c.898.2 2.091.288 3.704.288s2.806-.088 3.704-.288c.88-.195 1.381-.478 1.706-.802s.607-.826.802-1.706c.2-.898.288-2.091.288-3.704s-.088-2.806-.288-3.704c-.195-.88-.478-1.381-.802-1.706s-.826-.606-1.706-.802C10.806 1.588 9.613 1.5 8 1.5s-2.806.088-3.704.288c-.88.196-1.381.478-1.706.802s-.606.826-.802 1.706C1.588 5.194 1.5 6.387 1.5 8M0 8c0-6.588 1.412-8 8-8s8 1.412 8 8-1.412 8-8 8-8-1.412-8-8m8 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
-  </symbol>
-  <symbol id="diffs-icon-symbol-moved" viewBox="0 0 16 16">
-    <path d="M1.788 4.296c.196-.88.478-1.381.802-1.706s.826-.606 1.706-.802C5.194 1.588 6.387 1.5 8 1.5s2.806.088 3.704.288c.88.196 1.381.478 1.706.802s.607.826.802 1.706c.2.898.288 2.091.288 3.704s-.088 2.806-.288 3.704c-.195.88-.478 1.381-.802 1.706s-.826.607-1.706.802c-.898.2-2.091.288-3.704.288s-2.806-.088-3.704-.288c-.88-.195-1.381-.478-1.706-.802s-.606-.826-.802-1.706C1.588 10.806 1.5 9.613 1.5 8s.088-2.806.288-3.704M8 0C1.412 0 0 1.412 0 8s1.412 8 8 8 8-1.412 8-8-1.412-8-8-8"/><path d="M8.495 4.695a.75.75 0 0 0-.05 1.06L10.486 8l-2.041 2.246a.75.75 0 0 0 1.11 1.008l2.5-2.75a.75.75 0 0 0 0-1.008l-2.5-2.75a.75.75 0 0 0-1.06-.051m-4 0a.75.75 0 0 0-.05 1.06l2.044 2.248-1.796 1.995a.75.75 0 0 0 1.114 1.004l2.25-2.5a.75.75 0 0 0-.002-1.007l-2.5-2.75a.75.75 0 0 0-1.06-.05"/>
-  </symbol>
-  <symbol id="diffs-icon-symbol-ref" viewBox="0 0 16 16">
-    <path d="M1.5 8c0 1.613.088 2.806.288 3.704.196.88.478 1.381.802 1.706.286.286.71.54 1.41.73V1.86c-.7.19-1.124.444-1.41.73-.324.325-.606.826-.802 1.706C1.588 5.194 1.5 6.387 1.5 8m4 6.397c.697.07 1.522.103 2.5.103 1.613 0 2.806-.088 3.704-.288.88-.195 1.381-.478 1.706-.802s.607-.826.802-1.706c.2-.898.288-2.091.288-3.704s-.088-2.806-.288-3.704c-.195-.88-.478-1.381-.802-1.706s-.826-.606-1.706-.802C10.806 1.588 9.613 1.5 8 1.5c-.978 0-1.803.033-2.5.103zM0 8c0-6.588 1.412-8 8-8s8 1.412 8 8-1.412 8-8 8-8-1.412-8-8m7-2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z"/>
-  </symbol>
-</svg>`;
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/style.js
-var style_default = "@layer base, theme, unsafe;\n\n@layer base {\n  :host {\n    --diffs-bg: #fff;\n    --diffs-fg: #000;\n    --diffs-font-fallback:\n      'SF Mono', Monaco, Consolas, 'Ubuntu Mono', 'Liberation Mono',\n      'Courier New', monospace;\n    --diffs-header-font-fallback:\n      system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',\n      'Noto Sans', 'Liberation Sans', Arial, sans-serif;\n\n    --diffs-mixer: light-dark(black, white);\n    --diffs-gap-fallback: 8px;\n\n    --diffs-added-light: #0dbe4e;\n    --diffs-added-dark: #5ecc71;\n    --diffs-modified-light: #009fff;\n    --diffs-modified-dark: #69b1ff;\n    --diffs-deleted-light: #ff2e3f;\n    --diffs-deleted-dark: #ff6762;\n\n    /*\n    // Available CSS Color Overrides\n    --diffs-bg-buffer-override\n    --diffs-bg-hover-override\n    --diffs-bg-context-override\n    --diffs-bg-separator-override\n\n    --diffs-fg-number-override\n    --diffs-fg-number-addition-override\n    --diffs-fg-number-deletion-override\n    --diffs-fg-conflict-marker-override\n\n    --diffs-deletion-color-override\n    --diffs-addition-color-override\n    --diffs-modified-color-override\n\n    --diffs-bg-deletion-override\n    --diffs-bg-deletion-number-override\n    --diffs-bg-deletion-hover-override\n    --diffs-bg-deletion-emphasis-override\n\n    --diffs-bg-addition-override\n    --diffs-bg-addition-number-override\n    --diffs-bg-addition-hover-override\n    --diffs-bg-addition-emphasis-override\n\n    // Line Selection Color Overrides (for enableLineSelection)\n    --diffs-selection-color-override\n    --diffs-bg-selection-override\n    --diffs-bg-selection-number-override\n    --diffs-bg-selection-background-override\n    --diffs-bg-selection-number-background-override\n\n    // Available CSS Layout Overrides\n    --diffs-gap-inline\n    --diffs-gap-block\n    --diffs-gap-style\n    --diffs-tab-size\n  */\n\n    color-scheme: light dark;\n    display: block;\n    font-family: var(\n      --diffs-header-font-family,\n      var(--diffs-header-font-fallback)\n    );\n    font-size: var(--diffs-font-size, 13px);\n    line-height: var(--diffs-line-height, 20px);\n    font-feature-settings: var(--diffs-font-features);\n  }\n\n  /* NOTE(mdo): Some semantic HTML elements (e.g. `pre`, `code`) have default\n * user-agent styles. These must be overridden to use our custom styles. */\n  pre,\n  code,\n  [data-error-wrapper] {\n    isolation: isolate;\n    margin: 0;\n    padding: 0;\n    display: block;\n    outline: none;\n    font-family: var(--diffs-font-family, var(--diffs-font-fallback));\n  }\n\n  pre,\n  code {\n    background-color: var(--diffs-bg);\n  }\n\n  code {\n    contain: content;\n  }\n\n  *,\n  *::before,\n  *::after {\n    box-sizing: border-box;\n  }\n\n  [data-icon-sprite] {\n    display: none;\n  }\n\n  /* NOTE(mdo): Headers and separators are within pre/code, so we need to reset\n   * their font-family explicitly. */\n  [data-diffs-header],\n  [data-separator] {\n    font-family: var(\n      --diffs-header-font-family,\n      var(--diffs-header-font-fallback)\n    );\n  }\n\n  [data-file-info] {\n    padding: 10px;\n    font-weight: 700;\n    color: var(--fg);\n    /* NOTE(amadeus): we cannot use 'in oklch' because current versions of cursor\n   * and vscode use an older build of chrome that appears to have a bug with\n   * color-mix and 'in oklch', so use 'in lab' instead */\n    background-color: color-mix(in lab, var(--bg) 98%, var(--fg));\n    border-block: 1px solid color-mix(in lab, var(--bg) 95%, var(--fg));\n  }\n\n  [data-diffs-header],\n  [data-diff],\n  [data-file],\n  [data-error-wrapper],\n  [data-virtualizer-buffer] {\n    --diffs-bg: light-dark(var(--diffs-light-bg), var(--diffs-dark-bg));\n    /* NOTE(amadeus): we cannot use 'in oklch' because current versions of cursor\n   * and vscode use an older build of chrome that appears to have a bug with\n   * color-mix and 'in oklch', so use 'in lab' instead */\n    --diffs-bg-buffer: var(\n      --diffs-bg-buffer-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-mixer)),\n        color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-mixer))\n      )\n    );\n    --diffs-bg-hover: var(\n      --diffs-bg-hover-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 97%, var(--diffs-mixer)),\n        color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-mixer))\n      )\n    );\n\n    --diffs-bg-context: var(\n      --diffs-bg-context-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 98.5%, var(--diffs-mixer)),\n        color-mix(in lab, var(--diffs-bg) 92.5%, var(--diffs-mixer))\n      )\n    );\n    --diffs-bg-context-number: var(\n      --diffs-bg-context-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg-context) 80%, var(--diffs-bg)),\n        color-mix(in lab, var(--diffs-bg-context) 60%, var(--diffs-bg))\n      )\n    );\n    --diffs-bg-conflict-marker: var(\n      --diffs-bg-conflict-marker-override,\n      light-dark(\n        color-mix(\n          in lab,\n          var(--diffs-bg-context) 88%,\n          var(--diffs-modified-base)\n        ),\n        color-mix(\n          in lab,\n          var(--diffs-bg-context) 80%,\n          var(--diffs-modified-base)\n        )\n      )\n    );\n    --diffs-bg-conflict-current: var(\n      --diffs-bg-conflict-current-override,\n      light-dark(#e5f8ea, #274432)\n    );\n    --diffs-bg-conflict-base: var(\n      --diffs-bg-conflict-base-override,\n      light-dark(\n        color-mix(\n          in lab,\n          var(--diffs-bg-context) 90%,\n          var(--diffs-modified-base)\n        ),\n        color-mix(\n          in lab,\n          var(--diffs-bg-context) 82%,\n          var(--diffs-modified-base)\n        )\n      )\n    );\n    --diffs-bg-conflict-incoming: var(\n      --diffs-bg-conflict-incoming-override,\n      light-dark(#e6f1ff, #253b5a)\n    );\n    --diffs-bg-conflict-marker-number: var(\n      --diffs-bg-conflict-marker-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg-conflict-marker) 72%, var(--diffs-bg)),\n        color-mix(in lab, var(--diffs-bg-conflict-marker) 54%, var(--diffs-bg))\n      )\n    );\n    --diffs-bg-conflict-current-number: var(\n      --diffs-bg-conflict-current-number-override,\n      light-dark(#d7f1de, #30533d)\n    );\n    --diffs-bg-conflict-base-number: var(\n      --diffs-bg-conflict-base-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg-conflict-base) 72%, var(--diffs-bg)),\n        color-mix(in lab, var(--diffs-bg-conflict-base) 54%, var(--diffs-bg))\n      )\n    );\n    --diffs-bg-conflict-incoming-number: var(\n      --diffs-bg-conflict-incoming-number-override,\n      light-dark(#d8e8ff, #2f4b73)\n    );\n    --conflict-bg-current: var(\n      --conflict-bg-current-override,\n      var(--diffs-bg-addition)\n    );\n    --conflict-bg-incoming: var(\n      --conflict-bg-incoming-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-modified-base)),\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-modified-base))\n      )\n    );\n    --conflict-bg-current-number: var(\n      --conflict-bg-current-number-override,\n      var(--diffs-bg-addition-number)\n    );\n    --conflict-bg-incoming-number: var(\n      --conflict-bg-incoming-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-modified-base)),\n        color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-modified-base))\n      )\n    );\n    --conflict-bg-current-header: var(\n      --conflict-bg-current-header-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 78%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 68%, var(--diffs-addition-base))\n      )\n    );\n    --conflict-bg-incoming-header: var(\n      --conflict-bg-incoming-header-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 78%, var(--diffs-modified-base)),\n        color-mix(in lab, var(--diffs-bg) 68%, var(--diffs-modified-base))\n      )\n    );\n    --conflict-bg-current-header-number: var(\n      --conflict-bg-current-header-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 72%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 62%, var(--diffs-addition-base))\n      )\n    );\n    --conflict-bg-incoming-header-number: var(\n      --conflict-bg-incoming-header-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 72%, var(--diffs-modified-base)),\n        color-mix(in lab, var(--diffs-bg) 62%, var(--diffs-modified-base))\n      )\n    );\n\n    --diffs-bg-separator: var(\n      --diffs-bg-separator-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 96%, var(--diffs-mixer)),\n        color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-mixer))\n      )\n    );\n\n    --diffs-fg: light-dark(var(--diffs-light), var(--diffs-dark));\n    --diffs-fg-number: var(\n      --diffs-fg-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-fg) 65%, var(--diffs-bg)),\n        color-mix(in lab, var(--diffs-fg) 65%, var(--diffs-bg))\n      )\n    );\n    --diffs-fg-conflict-marker: var(\n      --diffs-fg-conflict-marker-override,\n      var(--diffs-fg-number)\n    );\n\n    --diffs-deletion-base: var(\n      --diffs-deletion-color-override,\n      light-dark(\n        var(\n          --diffs-light-deletion-color,\n          var(--diffs-deletion-color, var(--diffs-deleted-light))\n        ),\n        var(\n          --diffs-dark-deletion-color,\n          var(--diffs-deletion-color, var(--diffs-deleted-dark))\n        )\n      )\n    );\n    --diffs-addition-base: var(\n      --diffs-addition-color-override,\n      light-dark(\n        var(\n          --diffs-light-addition-color,\n          var(--diffs-addition-color, var(--diffs-added-light))\n        ),\n        var(\n          --diffs-dark-addition-color,\n          var(--diffs-addition-color, var(--diffs-added-dark))\n        )\n      )\n    );\n    --diffs-modified-base: var(\n      --diffs-modified-color-override,\n      light-dark(\n        var(\n          --diffs-light-modified-color,\n          var(--diffs-modified-color, var(--diffs-modified-light))\n        ),\n        var(\n          --diffs-dark-modified-color,\n          var(--diffs-modified-color, var(--diffs-modified-dark))\n        )\n      )\n    );\n\n    /* NOTE(amadeus): we cannot use 'in oklch' because current versions of cursor\n   * and vscode use an older build of chrome that appears to have a bug with\n   * color-mix and 'in oklch', so use 'in lab' instead */\n    --diffs-bg-deletion: var(\n      --diffs-bg-deletion-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-deletion-base)),\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-deletion-base))\n      )\n    );\n    --diffs-bg-deletion-number: var(\n      --diffs-bg-deletion-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-deletion-base)),\n        color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-deletion-base))\n      )\n    );\n    --diffs-bg-deletion-hover: var(\n      --diffs-bg-deletion-hover-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-deletion-base)),\n        color-mix(in lab, var(--diffs-bg) 75%, var(--diffs-deletion-base))\n      )\n    );\n    --diffs-bg-deletion-emphasis: var(\n      --diffs-bg-deletion-emphasis-override,\n      light-dark(\n        rgb(from var(--diffs-deletion-base) r g b / 0.15),\n        rgb(from var(--diffs-deletion-base) r g b / 0.2)\n      )\n    );\n\n    --diffs-bg-addition: var(\n      --diffs-bg-addition-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-addition-base))\n      )\n    );\n    --diffs-bg-addition-number: var(\n      --diffs-bg-addition-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-addition-base))\n      )\n    );\n    --diffs-bg-addition-hover: var(\n      --diffs-bg-addition-hover-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-addition-base)),\n        color-mix(in lab, var(--diffs-bg) 70%, var(--diffs-addition-base))\n      )\n    );\n    --diffs-bg-addition-emphasis: var(\n      --diffs-bg-addition-emphasis-override,\n      light-dark(\n        rgb(from var(--diffs-addition-base) r g b / 0.15),\n        rgb(from var(--diffs-addition-base) r g b / 0.2)\n      )\n    );\n\n    --diffs-selection-base: var(--diffs-modified-base);\n    --diffs-selection-number-fg: light-dark(\n      color-mix(in lab, var(--diffs-selection-base) 65%, var(--diffs-mixer)),\n      color-mix(in lab, var(--diffs-selection-base) 75%, var(--diffs-mixer))\n    );\n    --diffs-bg-selection: var(\n      --diffs-bg-selection-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 82%, var(--diffs-selection-base)),\n        color-mix(in lab, var(--diffs-bg) 75%, var(--diffs-selection-base))\n      )\n    );\n    --diffs-bg-selection-number: var(\n      --diffs-bg-selection-number-override,\n      light-dark(\n        color-mix(in lab, var(--diffs-bg) 75%, var(--diffs-selection-base)),\n        color-mix(in lab, var(--diffs-bg) 60%, var(--diffs-selection-base))\n      )\n    );\n\n    background-color: var(--diffs-bg);\n    color: var(--diffs-fg);\n  }\n\n  [data-diff],\n  [data-file] {\n    /* This feels a bit crazy to me... so I need to think about it a bit more... */\n    --diffs-grid-number-column-width: minmax(min-content, max-content);\n    --diffs-code-grid: var(--diffs-grid-number-column-width) 1fr;\n\n    &[data-dehydrated] {\n      --diffs-code-grid: var(--diffs-grid-number-column-width) minmax(0, 1fr);\n    }\n\n    &[data-theme-type='light'],\n    & {\n      [data-line] span {\n        color: light-dark(\n          var(--diffs-token-light, var(--diffs-light)),\n          var(--diffs-token-dark, var(--diffs-dark))\n        );\n        font-weight: var(--diffs-token-light-font-weight, inherit);\n        font-style: var(--diffs-token-light-font-style, inherit);\n        -webkit-text-decoration: var(--diffs-token-light-text-decoration, inherit);\n                text-decoration: var(--diffs-token-light-text-decoration, inherit);\n      }\n    }\n\n    &[data-theme-type='dark'] [data-line] span {\n      font-weight: var(--diffs-token-dark-font-weight, inherit);\n      font-style: var(--diffs-token-dark-font-style, inherit);\n      -webkit-text-decoration: var(--diffs-token-dark-text-decoration, inherit);\n              text-decoration: var(--diffs-token-dark-text-decoration, inherit);\n    }\n\n    &:hover [data-code]::-webkit-scrollbar-thumb {\n      background-color: var(--diffs-bg-context);\n    }\n  }\n\n  [data-line] span {\n    background-color: light-dark(\n      var(--diffs-token-light-bg, inherit),\n      var(--diffs-token-dark-bg, inherit)\n    );\n  }\n\n  [data-line],\n  [data-gutter-buffer],\n  [data-line-annotation],\n  [data-no-newline] {\n    color: var(--diffs-fg);\n    background-color: var(--diffs-line-bg, var(--diffs-bg));\n  }\n\n  [data-no-newline] {\n    -webkit-user-select: none;\n            user-select: none;\n\n    span {\n      opacity: 0.6;\n    }\n  }\n\n  @media (prefers-color-scheme: dark) {\n    [data-diffs-header],\n    [data-error-wrapper],\n    [data-diff],\n    [data-file] {\n      color-scheme: dark;\n    }\n\n    [data-content] [data-line] span {\n      font-weight: var(--diffs-token-dark-font-weight, inherit);\n      font-style: var(--diffs-token-dark-font-style, inherit);\n      -webkit-text-decoration: var(--diffs-token-dark-text-decoration, inherit);\n              text-decoration: var(--diffs-token-dark-text-decoration, inherit);\n    }\n  }\n\n  [data-diffs-header],\n  [data-diff],\n  [data-file] {\n    &[data-theme-type='light'] {\n      color-scheme: light;\n    }\n\n    &[data-theme-type='dark'] {\n      color-scheme: dark;\n    }\n  }\n\n  [data-diff-type='split'][data-overflow='scroll'] {\n    display: grid;\n    grid-template-columns: 1fr 1fr;\n\n    [data-additions] {\n      border-left: 1px solid var(--diffs-bg);\n    }\n\n    [data-deletions] {\n      border-right: 1px solid var(--diffs-bg);\n    }\n  }\n\n  [data-code] {\n    display: grid;\n    grid-auto-flow: dense;\n    grid-template-columns: var(--diffs-code-grid);\n    overflow: scroll clip;\n    overscroll-behavior-x: none;\n    tab-size: var(--diffs-tab-size, 2);\n    align-self: flex-start;\n    padding-top: var(--diffs-gap-block, var(--diffs-gap-fallback));\n    padding-bottom: max(\n      0px,\n      calc(var(--diffs-gap-block, var(--diffs-gap-fallback)) - 6px)\n    );\n  }\n\n  [data-container-size] {\n    container-type: inline-size;\n  }\n\n  [data-code]::-webkit-scrollbar {\n    width: 0;\n    height: 6px;\n  }\n\n  [data-code]::-webkit-scrollbar-track {\n    background: transparent;\n  }\n\n  [data-code]::-webkit-scrollbar-thumb {\n    background-color: transparent;\n    border: 1px solid transparent;\n    background-clip: content-box;\n    border-radius: 3px;\n  }\n\n  [data-code]::-webkit-scrollbar-corner {\n    background-color: transparent;\n  }\n\n  /*\n   * If we apply these rules globally it will mean that webkit will opt into the\n   * standards compliant version of custom css scrollbars, which we do not want\n   * because the custom stuff will look better\n  */\n  @supports (-moz-appearance: none) {\n    [data-code] {\n      scrollbar-width: thin;\n      scrollbar-color: var(--diffs-bg-context) transparent;\n      padding-bottom: var(--diffs-gap-block, var(--diffs-gap-fallback));\n    }\n  }\n\n  [data-diffs-header] ~ [data-diff],\n  [data-diffs-header] ~ [data-file] {\n    [data-code],\n    &[data-overflow='wrap'] {\n      padding-top: 0;\n    }\n  }\n\n  [data-gutter] {\n    display: grid;\n    grid-template-rows: subgrid;\n    grid-template-columns: subgrid;\n    grid-column: 1;\n    z-index: 3;\n    position: relative;\n    background-color: var(--diffs-bg);\n\n    [data-gutter-buffer],\n    [data-column-number] {\n      border-right: var(--diffs-gap-style, 2px solid var(--diffs-bg));\n    }\n  }\n\n  [data-content] {\n    display: grid;\n    grid-template-rows: subgrid;\n    grid-template-columns: subgrid;\n    grid-column: 2;\n    min-width: 0;\n  }\n\n  [data-diff-type='split'][data-overflow='wrap'] {\n    display: grid;\n    grid-auto-flow: dense;\n    grid-template-columns: repeat(2, var(--diffs-code-grid));\n    padding-block: var(--diffs-gap-block, var(--diffs-gap-fallback));\n\n    [data-deletions] {\n      display: contents;\n\n      [data-gutter] {\n        grid-column: 1;\n      }\n\n      [data-content] {\n        grid-column: 2;\n        border-right: 1px solid var(--diffs-bg);\n      }\n    }\n\n    [data-additions] {\n      display: contents;\n\n      [data-gutter] {\n        grid-column: 3;\n        border-left: 1px solid var(--diffs-bg);\n      }\n\n      [data-content] {\n        grid-column: 4;\n      }\n    }\n  }\n\n  [data-overflow='scroll'] [data-gutter] {\n    position: sticky;\n    left: 0;\n  }\n\n  [data-line-annotation][data-selected-line] {\n    background-color: unset;\n\n    &::before {\n      content: '';\n      /* FIXME(amadeus): This needs to be audited ... */\n      position: sticky;\n      top: 0;\n      left: 0;\n      display: block;\n      border-right: var(--diffs-gap-style, 1px solid var(--diffs-bg));\n      background-color: var(--diffs-bg-selection-number);\n    }\n\n    [data-annotation-content] {\n      background-color: var(--diffs-bg-selection);\n    }\n  }\n\n  [data-interactive-lines] [data-line] {\n    cursor: pointer;\n  }\n\n  [data-content-buffer],\n  [data-gutter-buffer] {\n    position: relative;\n    -webkit-user-select: none;\n            user-select: none;\n    min-height: 1lh;\n  }\n\n  [data-gutter-buffer='annotation'] {\n    min-height: 0;\n  }\n\n  [data-gutter-buffer='buffer'] {\n    background-size: 8px 8px;\n    background-position: 0 0;\n    background-origin: border-box;\n    background-color: var(--diffs-bg);\n    /* This is incredibley expensive... */\n    background-image: repeating-linear-gradient(\n      -45deg,\n      transparent,\n      transparent calc(3px * 1.414),\n      rgb(from var(--diffs-bg-buffer) r g b / 0.8) calc(3px * 1.414),\n      rgb(from var(--diffs-bg-buffer) r g b / 0.8) calc(4px * 1.414)\n    );\n  }\n\n  [data-content-buffer] {\n    grid-column: 1;\n    /* We multiply by 1.414 (√2) to better approximate the diagonal repeat distance */\n    background-size: 8px 8px;\n    background-position: 5px 0;\n    background-origin: border-box;\n    background-color: var(--diffs-bg);\n    /* This is incredibley expensive... */\n    background-image: repeating-linear-gradient(\n      -45deg,\n      transparent,\n      transparent calc(3px * 1.414),\n      var(--diffs-bg-buffer) calc(3px * 1.414),\n      var(--diffs-bg-buffer) calc(4px * 1.414)\n    );\n  }\n\n  [data-separator] {\n    box-sizing: content-box;\n    background-color: var(--diffs-bg);\n  }\n\n  [data-separator='simple'] {\n    min-height: 4px;\n  }\n\n  [data-separator='line-info'],\n  [data-separator='line-info-basic'],\n  [data-separator='metadata'],\n  [data-separator='simple'] {\n    background-color: var(--diffs-bg-separator);\n  }\n\n  [data-separator='line-info'],\n  [data-separator='line-info-basic'],\n  [data-separator='metadata'] {\n    height: 32px;\n    position: relative;\n  }\n\n  [data-separator-wrapper] {\n    -webkit-user-select: none;\n            user-select: none;\n    fill: currentColor;\n    position: absolute;\n    inset-inline: 0;\n    display: flex;\n    align-items: center;\n    background-color: var(--diffs-bg);\n    height: 100%;\n  }\n\n  [data-content] [data-separator-wrapper] {\n    display: none;\n  }\n\n  [data-separator='metadata'] [data-separator-wrapper] {\n    inset-inline: 100% auto;\n    padding-inline: 1ch;\n    height: 100%;\n    background-color: var(--diffs-bg-separator);\n    color: var(--diffs-fg-number);\n    white-space: nowrap;\n    overflow: hidden;\n    text-overflow: ellipsis;\n    min-width: min-content;\n  }\n\n  [data-separator='line-info'] {\n    margin-block: var(--diffs-gap-block, var(--diffs-gap-fallback));\n  }\n\n  [data-separator='line-info-basic'],\n  [data-separator='metadata'] {\n    margin-block: 0;\n  }\n\n  [data-separator='line-info'][data-separator-first] {\n    margin-top: 0;\n  }\n\n  [data-separator='line-info'][data-separator-last] {\n    margin-bottom: 0;\n  }\n\n  [data-expand-index] [data-separator-wrapper] {\n    display: grid;\n    grid-template-columns: 32px auto;\n  }\n\n  [data-expand-index] [data-separator-wrapper][data-separator-multi-button] {\n    grid-template-columns: 32px 32px auto;\n  }\n\n  [data-expand-button],\n  [data-separator-content] {\n    display: flex;\n    flex: 0 0 auto;\n    align-items: center;\n    background-color: var(--diffs-bg-separator);\n  }\n\n  [data-expand-button] {\n    justify-content: center;\n    flex-shrink: 0;\n    cursor: pointer;\n    min-width: 32px;\n    align-self: stretch;\n    color: var(--diffs-fg-number);\n    border-right: 2px solid var(--diffs-bg);\n\n    &:hover {\n      color: var(--diffs-fg);\n    }\n  }\n\n  [data-expand-down] [data-icon] {\n    transform: scaleY(-1);\n  }\n\n  [data-separator-content] {\n    flex: 1 1 auto;\n    padding: 0 1ch;\n    height: 100%;\n    color: var(--diffs-fg-number);\n\n    overflow: hidden;\n    justify-content: flex-start;\n  }\n\n  [data-separator='line-info'],\n  [data-separator='line-info-basic'] {\n    [data-separator-content] {\n      height: 100%;\n      -webkit-user-select: none;\n              user-select: none;\n      overflow: clip;\n    }\n  }\n\n  @supports (width: 1cqi) {\n    [data-unified] {\n      [data-separator='line-info'] [data-separator-wrapper] {\n        padding-inline: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n        width: 100cqi;\n\n        [data-separator-content] {\n          border-radius: 6px;\n        }\n      }\n\n      [data-separator='line-info'][data-expand-index]\n        [data-separator-wrapper]\n        [data-separator-content] {\n        border-top-left-radius: unset;\n        border-bottom-left-radius: unset;\n      }\n    }\n\n    [data-gutter] {\n      [data-separator='line-info'] [data-separator-wrapper] {\n        padding-left: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n      }\n\n      [data-separator='line-info'] [data-separator-content] {\n        border-top-left-radius: 6px;\n        border-bottom-left-radius: 6px;\n      }\n\n      [data-separator='line-info'][data-expand-index] [data-separator-content] {\n        border-top-left-radius: unset;\n        border-bottom-left-radius: unset;\n      }\n    }\n\n    [data-additions] {\n      [data-content] [data-separator='line-info'] {\n        background-color: var(--diffs-bg);\n\n        [data-separator-wrapper] {\n          display: none;\n        }\n      }\n\n      [data-gutter] [data-separator='line-info'] [data-separator-wrapper] {\n        display: block;\n        height: 100%;\n        background-color: var(--diffs-bg-separator);\n        border-top-right-radius: 6px;\n        border-bottom-right-radius: 6px;\n\n        [data-separator-content],\n        [data-expand-button] {\n          display: none;\n        }\n      }\n    }\n\n    [data-overflow='scroll']\n      [data-additions]\n      [data-gutter]\n      [data-separator='line-info']\n      [data-separator-wrapper] {\n      width: calc(100cqi - var(--diffs-gap-inline, var(--diffs-gap-fallback)));\n    }\n\n    [data-overflow='wrap']\n      [data-additions]\n      [data-content]\n      [data-separator='line-info']\n      [data-separator-wrapper] {\n      background-color: var(--diffs-bg-separator);\n      display: block;\n      height: 100%;\n      margin-right: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n      border-top-right-radius: 6px;\n      border-bottom-right-radius: 6px;\n\n      [data-separator-content],\n      [data-expand-button] {\n        display: none;\n      }\n    }\n\n    [data-separator='line-info'] [data-separator-wrapper] {\n      [data-expand-both],\n      [data-expand-down],\n      [data-expand-up] {\n        border-top-left-radius: 6px;\n        border-bottom-left-radius: 6px;\n      }\n    }\n\n    @media (pointer: fine) {\n      [data-separator='line-info'] [data-separator-wrapper] {\n        &[data-separator-multi-button] {\n          [data-expand-up] {\n            border-top-left-radius: 6px;\n            border-bottom-left-radius: unset;\n          }\n\n          [data-expand-down] {\n            border-bottom-left-radius: 6px;\n            border-top-left-radius: unset;\n          }\n        }\n      }\n    }\n  }\n\n  @media (pointer: coarse) {\n    [data-separator='line-info-basic']\n      [data-separator-wrapper][data-separator-multi-button] {\n      grid-template-columns: 34px 34px auto;\n\n      [data-separator-content] {\n        grid-column: unset;\n        grid-row: unset;\n      }\n    }\n\n    @supports (width: 1cqi) {\n      [data-separator='line-info'] [data-separator-wrapper] {\n        [data-expand-both],\n        [data-expand-down],\n        [data-expand-up] {\n          border-top-left-radius: 6px;\n          border-bottom-left-radius: 6px;\n        }\n\n        &[data-separator-multi-button] {\n          [data-expand-up] {\n            border-top-left-radius: 6px;\n            border-bottom-left-radius: 6px;\n          }\n\n          [data-expand-down] {\n            border-bottom-left-radius: unset;\n            border-top-left-radius: unset;\n          }\n        }\n      }\n    }\n  }\n\n  @media (pointer: fine) {\n    [data-separator-wrapper][data-separator-multi-button] {\n      display: grid;\n      grid-template-rows: 50% 50%;\n\n      [data-separator-content] {\n        grid-column: 2;\n        grid-row: 1 / -1;\n        min-width: min-content;\n      }\n\n      [data-expand-button] {\n        grid-column: 1;\n      }\n    }\n\n    [data-separator='line-info'] [data-separator-wrapper],\n    [data-separator='line-info']\n      [data-separator-wrapper][data-separator-multi-button] {\n      grid-template-columns: 34px auto;\n    }\n\n    [data-separator='line-info-basic'][data-expand-index]\n      [data-separator-wrapper] {\n      grid-template-columns: 100% auto;\n    }\n\n    [data-separator='line-info'],\n    [data-separator='line-info-basic'] {\n      [data-separator-multi-button] {\n        [data-expand-up] {\n          border-bottom: 1px solid var(--diffs-bg);\n          border-right: 2px solid var(--diffs-bg);\n        }\n        [data-expand-down] {\n          border-top: 1px solid var(--diffs-bg);\n          border-right: 2px solid var(--diffs-bg);\n        }\n      }\n    }\n  }\n\n  [data-additions] [data-gutter] [data-separator-wrapper],\n  [data-additions] [data-separator='line-info-basic'] [data-separator-wrapper],\n  [data-content] [data-separator-wrapper] {\n    display: none;\n  }\n\n  [data-line-annotation],\n  [data-gutter-buffer='annotation'] {\n    --diffs-line-bg: var(--diffs-bg-context);\n  }\n\n  [data-merge-conflict-actions],\n  [data-gutter-buffer='merge-conflict-action'] {\n    --diffs-line-bg: var(--diffs-bg-context);\n  }\n\n  [data-has-merge-conflict] [data-line-annotation],\n  [data-has-merge-conflict] [data-gutter-buffer='annotation'] {\n    --diffs-line-bg: var(--diffs-bg);\n  }\n\n  [data-has-merge-conflict] [data-gutter-buffer='merge-conflict-action'] {\n    --diffs-line-bg: var(--diffs-bg);\n  }\n\n  [data-line-annotation] {\n    min-height: var(--diffs-annotation-min-height, 0);\n    z-index: 2;\n  }\n\n  [data-merge-conflict-actions] {\n    z-index: 2;\n  }\n\n  [data-separator='custom'] {\n    display: grid;\n    grid-template-columns: subgrid;\n  }\n\n  [data-line],\n  [data-column-number],\n  [data-no-newline] {\n    position: relative;\n    padding-inline: 1ch;\n  }\n\n  [data-indicators='classic'] [data-line] {\n    padding-inline-start: 2ch;\n  }\n\n  [data-indicators='classic'] {\n    [data-line-type='change-addition'],\n    [data-line-type='change-deletion'] {\n      &[data-no-newline],\n      &[data-line] {\n        &::before {\n          display: inline-block;\n          width: 1ch;\n          height: 1lh;\n          position: absolute;\n          top: 0;\n          left: 0;\n          -webkit-user-select: none;\n                  user-select: none;\n        }\n      }\n    }\n\n    [data-line-type='change-addition'] {\n      &[data-line],\n      &[data-no-newline] {\n        &::before {\n          content: '+';\n          color: var(--diffs-addition-base);\n        }\n      }\n    }\n\n    [data-line-type='change-deletion'] {\n      &[data-line],\n      &[data-no-newline] {\n        &::before {\n          content: '-';\n          color: var(--diffs-deletion-base);\n        }\n      }\n    }\n  }\n\n  [data-indicators='bars'] {\n    [data-line-type='change-deletion'],\n    [data-line-type='change-addition'] {\n      &[data-column-number] {\n        &::before {\n          content: '';\n          display: block;\n          width: 4px;\n          height: 100%;\n          position: absolute;\n          top: 0;\n          left: 0;\n          -webkit-user-select: none;\n                  user-select: none;\n          contain: strict;\n        }\n      }\n    }\n\n    [data-line-type='change-deletion'] {\n      &[data-column-number] {\n        &::before {\n          background-image: linear-gradient(\n            0deg,\n            var(--diffs-bg-deletion) 50%,\n            var(--diffs-deletion-base) 50%\n          );\n          background-repeat: repeat;\n          background-size: 2px 2px;\n          background-size: calc(1lh / round(1lh / 2px))\n            calc(1lh / round(1lh / 2px));\n        }\n      }\n    }\n\n    [data-line-type='change-addition'] {\n      &[data-column-number] {\n        &::before {\n          background-color: var(--diffs-addition-base);\n        }\n      }\n    }\n  }\n\n  [data-overflow='wrap'] {\n    [data-line],\n    [data-annotation-content] {\n      white-space: pre-wrap;\n      word-break: break-word;\n    }\n  }\n\n  [data-overflow='scroll'] [data-line] {\n    white-space: pre;\n    min-height: 1lh;\n  }\n\n  [data-column-number] {\n    box-sizing: content-box;\n    text-align: right;\n    -webkit-user-select: none;\n            user-select: none;\n    background-color: var(--diffs-bg);\n    color: var(--diffs-fg-number);\n    padding-left: 2ch;\n  }\n\n  [data-line-number-content] {\n    display: inline-block;\n    min-width: var(\n      --diffs-min-number-column-width,\n      var(--diffs-min-number-column-width-default, 3ch)\n    );\n  }\n\n  [data-disable-line-numbers] {\n    [data-column-number] {\n      min-width: 4px;\n      padding: 0;\n    }\n\n    [data-line-number-content] {\n      display: none;\n    }\n\n    [data-gutter-utility-slot] {\n      right: unset;\n      left: 0;\n      justify-content: flex-start;\n    }\n\n    &[data-indicators='bars'] [data-gutter-utility-slot] {\n      /* Using 5px here because theres a 1px separator after the bar */\n      left: 5px;\n    }\n  }\n\n  [data-file][data-disable-line-numbers] {\n    [data-gutter-buffer],\n    [data-column-number] {\n      min-width: 0;\n      border-right: 0;\n    }\n  }\n\n  [data-interactive-line-numbers] [data-column-number] {\n    cursor: pointer;\n  }\n\n  [data-diff-span] {\n    border-radius: 3px;\n    -webkit-box-decoration-break: clone;\n            box-decoration-break: clone;\n  }\n\n  [data-line-type='change-addition'] {\n    &[data-column-number] {\n      color: var(\n        --diffs-fg-number-addition-override,\n        var(--diffs-addition-base)\n      );\n    }\n\n    > [data-diff-span] {\n      background-color: var(--diffs-bg-addition-emphasis);\n    }\n  }\n\n  [data-line-type='change-deletion'] {\n    &[data-column-number] {\n      color: var(\n        --diffs-fg-number-deletion-override,\n        var(--diffs-deletion-base)\n      );\n    }\n\n    [data-diff-span] {\n      background-color: var(--diffs-bg-deletion-emphasis);\n    }\n  }\n\n  [data-background] [data-line-type='change-addition'] {\n    --diffs-line-bg: var(--diffs-bg-addition);\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg-addition-number);\n    }\n  }\n\n  [data-background] [data-line-type='change-deletion'] {\n    --diffs-line-bg: var(--diffs-bg-deletion);\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg-deletion-number);\n    }\n  }\n\n  [data-merge-conflict^='marker-'][data-line] {\n    &[data-line-type='context'],\n    &[data-line-type='context-expanded'] {\n      color: var(--diffs-fg);\n\n      span {\n        color: var(--diffs-fg) !important;\n      }\n    }\n  }\n\n  [data-merge-conflict='marker-start'][data-line] {\n    &[data-line-type='context'],\n    &[data-line-type='context-expanded'] {\n      &::after {\n        content: '  (Current Change)';\n        color: var(--diffs-fg-conflict-marker);\n        opacity: 1;\n        font-style: normal;\n        font-family: var(\n          --diffs-header-font-family,\n          var(--diffs-header-font-fallback)\n        );\n      }\n    }\n  }\n\n  [data-merge-conflict='marker-end'][data-line] {\n    &[data-line-type='context'],\n    &[data-line-type='context-expanded'] {\n      &::after {\n        content: '  (Incoming Change)';\n        color: var(--diffs-fg-conflict-marker);\n        opacity: 1;\n        font-style: normal;\n        font-family: var(\n          --diffs-header-font-family,\n          var(--diffs-header-font-fallback)\n        );\n      }\n    }\n  }\n\n  [data-merge-conflict='marker-start'],\n  [data-merge-conflict='marker-base'],\n  [data-merge-conflict='marker-separator'],\n  [data-merge-conflict='marker-end'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--diffs-bg-conflict-marker);\n    }\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg-conflict-marker-number);\n      color: var(--diffs-fg-conflict-marker);\n\n      [data-line-number-content] {\n        color: var(--diffs-fg-conflict-marker);\n      }\n    }\n  }\n\n  [data-merge-conflict='current'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--conflict-bg-current);\n    }\n\n    &[data-column-number] {\n      background-color: var(--conflict-bg-current-number);\n      color: var(--diffs-addition-base);\n    }\n  }\n\n  [data-merge-conflict='marker-start'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--conflict-bg-current-header);\n    }\n\n    &[data-column-number] {\n      background-color: var(--conflict-bg-current-header-number);\n      color: var(--diffs-addition-base);\n\n      [data-line-number-content] {\n        color: var(--diffs-addition-base);\n      }\n    }\n  }\n\n  [data-merge-conflict='marker-end'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--conflict-bg-incoming-header);\n    }\n\n    &[data-column-number] {\n      background-color: var(--conflict-bg-incoming-header-number);\n      color: var(--diffs-modified-base);\n\n      [data-line-number-content] {\n        color: var(--diffs-modified-base);\n      }\n    }\n  }\n\n  [data-merge-conflict='marker-separator'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--diffs-bg);\n    }\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg);\n    }\n  }\n\n  [data-merge-conflict='base'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--diffs-bg-conflict-base);\n    }\n\n    &[data-column-number] {\n      background-color: var(--diffs-bg-conflict-base-number);\n      color: var(--diffs-modified-base);\n    }\n  }\n\n  [data-merge-conflict='incoming'] {\n    &[data-line],\n    &[data-no-newline] {\n      background-color: var(--conflict-bg-incoming);\n    }\n\n    &[data-column-number] {\n      background-color: var(--conflict-bg-incoming-number);\n      color: var(--diffs-modified-base);\n    }\n  }\n\n  @media (pointer: fine) {\n    [data-column-number],\n    [data-line] {\n      &[data-hovered] {\n        background-color: var(--diffs-bg-hover);\n      }\n    }\n\n    [data-background] {\n      [data-column-number],\n      [data-line] {\n        &[data-hovered] {\n          &[data-line-type='change-deletion'] {\n            background-color: var(--diffs-bg-deletion-hover);\n          }\n\n          &[data-line-type='change-addition'] {\n            background-color: var(--diffs-bg-addition-hover);\n          }\n        }\n      }\n    }\n  }\n\n  [data-diffs-header] {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    justify-content: space-between;\n    align-items: center;\n    gap: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n    min-height: calc(\n      1lh + (var(--diffs-gap-block, var(--diffs-gap-fallback)) * 3)\n    );\n    padding-inline: 16px;\n    top: 0;\n    z-index: 2;\n  }\n\n  [data-header-content] {\n    display: flex;\n    flex-direction: row;\n    align-items: center;\n    gap: var(--diffs-gap-inline, var(--diffs-gap-fallback));\n    min-width: 0;\n    white-space: nowrap;\n  }\n\n  [data-header-content] [data-prev-name],\n  [data-header-content] [data-title] {\n    direction: rtl;\n    overflow: hidden;\n    text-overflow: ellipsis;\n    min-width: 0;\n    white-space: nowrap;\n  }\n\n  [data-prev-name] {\n    opacity: 0.7;\n  }\n\n  [data-rename-icon] {\n    fill: currentColor;\n    flex-shrink: 0;\n    flex-grow: 0;\n  }\n\n  [data-diffs-header] [data-metadata] {\n    display: flex;\n    align-items: center;\n    gap: 1ch;\n    white-space: nowrap;\n  }\n\n  [data-diffs-header] [data-additions-count] {\n    font-family: var(--diffs-font-family, var(--diffs-font-fallback));\n    color: var(--diffs-addition-base);\n  }\n\n  [data-diffs-header] [data-deletions-count] {\n    font-family: var(--diffs-font-family, var(--diffs-font-fallback));\n    color: var(--diffs-deletion-base);\n  }\n\n  [data-annotation-content] {\n    position: relative;\n    display: flow-root;\n    align-self: flex-start;\n    z-index: 2;\n    min-width: 0;\n    isolation: isolate;\n  }\n\n  [data-merge-conflict-actions-content] {\n    display: flex;\n    align-items: center;\n    gap: 0.25rem;\n    padding-inline: 0.5rem;\n    min-height: 1.75rem;\n    font-family: var(\n      --diffs-header-font-family,\n      var(--diffs-header-font-fallback)\n    );\n    font-size: 0.75rem;\n    line-height: 1.2;\n    color: var(--diffs-fg);\n  }\n\n  [data-merge-conflict-action] {\n    appearance: none;\n    border: 0;\n    background: transparent;\n    color: var(--diffs-fg-number);\n    font: inherit;\n    font-style: normal;\n    cursor: pointer;\n    padding: 0;\n  }\n\n  [data-merge-conflict-action]:hover {\n    color: var(--diffs-fg);\n  }\n\n  [data-merge-conflict-action='current']:hover {\n    color: var(--diffs-addition-base);\n  }\n\n  [data-merge-conflict-action='incoming']:hover {\n    color: var(--diffs-modified-base);\n  }\n\n  [data-merge-conflict-action-separator] {\n    color: var(--diffs-fg-number);\n    opacity: 0.6;\n    -webkit-user-select: none;\n            user-select: none;\n  }\n\n  /* Sticky positioning has a composite costs, so we should _only_ pay it if we\n   * need to */\n  [data-overflow='scroll'] [data-annotation-content] {\n    position: sticky;\n    width: var(--diffs-column-content-width, auto);\n    left: var(--diffs-column-number-width, 0);\n  }\n\n  [data-overflow='scroll'] [data-merge-conflict-actions-content] {\n    position: sticky;\n    width: var(--diffs-column-content-width, auto);\n    left: var(--diffs-column-number-width, 0);\n  }\n\n  /* Undo some of the stuff that the 'pre' tag does */\n  [data-annotation-slot] {\n    text-wrap-mode: wrap;\n    word-break: normal;\n    white-space-collapse: collapse;\n  }\n\n  [data-change-icon] {\n    fill: currentColor;\n    flex-shrink: 0;\n  }\n\n  [data-change-icon='change'],\n  [data-change-icon='rename-pure'],\n  [data-change-icon='rename-changed'] {\n    color: var(--diffs-modified-base);\n  }\n\n  [data-change-icon='new'] {\n    color: var(--diffs-addition-base);\n  }\n\n  [data-change-icon='deleted'] {\n    color: var(--diffs-deletion-base);\n  }\n\n  [data-change-icon='file'] {\n    opacity: 0.6;\n  }\n\n  /* Line selection highlighting */\n  [data-selected-line] {\n    &[data-gutter-buffer='annotation'],\n    &[data-column-number] {\n      color: var(--diffs-selection-number-fg);\n      background-color: var(--diffs-bg-selection-number);\n    }\n\n    &[data-line] {\n      background-color: var(--diffs-bg-selection);\n    }\n  }\n\n  [data-line-type='change-addition'],\n  [data-line-type='change-deletion'] {\n    &[data-selected-line] {\n      &[data-line],\n      &[data-line][data-hovered] {\n        background-color: light-dark(\n          color-mix(\n            in lab,\n            var(--diffs-line-bg, var(--diffs-bg)) 82%,\n            var(--diffs-selection-base)\n          ),\n          color-mix(\n            in lab,\n            var(--diffs-line-bg, var(--diffs-bg)) 75%,\n            var(--diffs-selection-base)\n          )\n        );\n      }\n\n      &[data-column-number],\n      &[data-column-number][data-hovered] {\n        color: var(--diffs-selection-number-fg);\n        background-color: light-dark(\n          color-mix(\n            in lab,\n            var(--diffs-line-bg, var(--diffs-bg)) 75%,\n            var(--diffs-selection-base)\n          ),\n          color-mix(\n            in lab,\n            var(--diffs-line-bg, var(--diffs-bg)) 60%,\n            var(--diffs-selection-base)\n          )\n        );\n      }\n    }\n  }\n\n  [data-gutter-utility-slot] {\n    position: absolute;\n    top: 0;\n    bottom: 0;\n    right: 0;\n    display: flex;\n    justify-content: flex-end;\n  }\n\n  [data-unmodified-lines] {\n    display: block;\n    overflow: hidden;\n    min-width: 0;\n    text-overflow: ellipsis;\n    white-space: nowrap;\n    flex: 0 1 auto;\n  }\n\n  [data-error-wrapper] {\n    overflow: auto;\n    padding: var(--diffs-gap-block, var(--diffs-gap-fallback))\n      var(--diffs-gap-inline, var(--diffs-gap-fallback));\n    max-height: 400px;\n    scrollbar-width: none;\n\n    [data-error-message] {\n      font-weight: bold;\n      font-size: 18px;\n      color: var(--diffs-deletion-base);\n    }\n\n    [data-error-stack] {\n      color: var(--diffs-fg-number);\n    }\n  }\n\n  [data-placeholder] {\n    contain: strict;\n  }\n\n  [data-utility-button] {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    border: none;\n    appearance: none;\n    width: 1lh;\n    height: 1lh;\n    margin-right: calc((1lh - 1ch) * -1);\n    padding: 0;\n    cursor: pointer;\n    font-size: var(--diffs-font-size, 13px);\n    line-height: var(--diffs-line-height, 20px);\n    border-radius: 4px;\n    background-color: var(--diffs-modified-base);\n    color: var(--diffs-bg);\n    fill: currentColor;\n    position: relative;\n    z-index: 4;\n  }\n}\n";
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/cssWrappers.js
-const LAYER_ORDER = `@layer base, theme, unsafe;`;
-function wrapCoreCSS(mainCSS) {
-	return `${LAYER_ORDER}
-${style_default}
-@layer theme {
-  ${mainCSS}
-}`;
-}
-function wrapUnsafeCSS(unsafeCSS) {
-	return `${LAYER_ORDER}
-@layer unsafe {
-  ${unsafeCSS}
-}`;
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createEmptyRowBuffer.js
+//#region node_modules/@pierre/diffs/dist/utils/createEmptyRowBuffer.js
 function createEmptyRowBuffer(size) {
 	return createHastElement({
 		tagName: "div",
@@ -14474,7 +14360,7 @@ function createEmptyRowBuffer(size) {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createNoNewlineElement.js
+//#region node_modules/@pierre/diffs/dist/utils/createNoNewlineElement.js
 function createNoNewlineElement(type) {
 	return createHastElement({
 		tagName: "div",
@@ -14490,7 +14376,7 @@ function createNoNewlineElement(type) {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createSeparator.js
+//#region node_modules/@pierre/diffs/dist/utils/createSeparator.js
 function createExpandButton(type) {
 	return createHastElement({
 		tagName: "div",
@@ -14554,689 +14440,31 @@ function createSeparator({ type, content, expandIndex, chunked = false, slotName
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getHunkSeparatorSlotName.js
+//#region node_modules/@pierre/diffs/dist/utils/getHunkSeparatorSlotName.js
 function getHunkSeparatorSlotName(type, hunkIndex) {
 	return `hunk-separator-${type}-${hunkIndex}`;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/getTotalLineCountFromHunks.js
+//#region node_modules/@pierre/diffs/dist/utils/getTotalLineCountFromHunks.js
 function getTotalLineCountFromHunks(hunks) {
 	const lastHunk = hunks.at(-1);
 	if (lastHunk == null) return 0;
 	return Math.max(lastHunk.additionStart + lastHunk.additionCount, lastHunk.deletionStart + lastHunk.deletionCount);
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/isDefaultRenderRange.js
+//#region node_modules/@pierre/diffs/dist/utils/isDefaultRenderRange.js
 function isDefaultRenderRange(renderRange) {
 	return renderRange.startingLine === 0 && renderRange.totalLines === Infinity && renderRange.bufferBefore === 0 && renderRange.bufferAfter === 0;
 }
 //#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/diff/base.js
-var Diff = class {
-	diff(oldStr, newStr, options = {}) {
-		let callback;
-		if (typeof options === "function") {
-			callback = options;
-			options = {};
-		} else if ("callback" in options) callback = options.callback;
-		const oldString = this.castInput(oldStr, options);
-		const newString = this.castInput(newStr, options);
-		const oldTokens = this.removeEmpty(this.tokenize(oldString, options));
-		const newTokens = this.removeEmpty(this.tokenize(newString, options));
-		return this.diffWithOptionsObj(oldTokens, newTokens, options, callback);
-	}
-	diffWithOptionsObj(oldTokens, newTokens, options, callback) {
-		var _a;
-		const done = (value) => {
-			value = this.postProcess(value, options);
-			if (callback) {
-				setTimeout(function() {
-					callback(value);
-				}, 0);
-				return;
-			} else return value;
-		};
-		const newLen = newTokens.length, oldLen = oldTokens.length;
-		let editLength = 1;
-		let maxEditLength = newLen + oldLen;
-		if (options.maxEditLength != null) maxEditLength = Math.min(maxEditLength, options.maxEditLength);
-		const maxExecutionTime = (_a = options.timeout) !== null && _a !== void 0 ? _a : Infinity;
-		const abortAfterTimestamp = Date.now() + maxExecutionTime;
-		const bestPath = [{
-			oldPos: -1,
-			lastComponent: void 0
-		}];
-		let newPos = this.extractCommon(bestPath[0], newTokens, oldTokens, 0, options);
-		if (bestPath[0].oldPos + 1 >= oldLen && newPos + 1 >= newLen) return done(this.buildValues(bestPath[0].lastComponent, newTokens, oldTokens));
-		let minDiagonalToConsider = -Infinity, maxDiagonalToConsider = Infinity;
-		const execEditLength = () => {
-			for (let diagonalPath = Math.max(minDiagonalToConsider, -editLength); diagonalPath <= Math.min(maxDiagonalToConsider, editLength); diagonalPath += 2) {
-				let basePath;
-				const removePath = bestPath[diagonalPath - 1], addPath = bestPath[diagonalPath + 1];
-				if (removePath) bestPath[diagonalPath - 1] = void 0;
-				let canAdd = false;
-				if (addPath) {
-					const addPathNewPos = addPath.oldPos - diagonalPath;
-					canAdd = addPath && 0 <= addPathNewPos && addPathNewPos < newLen;
-				}
-				const canRemove = removePath && removePath.oldPos + 1 < oldLen;
-				if (!canAdd && !canRemove) {
-					bestPath[diagonalPath] = void 0;
-					continue;
-				}
-				if (!canRemove || canAdd && removePath.oldPos < addPath.oldPos) basePath = this.addToPath(addPath, true, false, 0, options);
-				else basePath = this.addToPath(removePath, false, true, 1, options);
-				newPos = this.extractCommon(basePath, newTokens, oldTokens, diagonalPath, options);
-				if (basePath.oldPos + 1 >= oldLen && newPos + 1 >= newLen) return done(this.buildValues(basePath.lastComponent, newTokens, oldTokens)) || true;
-				else {
-					bestPath[diagonalPath] = basePath;
-					if (basePath.oldPos + 1 >= oldLen) maxDiagonalToConsider = Math.min(maxDiagonalToConsider, diagonalPath - 1);
-					if (newPos + 1 >= newLen) minDiagonalToConsider = Math.max(minDiagonalToConsider, diagonalPath + 1);
-				}
-			}
-			editLength++;
-		};
-		if (callback) (function exec() {
-			setTimeout(function() {
-				if (editLength > maxEditLength || Date.now() > abortAfterTimestamp) return callback(void 0);
-				if (!execEditLength()) exec();
-			}, 0);
-		})();
-		else while (editLength <= maxEditLength && Date.now() <= abortAfterTimestamp) {
-			const ret = execEditLength();
-			if (ret) return ret;
-		}
-	}
-	addToPath(path, added, removed, oldPosInc, options) {
-		const last = path.lastComponent;
-		if (last && !options.oneChangePerToken && last.added === added && last.removed === removed) return {
-			oldPos: path.oldPos + oldPosInc,
-			lastComponent: {
-				count: last.count + 1,
-				added,
-				removed,
-				previousComponent: last.previousComponent
-			}
-		};
-		else return {
-			oldPos: path.oldPos + oldPosInc,
-			lastComponent: {
-				count: 1,
-				added,
-				removed,
-				previousComponent: last
-			}
-		};
-	}
-	extractCommon(basePath, newTokens, oldTokens, diagonalPath, options) {
-		const newLen = newTokens.length, oldLen = oldTokens.length;
-		let oldPos = basePath.oldPos, newPos = oldPos - diagonalPath, commonCount = 0;
-		while (newPos + 1 < newLen && oldPos + 1 < oldLen && this.equals(oldTokens[oldPos + 1], newTokens[newPos + 1], options)) {
-			newPos++;
-			oldPos++;
-			commonCount++;
-			if (options.oneChangePerToken) basePath.lastComponent = {
-				count: 1,
-				previousComponent: basePath.lastComponent,
-				added: false,
-				removed: false
-			};
-		}
-		if (commonCount && !options.oneChangePerToken) basePath.lastComponent = {
-			count: commonCount,
-			previousComponent: basePath.lastComponent,
-			added: false,
-			removed: false
-		};
-		basePath.oldPos = oldPos;
-		return newPos;
-	}
-	equals(left, right, options) {
-		if (options.comparator) return options.comparator(left, right);
-		else return left === right || !!options.ignoreCase && left.toLowerCase() === right.toLowerCase();
-	}
-	removeEmpty(array) {
-		const ret = [];
-		for (let i = 0; i < array.length; i++) if (array[i]) ret.push(array[i]);
-		return ret;
-	}
-	castInput(value, options) {
-		return value;
-	}
-	tokenize(value, options) {
-		return Array.from(value);
-	}
-	join(chars) {
-		return chars.join("");
-	}
-	postProcess(changeObjects, options) {
-		return changeObjects;
-	}
-	get useLongestToken() {
-		return false;
-	}
-	buildValues(lastComponent, newTokens, oldTokens) {
-		const components = [];
-		let nextComponent;
-		while (lastComponent) {
-			components.push(lastComponent);
-			nextComponent = lastComponent.previousComponent;
-			delete lastComponent.previousComponent;
-			lastComponent = nextComponent;
-		}
-		components.reverse();
-		const componentLen = components.length;
-		let componentPos = 0, newPos = 0, oldPos = 0;
-		for (; componentPos < componentLen; componentPos++) {
-			const component = components[componentPos];
-			if (!component.removed) {
-				if (!component.added && this.useLongestToken) {
-					let value = newTokens.slice(newPos, newPos + component.count);
-					value = value.map(function(value, i) {
-						const oldValue = oldTokens[oldPos + i];
-						return oldValue.length > value.length ? oldValue : value;
-					});
-					component.value = this.join(value);
-				} else component.value = this.join(newTokens.slice(newPos, newPos + component.count));
-				newPos += component.count;
-				if (!component.added) oldPos += component.count;
-			} else {
-				component.value = this.join(oldTokens.slice(oldPos, oldPos + component.count));
-				oldPos += component.count;
-			}
-		}
-		return components;
-	}
-};
-//#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/diff/character.js
-var CharacterDiff = class extends Diff {};
-const characterDiff = new CharacterDiff();
-function diffChars(oldStr, newStr, options) {
-	return characterDiff.diff(oldStr, newStr, options);
+//#region node_modules/@pierre/diffs/dist/utils/isDiffPlainText.js
+function isDiffPlainText(diff) {
+	const computedLang = diff.lang ?? getFiletypeFromFileName(diff.name);
+	const computedPreviousLang = diff.lang ?? (diff.prevName != null ? getFiletypeFromFileName(diff.prevName) : "text");
+	return computedLang === "text" && computedPreviousLang === "text";
 }
 //#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/util/string.js
-function longestCommonPrefix(str1, str2) {
-	let i;
-	for (i = 0; i < str1.length && i < str2.length; i++) if (str1[i] != str2[i]) return str1.slice(0, i);
-	return str1.slice(0, i);
-}
-function longestCommonSuffix(str1, str2) {
-	let i;
-	if (!str1 || !str2 || str1[str1.length - 1] != str2[str2.length - 1]) return "";
-	for (i = 0; i < str1.length && i < str2.length; i++) if (str1[str1.length - (i + 1)] != str2[str2.length - (i + 1)]) return str1.slice(-i);
-	return str1.slice(-i);
-}
-function replacePrefix(string, oldPrefix, newPrefix) {
-	if (string.slice(0, oldPrefix.length) != oldPrefix) throw Error(`string ${JSON.stringify(string)} doesn't start with prefix ${JSON.stringify(oldPrefix)}; this is a bug`);
-	return newPrefix + string.slice(oldPrefix.length);
-}
-function replaceSuffix(string, oldSuffix, newSuffix) {
-	if (!oldSuffix) return string + newSuffix;
-	if (string.slice(-oldSuffix.length) != oldSuffix) throw Error(`string ${JSON.stringify(string)} doesn't end with suffix ${JSON.stringify(oldSuffix)}; this is a bug`);
-	return string.slice(0, -oldSuffix.length) + newSuffix;
-}
-function removePrefix(string, oldPrefix) {
-	return replacePrefix(string, oldPrefix, "");
-}
-function removeSuffix(string, oldSuffix) {
-	return replaceSuffix(string, oldSuffix, "");
-}
-function maximumOverlap(string1, string2) {
-	return string2.slice(0, overlapCount(string1, string2));
-}
-function overlapCount(a, b) {
-	let startA = 0;
-	if (a.length > b.length) startA = a.length - b.length;
-	let endB = b.length;
-	if (a.length < b.length) endB = a.length;
-	const map = Array(endB);
-	let k = 0;
-	map[0] = 0;
-	for (let j = 1; j < endB; j++) {
-		if (b[j] == b[k]) map[j] = map[k];
-		else map[j] = k;
-		while (k > 0 && b[j] != b[k]) k = map[k];
-		if (b[j] == b[k]) k++;
-	}
-	k = 0;
-	for (let i = startA; i < a.length; i++) {
-		while (k > 0 && a[i] != b[k]) k = map[k];
-		if (a[i] == b[k]) k++;
-	}
-	return k;
-}
-function trailingWs(string) {
-	let i;
-	for (i = string.length - 1; i >= 0; i--) if (!string[i].match(/\s/)) break;
-	return string.substring(i + 1);
-}
-function leadingWs(string) {
-	const match = string.match(/^\s*/);
-	return match ? match[0] : "";
-}
-//#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/diff/word.js
-const extendedWordChars = "a-zA-Z0-9_\\u{AD}\\u{C0}-\\u{D6}\\u{D8}-\\u{F6}\\u{F8}-\\u{2C6}\\u{2C8}-\\u{2D7}\\u{2DE}-\\u{2FF}\\u{1E00}-\\u{1EFF}";
-const tokenizeIncludingWhitespace = new RegExp(`[${extendedWordChars}]+|\\s+|[^${extendedWordChars}]`, "ug");
-var WordDiff = class extends Diff {
-	equals(left, right, options) {
-		if (options.ignoreCase) {
-			left = left.toLowerCase();
-			right = right.toLowerCase();
-		}
-		return left.trim() === right.trim();
-	}
-	tokenize(value, options = {}) {
-		let parts;
-		if (options.intlSegmenter) {
-			const segmenter = options.intlSegmenter;
-			if (segmenter.resolvedOptions().granularity != "word") throw new Error("The segmenter passed must have a granularity of \"word\"");
-			parts = [];
-			for (const segmentObj of Array.from(segmenter.segment(value))) {
-				const segment = segmentObj.segment;
-				if (parts.length && /\s/.test(parts[parts.length - 1]) && /\s/.test(segment)) parts[parts.length - 1] += segment;
-				else parts.push(segment);
-			}
-		} else parts = value.match(tokenizeIncludingWhitespace) || [];
-		const tokens = [];
-		let prevPart = null;
-		parts.forEach((part) => {
-			if (/\s/.test(part)) if (prevPart == null) tokens.push(part);
-			else tokens.push(tokens.pop() + part);
-			else if (prevPart != null && /\s/.test(prevPart)) if (tokens[tokens.length - 1] == prevPart) tokens.push(tokens.pop() + part);
-			else tokens.push(prevPart + part);
-			else tokens.push(part);
-			prevPart = part;
-		});
-		return tokens;
-	}
-	join(tokens) {
-		return tokens.map((token, i) => {
-			if (i == 0) return token;
-			else return token.replace(/^\s+/, "");
-		}).join("");
-	}
-	postProcess(changes, options) {
-		if (!changes || options.oneChangePerToken) return changes;
-		let lastKeep = null;
-		let insertion = null;
-		let deletion = null;
-		changes.forEach((change) => {
-			if (change.added) insertion = change;
-			else if (change.removed) deletion = change;
-			else {
-				if (insertion || deletion) dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, change);
-				lastKeep = change;
-				insertion = null;
-				deletion = null;
-			}
-		});
-		if (insertion || deletion) dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, null);
-		return changes;
-	}
-};
-new WordDiff();
-function dedupeWhitespaceInChangeObjects(startKeep, deletion, insertion, endKeep) {
-	if (deletion && insertion) {
-		const oldWsPrefix = leadingWs(deletion.value);
-		const oldWsSuffix = trailingWs(deletion.value);
-		const newWsPrefix = leadingWs(insertion.value);
-		const newWsSuffix = trailingWs(insertion.value);
-		if (startKeep) {
-			const commonWsPrefix = longestCommonPrefix(oldWsPrefix, newWsPrefix);
-			startKeep.value = replaceSuffix(startKeep.value, newWsPrefix, commonWsPrefix);
-			deletion.value = removePrefix(deletion.value, commonWsPrefix);
-			insertion.value = removePrefix(insertion.value, commonWsPrefix);
-		}
-		if (endKeep) {
-			const commonWsSuffix = longestCommonSuffix(oldWsSuffix, newWsSuffix);
-			endKeep.value = replacePrefix(endKeep.value, newWsSuffix, commonWsSuffix);
-			deletion.value = removeSuffix(deletion.value, commonWsSuffix);
-			insertion.value = removeSuffix(insertion.value, commonWsSuffix);
-		}
-	} else if (insertion) {
-		if (startKeep) {
-			const ws = leadingWs(insertion.value);
-			insertion.value = insertion.value.substring(ws.length);
-		}
-		if (endKeep) {
-			const ws = leadingWs(endKeep.value);
-			endKeep.value = endKeep.value.substring(ws.length);
-		}
-	} else if (startKeep && endKeep) {
-		const newWsFull = leadingWs(endKeep.value), delWsStart = leadingWs(deletion.value), delWsEnd = trailingWs(deletion.value);
-		const newWsStart = longestCommonPrefix(newWsFull, delWsStart);
-		deletion.value = removePrefix(deletion.value, newWsStart);
-		const newWsEnd = longestCommonSuffix(removePrefix(newWsFull, newWsStart), delWsEnd);
-		deletion.value = removeSuffix(deletion.value, newWsEnd);
-		endKeep.value = replacePrefix(endKeep.value, newWsFull, newWsEnd);
-		startKeep.value = replaceSuffix(startKeep.value, newWsFull, newWsFull.slice(0, newWsFull.length - newWsEnd.length));
-	} else if (endKeep) {
-		const endKeepWsPrefix = leadingWs(endKeep.value);
-		const overlap = maximumOverlap(trailingWs(deletion.value), endKeepWsPrefix);
-		deletion.value = removeSuffix(deletion.value, overlap);
-	} else if (startKeep) {
-		const overlap = maximumOverlap(trailingWs(startKeep.value), leadingWs(deletion.value));
-		deletion.value = removePrefix(deletion.value, overlap);
-	}
-}
-var WordsWithSpaceDiff = class extends Diff {
-	tokenize(value) {
-		const regex = new RegExp(`(\\r?\\n)|[${extendedWordChars}]+|[^\\S\\n\\r]+|[^${extendedWordChars}]`, "ug");
-		return value.match(regex) || [];
-	}
-};
-const wordsWithSpaceDiff = new WordsWithSpaceDiff();
-function diffWordsWithSpace(oldStr, newStr, options) {
-	return wordsWithSpaceDiff.diff(oldStr, newStr, options);
-}
-//#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/diff/line.js
-var LineDiff = class extends Diff {
-	constructor() {
-		super(...arguments);
-		this.tokenize = tokenize;
-	}
-	equals(left, right, options) {
-		if (options.ignoreWhitespace) {
-			if (!options.newlineIsToken || !left.includes("\n")) left = left.trim();
-			if (!options.newlineIsToken || !right.includes("\n")) right = right.trim();
-		} else if (options.ignoreNewlineAtEof && !options.newlineIsToken) {
-			if (left.endsWith("\n")) left = left.slice(0, -1);
-			if (right.endsWith("\n")) right = right.slice(0, -1);
-		}
-		return super.equals(left, right, options);
-	}
-};
-const lineDiff = new LineDiff();
-function diffLines(oldStr, newStr, options) {
-	return lineDiff.diff(oldStr, newStr, options);
-}
-function tokenize(value, options) {
-	if (options.stripTrailingCr) value = value.replace(/\r\n/g, "\n");
-	const retLines = [], linesAndNewlines = value.split(/(\n|\r\n)/);
-	if (!linesAndNewlines[linesAndNewlines.length - 1]) linesAndNewlines.pop();
-	for (let i = 0; i < linesAndNewlines.length; i++) {
-		const line = linesAndNewlines[i];
-		if (i % 2 && !options.newlineIsToken) retLines[retLines.length - 1] += line;
-		else retLines.push(line);
-	}
-	return retLines;
-}
-//#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/diff/sentence.js
-function isSentenceEndPunct(char) {
-	return char == "." || char == "!" || char == "?";
-}
-var SentenceDiff = class extends Diff {
-	tokenize(value) {
-		var _a;
-		const result = [];
-		let tokenStartI = 0;
-		for (let i = 0; i < value.length; i++) {
-			if (i == value.length - 1) {
-				result.push(value.slice(tokenStartI));
-				break;
-			}
-			if (isSentenceEndPunct(value[i]) && value[i + 1].match(/\s/)) {
-				result.push(value.slice(tokenStartI, i + 1));
-				i = tokenStartI = i + 1;
-				while ((_a = value[i + 1]) === null || _a === void 0 ? void 0 : _a.match(/\s/)) i++;
-				result.push(value.slice(tokenStartI, i + 1));
-				tokenStartI = i + 1;
-			}
-		}
-		return result;
-	}
-};
-new SentenceDiff();
-//#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/diff/css.js
-var CssDiff = class extends Diff {
-	tokenize(value) {
-		return value.split(/([{}:;,]|\s+)/);
-	}
-};
-new CssDiff();
-//#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/diff/json.js
-var JsonDiff = class extends Diff {
-	constructor() {
-		super(...arguments);
-		this.tokenize = tokenize;
-	}
-	get useLongestToken() {
-		return true;
-	}
-	castInput(value, options) {
-		const { undefinedReplacement, stringifyReplacer = (k, v) => typeof v === "undefined" ? undefinedReplacement : v } = options;
-		return typeof value === "string" ? value : JSON.stringify(canonicalize(value, null, null, stringifyReplacer), null, "  ");
-	}
-	equals(left, right, options) {
-		return super.equals(left.replace(/,([\r\n])/g, "$1"), right.replace(/,([\r\n])/g, "$1"), options);
-	}
-};
-new JsonDiff();
-function canonicalize(obj, stack, replacementStack, replacer, key) {
-	stack = stack || [];
-	replacementStack = replacementStack || [];
-	if (replacer) obj = replacer(key === void 0 ? "" : key, obj);
-	let i;
-	for (i = 0; i < stack.length; i += 1) if (stack[i] === obj) return replacementStack[i];
-	let canonicalizedObj;
-	if ("[object Array]" === Object.prototype.toString.call(obj)) {
-		stack.push(obj);
-		canonicalizedObj = new Array(obj.length);
-		replacementStack.push(canonicalizedObj);
-		for (i = 0; i < obj.length; i += 1) canonicalizedObj[i] = canonicalize(obj[i], stack, replacementStack, replacer, String(i));
-		stack.pop();
-		replacementStack.pop();
-		return canonicalizedObj;
-	}
-	if (obj && obj.toJSON) obj = obj.toJSON();
-	if (typeof obj === "object" && obj !== null) {
-		stack.push(obj);
-		canonicalizedObj = {};
-		replacementStack.push(canonicalizedObj);
-		const sortedKeys = [];
-		let key;
-		for (key in obj)
- /* istanbul ignore else */
-		if (Object.prototype.hasOwnProperty.call(obj, key)) sortedKeys.push(key);
-		sortedKeys.sort();
-		for (i = 0; i < sortedKeys.length; i += 1) {
-			key = sortedKeys[i];
-			canonicalizedObj[key] = canonicalize(obj[key], stack, replacementStack, replacer, key);
-		}
-		stack.pop();
-		replacementStack.pop();
-	} else canonicalizedObj = obj;
-	return canonicalizedObj;
-}
-//#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/diff/array.js
-var ArrayDiff = class extends Diff {
-	tokenize(value) {
-		return value.slice();
-	}
-	join(value) {
-		return value;
-	}
-	removeEmpty(value) {
-		return value;
-	}
-};
-new ArrayDiff();
-//#endregion
-//#region node_modules/.pnpm/diff@8.0.3/node_modules/diff/libesm/patch/create.js
-const INCLUDE_HEADERS = {
-	includeIndex: true,
-	includeUnderline: true,
-	includeFileHeaders: true
-};
-function structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, options) {
-	let optionsObj;
-	if (!options) optionsObj = {};
-	else if (typeof options === "function") optionsObj = { callback: options };
-	else optionsObj = options;
-	if (typeof optionsObj.context === "undefined") optionsObj.context = 4;
-	const context = optionsObj.context;
-	if (optionsObj.newlineIsToken) throw new Error("newlineIsToken may not be used with patch-generation functions, only with diffing functions");
-	if (!optionsObj.callback) return diffLinesResultToPatch(diffLines(oldStr, newStr, optionsObj));
-	else {
-		const { callback } = optionsObj;
-		diffLines(oldStr, newStr, Object.assign(Object.assign({}, optionsObj), { callback: (diff) => {
-			callback(diffLinesResultToPatch(diff));
-		} }));
-	}
-	function diffLinesResultToPatch(diff) {
-		if (!diff) return;
-		diff.push({
-			value: "",
-			lines: []
-		});
-		function contextLines(lines) {
-			return lines.map(function(entry) {
-				return " " + entry;
-			});
-		}
-		const hunks = [];
-		let oldRangeStart = 0, newRangeStart = 0, curRange = [], oldLine = 1, newLine = 1;
-		for (let i = 0; i < diff.length; i++) {
-			const current = diff[i], lines = current.lines || splitLines(current.value);
-			current.lines = lines;
-			if (current.added || current.removed) {
-				if (!oldRangeStart) {
-					const prev = diff[i - 1];
-					oldRangeStart = oldLine;
-					newRangeStart = newLine;
-					if (prev) {
-						curRange = context > 0 ? contextLines(prev.lines.slice(-context)) : [];
-						oldRangeStart -= curRange.length;
-						newRangeStart -= curRange.length;
-					}
-				}
-				for (const line of lines) curRange.push((current.added ? "+" : "-") + line);
-				if (current.added) newLine += lines.length;
-				else oldLine += lines.length;
-			} else {
-				if (oldRangeStart) if (lines.length <= context * 2 && i < diff.length - 2) for (const line of contextLines(lines)) curRange.push(line);
-				else {
-					const contextSize = Math.min(lines.length, context);
-					for (const line of contextLines(lines.slice(0, contextSize))) curRange.push(line);
-					const hunk = {
-						oldStart: oldRangeStart,
-						oldLines: oldLine - oldRangeStart + contextSize,
-						newStart: newRangeStart,
-						newLines: newLine - newRangeStart + contextSize,
-						lines: curRange
-					};
-					hunks.push(hunk);
-					oldRangeStart = 0;
-					newRangeStart = 0;
-					curRange = [];
-				}
-				oldLine += lines.length;
-				newLine += lines.length;
-			}
-		}
-		for (const hunk of hunks) for (let i = 0; i < hunk.lines.length; i++) if (hunk.lines[i].endsWith("\n")) hunk.lines[i] = hunk.lines[i].slice(0, -1);
-		else {
-			hunk.lines.splice(i + 1, 0, "\\ No newline at end of file");
-			i++;
-		}
-		return {
-			oldFileName,
-			newFileName,
-			oldHeader,
-			newHeader,
-			hunks
-		};
-	}
-}
-/**
-* creates a unified diff patch.
-* @param patch either a single structured patch object (as returned by `structuredPatch`) or an array of them (as returned by `parsePatch`)
-*/
-function formatPatch(patch, headerOptions) {
-	if (!headerOptions) headerOptions = INCLUDE_HEADERS;
-	if (Array.isArray(patch)) {
-		if (patch.length > 1 && !headerOptions.includeFileHeaders) throw new Error("Cannot omit file headers on a multi-file patch. (The result would be unparseable; how would a tool trying to apply the patch know which changes are to which file?)");
-		return patch.map((p) => formatPatch(p, headerOptions)).join("\n");
-	}
-	const ret = [];
-	if (headerOptions.includeIndex && patch.oldFileName == patch.newFileName) ret.push("Index: " + patch.oldFileName);
-	if (headerOptions.includeUnderline) ret.push("===================================================================");
-	if (headerOptions.includeFileHeaders) {
-		ret.push("--- " + patch.oldFileName + (typeof patch.oldHeader === "undefined" ? "" : "	" + patch.oldHeader));
-		ret.push("+++ " + patch.newFileName + (typeof patch.newHeader === "undefined" ? "" : "	" + patch.newHeader));
-	}
-	for (let i = 0; i < patch.hunks.length; i++) {
-		const hunk = patch.hunks[i];
-		if (hunk.oldLines === 0) hunk.oldStart -= 1;
-		if (hunk.newLines === 0) hunk.newStart -= 1;
-		ret.push("@@ -" + hunk.oldStart + "," + hunk.oldLines + " +" + hunk.newStart + "," + hunk.newLines + " @@");
-		for (const line of hunk.lines) ret.push(line);
-	}
-	return ret.join("\n") + "\n";
-}
-function createTwoFilesPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, options) {
-	if (typeof options === "function") options = { callback: options };
-	if (!(options === null || options === void 0 ? void 0 : options.callback)) {
-		const patchObj = structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, options);
-		if (!patchObj) return;
-		return formatPatch(patchObj, options === null || options === void 0 ? void 0 : options.headerOptions);
-	} else {
-		const { callback } = options;
-		structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, Object.assign(Object.assign({}, options), { callback: (patchObj) => {
-			if (!patchObj) callback(void 0);
-			else callback(formatPatch(patchObj, options.headerOptions));
-		} }));
-	}
-}
-/**
-* Split `text` into an array of lines, including the trailing newline character (where present)
-*/
-function splitLines(text) {
-	const hasTrailingNl = text.endsWith("\n");
-	const result = text.split("\n").map((line) => line + "\n");
-	if (hasTrailingNl) result.pop();
-	else result.push(result.pop().slice(0, -1));
-	return result;
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/parseDiffDecorations.js
-function createDiffSpanDecoration({ line, spanStart, spanLength }) {
-	return {
-		start: {
-			line,
-			character: spanStart
-		},
-		end: {
-			line,
-			character: spanStart + spanLength
-		},
-		properties: { "data-diff-span": "" },
-		alwaysWrap: true
-	};
-}
-function pushOrJoinSpan({ item, arr, enableJoin, isNeutral = false, isLastItem = false }) {
-	const lastItem = arr[arr.length - 1];
-	if (lastItem == null || isLastItem || !enableJoin) {
-		arr.push([isNeutral ? 0 : 1, item.value]);
-		return;
-	}
-	const isLastItemNeutral = lastItem[0] === 0;
-	if (isNeutral === isLastItemNeutral || isNeutral && item.value.length === 1 && !isLastItemNeutral) {
-		lastItem[1] += item.value;
-		return;
-	}
-	arr.push([isNeutral ? 0 : 1, item.value]);
-}
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/iterateOverDiff.js
+//#region node_modules/@pierre/diffs/dist/utils/iterateOverDiff.js
 function iterateOverDiff({ diff, diffStyle, startingLine = 0, totalLines = Infinity, expandedHunks, collapsedContextThreshold = 1, callback }) {
 	const state = {
 		finalHunk: diff.hunks.at(-1),
@@ -15628,7 +14856,857 @@ function getChangeLineData({ hunkIndex, hunk, collapsedAfter, collapsedBefore, d
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/renderDiffWithHighlighter.js
+//#region node_modules/@pierre/diffs/dist/utils/cleanLastNewline.js
+function cleanLastNewline(contents) {
+	return contents.replace(/\n$|\r\n$/, "");
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/processLine.js
+function processLine(node, line, state) {
+	const lineInfo = typeof state.lineInfo === "function" ? state.lineInfo(line) : state.lineInfo[line - 1];
+	if (lineInfo == null) {
+		const errorMessage = `processLine: line ${line}, contains no state.lineInfo`;
+		console.error(errorMessage, {
+			node,
+			line,
+			state
+		});
+		throw new Error(errorMessage);
+	}
+	node.tagName = "div";
+	node.properties["data-line"] = lineInfo.lineNumber;
+	node.properties["data-alt-line"] = lineInfo.altLineNumber;
+	node.properties["data-line-type"] = lineInfo.type;
+	node.properties["data-line-index"] = lineInfo.lineIndex;
+	if (node.children.length === 0) node.children.push(createTextNodeElement("\n"));
+	return node;
+}
+//#endregion
+//#region node_modules/@shikijs/transformers/dist/index.mjs
+function transformerStyleToClass(options = {}) {
+	const { classPrefix = "__shiki_", classSuffix = "", classReplacer = (className) => className } = options;
+	const classToStyle = /* @__PURE__ */ new Map();
+	function stringifyStyle(style) {
+		return Object.entries(style).map(([key, value]) => `${key}:${value}`).join(";");
+	}
+	function registerStyle(style) {
+		let className = classPrefix + cyrb53(typeof style === "string" ? style : stringifyStyle(style)) + classSuffix;
+		className = classReplacer(className);
+		if (!classToStyle.has(className)) classToStyle.set(className, typeof style === "string" ? style : { ...style });
+		return className;
+	}
+	return {
+		name: "@shikijs/transformers:style-to-class",
+		pre(t) {
+			if (!t.properties.style) return;
+			const className = registerStyle(t.properties.style);
+			delete t.properties.style;
+			this.addClassToHast(t, className);
+		},
+		tokens(lines) {
+			for (const line of lines) for (const token of line) {
+				if (!token.htmlStyle) continue;
+				const className = registerStyle(token.htmlStyle);
+				token.htmlStyle = {};
+				token.htmlAttrs ||= {};
+				if (!token.htmlAttrs.class) token.htmlAttrs.class = className;
+				else token.htmlAttrs.class += ` ${className}`;
+			}
+		},
+		getClassRegistry() {
+			return classToStyle;
+		},
+		getCSS() {
+			let css = "";
+			for (const [className, style] of classToStyle.entries()) css += `.${className}{${typeof style === "string" ? style : stringifyStyle(style)}}`;
+			return css;
+		},
+		clearRegistry() {
+			classToStyle.clear();
+		}
+	};
+}
+function cyrb53(str, seed = 0) {
+	let h1 = 3735928559 ^ seed;
+	let h2 = 1103547991 ^ seed;
+	for (let i = 0, ch; i < str.length; i++) {
+		ch = str.charCodeAt(i);
+		h1 = Math.imul(h1 ^ ch, 2654435761);
+		h2 = Math.imul(h2 ^ ch, 1597334677);
+	}
+	h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507);
+	h1 ^= Math.imul(h2 ^ h2 >>> 13, 3266489909);
+	h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507);
+	h2 ^= Math.imul(h1 ^ h1 >>> 13, 3266489909);
+	return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36).slice(0, 6);
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/createTransformerWithState.js
+function createTransformerWithState(useCSSClasses = false) {
+	const state = { lineInfo: [] };
+	const transformers = [{
+		line(node) {
+			delete node.properties.class;
+			return node;
+		},
+		pre(pre) {
+			const code = findCodeElement(pre);
+			const children = [];
+			if (code != null) {
+				let index = 1;
+				for (const node of code.children) {
+					if (node.type !== "element") continue;
+					children.push(processLine(node, index, state));
+					index++;
+				}
+				code.children = children;
+			}
+			return pre;
+		}
+	}];
+	if (useCSSClasses) transformers.push(tokenStyleNormalizer, toClass);
+	return {
+		state,
+		transformers,
+		toClass
+	};
+}
+const toClass = transformerStyleToClass({ classPrefix: "hl-" });
+const tokenStyleNormalizer = {
+	name: "token-style-normalizer",
+	tokens(lines) {
+		for (const line of lines) for (const token of line) {
+			if (token.htmlStyle != null) continue;
+			const style = {};
+			if (token.color != null) style.color = token.color;
+			if (token.bgColor != null) style["background-color"] = token.bgColor;
+			if (token.fontStyle != null && token.fontStyle !== 0) {
+				if ((token.fontStyle & 1) !== 0) style["font-style"] = "italic";
+				if ((token.fontStyle & 2) !== 0) style["font-weight"] = "bold";
+				if ((token.fontStyle & 4) !== 0) style["text-decoration"] = "underline";
+			}
+			if (Object.keys(style).length > 0) token.htmlStyle = style;
+		}
+	}
+};
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/formatCSSVariablePrefix.js
+function formatCSSVariablePrefix(type) {
+	return `--${type === "token" ? "diffs-token" : "diffs"}-`;
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/getHighlighterThemeStyles.js
+function getHighlighterThemeStyles({ theme = DEFAULT_THEMES, highlighter, prefix }) {
+	let styles = "";
+	if (typeof theme === "string") {
+		const themeData = highlighter.getTheme(theme);
+		styles += `color:${themeData.fg};`;
+		styles += `background-color:${themeData.bg};`;
+		styles += `${formatCSSVariablePrefix("global")}fg:${themeData.fg};`;
+		styles += `${formatCSSVariablePrefix("global")}bg:${themeData.bg};`;
+		styles += getThemeVariables(themeData, prefix);
+	} else {
+		let themeData = highlighter.getTheme(theme.dark);
+		styles += `${formatCSSVariablePrefix("global")}dark:${themeData.fg};`;
+		styles += `${formatCSSVariablePrefix("global")}dark-bg:${themeData.bg};`;
+		styles += getThemeVariables(themeData, "dark");
+		themeData = highlighter.getTheme(theme.light);
+		styles += `${formatCSSVariablePrefix("global")}light:${themeData.fg};`;
+		styles += `${formatCSSVariablePrefix("global")}light-bg:${themeData.bg};`;
+		styles += getThemeVariables(themeData, "light");
+	}
+	return styles;
+}
+function getThemeVariables(themeData, modePrefix) {
+	modePrefix = modePrefix != null ? `${modePrefix}-` : "";
+	let styles = "";
+	const additionGreen = themeData.colors?.["gitDecoration.addedResourceForeground"] ?? themeData.colors?.["terminal.ansiGreen"];
+	if (additionGreen != null) styles += `${formatCSSVariablePrefix("global")}${modePrefix}addition-color:${additionGreen};`;
+	const deletionRed = themeData.colors?.["gitDecoration.deletedResourceForeground"] ?? themeData.colors?.["terminal.ansiRed"];
+	if (deletionRed != null) styles += `${formatCSSVariablePrefix("global")}${modePrefix}deletion-color:${deletionRed};`;
+	const modifiedBlue = themeData.colors?.["gitDecoration.modifiedResourceForeground"] ?? themeData.colors?.["terminal.ansiBlue"];
+	if (modifiedBlue != null) styles += `${formatCSSVariablePrefix("global")}${modePrefix}modified-color:${modifiedBlue};`;
+	return styles;
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/getLineNodes.js
+function getLineNodes(nodes) {
+	let firstChild = nodes.children[0];
+	while (firstChild != null) {
+		if (firstChild.type === "element" && firstChild.tagName === "code") return firstChild.children;
+		if ("children" in firstChild) firstChild = firstChild.children[0];
+		else firstChild = null;
+	}
+	console.error(nodes);
+	throw new Error("getLineNodes: Unable to find children");
+}
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/diff/base.js
+var Diff = class {
+	diff(oldStr, newStr, options = {}) {
+		let callback;
+		if (typeof options === "function") {
+			callback = options;
+			options = {};
+		} else if ("callback" in options) callback = options.callback;
+		const oldString = this.castInput(oldStr, options);
+		const newString = this.castInput(newStr, options);
+		const oldTokens = this.removeEmpty(this.tokenize(oldString, options));
+		const newTokens = this.removeEmpty(this.tokenize(newString, options));
+		return this.diffWithOptionsObj(oldTokens, newTokens, options, callback);
+	}
+	diffWithOptionsObj(oldTokens, newTokens, options, callback) {
+		var _a;
+		const done = (value) => {
+			value = this.postProcess(value, options);
+			if (callback) {
+				setTimeout(function() {
+					callback(value);
+				}, 0);
+				return;
+			} else return value;
+		};
+		const newLen = newTokens.length, oldLen = oldTokens.length;
+		let editLength = 1;
+		let maxEditLength = newLen + oldLen;
+		if (options.maxEditLength != null) maxEditLength = Math.min(maxEditLength, options.maxEditLength);
+		const maxExecutionTime = (_a = options.timeout) !== null && _a !== void 0 ? _a : Infinity;
+		const abortAfterTimestamp = Date.now() + maxExecutionTime;
+		const bestPath = [{
+			oldPos: -1,
+			lastComponent: void 0
+		}];
+		let newPos = this.extractCommon(bestPath[0], newTokens, oldTokens, 0, options);
+		if (bestPath[0].oldPos + 1 >= oldLen && newPos + 1 >= newLen) return done(this.buildValues(bestPath[0].lastComponent, newTokens, oldTokens));
+		let minDiagonalToConsider = -Infinity, maxDiagonalToConsider = Infinity;
+		const execEditLength = () => {
+			for (let diagonalPath = Math.max(minDiagonalToConsider, -editLength); diagonalPath <= Math.min(maxDiagonalToConsider, editLength); diagonalPath += 2) {
+				let basePath;
+				const removePath = bestPath[diagonalPath - 1], addPath = bestPath[diagonalPath + 1];
+				if (removePath) bestPath[diagonalPath - 1] = void 0;
+				let canAdd = false;
+				if (addPath) {
+					const addPathNewPos = addPath.oldPos - diagonalPath;
+					canAdd = addPath && 0 <= addPathNewPos && addPathNewPos < newLen;
+				}
+				const canRemove = removePath && removePath.oldPos + 1 < oldLen;
+				if (!canAdd && !canRemove) {
+					bestPath[diagonalPath] = void 0;
+					continue;
+				}
+				if (!canRemove || canAdd && removePath.oldPos < addPath.oldPos) basePath = this.addToPath(addPath, true, false, 0, options);
+				else basePath = this.addToPath(removePath, false, true, 1, options);
+				newPos = this.extractCommon(basePath, newTokens, oldTokens, diagonalPath, options);
+				if (basePath.oldPos + 1 >= oldLen && newPos + 1 >= newLen) return done(this.buildValues(basePath.lastComponent, newTokens, oldTokens)) || true;
+				else {
+					bestPath[diagonalPath] = basePath;
+					if (basePath.oldPos + 1 >= oldLen) maxDiagonalToConsider = Math.min(maxDiagonalToConsider, diagonalPath - 1);
+					if (newPos + 1 >= newLen) minDiagonalToConsider = Math.max(minDiagonalToConsider, diagonalPath + 1);
+				}
+			}
+			editLength++;
+		};
+		if (callback) (function exec() {
+			setTimeout(function() {
+				if (editLength > maxEditLength || Date.now() > abortAfterTimestamp) return callback(void 0);
+				if (!execEditLength()) exec();
+			}, 0);
+		})();
+		else while (editLength <= maxEditLength && Date.now() <= abortAfterTimestamp) {
+			const ret = execEditLength();
+			if (ret) return ret;
+		}
+	}
+	addToPath(path, added, removed, oldPosInc, options) {
+		const last = path.lastComponent;
+		if (last && !options.oneChangePerToken && last.added === added && last.removed === removed) return {
+			oldPos: path.oldPos + oldPosInc,
+			lastComponent: {
+				count: last.count + 1,
+				added,
+				removed,
+				previousComponent: last.previousComponent
+			}
+		};
+		else return {
+			oldPos: path.oldPos + oldPosInc,
+			lastComponent: {
+				count: 1,
+				added,
+				removed,
+				previousComponent: last
+			}
+		};
+	}
+	extractCommon(basePath, newTokens, oldTokens, diagonalPath, options) {
+		const newLen = newTokens.length, oldLen = oldTokens.length;
+		let oldPos = basePath.oldPos, newPos = oldPos - diagonalPath, commonCount = 0;
+		while (newPos + 1 < newLen && oldPos + 1 < oldLen && this.equals(oldTokens[oldPos + 1], newTokens[newPos + 1], options)) {
+			newPos++;
+			oldPos++;
+			commonCount++;
+			if (options.oneChangePerToken) basePath.lastComponent = {
+				count: 1,
+				previousComponent: basePath.lastComponent,
+				added: false,
+				removed: false
+			};
+		}
+		if (commonCount && !options.oneChangePerToken) basePath.lastComponent = {
+			count: commonCount,
+			previousComponent: basePath.lastComponent,
+			added: false,
+			removed: false
+		};
+		basePath.oldPos = oldPos;
+		return newPos;
+	}
+	equals(left, right, options) {
+		if (options.comparator) return options.comparator(left, right);
+		else return left === right || !!options.ignoreCase && left.toLowerCase() === right.toLowerCase();
+	}
+	removeEmpty(array) {
+		const ret = [];
+		for (let i = 0; i < array.length; i++) if (array[i]) ret.push(array[i]);
+		return ret;
+	}
+	castInput(value, options) {
+		return value;
+	}
+	tokenize(value, options) {
+		return Array.from(value);
+	}
+	join(chars) {
+		return chars.join("");
+	}
+	postProcess(changeObjects, options) {
+		return changeObjects;
+	}
+	get useLongestToken() {
+		return false;
+	}
+	buildValues(lastComponent, newTokens, oldTokens) {
+		const components = [];
+		let nextComponent;
+		while (lastComponent) {
+			components.push(lastComponent);
+			nextComponent = lastComponent.previousComponent;
+			delete lastComponent.previousComponent;
+			lastComponent = nextComponent;
+		}
+		components.reverse();
+		const componentLen = components.length;
+		let componentPos = 0, newPos = 0, oldPos = 0;
+		for (; componentPos < componentLen; componentPos++) {
+			const component = components[componentPos];
+			if (!component.removed) {
+				if (!component.added && this.useLongestToken) {
+					let value = newTokens.slice(newPos, newPos + component.count);
+					value = value.map(function(value, i) {
+						const oldValue = oldTokens[oldPos + i];
+						return oldValue.length > value.length ? oldValue : value;
+					});
+					component.value = this.join(value);
+				} else component.value = this.join(newTokens.slice(newPos, newPos + component.count));
+				newPos += component.count;
+				if (!component.added) oldPos += component.count;
+			} else {
+				component.value = this.join(oldTokens.slice(oldPos, oldPos + component.count));
+				oldPos += component.count;
+			}
+		}
+		return components;
+	}
+};
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/diff/character.js
+var CharacterDiff = class extends Diff {};
+const characterDiff = new CharacterDiff();
+function diffChars(oldStr, newStr, options) {
+	return characterDiff.diff(oldStr, newStr, options);
+}
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/util/string.js
+function longestCommonPrefix(str1, str2) {
+	let i;
+	for (i = 0; i < str1.length && i < str2.length; i++) if (str1[i] != str2[i]) return str1.slice(0, i);
+	return str1.slice(0, i);
+}
+function longestCommonSuffix(str1, str2) {
+	let i;
+	if (!str1 || !str2 || str1[str1.length - 1] != str2[str2.length - 1]) return "";
+	for (i = 0; i < str1.length && i < str2.length; i++) if (str1[str1.length - (i + 1)] != str2[str2.length - (i + 1)]) return str1.slice(-i);
+	return str1.slice(-i);
+}
+function replacePrefix(string, oldPrefix, newPrefix) {
+	if (string.slice(0, oldPrefix.length) != oldPrefix) throw Error(`string ${JSON.stringify(string)} doesn't start with prefix ${JSON.stringify(oldPrefix)}; this is a bug`);
+	return newPrefix + string.slice(oldPrefix.length);
+}
+function replaceSuffix(string, oldSuffix, newSuffix) {
+	if (!oldSuffix) return string + newSuffix;
+	if (string.slice(-oldSuffix.length) != oldSuffix) throw Error(`string ${JSON.stringify(string)} doesn't end with suffix ${JSON.stringify(oldSuffix)}; this is a bug`);
+	return string.slice(0, -oldSuffix.length) + newSuffix;
+}
+function removePrefix(string, oldPrefix) {
+	return replacePrefix(string, oldPrefix, "");
+}
+function removeSuffix(string, oldSuffix) {
+	return replaceSuffix(string, oldSuffix, "");
+}
+function maximumOverlap(string1, string2) {
+	return string2.slice(0, overlapCount(string1, string2));
+}
+function overlapCount(a, b) {
+	let startA = 0;
+	if (a.length > b.length) startA = a.length - b.length;
+	let endB = b.length;
+	if (a.length < b.length) endB = a.length;
+	const map = Array(endB);
+	let k = 0;
+	map[0] = 0;
+	for (let j = 1; j < endB; j++) {
+		if (b[j] == b[k]) map[j] = map[k];
+		else map[j] = k;
+		while (k > 0 && b[j] != b[k]) k = map[k];
+		if (b[j] == b[k]) k++;
+	}
+	k = 0;
+	for (let i = startA; i < a.length; i++) {
+		while (k > 0 && a[i] != b[k]) k = map[k];
+		if (a[i] == b[k]) k++;
+	}
+	return k;
+}
+function trailingWs(string) {
+	let i;
+	for (i = string.length - 1; i >= 0; i--) if (!string[i].match(/\s/)) break;
+	return string.substring(i + 1);
+}
+function leadingWs(string) {
+	const match = string.match(/^\s*/);
+	return match ? match[0] : "";
+}
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/diff/word.js
+const extendedWordChars = "a-zA-Z0-9_\\u{AD}\\u{C0}-\\u{D6}\\u{D8}-\\u{F6}\\u{F8}-\\u{2C6}\\u{2C8}-\\u{2D7}\\u{2DE}-\\u{2FF}\\u{1E00}-\\u{1EFF}";
+const tokenizeIncludingWhitespace = new RegExp(`[${extendedWordChars}]+|\\s+|[^${extendedWordChars}]`, "ug");
+var WordDiff = class extends Diff {
+	equals(left, right, options) {
+		if (options.ignoreCase) {
+			left = left.toLowerCase();
+			right = right.toLowerCase();
+		}
+		return left.trim() === right.trim();
+	}
+	tokenize(value, options = {}) {
+		let parts;
+		if (options.intlSegmenter) {
+			const segmenter = options.intlSegmenter;
+			if (segmenter.resolvedOptions().granularity != "word") throw new Error("The segmenter passed must have a granularity of \"word\"");
+			parts = [];
+			for (const segmentObj of Array.from(segmenter.segment(value))) {
+				const segment = segmentObj.segment;
+				if (parts.length && /\s/.test(parts[parts.length - 1]) && /\s/.test(segment)) parts[parts.length - 1] += segment;
+				else parts.push(segment);
+			}
+		} else parts = value.match(tokenizeIncludingWhitespace) || [];
+		const tokens = [];
+		let prevPart = null;
+		parts.forEach((part) => {
+			if (/\s/.test(part)) if (prevPart == null) tokens.push(part);
+			else tokens.push(tokens.pop() + part);
+			else if (prevPart != null && /\s/.test(prevPart)) if (tokens[tokens.length - 1] == prevPart) tokens.push(tokens.pop() + part);
+			else tokens.push(prevPart + part);
+			else tokens.push(part);
+			prevPart = part;
+		});
+		return tokens;
+	}
+	join(tokens) {
+		return tokens.map((token, i) => {
+			if (i == 0) return token;
+			else return token.replace(/^\s+/, "");
+		}).join("");
+	}
+	postProcess(changes, options) {
+		if (!changes || options.oneChangePerToken) return changes;
+		let lastKeep = null;
+		let insertion = null;
+		let deletion = null;
+		changes.forEach((change) => {
+			if (change.added) insertion = change;
+			else if (change.removed) deletion = change;
+			else {
+				if (insertion || deletion) dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, change);
+				lastKeep = change;
+				insertion = null;
+				deletion = null;
+			}
+		});
+		if (insertion || deletion) dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, null);
+		return changes;
+	}
+};
+new WordDiff();
+function dedupeWhitespaceInChangeObjects(startKeep, deletion, insertion, endKeep) {
+	if (deletion && insertion) {
+		const oldWsPrefix = leadingWs(deletion.value);
+		const oldWsSuffix = trailingWs(deletion.value);
+		const newWsPrefix = leadingWs(insertion.value);
+		const newWsSuffix = trailingWs(insertion.value);
+		if (startKeep) {
+			const commonWsPrefix = longestCommonPrefix(oldWsPrefix, newWsPrefix);
+			startKeep.value = replaceSuffix(startKeep.value, newWsPrefix, commonWsPrefix);
+			deletion.value = removePrefix(deletion.value, commonWsPrefix);
+			insertion.value = removePrefix(insertion.value, commonWsPrefix);
+		}
+		if (endKeep) {
+			const commonWsSuffix = longestCommonSuffix(oldWsSuffix, newWsSuffix);
+			endKeep.value = replacePrefix(endKeep.value, newWsSuffix, commonWsSuffix);
+			deletion.value = removeSuffix(deletion.value, commonWsSuffix);
+			insertion.value = removeSuffix(insertion.value, commonWsSuffix);
+		}
+	} else if (insertion) {
+		if (startKeep) {
+			const ws = leadingWs(insertion.value);
+			insertion.value = insertion.value.substring(ws.length);
+		}
+		if (endKeep) {
+			const ws = leadingWs(endKeep.value);
+			endKeep.value = endKeep.value.substring(ws.length);
+		}
+	} else if (startKeep && endKeep) {
+		const newWsFull = leadingWs(endKeep.value), delWsStart = leadingWs(deletion.value), delWsEnd = trailingWs(deletion.value);
+		const newWsStart = longestCommonPrefix(newWsFull, delWsStart);
+		deletion.value = removePrefix(deletion.value, newWsStart);
+		const newWsEnd = longestCommonSuffix(removePrefix(newWsFull, newWsStart), delWsEnd);
+		deletion.value = removeSuffix(deletion.value, newWsEnd);
+		endKeep.value = replacePrefix(endKeep.value, newWsFull, newWsEnd);
+		startKeep.value = replaceSuffix(startKeep.value, newWsFull, newWsFull.slice(0, newWsFull.length - newWsEnd.length));
+	} else if (endKeep) {
+		const endKeepWsPrefix = leadingWs(endKeep.value);
+		const overlap = maximumOverlap(trailingWs(deletion.value), endKeepWsPrefix);
+		deletion.value = removeSuffix(deletion.value, overlap);
+	} else if (startKeep) {
+		const overlap = maximumOverlap(trailingWs(startKeep.value), leadingWs(deletion.value));
+		deletion.value = removePrefix(deletion.value, overlap);
+	}
+}
+var WordsWithSpaceDiff = class extends Diff {
+	tokenize(value) {
+		const regex = new RegExp(`(\\r?\\n)|[${extendedWordChars}]+|[^\\S\\n\\r]+|[^${extendedWordChars}]`, "ug");
+		return value.match(regex) || [];
+	}
+};
+const wordsWithSpaceDiff = new WordsWithSpaceDiff();
+function diffWordsWithSpace(oldStr, newStr, options) {
+	return wordsWithSpaceDiff.diff(oldStr, newStr, options);
+}
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/diff/line.js
+var LineDiff = class extends Diff {
+	constructor() {
+		super(...arguments);
+		this.tokenize = tokenize;
+	}
+	equals(left, right, options) {
+		if (options.ignoreWhitespace) {
+			if (!options.newlineIsToken || !left.includes("\n")) left = left.trim();
+			if (!options.newlineIsToken || !right.includes("\n")) right = right.trim();
+		} else if (options.ignoreNewlineAtEof && !options.newlineIsToken) {
+			if (left.endsWith("\n")) left = left.slice(0, -1);
+			if (right.endsWith("\n")) right = right.slice(0, -1);
+		}
+		return super.equals(left, right, options);
+	}
+};
+const lineDiff = new LineDiff();
+function diffLines(oldStr, newStr, options) {
+	return lineDiff.diff(oldStr, newStr, options);
+}
+function tokenize(value, options) {
+	if (options.stripTrailingCr) value = value.replace(/\r\n/g, "\n");
+	const retLines = [], linesAndNewlines = value.split(/(\n|\r\n)/);
+	if (!linesAndNewlines[linesAndNewlines.length - 1]) linesAndNewlines.pop();
+	for (let i = 0; i < linesAndNewlines.length; i++) {
+		const line = linesAndNewlines[i];
+		if (i % 2 && !options.newlineIsToken) retLines[retLines.length - 1] += line;
+		else retLines.push(line);
+	}
+	return retLines;
+}
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/diff/sentence.js
+function isSentenceEndPunct(char) {
+	return char == "." || char == "!" || char == "?";
+}
+var SentenceDiff = class extends Diff {
+	tokenize(value) {
+		var _a;
+		const result = [];
+		let tokenStartI = 0;
+		for (let i = 0; i < value.length; i++) {
+			if (i == value.length - 1) {
+				result.push(value.slice(tokenStartI));
+				break;
+			}
+			if (isSentenceEndPunct(value[i]) && value[i + 1].match(/\s/)) {
+				result.push(value.slice(tokenStartI, i + 1));
+				i = tokenStartI = i + 1;
+				while ((_a = value[i + 1]) === null || _a === void 0 ? void 0 : _a.match(/\s/)) i++;
+				result.push(value.slice(tokenStartI, i + 1));
+				tokenStartI = i + 1;
+			}
+		}
+		return result;
+	}
+};
+new SentenceDiff();
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/diff/css.js
+var CssDiff = class extends Diff {
+	tokenize(value) {
+		return value.split(/([{}:;,]|\s+)/);
+	}
+};
+new CssDiff();
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/diff/json.js
+var JsonDiff = class extends Diff {
+	constructor() {
+		super(...arguments);
+		this.tokenize = tokenize;
+	}
+	get useLongestToken() {
+		return true;
+	}
+	castInput(value, options) {
+		const { undefinedReplacement, stringifyReplacer = (k, v) => typeof v === "undefined" ? undefinedReplacement : v } = options;
+		return typeof value === "string" ? value : JSON.stringify(canonicalize(value, null, null, stringifyReplacer), null, "  ");
+	}
+	equals(left, right, options) {
+		return super.equals(left.replace(/,([\r\n])/g, "$1"), right.replace(/,([\r\n])/g, "$1"), options);
+	}
+};
+new JsonDiff();
+function canonicalize(obj, stack, replacementStack, replacer, key) {
+	stack = stack || [];
+	replacementStack = replacementStack || [];
+	if (replacer) obj = replacer(key === void 0 ? "" : key, obj);
+	let i;
+	for (i = 0; i < stack.length; i += 1) if (stack[i] === obj) return replacementStack[i];
+	let canonicalizedObj;
+	if ("[object Array]" === Object.prototype.toString.call(obj)) {
+		stack.push(obj);
+		canonicalizedObj = new Array(obj.length);
+		replacementStack.push(canonicalizedObj);
+		for (i = 0; i < obj.length; i += 1) canonicalizedObj[i] = canonicalize(obj[i], stack, replacementStack, replacer, String(i));
+		stack.pop();
+		replacementStack.pop();
+		return canonicalizedObj;
+	}
+	if (obj && obj.toJSON) obj = obj.toJSON();
+	if (typeof obj === "object" && obj !== null) {
+		stack.push(obj);
+		canonicalizedObj = {};
+		replacementStack.push(canonicalizedObj);
+		const sortedKeys = [];
+		let key;
+		for (key in obj)
+ /* istanbul ignore else */
+		if (Object.prototype.hasOwnProperty.call(obj, key)) sortedKeys.push(key);
+		sortedKeys.sort();
+		for (i = 0; i < sortedKeys.length; i += 1) {
+			key = sortedKeys[i];
+			canonicalizedObj[key] = canonicalize(obj[key], stack, replacementStack, replacer, key);
+		}
+		stack.pop();
+		replacementStack.pop();
+	} else canonicalizedObj = obj;
+	return canonicalizedObj;
+}
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/diff/array.js
+var ArrayDiff = class extends Diff {
+	tokenize(value) {
+		return value.slice();
+	}
+	join(value) {
+		return value;
+	}
+	removeEmpty(value) {
+		return value;
+	}
+};
+new ArrayDiff();
+//#endregion
+//#region node_modules/@pierre/diffs/node_modules/diff/libesm/patch/create.js
+const INCLUDE_HEADERS = {
+	includeIndex: true,
+	includeUnderline: true,
+	includeFileHeaders: true
+};
+function structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, options) {
+	let optionsObj;
+	if (!options) optionsObj = {};
+	else if (typeof options === "function") optionsObj = { callback: options };
+	else optionsObj = options;
+	if (typeof optionsObj.context === "undefined") optionsObj.context = 4;
+	const context = optionsObj.context;
+	if (optionsObj.newlineIsToken) throw new Error("newlineIsToken may not be used with patch-generation functions, only with diffing functions");
+	if (!optionsObj.callback) return diffLinesResultToPatch(diffLines(oldStr, newStr, optionsObj));
+	else {
+		const { callback } = optionsObj;
+		diffLines(oldStr, newStr, Object.assign(Object.assign({}, optionsObj), { callback: (diff) => {
+			callback(diffLinesResultToPatch(diff));
+		} }));
+	}
+	function diffLinesResultToPatch(diff) {
+		if (!diff) return;
+		diff.push({
+			value: "",
+			lines: []
+		});
+		function contextLines(lines) {
+			return lines.map(function(entry) {
+				return " " + entry;
+			});
+		}
+		const hunks = [];
+		let oldRangeStart = 0, newRangeStart = 0, curRange = [], oldLine = 1, newLine = 1;
+		for (let i = 0; i < diff.length; i++) {
+			const current = diff[i], lines = current.lines || splitLines(current.value);
+			current.lines = lines;
+			if (current.added || current.removed) {
+				if (!oldRangeStart) {
+					const prev = diff[i - 1];
+					oldRangeStart = oldLine;
+					newRangeStart = newLine;
+					if (prev) {
+						curRange = context > 0 ? contextLines(prev.lines.slice(-context)) : [];
+						oldRangeStart -= curRange.length;
+						newRangeStart -= curRange.length;
+					}
+				}
+				for (const line of lines) curRange.push((current.added ? "+" : "-") + line);
+				if (current.added) newLine += lines.length;
+				else oldLine += lines.length;
+			} else {
+				if (oldRangeStart) if (lines.length <= context * 2 && i < diff.length - 2) for (const line of contextLines(lines)) curRange.push(line);
+				else {
+					const contextSize = Math.min(lines.length, context);
+					for (const line of contextLines(lines.slice(0, contextSize))) curRange.push(line);
+					const hunk = {
+						oldStart: oldRangeStart,
+						oldLines: oldLine - oldRangeStart + contextSize,
+						newStart: newRangeStart,
+						newLines: newLine - newRangeStart + contextSize,
+						lines: curRange
+					};
+					hunks.push(hunk);
+					oldRangeStart = 0;
+					newRangeStart = 0;
+					curRange = [];
+				}
+				oldLine += lines.length;
+				newLine += lines.length;
+			}
+		}
+		for (const hunk of hunks) for (let i = 0; i < hunk.lines.length; i++) if (hunk.lines[i].endsWith("\n")) hunk.lines[i] = hunk.lines[i].slice(0, -1);
+		else {
+			hunk.lines.splice(i + 1, 0, "\\ No newline at end of file");
+			i++;
+		}
+		return {
+			oldFileName,
+			newFileName,
+			oldHeader,
+			newHeader,
+			hunks
+		};
+	}
+}
+/**
+* creates a unified diff patch.
+* @param patch either a single structured patch object (as returned by `structuredPatch`) or an array of them (as returned by `parsePatch`)
+*/
+function formatPatch(patch, headerOptions) {
+	if (!headerOptions) headerOptions = INCLUDE_HEADERS;
+	if (Array.isArray(patch)) {
+		if (patch.length > 1 && !headerOptions.includeFileHeaders) throw new Error("Cannot omit file headers on a multi-file patch. (The result would be unparseable; how would a tool trying to apply the patch know which changes are to which file?)");
+		return patch.map((p) => formatPatch(p, headerOptions)).join("\n");
+	}
+	const ret = [];
+	if (headerOptions.includeIndex && patch.oldFileName == patch.newFileName) ret.push("Index: " + patch.oldFileName);
+	if (headerOptions.includeUnderline) ret.push("===================================================================");
+	if (headerOptions.includeFileHeaders) {
+		ret.push("--- " + patch.oldFileName + (typeof patch.oldHeader === "undefined" ? "" : "	" + patch.oldHeader));
+		ret.push("+++ " + patch.newFileName + (typeof patch.newHeader === "undefined" ? "" : "	" + patch.newHeader));
+	}
+	for (let i = 0; i < patch.hunks.length; i++) {
+		const hunk = patch.hunks[i];
+		if (hunk.oldLines === 0) hunk.oldStart -= 1;
+		if (hunk.newLines === 0) hunk.newStart -= 1;
+		ret.push("@@ -" + hunk.oldStart + "," + hunk.oldLines + " +" + hunk.newStart + "," + hunk.newLines + " @@");
+		for (const line of hunk.lines) ret.push(line);
+	}
+	return ret.join("\n") + "\n";
+}
+function createTwoFilesPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, options) {
+	if (typeof options === "function") options = { callback: options };
+	if (!(options === null || options === void 0 ? void 0 : options.callback)) {
+		const patchObj = structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, options);
+		if (!patchObj) return;
+		return formatPatch(patchObj, options === null || options === void 0 ? void 0 : options.headerOptions);
+	} else {
+		const { callback } = options;
+		structuredPatch(oldFileName, newFileName, oldStr, newStr, oldHeader, newHeader, Object.assign(Object.assign({}, options), { callback: (patchObj) => {
+			if (!patchObj) callback(void 0);
+			else callback(formatPatch(patchObj, options.headerOptions));
+		} }));
+	}
+}
+/**
+* Split `text` into an array of lines, including the trailing newline character (where present)
+*/
+function splitLines(text) {
+	const hasTrailingNl = text.endsWith("\n");
+	const result = text.split("\n").map((line) => line + "\n");
+	if (hasTrailingNl) result.pop();
+	else result.push(result.pop().slice(0, -1));
+	return result;
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/parseDiffDecorations.js
+function createDiffSpanDecoration({ line, spanStart, spanLength }) {
+	return {
+		start: {
+			line,
+			character: spanStart
+		},
+		end: {
+			line,
+			character: spanStart + spanLength
+		},
+		properties: { "data-diff-span": "" },
+		alwaysWrap: true
+	};
+}
+function pushOrJoinSpan({ item, arr, enableJoin, isNeutral = false, isLastItem = false }) {
+	const lastItem = arr[arr.length - 1];
+	if (lastItem == null || isLastItem || !enableJoin) {
+		arr.push([isNeutral ? 0 : 1, item.value]);
+		return;
+	}
+	const isLastItemNeutral = lastItem[0] === 0;
+	if (isNeutral === isLastItemNeutral || isNeutral && item.value.length === 1 && !isLastItemNeutral) {
+		lastItem[1] += item.value;
+		return;
+	}
+	arr.push([isNeutral ? 0 : 1, item.value]);
+}
+//#endregion
+//#region node_modules/@pierre/diffs/dist/utils/renderDiffWithHighlighter.js
 const DEFAULT_PLAIN_TEXT_OPTIONS = { forcePlainText: false };
 function renderDiffWithHighlighter(diff, highlighter, options, { forcePlainText, startingLine, totalLines, expandedHunks, collapsedContextThreshold = 1 } = DEFAULT_PLAIN_TEXT_OPTIONS) {
 	if (forcePlainText) {
@@ -15639,10 +15717,7 @@ function renderDiffWithHighlighter(diff, highlighter, options, { forcePlainText,
 		totalLines = Infinity;
 	}
 	const isWindowedHighlight = startingLine > 0 || totalLines < Infinity;
-	const baseThemeType = (() => {
-		const theme = options.theme ?? DEFAULT_THEMES;
-		if (typeof theme === "string") return highlighter.getTheme(theme).type;
-	})();
+	const baseThemeType = typeof options.theme === "string" ? highlighter.getTheme(options.theme).type : void 0;
 	const themeStyles = getHighlighterThemeStyles({
 		theme: options.theme,
 		highlighter
@@ -15875,7 +15950,7 @@ function renderTwoFiles({ deletionFile, additionFile, deletionInfo, additionInfo
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/renderers/DiffHunksRenderer.js
+//#region node_modules/@pierre/diffs/dist/renderers/DiffHunksRenderer.js
 let instanceId = -1;
 var DiffHunksRenderer = class {
 	__id = `diff-hunks-renderer:${++instanceId}`;
@@ -15914,10 +15989,6 @@ var DiffHunksRenderer = class {
 			...this.options,
 			...options
 		};
-	}
-	setThemeType(themeType) {
-		if (this.getOptionsWithDefaults().themeType === themeType) return;
-		this.mergeOptions({ themeType });
 	}
 	expandHunk(index, direction, expansionLineCount = this.getOptionsWithDefaults().expansionLineCount) {
 		const region = { ...this.expandedHunks.get(index) ?? {
@@ -15961,7 +16032,7 @@ var DiffHunksRenderer = class {
 		return createAnnotationElement(span);
 	}
 	getOptionsWithDefaults() {
-		const { diffIndicators = "bars", diffStyle = "split", disableBackground = false, disableFileHeader = false, disableLineNumbers = false, disableVirtualizationBuffers = false, collapsed = false, expandUnchanged = false, collapsedContextThreshold = 1, expansionLineCount = 100, hunkSeparators = "line-info", lineDiffType = "word-alt", maxLineDiffLength = 1e3, overflow = "scroll", theme = DEFAULT_THEMES, themeType = "system", tokenizeMaxLineLength = 1e3, useCSSClasses = false } = this.options;
+		const { diffIndicators = "bars", diffStyle = "split", disableBackground = false, disableFileHeader = false, disableLineNumbers = false, disableVirtualizationBuffers = false, collapsed = false, expandUnchanged = false, collapsedContextThreshold = 1, expansionLineCount = 100, hunkSeparators = "line-info", lineDiffType = "word-alt", maxLineDiffLength = 1e3, overflow = "scroll", theme = DEFAULT_THEMES, headerRenderMode = "default", tokenizeMaxLineLength = 1e3, useCSSClasses = false } = this.options;
 		return {
 			diffIndicators,
 			diffStyle,
@@ -15978,7 +16049,7 @@ var DiffHunksRenderer = class {
 			maxLineDiffLength,
 			overflow,
 			theme: this.workerManager?.getDiffRenderOptions().theme ?? theme,
-			themeType,
+			headerRenderMode,
 			tokenizeMaxLineLength,
 			useCSSClasses
 		};
@@ -15995,15 +16066,12 @@ var DiffHunksRenderer = class {
 		if (cache != null && !areRenderOptionsEqual(options, cache.options)) cache = void 0;
 		this.renderCache ??= {
 			diff,
-			highlighted: true,
+			highlighted: !isDiffPlainText(diff),
 			options,
 			result: cache?.result,
 			renderRange: void 0
 		};
 		if (this.workerManager?.isWorkingPool() === true && this.renderCache.result == null) this.workerManager.highlightDiffAST(this, this.diff);
-		else this.asyncHighlight(diff).then(({ result, options: options$1 }) => {
-			this.onHighlightSuccess(diff, result, options$1);
-		});
 	}
 	getRenderOptions(diff) {
 		const options = (() => {
@@ -16049,7 +16117,8 @@ var DiffHunksRenderer = class {
 			renderRange: void 0
 		};
 		if (this.workerManager?.isWorkingPool() === true) {
-			if (this.renderCache.result == null || !this.renderCache.highlighted && !areRenderRangesEqual(this.renderCache.renderRange, renderRange)) {
+			if (this.renderCache.result == null || !this.renderCache.highlighted && (diff !== this.renderCache.diff || !areRenderRangesEqual(this.renderCache.renderRange, renderRange))) {
+				this.renderCache.diff = diff;
 				this.renderCache.result = this.workerManager.getPlainDiffAST(diff, renderRange.startingLine, renderRange.totalLines, isDefaultRenderRange(renderRange) ? true : expandUnchanged ? true : this.expandedHunks, collapsedContextThreshold);
 				this.renderCache.renderRange = renderRange;
 			}
@@ -16078,17 +16147,15 @@ var DiffHunksRenderer = class {
 		const { result } = await this.asyncHighlight(diff);
 		return this.processDiffResult(diff, renderRange, result);
 	}
-	createPreElement(split, totalLines, themeStyles, baseThemeType, customProperties) {
-		const { diffIndicators, disableBackground, disableLineNumbers, overflow, themeType } = this.getOptionsWithDefaults();
+	createPreElement(split, totalLines, customProperties) {
+		const { diffIndicators, disableBackground, disableLineNumbers, overflow } = this.getOptionsWithDefaults();
 		return createPreElement({
 			type: "diff",
 			diffIndicators,
 			disableBackground,
 			disableLineNumbers,
 			overflow,
-			themeStyles,
 			split,
-			themeType: baseThemeType ?? themeType,
 			totalLines,
 			customProperties
 		});
@@ -16114,7 +16181,7 @@ var DiffHunksRenderer = class {
 	}
 	onHighlightSuccess(diff, result, options) {
 		if (this.renderCache == null) return;
-		const triggerRenderUpdate = this.renderCache.diff !== diff || !this.renderCache.highlighted || !areRenderOptionsEqual(this.renderCache.options, options);
+		const triggerRenderUpdate = !this.renderCache.highlighted || !areRenderOptionsEqual(this.renderCache.options, options) || this.renderCache.diff !== diff;
 		this.renderCache = {
 			diff,
 			options,
@@ -16231,6 +16298,8 @@ var DiffHunksRenderer = class {
 					additionLine
 				};
 				if (diffStyle === "unified") {
+					const injectedRows = this.getUnifiedInjectedRowsForLine?.(renderedLineContext);
+					if (injectedRows?.before != null) pushUnifiedInjectedRows(injectedRows.before, context);
 					let deletionLineContent = deletionLine != null ? deletionLines[deletionLine.lineIndex] : void 0;
 					let additionLineContent = additionLine != null ? additionLines[additionLine.lineIndex] : void 0;
 					if (deletionLineContent == null && additionLineContent == null) {
@@ -16257,9 +16326,10 @@ var DiffHunksRenderer = class {
 						createAnnotationElement: (span) => this.createAnnotationElement(span),
 						context
 					});
-					const inlineRows = this.getUnifiedInlineRowsForLine?.(renderedLineContext);
-					if (inlineRows != null) pushUnifiedInlineRows(inlineRows, context);
+					if (injectedRows?.after != null) pushUnifiedInjectedRows(injectedRows.after, context);
 				} else {
+					const injectedRows = this.getSplitInjectedRowsForLine?.(renderedLineContext);
+					if (injectedRows?.before != null) pushSplitInjectedRows(injectedRows.before, context, pendingSplitContext);
 					let deletionLineContent = deletionLine != null ? deletionLines[deletionLine.lineIndex] : void 0;
 					let additionLineContent = additionLine != null ? additionLines[additionLine.lineIndex] : void 0;
 					const deletionLineDecoration = this.getSplitLineDecoration({
@@ -16309,8 +16379,7 @@ var DiffHunksRenderer = class {
 						createAnnotationElement: (span) => this.createAnnotationElement(span),
 						context
 					});
-					const inlineRows = this.getSplitInlineRowsForLine?.(renderedLineContext);
-					if (inlineRows != null) pushSplitInlineRows(inlineRows, context, pendingSplitContext);
+					if (injectedRows?.after != null) pushSplitInjectedRows(injectedRows.after, context, pendingSplitContext);
 				}
 				const noEOFCRDeletion = deletionLine?.noEOFCR ?? false;
 				const noEOFCRAddition = additionLine?.noEOFCR ?? false;
@@ -16366,7 +16435,7 @@ var DiffHunksRenderer = class {
 		additionsContentAST = shouldIncludeAdditions && hasContent ? additionsContentAST : void 0;
 		deletionsContentAST = shouldIncludeDeletions && hasContent ? deletionsContentAST : void 0;
 		unifiedContentAST = unified && hasContent ? unifiedContentAST : void 0;
-		const preNode = this.createPreElement(deletionsContentAST != null && additionsContentAST != null, totalLines, themeStyles, baseThemeType);
+		const preNode = this.createPreElement(deletionsContentAST != null && additionsContentAST != null, totalLines);
 		return {
 			unifiedGutterAST: unified && hasContent ? context.unifiedGutterAST.children : void 0,
 			unifiedContentAST,
@@ -16378,7 +16447,7 @@ var DiffHunksRenderer = class {
 			preNode,
 			themeStyles,
 			baseThemeType,
-			headerElement: !disableFileHeader ? this.renderHeader(this.diff, themeStyles, baseThemeType) : void 0,
+			headerElement: !disableFileHeader ? this.renderHeader(this.diff) : void 0,
 			totalLines,
 			rowCount: context.rowCount,
 			bufferBefore: renderRange.bufferBefore,
@@ -16477,12 +16546,11 @@ var DiffHunksRenderer = class {
 			additionSpan
 		};
 	}
-	renderHeader(diff, themeStyles, baseThemeType) {
-		const { themeType } = this.getOptionsWithDefaults();
+	renderHeader(diff) {
+		const { headerRenderMode } = this.getOptionsWithDefaults();
 		return createFileHeaderElement({
 			fileOrDiff: diff,
-			themeStyles,
-			themeType: baseThemeType ?? themeType
+			mode: headerRenderMode
 		});
 	}
 };
@@ -16492,14 +16560,14 @@ function areRenderOptionsEqual(optionsA, optionsB) {
 function getModifiedLinesString(lines) {
 	return `${lines} unmodified line${lines > 1 ? "s" : ""}`;
 }
-function pushUnifiedInlineRows(rows, context) {
+function pushUnifiedInjectedRows(rows, context) {
 	for (const row of rows) {
 		context.unifiedContentAST.push(row.content);
 		context.pushToGutter("unified", row.gutter);
 		context.incrementRowCount(1);
 	}
 }
-function pushSplitInlineRows(rows, context, pendingSplitContext) {
+function pushSplitInjectedRows(rows, context, pendingSplitContext) {
 	for (const { deletion, addition } of rows) {
 		if (deletion == null && addition == null) continue;
 		const missingSide = deletion != null && addition != null ? void 0 : deletion == null ? "deletions" : "additions";
@@ -16638,7 +16706,7 @@ function calculateTrailingRangeSize(fileDiff) {
 	return Math.min(additionRemaining, deletionRemaining);
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/parseLineType.js
+//#region node_modules/@pierre/diffs/dist/utils/parseLineType.js
 function parseLineType(line) {
 	const firstChar = line[0];
 	if (firstChar !== "+" && firstChar !== "-" && firstChar !== " " && firstChar !== "\\") {
@@ -16652,36 +16720,7 @@ function parseLineType(line) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/parsePatchFiles.js
-function processPatch(data, cacheKeyPrefix, throwOnError = false) {
-	const isGitDiff = GIT_DIFF_FILE_BREAK_REGEX.test(data);
-	const rawFiles = data.split(isGitDiff ? GIT_DIFF_FILE_BREAK_REGEX : UNIFIED_DIFF_FILE_BREAK_REGEX);
-	let patchMetadata;
-	const files = [];
-	for (const fileOrPatchMetadata of rawFiles) {
-		if (isGitDiff && !GIT_DIFF_FILE_BREAK_REGEX.test(fileOrPatchMetadata)) {
-			if (patchMetadata == null) patchMetadata = fileOrPatchMetadata;
-			else if (throwOnError) throw Error("parsePatchContent: unknown file blob");
-			else console.error("parsePatchContent: unknown file blob:", fileOrPatchMetadata);
-			continue;
-		} else if (!isGitDiff && !UNIFIED_DIFF_FILE_BREAK_REGEX.test(fileOrPatchMetadata)) {
-			if (patchMetadata == null) patchMetadata = fileOrPatchMetadata;
-			else if (throwOnError) throw Error("parsePatchContent: unknown file blob");
-			else console.error("parsePatchContent: unknown file blob:", fileOrPatchMetadata);
-			continue;
-		}
-		const currentFile = processFile(fileOrPatchMetadata, {
-			cacheKey: cacheKeyPrefix != null ? `${cacheKeyPrefix}-${files.length}` : void 0,
-			isGitDiff,
-			throwOnError
-		});
-		if (currentFile != null) files.push(currentFile);
-	}
-	return {
-		patchMetadata,
-		files
-	};
-}
+//#region node_modules/@pierre/diffs/dist/utils/parsePatchFiles.js
 function processFile(fileDiffString, { cacheKey, isGitDiff = GIT_DIFF_FILE_BREAK_REGEX.test(fileDiffString), oldFile, newFile, throwOnError = false } = {}) {
 	let lastHunkEnd = 0;
 	const hunks = fileDiffString.split(FILE_CONTEXT_BLOB);
@@ -16751,7 +16790,7 @@ function processFile(fileDiffString, { cacheKey, isGitDiff = GIT_DIFF_FILE_BREAK
 						if (newObjectId != null) currentFile.newObjectId = newObjectId;
 						if (mode != null) currentFile.mode = mode;
 					}
-					if (line.startsWith("rename from ")) currentFile.prevName = line.replace("rename from ", "");
+					if (line.startsWith("rename from ")) currentFile.prevName = line.replace("rename from ", "").trim();
 					if (line.startsWith("rename to ")) currentFile.name = line.replace("rename to ", "").trim();
 				}
 			}
@@ -16880,24 +16919,6 @@ function processFile(fileDiffString, { cacheKey, isGitDiff = GIT_DIFF_FILE_BREAK
 	if (currentFile.type !== "rename-pure" && currentFile.type !== "rename-changed") currentFile.prevName = void 0;
 	return currentFile;
 }
-/**
-* Parses a patch file string into an array of parsed patches.
-*
-* @param data - The raw patch file content (supports multi-commit patches)
-* @param cacheKeyPrefix - Optional prefix for generating cache keys. When provided,
-*   each file in the patch will get a cache key in the format `prefix-patchIndex-fileIndex`.
-*   This enables caching of rendered diff results in the worker pool.
-*/
-function parsePatchFiles(data, cacheKeyPrefix, throwOnError = false) {
-	const patches = [];
-	for (const patch of data.split(COMMIT_METADATA_SPLIT)) try {
-		patches.push(processPatch(patch, cacheKeyPrefix != null ? `${cacheKeyPrefix}-${patches.length}` : void 0, throwOnError));
-	} catch (error) {
-		if (throwOnError) throw error;
-		else console.error(error);
-	}
-	return patches;
-}
 function createContentGroup(type, deletionLineIndex, additionLineIndex) {
 	if (type === "change") return {
 		type: "change",
@@ -16914,7 +16935,7 @@ function createContentGroup(type, deletionLineIndex, additionLineIndex) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/parseDiffFromFile.js
+//#region node_modules/@pierre/diffs/dist/utils/parseDiffFromFile.js
 /**
 * Parses a diff from two file contents objects.
 *
@@ -16934,7 +16955,7 @@ function parseDiffFromFile(oldFile, newFile, options, throwOnError = false) {
 	return fileData;
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/utils/createStyleElement.js
+//#region node_modules/@pierre/diffs/dist/utils/createStyleElement.js
 function createStyleElement(content, isCoreCSS = false) {
 	return createHastElement({
 		tagName: "style",
@@ -16945,19 +16966,21 @@ function createStyleElement(content, isCoreCSS = false) {
 		}
 	});
 }
-//#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/ssr/renderHTML.js
-function renderHTML(children) {
-	return `${SVGSpriteSheet}${toHtml(children)}`;
+function createThemeStyleElement(content) {
+	return createHastElement({
+		tagName: "style",
+		children: [createTextNodeElement(content)],
+		properties: { [THEME_CSS_ATTRIBUTE]: "" }
+	});
 }
 //#endregion
-//#region node_modules/.pnpm/@pierre+diffs@1.1.0_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@pierre/diffs/dist/ssr/preloadDiffs.js
+//#region node_modules/@pierre/diffs/dist/ssr/preloadDiffs.js
 async function preloadDiffHTML({ fileDiff, oldFile, newFile, options, annotations }) {
 	if (fileDiff == null && oldFile != null && newFile != null) fileDiff = parseDiffFromFile(oldFile, newFile);
 	if (fileDiff == null) throw new Error("preloadFileDiff: You must pass at least a fileDiff prop or oldFile/newFile props");
 	const renderer = new DiffHunksRenderer(getHunksRendererOptions(options));
 	if (annotations != null && annotations.length > 0) renderer.setLineAnnotations(annotations);
-	return renderHTML(processHunkResult(await renderer.asyncRender(fileDiff), renderer, options?.unsafeCSS));
+	return renderHTML(processHunkResult(await renderer.asyncRender(fileDiff), renderer, options?.unsafeCSS, options?.themeType ?? "system"));
 }
 async function preloadMultiFileDiff({ oldFile, newFile, options, annotations }) {
 	return {
@@ -16985,8 +17008,9 @@ async function preloadFileDiff({ fileDiff, options, annotations }) {
 		})
 	};
 }
-function processHunkResult(hunkResult, renderer, unsafeCSS) {
+function processHunkResult(hunkResult, renderer, unsafeCSS, themeType) {
 	const children = [createStyleElement(hunkResult.css, true)];
+	children.push(createThemeStyleElement(wrapThemeCSS(hunkResult.themeStyles, hunkResult.baseThemeType ?? themeType)));
 	if (unsafeCSS != null) children.push(createStyleElement(unsafeCSS));
 	if (hunkResult.headerElement != null) children.push(hunkResult.headerElement);
 	const code = renderer.renderFullAST(hunkResult);
@@ -16997,39 +17021,112 @@ function processHunkResult(hunkResult, renderer, unsafeCSS) {
 function getHunksRendererOptions(options) {
 	return {
 		...options,
+		headerRenderMode: options?.renderCustomHeader != null ? "custom" : "default",
 		hunkSeparators: typeof options?.hunkSeparators === "function" ? "custom" : options?.hunkSeparators
 	};
+}
+//#endregion
+//#region extensions/diffs/src/language-hints.ts
+const PASSTHROUGH_LANGUAGE_HINTS = new Set(["ansi", "text"]);
+async function normalizeSupportedLanguageHint(value) {
+	const normalized = value?.trim();
+	if (!normalized) return;
+	if (PASSTHROUGH_LANGUAGE_HINTS.has(normalized)) return normalized;
+	try {
+		await resolveLanguage(normalized);
+		return normalized;
+	} catch {
+		return;
+	}
+}
+async function normalizeSupportedLanguageHints(values, options) {
+	const supported = /* @__PURE__ */ new Set();
+	for (const value of values) {
+		const normalized = await normalizeSupportedLanguageHint(value);
+		if (!normalized) continue;
+		supported.add(normalized);
+	}
+	if (options.fallbackToText && supported.size === 0) supported.add("text");
+	return [...supported];
+}
+function collectDiffPayloadLanguageHints(payload) {
+	const langs = /* @__PURE__ */ new Set();
+	if (payload.fileDiff?.lang) langs.add(payload.fileDiff.lang);
+	if (payload.oldFile?.lang) langs.add(payload.oldFile.lang);
+	if (payload.newFile?.lang) langs.add(payload.newFile.lang);
+	return [...langs];
+}
+async function normalizeDiffPayloadFileLanguage(file) {
+	if (!file) return;
+	if (typeof file.lang !== "string") return file;
+	const normalized = await normalizeSupportedLanguageHint(file.lang);
+	if (file.lang === normalized) return file;
+	if (!normalized) return {
+		...file,
+		lang: "text"
+	};
+	return {
+		...file,
+		lang: normalized
+	};
+}
+async function normalizeDiffViewerPayloadLanguages(payload) {
+	const [fileDiff, oldFile, newFile, payloadLangs] = await Promise.all([
+		normalizeDiffPayloadFileLanguage(payload.fileDiff),
+		normalizeDiffPayloadFileLanguage(payload.oldFile),
+		normalizeDiffPayloadFileLanguage(payload.newFile),
+		normalizeSupportedLanguageHints(payload.langs, { fallbackToText: false })
+	]);
+	const langs = new Set(payloadLangs);
+	for (const lang of collectDiffPayloadLanguageHints({
+		fileDiff,
+		oldFile,
+		newFile
+	})) langs.add(lang);
+	if (langs.size === 0) langs.add("text");
+	return {
+		...payload,
+		fileDiff,
+		oldFile,
+		newFile,
+		langs: [...langs]
+	};
+}
+//#endregion
+//#region extensions/diffs/src/pierre-themes.ts
+const themeRequire = createRequire(import.meta.url);
+const PIERRE_THEME_SPECS = [["pierre-dark", "@pierre/theme/themes/pierre-dark.json"], ["pierre-light", "@pierre/theme/themes/pierre-light.json"]];
+function createThemeLoader(themeName, themeSpecifier) {
+	let cachedTheme;
+	return async () => {
+		if (cachedTheme) return cachedTheme;
+		const themePath = themeRequire.resolve(themeSpecifier);
+		cachedTheme = {
+			...JSON.parse(await fs.readFile(themePath, "utf8")),
+			name: themeName
+		};
+		return cachedTheme;
+	};
+}
+const PIERRE_THEME_LOADERS = new Map(PIERRE_THEME_SPECS.map(([themeName, themeSpecifier]) => [themeName, createThemeLoader(themeName, themeSpecifier)]));
+function ensurePierreThemesRegistered() {
+	let replacedThemeLoader = false;
+	for (const [themeName, loader] of PIERRE_THEME_LOADERS) if (RegisteredCustomThemes.get(themeName) !== loader) {
+		RegisteredCustomThemes.set(themeName, loader);
+		replacedThemeLoader = true;
+	}
+	if (!replacedThemeLoader) return;
+	for (const [themeName] of PIERRE_THEME_LOADERS) {
+		ResolvedThemes.delete(themeName);
+		ResolvingThemes.delete(themeName);
+	}
 }
 //#endregion
 //#region extensions/diffs/src/render.ts
 const DEFAULT_FILE_NAME = "diff.txt";
 const MAX_PATCH_FILE_COUNT = 128;
 const MAX_PATCH_TOTAL_LINES = 12e4;
-const diffsRequire = createRequire(import.meta.resolve("@pierre/diffs"));
-let pierreThemesPatched = false;
-function createThemeLoader(themeName, themePath) {
-	let cachedTheme;
-	return async () => {
-		if (cachedTheme) return cachedTheme;
-		const raw = await fs$1.readFile(themePath, "utf8");
-		cachedTheme = {
-			...JSON.parse(raw),
-			name: themeName
-		};
-		return cachedTheme;
-	};
-}
-function patchPierreThemeLoadersForNode24() {
-	if (pierreThemesPatched) return;
-	try {
-		const darkThemePath = diffsRequire.resolve("@pierre/theme/themes/pierre-dark.json");
-		const lightThemePath = diffsRequire.resolve("@pierre/theme/themes/pierre-light.json");
-		RegisteredCustomThemes.set("pierre-dark", createThemeLoader("pierre-dark", darkThemePath));
-		RegisteredCustomThemes.set("pierre-light", createThemeLoader("pierre-light", lightThemePath));
-		pierreThemesPatched = true;
-	} catch {}
-}
-patchPierreThemeLoadersForNode24();
+const VIEWER_LOADER_DOCUMENT_PATH = "../../assets/viewer.js";
 function escapeCssString(value) {
 	return value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"");
 }
@@ -17044,9 +17141,10 @@ function buildDiffTitle(input) {
 	if (input.kind === "before_after") return input.path?.trim() || "Text diff";
 	return "Patch diff";
 }
-function resolveBeforeAfterFileName(input) {
+function resolveBeforeAfterFileName(params) {
+	const { input, lang } = params;
 	if (input.path?.trim()) return input.path.trim();
-	if (input.lang?.trim()) return `diff.${input.lang.trim().replace(/^\.+/, "")}`;
+	if (lang && lang !== "text") return `diff.${lang.replace(/^\.+/, "")}`;
 	return DEFAULT_FILE_NAME;
 }
 function buildDiffOptions(options) {
@@ -17146,23 +17244,17 @@ function buildImageRenderOptions(options) {
 		}
 	};
 }
-function buildRenderVariants(options) {
+function shouldRenderViewer(target) {
+	return target === "viewer" || target === "both";
+}
+function shouldRenderImage(target) {
+	return target === "image" || target === "both";
+}
+function buildRenderVariants(params) {
 	return {
-		viewerOptions: buildDiffOptions(options),
-		imageOptions: buildDiffOptions(buildImageRenderOptions(options))
+		...shouldRenderViewer(params.target) ? { viewerOptions: buildDiffOptions(params.options) } : {},
+		...shouldRenderImage(params.target) ? { imageOptions: buildDiffOptions(buildImageRenderOptions(params.options)) } : {}
 	};
-}
-function normalizeSupportedLanguage(value) {
-	const normalized = value?.trim();
-	return normalized ? normalized : void 0;
-}
-function buildPayloadLanguages(payload) {
-	const langs = /* @__PURE__ */ new Set();
-	if (payload.fileDiff?.lang) langs.add(payload.fileDiff.lang);
-	if (payload.oldFile?.lang) langs.add(payload.oldFile.lang);
-	if (payload.newFile?.lang) langs.add(payload.newFile.lang);
-	if (langs.size === 0) langs.add("text");
-	return [...langs];
 }
 function renderDiffCard(payload) {
 	return `<section class="oc-diff-card">
@@ -17266,25 +17358,31 @@ function buildHtmlDocument(params) {
         ${params.bodyHtml}
       </div>
     </main>
-    <script type="module" src="${VIEWER_LOADER_PATH}"><\/script>
+    <script type="module" src="${VIEWER_LOADER_DOCUMENT_PATH}"><\/script>
   </body>
 </html>`;
 }
 function buildRenderedSection(params) {
 	return {
-		viewer: renderDiffCard(params.viewerPayload),
-		image: renderDiffCard(params.imagePayload)
+		...params.viewerPayload ? { viewer: renderDiffCard(params.viewerPayload) } : {},
+		...params.imagePayload ? { image: renderDiffCard(params.imagePayload) } : {}
 	};
 }
 function buildRenderedBodies(sections) {
+	const viewerSections = sections.flatMap((section) => section.viewer ? [section.viewer] : []);
+	const imageSections = sections.flatMap((section) => section.image ? [section.image] : []);
 	return {
-		viewerBodyHtml: sections.map((section) => section.viewer).join("\n"),
-		imageBodyHtml: sections.map((section) => section.image).join("\n")
+		...viewerSections.length > 0 ? { viewerBodyHtml: viewerSections.join("\n") } : {},
+		...imageSections.length > 0 ? { imageBodyHtml: imageSections.join("\n") } : {}
 	};
 }
-async function renderBeforeAfterDiff(input, options) {
-	const fileName = resolveBeforeAfterFileName(input);
-	const lang = normalizeSupportedLanguage(input.lang);
+async function renderBeforeAfterDiff(input, options, target) {
+	ensurePierreThemesRegistered();
+	const lang = await normalizeSupportedLanguageHint(input.lang);
+	const fileName = resolveBeforeAfterFileName({
+		input,
+		lang
+	});
 	const oldFile = {
 		name: fileName,
 		contents: input.before,
@@ -17295,43 +17393,48 @@ async function renderBeforeAfterDiff(input, options) {
 		contents: input.after,
 		...lang ? { lang } : {}
 	};
-	const { viewerOptions, imageOptions } = buildRenderVariants(options);
-	const [viewerResult, imageResult] = await Promise.all([preloadMultiFileDiffWithFallback({
+	const { viewerOptions, imageOptions } = buildRenderVariants({
+		options,
+		target
+	});
+	const [viewerResult, imageResult] = await Promise.all([viewerOptions ? preloadMultiFileDiffWithFallback({
 		oldFile,
 		newFile,
 		options: viewerOptions
-	}), preloadMultiFileDiffWithFallback({
+	}) : Promise.resolve(void 0), imageOptions ? preloadMultiFileDiffWithFallback({
 		oldFile,
 		newFile,
 		options: imageOptions
-	})]);
+	}) : Promise.resolve(void 0)]);
+	const [viewerPayload, imagePayload] = await Promise.all([viewerResult && viewerOptions ? normalizeDiffViewerPayloadLanguages({
+		prerenderedHTML: viewerResult.prerenderedHTML,
+		oldFile: viewerResult.oldFile,
+		newFile: viewerResult.newFile,
+		options: viewerOptions,
+		langs: collectDiffPayloadLanguageHints({
+			oldFile: viewerResult.oldFile,
+			newFile: viewerResult.newFile
+		})
+	}) : Promise.resolve(void 0), imageResult && imageOptions ? normalizeDiffViewerPayloadLanguages({
+		prerenderedHTML: imageResult.prerenderedHTML,
+		oldFile: imageResult.oldFile,
+		newFile: imageResult.newFile,
+		options: imageOptions,
+		langs: collectDiffPayloadLanguageHints({
+			oldFile: imageResult.oldFile,
+			newFile: imageResult.newFile
+		})
+	}) : Promise.resolve(void 0)]);
 	return {
 		...buildRenderedBodies([buildRenderedSection({
-			viewerPayload: {
-				prerenderedHTML: viewerResult.prerenderedHTML,
-				oldFile: viewerResult.oldFile,
-				newFile: viewerResult.newFile,
-				options: viewerOptions,
-				langs: buildPayloadLanguages({
-					oldFile: viewerResult.oldFile,
-					newFile: viewerResult.newFile
-				})
-			},
-			imagePayload: {
-				prerenderedHTML: imageResult.prerenderedHTML,
-				oldFile: imageResult.oldFile,
-				newFile: imageResult.newFile,
-				options: imageOptions,
-				langs: buildPayloadLanguages({
-					oldFile: imageResult.oldFile,
-					newFile: imageResult.newFile
-				})
-			}
+			...viewerPayload ? { viewerPayload } : {},
+			...imagePayload ? { imagePayload } : {}
 		})]),
 		fileCount: 1
 	};
 }
-async function renderPatchDiff(input, options) {
+async function renderPatchDiff(input, options, target) {
+	ensurePierreThemesRegistered();
 	const files = parsePatchFiles(input.patch).flatMap((entry) => entry.files ?? []);
 	if (files.length === 0) throw new Error("Patch input did not contain any file diffs.");
 	if (files.length > MAX_PATCH_FILE_COUNT) throw new Error(`Patch input contains too many files (max ${MAX_PATCH_FILE_COUNT}).`);
@@ -17340,52 +17443,56 @@ async function renderPatchDiff(input, options) {
 		const unifiedLines = Number.isFinite(fileDiff.unifiedLineCount) ? fileDiff.unifiedLineCount : 0;
 		return sum + Math.max(splitLines, unifiedLines, 0);
 	}, 0) > MAX_PATCH_TOTAL_LINES) throw new Error(`Patch input is too large to render (max ${MAX_PATCH_TOTAL_LINES} lines).`);
-	const { viewerOptions, imageOptions } = buildRenderVariants(options);
+	const { viewerOptions, imageOptions } = buildRenderVariants({
+		options,
+		target
+	});
 	return {
 		...buildRenderedBodies(await Promise.all(files.map(async (fileDiff) => {
-			const [viewerResult, imageResult] = await Promise.all([preloadFileDiffWithFallback({
+			const [viewerResult, imageResult] = await Promise.all([viewerOptions ? preloadFileDiffWithFallback({
 				fileDiff,
 				options: viewerOptions
-			}), preloadFileDiffWithFallback({
+			}) : Promise.resolve(void 0), imageOptions ? preloadFileDiffWithFallback({
 				fileDiff,
 				options: imageOptions
-			})]);
+			}) : Promise.resolve(void 0)]);
+			const [viewerPayload, imagePayload] = await Promise.all([viewerResult && viewerOptions ? normalizeDiffViewerPayloadLanguages({
+				prerenderedHTML: viewerResult.prerenderedHTML,
+				fileDiff: viewerResult.fileDiff,
+				options: viewerOptions,
+				langs: collectDiffPayloadLanguageHints({ fileDiff: viewerResult.fileDiff })
+			}) : Promise.resolve(void 0), imageResult && imageOptions ? normalizeDiffViewerPayloadLanguages({
+				prerenderedHTML: imageResult.prerenderedHTML,
+				fileDiff: imageResult.fileDiff,
+				options: imageOptions,
+				langs: collectDiffPayloadLanguageHints({ fileDiff: imageResult.fileDiff })
+			}) : Promise.resolve(void 0)]);
 			return buildRenderedSection({
-				viewerPayload: {
-					prerenderedHTML: viewerResult.prerenderedHTML,
-					fileDiff: viewerResult.fileDiff,
-					options: viewerOptions,
-					langs: buildPayloadLanguages({ fileDiff: viewerResult.fileDiff })
-				},
-				imagePayload: {
-					prerenderedHTML: imageResult.prerenderedHTML,
-					fileDiff: imageResult.fileDiff,
-					options: imageOptions,
-					langs: buildPayloadLanguages({ fileDiff: imageResult.fileDiff })
-				}
+				...viewerPayload ? { viewerPayload } : {},
+				...imagePayload ? { imagePayload } : {}
 			});
 		}))),
 		fileCount: files.length
 	};
 }
-async function renderDiffDocument(input, options) {
+async function renderDiffDocument(input, options, target = "both") {
 	const title = buildDiffTitle(input);
-	const rendered = input.kind === "before_after" ? await renderBeforeAfterDiff(input, options) : await renderPatchDiff(input, options);
+	const rendered = input.kind === "before_after" ? await renderBeforeAfterDiff(input, options, target) : await renderPatchDiff(input, options, target);
 	return {
-		html: buildHtmlDocument({
+		...rendered.viewerBodyHtml ? { html: buildHtmlDocument({
 			title,
 			bodyHtml: rendered.viewerBodyHtml,
 			theme: options.presentation.theme,
 			imageMaxWidth: options.image.maxWidth,
 			runtimeMode: "viewer"
-		}),
-		imageHtml: buildHtmlDocument({
+		}) } : {},
+		...rendered.imageBodyHtml ? { imageHtml: buildHtmlDocument({
 			title,
 			bodyHtml: rendered.imageBodyHtml,
 			theme: options.presentation.theme,
 			imageMaxWidth: options.image.maxWidth,
 			runtimeMode: "image"
-		}),
+		}) } : {},
 		title,
 		fileCount: rendered.fileCount,
 		inputKind: input.kind
@@ -17416,39 +17523,6 @@ async function preloadMultiFileDiffWithFallback(params) {
 			prerenderedHTML: ""
 		};
 	}
-}
-//#endregion
-//#region extensions/diffs/src/url.ts
-const DEFAULT_GATEWAY_PORT = 18789;
-function buildViewerUrl(params) {
-	const normalizedBase = normalizeViewerBaseUrl(params.baseUrl?.trim() || resolveGatewayBaseUrl(params.config));
-	const viewerPath = params.viewerPath.startsWith("/") ? params.viewerPath : `/${params.viewerPath}`;
-	const parsedBase = new URL(normalizedBase);
-	parsedBase.pathname = `${parsedBase.pathname === "/" ? "" : parsedBase.pathname.replace(/\/+$/, "")}${viewerPath}`;
-	parsedBase.search = "";
-	parsedBase.hash = "";
-	return parsedBase.toString();
-}
-function normalizeViewerBaseUrl(raw) {
-	let parsed;
-	try {
-		parsed = new URL(raw);
-	} catch {
-		throw new Error(`Invalid baseUrl: ${raw}`);
-	}
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error(`baseUrl must use http or https: ${raw}`);
-	if (parsed.search || parsed.hash) throw new Error(`baseUrl must not include query/hash: ${raw}`);
-	parsed.search = "";
-	parsed.hash = "";
-	parsed.pathname = parsed.pathname.replace(/\/+$/, "");
-	return parsed.toString().replace(/\/+$/, "");
-}
-function resolveGatewayBaseUrl(config) {
-	const scheme = config.gateway?.tls?.enabled ? "https" : "http";
-	const port = typeof config.gateway?.port === "number" ? config.gateway.port : DEFAULT_GATEWAY_PORT;
-	const customHost = config.gateway?.customBindHost?.trim();
-	if (config.gateway?.bind === "custom" && customHost) return `${scheme}://${customHost}:${port}`;
-	return `${scheme}://127.0.0.1:${port}`;
 }
 //#endregion
 //#region extensions/diffs/src/tool.ts
@@ -17516,7 +17590,7 @@ const DiffsToolSchema = Type.Object({
 		minimum: 1,
 		maximum: 21600
 	})),
-	baseUrl: Type.Optional(Type.String({ description: "Optional gateway base URL override used when building the viewer URL, for example https://gateway.example.com." }))
+	baseUrl: Type.Optional(Type.String({ description: "Optional gateway base URL override used when building the viewer URL. Overrides configured viewerBaseUrl, for example https://gateway.example.com." }))
 }, { additionalProperties: false });
 function createDiffsTool(params) {
 	return {
@@ -17540,6 +17614,7 @@ function createDiffsTool(params) {
 				fileScale: toolParams.fileScale ?? toolParams.imageScale,
 				fileMaxWidth: toolParams.fileMaxWidth ?? toolParams.imageMaxWidth
 			});
+			const renderTarget = resolveRenderTarget(mode);
 			const rendered = await renderDiffDocument(input, {
 				presentation: {
 					...params.defaults,
@@ -17548,13 +17623,13 @@ function createDiffsTool(params) {
 				},
 				image,
 				expandUnchanged
-			});
+			}, renderTarget);
 			const screenshotter = params.screenshotter ?? new PlaywrightDiffScreenshotter({ config: params.api.config });
 			if (isArtifactOnlyMode(mode)) {
 				const artifactFile = await renderDiffArtifactFile({
 					screenshotter,
 					store: params.store,
-					html: rendered.imageHtml,
+					html: requireRenderedHtml(rendered.imageHtml, "image"),
 					theme,
 					image,
 					ttlMs,
@@ -17584,7 +17659,7 @@ function createDiffsTool(params) {
 				};
 			}
 			const artifact = await params.store.createArtifact({
-				html: rendered.html,
+				html: requireRenderedHtml(rendered.html, "viewer"),
 				title: rendered.title,
 				inputKind: rendered.inputKind,
 				fileCount: rendered.fileCount,
@@ -17594,7 +17669,7 @@ function createDiffsTool(params) {
 			const viewerUrl = buildViewerUrl({
 				config: params.api.config,
 				viewerPath: artifact.viewerPath,
-				baseUrl: normalizeBaseUrl(toolParams.baseUrl)
+				baseUrl: normalizeBaseUrl(toolParams.baseUrl) ?? params.viewerBaseUrl
 			});
 			const baseDetails = {
 				artifactId: artifact.id,
@@ -17619,7 +17694,7 @@ function createDiffsTool(params) {
 					screenshotter,
 					store: params.store,
 					artifactId: artifact.id,
-					html: rendered.imageHtml,
+					html: requireRenderedHtml(rendered.imageHtml, "image"),
 					theme,
 					image
 				});
@@ -17665,6 +17740,15 @@ function normalizeOutputFormat(format) {
 function isArtifactOnlyMode(mode) {
 	return mode === "image" || mode === "file";
 }
+function resolveRenderTarget(mode) {
+	if (mode === "view") return "viewer";
+	if (isArtifactOnlyMode(mode)) return "image";
+	return "both";
+}
+function requireRenderedHtml(html, target) {
+	if (html !== void 0) return html;
+	throw new Error(`Missing ${target} render output.`);
+}
 function buildArtifactDetails(params) {
 	return {
 		...params.baseDetails,
@@ -17704,7 +17788,7 @@ async function renderDiffArtifactFile(params) {
 	});
 	return {
 		path: outputPath,
-		bytes: (await fs$1.stat(outputPath)).size,
+		bytes: (await fs.stat(outputPath)).size,
 		...standaloneArtifact?.id ? { artifactId: standaloneArtifact.id } : {},
 		...standaloneArtifact?.expiresAt ? { expiresAt: standaloneArtifact.expiresAt } : {}
 	};
@@ -17798,6 +17882,7 @@ var diffs_default = definePluginEntry({
 	register(api) {
 		const defaults = resolveDiffsPluginDefaults(api.pluginConfig);
 		const security = resolveDiffsPluginSecurity(api.pluginConfig);
+		const viewerBaseUrl = resolveDiffsPluginViewerBaseUrl(api.pluginConfig);
 		const store = new DiffArtifactStore({
 			rootDir: path.join(resolvePreferredOpenClawTmpDir(), "openclaw-diffs"),
 			logger: api.logger
@@ -17806,6 +17891,7 @@ var diffs_default = definePluginEntry({
 			api,
 			store,
 			defaults,
+			viewerBaseUrl,
 			context: ctx
 		}), { name: "diffs" });
 		api.registerHttpRoute({
@@ -17815,7 +17901,9 @@ var diffs_default = definePluginEntry({
 			handler: createDiffsHttpHandler({
 				store,
 				logger: api.logger,
-				allowRemoteViewer: security.allowRemoteViewer
+				allowRemoteViewer: security.allowRemoteViewer,
+				trustedProxies: api.config.gateway?.trustedProxies,
+				allowRealIpFallback: api.config.gateway?.allowRealIpFallback === true
 			})
 		});
 		api.on("before_prompt_build", async () => ({ prependSystemContext: DIFFS_AGENT_GUIDANCE }));

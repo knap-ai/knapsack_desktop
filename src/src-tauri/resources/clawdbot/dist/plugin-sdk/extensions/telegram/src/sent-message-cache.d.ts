@@ -1,4 +1,8 @@
 /**
+ * In-memory cache of sent message IDs per chat.
+ * Used to identify bot's own messages for reaction filtering ("own" mode).
+ */
+/**
  * Record a message ID as sent by the bot.
  */
 export declare function recordSentMessage(chatId: number | string, messageId: number): void;

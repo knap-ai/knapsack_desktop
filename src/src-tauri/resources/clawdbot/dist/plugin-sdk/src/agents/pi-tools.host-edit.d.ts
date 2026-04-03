@@ -1,8 +1,12 @@
 import type { AnyAgentTool } from "./pi-tools.types.js";
+type EditToolRecoveryOptions = {
+    root: string;
+    readFile: (absolutePath: string) => Promise<string>;
+};
 /**
- * When the upstream edit tool throws after having already written (e.g. generateDiffString fails),
- * the file may be correctly updated but the tool reports failure. This wrapper catches errors and
- * if the target file on disk contains the intended newText, returns success so we don't surface
- * a false "edit failed" to the user (fixes #32333, same pattern as #30773 for write).
+ * Recover from two edit-tool failure classes without changing edit semantics:
+ * - exact-match mismatch errors become actionable by including current file contents
+ * - post-write throws are converted back to success only if the file actually changed
  */
-export declare function wrapHostEditToolWithPostWriteRecovery(base: AnyAgentTool, root: string): AnyAgentTool;
+export declare function wrapEditToolWithRecovery(base: AnyAgentTool, options: EditToolRecoveryOptions): AnyAgentTool;
+export {};

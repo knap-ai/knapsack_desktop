@@ -50,5 +50,6 @@ export declare const __testing: {
     releaseAllLocksSync: typeof releaseAllLocksSync;
     runLockWatchdogCheck: typeof runLockWatchdogCheck;
 };
+export declare function drainSessionWriteLockStateForTest(): Promise<void>;
 export declare function resetSessionWriteLockStateForTest(): void;
 export {};

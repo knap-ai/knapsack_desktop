@@ -1,7 +1,17 @@
+import { Client } from "@buape/carbon";
+import { listNativeCommandSpecsForConfig, listSkillCommandsForAgents } from "openclaw/plugin-sdk/command-auth";
+import { resolveNativeCommandsEnabled, resolveNativeSkillsEnabled } from "openclaw/plugin-sdk/config-runtime";
 import type { OpenClawConfig, ReplyToMode } from "openclaw/plugin-sdk/config-runtime";
-import { resolveOpenProviderRuntimeGroupPolicy, resolveDefaultGroupPolicy } from "openclaw/plugin-sdk/config-runtime";
+import { getPluginCommandSpecs } from "openclaw/plugin-sdk/plugin-runtime";
+import { isVerbose, shouldLogVerbose } from "openclaw/plugin-sdk/runtime-env";
 import { type RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import { resolveOpenProviderRuntimeGroupPolicy, resolveDefaultGroupPolicy } from "openclaw/plugin-sdk/runtime-group-policy";
+import { resolveDiscordAccount } from "../accounts.js";
+import { fetchDiscordApplicationId } from "../probe.js";
 import { createDiscordGatewayPlugin } from "./gateway-plugin.js";
+import { createDiscordGatewaySupervisor } from "./gateway-supervisor.js";
+import { createDiscordNativeCommand } from "./native-command.js";
+import { runDiscordGatewayLifecycle } from "./provider.lifecycle.js";
 import { resolveDiscordRestFetch } from "./rest-fetch.js";
 import type { DiscordMonitorStatusSink } from "./status.js";
 export type MonitorDiscordOpts = {
@@ -15,10 +25,13 @@ export type MonitorDiscordOpts = {
     replyToMode?: ReplyToMode;
     setStatus?: DiscordMonitorStatusSink;
 };
+type DiscordVoiceRuntimeModule = typeof import("../voice/manager.runtime.js");
+type DiscordProviderSessionRuntimeModule = typeof import("./provider-session.runtime.js");
 declare function resolveThreadBindingsEnabledForTesting(params: {
     channelEnabledRaw: unknown;
     sessionEnabledRaw: unknown;
 }): boolean;
+declare function formatDiscordDeployErrorDetails(err: unknown): string;
 export declare function monitorDiscordProvider(opts?: MonitorDiscordOpts): Promise<void>;
 export declare const __testing: {
     createDiscordGatewayPlugin: typeof createDiscordGatewayPlugin;
@@ -26,5 +39,23 @@ export declare const __testing: {
     resolveDefaultGroupPolicy: typeof resolveDefaultGroupPolicy;
     resolveDiscordRestFetch: typeof resolveDiscordRestFetch;
     resolveThreadBindingsEnabled: typeof resolveThreadBindingsEnabledForTesting;
+    formatDiscordDeployErrorDetails: typeof formatDiscordDeployErrorDetails;
+    setFetchDiscordApplicationId(mock?: typeof fetchDiscordApplicationId): void;
+    setCreateDiscordNativeCommand(mock?: typeof createDiscordNativeCommand): void;
+    setRunDiscordGatewayLifecycle(mock?: typeof runDiscordGatewayLifecycle): void;
+    setCreateDiscordGatewayPlugin(mock?: typeof createDiscordGatewayPlugin): void;
+    setCreateDiscordGatewaySupervisor(mock?: typeof createDiscordGatewaySupervisor): void;
+    setLoadDiscordVoiceRuntime(mock?: () => Promise<DiscordVoiceRuntimeModule>): void;
+    setLoadDiscordProviderSessionRuntime(mock?: () => Promise<DiscordProviderSessionRuntimeModule>): void;
+    setCreateClient(mock?: (options: ConstructorParameters<typeof Client>[0], handlers: ConstructorParameters<typeof Client>[1], plugins: ConstructorParameters<typeof Client>[2]) => Client): void;
+    setGetPluginCommandSpecs(mock?: typeof getPluginCommandSpecs): void;
+    setResolveDiscordAccount(mock?: typeof resolveDiscordAccount): void;
+    setResolveNativeCommandsEnabled(mock?: typeof resolveNativeCommandsEnabled): void;
+    setResolveNativeSkillsEnabled(mock?: typeof resolveNativeSkillsEnabled): void;
+    setListNativeCommandSpecsForConfig(mock?: typeof listNativeCommandSpecsForConfig): void;
+    setListSkillCommandsForAgents(mock?: typeof listSkillCommandsForAgents): void;
+    setIsVerbose(mock?: typeof isVerbose): void;
+    setShouldLogVerbose(mock?: typeof shouldLogVerbose): void;
 };
+export declare const resolveDiscordRuntimeGroupPolicy: typeof resolveOpenProviderRuntimeGroupPolicy;
 export {};

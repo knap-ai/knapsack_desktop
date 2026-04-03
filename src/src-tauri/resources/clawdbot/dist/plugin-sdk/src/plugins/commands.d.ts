@@ -27,6 +27,7 @@ declare function resolveBindingConversationFromCommand(params: {
     to?: string;
     accountId?: string;
     messageThreadId?: string | number;
+    threadParentId?: string;
 }): {
     channel: string;
     accountId: string;
@@ -48,12 +49,15 @@ export declare function executePluginCommand(params: {
     channelId?: PluginCommandContext["channelId"];
     isAuthorizedSender: boolean;
     gatewayClientScopes?: PluginCommandContext["gatewayClientScopes"];
+    sessionKey?: PluginCommandContext["sessionKey"];
+    sessionId?: PluginCommandContext["sessionId"];
     commandBody: string;
     config: OpenClawConfig;
     from?: PluginCommandContext["from"];
     to?: PluginCommandContext["to"];
     accountId?: PluginCommandContext["accountId"];
     messageThreadId?: PluginCommandContext["messageThreadId"];
+    threadParentId?: PluginCommandContext["threadParentId"];
 }): Promise<PluginCommandResult>;
 /**
  * List all registered plugin commands.

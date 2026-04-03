@@ -1,3 +1,2 @@
-import "../../model-definitions-CiONRZlu.js";
-import { t as buildMistralProvider } from "../../provider-catalog-DpohxXAy.js";
+import { t as buildMistralProvider } from "../../provider-catalog-DTYMtV69.js";
 export { buildMistralProvider };

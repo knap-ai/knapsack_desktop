@@ -1,4 +1,5 @@
 import type { ImageContent } from "@mariozechner/pi-ai";
+import type { PromptImageOrderEntry } from "../../../media/prompt-image-order.js";
 import type { SandboxFsBridge } from "../../sandbox/fs-bridge.js";
 /**
  * Result of detecting an image reference in text.
@@ -7,10 +8,24 @@ export interface DetectedImageRef {
     /** The raw matched string from the prompt */
     raw: string;
     /** The type of reference */
-    type: "path";
-    /** The resolved/normalized path */
+    type: "path" | "media-uri";
+    /** The resolved/normalized path, or the raw media URI for media-uri type */
     resolved: string;
 }
+export declare function mergePromptAttachmentImages(params: {
+    imageOrder?: PromptImageOrderEntry[];
+    existingImages?: ImageContent[];
+    offloadedImages?: Array<ImageContent | null>;
+    promptRefImages?: ImageContent[];
+}): ImageContent[];
+export declare function splitPromptAndAttachmentRefs(params: {
+    prompt: string;
+    refs: DetectedImageRef[];
+    imageOrder?: PromptImageOrderEntry[];
+}): {
+    promptRefs: DetectedImageRef[];
+    attachmentRefs: DetectedImageRef[];
+};
 /**
  * Detects image references in a user prompt.
  *
@@ -20,6 +35,7 @@ export interface DetectedImageRef {
  * - Home paths: ~/Pictures/screenshot.png
  * - file:// URLs: file:///path/to/image.png
  * - Message attachments: [Image: source: /path/to/image.jpg]
+ * - Gateway claim-check URIs: [media attached: media://inbound/<id>]
  *
  * @param prompt The user prompt text to scan
  * @returns Array of detected image references
@@ -67,6 +83,7 @@ export declare function detectAndLoadPromptImages(params: {
         input?: string[];
     };
     existingImages?: ImageContent[];
+    imageOrder?: PromptImageOrderEntry[];
     maxBytes?: number;
     maxDimensionPx?: number;
     workspaceOnly?: boolean;

@@ -20,6 +20,7 @@ export type DeliveryTargetResolution = {
 export declare function resolveDeliveryTarget(cfg: OpenClawConfig, agentId: string, jobPayload: {
     channel?: "last" | ChannelId;
     to?: string;
+    threadId?: string | number;
     /** Explicit accountId from job.delivery — overrides session-derived and binding-derived values. */
     accountId?: string;
     sessionKey?: string;

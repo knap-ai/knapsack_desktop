@@ -1,13 +1,13 @@
 import type { loadConfig } from "openclaw/plugin-sdk/config-runtime";
+import { type WhatsAppIdentity } from "../identity.js";
 import type { WebInboundMsg } from "./types.js";
 export type MentionConfig = {
     mentionRegexes: RegExp[];
     allowFrom?: Array<string | number>;
 };
 export type MentionTargets = {
-    normalizedMentions: string[];
-    selfE164: string | null;
-    selfJid: string | null;
+    normalizedMentions: WhatsAppIdentity[];
+    self: WhatsAppIdentity;
 };
 export declare function buildMentionConfig(cfg: ReturnType<typeof loadConfig>, agentId?: string): MentionConfig;
 export declare function resolveMentionTargets(msg: WebInboundMsg, authDir?: string): MentionTargets;

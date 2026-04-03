@@ -20,6 +20,7 @@ export type DisplayMessageWithContent = {
     content?: unknown;
 } & Record<string, unknown>;
 export declare function stripInlineDirectiveTagsForDisplay(text: string): StripInlineDirectiveTagsResult;
+export declare function stripInlineDirectiveTagsForDelivery(text: string): StripInlineDirectiveTagsResult;
 /**
  * Strips inline directive tags from message text blocks while preserving message shape.
  * Empty post-strip text stays empty-string to preserve caller semantics.

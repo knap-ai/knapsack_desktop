@@ -1,6 +1,7 @@
 export declare const ExecApprovalsAllowlistEntrySchema: import("@sinclair/typebox").TObject<{
     id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     pattern: import("@sinclair/typebox").TString;
+    argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
     lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -15,6 +16,7 @@ export declare const ExecApprovalsAgentSchema: import("@sinclair/typebox").TObje
     allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
         id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         pattern: import("@sinclair/typebox").TString;
+        argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
         lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -40,6 +42,7 @@ export declare const ExecApprovalsFileSchema: import("@sinclair/typebox").TObjec
         allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
             id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             pattern: import("@sinclair/typebox").TString;
+            argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
             lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -70,6 +73,7 @@ export declare const ExecApprovalsSnapshotSchema: import("@sinclair/typebox").TO
             allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
                 id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 pattern: import("@sinclair/typebox").TString;
+                argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
                 lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -99,6 +103,7 @@ export declare const ExecApprovalsSetParamsSchema: import("@sinclair/typebox").T
             allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
                 id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 pattern: import("@sinclair/typebox").TString;
+                argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
                 lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -132,6 +137,7 @@ export declare const ExecApprovalsNodeSetParamsSchema: import("@sinclair/typebox
             allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
                 id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 pattern: import("@sinclair/typebox").TString;
+                argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
                 lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;

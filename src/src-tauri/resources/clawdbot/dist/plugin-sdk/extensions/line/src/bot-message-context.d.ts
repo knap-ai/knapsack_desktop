@@ -28,7 +28,7 @@ export declare function buildLineMessageContext(params: BuildLineMessageContextP
         OriginatingChannel: "line";
         OriginatingTo: string;
         GroupSystemPrompt: string | undefined;
-        InboundHistory: Pick<HistoryEntry, "timestamp" | "sender" | "body">[] | undefined;
+        InboundHistory: Pick<HistoryEntry, "timestamp" | "body" | "sender">[] | undefined;
         LocationLat?: number | undefined;
         LocationLon?: number | undefined;
         LocationAccuracy?: number;
@@ -81,7 +81,7 @@ export declare function buildLinePostbackContext(params: {
         OriginatingChannel: "line";
         OriginatingTo: string;
         GroupSystemPrompt: string | undefined;
-        InboundHistory: Pick<HistoryEntry, "timestamp" | "sender" | "body">[] | undefined;
+        InboundHistory: Pick<HistoryEntry, "timestamp" | "body" | "sender">[] | undefined;
         LocationLat?: number | undefined;
         LocationLon?: number | undefined;
         LocationAccuracy?: number;

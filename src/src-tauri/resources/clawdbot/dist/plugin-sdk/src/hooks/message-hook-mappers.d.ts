@@ -23,6 +23,8 @@ export type CanonicalInboundMessageHookContext = {
     threadId?: string | number;
     mediaPath?: string;
     mediaType?: string;
+    mediaPaths?: string[];
+    mediaTypes?: string[];
     originatingChannel?: string;
     originatingTo?: string;
     guildId?: string;

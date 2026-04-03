@@ -1,4 +1,4 @@
-type NodePairingNodeMetadata = {
+export type NodeDeclaredSurface = {
     nodeId: string;
     displayName?: string;
     platform?: string;
@@ -12,13 +12,16 @@ type NodePairingNodeMetadata = {
     permissions?: Record<string, boolean>;
     remoteIp?: string;
 };
-export type NodePairingPendingRequest = NodePairingNodeMetadata & {
+export type NodeApprovedSurface = NodeDeclaredSurface;
+export type NodePairingRequestInput = NodeDeclaredSurface & {
+    silent?: boolean;
+};
+export type NodePairingPendingRequest = NodePairingRequestInput & {
     requestId: string;
     silent?: boolean;
-    isRepair?: boolean;
     ts: number;
 };
-export type NodePairingPairedNode = Omit<NodePairingNodeMetadata, "requestId"> & {
+export type NodePairingPairedNode = NodeApprovedSurface & {
     token: string;
     bins?: string[];
     createdAtMs: number;
@@ -29,17 +32,26 @@ export type NodePairingList = {
     pending: NodePairingPendingRequest[];
     paired: NodePairingPairedNode[];
 };
+type ApprovedNodePairingResult = {
+    requestId: string;
+    node: NodePairingPairedNode;
+};
+type ForbiddenNodePairingResult = {
+    status: "forbidden";
+    missingScope: string;
+};
+type ApproveNodePairingResult = ApprovedNodePairingResult | ForbiddenNodePairingResult | null;
 export declare function listNodePairing(baseDir?: string): Promise<NodePairingList>;
 export declare function getPairedNode(nodeId: string, baseDir?: string): Promise<NodePairingPairedNode | null>;
-export declare function requestNodePairing(req: Omit<NodePairingPendingRequest, "requestId" | "ts" | "isRepair">, baseDir?: string): Promise<{
+export declare function requestNodePairing(req: NodePairingRequestInput, baseDir?: string): Promise<{
     status: "pending";
     request: NodePairingPendingRequest;
     created: boolean;
 }>;
-export declare function approveNodePairing(requestId: string, baseDir?: string): Promise<{
-    requestId: string;
-    node: NodePairingPairedNode;
-} | null>;
+export declare function approveNodePairing(requestId: string, baseDir?: string): Promise<ApprovedNodePairingResult | null>;
+export declare function approveNodePairing(requestId: string, options: {
+    callerScopes?: readonly string[];
+}, baseDir?: string): Promise<ApproveNodePairingResult>;
 export declare function rejectNodePairing(requestId: string, baseDir?: string): Promise<{
     requestId: string;
     nodeId: string;

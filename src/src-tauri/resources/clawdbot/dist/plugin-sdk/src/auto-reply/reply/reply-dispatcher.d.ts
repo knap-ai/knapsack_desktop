@@ -50,6 +50,7 @@ export type ReplyDispatcher = {
     sendFinalReply: (payload: ReplyPayload) => boolean;
     waitForIdle: () => Promise<void>;
     getQueuedCounts: () => Record<ReplyDispatchKind, number>;
+    getFailedCounts: () => Record<ReplyDispatchKind, number>;
     markComplete: () => void;
 };
 export declare function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDispatcher;

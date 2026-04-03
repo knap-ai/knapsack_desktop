@@ -1,4 +1,5 @@
 import { type ClawHubPackageChannel, type ClawHubPackageFamily } from "../infra/clawhub.js";
+import type { InstallSafetyOverrides } from "./install-security-scan.js";
 import { type InstallPluginResult } from "./install.js";
 export declare const CLAWHUB_INSTALL_ERROR_CODE: {
     readonly INVALID_SPEC: "invalid_spec";
@@ -36,7 +37,7 @@ export declare function formatClawHubSpecifier(params: {
     name: string;
     version?: string;
 }): string;
-export declare function installPluginFromClawHub(params: {
+export declare function installPluginFromClawHub(params: InstallSafetyOverrides & {
     spec: string;
     baseUrl?: string;
     token?: string;

@@ -1,5 +1,6 @@
 {
   "id": "volcengine",
+  "enabledByDefault": true,
   "providers": [
     "volcengine",
     "volcengine-plan"

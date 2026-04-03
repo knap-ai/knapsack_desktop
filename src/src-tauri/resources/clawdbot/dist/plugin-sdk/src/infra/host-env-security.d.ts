@@ -18,6 +18,7 @@ export type HostExecEnvOverrideDiagnostics = {
 export declare function normalizeEnvVarKey(rawKey: string, options?: {
     portable?: boolean;
 }): string | null;
+export declare function normalizeHostOverrideEnvVarKey(rawKey: string): string | null;
 export declare function isDangerousHostEnvVarName(rawKey: string): boolean;
 export declare function isDangerousHostEnvOverrideVarName(rawKey: string): boolean;
 export declare function sanitizeHostExecEnvWithDiagnostics(params?: {

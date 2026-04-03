@@ -4,7 +4,7 @@ import type { PluginDiagnostic, PluginHookName } from "./types.js";
 export type PluginStatusReport = PluginRegistry & {
     workspaceDir?: string;
 };
-export type PluginCapabilityKind = "text-inference" | "speech" | "media-understanding" | "image-generation" | "web-search" | "channel";
+export type PluginCapabilityKind = "cli-backend" | "text-inference" | "speech" | "media-understanding" | "image-generation" | "web-search" | "channel";
 export type PluginInspectShape = "hook-only" | "plain-capability" | "hybrid-capability" | "non-capability";
 export type PluginCompatibilityNotice = {
     pluginId: string;
@@ -62,12 +62,14 @@ export type PluginInspectReport = {
     usesLegacyBeforeAgentStart: boolean;
     compatibility: PluginCompatibilityNotice[];
 };
-export declare function buildPluginStatusReport(params?: {
+type PluginReportParams = {
     config?: ReturnType<typeof loadConfig>;
     workspaceDir?: string;
     /** Use an explicit env when plugin roots should resolve independently from process.env. */
     env?: NodeJS.ProcessEnv;
-}): PluginStatusReport;
+};
+export declare function buildPluginSnapshotReport(params?: PluginReportParams): PluginStatusReport;
+export declare function buildPluginDiagnosticsReport(params?: PluginReportParams): PluginStatusReport;
 export declare function buildPluginInspectReport(params: {
     id: string;
     config?: ReturnType<typeof loadConfig>;
@@ -95,3 +97,4 @@ export declare function buildPluginCompatibilityNotices(params?: {
 }): PluginCompatibilityNotice[];
 export declare function formatPluginCompatibilityNotice(notice: PluginCompatibilityNotice): string;
 export declare function summarizePluginCompatibility(notices: PluginCompatibilityNotice[]): PluginCompatibilitySummary;
+export {};

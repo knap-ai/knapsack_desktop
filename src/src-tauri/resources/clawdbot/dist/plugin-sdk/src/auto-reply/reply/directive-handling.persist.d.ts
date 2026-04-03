@@ -22,6 +22,7 @@ export declare function persistInlineDirectives(params: {
     initialModelLabel: string;
     formatModelSwitchEvent: (label: string, alias?: string) => string;
     agentCfg: NonNullable<OpenClawConfig["agents"]>["defaults"] | undefined;
+    messageProvider?: string;
     surface?: string;
     gatewayClientScopes?: string[];
 }): Promise<{

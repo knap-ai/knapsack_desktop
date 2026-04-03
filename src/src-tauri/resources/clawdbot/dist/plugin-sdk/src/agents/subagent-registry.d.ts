@@ -1,12 +1,32 @@
-import { type SessionEntry } from "../config/sessions.js";
+import { loadConfig } from "../config/config.js";
+import { ensureContextEnginesInitialized } from "../context-engine/init.js";
+import { resolveContextEngine } from "../context-engine/registry.js";
+import { callGateway } from "../gateway/call.js";
+import { onAgentEvent } from "../infra/agent-events.js";
 import { type DeliveryContext } from "../utils/delivery-context.js";
+import { ensureRuntimePluginsLoaded } from "./runtime-plugins.js";
+import * as subagentAnnounceModule from "./subagent-announce.js";
+import { getSubagentRunsSnapshotForRead, persistSubagentRunsToDisk, restoreSubagentRunsFromDisk } from "./subagent-registry-state.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
+import { resolveAgentTimeoutMs } from "./timeout.js";
 export type { SubagentRunRecord } from "./subagent-registry.types.js";
-export declare function resolveSubagentSessionStatus(entry: Pick<SubagentRunRecord, "endedAt" | "endedReason" | "outcome"> | null | undefined): SessionEntry["status"];
+export { getSubagentSessionRuntimeMs, getSubagentSessionStartedAt, resolveSubagentSessionStatus, } from "./subagent-registry-helpers.js";
+type SubagentRegistryDeps = {
+    callGateway: typeof callGateway;
+    captureSubagentCompletionReply: typeof subagentAnnounceModule.captureSubagentCompletionReply;
+    ensureContextEnginesInitialized: typeof ensureContextEnginesInitialized;
+    ensureRuntimePluginsLoaded: typeof ensureRuntimePluginsLoaded;
+    getSubagentRunsSnapshotForRead: typeof getSubagentRunsSnapshotForRead;
+    loadConfig: typeof loadConfig;
+    onAgentEvent: typeof onAgentEvent;
+    persistSubagentRunsToDisk: typeof persistSubagentRunsToDisk;
+    resolveAgentTimeoutMs: typeof resolveAgentTimeoutMs;
+    resolveContextEngine: typeof resolveContextEngine;
+    restoreSubagentRunsFromDisk: typeof restoreSubagentRunsFromDisk;
+    runSubagentAnnounceFlow: typeof subagentAnnounceModule.runSubagentAnnounceFlow;
+};
 export declare function markSubagentRunForSteerRestart(runId: string): boolean;
 export declare function clearSubagentRunSteerRestart(runId: string): boolean;
-export declare function getSubagentSessionStartedAt(entry: Pick<SubagentRunRecord, "sessionStartedAt" | "startedAt" | "createdAt"> | null | undefined): number | undefined;
-export declare function getSubagentSessionRuntimeMs(entry: Pick<SubagentRunRecord, "startedAt" | "endedAt" | "accumulatedRuntimeMs"> | null | undefined, now?: number): number | undefined;
 export declare function replaceSubagentRunAfterSteer(params: {
     previousRunId: string;
     nextRunId: string;
@@ -36,6 +56,9 @@ export declare function registerSubagentRun(params: {
 export declare function resetSubagentRegistryForTests(opts?: {
     persist?: boolean;
 }): void;
+export declare const __testing: {
+    readonly setDepsForTest: (overrides?: Partial<SubagentRegistryDeps>) => void;
+};
 export declare function addSubagentRunForTests(entry: SubagentRunRecord): void;
 export declare function releaseSubagentRun(runId: string): void;
 export declare function resolveRequesterForChildSession(childSessionKey: string): {
@@ -59,4 +82,5 @@ export declare function countPendingDescendantRuns(rootSessionKey: string): numb
 export declare function countPendingDescendantRunsExcludingRun(rootSessionKey: string, excludeRunId: string): number;
 export declare function listDescendantRunsForRequester(rootSessionKey: string): SubagentRunRecord[];
 export declare function getSubagentRunByChildSessionKey(childSessionKey: string): SubagentRunRecord | null;
+export declare function getLatestSubagentRunByChildSessionKey(childSessionKey: string): SubagentRunRecord | null;
 export declare function initSubagentRegistry(): void;

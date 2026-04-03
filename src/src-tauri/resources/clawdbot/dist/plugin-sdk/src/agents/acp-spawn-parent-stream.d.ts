@@ -7,6 +7,7 @@ export declare function startAcpSpawnParentStreamRelay(params: {
     childSessionKey: string;
     agentId: string;
     logPath?: string;
+    surfaceUpdates?: boolean;
     streamFlushMs?: number;
     noOutputNoticeMs?: number;
     noOutputPollMs?: number;

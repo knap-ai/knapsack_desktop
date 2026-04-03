@@ -1,10 +1,13 @@
 import type { OpenClawConfig } from "../config/config.js";
 import { loadConfig, resolveConfigPath, resolveGatewayPort, resolveStateDir } from "../config/config.js";
+import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
 import { loadGatewayTlsRuntime } from "../infra/tls/gateway.js";
 import { type GatewayClientMode, type GatewayClientName } from "../utils/message-channel.js";
 import { GatewayClient, type GatewayClientOptions } from "./client.js";
+import { type GatewayConnectionDetails } from "./connection-details.js";
 import { type GatewayCredentialMode, type GatewayCredentialPrecedence, type GatewayRemoteCredentialFallback, type GatewayRemoteCredentialPrecedence } from "./credentials.js";
 import { type OperatorScope } from "./method-scopes.js";
+export type { GatewayConnectionDetails };
 type CallGatewayBaseOptions = {
     url?: string;
     token?: string;
@@ -39,22 +42,22 @@ export type CallGatewayCliOptions = CallGatewayBaseOptions & {
 export type CallGatewayOptions = CallGatewayBaseOptions & {
     scopes?: OperatorScope[];
 };
-export type GatewayConnectionDetails = {
-    url: string;
-    urlSource: string;
-    bindDetail?: string;
-    remoteFallbackNote?: string;
-    message: string;
-};
 declare const defaultCreateGatewayClient: (opts: GatewayClientOptions) => GatewayClient;
 declare const defaultGatewayCallDeps: {
     createGatewayClient: (opts: GatewayClientOptions) => GatewayClient;
     loadConfig: typeof loadConfig;
+    loadOrCreateDeviceIdentity: typeof loadOrCreateDeviceIdentity;
     resolveGatewayPort: typeof resolveGatewayPort;
     resolveConfigPath: typeof resolveConfigPath;
     resolveStateDir: typeof resolveStateDir;
     loadGatewayTlsRuntime: typeof loadGatewayTlsRuntime;
 };
+export declare function buildGatewayConnectionDetails(options?: {
+    config?: OpenClawConfig;
+    url?: string;
+    configPath?: string;
+    urlSource?: "cli" | "env";
+}): GatewayConnectionDetails;
 export declare const __testing: {
     setDepsForTests(deps: Partial<typeof defaultGatewayCallDeps> | undefined): void;
     setCreateGatewayClientForTests(createGatewayClient?: typeof defaultCreateGatewayClient): void;
@@ -73,12 +76,6 @@ export declare function ensureExplicitGatewayAuth(params: {
     errorHint: string;
     configPath?: string;
 }): void;
-export declare function buildGatewayConnectionDetails(options?: {
-    config?: OpenClawConfig;
-    url?: string;
-    configPath?: string;
-    urlSource?: "cli" | "env";
-}): GatewayConnectionDetails;
 export declare function resolveGatewayCredentialsWithSecretInputs(params: {
     config: OpenClawConfig;
     explicitAuth?: ExplicitGatewayAuth;
@@ -101,4 +98,3 @@ export declare function callGatewayCli<T = Record<string, unknown>>(opts: CallGa
 export declare function callGatewayLeastPrivilege<T = Record<string, unknown>>(opts: CallGatewayBaseOptions): Promise<T>;
 export declare function callGateway<T = Record<string, unknown>>(opts: CallGatewayOptions): Promise<T>;
 export declare function randomIdempotencyKey(): `${string}-${string}-${string}-${string}-${string}`;
-export {};

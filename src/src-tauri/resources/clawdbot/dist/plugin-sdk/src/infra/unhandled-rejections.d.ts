@@ -9,6 +9,8 @@ export declare function isAbortError(err: unknown): boolean;
  * These are typically temporary connectivity issues that will resolve on their own.
  */
 export declare function isTransientNetworkError(err: unknown): boolean;
+export declare function isTransientSqliteError(err: unknown): boolean;
+export declare function isTransientUnhandledRejectionError(err: unknown): boolean;
 export declare function registerUnhandledRejectionHandler(handler: UnhandledRejectionHandler): () => void;
 export declare function isUnhandledRejectionHandled(reason: unknown): boolean;
 export declare function installUnhandledRejectionHandler(): void;

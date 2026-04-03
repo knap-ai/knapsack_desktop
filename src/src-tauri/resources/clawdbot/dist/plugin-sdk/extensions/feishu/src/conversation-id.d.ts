@@ -5,6 +5,8 @@ export declare function buildFeishuConversationId(params: {
     senderOpenId?: string;
     topicId?: string;
 }): string;
+export declare function parseFeishuTargetId(raw: unknown): string | undefined;
+export declare function parseFeishuDirectConversationId(raw: unknown): string | undefined;
 export declare function parseFeishuConversationId(params: {
     conversationId: string;
     parentConversationId?: string;

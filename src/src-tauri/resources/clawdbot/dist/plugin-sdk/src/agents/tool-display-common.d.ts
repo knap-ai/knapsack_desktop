@@ -1,3 +1,4 @@
+import { resolveExecDetail } from "./tool-display-exec.js";
 export type ToolDisplayActionSpec = {
     label?: string;
     detailKeys?: string[];
@@ -41,7 +42,7 @@ export declare function resolveReadDetail(args: unknown): string | undefined;
 export declare function resolveWriteDetail(toolKey: string, args: unknown): string | undefined;
 export declare function resolveWebSearchDetail(args: unknown): string | undefined;
 export declare function resolveWebFetchDetail(args: unknown): string | undefined;
-export declare function resolveExecDetail(args: unknown): string | undefined;
+export { resolveExecDetail };
 export declare function resolveActionSpec(spec: ToolDisplaySpec | undefined, action: string | undefined): ToolDisplayActionSpec | undefined;
 export declare function resolveDetailFromKeys(args: unknown, keys: string[], opts: {
     mode: "first" | "summary";

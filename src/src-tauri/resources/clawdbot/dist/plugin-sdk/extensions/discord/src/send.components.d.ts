@@ -12,7 +12,12 @@ type DiscordComponentSendOpts = {
     sessionKey?: string;
     agentId?: string;
     mediaUrl?: string;
+    mediaAccess?: {
+        localRoots?: readonly string[];
+        readFile?: (filePath: string) => Promise<Buffer>;
+    };
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
     filename?: string;
 };
 export declare function registerBuiltDiscordComponentMessage(params: {

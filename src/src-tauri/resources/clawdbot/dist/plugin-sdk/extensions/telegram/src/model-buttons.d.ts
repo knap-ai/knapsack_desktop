@@ -1,13 +1,3 @@
-/**
- * Telegram inline button utilities for model selection.
- *
- * Callback data patterns (max 64 bytes for Telegram):
- * - mdl_prov              - show providers list
- * - mdl_list_{prov}_{pg}  - show models for provider (page N, 1-indexed)
- * - mdl_sel_{provider/id} - select model (standard)
- * - mdl_sel/{model}       - select model (compact fallback when standard is >64 bytes)
- * - mdl_back              - back to providers list
- */
 export type ButtonRow = Array<{
     text: string;
     callback_data: string;
@@ -45,6 +35,9 @@ export type ModelsKeyboardParams = {
     currentPage: number;
     totalPages: number;
     pageSize?: number;
+    /** Optional map from provider/model to display name. When provided, the
+     *  display name is shown on the button instead of the raw model ID. */
+    modelNames?: ReadonlyMap<string, string>;
 };
 /**
  * Parse a model callback_data string into a structured object.

@@ -41,6 +41,7 @@ type DeliverOutboundPayloadsCoreParams = {
     session?: OutboundSessionContext;
     mirror?: DeliveryMirror;
     silent?: boolean;
+    gatewayClientScopes?: readonly string[];
 };
 export type DeliverOutboundPayloadsParams = DeliverOutboundPayloadsCoreParams & {
     /** @internal Skip write-ahead queue (used by crash-recovery to avoid re-enqueueing). */

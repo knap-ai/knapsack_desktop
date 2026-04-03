@@ -1,5 +1,6 @@
 {
   "id": "cloudflare-ai-gateway",
+  "enabledByDefault": true,
   "providers": [
     "cloudflare-ai-gateway"
   ],

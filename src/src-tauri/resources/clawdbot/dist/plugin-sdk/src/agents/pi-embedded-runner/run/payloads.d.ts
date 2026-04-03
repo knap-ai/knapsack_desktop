@@ -2,23 +2,18 @@ import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { ReasoningLevel, VerboseLevel } from "../../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { ToolResultFormat } from "../../pi-embedded-subscribe.js";
+import { type ToolErrorSummary } from "../../tool-error-summary.js";
 type ToolMetaEntry = {
     toolName: string;
     meta?: string;
-};
-type LastToolError = {
-    toolName: string;
-    meta?: string;
-    error?: string;
-    mutatingAction?: boolean;
-    actionFingerprint?: string;
 };
 export declare function buildEmbeddedRunPayloads(params: {
     assistantTexts: string[];
     toolMetas: ToolMetaEntry[];
     lastAssistant: AssistantMessage | undefined;
-    lastToolError?: LastToolError;
+    lastToolError?: ToolErrorSummary;
     config?: OpenClawConfig;
+    isCronTrigger?: boolean;
     sessionKey: string;
     provider?: string;
     model?: string;

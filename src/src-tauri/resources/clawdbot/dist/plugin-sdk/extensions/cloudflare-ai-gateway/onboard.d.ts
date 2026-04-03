@@ -1,6 +1,4 @@
-import { CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF } from "openclaw/plugin-sdk/provider-models";
 import { type OpenClawConfig } from "openclaw/plugin-sdk/provider-onboard";
-export { CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF };
 export declare function buildCloudflareAiGatewayConfigPatch(params: {
     accountId: string;
     gatewayId: string;
@@ -10,7 +8,7 @@ export declare function buildCloudflareAiGatewayConfigPatch(params: {
             "cloudflare-ai-gateway": {
                 baseUrl: string;
                 api: "anthropic-messages";
-                models: import("openclaw/plugin-sdk/provider-models").ModelDefinitionConfig[];
+                models: import("openclaw/plugin-sdk/provider-onboard").ModelDefinitionConfig[];
             };
         };
     };

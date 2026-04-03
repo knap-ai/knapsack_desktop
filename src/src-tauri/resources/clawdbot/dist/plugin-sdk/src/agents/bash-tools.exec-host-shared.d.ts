@@ -1,9 +1,10 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { type ExecApprovalInitiatingSurfaceState } from "../infra/exec-approval-surface.js";
-import { resolveExecApprovals, type ExecAsk, type ExecSecurity } from "../infra/exec-approvals.js";
+import { resolveExecApprovals, type ExecAsk, type ExecApprovalDecision, type ExecSecurity } from "../infra/exec-approvals.js";
 import { type ExecApprovalRegistration } from "./bash-tools.exec-approval-request.js";
 import type { ExecToolDetails } from "./bash-tools.exec-types.js";
 type ResolvedExecApprovals = ReturnType<typeof resolveExecApprovals>;
+export declare const MAX_EXEC_APPROVAL_FOLLOWUP_FAILURE_LOG_KEYS = 256;
 export type ExecHostApprovalContext = {
     approvals: ResolvedExecApprovals;
     hostSecurity: ExecSecurity;
@@ -126,11 +127,23 @@ export declare function createExecApprovalDecisionState(params: {
     approvedByAsk: boolean;
     deniedReason: string | null;
 };
+export declare function shouldResolveExecApprovalUnavailableInline(params: {
+    trigger?: string;
+    unavailableReason: ExecApprovalUnavailableReason | null;
+    preResolvedDecision: string | null | undefined;
+}): boolean;
+export declare function buildHeadlessExecApprovalDeniedMessage(params: {
+    trigger?: string;
+    host: "gateway" | "node";
+    security: ExecSecurity;
+    ask: ExecAsk;
+    askFallback: ResolvedExecApprovals["agent"]["askFallback"];
+}): string;
 export declare function sendExecApprovalFollowupResult(target: ExecApprovalFollowupTarget, resultText: string): Promise<void>;
 export declare function buildExecApprovalPendingToolResult(params: {
     host: "gateway" | "node";
     command: string;
-    cwd: string;
+    cwd: string | undefined;
     warningText: string;
     approvalId: string;
     approvalSlug: string;
@@ -138,6 +151,7 @@ export declare function buildExecApprovalPendingToolResult(params: {
     initiatingSurface: ExecApprovalInitiatingSurfaceState;
     sentApproverDms: boolean;
     unavailableReason: ExecApprovalUnavailableReason | null;
+    allowedDecisions?: readonly ExecApprovalDecision[];
     nodeId?: string;
 }): AgentToolResult<ExecToolDetails>;
 export {};

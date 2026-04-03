@@ -10,6 +10,7 @@ export { isAbortRequestText } from "../auto-reply/reply/abort.js";
 export { isBtwRequestText } from "../auto-reply/reply/btw-command.js";
 export { resetInboundDedupe } from "../auto-reply/reply/inbound-dedupe.js";
 export { finalizeInboundContext } from "../auto-reply/reply/inbound-context.js";
+export { createInboundDebouncer, resolveInboundDebounceMs, } from "../auto-reply/inbound-debounce.js";
 export { dispatchReplyWithBufferedBlockDispatcher, dispatchReplyWithDispatcher, } from "../auto-reply/reply/provider-dispatcher.js";
 export { createReplyDispatcher, createReplyDispatcherWithTyping, } from "../auto-reply/reply/reply-dispatcher.js";
 export type { ReplyDispatcher, ReplyDispatcherOptions, ReplyDispatcherWithTypingOptions, } from "../auto-reply/reply/reply-dispatcher.js";

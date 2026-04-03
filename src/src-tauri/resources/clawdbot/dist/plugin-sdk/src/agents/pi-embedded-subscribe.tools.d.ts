@@ -22,5 +22,6 @@ export type ToolResultMediaArtifact = {
 export declare function extractToolResultMediaArtifact(result: unknown): ToolResultMediaArtifact | undefined;
 export declare function extractToolResultMediaPaths(result: unknown): string[];
 export declare function isToolResultError(result: unknown): boolean;
+export declare function isToolResultTimedOut(result: unknown): boolean;
 export declare function extractToolErrorMessage(result: unknown): string | undefined;
 export declare function extractMessagingToolSend(toolName: string, args: Record<string, unknown>): MessagingToolSend | undefined;

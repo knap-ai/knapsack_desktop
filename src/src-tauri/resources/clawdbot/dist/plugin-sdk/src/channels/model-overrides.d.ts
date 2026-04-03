@@ -10,6 +10,7 @@ type ChannelModelOverrideParams = {
     cfg: OpenClawConfig;
     channel?: string | null;
     groupId?: string | null;
+    groupChatType?: string | null;
     groupChannel?: string | null;
     groupSubject?: string | null;
     parentSessionKey?: string | null;

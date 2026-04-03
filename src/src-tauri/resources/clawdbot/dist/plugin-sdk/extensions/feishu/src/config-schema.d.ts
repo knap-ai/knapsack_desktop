@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "openclaw/plugin-sdk/zod";
 export { z };
 export declare const FeishuGroupSchema: z.ZodObject<{
     requireMention: z.ZodOptional<z.ZodBoolean>;
@@ -195,8 +195,8 @@ export declare const FeishuAccountConfigSchema: z.ZodObject<{
         lark: "lark";
     }>, z.ZodString]>>;
     connectionMode: z.ZodOptional<z.ZodEnum<{
-        webhook: "webhook";
         websocket: "websocket";
+        webhook: "webhook";
     }>>;
     webhookPath: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>;
@@ -216,7 +216,7 @@ export declare const FeishuConfigSchema: z.ZodObject<{
         disabled: "disabled";
         allowlist: "allowlist";
     }>, z.ZodPipe<z.ZodLiteral<"allowall">, z.ZodTransform<"open", "allowall">>]>>>;
-    requireMention: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    requireMention: z.ZodOptional<z.ZodBoolean>;
     groupSessionScope: z.ZodOptional<z.ZodEnum<{
         group: "group";
         group_sender: "group_sender";
@@ -401,8 +401,8 @@ export declare const FeishuConfigSchema: z.ZodObject<{
             lark: "lark";
         }>, z.ZodString]>>;
         connectionMode: z.ZodOptional<z.ZodEnum<{
-            webhook: "webhook";
             websocket: "websocket";
+            webhook: "webhook";
         }>>;
         webhookPath: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>>>;
@@ -543,8 +543,8 @@ export declare const FeishuConfigSchema: z.ZodObject<{
         lark: "lark";
     }>, z.ZodString]>>>;
     connectionMode: z.ZodDefault<z.ZodOptional<z.ZodEnum<{
-        webhook: "webhook";
         websocket: "websocket";
+        webhook: "webhook";
     }>>>;
     webhookPath: z.ZodDefault<z.ZodOptional<z.ZodString>>;
 }, z.core.$strict>;

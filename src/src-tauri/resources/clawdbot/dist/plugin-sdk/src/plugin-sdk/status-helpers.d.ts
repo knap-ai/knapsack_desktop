@@ -29,6 +29,10 @@ type ComputedAccountStatusAdapterParams<ResolvedAccount, Probe, Audit> = {
 type ComputedAccountStatusSnapshot<TExtra extends StatusSnapshotExtra = StatusSnapshotExtra> = ComputedAccountStatusBase & {
     extra?: TExtra;
 };
+type ConfigIssueAccount = {
+    accountId?: string | null;
+    configured?: boolean | null;
+} & Record<string, unknown>;
 /** Create the baseline runtime snapshot shape used by channel/account status stores. */
 export declare function createDefaultChannelRuntimeState<T extends Record<string, unknown>>(accountId: string, extra?: T): {
     accountId: string;
@@ -66,6 +70,24 @@ export declare function buildProbeChannelStatusSummary<TExtra extends Record<str
 } & TExtra & {
     probe: unknown;
     lastProbeAt: number | null;
+    running: boolean;
+    lastStartAt: number | null;
+    lastStopAt: number | null;
+    lastError: string | null;
+};
+/** Build webhook channel summaries with a stable default mode. */
+export declare function buildWebhookChannelStatusSummary<TExtra extends StatusSnapshotExtra>(snapshot: {
+    configured?: boolean | null;
+    mode?: string | null;
+    running?: boolean | null;
+    lastStartAt?: number | null;
+    lastStopAt?: number | null;
+    lastError?: string | null;
+}, extra?: TExtra): {
+    configured: boolean;
+} & {
+    mode: string;
+} & TExtra & {
     running: boolean;
     lastStartAt: number | null;
     lastStopAt: number | null;
@@ -167,6 +189,14 @@ export declare function buildTokenChannelStatusSummary(snapshot: {
     lastStopAt: number | null;
     lastError: string | null;
 };
+/** Build a config-issue collector from snapshot-safe source metadata only. */
+export declare function createDependentCredentialStatusIssueCollector(options: {
+    channel: string;
+    dependencySourceKey: string;
+    missingPrimaryMessage: string;
+    missingDependentMessage: string;
+    isDependencyConfigured?: ((value: unknown) => boolean) | undefined;
+}): (accounts: ConfigIssueAccount[]) => ChannelStatusIssue[];
 /** Convert account runtime errors into the generic channel status issue format. */
 export declare function collectStatusIssuesFromLastError(channel: string, accounts: Array<{
     accountId: string;

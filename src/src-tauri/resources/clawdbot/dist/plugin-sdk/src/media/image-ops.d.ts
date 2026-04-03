@@ -3,6 +3,7 @@ export type ImageMetadata = {
     height: number;
 };
 export declare const IMAGE_REDUCE_QUALITY_STEPS: readonly [85, 75, 65, 55, 45, 35];
+export declare const MAX_IMAGE_INPUT_PIXELS = 25000000;
 export declare function buildImageResizeSideGrid(maxSide: number, sideStart: number): number[];
 export declare function getImageMetadata(buffer: Buffer): Promise<ImageMetadata | null>;
 /**

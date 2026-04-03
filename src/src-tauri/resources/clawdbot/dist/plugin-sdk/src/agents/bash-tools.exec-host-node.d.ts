@@ -3,7 +3,7 @@ import { type ExecAsk, type ExecSecurity } from "../infra/exec-approvals.js";
 import type { ExecToolDetails } from "./bash-tools.exec-types.js";
 export type ExecuteNodeHostCommandParams = {
     command: string;
-    workdir: string;
+    workdir: string | undefined;
     env: Record<string, string>;
     requestedEnv?: Record<string, string>;
     requestedNode?: string;
@@ -13,6 +13,7 @@ export type ExecuteNodeHostCommandParams = {
     turnSourceTo?: string;
     turnSourceAccountId?: string;
     turnSourceThreadId?: string | number;
+    trigger?: string;
     agentId?: string;
     security: ExecSecurity;
     ask: ExecAsk;

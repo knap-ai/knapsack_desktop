@@ -1,6 +1,7 @@
 import type { AuthProfileCredential, OAuthCredential } from "../agents/auth-profiles/types.js";
 import type { OpenClawConfig } from "../config/config.js";
-import type { ProviderAuthDoctorHintContext, ProviderAugmentModelCatalogContext, ProviderBuildMissingAuthMessageContext, ProviderBuiltInModelSuppressionContext, ProviderCacheTtlEligibilityContext, ProviderDefaultThinkingPolicyContext, ProviderFetchUsageSnapshotContext, ProviderModernModelPolicyContext, ProviderPrepareExtraParamsContext, ProviderPrepareDynamicModelContext, ProviderPrepareRuntimeAuthContext, ProviderResolveUsageAuthContext, ProviderPlugin, ProviderResolveDynamicModelContext, ProviderRuntimeModel, ProviderThinkingPolicyContext, ProviderWrapStreamFnContext } from "./types.js";
+import type { ModelProviderConfig } from "../config/types.js";
+import type { ProviderAuthDoctorHintContext, ProviderAugmentModelCatalogContext, ProviderBuildMissingAuthMessageContext, ProviderBuildUnknownModelHintContext, ProviderBuiltInModelSuppressionContext, ProviderCacheTtlEligibilityContext, ProviderCreateEmbeddingProviderContext, ProviderResolveSyntheticAuthContext, ProviderCreateStreamFnContext, ProviderDefaultThinkingPolicyContext, ProviderFetchUsageSnapshotContext, ProviderNormalizeToolSchemasContext, ProviderNormalizeConfigContext, ProviderNormalizeModelIdContext, ProviderReasoningOutputMode, ProviderReasoningOutputModeContext, ProviderReplayPolicy, ProviderReplayPolicyContext, ProviderNormalizeResolvedModelContext, ProviderNormalizeTransportContext, ProviderModernModelPolicyContext, ProviderPrepareExtraParamsContext, ProviderPrepareDynamicModelContext, ProviderPrepareRuntimeAuthContext, ProviderResolveConfigApiKeyContext, ProviderSanitizeReplayHistoryContext, ProviderResolveUsageAuthContext, ProviderPlugin, ProviderResolveDynamicModelContext, ProviderRuntimeModel, ProviderThinkingPolicyContext, ProviderValidateReplayTurnsContext, ProviderWrapStreamFnContext } from "./types.js";
 export declare function clearProviderRuntimeHookCache(): void;
 export declare function resetProviderRuntimeHookCacheForTest(): void;
 export declare function resolveProviderRuntimePlugin(params: {
@@ -37,12 +38,99 @@ export declare function normalizeProviderResolvedModelWithPlugin(params: {
         model: ProviderRuntimeModel;
     };
 }): ProviderRuntimeModel | undefined;
+export declare function applyProviderResolvedModelCompatWithPlugins(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderNormalizeResolvedModelContext;
+}): ProviderRuntimeModel | undefined;
+export declare function applyProviderResolvedTransportWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderNormalizeResolvedModelContext;
+}): ProviderRuntimeModel | undefined;
+export declare function normalizeProviderModelIdWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderNormalizeModelIdContext;
+}): string | undefined;
+export declare function normalizeProviderTransportWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderNormalizeTransportContext;
+}): {
+    api?: string | null;
+    baseUrl?: string;
+} | undefined;
+export declare function normalizeProviderConfigWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderNormalizeConfigContext;
+}): ModelProviderConfig | undefined;
+export declare function applyProviderNativeStreamingUsageCompatWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderNormalizeConfigContext;
+}): ModelProviderConfig | undefined;
+export declare function resolveProviderConfigApiKeyWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderResolveConfigApiKeyContext;
+}): string | undefined;
 export declare function resolveProviderCapabilitiesWithPlugin(params: {
     provider: string;
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
 }): Partial<import("../agents/provider-capabilities.ts").ProviderCapabilities> | undefined;
+export declare function resolveProviderReplayPolicyWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderReplayPolicyContext;
+}): ProviderReplayPolicy | undefined;
+export declare function sanitizeProviderReplayHistoryWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderSanitizeReplayHistoryContext;
+}): Promise<import("@mariozechner/pi-agent-core").AgentMessage[] | null | undefined>;
+export declare function validateProviderReplayTurnsWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderValidateReplayTurnsContext;
+}): Promise<import("@mariozechner/pi-agent-core").AgentMessage[] | null | undefined>;
+export declare function normalizeProviderToolSchemasWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderNormalizeToolSchemasContext;
+}): import("./types.js").AnyAgentTool[] | undefined;
+export declare function resolveProviderReasoningOutputModeWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderReasoningOutputModeContext;
+}): ProviderReasoningOutputMode | undefined;
 export declare function prepareProviderExtraParams(params: {
     provider: string;
     config?: OpenClawConfig;
@@ -50,6 +138,13 @@ export declare function prepareProviderExtraParams(params: {
     env?: NodeJS.ProcessEnv;
     context: ProviderPrepareExtraParamsContext;
 }): Record<string, unknown> | undefined;
+export declare function resolveProviderStreamFn(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderCreateStreamFnContext;
+}): import("@mariozechner/pi-agent-core").StreamFn | undefined;
 export declare function wrapProviderStreamFn(params: {
     provider: string;
     config?: OpenClawConfig;
@@ -57,6 +152,13 @@ export declare function wrapProviderStreamFn(params: {
     env?: NodeJS.ProcessEnv;
     context: ProviderWrapStreamFnContext;
 }): import("@mariozechner/pi-agent-core").StreamFn | undefined;
+export declare function createProviderEmbeddingProvider(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderCreateEmbeddingProviderContext;
+}): Promise<import("./types.js").PluginEmbeddingProvider | null | undefined>;
 export declare function prepareProviderRuntimeAuth(params: {
     provider: string;
     config?: OpenClawConfig;
@@ -141,6 +243,20 @@ export declare function buildProviderMissingAuthMessageWithPlugin(params: {
     env?: NodeJS.ProcessEnv;
     context: ProviderBuildMissingAuthMessageContext;
 }): string | undefined;
+export declare function buildProviderUnknownModelHintWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderBuildUnknownModelHintContext;
+}): string | undefined;
+export declare function resolveProviderSyntheticAuthWithPlugin(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderResolveSyntheticAuthContext;
+}): import("./types.js").ProviderSyntheticAuthResult | undefined;
 export declare function resolveProviderBuiltInModelSuppression(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;

@@ -10,4 +10,5 @@ export declare function resolvePluginProviders(params: {
     onlyPluginIds?: string[];
     activate?: boolean;
     cache?: boolean;
+    pluginSdkResolution?: PluginLoadOptions["pluginSdkResolution"];
 }): ProviderPlugin[];

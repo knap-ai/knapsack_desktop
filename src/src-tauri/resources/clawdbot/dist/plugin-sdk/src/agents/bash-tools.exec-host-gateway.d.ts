@@ -15,6 +15,7 @@ export type ProcessGatewayAllowlistParams = {
     safeBins: Set<string>;
     safeBinProfiles: Readonly<Record<string, SafeBinProfile>>;
     strictInlineEval?: boolean;
+    trigger?: string;
     agentId?: string;
     sessionKey?: string;
     turnSourceChannel?: string;
@@ -31,6 +32,7 @@ export type ProcessGatewayAllowlistParams = {
 };
 export type ProcessGatewayAllowlistResult = {
     execCommandOverride?: string;
+    allowWithoutEnforcedCommand?: boolean;
     pendingResult?: AgentToolResult<ExecToolDetails>;
 };
 export declare function processGatewayAllowlist(params: ProcessGatewayAllowlistParams): Promise<ProcessGatewayAllowlistResult>;

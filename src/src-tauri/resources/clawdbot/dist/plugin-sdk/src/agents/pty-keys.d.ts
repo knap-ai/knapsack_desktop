@@ -9,5 +9,6 @@ export type KeyEncodingResult = {
     data: string;
     warnings: string[];
 };
-export declare function encodeKeySequence(request: KeyEncodingRequest): KeyEncodingResult;
+export declare function hasCursorModeSensitiveKeys(request: KeyEncodingRequest): boolean;
+export declare function encodeKeySequence(request: KeyEncodingRequest, cursorKeyMode?: "normal" | "application"): KeyEncodingResult;
 export declare function encodePaste(text: string, bracketed?: boolean): string;

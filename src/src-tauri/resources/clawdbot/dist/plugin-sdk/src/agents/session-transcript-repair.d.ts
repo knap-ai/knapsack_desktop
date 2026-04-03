@@ -14,8 +14,9 @@ export type ToolCallInputRepairReport = {
 export type ToolCallInputRepairOptions = {
     allowedToolNames?: Iterable<string>;
 };
+export type ErroredAssistantResultPolicy = "preserve" | "drop";
 export type ToolUseResultPairingOptions = {
-    preserveErroredAssistantResults?: boolean;
+    erroredAssistantResultPolicy?: ErroredAssistantResultPolicy;
 };
 export declare function stripToolResultDetails(messages: AgentMessage[]): AgentMessage[];
 export declare function repairToolCallInputs(messages: AgentMessage[], options?: ToolCallInputRepairOptions): ToolCallInputRepairReport;

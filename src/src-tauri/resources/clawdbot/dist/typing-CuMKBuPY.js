@@ -1,0 +1,8 @@
+//#region extensions/discord/src/monitor/typing.ts
+async function sendTyping(params) {
+	const channel = await params.client.fetchChannel(params.channelId);
+	if (!channel) return;
+	if ("triggerTyping" in channel && typeof channel.triggerTyping === "function") await channel.triggerTyping();
+}
+//#endregion
+export { sendTyping as t };

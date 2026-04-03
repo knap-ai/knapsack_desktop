@@ -1,6 +1,6 @@
 import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
 import { abortEmbeddedPiRun } from "../../agents/pi-embedded.js";
-import { listSubagentRunsForController, markSubagentRunTerminated } from "../../agents/subagent-registry.js";
+import { getLatestSubagentRunByChildSessionKey, listSubagentRunsForController, markSubagentRunTerminated } from "../../agents/subagent-registry.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry } from "../../config/sessions.js";
 import type { FinalizedMsgContext } from "../templating.js";
@@ -10,6 +10,7 @@ export { getAbortMemory, getAbortMemorySizeForTest, isAbortRequestText, isAbortT
 declare const defaultAbortDeps: {
     getAcpSessionManager: typeof getAcpSessionManager;
     abortEmbeddedPiRun: typeof abortEmbeddedPiRun;
+    getLatestSubagentRunByChildSessionKey: typeof getLatestSubagentRunByChildSessionKey;
     listSubagentRunsForController: typeof listSubagentRunsForController;
     markSubagentRunTerminated: typeof markSubagentRunTerminated;
 };

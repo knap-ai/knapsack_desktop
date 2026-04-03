@@ -1,2 +1,2 @@
-import { a as resolveSenderScopedGroupPolicy, i as evaluateSenderGroupAccessForPolicy, n as evaluateMatchedGroupAccessForPolicy, r as evaluateSenderGroupAccess, t as evaluateGroupRouteAccessForPolicy } from "../group-access-BlqfIxg6.js";
+import { a as resolveSenderScopedGroupPolicy, i as evaluateSenderGroupAccessForPolicy, n as evaluateMatchedGroupAccessForPolicy, r as evaluateSenderGroupAccess, t as evaluateGroupRouteAccessForPolicy } from "../group-access-Cc77nG5J.js";
 export { evaluateGroupRouteAccessForPolicy, evaluateMatchedGroupAccessForPolicy, evaluateSenderGroupAccess, evaluateSenderGroupAccessForPolicy, resolveSenderScopedGroupPolicy };

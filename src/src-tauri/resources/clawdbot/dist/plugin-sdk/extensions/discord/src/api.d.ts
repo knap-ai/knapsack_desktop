@@ -1,4 +1,4 @@
-import { type RetryConfig } from "openclaw/plugin-sdk/infra-runtime";
+import { type RetryConfig } from "openclaw/plugin-sdk/retry-runtime";
 export declare class DiscordApiError extends Error {
     status: number;
     retryAfter?: number;

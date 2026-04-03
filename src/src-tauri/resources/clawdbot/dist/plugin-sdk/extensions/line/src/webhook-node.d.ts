@@ -11,5 +11,6 @@ export declare function createLineNodeWebhookHandler(params: {
     runtime: RuntimeEnv;
     readBody?: ReadBodyFn;
     maxBodyBytes?: number;
+    onRequestAuthenticated?: () => void;
 }): (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 export {};

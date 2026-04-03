@@ -1,4 +1,4 @@
-export declare function formatDurationCompact(valueMs?: number): string;
+export { formatDurationCompact } from "../infra/format-time/format-duration.ts";
 export declare function formatTokenShort(value?: number): string | undefined;
 export declare function truncateLine(value: string, maxLength: number): string;
 export type TokenUsageLike = {

@@ -14,12 +14,17 @@ export declare const LogsTailResultSchema: import("@sinclair/typebox").TObject<{
 export declare const ChatHistoryParamsSchema: import("@sinclair/typebox").TObject<{
     sessionKey: import("@sinclair/typebox").TString;
     limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    maxChars: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
 }>;
 export declare const ChatSendParamsSchema: import("@sinclair/typebox").TObject<{
     sessionKey: import("@sinclair/typebox").TString;
     message: import("@sinclair/typebox").TString;
     thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    originatingChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    originatingTo: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    originatingAccountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    originatingThreadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     attachments: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnknown>>;
     timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
     systemInputProvenance: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{

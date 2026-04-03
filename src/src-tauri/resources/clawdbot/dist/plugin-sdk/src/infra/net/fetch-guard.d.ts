@@ -33,5 +33,6 @@ export type GuardedFetchResult = {
 type GuardedFetchPresetOptions = Omit<GuardedFetchOptions, "mode" | "proxy" | "dangerouslyAllowEnvProxyWithoutPinnedDns">;
 export declare function withStrictGuardedFetchMode(params: GuardedFetchPresetOptions): GuardedFetchOptions;
 export declare function withTrustedEnvProxyGuardedFetchMode(params: GuardedFetchPresetOptions): GuardedFetchOptions;
+export declare function retainSafeHeadersForCrossOriginRedirectHeaders(headers?: HeadersInit): Record<string, string> | undefined;
 export declare function fetchWithSsrFGuard(params: GuardedFetchOptions): Promise<GuardedFetchResult>;
 export {};

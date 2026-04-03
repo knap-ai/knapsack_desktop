@@ -12,7 +12,7 @@ export { downloadLineMedia } from "./src/download.js";
 export { probeLineBot } from "./src/probe.js";
 export { buildTemplateMessageFromPayload } from "./src/template-messages.js";
 export { createQuickReplyItems, pushFlexMessage, pushLocationMessage, pushMessageLine, pushMessagesLine, pushTemplateMessage, pushTextMessageWithQuickReplies, sendMessageLine, } from "./src/send.js";
-export * from "openclaw/plugin-sdk/line-runtime";
+export { monitorLineProvider } from "./src/monitor.js";
 export * from "./src/accounts.js";
 export * from "./src/bot-access.js";
 export * from "./src/channel-access-token.js";

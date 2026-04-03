@@ -4,6 +4,7 @@ type SandboxHashInput = {
     workspaceAccess: SandboxWorkspaceAccess;
     workspaceDir: string;
     agentWorkspaceDir: string;
+    mountFormatVersion: number;
 };
 type SandboxBrowserHashInput = {
     docker: SandboxDockerConfig;
@@ -12,6 +13,7 @@ type SandboxBrowserHashInput = {
     workspaceAccess: SandboxWorkspaceAccess;
     workspaceDir: string;
     agentWorkspaceDir: string;
+    mountFormatVersion: number;
 };
 export declare function computeSandboxConfigHash(input: SandboxHashInput): string;
 export declare function computeSandboxBrowserConfigHash(input: SandboxBrowserHashInput): string;

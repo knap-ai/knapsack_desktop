@@ -23,4 +23,8 @@ export declare function refreshQueuedFollowupSession(params: {
     previousSessionId?: string;
     nextSessionId?: string;
     nextSessionFile?: string;
+    nextProvider?: string;
+    nextModel?: string;
+    nextAuthProfileId?: string;
+    nextAuthProfileIdSource?: "auto" | "user";
 }): void;

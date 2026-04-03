@@ -1,2 +1,2 @@
-export declare function ensureStatefulTargetBuiltinsRegistered(): void;
-export declare function resetStatefulTargetBuiltinsForTesting(): void;
+export declare function ensureStatefulTargetBuiltinsRegistered(): Promise<void>;
+export declare function resetStatefulTargetBuiltinsForTesting(): Promise<void>;

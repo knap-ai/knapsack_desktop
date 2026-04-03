@@ -1,5 +1,6 @@
 {
   "id": "vercel-ai-gateway",
+  "enabledByDefault": true,
   "providers": [
     "vercel-ai-gateway"
   ],

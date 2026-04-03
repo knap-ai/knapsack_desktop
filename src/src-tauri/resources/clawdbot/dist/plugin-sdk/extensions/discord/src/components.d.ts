@@ -1,7 +1,6 @@
-import { Label, Modal, TextDisplay, type ComponentParserResult, type TopLevelComponents } from "@buape/carbon";
+import { Label, Modal, TextDisplay, type TopLevelComponents } from "@buape/carbon";
+import { parseDiscordModalCustomIdForCarbon as parseDiscordModalCustomIdForCarbonImpl } from "./component-custom-id.js";
 declare const ModalBase: typeof Modal;
-export declare const DISCORD_COMPONENT_CUSTOM_ID_KEY = "occomp";
-export declare const DISCORD_MODAL_CUSTOM_ID_KEY = "ocmodal";
 export declare const DISCORD_COMPONENT_ATTACHMENT_PREFIX = "attachment://";
 export type DiscordComponentButtonStyle = "primary" | "secondary" | "success" | "danger" | "link";
 export type DiscordComponentSelectType = "string" | "user" | "role" | "mentionable" | "channel";
@@ -11,6 +10,8 @@ export type DiscordComponentButtonSpec = {
     style?: DiscordComponentButtonStyle;
     url?: string;
     callbackData?: string;
+    /** Internal use only: bypass dynamic component ids with a fixed custom id. */
+    internalCustomId?: string;
     emoji?: {
         name: string;
         id?: string;
@@ -162,21 +163,10 @@ export type DiscordComponentBuildResult = {
     entries: DiscordComponentEntry[];
     modals: DiscordModalEntry[];
 };
+export { DISCORD_COMPONENT_CUSTOM_ID_KEY, DISCORD_MODAL_CUSTOM_ID_KEY, buildDiscordComponentCustomId, buildDiscordModalCustomId, parseDiscordComponentCustomId, parseDiscordComponentCustomIdForCarbon, parseDiscordModalCustomId, parseDiscordModalCustomIdForCarbon, } from "./component-custom-id.js";
 export { buildDiscordInteractiveComponents } from "./shared-interactive.js";
 export declare function resolveDiscordComponentAttachmentName(value: string): string;
 export declare function readDiscordComponentSpec(raw: unknown): DiscordComponentMessageSpec | null;
-export declare function buildDiscordComponentCustomId(params: {
-    componentId: string;
-    modalId?: string;
-}): string;
-export declare function buildDiscordModalCustomId(modalId: string): string;
-export declare function parseDiscordComponentCustomId(id: string): {
-    componentId: string;
-    modalId?: string;
-} | null;
-export declare function parseDiscordModalCustomId(id: string): string | null;
-export declare function parseDiscordComponentCustomIdForCarbon(id: string): ComponentParserResult;
-export declare function parseDiscordModalCustomIdForCarbon(id: string): ComponentParserResult;
 export declare function buildDiscordComponentMessage(params: {
     spec: DiscordComponentMessageSpec;
     fallbackText?: string;
@@ -189,7 +179,7 @@ export declare class DiscordFormModal extends ModalBase {
     title: string;
     customId: string;
     components: Array<Label | TextDisplay>;
-    customIdParser: typeof parseDiscordModalCustomIdForCarbon;
+    customIdParser: typeof parseDiscordModalCustomIdForCarbonImpl;
     constructor(params: {
         modalId: string;
         title: string;

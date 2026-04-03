@@ -1,25 +1,24 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import { deleteSlackMessage, downloadSlackFile, editSlackMessage, getSlackMemberInfo, listSlackEmojis, listSlackPins, listSlackReactions, pinSlackMessage, reactSlackMessage, readSlackMessages, removeOwnSlackReactions, removeSlackReaction, sendSlackMessage, unpinSlackMessage } from "./actions.js";
 import { parseSlackBlocksInput } from "./blocks-input.js";
 import { type OpenClawConfig } from "./runtime-api.js";
 import { recordSlackThreadParticipation } from "./sent-thread-cache.js";
 export declare const slackActionRuntime: {
-    deleteSlackMessage: typeof deleteSlackMessage;
-    downloadSlackFile: typeof downloadSlackFile;
-    editSlackMessage: typeof editSlackMessage;
-    getSlackMemberInfo: typeof getSlackMemberInfo;
-    listSlackEmojis: typeof listSlackEmojis;
-    listSlackPins: typeof listSlackPins;
-    listSlackReactions: typeof listSlackReactions;
+    deleteSlackMessage: typeof import("./actions.ts").deleteSlackMessage;
+    downloadSlackFile: typeof import("./actions.ts").downloadSlackFile;
+    editSlackMessage: typeof import("./actions.ts").editSlackMessage;
+    getSlackMemberInfo: typeof import("./actions.ts").getSlackMemberInfo;
+    listSlackEmojis: typeof import("./actions.ts").listSlackEmojis;
+    listSlackPins: typeof import("./actions.ts").listSlackPins;
+    listSlackReactions: typeof import("./actions.ts").listSlackReactions;
     parseSlackBlocksInput: typeof parseSlackBlocksInput;
-    pinSlackMessage: typeof pinSlackMessage;
-    reactSlackMessage: typeof reactSlackMessage;
-    readSlackMessages: typeof readSlackMessages;
+    pinSlackMessage: typeof import("./actions.ts").pinSlackMessage;
+    reactSlackMessage: typeof import("./actions.ts").reactSlackMessage;
+    readSlackMessages: typeof import("./actions.ts").readSlackMessages;
     recordSlackThreadParticipation: typeof recordSlackThreadParticipation;
-    removeOwnSlackReactions: typeof removeOwnSlackReactions;
-    removeSlackReaction: typeof removeSlackReaction;
-    sendSlackMessage: typeof sendSlackMessage;
-    unpinSlackMessage: typeof unpinSlackMessage;
+    removeOwnSlackReactions: typeof import("./actions.ts").removeOwnSlackReactions;
+    removeSlackReaction: typeof import("./actions.ts").removeSlackReaction;
+    sendSlackMessage: typeof import("./actions.ts").sendSlackMessage;
+    unpinSlackMessage: typeof import("./actions.ts").unpinSlackMessage;
 };
 export type SlackActionContext = {
     /** Current channel ID for auto-threading. */
@@ -34,5 +33,6 @@ export type SlackActionContext = {
     };
     /** Allowed local media directories for file uploads. */
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
 };
 export declare function handleSlackAction(params: Record<string, unknown>, cfg: OpenClawConfig, context?: SlackActionContext): Promise<AgentToolResult<unknown>>;

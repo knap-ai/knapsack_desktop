@@ -3,6 +3,8 @@ import { type GatewayClientMode, type GatewayClientName } from "../utils/message
 import { type EventFrame, type HelloOk } from "./protocol/index.js";
 export type GatewayClientOptions = {
     url?: string;
+    connectChallengeTimeoutMs?: number;
+    /** @deprecated Use connectChallengeTimeoutMs. */
     connectDelayMs?: number;
     tickWatchMinIntervalMs?: number;
     requestTimeoutMs?: number;
@@ -38,6 +40,7 @@ export type GatewayClientOptions = {
 };
 export declare const GATEWAY_CLOSE_CODE_HINTS: Readonly<Record<number, string>>;
 export declare function describeGatewayCloseCode(code: number): string | undefined;
+export declare function resolveGatewayClientConnectChallengeTimeoutMs(opts: Pick<GatewayClientOptions, "connectChallengeTimeoutMs" | "connectDelayMs">): number;
 export declare class GatewayClient {
     private ws;
     private opts;
@@ -71,7 +74,9 @@ export declare class GatewayClient {
     private isTrustedDeviceRetryEndpoint;
     private selectConnectAuth;
     private handleMessage;
-    private queueConnect;
+    private beginPreauthHandshake;
+    private clearConnectChallengeTimeout;
+    private armConnectChallengeTimeout;
     private scheduleReconnect;
     private flushPendingErrors;
     private startTickWatch;

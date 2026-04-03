@@ -1,0 +1,15 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["openai"];
+type FacadeModule = FacadeEntry["module"];
+export declare const applyOpenAIConfig: FacadeModule["applyOpenAIConfig"];
+export declare const applyOpenAIProviderConfig: FacadeModule["applyOpenAIProviderConfig"];
+export declare const buildOpenAICodexProvider: FacadeModule["buildOpenAICodexProvider"];
+export declare const buildOpenAIProvider: FacadeModule["buildOpenAIProvider"];
+export declare const OPENAI_CODEX_DEFAULT_MODEL = "openai-codex/gpt-5.4";
+export declare const OPENAI_DEFAULT_AUDIO_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
+export declare const OPENAI_DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+export declare const OPENAI_DEFAULT_IMAGE_MODEL = "gpt-image-1";
+export declare const OPENAI_DEFAULT_MODEL = "openai/gpt-5.4";
+export declare const OPENAI_DEFAULT_TTS_MODEL = "gpt-4o-mini-tts";
+export declare const OPENAI_DEFAULT_TTS_VOICE = "alloy";
+export {};

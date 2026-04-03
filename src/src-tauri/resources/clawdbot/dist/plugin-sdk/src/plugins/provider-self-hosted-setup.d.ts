@@ -1,8 +1,17 @@
 import type { AuthProfileCredential } from "../agents/auth-profiles/types.js";
 import type { OpenClawConfig } from "../config/config.js";
+import type { ModelDefinitionConfig } from "../config/types.models.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import type { ProviderDiscoveryContext, ProviderAuthResult, ProviderAuthMethodNonInteractiveContext } from "./types.js";
 export { SELF_HOSTED_DEFAULT_CONTEXT_WINDOW, SELF_HOSTED_DEFAULT_COST, SELF_HOSTED_DEFAULT_MAX_TOKENS, } from "../agents/self-hosted-provider-defaults.js";
+export declare function discoverOpenAICompatibleLocalModels(params: {
+    baseUrl: string;
+    apiKey?: string;
+    label: string;
+    contextWindow?: number;
+    maxTokens?: number;
+    env?: NodeJS.ProcessEnv;
+}): Promise<ModelDefinitionConfig[]>;
 export declare function applyProviderDefaultModel(cfg: OpenClawConfig, modelRef: string): OpenClawConfig;
 type OpenAICompatibleSelfHostedProviderSetupParams = {
     cfg: OpenClawConfig;

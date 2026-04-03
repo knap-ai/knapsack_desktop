@@ -19,6 +19,10 @@ type WebMediaOptions = {
     /** Caller already validated the local path (sandbox/other guards); requires readFile override. */
     sandboxValidated?: boolean;
     readFile?: (filePath: string) => Promise<Buffer>;
+    /** Host-local fs-policy read piggyback; rejects plaintext-like document sends. */
+    hostReadCapability?: boolean;
+    /** Agent workspace directory for resolving relative MEDIA: paths. */
+    workspaceDir?: string;
 };
 export declare function loadWebMedia(mediaUrl: string, maxBytesOrOptions?: number | WebMediaOptions, options?: {
     ssrfPolicy?: SsrFPolicy;

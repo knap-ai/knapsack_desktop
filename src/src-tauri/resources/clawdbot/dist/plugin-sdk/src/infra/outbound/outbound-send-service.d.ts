@@ -1,6 +1,7 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { ChannelId, ChannelThreadingToolContext } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { OutboundMediaAccess, OutboundMediaReadFile } from "../../media/load-options.js";
 import type { GatewayClientMode, GatewayClientName } from "../../utils/message-channel.js";
 import type { OutboundSendDeps } from "./deliver.js";
 import type { MessagePollResult, MessageSendResult } from "./message.js";
@@ -19,6 +20,8 @@ export type OutboundSendContext = {
     params: Record<string, unknown>;
     /** Active agent id for per-agent outbound media root scoping. */
     agentId?: string;
+    mediaAccess?: OutboundMediaAccess;
+    mediaReadFile?: OutboundMediaReadFile;
     accountId?: string | null;
     gateway?: OutboundGatewayContext;
     toolContext?: ChannelThreadingToolContext;

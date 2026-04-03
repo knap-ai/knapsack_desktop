@@ -1,3 +1,4 @@
+import type { ModelCatalogEntry } from "../agents/model-catalog.js";
 import { type OpenClawConfig, loadConfig } from "../config/config.js";
 import { type SessionEntry, type SessionScope } from "../config/sessions.js";
 import type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult } from "./session-utils.types.js";
@@ -12,6 +13,11 @@ export declare function loadSessionEntry(sessionKey: string): {
     canonicalKey: string;
     legacyKey: string | undefined;
 };
+export declare function resolveFreshestSessionStoreMatchFromStoreKeys(store: Record<string, SessionEntry>, storeKeys: string[]): {
+    key: string;
+    entry: SessionEntry;
+} | undefined;
+export declare function resolveFreshestSessionEntryFromStoreKeys(store: Record<string, SessionEntry>, storeKeys: string[]): SessionEntry | undefined;
 /**
  * Find all on-disk store keys that match the given key case-insensitively.
  * Returns every key from the store whose lowercased form equals the target's lowercased form.
@@ -77,6 +83,11 @@ export declare function resolveSessionModelRef(cfg: OpenClawConfig, entry?: Sess
     provider: string;
     model: string;
 };
+export declare function resolveGatewayModelSupportsImages(params: {
+    loadGatewayModelCatalog: () => Promise<ModelCatalogEntry[]>;
+    provider?: string;
+    model?: string;
+}): Promise<boolean>;
 export declare function resolveSessionModelIdentityRef(cfg: OpenClawConfig, entry?: SessionEntry | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">, agentId?: string, fallbackModelRef?: string): {
     provider?: string;
     model: string;

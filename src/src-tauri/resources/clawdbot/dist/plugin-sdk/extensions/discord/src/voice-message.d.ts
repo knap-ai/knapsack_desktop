@@ -10,7 +10,7 @@
  * - No other content (text, embeds, etc.)
  */
 import { type RequestClient } from "@buape/carbon";
-import type { RetryRunner } from "openclaw/plugin-sdk/infra-runtime";
+import type { RetryRunner } from "openclaw/plugin-sdk/retry-runtime";
 export type VoiceMessageMetadata = {
     durationSecs: number;
     waveform: string;

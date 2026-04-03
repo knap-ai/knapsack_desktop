@@ -1,6 +1,6 @@
 import type { RequestClient } from "@buape/carbon";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { RetryConfig } from "openclaw/plugin-sdk/infra-runtime";
+import type { RetryConfig } from "openclaw/plugin-sdk/retry-runtime";
 export declare class DiscordSendError extends Error {
     kind?: "missing-permissions" | "dm-blocked";
     channelId?: string;

@@ -31,6 +31,12 @@ export declare function getQueueSize(lane?: string): number;
 export declare function getTotalQueueSize(): number;
 export declare function clearCommandLane(lane?: string): number;
 /**
+ * Test-only hard reset that discards all queue state, including preserved
+ * queued work from previous generations. Use this when a suite needs an
+ * isolated baseline across shared-worker runs.
+ */
+export declare function resetCommandQueueStateForTest(): void;
+/**
  * Reset all lane runtime state to idle. Used after SIGUSR1 in-process
  * restarts where interrupted tasks' finally blocks may not run, leaving
  * stale active task IDs that permanently block new work from draining.

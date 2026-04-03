@@ -44,3 +44,13 @@ export declare function describeAccountSnapshot<TAccount extends {
     configured?: boolean | undefined;
     extra?: Record<string, unknown> | undefined;
 }): ChannelAccountSnapshot;
+export declare function describeWebhookAccountSnapshot<TAccount extends {
+    accountId?: string | null;
+    enabled?: boolean | null;
+    name?: string | null | undefined;
+}>(params: {
+    account: TAccount;
+    configured?: boolean | undefined;
+    mode?: string | undefined;
+    extra?: Record<string, unknown> | undefined;
+}): ChannelAccountSnapshot;

@@ -17,7 +17,9 @@ export declare function persistSessionUsageUpdate(params: {
     providerUsed?: string;
     contextTokensUsed?: number;
     promptTokens?: number;
+    usageIsContextSnapshot?: boolean;
     systemPromptReport?: SessionSystemPromptReport;
     cliSessionId?: string;
+    cliSessionBinding?: import("../../config/sessions.js").CliSessionBinding;
     logLabel?: string;
 }): Promise<void>;

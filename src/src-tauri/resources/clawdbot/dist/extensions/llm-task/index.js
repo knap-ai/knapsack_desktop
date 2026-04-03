@@ -1,16 +1,14 @@
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-idKIOMmb.js";
-import { n as formatXHighModelHint, u as normalizeThinkLevel } from "../../thinking.shared-BtwPxLYS.js";
-import "../../runtime-Iz8uZ7EU.js";
-import { i as supportsXHighThinking } from "../../thinking-CJoSRIGR.js";
-import { t as definePluginEntry } from "../../plugin-entry-B2shVOQl.js";
-import "../../llm-task-Br6Ixjlh.js";
-import "../../api-Bhg0hDeg.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-Day5KPIY.js";
+import { n as formatXHighModelHint, u as normalizeThinkLevel } from "../../thinking.shared-B8IAgSi8.js";
+import { i as supportsXHighThinking } from "../../thinking-EUyzvAQE.js";
+import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import "../../api-B-qm4m3p.js";
 import path from "node:path";
 import fs from "node:fs/promises";
-import Ajv from "ajv";
+import AjvPkg from "ajv";
 import { Type } from "@sinclair/typebox";
 //#region extensions/llm-task/src/llm-task-tool.ts
-const AjvCtor = Ajv;
+const AjvCtor = AjvPkg;
 function stripCodeFences(s) {
 	const trimmed = s.trim();
 	const m = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);

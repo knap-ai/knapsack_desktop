@@ -1,6 +1,7 @@
 import type { CommandHandler } from "./commands-types.js";
 export declare const handleHelpCommand: CommandHandler;
 export declare const handleCommandsListCommand: CommandHandler;
+export declare const handleToolsCommand: CommandHandler;
 export declare function buildCommandsPaginationKeyboard(currentPage: number, totalPages: number, agentId?: string): Array<Array<{
     text: string;
     callback_data: string;

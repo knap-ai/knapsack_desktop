@@ -4,9 +4,21 @@ import type { PluginKind } from "./types.js";
 export type PluginSlotKey = keyof PluginSlotsConfig;
 type SlotPluginRecord = {
     id: string;
-    kind?: PluginKind;
+    kind?: PluginKind | PluginKind[];
 };
+/** Normalize a kind field to an array for uniform iteration. */
+export declare function normalizeKinds(kind?: PluginKind | PluginKind[]): PluginKind[];
+/** Check whether a plugin's kind field includes a specific kind. */
+export declare function hasKind(kind: PluginKind | PluginKind[] | undefined, target: PluginKind): boolean;
+/**
+ * Returns the slot key for a single-kind plugin.
+ * For multi-kind plugins use `slotKeysForPluginKind` instead.
+ */
 export declare function slotKeyForPluginKind(kind?: PluginKind): PluginSlotKey | null;
+/** Order-insensitive equality check for two kind values (string or array). */
+export declare function kindsEqual(a: PluginKind | PluginKind[] | undefined, b: PluginKind | PluginKind[] | undefined): boolean;
+/** Return all slot keys that a plugin's kind field maps to. */
+export declare function slotKeysForPluginKind(kind?: PluginKind | PluginKind[]): PluginSlotKey[];
 export declare function defaultSlotIdForKey(slotKey: PluginSlotKey): string;
 export type SlotSelectionResult = {
     config: OpenClawConfig;
@@ -16,7 +28,7 @@ export type SlotSelectionResult = {
 export declare function applyExclusiveSlotSelection(params: {
     config: OpenClawConfig;
     selectedId: string;
-    selectedKind?: PluginKind;
+    selectedKind?: PluginKind | PluginKind[];
     registry?: {
         plugins: SlotPluginRecord[];
     };

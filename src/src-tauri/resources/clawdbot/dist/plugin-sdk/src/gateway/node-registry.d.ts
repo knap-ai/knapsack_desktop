@@ -3,6 +3,8 @@ export type NodeSession = {
     nodeId: string;
     connId: string;
     client: GatewayWsClient;
+    clientId?: string;
+    clientMode?: string;
     displayName?: string;
     platform?: string;
     version?: string;

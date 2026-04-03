@@ -3,6 +3,7 @@ export type NodeMatchCandidate = {
     displayName?: string;
     remoteIp?: string;
     connected?: boolean;
+    clientId?: string;
 };
 export declare function normalizeNodeKey(value: string): string;
 export declare function resolveNodeMatches(nodes: NodeMatchCandidate[], query: string): NodeMatchCandidate[];

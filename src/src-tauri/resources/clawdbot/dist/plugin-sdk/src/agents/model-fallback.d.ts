@@ -1,5 +1,16 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { FallbackAttempt } from "./model-fallback.types.js";
+/**
+ * Structured error thrown when all model fallback candidates have been
+ * exhausted. Carries per-attempt details so callers can build informative
+ * user-facing messages (e.g. "rate-limited, retry in 30 s").
+ */
+export declare class FallbackSummaryError extends Error {
+    readonly attempts: FallbackAttempt[];
+    readonly soonestCooldownExpiry: number | null;
+    constructor(message: string, attempts: FallbackAttempt[], soonestCooldownExpiry: number | null, cause?: Error);
+}
+export declare function isFallbackSummaryError(err: unknown): err is FallbackSummaryError;
 export type ModelFallbackRunOptions = {
     allowTransientCooldownProbe?: boolean;
 };

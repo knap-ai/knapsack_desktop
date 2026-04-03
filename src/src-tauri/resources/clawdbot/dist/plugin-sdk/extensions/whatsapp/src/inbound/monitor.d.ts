@@ -5,6 +5,8 @@ export declare function monitorWebInbox(options: {
     authDir: string;
     onMessage: (msg: WebInboundMessage) => Promise<void>;
     mediaMaxMb?: number;
+    /** Keep the global presence unavailable so self-chat sessions do not mute phone pushes. */
+    selfChatMode?: boolean;
     /** Send read receipts for incoming messages (default true). */
     sendReadReceipts?: boolean;
     /** Debounce window (ms) for batching rapid consecutive messages from the same sender (0 to disable). */

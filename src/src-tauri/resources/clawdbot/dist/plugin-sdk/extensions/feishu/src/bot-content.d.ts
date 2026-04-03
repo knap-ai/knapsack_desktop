@@ -29,6 +29,9 @@ type FeishuMessageLike = {
     };
 };
 export type GroupSessionScope = "group" | "group_sender" | "group_topic" | "group_topic_sender";
+type FeishuLogger = {
+    (...args: unknown[]): void;
+};
 export type ResolvedFeishuGroupSession = {
     peerId: string;
     parentPeer: {
@@ -59,7 +62,7 @@ export declare function resolveFeishuGroupSession(params: {
 export declare function parseMessageContent(content: string, messageType: string): string;
 export declare function parseMergeForwardContent(params: {
     content: string;
-    log?: (...args: any[]) => void;
+    log?: FeishuLogger;
 }): string;
 export declare function checkBotMentioned(event: FeishuMessageLike, botOpenId?: string): boolean;
 export declare function normalizeMentions(text: string, mentions?: FeishuMention[], botStripId?: string): string;

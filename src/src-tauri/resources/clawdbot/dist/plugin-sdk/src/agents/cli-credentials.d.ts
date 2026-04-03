@@ -1,5 +1,5 @@
 import { execFileSync, execSync } from "node:child_process";
-import type { OAuthCredentials, OAuthProvider } from "@mariozechner/pi-ai";
+import type { OAuthCredentials, OAuthProvider } from "./auth-profiles/types.js";
 export declare function resetCliCredentialCachesForTest(): void;
 export type ClaudeCliCredential = {
     type: "oauth";
@@ -20,13 +20,6 @@ export type CodexCliCredential = {
     refresh: string;
     expires: number;
     accountId?: string;
-};
-export type QwenCliCredential = {
-    type: "oauth";
-    provider: "qwen-portal";
-    access: string;
-    refresh: string;
-    expires: number;
 };
 export type MiniMaxCliCredential = {
     type: "oauth";
@@ -72,10 +65,6 @@ export declare function readCodexCliCredentialsCached(options?: {
     platform?: NodeJS.Platform;
     execSync?: ExecSyncFn;
 }): CodexCliCredential | null;
-export declare function readQwenCliCredentialsCached(options?: {
-    ttlMs?: number;
-    homeDir?: string;
-}): QwenCliCredential | null;
 export declare function readMiniMaxCliCredentialsCached(options?: {
     ttlMs?: number;
     homeDir?: string;

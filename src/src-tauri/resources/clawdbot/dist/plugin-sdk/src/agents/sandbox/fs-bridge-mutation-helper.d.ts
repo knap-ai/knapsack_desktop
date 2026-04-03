@@ -1,5 +1,6 @@
 import type { PathSafetyCheck, PinnedSandboxDirectoryEntry, PinnedSandboxEntry } from "./fs-bridge-path-safety.js";
 import type { SandboxFsCommandPlan } from "./fs-bridge-shell-command-plans.js";
+export declare const SANDBOX_PINNED_MUTATION_PYTHON_CANDIDATES: readonly ["/usr/bin/python3", "/usr/local/bin/python3", "/opt/homebrew/bin/python3", "/bin/python3"];
 export declare const SANDBOX_PINNED_MUTATION_PYTHON: string;
 export declare function buildPinnedWritePlan(params: {
     check: PathSafetyCheck;

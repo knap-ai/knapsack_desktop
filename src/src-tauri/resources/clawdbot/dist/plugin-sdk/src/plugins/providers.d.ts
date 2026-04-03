@@ -10,7 +10,14 @@ export declare function resolveBundledProviderCompatPluginIds(params: {
     env?: PluginLoadOptions["env"];
     onlyPluginIds?: string[];
 }): string[];
+export declare function resolveEnabledProviderPluginIds(params: {
+    config?: PluginLoadOptions["config"];
+    workspaceDir?: string;
+    env?: PluginLoadOptions["env"];
+    onlyPluginIds?: string[];
+}): string[];
 export declare const __testing: {
+    readonly resolveEnabledProviderPluginIds: typeof resolveEnabledProviderPluginIds;
     readonly resolveBundledProviderCompatPluginIds: typeof resolveBundledProviderCompatPluginIds;
     readonly withBundledProviderVitestCompat: typeof withBundledProviderVitestCompat;
 };
@@ -21,6 +28,11 @@ export declare function resolveOwningPluginIdsForProvider(params: {
     env?: PluginLoadOptions["env"];
 }): string[] | undefined;
 export declare function resolveNonBundledProviderPluginIds(params: {
+    config?: PluginLoadOptions["config"];
+    workspaceDir?: string;
+    env?: PluginLoadOptions["env"];
+}): string[];
+export declare function resolveCatalogHookProviderPluginIds(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];

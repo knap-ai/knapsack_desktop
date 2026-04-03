@@ -9,7 +9,7 @@ export declare const ConnectParamsSchema: import("@sinclair/typebox").TObject<{
     minProtocol: import("@sinclair/typebox").TInteger;
     maxProtocol: import("@sinclair/typebox").TInteger;
     client: import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "webchat-ui" | "openclaw-control-ui" | "webchat" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "test" | "fingerprint" | "openclaw-probe">[]>;
+        id: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "webchat" | "webchat-ui" | "openclaw-control-ui" | "openclaw-tui" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "test" | "fingerprint" | "openclaw-probe">[]>;
         displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         version: import("@sinclair/typebox").TString;
         platform: import("@sinclair/typebox").TString;

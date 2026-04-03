@@ -2,7 +2,7 @@ import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
 import type { BlockReplyPayload } from "./pi-embedded-payloads.js";
 import type { EmbeddedPiSubscribeContext, EmbeddedPiSubscribeState } from "./pi-embedded-subscribe.handlers.types.js";
 export declare function resolveSilentReplyFallbackText(params: {
-    text: string;
+    text: unknown;
     messagingToolSentTexts: string[];
 }): string;
 export declare function consumePendingToolMediaIntoReply(state: Pick<EmbeddedPiSubscribeState, "pendingToolMediaUrls" | "pendingToolAudioAsVoice">, payload: BlockReplyPayload): BlockReplyPayload;
@@ -16,11 +16,13 @@ export declare function hasAssistantVisibleReply(params: {
 export declare function buildAssistantStreamData(params: {
     text?: string;
     delta?: string;
+    replace?: boolean;
     mediaUrls?: string[];
     mediaUrl?: string;
 }): {
     text: string;
     delta: string;
+    replace?: true;
     mediaUrls?: string[];
 };
 export declare function handleMessageStart(ctx: EmbeddedPiSubscribeContext, evt: AgentEvent & {
@@ -32,4 +34,4 @@ export declare function handleMessageUpdate(ctx: EmbeddedPiSubscribeContext, evt
 }): void;
 export declare function handleMessageEnd(ctx: EmbeddedPiSubscribeContext, evt: AgentEvent & {
     message: AgentMessage;
-}): void;
+}): Promise<void> | undefined;

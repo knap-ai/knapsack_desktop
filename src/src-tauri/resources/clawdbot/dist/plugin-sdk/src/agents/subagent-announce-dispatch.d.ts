@@ -1,5 +1,5 @@
 export type SubagentDeliveryPath = "queued" | "steered" | "direct" | "none";
-export type SubagentAnnounceQueueOutcome = "steered" | "queued" | "none";
+export type SubagentAnnounceQueueOutcome = "steered" | "queued" | "none" | "dropped";
 export type SubagentAnnounceDeliveryResult = {
     delivered: boolean;
     path: SubagentDeliveryPath;

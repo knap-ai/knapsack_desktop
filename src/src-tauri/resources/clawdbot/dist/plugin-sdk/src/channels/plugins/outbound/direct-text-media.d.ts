@@ -1,12 +1,15 @@
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { OutboundSendDeps } from "../../../infra/outbound/deliver.js";
+import type { OutboundMediaAccess } from "../../../media/load-options.js";
 import type { ChannelOutboundAdapter } from "../types.js";
 type DirectSendOptions = {
     cfg: OpenClawConfig;
     accountId?: string | null;
     replyToId?: string | null;
     mediaUrl?: string;
+    mediaAccess?: OutboundMediaAccess;
     mediaLocalRoots?: readonly string[];
+    mediaReadFile?: (filePath: string) => Promise<Buffer>;
     maxBytes?: number;
 };
 type DirectSendResult = {

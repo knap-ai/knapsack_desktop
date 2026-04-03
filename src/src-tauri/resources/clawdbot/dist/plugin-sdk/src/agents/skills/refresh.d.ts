@@ -16,4 +16,5 @@ export declare function ensureSkillsWatcher(params: {
     workspaceDir: string;
     config?: OpenClawConfig;
 }): void;
+export declare function resetSkillsRefreshForTest(): Promise<void>;
 export {};

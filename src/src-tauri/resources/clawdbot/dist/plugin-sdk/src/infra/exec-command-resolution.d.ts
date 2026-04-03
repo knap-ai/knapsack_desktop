@@ -22,7 +22,7 @@ export declare function resolvePolicyTargetCandidatePath(resolution: CommandReso
 export declare function resolveApprovalAuditCandidatePath(resolution: CommandResolution | null, cwd?: string): string | undefined;
 export declare function resolveAllowlistCandidatePath(resolution: CommandResolution | ExecutableResolution | null, cwd?: string): string | undefined;
 export declare function resolvePolicyAllowlistCandidatePath(resolution: CommandResolution | ExecutableResolution | null, cwd?: string): string | undefined;
-export declare function matchAllowlist(entries: ExecAllowlistEntry[], resolution: ExecutableResolution | null): ExecAllowlistEntry | null;
+export declare function matchAllowlist(entries: ExecAllowlistEntry[], resolution: ExecutableResolution | null, argv?: string[], platform?: string | null): ExecAllowlistEntry | null;
 export type ExecArgvToken = {
     kind: "empty";
     raw: string;

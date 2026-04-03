@@ -5,6 +5,8 @@ export type NodeListNode = {
     version?: string;
     coreVersion?: string;
     uiVersion?: string;
+    clientId?: string;
+    clientMode?: string;
     remoteIp?: string;
     deviceFamily?: string;
     modelIdentifier?: string;
@@ -15,6 +17,7 @@ export type NodeListNode = {
     paired?: boolean;
     connected?: boolean;
     connectedAtMs?: number;
+    approvedAtMs?: number;
 };
 export type PendingRequest = {
     requestId: string;
@@ -25,7 +28,6 @@ export type PendingRequest = {
     coreVersion?: string;
     uiVersion?: string;
     remoteIp?: string;
-    isRepair?: boolean;
     ts: number;
 };
 export type PairedNode = {
