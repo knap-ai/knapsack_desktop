@@ -6,7 +6,7 @@ import {
   CadenceType,
   DaysOfWeek,
 } from './automation'
-import Prompt from './steps/Prompt'
+import GatewayPrompt from './steps/GatewayPrompt'
 import SemanticSearch from './steps/SemanticSearch'
 
 export type AbstractSource = 'email' | 'calendar' | 'drive' | 'web' | 'local'
@@ -200,7 +200,7 @@ function createSemanticSearchPromptAutomation(opts: {
     cadences: [opts.cadence],
     steps: [
       new SemanticSearch({ sources, userPrompt: opts.searchPrompt }),
-      new Prompt({ userPrompt: opts.agentPrompt }),
+      new GatewayPrompt({ userPrompt: opts.agentPrompt }),
     ],
     isActive: true,
     showLibrary: true,

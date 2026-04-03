@@ -1621,6 +1621,33 @@ pub async fn agent_chat(
   gateway_request_agent("agent", Some(params), &t, 300).await
 }
 
+/// Send an automation agent run through the gateway's `agent` RPC method.
+///
+/// Unlike `agent_chat`, this is used for scheduled/triggered automation runs
+/// (not interactive chat).  It uses the "automation" channel by default and
+/// accepts an optional custom `agent_id` and `channel`.
+pub async fn agent_run(
+  message: &str,
+  agent_id: Option<&str>,
+  channel: Option<&str>,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  let idem = format!("knapsack-auto-{}", std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_millis());
+  let params = serde_json::json!({
+    "message": message,
+    "idempotencyKey": idem,
+    "deliver": false,
+    "channel": channel.unwrap_or("automation"),
+    "agentId": agent_id.unwrap_or("main"),
+  });
+  // 5 minute timeout — LLM tool loops can take a while
+  gateway_request_agent("agent", Some(params), &t, 300).await
+}
+
 /// Get current config from gateway (pooled).
 pub async fn config_get(token: Option<&str>) -> Result<Value, String> {
   let t = resolve_token(token)?;

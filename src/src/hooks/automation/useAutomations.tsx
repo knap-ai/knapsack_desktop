@@ -295,6 +295,20 @@ export function useAutomations({
           }
         }
 
+        // If a GatewayPrompt step was used, the reply is already in context —
+        // call the success handler directly instead of waiting for the LLM queue.
+        if (context.gatewayReply && automationArgs) {
+          await automationArgs.sucessHandler(
+            automationArgs.feedItem,
+            userEmail,
+            (context.userPrompt as string) ?? '',
+            context.gatewayReply as string,
+            (context.documents as number[]) ?? [],
+            context.userPromptFacade as string | undefined,
+          )
+          await syncAutomations()
+        }
+
         return false
       } catch (error) {
         handleAutomationError(error as Error)
@@ -352,6 +366,14 @@ export function useAutomations({
           handleAutomationError(error as Error)
           throw error
         }
+      }
+
+      // If a GatewayPrompt step was used, deliver the reply directly
+      if (context.gatewayReply) {
+        onAutomationFinishCallback(
+          context.gatewayReply as string,
+          (context.documents as number[]) ?? [],
+        )
       }
     },
     [

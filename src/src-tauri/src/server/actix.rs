@@ -248,6 +248,7 @@ pub async fn start_server<'a>(
       .service(clawd::browser::screenshot)
       .service(clawd::browser::chat)
       .service(clawd::browser::agent_chat)
+      .service(clawd::browser::agent_run)
       .service(clawd::browser::terminal_output)
       .service(clawd::gmail::get_unread_important)
       .service(clawd::sidecar::status)
