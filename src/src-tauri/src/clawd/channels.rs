@@ -1371,7 +1371,6 @@ pub async fn telegram_validate(
 
     match client.get(&url).send().await {
         Ok(resp) => {
-            let status = resp.status();
             match resp.json::<serde_json::Value>().await {
                 Ok(body) => {
                     let ok = body.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
