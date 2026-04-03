@@ -33,6 +33,7 @@ import { open } from '@tauri-apps/api/shell'
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
+import { safeInvoke } from 'src/utils/tauriIpcBridge'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
 import { getFeedbacks } from '../../../api/threads'
@@ -186,7 +187,10 @@ function Home({
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
-    invoke('kn_init_app')
+    // Use safeInvoke to handle race conditions where IPC bridge may not be ready yet
+    safeInvoke('kn_init_app').catch(error => {
+      console.error('Failed to initialize app shortcuts:', error)
+    })
     requestNotificationOSPermissions()
     getReleaseType().then((releaseType: string) => {
       setFullRelease(releaseType === 'Full')

@@ -25,32 +25,96 @@ fn windows_log_path(stream: &str) -> PathBuf {
 }
 
 /// On Windows, kill a process listening on the given TCP port.
+/// Enhanced with retry logic to ensure the port is actually freed.
 #[cfg(target_os = "windows")]
 fn kill_process_on_port(port: u16) {
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x08000000;
-  let output = std::process::Command::new("netstat")
-    .args(["-ano", "-p", "tcp"])
-    .creation_flags(CREATE_NO_WINDOW)
-    .output();
-  if let Ok(out) = output {
-    let text = String::from_utf8_lossy(&out.stdout);
-    for line in text.lines() {
-      if line.contains(&format!(":{} ", port)) && line.to_uppercase().contains("LISTENING") {
-        if let Some(pid_str) = line.split_whitespace().last() {
-          if let Ok(pid) = pid_str.parse::<u32>() {
-            if pid > 0 {
-              eprintln!("[clawd/service] killing process on port {} (pid {})", port, pid);
-              let _ = std::process::Command::new("taskkill")
-                .args(["/PID", &pid.to_string(), "/F"])
-                .creation_flags(CREATE_NO_WINDOW)
-                .status();
+
+  // Try up to 3 times to kill the process and verify port is free
+  for attempt in 1..=3 {
+    let output = std::process::Command::new("netstat")
+      .args(["-ano", "-p", "tcp"])
+      .creation_flags(CREATE_NO_WINDOW)
+      .output();
+
+    let mut found_process = false;
+    if let Ok(out) = output {
+      let text = String::from_utf8_lossy(&out.stdout);
+      for line in text.lines() {
+        if line.contains(&format!(":{} ", port)) && line.to_uppercase().contains("LISTENING") {
+          if let Some(pid_str) = line.split_whitespace().last() {
+            if let Ok(pid) = pid_str.parse::<u32>() {
+              if pid > 0 {
+                found_process = true;
+                eprintln!("[clawd/service] Attempt {}: killing process on port {} (pid {})", attempt, port, pid);
+                let _ = std::process::Command::new("taskkill")
+                  .args(["/PID", &pid.to_string(), "/F", "/T"])
+                  .creation_flags(CREATE_NO_WINDOW)
+                  .status();
+                // Wait for process to fully terminate
+                std::thread::sleep(std::time::Duration::from_millis(500));
+              }
             }
           }
         }
       }
     }
+
+    if !found_process {
+      eprintln!("[clawd/service] Port {} is now free", port);
+      return;
+    }
+
+    // Brief pause before retry
+    if attempt < 3 {
+      std::thread::sleep(std::time::Duration::from_millis(300));
+    }
   }
+
+  eprintln!("[clawd/service] WARNING: Failed to free port {} after 3 attempts", port);
+}
+
+/// On Unix/macOS, kill a process listening on the given TCP port.
+/// Enhanced with retry logic to ensure the port is actually freed.
+#[cfg(not(target_os = "windows"))]
+fn kill_process_on_port(port: u16) {
+  // Try up to 3 times to kill the process and verify port is free
+  for attempt in 1..=3 {
+    let output = std::process::Command::new("lsof")
+      .args(["-ti", &format!(":{}", port)])
+      .output();
+
+    let mut found_process = false;
+    if let Ok(out) = output {
+      let pid_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
+      if !pid_str.is_empty() {
+        if let Ok(pid) = pid_str.parse::<i32>() {
+          if pid > 0 {
+            found_process = true;
+            eprintln!("[clawd/service] Attempt {}: killing process on port {} (pid {})", attempt, port, pid);
+            let _ = std::process::Command::new("kill")
+              .args(["-9", &pid.to_string()])
+              .status();
+            // Wait for process to fully terminate
+            std::thread::sleep(std::time::Duration::from_millis(500));
+          }
+        }
+      }
+    }
+
+    if !found_process {
+      eprintln!("[clawd/service] Port {} is now free", port);
+      return;
+    }
+
+    // Brief pause before retry
+    if attempt < 3 {
+      std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+  }
+
+  eprintln!("[clawd/service] WARNING: Failed to free port {} after 3 attempts", port);
 }
 
 /// Check if a process with the given PID is still running (Windows).
@@ -4413,7 +4477,27 @@ pub fn cleanup_gateway_on_exit() {
 
 #[cfg(not(target_os = "windows"))]
 pub fn cleanup_gateway_on_exit() {
-  // On macOS, launchd manages the gateway; on Linux, no-op.
+  // Enhanced cleanup for macOS and Linux - kill any process on gateway port
+  eprintln!("[clawd/service] Cleaning up gateway on exit");
+  kill_process_on_port(18789);
+
+  #[cfg(target_os = "macos")]
+  {
+    // On macOS, also attempt to unload the launch agent
+    let uid = unsafe { libc::getuid() };
+    let domain = format!("gui/{}", uid);
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let plist_path = std::path::PathBuf::from(&home_dir)
+      .join("Library/LaunchAgents")
+      .join(format!("{}.plist", LAUNCH_AGENT_LABEL));
+
+    if plist_path.exists() {
+      eprintln!("[clawd/service] Unloading launch agent on exit");
+      let _ = std::process::Command::new("launchctl")
+        .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+        .status();
+    }
+  }
 }
 
 // --- Skills API endpoint (static catalog) ---
