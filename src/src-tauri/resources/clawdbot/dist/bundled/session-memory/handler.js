@@ -1,39 +1,15 @@
-import "../../github-copilot-token-bJVPdSYE.js";
-import { Ct as resolveAgentWorkspaceDir, bt as resolveAgentIdByWorkspacePath, ot as writeFileWithinRoot } from "../../query-expansion-DnS6CGY2.js";
-import { c as resolveStateDir } from "../../paths-BwJ6yG6k.js";
-import { t as createSubsystemLogger } from "../../subsystem-CDcEQtQK.js";
-import { J as toAgentStoreSessionKey, U as resolveAgentIdFromSessionKey, it as parseAgentSessionKey } from "../../workspace-Cg3kGb1y.js";
-import "../../logger-C0l_Gj8Y.js";
-import { ar as hasInterSessionUserProvenance } from "../../model-selection-CU2b7bN6.js";
-import "../../boolean-Cuaw_-7j.js";
-import "../../fetch-BsqGaLgN.js";
-import "../../frontmatter-D6-ANhh_.js";
-import { generateSlugViaLLM } from "../../llm-slug-generator.js";
-import { t as resolveHookConfig } from "../../config-BYkzFD4a.js";
-import fs from "node:fs/promises";
-import os from "node:os";
+import { t as createSubsystemLogger } from "../../subsystem-CJEvHE2o.js";
+import { _ as resolveStateDir } from "../../paths-CD8i0MSg.js";
+import { T as parseAgentSessionKey, h as toAgentStoreSessionKey, u as resolveAgentIdFromSessionKey } from "../../session-key-D7XpmyVq.js";
+import { c as resolveAgentIdByWorkspacePath, p as resolveAgentWorkspaceDir } from "../../agent-scope-CYXg_wTS.js";
+import { r as hasInterSessionUserProvenance } from "../../input-provenance-dFlyjP2J.js";
+import { m as writeFileWithinRoot } from "../../fs-safe-Dv_jH6UN.js";
+import { t as generateSlugViaLLM } from "../../llm-slug-generator-Bc2vaCWr.js";
+import { r as resolveHookConfig } from "../../config-D4gCdbz1.js";
 import path from "node:path";
-//#region src/hooks/bundled/session-memory/handler.ts
-/**
-* Session memory hook handler
-*
-* Saves session context to memory when /new or /reset command is triggered
-* Creates a new dated memory file with LLM-generated slug
-*/
-const log = createSubsystemLogger("hooks/session-memory");
-function resolveDisplaySessionKey(params) {
-	if (!params.cfg || !params.workspaceDir) return params.sessionKey;
-	const workspaceAgentId = resolveAgentIdByWorkspacePath(params.cfg, params.workspaceDir);
-	const parsed = parseAgentSessionKey(params.sessionKey);
-	if (!workspaceAgentId || !parsed || workspaceAgentId === parsed.agentId) return params.sessionKey;
-	return toAgentStoreSessionKey({
-		agentId: workspaceAgentId,
-		requestKey: parsed.rest
-	});
-}
-/**
-* Read recent messages from session file for slug generation
-*/
+import os from "node:os";
+import fs from "node:fs/promises";
+//#region src/hooks/bundled/session-memory/transcript.ts
 async function getRecentSessionContent(sessionFilePath, messageCount = 15) {
 	try {
 		const lines = (await fs.readFile(sessionFilePath, "utf-8")).trim().split("\n");
@@ -55,10 +31,6 @@ async function getRecentSessionContent(sessionFilePath, messageCount = 15) {
 		return null;
 	}
 }
-/**
-* Try the active transcript first; if /new already rotated it,
-* fallback to the latest .jsonl.reset.* sibling.
-*/
 async function getRecentSessionContentWithResetFallback(sessionFilePath, messageCount = 15) {
 	const primary = await getRecentSessionContent(sessionFilePath, messageCount);
 	if (primary) return primary;
@@ -67,13 +39,7 @@ async function getRecentSessionContentWithResetFallback(sessionFilePath, message
 		const resetPrefix = `${path.basename(sessionFilePath)}.reset.`;
 		const resetCandidates = (await fs.readdir(dir)).filter((name) => name.startsWith(resetPrefix)).toSorted();
 		if (resetCandidates.length === 0) return primary;
-		const latestResetPath = path.join(dir, resetCandidates[resetCandidates.length - 1]);
-		const fallback = await getRecentSessionContent(latestResetPath, messageCount);
-		if (fallback) log.debug("Loaded session content from reset fallback", {
-			sessionFilePath,
-			latestResetPath
-		});
-		return fallback || primary;
+		return await getRecentSessionContent(path.join(dir, resetCandidates[resetCandidates.length - 1]), messageCount) || primary;
 	} catch {
 		return primary;
 	}
@@ -99,6 +65,25 @@ async function findPreviousSessionFile(params) {
 		const nonResetJsonl = files.filter((name) => name.endsWith(".jsonl") && !name.includes(".reset.")).toSorted().toReversed();
 		if (nonResetJsonl.length > 0) return path.join(params.sessionsDir, nonResetJsonl[0]);
 	} catch {}
+}
+//#endregion
+//#region src/hooks/bundled/session-memory/handler.ts
+/**
+* Session memory hook handler
+*
+* Saves session context to memory when /new or /reset command is triggered
+* Creates a new dated memory file with LLM-generated slug
+*/
+const log = createSubsystemLogger("hooks/session-memory");
+function resolveDisplaySessionKey(params) {
+	if (!params.cfg || !params.workspaceDir) return params.sessionKey;
+	const workspaceAgentId = resolveAgentIdByWorkspacePath(params.cfg, params.workspaceDir);
+	const parsed = parseAgentSessionKey(params.sessionKey);
+	if (!workspaceAgentId || !parsed || workspaceAgentId === parsed.agentId) return params.sessionKey;
+	return toAgentStoreSessionKey({
+		agentId: workspaceAgentId,
+		requestKey: parsed.rest
+	});
 }
 /**
 * Save session context to memory when /new or /reset command is triggered

@@ -1,0 +1,84 @@
+import { a as requireInRange, i as normalizeSeed, n as normalizeApplyTextNormalization, r as normalizeLanguageCode } from "./directives-D3vliOM7.js";
+import { i as truncateErrorDetail, n as readResponseTextLimited, r as trimToUndefined, t as asObject } from "./speech-DyINWOj0.js";
+//#region extensions/elevenlabs/tts.ts
+const DEFAULT_ELEVENLABS_BASE_URL = "https://api.elevenlabs.io";
+function isValidVoiceId(voiceId) {
+	return /^[a-zA-Z0-9]{10,40}$/.test(voiceId);
+}
+function normalizeElevenLabsBaseUrl(baseUrl) {
+	const trimmed = baseUrl?.trim();
+	if (!trimmed) return DEFAULT_ELEVENLABS_BASE_URL;
+	return trimmed.replace(/\/+$/, "");
+}
+function formatElevenLabsErrorPayload(payload) {
+	const root = asObject(payload);
+	if (!root) return;
+	const detailObject = asObject(root.detail);
+	const message = trimToUndefined(root.message) ?? trimToUndefined(detailObject?.message) ?? trimToUndefined(detailObject?.detail) ?? trimToUndefined(root.error);
+	const code = trimToUndefined(root.code) ?? trimToUndefined(detailObject?.code) ?? trimToUndefined(detailObject?.status);
+	if (message && code) return `${truncateErrorDetail(message)} [code=${code}]`;
+	if (message) return truncateErrorDetail(message);
+	if (code) return `[code=${code}]`;
+}
+async function extractElevenLabsErrorDetail(response) {
+	const rawBody = trimToUndefined(await readResponseTextLimited(response));
+	if (!rawBody) return;
+	try {
+		return formatElevenLabsErrorPayload(JSON.parse(rawBody)) ?? truncateErrorDetail(rawBody);
+	} catch {
+		return truncateErrorDetail(rawBody);
+	}
+}
+function assertElevenLabsVoiceSettings(settings) {
+	requireInRange(settings.stability, 0, 1, "stability");
+	requireInRange(settings.similarityBoost, 0, 1, "similarityBoost");
+	requireInRange(settings.style, 0, 1, "style");
+	requireInRange(settings.speed, .5, 2, "speed");
+}
+async function elevenLabsTTS(params) {
+	const { text, apiKey, baseUrl, voiceId, modelId, outputFormat, seed, applyTextNormalization, languageCode, voiceSettings, timeoutMs } = params;
+	if (!isValidVoiceId(voiceId)) throw new Error("Invalid voiceId format");
+	assertElevenLabsVoiceSettings(voiceSettings);
+	const normalizedLanguage = normalizeLanguageCode(languageCode);
+	const normalizedNormalization = normalizeApplyTextNormalization(applyTextNormalization);
+	const normalizedSeed = normalizeSeed(seed);
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		const url = new URL(`${normalizeElevenLabsBaseUrl(baseUrl)}/v1/text-to-speech/${voiceId}`);
+		if (outputFormat) url.searchParams.set("output_format", outputFormat);
+		const response = await fetch(url.toString(), {
+			method: "POST",
+			headers: {
+				"xi-api-key": apiKey,
+				"Content-Type": "application/json",
+				Accept: "audio/mpeg"
+			},
+			body: JSON.stringify({
+				text,
+				model_id: modelId,
+				seed: normalizedSeed,
+				apply_text_normalization: normalizedNormalization,
+				language_code: normalizedLanguage,
+				voice_settings: {
+					stability: voiceSettings.stability,
+					similarity_boost: voiceSettings.similarityBoost,
+					style: voiceSettings.style,
+					use_speaker_boost: voiceSettings.useSpeakerBoost,
+					speed: voiceSettings.speed
+				}
+			}),
+			signal: controller.signal
+		});
+		if (!response.ok) {
+			const detail = await extractElevenLabsErrorDetail(response);
+			const requestId = trimToUndefined(response.headers.get("x-request-id")) ?? trimToUndefined(response.headers.get("request-id"));
+			throw new Error(`ElevenLabs API error (${response.status})` + (detail ? `: ${detail}` : "") + (requestId ? ` [request_id=${requestId}]` : ""));
+		}
+		return Buffer.from(await response.arrayBuffer());
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+//#endregion
+export { elevenLabsTTS as t };

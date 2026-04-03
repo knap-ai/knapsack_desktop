@@ -22,10 +22,17 @@ export default class Prompt extends BaseStep {
       )
     }
 
+    // Inject agent soul/personality into the prompt if available
+    const identity = context.agentIdentity
+    const soulPrefix = identity?.soul
+      ? `[You are ${identity.displayName}. Personality: ${identity.soul}]\n\n`
+      : ''
+    const promptWithSoul = soulPrefix + this.userPrompt
+
     await helpers.handleChatbotAutomationRun({
       documents: docIds,
       additionalDocuments: additionalDocuments,
-      userPrompt: this.userPrompt,
+      userPrompt: promptWithSoul,
       userPromptFacade: this.userPrompt,
     })
 

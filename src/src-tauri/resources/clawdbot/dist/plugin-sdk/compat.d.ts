@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/compat.js";
+export * from "./src/plugin-sdk/compat.js";

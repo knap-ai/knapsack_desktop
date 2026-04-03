@@ -33,6 +33,7 @@ import { open } from '@tauri-apps/api/shell'
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
+import { safeInvoke } from 'src/utils/tauriIpcBridge'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
 import { getFeedbacks } from '../../../api/threads'
@@ -46,6 +47,7 @@ import TabBar, { TabChoices } from './../../TabBar'
 import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
+import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
 import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
@@ -164,9 +166,31 @@ function Home({
     }
   }, [])
 
+  // Listen for AI email draft ready — only when email is connected natively in the desktop app
+  useEffect(() => {
+    const handleEmailDraftReady = (e: Event) => {
+      // Only use the compose drawer when the user has their email connected natively.
+      // When email is not connected the AI falls back to browser automation instead.
+      if (!feed.loggedEmailAutopilot) return
+      const detail = (e as CustomEvent).detail
+      feed.setComposedEmailDraft(detail)
+      setCurrentTab(TabChoices.Openclaw)
+    }
+    const handleFocusChat = () => setCurrentTab(TabChoices.Openclaw)
+    window.addEventListener('clawd-email-draft-ready', handleEmailDraftReady)
+    window.addEventListener('clawd-focus-chat', handleFocusChat)
+    return () => {
+      window.removeEventListener('clawd-email-draft-ready', handleEmailDraftReady)
+      window.removeEventListener('clawd-focus-chat', handleFocusChat)
+    }
+  }, [feed.loggedEmailAutopilot, feed.setComposedEmailDraft])
+
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
-    invoke('kn_init_app')
+    // Use safeInvoke to handle race conditions where IPC bridge may not be ready yet
+    safeInvoke('kn_init_app').catch(error => {
+      console.error('Failed to initialize app shortcuts:', error)
+    })
     requestNotificationOSPermissions()
     getReleaseType().then((releaseType: string) => {
       setFullRelease(releaseType === 'Full')
@@ -521,6 +545,14 @@ function Home({
                         <ActivityPanel onClose={() => setShowActivityPanel(false)} />
                       </div>
                     </>
+                  )}
+                  {feed.loggedEmailAutopilot && feed.composedEmailDraft && (
+                    <EmailComposeDrawer
+                      draft={feed.composedEmailDraft}
+                      userEmail={userEmail}
+                      userName={userName}
+                      onDismiss={() => feed.setComposedEmailDraft(null)}
+                    />
                   )}
                   {(feed.loggedEmailAutopilot || autopilotForceOpen) && (
                     <EmailNotificationDrawer

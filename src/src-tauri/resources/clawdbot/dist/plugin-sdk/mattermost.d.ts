@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/mattermost.js";
+export * from "./src/plugin-sdk/mattermost.js";

@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/msteams.js";
+export * from "./src/plugin-sdk/msteams.js";

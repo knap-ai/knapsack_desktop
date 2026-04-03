@@ -1,0 +1,14 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["chutes"];
+type FacadeModule = FacadeEntry["module"];
+export declare const applyChutesApiKeyConfig: FacadeModule["applyChutesApiKeyConfig"];
+export declare const applyChutesConfig: FacadeModule["applyChutesConfig"];
+export declare const applyChutesProviderConfig: FacadeModule["applyChutesProviderConfig"];
+export declare const buildChutesModelDefinition: FacadeModule["buildChutesModelDefinition"];
+export declare const buildChutesProvider: FacadeModule["buildChutesProvider"];
+export declare const CHUTES_BASE_URL = "https://llm.chutes.ai/v1";
+export declare const CHUTES_DEFAULT_MODEL_ID = "zai-org/GLM-4.7-TEE";
+export declare const CHUTES_DEFAULT_MODEL_REF = "chutes/zai-org/GLM-4.7-TEE";
+export declare const CHUTES_MODEL_CATALOG: FacadeModule["CHUTES_MODEL_CATALOG"];
+export declare const discoverChutesModels: FacadeModule["discoverChutesModels"];
+export {};

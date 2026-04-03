@@ -569,64 +569,129 @@ struct HeartbeatProvider {
     is_anthropic: bool,
 }
 
-/// Resolve the cheapest/fastest available LLM provider for heartbeat checks.
-/// Priority: Groq (free/fast) > Gemini Flash > OpenAI mini > Anthropic Haiku
+/// Resolve the cheapest available model for the user's active provider.
+/// The heartbeat always uses the cheapest model regardless of what the user
+/// has configured for chat — background checks don't need expensive models.
+///
+/// Cheapest models per provider:
+///   Groq: free (llama-3.3-70b-versatile)
+///   Gemini: gemini-2.5-flash (~$0.15/1M input)
+///   OpenAI: gpt-4o-mini (~$0.15/1M input)
+///   Anthropic: claude-haiku-4-5 (~$0.25/1M input)
+///   OpenRouter: free tier model
+///
+/// If the user's active provider key is unavailable, falls back to the
+/// cheapest available provider. Respects KNAPSACK_DISABLE_PAID_FALLBACK.
 fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
-    let groq_key = std::env::var("GROQ_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty());
-    let gemini_key = std::env::var("GEMINI_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty());
-    let openai_key = std::env::var("OPENAI_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty());
-    let anthropic_key = std::env::var("ANTHROPIC_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty());
+    let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+    let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(true);
 
-    // Prefer Groq — free and fast
+    let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
+
+    // First: try the user's active provider with its CHEAPEST model
+    match active.as_str() {
+        "groq" if groq_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "groq".into(),
+                api_key: groq_key.unwrap(),
+                model: "llama-3.3-70b-versatile".into(),
+                base_url: "https://api.groq.com/openai/v1".into(),
+                is_anthropic: false,
+            });
+        }
+        "gemini" if gemini_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "gemini".into(),
+                api_key: gemini_key.unwrap(),
+                model: "gemini-2.5-flash".into(),
+                base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
+                is_anthropic: false,
+            });
+        }
+        "openai" if openai_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "openai".into(),
+                api_key: openai_key.unwrap(),
+                model: "gpt-4o-mini".into(), // cheapest, NOT the user's chat model
+                base_url: "https://api.openai.com/v1".into(),
+                is_anthropic: false,
+            });
+        }
+        "anthropic" if anthropic_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "anthropic".into(),
+                api_key: anthropic_key.unwrap(),
+                model: "claude-haiku-4-5-20251001".into(), // cheapest, NOT Sonnet/Opus
+                base_url: "https://api.anthropic.com/v1".into(),
+                is_anthropic: true,
+            });
+        }
+        "openrouter" if openrouter_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "openrouter".into(),
+                api_key: openrouter_key.unwrap(),
+                model: "meta-llama/llama-3.3-70b-instruct:free".into(),
+                base_url: "https://openrouter.ai/api/v1".into(),
+                is_anthropic: false,
+            });
+        }
+        _ => {}
+    }
+
+    // Fallback: cheapest available provider (free → cheap → paid)
+    log::info!("[heartbeat] Active provider '{}' unavailable, trying cheapest fallback", active);
+    let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter" | "");
+
     if let Some(key) = groq_key {
         return Ok(HeartbeatProvider {
-            name: "groq".into(),
-            api_key: key,
+            name: "groq".into(), api_key: key,
             model: "llama-3.3-70b-versatile".into(),
             base_url: "https://api.groq.com/openai/v1".into(),
             is_anthropic: false,
         });
     }
-
-    // Gemini Flash — very cheap
     if let Some(key) = gemini_key {
         return Ok(HeartbeatProvider {
-            name: "gemini".into(),
-            api_key: key,
+            name: "gemini".into(), api_key: key,
             model: "gemini-2.5-flash".into(),
             base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
             is_anthropic: false,
         });
     }
-
-    // OpenAI mini — affordable
-    if let Some(key) = openai_key {
+    if let Some(key) = openrouter_key {
         return Ok(HeartbeatProvider {
-            name: "openai".into(),
-            api_key: key,
-            model: "gpt-4o-mini".into(),
-            base_url: "https://api.openai.com/v1".into(),
+            name: "openrouter".into(), api_key: key,
+            model: "meta-llama/llama-3.3-70b-instruct:free".into(),
+            base_url: "https://openrouter.ai/api/v1".into(),
             is_anthropic: false,
         });
     }
-
-    // Anthropic Haiku — cheapest Anthropic option
-    if let Some(key) = anthropic_key {
-        return Ok(HeartbeatProvider {
-            name: "anthropic".into(),
-            api_key: key,
-            model: "claude-haiku-4-5-20251001".into(),
-            base_url: "https://api.anthropic.com/v1".into(),
-            is_anthropic: true,
-        });
+    // Only try paid providers if allowed
+    if !disable_paid || !active_is_free {
+        if let Some(key) = openai_key {
+            return Ok(HeartbeatProvider {
+                name: "openai".into(), api_key: key,
+                model: "gpt-4o-mini".into(),
+                base_url: "https://api.openai.com/v1".into(),
+                is_anthropic: false,
+            });
+        }
+        if let Some(key) = anthropic_key {
+            return Ok(HeartbeatProvider {
+                name: "anthropic".into(), api_key: key,
+                model: "claude-haiku-4-5-20251001".into(),
+                base_url: "https://api.anthropic.com/v1".into(),
+                is_anthropic: true,
+            });
+        }
+    } else {
+        log::info!("[heartbeat] Skipping paid providers (KNAPSACK_DISABLE_PAID_FALLBACK, active={})", active);
     }
 
     Err("No API key configured for heartbeat. Please add an API key in Settings.".into())

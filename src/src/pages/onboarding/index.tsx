@@ -1,6 +1,7 @@
 import { ChangeEvent, useCallback, useEffect, useState } from 'react'
 
 import { useNavigate } from 'react-router-dom'
+import { upsertAutomation, insertAutomationToServer } from 'src/api/automations'
 import {
   Connection,
   ConnectionKeys,
@@ -9,6 +10,11 @@ import {
   googleConnections,
   microsoftConnections,
 } from 'src/api/connections'
+import { AGENT_TEMPLATES } from 'src/automations/agentTemplates'
+import { AutomationDataSources, CadenceType } from 'src/automations/automation'
+import Prompt from 'src/automations/steps/Prompt'
+import SemanticSearch from 'src/automations/steps/SemanticSearch'
+import { Automation } from 'src/automations/automation'
 import { Profile } from 'src/hooks/auth/useAuth'
 import { useGoogleConnections } from 'src/hooks/connections/useGoogleConnections'
 import { useLocalConnections } from 'src/hooks/connections/useLocalConnections'
@@ -25,6 +31,7 @@ import { Event, listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/shell'
 import { getAppVersion } from 'src/utils/app'
 
+import { AgentSelection } from './AgentPickerScreen'
 import { OnboardingTemplate } from './template'
 
 export const KN_ONBOARDING_URL_PARAM = 'onboarding'
@@ -61,6 +68,8 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
   const [microsoftListenerTransitionIndex, setMicrosoftListenerTransitionIndex] = useState<
     number | undefined
   >()
+  const [connectedProvider, setConnectedProvider] = useState<'google' | 'microsoft' | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
   const [showGoogleRequiredMessage, setShowGoogleRequiredMessage] = useState<boolean>(false)
   const { syncConnections } = useGoogleConnections()
   const { syncLocalFiles } = useLocalConnections()
@@ -116,6 +125,8 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
               const profile = response.profile
               profile.provider = ConnectionKeys.GOOGLE_PROFILE
               updateProfile(profile)
+              setConnectedProvider('google')
+              setUserEmail(profile.email)
               KNAnalytics.trackEvent('PermissionsGranted', {
                 googlePermissions: googlePermissions,
               })
@@ -163,6 +174,8 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
           const profile = event.payload.profile
           profile.provider = ConnectionKeys.MICROSOFT_PROFILE
           updateProfile(profile)
+          setConnectedProvider('microsoft')
+          setUserEmail(profile.email)
 
           KNAnalytics.trackEvent('PermissionsGranted', {
             microsoftPermissions: microsoftPermissions,
@@ -252,7 +265,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     setMicrosoftListenerTransitionIndex(index)
   }
 
-  const onGoogleSkipClick = (_index: number) => {
+  const onGoogleSkipClick = (index: number) => {
     KNAnalytics.trackEvent('Onboarding - Skipped Google Sign In', {})
     transitionToExtensionScreen()
   }
@@ -268,12 +281,12 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
 
   const onChromeExtensionInstallClick = (_index: number) => {
     KNAnalytics.trackEvent('Onboarding - Installed Chrome Extension', {})
-    navigateToNextScreen()
+    transitionToNextScreen(3)
   }
 
   const onChromeExtensionSkipClick = (_index: number) => {
     KNAnalytics.trackEvent('Onboarding - Skipped Chrome Extension', {})
-    navigateToNextScreen()
+    transitionToNextScreen(3)
   }
 
   // const onClickGrantNotificationPermission = async () => {
@@ -312,6 +325,94 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     transitionToNextScreen(index)
   }
 
+  const handleAgentPickerActivate = async (selections: AgentSelection[]) => {
+    const enabledSelections = selections.filter(s => s.enabled)
+
+    for (const selection of enabledSelections) {
+      let automation: Automation
+
+      if (selection.isCustom && selection.customPrompt) {
+        // Agentmaker-generated custom agent
+        const sources = (selection.customSources ?? ['email', 'web']).map(s => {
+          const isMs = connectedProvider === 'microsoft'
+          switch (s) {
+            case 'email':
+              return isMs ? AutomationDataSources.OUTLOOK : AutomationDataSources.GMAIL
+            case 'calendar':
+              return isMs
+                ? AutomationDataSources.MICROSOFT_CALENDAR
+                : AutomationDataSources.GOOGLE_CALENDAR
+            case 'drive':
+              return isMs ? AutomationDataSources.ONEDRIVE : AutomationDataSources.DRIVE
+            case 'web':
+              return AutomationDataSources.WEB
+            default:
+              return AutomationDataSources.WEB
+          }
+        })
+
+        const cadenceType =
+          selection.customCadence === 'weekly'
+            ? CadenceType.WEEKLY
+            : selection.customCadence === 'hourly'
+              ? CadenceType.HOURLY
+              : CadenceType.DAILY
+
+        automation = new Automation({
+          name: selection.identity.displayName,
+          description: selection.identity.personality,
+          runs: [],
+          cadences: [{ type: cadenceType, time: '08:00' }],
+          steps: [
+            new SemanticSearch({ sources, userPrompt: selection.customPrompt }),
+            new Prompt({ userPrompt: selection.customPrompt }),
+          ],
+          isActive: true,
+          showLibrary: true,
+          icon: selection.identity.emoji,
+          identity: selection.identity,
+        })
+      } else {
+        // Preset template agent
+        const template = AGENT_TEMPLATES.find(t => t.id === selection.templateId)
+        if (!template) continue
+        automation = template.createAutomation(connectedProvider, {
+          cadence: selection.cadenceOverride,
+          description: selection.descriptionOverride,
+        })
+        automation.setIdentity(selection.identity)
+      }
+
+      try {
+        await upsertAutomation(automation)
+        if (userEmail) {
+          await insertAutomationToServer(automation, userEmail)
+        }
+      } catch (err) {
+        console.error(`Failed to create agent ${selection.identity.displayName}:`, err)
+      }
+    }
+
+    // Save activated agents so the first chat session can introduce them
+    const activatedAgents = enabledSelections.map(s => ({
+      name: s.identity.displayName,
+      emoji: s.identity.emoji,
+      personality: s.identity.personality,
+    }))
+    localStorage.setItem('kn_onboarding_agents', JSON.stringify(activatedAgents))
+
+    KNAnalytics.trackEvent('Onboarding - Agents Activated', {
+      count: enabledSelections.length,
+      agents: enabledSelections.map(s => s.identity.displayName),
+    })
+    navigateToNextScreen()
+  }
+
+  const handleAgentPickerSkip = (_index: number) => {
+    KNAnalytics.trackEvent('Onboarding - Skipped Agent Picker', {})
+    navigateToNextScreen()
+  }
+
   useEffect(() => {
     const checkOnboardingStatus = async () => {
       const hasOnboarded = await getHasOnboarded()
@@ -342,6 +443,9 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       error={error}
       onChromeExtensionInstallClick={onChromeExtensionInstallClick}
       onChromeExtensionSkipClick={onChromeExtensionSkipClick}
+      connectedProvider={connectedProvider}
+      onAgentPickerActivate={handleAgentPickerActivate}
+      onAgentPickerSkip={handleAgentPickerSkip}
       //onAudioGrantClick={onClickGrantAudioPermission}
     />
   )

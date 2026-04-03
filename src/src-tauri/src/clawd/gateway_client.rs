@@ -196,9 +196,9 @@ fn ensure_browser_config() -> bool {
     Err(_) => return false,
   };
 
-  // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR) —
+  // Check the app data dir first (OPENCLAW_HOME / OPENCLAW_STATE_DIR) —
   // that's where service.rs creates the config the gateway actually reads.
-  for var in ["OPENCLAW_HOME", "CLAWDBOT_STATE_DIR"] {
+  for var in ["OPENCLAW_HOME", "OPENCLAW_STATE_DIR"] {
     if let Ok(dir) = std::env::var(var) {
       let dir = dir.trim().to_string();
       if !dir.is_empty() {
@@ -269,7 +269,7 @@ fn ensure_tools_md(config_path: &std::path::Path) {
 
   let should_write = if tools_md_path.exists() {
     std::fs::read_to_string(&tools_md_path)
-      .map(|c| !c.contains("FALLBACK BEHAVIOR"))
+      .map(|c| !c.contains("SELF-REVIEW"))
       .unwrap_or(true)
   } else {
     true
@@ -645,16 +645,33 @@ pub fn resolve_default_model() -> String {
     _ => {}
   }
 
-  // Fallback: try providers in preference order using user's configured model
-  if has_key("ANTHROPIC_API_KEY") {
-    let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
-      .unwrap_or_else(|_| "claude-opus-4-6".to_string());
-    return format!("anthropic/{}", model);
-  }
-  if has_key("OPENAI_API_KEY") {
-    let model = std::env::var("KNAPSACK_OPENAI_MODEL")
-      .unwrap_or_else(|_| "gpt-5.4".to_string());
-    return format!("openai/{}", model);
+  // Fallback: try providers in preference order using user's configured model.
+  // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silently selecting expensive models.
+  let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    .unwrap_or(true);
+  let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter");
+
+  if !disable_paid || !active_is_free {
+    if has_key("ANTHROPIC_API_KEY") {
+      let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+        .unwrap_or_else(|_| "claude-opus-4-6".to_string());
+      log::warn!("[resolve_default_model] Falling back to anthropic/{} (active={})", model, active);
+      return format!("anthropic/{}", model);
+    }
+    if has_key("OPENAI_API_KEY") {
+      let model = std::env::var("KNAPSACK_OPENAI_MODEL")
+        .unwrap_or_else(|_| "gpt-5.4".to_string());
+      log::warn!("[resolve_default_model] Falling back to openai/{} (active={})", model, active);
+      return format!("openai/{}", model);
+    }
+  } else {
+    if has_key("ANTHROPIC_API_KEY") {
+      log::info!("[resolve_default_model] Skipping Anthropic fallback (paid fallback disabled, active={})", active);
+    }
+    if has_key("OPENAI_API_KEY") {
+      log::info!("[resolve_default_model] Skipping OpenAI fallback (paid fallback disabled, active={})", active);
+    }
   }
   if has_key("GROQ_API_KEY") {
     let model = std::env::var("KNAPSACK_GROQ_MODEL")
@@ -676,7 +693,9 @@ pub fn resolve_default_model() -> String {
       .unwrap_or_else(|_| "llama3.1".to_string());
     return format!("ollama/{}", model);
   }
-  "anthropic/claude-opus-4-6".to_string()
+  // Final fallback: use Groq free model instead of expensive Anthropic Opus
+  log::warn!("[resolve_default_model] No provider keys found, defaulting to groq/llama-3.3-70b-versatile");
+  "groq/llama-3.3-70b-versatile".to_string()
 }
 
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
@@ -1081,6 +1100,15 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     }
     drop(pending);
     invalidate_client();
+
+    // Proactively reconnect with exponential backoff so the connection
+    // auto-recovers without waiting for the next incoming request.
+    // This drives the "Gateway: reconnecting → connected" transition
+    // automatically when the gateway process comes back up.
+    if let Some(token) = get_gateway_token() {
+      eprintln!("[gateway_client] WebSocket dropped — spawning reconnect task");
+      spawn_reconnect_task(token);
+    }
   });
 
   Ok(client)
@@ -1127,6 +1155,73 @@ async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
 fn invalidate_client() {
   let mut guard = CLIENT.write().unwrap();
   *guard = None;
+}
+
+/// Guards against spawning duplicate reconnect tasks.
+static RECONNECT_IN_PROGRESS: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
+
+/// Spawn a background task that retries the WebSocket connection with
+/// exponential backoff (1 s → 2 s → 4 s → 8 s → 15 s cap).
+///
+/// The task:
+/// 1. Checks whether the port is open before attempting the full handshake
+///    (avoids the 3-second TCP timeout when the gateway is still starting).
+/// 2. Stops as soon as a connection is established or the connection was
+///    re-established by an incoming request (checked each iteration).
+/// 3. Gives up after 20 attempts and lets health-check polling drive any
+///    further recovery.
+fn spawn_reconnect_task(token: String) {
+  // Only one reconnect task at a time.
+  if RECONNECT_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    return;
+  }
+  tokio::spawn(async move {
+    let backoff_steps: &[u64] = &[1000, 2000, 4000, 8000, 15000];
+    let mut step_idx = 0usize;
+    let max_attempts = 20usize;
+
+    for attempt in 0..max_attempts {
+      let delay_ms = backoff_steps[step_idx.min(backoff_steps.len() - 1)];
+      step_idx = (step_idx + 1).min(backoff_steps.len() - 1);
+
+      tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+
+      // If an incoming request already re-established the connection, stop.
+      {
+        let guard = CLIENT.read().unwrap();
+        if guard.is_some() {
+          eprintln!("[gateway_client] reconnect task: connection already re-established (attempt {})", attempt + 1);
+          RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+          return;
+        }
+      }
+
+      // Only attempt the full WS handshake when the port is actually open.
+      // This avoids the 3 s TCP timeout and lets us react immediately when
+      // the gateway starts accepting connections after a restart.
+      if !is_gateway_port_open().await {
+        eprintln!("[gateway_client] reconnect task: gateway port not open yet (attempt {}), backing off {}ms", attempt + 1, delay_ms);
+        continue;
+      }
+
+      match connect_and_handshake(&token).await {
+        Ok(client) => {
+          let mut guard = CLIENT.write().unwrap();
+          *guard = Some(client);
+          eprintln!("[gateway_client] reconnect task: connection re-established (attempt {})", attempt + 1);
+          RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+          return;
+        }
+        Err(e) => {
+          eprintln!("[gateway_client] reconnect task: attempt {} failed ({}), backing off {}ms", attempt + 1, e, delay_ms);
+        }
+      }
+    }
+
+    eprintln!("[gateway_client] reconnect task: gave up after {} attempts — health-check polling will drive recovery", max_attempts);
+    RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+  });
 }
 
 /// Public wrapper: drop the cached connection.
@@ -1357,12 +1452,10 @@ pub async fn gateway_request_agent(
 
 /// Get the gateway token from environment or config file.
 fn get_gateway_token() -> Option<String> {
-  for var in ["OPENCLAW_GATEWAY_TOKEN", "CLAWDBOT_GATEWAY_TOKEN"] {
-    if let Ok(token) = std::env::var(var) {
-      let t = token.trim().to_string();
-      if !t.is_empty() {
-        return Some(t);
-      }
+  if let Ok(token) = std::env::var("OPENCLAW_GATEWAY_TOKEN") {
+    let t = token.trim().to_string();
+    if !t.is_empty() {
+      return Some(t);
     }
   }
 
@@ -1401,11 +1494,11 @@ fn read_token_from_config() -> Option<String> {
     .or_else(|_| std::env::var("USERPROFILE"))
     .unwrap_or_else(|_| ".".to_string());
 
-  // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR),
+  // Check the app data dir first (OPENCLAW_HOME / OPENCLAW_STATE_DIR),
   // then standard user-level config locations.
   let mut candidates: Vec<std::path::PathBuf> = Vec::new();
 
-  for var in ["OPENCLAW_HOME", "CLAWDBOT_STATE_DIR"] {
+  for var in ["OPENCLAW_HOME", "OPENCLAW_STATE_DIR"] {
     if let Ok(dir) = std::env::var(var) {
       let dir = dir.trim().to_string();
       if !dir.is_empty() {
@@ -1597,6 +1690,33 @@ pub async fn agent_chat(
     "deliver": false,
     "channel": "webchat",
     "agentId": "main",
+  });
+  // 5 minute timeout — LLM tool loops can take a while
+  gateway_request_agent("agent", Some(params), &t, 300).await
+}
+
+/// Send an automation agent run through the gateway's `agent` RPC method.
+///
+/// Unlike `agent_chat`, this is used for scheduled/triggered automation runs
+/// (not interactive chat).  It uses the "automation" channel by default and
+/// accepts an optional custom `agent_id` and `channel`.
+pub async fn agent_run(
+  message: &str,
+  agent_id: Option<&str>,
+  channel: Option<&str>,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  let idem = format!("knapsack-auto-{}", std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_millis());
+  let params = serde_json::json!({
+    "message": message,
+    "idempotencyKey": idem,
+    "deliver": false,
+    "channel": channel.unwrap_or("automation"),
+    "agentId": agent_id.unwrap_or("main"),
   });
   // 5 minute timeout — LLM tool loops can take a while
   gateway_request_agent("agent", Some(params), &t, 300).await

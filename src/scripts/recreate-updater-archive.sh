@@ -51,9 +51,12 @@ echo "[updater-archive] Recreating $TAR_GZ_PATH with signed .app..."
 # Remove old archive and signature
 rm -f "$TAR_GZ_PATH" "$TAR_GZ_PATH.sig"
 
-# Create new gzipped tar archive
-# Use -C to cd into the parent dir so the archive contains just the .app
-tar -czf "$TAR_GZ_PATH" -C "$MACOS_DIR" "$APP_NAME"
+# Create new gzipped tar archive.
+# COPYFILE_DISABLE=1 prevents macOS tar from packing HFS+ extended attributes
+# as AppleDouble (._*) metadata files. Tauri's Rust-based updater extracts these
+# as real files inside the .app bundle, which invalidates the code signature and
+# causes Gatekeeper to show "damaged and can't be opened" after auto-update.
+COPYFILE_DISABLE=1 tar -czf "$TAR_GZ_PATH" -C "$MACOS_DIR" "$APP_NAME"
 
 echo "[updater-archive] Archive created: $(ls -lh "$TAR_GZ_PATH" | awk '{print $5}')"
 

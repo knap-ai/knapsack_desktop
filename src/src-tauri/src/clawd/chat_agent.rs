@@ -380,7 +380,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "send_email".to_string(),
-        description: "Send an email via Gmail or Outlook API. Two-phase process: (1) Call with to/subject/body to create a draft — this does NOT send. (2) Show the user the draft details and wait for explicit confirmation. (3) Call again with confirmed=true and the pending_id from step 1 to actually send. NEVER set confirmed=true on the first call.".to_string(),
+        description: "Draft an email via Gmail or Outlook API. Call with to/subject/body to create a draft — this does NOT send immediately. The draft opens automatically in the Email Autopilot compose drawer for the user to review and send. After calling, tell the user their draft is ready in the Email tab. Do NOT ask for chat confirmation — the user sends from the drawer. Only call again with confirmed=true + pending_id if the user explicitly says to send in chat.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
@@ -538,10 +538,14 @@ pub async fn openai_compatible_chat(
     .timeout(Duration::from_secs(timeout_secs))
     .build()?;
 
-  // o3, o1, and gpt-5.2-pro reasoning models only support temperature=1 (default)
-  // gpt-5.2 standard supports custom temperature
-  let temperature = if model.starts_with("o3") || model.starts_with("o1") || model == "gpt-5.2-pro" {
-    None // Use default temperature for reasoning models
+  // OpenAI reasoning models (o1, o3, o4-mini, gpt-5.2-pro) only support temperature=1 (default).
+  // Ollama models also often reject non-default temperatures for reasoning variants.
+  let is_reasoning_model = model.starts_with("o1")
+    || model.starts_with("o3")
+    || model.starts_with("o4")
+    || model == "gpt-5.2-pro";
+  let temperature = if is_reasoning_model {
+    None
   } else {
     Some(0.2)
   };
@@ -592,9 +596,15 @@ pub async fn openai_compatible_chat(
   let mut body = json!({
     "model": model,
     "messages": oai_messages,
-    "tools": tools,
-    "tool_choice": "auto"
   });
+  if !tools.is_empty() {
+    body["tools"] = json!(tools);
+    // Don't send tool_choice for local Ollama models — some models
+    // (e.g. gemma3) don't support this parameter via the OpenAI-compat API.
+    if !is_local {
+      body["tool_choice"] = json!("auto");
+    }
+  }
   if let Some(t) = temperature {
     body["temperature"] = json!(t);
   }
@@ -661,6 +671,39 @@ pub async fn openai_compatible_chat(
           }
         }
       }
+    }
+
+    // Ollama models (local) may return errors when tools are included but
+    // the model doesn't support them (e.g. gemma3).  Detect these errors
+    // and retry once without tools so the model can still respond.
+    let text_lower = text.to_lowercase();
+    let is_tool_error = text_lower.contains("does not support tools")
+      || text_lower.contains("does not support function")
+      || text_lower.contains("tool use is not supported")
+      || text_lower.contains("tools is not supported")
+      || text_lower.contains("unknown parameter: tools");
+    if is_tool_error && is_local && !tools.is_empty() {
+      eprintln!("[chat_agent] Ollama model does not support tools — retrying without tools");
+      let mut body_no_tools = json!({
+        "model": model,
+        "messages": oai_messages,
+      });
+      if let Some(t) = temperature {
+        body_no_tools["temperature"] = json!(t);
+      }
+      let retry_res = client
+        .post(format!("{}/chat/completions", base_url))
+        .bearer_auth(api_key)
+        .json(&body_no_tools)
+        .send()
+        .await?;
+      let retry_status = retry_res.status();
+      let retry_text = retry_res.text().await.unwrap_or_default();
+      if retry_status.is_success() {
+        let parsed: OaiChatResp = serde_json::from_str(&retry_text)?;
+        return Ok(fixup_raw_tool_tokens(parsed));
+      }
+      anyhow::bail!("LLM HTTP {}: {}", retry_status, retry_text);
     }
 
     // For other errors, fail immediately
@@ -1027,14 +1070,32 @@ pub async fn gemini_chat(
           }
         }
         if let Some(tcs) = tool_calls {
+          // Gemini 2.5+ models with thinking enabled require thoughtSignature on all functionCall
+          // parts in conversation history. Use the skip_thought_signature_validator sentinel for
+          // function calls that don't have an actual signature (e.g. replayed from prior turns).
+          // See: https://ai.google.dev/gemini-api/docs/thought-signatures
+          let needs_thought_sig = {
+            let m = model.to_lowercase();
+            m.contains("gemini-2.5") || m.contains("gemini-3")
+          };
           for tc in tcs {
             let args: JsonValue = serde_json::from_str(&tc.function.arguments).unwrap_or(json!({}));
-            parts.push(json!({
-              "functionCall": {
-                "name": tc.function.name,
-                "args": args
-              }
-            }));
+            if needs_thought_sig {
+              parts.push(json!({
+                "functionCall": {
+                  "name": tc.function.name,
+                  "args": args
+                },
+                "thoughtSignature": "skip_thought_signature_validator"
+              }));
+            } else {
+              parts.push(json!({
+                "functionCall": {
+                  "name": tc.function.name,
+                  "args": args
+                }
+              }));
+            }
           }
         }
         if parts.is_empty() {

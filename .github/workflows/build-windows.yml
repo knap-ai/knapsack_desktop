@@ -74,9 +74,16 @@ jobs:
           AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
           AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
         run: |
-          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" --azure-key-vault-tenant-id `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 `"%1`""
-          echo "TAURI_WINDOWS_SIGN_COMMAND=$signCommand" >> $env:GITHUB_ENV
-          Write-Host "Azure Key Vault code signing configured successfully"
+          # Tauri v1 reads signCommand from tauri.conf.json (NOT from
+          # TAURI_WINDOWS_SIGN_COMMAND env var — that's a Tauri v2 feature).
+          # Inject the signCommand into the config before building.
+          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 `"%1`""
+
+          $confPath = "src/src-tauri/tauri.conf.json"
+          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
+          $conf.tauri.bundle.windows | Add-Member -NotePropertyName "signCommand" -NotePropertyValue $signCommand -Force
+          $conf | ConvertTo-Json -Depth 20 | Set-Content $confPath -Encoding UTF8
+          Write-Host "Injected signCommand into tauri.conf.json for Tauri v1 code signing"
 
       - name: Build Tauri app
         working-directory: src

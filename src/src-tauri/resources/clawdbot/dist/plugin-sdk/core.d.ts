@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/core.js";
+export * from "./src/plugin-sdk/core.js";

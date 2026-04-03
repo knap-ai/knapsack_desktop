@@ -111,6 +111,12 @@ coreaudio-sys = "0.2.16"
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.15.0"
 
+[patch.crates-io]
+# Local patch for wry 0.24.11: adds null check in run_file_upload_panel to
+# prevent a null pointer dereference crash when NSOpenPanel returns nil on
+# macOS (reproducible on macOS 26.x beta when clicking the file attach button).
+wry = { path = "patches/wry" }
+
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
 # If you use cargo directly instead of tauri's cli you can use this feature flag to switch between tauri's `dev` and `build` modes.

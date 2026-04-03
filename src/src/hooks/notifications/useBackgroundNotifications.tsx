@@ -366,6 +366,10 @@ export function useBackgroundNotifications({
             : 'TBD'
           const attendees = event.attendees_json
             ? JSON.parse(event.attendees_json)
+                .filter((a: any) => {
+                  const email = a.email || a
+                  return !userEmail || !email.toLowerCase().includes(userEmail.toLowerCase())
+                })
                 .map((a: any) => a.email || a)
                 .join(', ')
             : 'N/A'
@@ -385,7 +389,12 @@ export function useBackgroundNotifications({
         contextParts.push('\n## Upcoming Meetings\n')
         for (const meeting of upcomingMeetings) {
           const startStr = dayjs(meeting.start).format('ddd MMM D, h:mm A')
-          const participants = meeting.participants?.join(', ') || 'N/A'
+          const participants = meeting.participants
+            ?.filter((p: any) => {
+              const email = typeof p === 'string' ? p : p.email
+              return !userEmail || !email?.toLowerCase().includes(userEmail.toLowerCase())
+            })
+            ?.join(', ') || 'N/A'
           contextParts.push(
             `- **${meeting.title}** at ${startStr} | Participants: ${participants}\n`,
           )
@@ -448,8 +457,11 @@ export function useBackgroundNotifications({
       const contextParts: string[] = []
 
       const startTime = dayjs(meeting.start).format('h:mm A')
+      const otherParticipants = meeting.participants?.filter(
+        p => !userEmail || !p.email?.toLowerCase().includes(userEmail.toLowerCase()),
+      )
       const participantNames =
-        meeting.participants?.map(p => p.name || p.email).join(', ') || 'N/A'
+        otherParticipants?.map(p => p.name || p.email).join(', ') || 'N/A'
       contextParts.push('## Upcoming Meeting\n')
       contextParts.push(`- **Title:** ${meeting.title}`)
       contextParts.push(`- **Time:** ${startTime}`)
@@ -481,7 +493,7 @@ export function useBackgroundNotifications({
 
       return contextParts.join('\n')
     },
-    [dataFetcher],
+    [dataFetcher, userEmail],
   )
 
   /**

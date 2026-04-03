@@ -14,6 +14,7 @@ import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVer
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
+import { TokenCostsView } from 'src/components/organisms/ActivityPanel'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -154,36 +155,52 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
 }
 
 // Convert raw API/JSON error messages into user-friendly text
-function friendlyError(raw: string): string {
+function getActiveModelLabel(): string {
+  const provider = localStorage.getItem('moltbot_active_provider') || 'openai'
+  const modelKeys: Record<string, string> = {
+    openai: 'moltbot_openai_model',
+    anthropic: 'moltbot_anthropic_model',
+    gemini: 'moltbot_gemini_model',
+    groq: 'moltbot_groq_model',
+    openrouter: 'moltbot_openrouter_model',
+    ollama: 'moltbot_ollama_model',
+  }
+  const model = localStorage.getItem(modelKeys[provider] || '') || ''
+  if (model) return `${provider}/${model}`
+  return provider
+}
+
+function friendlyError(raw: string, activeModel?: string): string {
   if (!raw) return 'Something went wrong. Please try again.'
   const lower = raw.toLowerCase()
+  if (!activeModel) activeModel = getActiveModelLabel()
   // All providers failed (fallback exhausted)
   if (lower.includes('all fallback providers also failed')) {
-    return '⚠️ **All AI providers are unavailable.** Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.'
+    return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.`
   }
   // OpenAI quota / billing errors
   if (lower.includes('insufficient_quota') || lower.includes('exceeded your current quota')) {
-    return '⚠️ **API quota exceeded.** Your OpenAI account has run out of credits or hit its spending limit. Add another provider\'s API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).'
+    return `⚠️ **API quota exceeded** (active: \`${activeModel}\`). Your OpenAI account has run out of credits or hit its spending limit. Add another provider's API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).`
   }
   // Anthropic credit errors
   if (lower.includes('anthropic') && (lower.includes('credit') || lower.includes('billing') || lower.includes('exceeded'))) {
-    return '⚠️ **Anthropic credit limit reached.** Add another provider\'s API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).'
+    return `⚠️ **Anthropic credit limit reached** (active: \`${activeModel}\`). Add another provider's API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).`
   }
   // Rate limit (but not quota)
   if (lower.includes('rate_limit') || (lower.includes('429') && !lower.includes('insufficient_quota'))) {
-    return '⏳ **Rate limited.** Too many requests — please wait a moment and try again.'
+    return `⏳ **Rate limited** (active: \`${activeModel}\`). Too many requests — please wait a moment and try again.`
   }
   // Invalid API key
   if (lower.includes('invalid_api_key') || lower.includes('incorrect api key')) {
-    return '🔑 **Invalid API key.** Please check your key in Settings and try again.'
+    return `🔑 **Invalid API key** (active: \`${activeModel}\`). Please check your key in Settings and try again.`
   }
   // Auth error
   if (lower.includes('401') || lower.includes('unauthorized')) {
-    return '🔒 **Authentication failed.** Your API key may be invalid or expired. Update it in Settings.'
+    return `🔒 **Authentication failed** (active: \`${activeModel}\`). Your API key may be invalid or expired. Update it in Settings.`
   }
   // Model not found / access
   if (lower.includes('model_not_found') || lower.includes('does not exist') || lower.includes('no access')) {
-    return '⚠️ **Model not available.** Your API key may not have access to this model. Try switching to a different model in Settings.'
+    return `⚠️ **Model not available** (active: \`${activeModel}\`). Your API key may not have access to this model. Try switching to a different model in Settings.`
   }
   // Browser automation errors
   if (lower.includes('browser control server') || lower.includes('browser not running') || lower.includes('clawdbot base_url is not configured')) {
@@ -200,22 +217,30 @@ function friendlyError(raw: string): string {
   }
   // Network / connection errors
   if (lower.includes('load failed') && !lower.includes('model')) {
-    return '🌐 **Request too large.** The image attachment may be too large to send. Try a smaller image or send without the attachment.'
+    return `🌐 **Request too large** (active: \`${activeModel}\`). The image attachment may be too large to send. Try a smaller image or send without the attachment.`
   }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
-    return '🌐 **Connection error.** Unable to reach the AI service. Check your internet connection and try again.'
+    return `🌐 **Connection error** (active: \`${activeModel}\`). Unable to reach the AI service. Check your internet connection and try again.`
   }
   // Timeout
   if (lower.includes('timeout') || lower.includes('timed out')) {
-    return '⏰ **Request timed out.** The AI took too long to respond. Try a simpler request or try again.'
+    return `⏰ **Request timed out** (active: \`${activeModel}\`). The AI took too long to respond. Try a simpler request or try again.`
   }
   // Tool loop exceeded
   if (lower.includes('tool loop exceeded')) {
-    return '🔄 **Task too complex.** The AI hit its action limit for this request. Try breaking it into smaller steps.'
+    return `🔄 **Task too complex** (active: \`${activeModel}\`). The AI hit its action limit for this request. Try breaking it into smaller steps.`
   }
   // Image/vision not supported by model (e.g. Groq non-vision models)
   if (lower.includes('content must be a string') || lower.includes('does not support images')) {
-    return '🖼️ **This model does not support image attachments.** Switch to a vision-capable model (e.g. Llama 4 Scout) in Settings, or send your message without the image.'
+    return `🖼️ **This model (\`${activeModel}\`) does not support image attachments.** Remove the image from your message, or switch to a vision-capable model in Settings → Provider.`
+  }
+  // Model doesn't support tool/function calling (e.g. deepseek-r1, some Ollama models)
+  if (lower.includes('does not support tools') || lower.includes('does not support function') || lower.includes('tool use is not supported')) {
+    return `🔧 **This model (\`${activeModel}\`) does not support tool use.** Knapsack needs tool calling to run actions like browsing, reading files, and executing commands. Switch to a model that supports tools (e.g. Llama 3.1, Qwen 2.5, or Mistral) in Settings.`
+  }
+  // Unsupported parameter value (e.g. temperature on reasoning models)
+  if (lower.includes('unsupported value') && lower.includes('temperature')) {
+    return `⚠️ **Parameter not supported by \`${activeModel}\`.** This is a reasoning model that doesn't allow custom temperature. This has been fixed — please try again.`
   }
   // If it looks like raw JSON, extract the meaningful part
   if (raw.includes('"message"') && raw.includes('"error"')) {
@@ -244,14 +269,14 @@ function friendlyError(raw: string): string {
     try {
       const parsed = JSON.parse(cleaned)
       const msg = parsed?.error?.message || parsed?.message || parsed?.error
-      if (msg && typeof msg === 'string') return `⚠️ ${msg}`
+      if (msg && typeof msg === 'string') return `⚠️ ${msg} (active: \`${activeModel}\`)`
     } catch { /* not valid JSON, fall through */ }
   }
   // If still very long, truncate rather than hiding the error entirely
   if (cleaned.length > 200) {
-    return `⚠️ ${cleaned.slice(0, 180)}…`
+    return `⚠️ ${cleaned.slice(0, 180)}… (active: \`${activeModel}\`)`
   }
-  return `⚠️ ${cleaned}`
+  return `⚠️ ${cleaned} (active: \`${activeModel}\`)`
 }
 
 type Role = 'system' | 'user' | 'assistant'
@@ -264,6 +289,7 @@ type Msg = {
   isClickable?: boolean
   model?: string // model used for this response (e.g. "gpt-4o-mini")
   promptActions?: PromptAction[] // pre-defined actions (skip extractPromptActions parsing)
+  replyTo?: string // ID of the message this is a reply to
 }
 
 type ServiceStatus = {
@@ -628,6 +654,27 @@ const SMART_PROMPT = 'Check my email and calendar and tell me what I should focu
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 const BUILD_WEBSITE_PROMPT = `Build a personal website about me`
 
+// Check for freshly onboarded agents and build a personalized intro prompt
+function getOnboardingAgentsPrompt(): { prompt: string; agents: { name: string; emoji: string; personality: string }[] } | null {
+  try {
+    const raw = localStorage.getItem('kn_onboarding_agents')
+    if (!raw) return null
+    const agents = JSON.parse(raw) as { name: string; emoji: string; personality: string }[]
+    if (!agents?.length) return null
+
+    const agentList = agents.map(a => `- ${a.emoji} **${a.name}**: ${a.personality}`).join('\n')
+    const prompt = `I just finished setting up Knapsack and activated ${agents.length} AI agent${agents.length > 1 ? 's' : ''}. Here's my team:\n\n${agentList}\n\nPlease:\n1. Welcome me and introduce each agent by name with a brief, warm description of what they'll do for me and when they'll run\n2. Ask me a few quick personalization questions to make these agents work better for me — things like what time I start my day, what my biggest priorities are this week, what kind of communication style I prefer, and anything else that would help you tailor the agents to my workflow\n3. Let me know I can rename any agent, change their schedule, or ask you to create new ones anytime\n\nKeep it conversational and make it feel like I'm meeting my new team, not configuring software.`
+
+    return { prompt, agents }
+  } catch {
+    return null
+  }
+}
+
+function clearOnboardingAgents() {
+  localStorage.removeItem('kn_onboarding_agents')
+}
+
 const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having connectivity issues. Please help me diagnose and fix this. Run these checks in order:
 
 1. Check the gateway service status by running: curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
@@ -834,6 +881,8 @@ type ChatInputBarProps = {
   onStopRecording: () => void
   onToggleVoice: () => void
   onStopGeneration: () => void
+  replyToMsg?: Msg | null
+  onCancelReply?: () => void
 }
 
 // ── Memoized single-message renderer ──────────────────────────────────
@@ -847,10 +896,13 @@ type ChatMessageProps = {
   mdComponents: Components
   onExampleClick?: (e: React.MouseEvent, text: string) => void
   onAction?: (prompt: string) => void
+  onReply?: (msg: Msg) => void
+  replyToMsg?: Msg | null
+  onScrollToMsg?: (id: string) => void
 }
 
 const ChatMessage = memo(function ChatMessage({
-  msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction,
+  msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction, onReply, replyToMsg, onScrollToMsg,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
 
@@ -862,12 +914,40 @@ const ChatMessage = memo(function ChatMessage({
     })
   }, [m.text])
 
+  const handleReply = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onReply?.(m)
+  }, [m, onReply])
+
+  const handleScrollToReply = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (m.replyTo) onScrollToMsg?.(m.replyTo)
+  }, [m.replyTo, onScrollToMsg])
+
   return (
     <div
       className={`ClawdMsg ClawdMsg-${m.role} ${m.isClickable ? 'ClawdMsg-clickable' : ''}`}
       onClick={m.isClickable && onExampleClick ? (e) => onExampleClick(e, m.text) : undefined}
     >
       <div className="ClawdBubble">
+        {/* Quoted reply block — shown when this message replies to another */}
+        {replyToMsg && (
+          <div
+            className={`ClawdQuotedReply ClawdQuotedReply--${replyToMsg.role}`}
+            onClick={handleScrollToReply}
+            title="Jump to original message"
+          >
+            <div className="ClawdQuotedReply__bar" />
+            <div className="ClawdQuotedReply__body">
+              <span className="ClawdQuotedReply__author">
+                {replyToMsg.role === 'user' ? 'You' : 'Knapsack'}
+              </span>
+              <span className="ClawdQuotedReply__text">
+                {replyToMsg.text.replace(/\n/g, ' ').slice(0, 120)}{replyToMsg.text.length > 120 ? '…' : ''}
+              </span>
+            </div>
+          </div>
+        )}
         {m.isClickable ? (
           <p>{m.text}</p>
         ) : (
@@ -891,22 +971,34 @@ const ChatMessage = memo(function ChatMessage({
           <div className="ClawdMsgModel">via {m.model}</div>
         )}
         {!m.isClickable && (
-          <button
-            className={`ClawdCopyBtn ${copied ? 'ClawdCopyBtn--copied' : ''}`}
-            onClick={handleCopy}
-            title={copied ? 'Copied!' : 'Copy message'}
-          >
-            {copied ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
+          <>
+            <button
+              className="ClawdReplyBtn"
+              onClick={handleReply}
+              title="Reply to this message"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 17 4 12 9 7" />
+                <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
               </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
-          </button>
+            </button>
+            <button
+              className={`ClawdCopyBtn ${copied ? 'ClawdCopyBtn--copied' : ''}`}
+              onClick={handleCopy}
+              title={copied ? 'Copied!' : 'Copy message'}
+            >
+              {copied ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              )}
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -917,7 +1009,10 @@ const ChatMessage = memo(function ChatMessage({
   prev.cleaned === next.cleaned &&
   prev.actions === next.actions &&
   prev.mdPlugins === next.mdPlugins &&
-  prev.mdComponents === next.mdComponents
+  prev.mdComponents === next.mdComponents &&
+  prev.replyToMsg?.id === next.replyToMsg?.id &&
+  prev.onReply === next.onReply &&
+  prev.onScrollToMsg === next.onScrollToMsg
 )
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
@@ -925,6 +1020,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     busy, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
+    replyToMsg, onCancelReply,
   } = props
   const [input, setInput] = useState('')
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
@@ -970,6 +1066,30 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
 
   return (
     <>
+      {/* Reply preview bar — shown when replying to a message */}
+      {replyToMsg && (
+        <div className="ClawdReplyPreview">
+          <div className={`ClawdReplyPreview__bar ClawdReplyPreview__bar--${replyToMsg.role}`} />
+          <div className="ClawdReplyPreview__content">
+            <span className="ClawdReplyPreview__author">
+              {replyToMsg.role === 'user' ? 'You' : 'Knapsack'}
+            </span>
+            <span className="ClawdReplyPreview__text">
+              {replyToMsg.text.replace(/\n/g, ' ').slice(0, 100)}{replyToMsg.text.length > 100 ? '…' : ''}
+            </span>
+          </div>
+          <button
+            className="ClawdReplyPreview__cancel"
+            onClick={onCancelReply}
+            title="Cancel reply"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
       {/* Attached files preview */}
       {attachedFiles.length > 0 && (
         <div className="ClawdAttachments">
@@ -1277,6 +1397,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const queuedMessagesRef = useRef<string[]>([])
   const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
   const [queuedMessageTexts, setQueuedMessageTexts] = useState<string[]>([])
+  const [editingQueuedIndex, setEditingQueuedIndex] = useState<number | null>(null)
+  const [editingQueuedText, setEditingQueuedText] = useState('')
 
   // Abort controller for stopping generation
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -1310,6 +1432,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
   })
   const [savingKey, setSavingKey] = useState(false)
+
+  // Model picker tab state: 'providers' or 'costs'
+  const [modelPickerTab, setModelPickerTab] = useState<'providers' | 'costs'>('providers')
+
+  // Background AI (heartbeat) state
+  const [backgroundAiEnabled, setBackgroundAiEnabled] = useState<boolean | null>(null)
+  const [backgroundAiLoading, setBackgroundAiLoading] = useState(false)
 
   // Ollama state
   const [ollamaRunning, setOllamaRunning] = useState<boolean | null>(null)
@@ -1443,6 +1572,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const isNearBottomRef = useRef(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
 
+  // Message threading (reply-to) state
+  const [replyToMsg, setReplyToMsg] = useState<Msg | null>(null)
+  const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
+
   // Voice silence detection refs
   const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -1527,8 +1660,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return { tooltip: lines.join('\n'), colorClass }
   }, [channelStatus.whatsapp, channelStatus.imessage, channelStatus.telegram, channelStatus.genericChannels, channelStatus.channelErrors, channelStatus.gatewayHealthy, channelStatus.gatewayStarting])
 
+  const onboardingAgentsData = useMemo(() => getOnboardingAgentsPrompt(), [])
+
   const welcomeMessages = useMemo(
-    () => [
+    () => {
+      // If the user just onboarded with agents, show a team-oriented welcome
+      if (onboardingAgentsData) {
+        const agentNames = onboardingAgentsData.agents
+          .map(a => `${a.emoji} ${a.name}`)
+          .join(', ')
+        return [
+          {
+            id: 'welcome-1',
+            role: 'assistant' as Role,
+            text: `Your team is ready! You activated ${onboardingAgentsData.agents.length} agents: ${agentNames}. Let me introduce you to each one and get them dialed in for how you work.`,
+            ts: Date.now(),
+          },
+          {
+            id: 'welcome-2',
+            role: 'assistant' as Role,
+            text: "Let's personalize your agents so they work exactly how you need them.",
+            ts: Date.now() + 1,
+            promptActions: [
+              { label: 'Introduce my team & personalize', prompt: onboardingAgentsData.prompt },
+              { label: 'Skip intro — check my email & calendar', prompt: SMART_PROMPT },
+            ],
+          },
+        ]
+      }
+
+      return [
       {
         id: 'welcome-1',
         role: 'assistant' as Role,
@@ -1546,8 +1707,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           { label: 'Build a website about me', prompt: BUILD_WEBSITE_PROMPT },
         ],
       },
-    ],
-    [],
+    ]},
+    [onboardingAgentsData],
   )
 
   const checkAndPromptForKey = useCallback(async () => {
@@ -2114,10 +2275,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     if (hasImages) {
       const { supported, modelName, visionModels } = currentModelSupportsVision()
       if (!supported) {
-        const suggestion = visionModels.length > 0
-          ? ` Try switching to ${visionModels[0]}.`
+        const visionList = visionModels.length > 0
+          ? ` Vision-capable models on this provider: **${visionModels.slice(0, 3).join('**, **')}**${visionModels.length > 3 ? ` (+${visionModels.length - 3} more)` : ''}.`
           : ''
-        pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+        pushAssistant(`⚠️ **${modelName}** does not support image analysis — the image was attached but will be ignored.${visionList} Switch models in the provider settings to enable vision.`)
       }
     }
 
@@ -2240,10 +2401,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     if (hasImages) {
       const { supported, modelName, visionModels } = currentModelSupportsVision()
       if (!supported) {
-        const suggestion = visionModels.length > 0
-          ? ` Try switching to ${visionModels[0]}.`
+        const visionList = visionModels.length > 0
+          ? ` Vision-capable models on this provider: **${visionModels.slice(0, 3).join('**, **')}**${visionModels.length > 3 ? ` (+${visionModels.length - 3} more)` : ''}.`
           : ''
-        pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+        pushAssistant(`⚠️ **${modelName}** does not support image analysis — the image was attached but will be ignored.${visionList} Switch models in the provider settings to enable vision.`)
       }
     }
   }, [currentModelSupportsVision])
@@ -2306,10 +2467,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           if (hasImages) {
             const { supported, modelName, visionModels } = currentModelSupportsVision()
             if (!supported) {
-              const suggestion = visionModels.length > 0
-                ? ` Try switching to ${visionModels[0]}.`
+              const visionList = visionModels.length > 0
+                ? ` Vision-capable models on this provider: **${visionModels.slice(0, 3).join('**, **')}**${visionModels.length > 3 ? ` (+${visionModels.length - 3} more)` : ''}.`
                 : ''
-              pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+              pushAssistant(`⚠️ **${modelName}** does not support image analysis — the image was attached but will be ignored.${visionList} Switch models in the provider settings to enable vision.`)
             }
           }
         }
@@ -2386,6 +2547,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         },
       )
       cleanups.push(unlistenOpenPanel)
+
+      // Forward compose-email-ready events to the window so Home.tsx can switch tabs
+      const unlistenCompose = await tauriListen<Record<string, unknown>>(
+        'compose-email-ready',
+        (event) => {
+          if (cancelled) return
+          window.dispatchEvent(new CustomEvent('clawd-email-draft-ready', { detail: event.payload }))
+        },
+      )
+      cleanups.push(unlistenCompose)
     })()
 
     return () => {
@@ -2419,6 +2590,29 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     checkOllama()
   }, [selectedProvider, showKeyPrompt])
+
+  // ── Background AI (heartbeat) config fetch ─────────────────────────────
+  useEffect(() => {
+    if (!showKeyPrompt) return
+    apiGet<{ success: boolean; data: { enabled: boolean } }>('/api/knapsack/heartbeat/config')
+      .then(data => { if (data.success) setBackgroundAiEnabled(data.data.enabled) })
+      .catch(() => {})
+  }, [showKeyPrompt])
+
+  const toggleBackgroundAi = useCallback(async () => {
+    const newVal = !backgroundAiEnabled
+    setBackgroundAiLoading(true)
+    try {
+      const resp = await fetch(apiUrl('/api/knapsack/heartbeat/config'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: newVal }),
+      })
+      const data = await resp.json()
+      if (data.success) setBackgroundAiEnabled(newVal)
+    } catch {}
+    setBackgroundAiLoading(false)
+  }, [backgroundAiEnabled])
 
   const pullOllamaModel = useCallback(async (modelId: string) => {
     setOllamaPulling(true)
@@ -2571,7 +2765,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedOpenRouterModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
 
   // Switch to a provider that already has a saved key (no new key needed)
-  const switchProviderModel = useCallback(async (providerId: Provider) => {
+  const switchProviderModel = useCallback(async (providerId: Provider, alreadyActive = false) => {
     // Ollama uses its own configure endpoint
     if (providerId === 'ollama') {
       saveOllamaProvider()
@@ -2620,7 +2814,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'openrouter' ? selectedOpenRouterModel
         : selectedGroqModel
       const modelName = models.find(m => m.id === mv)?.name || mv
-      pushAssistant(`Switched to ${providerInfo?.name || providerId} (${modelName}).`)
+      if (!alreadyActive) {
+        pushAssistant(`Switched to ${providerInfo?.name || providerId} (${modelName}).`)
+      }
     } catch (e: any) {
       pushAssistant(`Failed to switch provider: ${e?.message || String(e)}`)
     } finally {
@@ -2681,16 +2877,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         // Poll for gateway/browser health — update the status indicators.
         // The LaunchAgent has KeepAlive=true so macOS restarts clawdbot
-        // automatically if it crashes.  We detect disconnect within 5s and
+        // automatically if it crashes.  We detect disconnect within 3s and
         // show "Reconnecting..." while the gateway comes back.
-        let gatewayAttempts = 0
-        const maxFastAttempts = 20
         let wasHealthy = false
         let consecutiveDownPolls = 0
         let lastHealthJson = ''
         let lastStatusJson = ''
+        // Exponential backoff for the catch branch (HTTP backend itself unreachable).
+        // Starts at 1s, doubles each failure up to 15s max.
+        let catchBackoffMs = 1000
         const pollGateway = async () => {
-          gatewayAttempts++
           try {
             const h = await apiGet<ServiceHealth>('/api/clawd/service/health')
             const hJson = JSON.stringify(h)
@@ -2706,57 +2902,55 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               setStatus(s2)
             }
 
+            // Reset catch-backoff whenever the HTTP backend is reachable
+            catchBackoffMs = 1000
+
             const isHealthy = h.gateway_ok && h.browser_ok
 
             if (isHealthy) {
+              // Fully healthy — reset reconnect state and slow-poll to detect drops
               wasHealthy = true
               consecutiveDownPolls = 0
-              // Healthy — slow poll every 5s to detect disconnect quickly
               setTimeout(pollGateway, 5000)
             } else if (h.gateway_ok && !h.browser_ok) {
               // Gateway is up but browser is still starting or not reachable.
-              // The backend sends a one-time /start nudge automatically.
-              // Keep polling at 5s so we detect when browser becomes ready.
+              // Poll every 3s so we detect browser readiness quickly.
+              // (Backend sends a one-time /start nudge automatically.)
               consecutiveDownPolls++
-              setTimeout(pollGateway, 5000)
-            } else if (!isHealthy && wasHealthy) {
-              // Was previously healthy but now down — gateway crashed.
-              // Poll fast to detect recovery quickly (reconnect within 5s).
-              consecutiveDownPolls++
-              // After 3 consecutive down polls (~15s), try to trigger a restart
-              // via the startup-ready endpoint which calls ensure_gateway_running.
-              if (consecutiveDownPolls === 3) {
-                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
-              }
-              setTimeout(pollGateway, 2000)
-            } else if (!isHealthy && gatewayAttempts < maxFastAttempts) {
-              // Initial startup — fast poll
-              consecutiveDownPolls++
-              // Trigger a restart attempt after several failed startup polls too,
-              // not just after a healthy→down transition. This handles the case
-              // where the gateway never started successfully.
-              if (consecutiveDownPolls === 6) {
-                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
-              }
-              setTimeout(pollGateway, 1500)
+              setTimeout(pollGateway, 3000)
             } else {
-              // Slow poll fallback — still try restart periodically
+              // Gateway is down (reconnecting state).
+              // Health-check-driven reconnect: poll every 3s so the UI transitions
+              // from "reconnecting" to "connected" within 3s of the gateway recovering,
+              // regardless of how long it has been down (no slow-down after N attempts).
               consecutiveDownPolls++
-              if (consecutiveDownPolls % 6 === 0) {
+
+              // Nudge the backend to restart the gateway if it stays down.
+              if (wasHealthy && consecutiveDownPolls === 3) {
+                // Was healthy before — kick a restart after ~9s of downtime
                 fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
-              setTimeout(pollGateway, 10000)
+              if (!wasHealthy && consecutiveDownPolls === 6) {
+                // Initial startup — nudge after several failed startup polls
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
+              }
+              if (!wasHealthy && consecutiveDownPolls > 6 && consecutiveDownPolls % 6 === 0) {
+                // Periodic nudge for extended outages
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
+              }
+
+              setTimeout(pollGateway, 3000)
             }
           } catch {
+            // HTTP backend itself is unreachable — back off exponentially (1s→15s)
+            // so we don't hammer it while it's starting up or restarting.
             consecutiveDownPolls++
-            if (gatewayAttempts < maxFastAttempts) {
-              setTimeout(pollGateway, 1500)
-            } else {
-              setTimeout(pollGateway, 5000)
-            }
+            setTimeout(pollGateway, catchBackoffMs)
+            catchBackoffMs = Math.min(catchBackoffMs * 2, 15000)
           }
         }
-        // Start polling for gateway
+        // Start polling after 500ms — gives the gateway a moment to start
+        // before the first check (handles the startup race condition).
         setTimeout(pollGateway, 500)
       } catch (e) {
         console.error('Failed to auto-enable service:', e)
@@ -2813,6 +3007,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       chatBodyRef.current.scrollTo({ top: chatBodyRef.current.scrollHeight, behavior: 'smooth' })
     }
     setShowScrollButton(false)
+  }, [])
+
+  // Scroll to a specific message and briefly highlight it (for reply navigation)
+  const scrollToMsg = useCallback((id: string) => {
+    const el = msgRefsMap.current.get(id)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('ClawdMsg--highlighted')
+    setTimeout(() => el.classList.remove('ClawdMsg--highlighted'), 1400)
   }, [])
 
   // Save chat history to localStorage whenever msgs change (excluding welcome messages)
@@ -2931,8 +3134,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('clawd-send-user', handler)
   }, [])
 
-  const pushUser = (text: string) => {
-    setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now() }])
+  const pushUser = (text: string, replyToId?: string) => {
+    setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
   }
 
   // Stop current generation
@@ -2972,6 +3175,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       autoTriggeredBriefingRef.current = true
       // Short delay to let the UI settle after initialization
       const timer = setTimeout(() => {
+        // If agents were just onboarded, auto-trigger the team intro instead
+        const agentsData = getOnboardingAgentsPrompt()
+        if (agentsData) {
+          clearOnboardingAgents()
+          handleSendWithTextRef.current?.(agentsData.prompt)
+          return
+        }
         handleSendWithTextRef.current?.(SMART_PROMPT)
       }, 800)
       return () => clearTimeout(timer)
@@ -3170,6 +3380,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       }
     }
 
+    // Capture and clear reply context before any async work
+    const currentReplyTo = replyToMsg
+    setReplyToMsg(null)
+
     // Capture current attachments and clear them
     const currentAttachments = [...attachedFiles]
     setAttachedFiles([])
@@ -3178,13 +3392,27 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const attachmentSummary = currentAttachments.length > 0
       ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
       : ''
-    pushUser(text + attachmentSummary)
+    pushUser(text + attachmentSummary, currentReplyTo?.id)
 
     // Parse "command args..." form
     const [rawCmd, ...rest] = text.split(/\s+/)
     const cmd = rawCmd.toLowerCase()
 
     setBusy(true)
+
+    // Snapshot the active model label from React state at request time so error
+    // messages reflect the model that was actually selected when sent, not the
+    // model in localStorage (which can lag behind UI state changes).
+    const activeModelAtSend = (() => {
+      const m = selectedProvider === 'ollama' ? selectedOllamaModel
+        : selectedProvider === 'anthropic' ? selectedAnthropicModel
+        : selectedProvider === 'gemini' ? selectedGeminiModel
+        : selectedProvider === 'groq' ? selectedGroqModel
+        : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+        : selectedModel
+      return m ? `${selectedProvider}/${m}` : selectedProvider
+    })()
+
     try {
       if (cmd === 'enable') {
         await enableAssistant(true)
@@ -3548,6 +3776,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         }
 
+        // Prepend quoted reply context so the AI knows which message is being replied to
+        if (currentReplyTo) {
+          const quotedText = currentReplyTo.text.slice(0, 500).replace(/\n/g, '\n> ')
+          actualText = `> ${quotedText}\n\n${actualText}`
+        }
+
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
           text: actualText || 'Please analyze the attached files.',
@@ -3600,7 +3834,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: requestBody.text, advancedMode }),
+            body: JSON.stringify({ text: requestBody.text, advancedMode, userEmail: userEmail || '', userName: userName || '' }),
             signal: agentSignal,
           })
           if (agentTimerId) clearTimeout(agentTimerId)
@@ -3611,11 +3845,22 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               // Accept replies from both gateway and direct-chat fallback.
               // The backend already called open_first_url_in_reply, so the
               // browser should have opened if the reply contained a URL.
-              console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
-              setMsgs(prev => [
-                ...prev,
-                { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct' },
-              ])
+              // Defense-in-depth: if the gateway reply looks like a raw HTTP error
+              // (e.g. "401 Missing Authentication header"), fall back to direct chat
+              // so friendlyError can surface a helpful message instead.
+              // No length cap — verbose gateway errors (>250 chars) must also be caught.
+              const rawReply = agentOut.reply.trim()
+              const httpErrorMatch = /^([345]\d{2}) /.test(rawReply)
+              if (agentOut.gateway && httpErrorMatch) {
+                console.warn('[chat] Gateway returned HTTP error reply, falling back to direct chat:', rawReply.slice(0, 100))
+                useDirectChat = true
+              } else {
+                console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
+                setMsgs(prev => [
+                  ...prev,
+                  { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct' },
+                ])
+              }
             } else {
               // No reply at all — fall back to direct chat from the frontend
               console.warn('[chat] agent-chat returned no reply, using direct chat. Response:', JSON.stringify(agentOut))
@@ -3679,7 +3924,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
             } else {
-              pushAssistant(friendlyError(out.message || out.error || 'No reply'))
+              pushAssistant(friendlyError(out.message || out.error || 'No reply', activeModelAtSend))
             }
             succeeded = true
             break
@@ -3716,7 +3961,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setAbortController(null)
       }
     } catch (e: any) {
-      pushAssistant(friendlyError(e?.message || String(e)))
+      pushAssistant(friendlyError(e?.message || String(e), activeModelAtSend))
     } finally {
       // Safety net: always clear thinking state when request ends, even if inner
       // finally was skipped due to an error thrown between setting thinkingMessage
@@ -3792,6 +4037,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Number-key shortcuts for gateway/browser troubleshooting banners
+  useEffect(() => {
+    const handleBannerKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+      // Don't intercept when user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      const gatewayDown = health && !health.gateway_ok && !channelStatus.gatewayStarting
+      const browserDown = health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting
+
+      let prompt: string | undefined
+      if (gatewayDown) {
+        if (e.key === '1') prompt = GATEWAY_DIAGNOSE_PROMPT
+        else if (e.key === '2') prompt = GATEWAY_RESTART_PROMPT
+        else if (e.key === '3') prompt = GATEWAY_VIEW_LOGS_PROMPT
+      } else if (browserDown) {
+        if (e.key === '1') prompt = GATEWAY_DIAGNOSE_PROMPT
+        else if (e.key === '2') prompt = GATEWAY_VIEW_LOGS_PROMPT
+      }
+
+      if (prompt) {
+        e.preventDefault()
+        handleSendWithTextRef.current?.(prompt)
+      }
+    }
+    window.addEventListener('keydown', handleBannerKey)
+    return () => window.removeEventListener('keydown', handleBannerKey)
+  }, [health, channelStatus.gatewayStarting])
+
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput
   const stableToggleVoiceOutput = useCallback(() => { toggleVoiceOutputRef.current() }, [])
@@ -3848,7 +4123,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       acc.push(part)
       return acc
     }, [])
-  }, [status, health, currentTargetId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, health, channelStatus.gatewayStarting, currentTargetId])
 
   // Memoize message parsing so extractPromptActions only re-runs when msgs change,
   // not on every re-render from status/health polling.
@@ -3862,6 +4138,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }),
     [msgs],
   )
+
+  // Fast id→Msg lookup for reply-to resolution
+  const msgsById = useMemo(() => {
+    const map = new Map<string, Msg>()
+    for (const m of msgs) map.set(m.id, m)
+    return map
+  }, [msgs])
 
   return (
     <div className="ClawdChatRoot">
@@ -4112,16 +4395,26 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
-          <ChatMessage
+          <div
             key={m.id}
-            msg={m}
-            cleaned={cleaned}
-            actions={actions}
-            mdPlugins={mdPlugins}
-            mdComponents={mdComponents}
-            onExampleClick={handleExampleClick}
-            onAction={handleSendWithText}
-          />
+            ref={el => {
+              if (el) msgRefsMap.current.set(m.id, el)
+              else msgRefsMap.current.delete(m.id)
+            }}
+          >
+            <ChatMessage
+              msg={m}
+              cleaned={cleaned}
+              actions={actions}
+              mdPlugins={mdPlugins}
+              mdComponents={mdComponents}
+              onExampleClick={handleExampleClick}
+              onAction={handleSendWithText}
+              onReply={setReplyToMsg}
+              replyToMsg={m.replyTo ? (msgsById.get(m.replyTo) ?? null) : null}
+              onScrollToMsg={scrollToMsg}
+            />
+          </div>
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
         {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
@@ -4245,10 +4538,87 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         )}
         {queuedMessageTexts.map((qText, i) => (
           <div key={`queued-${i}`} className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
-            <div className="ClawdBubble">
-              <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
+            {editingQueuedIndex === i ? (
+              <div className="ClawdQueuedEdit">
+                <textarea
+                  className="ClawdQueuedEdit__textarea"
+                  value={editingQueuedText}
+                  onChange={e => setEditingQueuedText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      const trimmed = editingQueuedText.trim()
+                      if (trimmed) {
+                        const updated = [...queuedMessagesRef.current]
+                        updated[i] = trimmed
+                        queuedMessagesRef.current = updated
+                        setQueuedMessageTexts(updated)
+                      }
+                      setEditingQueuedIndex(null)
+                    } else if (e.key === 'Escape') {
+                      setEditingQueuedIndex(null)
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className="ClawdQueuedEdit__actions">
+                  <button
+                    className="ClawdQueuedEdit__save"
+                    onClick={() => {
+                      const trimmed = editingQueuedText.trim()
+                      if (trimmed) {
+                        const updated = [...queuedMessagesRef.current]
+                        updated[i] = trimmed
+                        queuedMessagesRef.current = updated
+                        setQueuedMessageTexts(updated)
+                      }
+                      setEditingQueuedIndex(null)
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="ClawdQueuedEdit__cancel"
+                    onClick={() => setEditingQueuedIndex(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="ClawdBubble">
+                <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
+              </div>
+            )}
+            <div className="ClawdQueuedFooter">
+              <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''}</span>
+              {editingQueuedIndex !== i && (
+                <div className="ClawdQueuedActions">
+                  <button
+                    className="ClawdQueuedActions__btn"
+                    title="Edit queued message"
+                    onClick={() => {
+                      setEditingQueuedText(qText)
+                      setEditingQueuedIndex(i)
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="ClawdQueuedActions__btn ClawdQueuedActions__btn--remove"
+                    title="Remove queued message"
+                    onClick={() => {
+                      const updated = queuedMessagesRef.current.filter((_, idx) => idx !== i)
+                      queuedMessagesRef.current = updated
+                      setQueuedMessageTexts(updated)
+                      setHasQueuedMessage(updated.length > 0)
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
             </div>
-            <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''}</span>
           </div>
         ))}
         {claudeCodeActive && (
@@ -4298,6 +4668,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onStopRecording={stopRecording}
         onToggleVoice={stableToggleVoiceOutput}
         onStopGeneration={stableStopGeneration}
+        replyToMsg={replyToMsg}
+        onCancelReply={() => setReplyToMsg(null)}
       />
       </div>
       </div>{/* end ClawdChatContent */}
@@ -5560,6 +5932,42 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
             }}>×</button>
           </div>
+
+          {/* ── Tab bar: Providers | Token Costs ── */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', padding: '0 16px' }}>
+            <button
+              onClick={() => setModelPickerTab('providers')}
+              style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: modelPickerTab === 'providers' ? 600 : 400,
+                color: modelPickerTab === 'providers' ? '#1e293b' : '#94a3b8', background: 'none', border: 'none',
+                borderBottom: modelPickerTab === 'providers' ? '2px solid #6366f1' : '2px solid transparent',
+                cursor: 'pointer', marginBottom: -1,
+              }}
+            >
+              Providers
+            </button>
+            <button
+              onClick={() => setModelPickerTab('costs')}
+              style={{
+                padding: '8px 16px', fontSize: 13, fontWeight: modelPickerTab === 'costs' ? 600 : 400,
+                color: modelPickerTab === 'costs' ? '#1e293b' : '#94a3b8', background: 'none', border: 'none',
+                borderBottom: modelPickerTab === 'costs' ? '2px solid #6366f1' : '2px solid transparent',
+                cursor: 'pointer', marginBottom: -1,
+              }}
+            >
+              Token Costs
+            </button>
+          </div>
+
+          {/* ── Token Costs tab ── */}
+          {modelPickerTab === 'costs' && (
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              <TokenCostsView />
+            </div>
+          )}
+
+          {/* ── Providers tab ── */}
+          {modelPickerTab === 'providers' && (
           <div className="ClawdChannelsPanelBody">
             <p className="ClawdChannelsPanelIntro">
               {hasCompletedOnboarding
@@ -5608,44 +6016,42 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             <span className="ClawdKeySavedHint">{keyHints[p.id] || p.keyPrefix + '...'}</span>
                           </div>
                           <label className="ClawdKeyPromptLabel">Model</label>
-                          <select
-                            className="ClawdModelSelect"
-                            value={modelValue}
-                            onChange={async e => {
-                              const newModel = e.target.value
-                              setModelValue(newModel)
-                              // Auto-persist model choice to localStorage and backend
-                              const storageKey = p.id === 'openai' ? OPENAI_MODEL_STORAGE
-                                : p.id === 'anthropic' ? ANTHROPIC_MODEL_STORAGE
-                                : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
-                                : GROQ_MODEL_STORAGE
-                              localStorage.setItem(storageKey, newModel)
-                              if (isActive) {
-                                try {
-                                  await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
-                                  const modelName = models.find(m => m.id === newModel)?.name || newModel
-                                  pushAssistant(`Switched to ${modelName}.`)
-                                } catch {}
-                              }
-                            }}
-                            disabled={savingKey}
-                          >
+                          <div className="ClawdModelSelector">
                             {models.map(model => (
-                              <option key={model.id} value={model.id}>
-                                {model.name} — {model.description}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="ClawdAccordionActions">
-                            {!isActive ? (
                               <button
-                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                                onClick={() => switchProviderModel(p.id)}
+                                key={model.id}
+                                className={`ClawdModelOption${modelValue === model.id ? ' selected' : ''}`}
+                                onClick={async () => {
+                                  const newModel = model.id
+                                  setModelValue(newModel)
+                                  const storageKey = p.id === 'openai' ? OPENAI_MODEL_STORAGE
+                                    : p.id === 'anthropic' ? ANTHROPIC_MODEL_STORAGE
+                                    : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
+                                    : GROQ_MODEL_STORAGE
+                                  localStorage.setItem(storageKey, newModel)
+                                  if (isActive) {
+                                    try {
+                                      await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
+                                      const modelName = models.find(m => m.id === newModel)?.name || newModel
+                                      pushAssistant(`Switched to ${modelName}.`)
+                                    } catch {}
+                                  }
+                                }}
                                 disabled={savingKey}
                               >
-                                {savingKey ? 'Switching...' : 'Switch to ' + p.name}
+                                <span className="ClawdModelName">{model.name}</span>
+                                <span className="ClawdModelDesc">{model.description}</span>
                               </button>
-                            ) : null}
+                            ))}
+                          </div>
+                          <div className="ClawdAccordionActions">
+                            <button
+                              className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                              onClick={() => switchProviderModel(p.id, isActive)}
+                              disabled={savingKey}
+                            >
+                              {savingKey ? 'Switching...' : isActive ? 'Select' : 'Select ' + p.name}
+                            </button>
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
                               onClick={() => { setApiKey(''); setEditingProviderKey(true) }}
@@ -5674,18 +6080,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             onKeyDown={e => { if (e.key === 'Enter') saveApiKey() }}
                           />
                           <label className="ClawdKeyPromptLabel">Model</label>
-                          <select
-                            className="ClawdModelSelect"
-                            value={modelValue}
-                            onChange={e => setModelValue(e.target.value)}
-                            disabled={savingKey}
-                          >
+                          <div className="ClawdModelSelector">
                             {models.map(model => (
-                              <option key={model.id} value={model.id}>
-                                {model.name} — {model.description}
-                              </option>
+                              <button
+                                key={model.id}
+                                className={`ClawdModelOption${modelValue === model.id ? ' selected' : ''}`}
+                                onClick={() => setModelValue(model.id)}
+                                disabled={savingKey}
+                              >
+                                <span className="ClawdModelName">{model.name}</span>
+                                <span className="ClawdModelDesc">{model.description}</span>
+                              </button>
                             ))}
-                          </select>
+                          </div>
                           <div className="ClawdAccordionActions">
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--connect"
@@ -5770,12 +6177,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   {ollamaRunning && ollamaModels.length > 0 && (
                     <>
                       <label className="ClawdKeyPromptLabel">Your Models</label>
-                      <select className="ClawdModelSelect" value={selectedOllamaModel} onChange={e => setSelectedOllamaModel(e.target.value)} disabled={savingKey}>
-                        <option value="">Select a model...</option>
+                      <div className="ClawdModelSelector">
                         {ollamaModels.map(model => (
-                          <option key={model.name} value={model.name}>{model.name} — {model.parameter_size || 'Local model'}</option>
+                          <button
+                            key={model.name}
+                            className={`ClawdModelOption${selectedOllamaModel === model.name ? ' selected' : ''}`}
+                            onClick={() => setSelectedOllamaModel(model.name)}
+                            disabled={savingKey}
+                          >
+                            <span className="ClawdModelName">{model.name}</span>
+                            <span className="ClawdModelDesc">{model.parameter_size || 'Local model'}</span>
+                          </button>
                         ))}
-                      </select>
+                      </div>
                     </>
                   )}
 
@@ -5812,7 +6226,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       <div className="ClawdModelSelector">
                         {OLLAMA_SUGGESTED_MODELS
                           .filter(s => !ollamaModels.some(m => m.name.startsWith(s.id.split(':')[0])))
-                          .slice(0, 3)
                           .map(model => (
                           <button key={model.id} className="ClawdModelOption" onClick={() => pullOllamaModel(model.id)}>
                             <span className="ClawdModelName">{model.name}</span>
@@ -5829,7 +6242,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                       onClick={saveOllamaProvider}
                       disabled={savingKey || !ollamaRunning || !selectedOllamaModel}
                     >
-                      {savingKey ? 'Saving...' : 'Enable Ollama'}
+                      {savingKey ? 'Saving...' : 'Select'}
                     </button>
                   </div>
                 </div>
@@ -5940,7 +6353,37 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 )
               })}
             </div>
+
+            {/* ── Background AI toggle ── */}
+            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>Background AI</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, maxWidth: 280 }}>
+                    Proactive notifications (email reminders, meeting alerts). Always uses the cheapest model for your provider. Does not affect chat or messaging channels.
+                  </div>
+                </div>
+                <button
+                  onClick={toggleBackgroundAi}
+                  disabled={backgroundAiLoading || backgroundAiEnabled === null}
+                  style={{
+                    position: 'relative', width: 36, height: 20, borderRadius: 10, border: 'none',
+                    background: backgroundAiEnabled ? '#22c55e' : '#d1d5db', cursor: 'pointer',
+                    transition: 'background 0.2s', flexShrink: 0,
+                    opacity: backgroundAiLoading ? 0.5 : 1,
+                  }}
+                >
+                  <span style={{
+                    display: 'block', width: 14, height: 14, borderRadius: 7, background: '#fff',
+                    transition: 'transform 0.2s',
+                    transform: backgroundAiEnabled ? 'translateX(18px)' : 'translateX(3px)',
+                    marginTop: 3,
+                  }} />
+                </button>
+              </div>
+            </div>
           </div>
+          )}
         </div>
       )}
 

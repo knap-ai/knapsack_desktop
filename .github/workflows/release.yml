@@ -228,9 +228,45 @@ jobs:
           AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
           AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
         run: |
-          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" --azure-key-vault-tenant-id `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 `"%1`""
-          echo "TAURI_WINDOWS_SIGN_COMMAND=$signCommand" >> $env:GITHUB_ENV
-          Write-Host "Azure Key Vault code signing configured successfully"
+          # Tauri v1 reads signCommand from tauri.conf.json (NOT from
+          # TAURI_WINDOWS_SIGN_COMMAND env var — that's a Tauri v2 feature).
+          # Inject the signCommand into the config before building.
+          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 `"%1`""
+
+          $confPath = "src/src-tauri/tauri.conf.json"
+          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
+          $conf.tauri.bundle.windows | Add-Member -NotePropertyName "signCommand" -NotePropertyValue $signCommand -Force
+          $conf | ConvertTo-Json -Depth 20 | Set-Content $confPath -Encoding UTF8
+          Write-Host "Injected signCommand into tauri.conf.json for Tauri v1 code signing"
+
+      - name: Diagnose AzureSignTool (dry-run before Tauri build)
+        if: env.AZURE_KEY_VAULT_URI != ''
+        shell: pwsh
+        continue-on-error: true
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
+          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
+          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
+          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
+        run: |
+          # Copy a small Windows binary to temp and attempt to sign it directly.
+          # This surfaces AzureSignTool's real error output before Tauri swallows it.
+          $testFile = "$env:TEMP\diag_sign_test.exe"
+          Copy-Item "$env:SystemRoot\System32\cmd.exe" $testFile
+          Write-Host "=== AzureSignTool diagnostic sign attempt ==="
+          & AzureSignTool sign `
+            -kvu "$env:AZURE_KEY_VAULT_URI" `
+            -kvc "$env:AZURE_KEY_VAULT_CERT_NAME" `
+            -kvi "$env:AZURE_KEY_VAULT_CLIENT_ID" `
+            -kvs "$env:AZURE_KEY_VAULT_CLIENT_SECRET" `
+            -kvt "$env:AZURE_KEY_VAULT_TENANT_ID" `
+            -tr http://timestamp.globalsign.com/tsa/advanced `
+            -td sha256 `
+            -v `
+            $testFile
+          Write-Host "=== AzureSignTool exit code: $LASTEXITCODE ==="
+          Remove-Item $testFile -ErrorAction SilentlyContinue
 
       - name: Build Tauri app
         working-directory: src

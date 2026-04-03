@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/irc.js";
+export * from "./src/plugin-sdk/irc.js";

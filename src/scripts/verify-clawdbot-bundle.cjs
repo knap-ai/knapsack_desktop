@@ -15,22 +15,14 @@ const CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'clawd
 const REQUIRED_FILES = [
   'dist/entry.js',
   'dist/index.js',
+  'dist/build-info.json',
   'package.json',
-  'node_modules/fast-xml-parser/package.json',
-  'node_modules/fast-xml-parser/src/fxp.js',
-  'node_modules/fast-xml-parser/lib/fxp.cjs',   // CJS entry used by @aws-sdk/xml-builder
-  'node_modules/signal-exit/package.json',        // required by multiple runtime packages
-  // proper-lockfile needs signal-exit@3 (root has v4 which breaks its CJS require)
-  'node_modules/proper-lockfile/node_modules/signal-exit/package.json',
-  'node_modules/proper-lockfile/node_modules/signal-exit/index.js',
 ];
 
 // Critical directories that must exist and not be empty
 const REQUIRED_DIRS = [
   'dist',
-  'node_modules',
-  'node_modules/fast-xml-parser',
-  'node_modules/signal-exit',
+  'dist/extensions',
 ];
 
 let errors = 0;
@@ -105,27 +97,30 @@ if (fs.existsSync(entryPath)) {
   }
 }
 
-// Verify proper-lockfile's nested signal-exit is v3 (not v4)
-const plSignalExitPkg = path.join(CLAWDBOT_DIR, 'node_modules', 'proper-lockfile', 'node_modules', 'signal-exit', 'package.json');
-if (fs.existsSync(plSignalExitPkg)) {
-  const pkg = JSON.parse(fs.readFileSync(plSignalExitPkg, 'utf8'));
-  if (!pkg.version || !pkg.version.startsWith('3.')) {
-    console.error(`[verify-clawdbot] WRONG VERSION: proper-lockfile/node_modules/signal-exit is ${pkg.version}, expected 3.x`);
+// Verify bundled extensions have required plugin metadata
+const extensionsDir = path.join(CLAWDBOT_DIR, 'dist', 'extensions');
+if (fs.existsSync(extensionsDir)) {
+  const extensions = fs.readdirSync(extensionsDir);
+  const extensionsWithPlugin = extensions.filter(ext => {
+    const pluginJson = path.join(extensionsDir, ext, 'openclaw.plugin.json');
+    return fs.existsSync(pluginJson);
+  });
+  console.log(`[verify-clawdbot] bundled extensions: ${extensions.length} total, ${extensionsWithPlugin.length} with plugin metadata ✓`);
+  if (extensionsWithPlugin.length < 10) {
+    console.error(`[verify-clawdbot] SUSPICIOUS: only ${extensionsWithPlugin.length} extensions have plugin metadata — expected many more`);
     errors++;
-  } else {
-    console.log(`[verify-clawdbot] proper-lockfile/signal-exit version: ${pkg.version} ✓`);
   }
 }
 
-// Verify fast-xml-parser version matches expected
-const fxpPkgPath = path.join(CLAWDBOT_DIR, 'node_modules', 'fast-xml-parser', 'package.json');
-if (fs.existsSync(fxpPkgPath)) {
-  const fxpPkg = JSON.parse(fs.readFileSync(fxpPkgPath, 'utf8'));
-  if (!fxpPkg.version || !fxpPkg.version.startsWith('5.')) {
-    console.error(`[verify-clawdbot] WRONG VERSION: fast-xml-parser is ${fxpPkg.version}, expected 5.x`);
+// Verify build-info.json has version info
+const buildInfoPath = path.join(CLAWDBOT_DIR, 'dist', 'build-info.json');
+if (fs.existsSync(buildInfoPath)) {
+  const buildInfo = JSON.parse(fs.readFileSync(buildInfoPath, 'utf8'));
+  if (!buildInfo.version) {
+    console.error('[verify-clawdbot] CRITICAL: dist/build-info.json missing version');
     errors++;
   } else {
-    console.log(`[verify-clawdbot] fast-xml-parser version: ${fxpPkg.version} ✓`);
+    console.log(`[verify-clawdbot] build version: ${buildInfo.version} ✓`);
   }
 }
 

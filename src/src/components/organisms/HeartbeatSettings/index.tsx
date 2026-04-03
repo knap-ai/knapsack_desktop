@@ -168,8 +168,11 @@ export const HeartbeatSettings = () => {
       {/* Enable/Disable toggle */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-sm text-black">Enable heartbeat monitoring</span>
-          <span className="text-[10px] text-gray-400">Linked to proactive mode in chat</span>
+          <span className="text-sm text-black">Background AI</span>
+          <span className="text-[10px] text-gray-400">
+            Proactive notifications using cheapest available model.
+            {config.enabled && ' Uses minimal tokens for background checks.'}
+          </span>
         </div>
         <button
           onClick={() => updateConfig({ enabled: !config.enabled } as any)}
@@ -184,6 +187,15 @@ export const HeartbeatSettings = () => {
           />
         </button>
       </div>
+
+      {/* Cost note */}
+      {config.enabled && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+          <span className="text-[11px] text-amber-700">
+            Background checks always use the cheapest model for your provider (e.g. Haiku for Anthropic, GPT-4o-mini for OpenAI, free models for Groq). This keeps passive token costs minimal. Disabling stops all background AI calls — chat and channels are not affected.
+          </span>
+        </div>
+      )}
 
       {/* Interval selector */}
       <div className="flex items-center justify-between h-[36px]">

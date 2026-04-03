@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/twitch.js";
+export * from "./src/plugin-sdk/twitch.js";

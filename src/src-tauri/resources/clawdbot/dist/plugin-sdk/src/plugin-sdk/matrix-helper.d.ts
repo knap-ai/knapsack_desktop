@@ -1,0 +1,14 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["matrix-helper"];
+type FacadeModule = FacadeEntry["module"];
+export declare const findMatrixAccountEntry: FacadeModule["findMatrixAccountEntry"];
+export declare const getMatrixScopedEnvVarNames: FacadeModule["getMatrixScopedEnvVarNames"];
+export declare const requiresExplicitMatrixDefaultAccount: FacadeModule["requiresExplicitMatrixDefaultAccount"];
+export declare const resolveConfiguredMatrixAccountIds: FacadeModule["resolveConfiguredMatrixAccountIds"];
+export declare const resolveMatrixAccountStorageRoot: FacadeModule["resolveMatrixAccountStorageRoot"];
+export declare const resolveMatrixChannelConfig: FacadeModule["resolveMatrixChannelConfig"];
+export declare const resolveMatrixCredentialsDir: FacadeModule["resolveMatrixCredentialsDir"];
+export declare const resolveMatrixCredentialsPath: FacadeModule["resolveMatrixCredentialsPath"];
+export declare const resolveMatrixDefaultOrOnlyAccountId: FacadeModule["resolveMatrixDefaultOrOnlyAccountId"];
+export declare const resolveMatrixLegacyFlatStoragePaths: FacadeModule["resolveMatrixLegacyFlatStoragePaths"];
+export {};

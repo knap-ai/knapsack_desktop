@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/feishu.js";
+export * from "./src/plugin-sdk/feishu.js";

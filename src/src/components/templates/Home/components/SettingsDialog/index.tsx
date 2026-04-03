@@ -373,6 +373,8 @@ export const SettingsDialog = ({
     }
   }
 
+  const [deletingOllamaModel, setDeletingOllamaModel] = useState<string | null>(null)
+
   const handleOllamaModelChange = async (model: string) => {
     setSelectedOllamaModel(model)
     if (!providerStatus?.ollama_enabled) return
@@ -388,6 +390,35 @@ export const SettingsDialog = ({
       })
     } catch {
       // silently fail
+    }
+  }
+
+  const handleOllamaDeleteModel = async (model: string) => {
+    if (!confirm(`Delete "${model}"? This will free disk space but you'll need to re-download it to use it again.`)) return
+    setDeletingOllamaModel(model)
+    try {
+      const resp = await fetch('http://127.0.0.1:8897/api/knapsack/ollama/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+      })
+      const data = await resp.json()
+      if (data.success) {
+        setOllamaModels(prev => prev.filter(m => m.name !== model))
+        // If the deleted model was selected, clear selection
+        if (selectedOllamaModel === model) {
+          const remaining = ollamaModels.filter(m => m.name !== model)
+          const next = remaining[0]?.name || ''
+          setSelectedOllamaModel(next)
+          if (next && providerStatus?.ollama_enabled) {
+            handleOllamaModelChange(next)
+          }
+        }
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setDeletingOllamaModel(null)
     }
   }
 
@@ -593,7 +624,7 @@ export const SettingsDialog = ({
               {/* Model picker */}
               {ollamaRunning && ollamaModels.length > 0 && (
                 <div>
-                  <div className={styles.ollamaModelLabel}>Model</div>
+                  <div className={styles.ollamaModelLabel}>Active Model</div>
                   <InputSelect
                     options={ollamaModels.map(m => ({
                       label: `${m.name}${m.parameter_size ? ` (${m.parameter_size})` : ''}`,
@@ -602,6 +633,37 @@ export const SettingsDialog = ({
                     value={selectedOllamaModel || ollamaModels[0]?.name || ''}
                     onChange={handleOllamaModelChange}
                   />
+                  <div className={styles.ollamaModelLabel} style={{ marginTop: 10 }}>Installed Models</div>
+                  <div className={styles.ollamaModelList}>
+                    {ollamaModels.map(m => {
+                      const sizeGB = m.size ? (m.size / 1_073_741_824).toFixed(1) : null
+                      const isSelected = (selectedOllamaModel || ollamaModels[0]?.name) === m.name
+                      const isDeleting = deletingOllamaModel === m.name
+                      return (
+                        <div key={m.name} className={styles.ollamaModelRow}>
+                          <div className={styles.ollamaModelInfo}>
+                            <span className={styles.ollamaModelName}>
+                              {m.name}
+                              {isSelected && <span className={styles.ollamaModelActive}>active</span>}
+                            </span>
+                            <span className={styles.ollamaModelMeta}>
+                              {m.parameter_size && <span>{m.parameter_size}</span>}
+                              {sizeGB && <span>{sizeGB} GB</span>}
+                              {m.family && <span>{m.family}</span>}
+                            </span>
+                          </div>
+                          <button
+                            className={styles.ollamaDeleteBtn}
+                            disabled={isDeleting}
+                            onClick={() => handleOllamaDeleteModel(m.name)}
+                            title={`Delete ${m.name}`}
+                          >
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -762,53 +824,74 @@ export const SettingsDialog = ({
             )}
 
             {/* Telegram */}
-            <div className="flex justify-between h-[36px] items-center">
-              <div className="flex items-center gap-2">
-                <Typography>Telegram</Typography>
-                {channels.telegram?.configured && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
-                    Connected
-                  </span>
-                )}
-                {channels.telegram && channels.telegram.enabled && !channels.telegram.configured && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
-                    Not configured
-                  </span>
-                )}
+            <div className="flex justify-between items-start py-1">
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <Typography>Telegram</Typography>
+                  {channels.telegram?.configured ? (
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+                      {channels.telegramBotUsername
+                        ? `Connected as @${channels.telegramBotUsername}`
+                        : channels.telegram?.account
+                          ? `Connected as ${channels.telegram.account}`
+                          : 'Connected'}
+                    </span>
+                  ) : channels.telegram?.enabled ? (
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                      Not configured
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <Typography
-                className={`cursor-pointer ${styles.link} ${channelBusy === 'telegram' ? 'opacity-50 pointer-events-none' : ''}`}
-                onClick={async () => {
-                  if (channelBusy) return
-                  if (channels.telegram?.configured) {
-                    setChannelBusy('telegram')
-                    try {
-                      await channels.disconnectTelegram()
-                    } finally {
-                      setChannelBusy(null)
+              <div className="flex items-center gap-2">
+                {/* Re-link button: visible when connected, lets user swap tokens */}
+                {channels.telegram?.configured && (
+                  <Typography
+                    className={`cursor-pointer text-xs text-gray-500 hover:text-gray-700 ${channelBusy === 'telegram' ? 'opacity-50 pointer-events-none' : ''}`}
+                    onClick={() => {
+                      if (channelBusy) return
+                      setShowTelegramInput(prev => !prev)
+                    }}
+                  >
+                    {showTelegramInput ? 'Cancel re-link' : 'Re-link'}
+                  </Typography>
+                )}
+                <Typography
+                  className={`cursor-pointer ${styles.link} ${channelBusy === 'telegram' ? 'opacity-50 pointer-events-none' : ''}`}
+                  onClick={async () => {
+                    if (channelBusy) return
+                    if (channels.telegram?.configured && !showTelegramInput) {
+                      setChannelBusy('telegram')
+                      try {
+                        await channels.disconnectTelegram()
+                      } finally {
+                        setChannelBusy(null)
+                      }
+                    } else if (!channels.telegram?.configured) {
+                      setShowTelegramInput(prev => !prev)
                     }
-                  } else {
-                    setShowTelegramInput(prev => !prev)
-                  }
-                }}
-              >
-                {channelBusy === 'telegram'
-                  ? 'Working...'
-                  : channels.telegram?.configured
-                    ? 'Disconnect'
-                    : showTelegramInput
-                      ? 'Cancel'
-                      : 'Connect'}
-              </Typography>
+                  }}
+                >
+                  {channelBusy === 'telegram'
+                    ? 'Working...'
+                    : channels.telegram?.configured
+                      ? (showTelegramInput ? 'Cancel' : 'Disconnect')
+                      : showTelegramInput
+                        ? 'Cancel'
+                        : 'Connect'}
+                </Typography>
+              </div>
             </div>
             {channels.channelErrors?.telegram && (
               <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">{channels.channelErrors.telegram}</Typography>
             )}
-            {/* Telegram bot token input */}
-            {showTelegramInput && !channels.telegram?.configured && (
+            {/* Telegram bot token input — shown on Connect or Re-link */}
+            {showTelegramInput && (
               <div className="flex flex-col gap-2 py-1 pl-0.5">
                 <Typography className="text-xs text-gray-500">
-                  Enter your Telegram bot token from @BotFather:
+                  {channels.telegram?.configured
+                    ? 'Enter new bot token to replace the current one:'
+                    : 'Enter your Telegram bot token from @BotFather:'}
                 </Typography>
                 <div className="flex gap-2">
                   <input
@@ -834,7 +917,7 @@ export const SettingsDialog = ({
                       }
                     }}
                   >
-                    {channelBusy === 'telegram' ? 'Saving...' : 'Save'}
+                    {channelBusy === 'telegram' ? 'Validating...' : 'Save'}
                   </button>
                 </div>
               </div>

@@ -14,6 +14,7 @@ import {
 
 import { open } from '@tauri-apps/api/shell'
 
+import AgentPickerScreen, { AgentSelection } from './AgentPickerScreen'
 import styles from './styles.module.scss'
 import KnapsackLogoMedium from '/assets/images/knap-logo-medium.png'
 // import NotificationDefault from '/assets/images/notification-default.png'
@@ -398,6 +399,9 @@ type OnboardingTemplateProps = {
   error: string
   onChromeExtensionInstallClick: (index: number) => void
   onChromeExtensionSkipClick: (index: number) => void
+  connectedProvider: 'google' | 'microsoft' | null
+  onAgentPickerActivate: (selections: AgentSelection[]) => void
+  onAgentPickerSkip: (index: number) => void
   // onAudioGrantClick: (index: number) => void
 }
 
@@ -418,6 +422,9 @@ export const OnboardingTemplate = ({
   error,
   onChromeExtensionInstallClick,
   onChromeExtensionSkipClick,
+  connectedProvider,
+  onAgentPickerActivate,
+  onAgentPickerSkip,
   // onAudioGrantClick,
 }: OnboardingTemplateProps) => {
   return (
@@ -462,6 +469,14 @@ export const OnboardingTemplate = ({
           index={3}
           onInstallClick={onChromeExtensionInstallClick}
           onSkipClick={onChromeExtensionSkipClick}
+        />
+        <AgentPickerScreen
+          currentSlideInScreen={currentSlideInScreen}
+          currentSlideOutScreen={currentSlideOutScreen}
+          index={4}
+          connectedProvider={connectedProvider}
+          onActivate={onAgentPickerActivate}
+          onSkip={onAgentPickerSkip}
         />
         {/*<AudioPermissionsScreen
           currentSlideInScreen={currentSlideInScreen}

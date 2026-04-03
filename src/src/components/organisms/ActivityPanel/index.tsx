@@ -359,7 +359,7 @@ interface BudgetStatus {
   monthlyCostUsd: number
 }
 
-const TokenCostsView: React.FC = () => {
+export const TokenCostsView: React.FC = () => {
   const [summary, setSummary] = useState<UsageSummary | null>(null)
   const [records, setRecords] = useState<TokenUsageRecord[]>([])
   const [budget, setBudget] = useState<BudgetStatus | null>(null)
@@ -602,9 +602,15 @@ const TerminalView: React.FC = () => {
       if (session.cwd) return // already resolved
       const resolveDir = async () => {
         try {
-          const expanded = session.initialCwd.replace(/^~/, '$HOME')
+          const isWindows = navigator.userAgent.includes('Windows')
+          const expanded = isWindows
+            ? session.initialCwd.replace(/^~/, '%USERPROFILE%')
+            : session.initialCwd.replace(/^~/, '$HOME')
+          const command = isWindows
+            ? `cd /d ${expanded} 2>nul && cd || cd`
+            : `eval cd ${expanded} 2>/dev/null && pwd || pwd`
           const result: string = await invoke('kn_execute_command', {
-            command: `eval cd ${expanded} 2>/dev/null && pwd || pwd`,
+            command,
           })
           const resolvedCwd = result.trim()
           updateSession(session.id, s => ({ ...s, cwd: resolvedCwd }))
@@ -1114,7 +1120,10 @@ const TerminalView: React.FC = () => {
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
           const cwd = session.cwd
-          const actualCommand = cwd ? `cd "${cwd}" && cd ${dir} && pwd` : `cd ${dir} && pwd`
+          const isWindows = navigator.userAgent.includes('Windows')
+          const actualCommand = isWindows
+            ? (cwd ? `cd /d "${cwd}" && cd /d ${dir} && cd` : `cd /d ${dir} && cd`)
+            : (cwd ? `cd "${cwd}" && cd ${dir} && pwd` : `cd ${dir} && pwd`)
           const result: string = await invoke('kn_execute_command', { command: actualCommand })
           const newCwd = result.trim()
           updateSession(sessionId, s => ({ ...s, cwd: newCwd }))
@@ -1148,7 +1157,10 @@ const TerminalView: React.FC = () => {
       updateSession(sessionId, s => ({ ...s, isExecuting: true }))
       try {
         const cwd = session.cwd
-        const actualCommand = cwd ? `cd "${cwd}" && ${trimmed}` : trimmed
+        const isWindows = navigator.userAgent.includes('Windows')
+        const actualCommand = cwd
+          ? (isWindows ? `cd /d "${cwd}" && ${trimmed}` : `cd "${cwd}" && ${trimmed}`)
+          : trimmed
         const result: string = await invoke('kn_execute_command', { command: actualCommand })
         if (result) {
           addLine(sessionId, 'stdout', result)
