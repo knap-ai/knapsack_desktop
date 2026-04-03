@@ -10,6 +10,7 @@ import StrategicPlan from 'src/automations/steps/StrategicPlan'
 import { Automation, CadenceType, DaysOfWeek } from '../automations/automation'
 import EmailSummary from '../automations/steps/EmailSummary'
 import MeetingPrep from '../automations/steps/MeetingPrep'
+import GatewayPrompt from '../automations/steps/GatewayPrompt'
 import Prompt from '../automations/steps/Prompt'
 import SemanticSearch from '../automations/steps/SemanticSearch'
 import {
@@ -82,6 +83,7 @@ const serializeAutomation = (automationData: {
     EmailSummary,
     MeetingPrep,
     Prompt,
+    GatewayPrompt,
     SemanticSearch,
     FinraCompliance,
     PostSafely,

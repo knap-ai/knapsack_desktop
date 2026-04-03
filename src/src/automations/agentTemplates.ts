@@ -6,7 +6,7 @@ import {
   CadenceType,
   DaysOfWeek,
 } from './automation'
-import Prompt from './steps/Prompt'
+import GatewayPrompt from './steps/GatewayPrompt'
 import SemanticSearch from './steps/SemanticSearch'
 
 export type AbstractSource = 'email' | 'calendar' | 'drive' | 'web' | 'local'
@@ -17,7 +17,7 @@ export interface AgentTemplate {
   description: string
   abstractSources: AbstractSource[]
   defaultCadence: Cadence
-  createAutomation: (provider: 'google' | 'microsoft' | null) => Automation
+  createAutomation: (provider: 'google' | 'microsoft' | null, overrides?: { cadence?: Cadence; description?: string }) => Automation
 }
 
 function resolveSource(
@@ -200,7 +200,7 @@ function createSemanticSearchPromptAutomation(opts: {
     cadences: [opts.cadence],
     steps: [
       new SemanticSearch({ sources, userPrompt: opts.searchPrompt }),
-      new Prompt({ userPrompt: opts.agentPrompt }),
+      new GatewayPrompt({ userPrompt: opts.agentPrompt }),
     ],
     isActive: true,
     showLibrary: true,
@@ -221,13 +221,13 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     description: 'Summarizes your daily email and monitors social media activity based on notifications and web presence.',
     abstractSources: ['email', 'web'],
     defaultCadence: { type: CadenceType.DAILY, time: '08:00' },
-    createAutomation(provider) {
+    createAutomation(provider, overrides) {
       return createSemanticSearchPromptAutomation({
         name: this.defaultIdentity.displayName,
-        description: this.description,
+        description: overrides?.description ?? this.description,
         identity: this.defaultIdentity,
         abstractSources: this.abstractSources,
-        cadence: this.defaultCadence,
+        cadence: overrides?.cadence ?? this.defaultCadence,
         searchPrompt: POLLY_SEARCH_PROMPT,
         agentPrompt: POLLY_PROMPT,
         provider,
@@ -246,13 +246,13 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       'Prepares you for meetings, follows up on action items, and tracks all your commitments like an executive assistant.',
     abstractSources: ['calendar', 'email', 'drive'],
     defaultCadence: { type: CadenceType.DAILY, time: '07:30' },
-    createAutomation(provider) {
+    createAutomation(provider, overrides) {
       return createSemanticSearchPromptAutomation({
         name: this.defaultIdentity.displayName,
-        description: this.description,
+        description: overrides?.description ?? this.description,
         identity: this.defaultIdentity,
         abstractSources: this.abstractSources,
-        cadence: this.defaultCadence,
+        cadence: overrides?.cadence ?? this.defaultCadence,
         searchPrompt: SCOUT_SEARCH_PROMPT,
         agentPrompt: SCOUT_PROMPT,
         provider,
@@ -271,13 +271,13 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       'Actively seeks business opportunities, identifies high-value contacts, and recommends who to meet with.',
     abstractSources: ['email', 'calendar', 'drive', 'web'],
     defaultCadence: { type: CadenceType.WEEKLY, dayOfWeek: DaysOfWeek.MONDAY, time: '08:00' },
-    createAutomation(provider) {
+    createAutomation(provider, overrides) {
       return createSemanticSearchPromptAutomation({
         name: this.defaultIdentity.displayName,
-        description: this.description,
+        description: overrides?.description ?? this.description,
         identity: this.defaultIdentity,
         abstractSources: this.abstractSources,
-        cadence: this.defaultCadence,
+        cadence: overrides?.cadence ?? this.defaultCadence,
         searchPrompt: ATLAS_SEARCH_PROMPT,
         agentPrompt: ATLAS_PROMPT,
         provider,
@@ -296,13 +296,13 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       'Monitors how you work — patterns, productivity, habits — and gives actionable daily coaching.',
     abstractSources: ['email', 'calendar', 'drive', 'web'],
     defaultCadence: { type: CadenceType.DAILY, time: '07:00' },
-    createAutomation(provider) {
+    createAutomation(provider, overrides) {
       return createSemanticSearchPromptAutomation({
         name: this.defaultIdentity.displayName,
-        description: this.description,
+        description: overrides?.description ?? this.description,
         identity: this.defaultIdentity,
         abstractSources: this.abstractSources,
-        cadence: this.defaultCadence,
+        cadence: overrides?.cadence ?? this.defaultCadence,
         searchPrompt: COACH_SEARCH_PROMPT,
         agentPrompt: COACH_PROMPT,
         provider,

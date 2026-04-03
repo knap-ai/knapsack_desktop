@@ -1378,6 +1378,78 @@ pub async fn agent_chat(
   }
 }
 
+/// Run an automation agent through the gateway — no fallback to direct chat.
+///
+/// Accepts `{ text, agentId?, channel? }`.  If the gateway is unavailable the
+/// request fails explicitly so the cadence system knows to retry later.
+#[post("/api/clawd/agent-run")]
+pub async fn agent_run(
+  body: web::Json<JsonValue>,
+) -> impl Responder {
+  let text = body
+    .get("text")
+    .and_then(|v| v.as_str())
+    .unwrap_or("")
+    .trim()
+    .to_string();
+
+  if text.is_empty() {
+    return HttpResponse::BadRequest()
+      .json(serde_json::json!({"ok": false, "message": "text is required"}));
+  }
+
+  if !gateway_client::is_gateway_port_open().await {
+    return HttpResponse::ServiceUnavailable()
+      .json(serde_json::json!({"ok": false, "message": "Gateway not available"}));
+  }
+
+  eprintln!("[clawd/agent-run] Sending to gateway: {:?}", &text[..text.len().min(100)]);
+
+  let agent_id = body.get("agentId").and_then(|v| v.as_str());
+  let channel = body.get("channel").and_then(|v| v.as_str());
+
+  match gateway_client::agent_run(&text, agent_id, channel, None).await {
+    Ok(result) => {
+      eprintln!("[clawd/agent-run] Gateway returned OK. Keys: {:?}",
+        result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+
+      let reply = result
+        .pointer("/result/payloads")
+        .and_then(|p| p.as_array())
+        .map(|payloads| {
+          payloads
+            .iter()
+            .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+            .map(|raw| parse_sse_payload_text(raw))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+        })
+        .unwrap_or_else(|| {
+          result
+            .get("summary")
+            .and_then(|s| s.as_str())
+            .unwrap_or("")
+            .to_string()
+        });
+
+      if reply.is_empty() {
+        eprintln!("[clawd/agent-run] Gateway returned empty reply");
+        HttpResponse::Ok()
+          .json(serde_json::json!({"ok": false, "message": "Empty reply from gateway"}))
+      } else {
+        eprintln!("[clawd/agent-run] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
+        HttpResponse::Ok()
+          .json(serde_json::json!({"ok": true, "reply": reply, "gateway": true}))
+      }
+    }
+    Err(e) => {
+      eprintln!("[clawd/agent-run] Gateway agent request FAILED: {}", e);
+      HttpResponse::Ok()
+        .json(serde_json::json!({"ok": false, "message": format!("Gateway error: {}", e)}))
+    }
+  }
+}
+
 #[post("/api/clawd/chat")]
 pub async fn chat(
   app_handle: web::Data<tauri::AppHandle>,
