@@ -286,23 +286,14 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
         tgValidatedRef.current = true
         // Retrieve the saved token from the gateway config so we can call getMe.
         // We read it from the gateway config snapshot that was already fetched.
-        import('src/api/channels').then(({ validateTelegramToken: validate }) => {
-          // We don't have the raw token here — ask the backend status endpoint
-          // which embeds the account (bot username) from the gateway summary.
-          // If account is already present (gateway reported it), use it directly.
-          if (tg?.account) {
-            const username = tg.account.replace(/^@/, '')
-            setTelegramBotUsername(username)
-            console.info(`[useChannelStatus] Telegram bot username restored from status: @${username}`)
-          } else {
-            // Fall back: call validate with an empty token — the backend will
-            // attempt to read the saved token from the gateway config.
-            // This path is intentionally left as a no-op; we rely on the
-            // gateway status summary to surface the account name once the
-            // gateway has started and reported it.
-            console.info('[useChannelStatus] Telegram configured but no account in status yet — will retry on next poll')
-          }
-        }).catch(() => {})
+        // If account is already present (gateway reported it), restore it directly.
+        if (tg?.account) {
+          const username = tg.account.replace(/^@/, '')
+          setTelegramBotUsername(username)
+          console.info(`[useChannelStatus] Telegram bot username restored from status: @${username}`)
+        } else {
+          console.info('[useChannelStatus] Telegram configured but no account in status yet — will retry on next poll')
+        }
       }
     } catch (e: any) {
       setError(e?.message ?? 'Failed to fetch channel status')
