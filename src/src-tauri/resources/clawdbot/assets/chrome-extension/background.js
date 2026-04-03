@@ -922,6 +922,9 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => void whenReady(
 chrome.debugger.onEvent.addListener((...args) => void whenReady(() => onDebuggerEvent(...args)))
 chrome.debugger.onDetach.addListener((...args) => void whenReady(() => onDebuggerDetach(...args)))
 
+// With a popup set, action.onClicked no longer fires. The popup sends a
+// POPUP_TOGGLE_TAB message instead. Keep the onClicked listener as a fallback
+// in case the popup is removed or unavailable (e.g. programmatic popup disable).
 chrome.action.onClicked.addListener(() => void whenReady(() => connectOrToggleForActiveTab()))
 
 // Refresh badge after navigation completes — service worker may have restarted
@@ -999,6 +1002,13 @@ async function whenReady(fn) {
   await initPromise
   return fn()
 }
+
+// Handle popup toggle request — replaces action.onClicked when popup is active.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type !== 'POPUP_TOGGLE_TAB') return false
+  void whenReady(() => connectOrToggleForActiveTab())
+  return false
+})
 
 // Relay check handler for the options page. The service worker has
 // host_permissions and bypasses CORS preflight, so the options page

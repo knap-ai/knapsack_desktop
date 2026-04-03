@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Knapsack Browser Relay</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --accent: #ff5a36;
+        --panel: color-mix(in oklab, canvas 92%, canvasText 8%);
+        --border: color-mix(in oklab, canvasText 18%, transparent);
+        --muted: color-mix(in oklab, canvasText 70%, transparent);
+        font-family: ui-rounded, system-ui, -apple-system, BlinkMacSystemFont,
+          "SF Pro Rounded", "SF Pro Display", "Segoe UI", sans-serif;
+        line-height: 1.45;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        width: 320px;
+        padding: 16px;
+        background: canvas;
+        color: canvasText;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .logo {
+        width: 32px; height: 32px;
+        border-radius: 8px;
+        background: color-mix(in oklab, var(--accent) 18%, transparent);
+        border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
+        display: grid;
+        place-items: center;
+      }
+      .logo img { width: 22px; height: 22px; }
+      h1 { font-size: 14px; letter-spacing: -0.01em; }
+      .subtitle { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+      /* Status bar */
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        margin-bottom: 14px;
+        font-size: 12px;
+      }
+      .dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .dot.connected { background: #16a34a; }
+      .dot.disconnected { background: #ef4444; }
+      .dot.checking { background: #eab308; }
+
+      /* Quick-start guide */
+      .guide { margin-bottom: 12px; }
+      .guide-title {
+        font-size: 12px;
+        font-weight: 650;
+        margin-bottom: 8px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .step {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        margin-bottom: 8px;
+      }
+      .step-num {
+        width: 20px; height: 20px;
+        border-radius: 50%;
+        background: color-mix(in oklab, var(--accent) 15%, transparent);
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+      }
+      .step-text { font-size: 12px; color: canvasText; }
+      .step-text strong { font-weight: 600; }
+
+      /* Actions */
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: canvasText;
+        text-decoration: none;
+      }
+      .btn:hover { background: color-mix(in oklab, var(--accent) 8%, canvas); }
+      .btn-primary {
+        background: linear-gradient(180deg,
+          color-mix(in oklab, var(--accent) 80%, white 20%),
+          var(--accent));
+        color: white;
+        border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+      }
+      .btn-primary:hover { opacity: 0.9; }
+
+      .footer {
+        margin-top: 12px;
+        text-align: center;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .footer a { color: var(--accent); text-decoration: none; }
+      .footer a:hover { text-decoration: underline; }
+
+      /* First-run overlay */
+      .first-run { display: none; }
+      .first-run.visible { display: block; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo" aria-hidden="true">
+        <img src="icons/icon48.png" alt="" />
+      </div>
+      <div>
+        <h1>Knapsack Browser Relay</h1>
+        <div class="subtitle">Automate your browser workflows</div>
+      </div>
+    </header>
+
+    <div class="status-bar">
+      <span class="dot checking" id="status-dot"></span>
+      <span id="status-text">Checking relay&hellip;</span>
+    </div>
+
+    <div class="guide">
+      <div class="guide-title">Quick Start</div>
+      <div class="step">
+        <span class="step-num">1</span>
+        <span class="step-text">Open the <strong>Knapsack app</strong> and go to the <strong>Workflows</strong> tab</span>
+      </div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <span class="step-text">Navigate to a page in Chrome, then click <strong>Start Recording</strong> in the app</span>
+      </div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <span class="step-text">Perform your task &mdash; clicks, typing, and navigation are captured automatically</span>
+      </div>
+      <div class="step">
+        <span class="step-num">4</span>
+        <span class="step-text">Click <strong>Stop Recording</strong>, name it, and optionally set a schedule</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="toggle-btn">Attach to this tab</button>
+      <a class="btn" id="options-link" href="#">Settings</a>
+    </div>
+
+    <div class="footer">
+      Need help? <a href="https://docs.openclaw.ai/tools/chrome-extension" target="_blank" rel="noreferrer">View docs</a>
+    </div>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

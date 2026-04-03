@@ -67,6 +67,11 @@ export default function WorkflowRecorder() {
   const [recordingTabId, setRecordingTabId] = useState<number | null>(null)
   const [actionCount, setActionCount] = useState(0)
 
+  // Education card
+  const [educationDismissed, setEducationDismissed] = useState(
+    () => typeof localStorage !== 'undefined' && localStorage.getItem('workflow-education-dismissed') === 'true'
+  )
+
   // Save dialog
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [workflowName, setWorkflowName] = useState('')
@@ -371,6 +376,72 @@ export default function WorkflowRecorder() {
         </div>
       )}
 
+      {/* Education Card — shown when no workflows exist and not yet dismissed */}
+      {workflows.length === 0 && !showSaveDialog && !educationDismissed && (
+          <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-800">
+                Automate your browser
+              </h3>
+              <button
+                onClick={() => {
+                  localStorage.setItem('workflow-education-dismissed', 'true')
+                  setEducationDismissed(true)
+                }}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Dismiss"
+              >
+                &#x2715;
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-gray-600">
+              Record clicks, typing, and navigation in Chrome, then replay them
+              on demand or on a schedule. Great for filling out forms, pulling
+              reports, or any repetitive browser task.
+            </p>
+            <div className="mb-4 flex flex-col gap-2">
+              <div className="flex items-start gap-3 text-sm">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                  1
+                </span>
+                <span className="text-gray-700">
+                  <a
+                    href="https://chrome.google.com/webstore/detail/ndolhgjognokndkmkcjgookcogfbgdpg"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-blue-600 underline"
+                  >
+                    Install the Knapsack Chrome Extension
+                  </a>{' '}
+                  from the Chrome Web Store
+                </span>
+              </div>
+              <div className="flex items-start gap-3 text-sm">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                  2
+                </span>
+                <span className="text-gray-700">
+                  Open Chrome, navigate to a page, and click{' '}
+                  <strong>Start Recording</strong> above
+                </span>
+              </div>
+              <div className="flex items-start gap-3 text-sm">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
+                  3
+                </span>
+                <span className="text-gray-700">
+                  Stop recording, name your workflow, and optionally set a
+                  schedule
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">
+              This card won&apos;t appear again once you record your first
+              workflow.
+            </p>
+          </div>
+        )}
+
       {/* Workflows List */}
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-semibold text-gray-600">Saved Workflows</h3>
@@ -499,10 +570,10 @@ export default function WorkflowRecorder() {
         </div>
       )}
 
-      {/* Extension Setup Help */}
-      <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
-        <p className="font-medium">Setup:</p>
-        <ol className="mt-1 list-inside list-decimal">
+      {/* Extension Setup Help — compact version always visible at bottom */}
+      <details className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
+        <summary className="cursor-pointer font-medium">Setup help</summary>
+        <ol className="mt-2 list-inside list-decimal">
           <li>
             Install the{' '}
             <a
@@ -518,7 +589,7 @@ export default function WorkflowRecorder() {
           <li>Click &quot;Start Recording&quot; and perform your workflow</li>
           <li>Click &quot;Stop Recording&quot; to save and optionally schedule</li>
         </ol>
-      </div>
+      </details>
     </div>
   )
 }
