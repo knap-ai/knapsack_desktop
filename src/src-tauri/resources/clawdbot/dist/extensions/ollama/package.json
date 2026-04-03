@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/ollama-provider",
+  "name": "@openclaw/ollama",
   "version": "2026.4.1-beta.1",
   "private": true,
   "description": "OpenClaw Ollama provider plugin",
