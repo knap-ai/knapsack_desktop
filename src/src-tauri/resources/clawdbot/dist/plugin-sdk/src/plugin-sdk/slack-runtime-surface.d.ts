@@ -1,0 +1,13 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["slack-runtime-surface"];
+type FacadeModule = FacadeEntry["module"];
+export declare const handleSlackAction: FacadeModule["handleSlackAction"];
+export declare const listSlackDirectoryGroupsLive: FacadeModule["listSlackDirectoryGroupsLive"];
+export declare const listSlackDirectoryPeersLive: FacadeModule["listSlackDirectoryPeersLive"];
+export declare const monitorSlackProvider: FacadeModule["monitorSlackProvider"];
+export declare const probeSlack: FacadeModule["probeSlack"];
+export declare const resolveSlackChannelAllowlist: FacadeModule["resolveSlackChannelAllowlist"];
+export declare const resolveSlackUserAllowlist: FacadeModule["resolveSlackUserAllowlist"];
+export declare const sendMessageSlack: FacadeModule["sendMessageSlack"];
+export type SlackActionContext = FacadeEntry["types"]["SlackActionContext"];
+export {};

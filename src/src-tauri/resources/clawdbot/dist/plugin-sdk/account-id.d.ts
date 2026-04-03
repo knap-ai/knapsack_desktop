@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/account-id.js";
+export * from "./src/plugin-sdk/account-id.js";

@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/llm-task.js";
+export * from "./src/plugin-sdk/llm-task.js";

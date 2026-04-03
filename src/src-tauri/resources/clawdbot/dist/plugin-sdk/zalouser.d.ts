@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/zalouser.js";
+export * from "./src/plugin-sdk/zalouser.js";

@@ -1,0 +1,18 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["google"];
+type FacadeModule = FacadeEntry["module"];
+export declare const applyGoogleGeminiModelDefault: FacadeModule["applyGoogleGeminiModelDefault"];
+export declare const DEFAULT_GOOGLE_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+export declare const GOOGLE_GEMINI_DEFAULT_MODEL = "google/gemini-3.1-pro-preview";
+export declare const isGoogleGenerativeAiApi: FacadeModule["isGoogleGenerativeAiApi"];
+export declare const normalizeAntigravityModelId: FacadeModule["normalizeAntigravityModelId"];
+export declare const normalizeGoogleApiBaseUrl: FacadeModule["normalizeGoogleApiBaseUrl"];
+export declare const normalizeGoogleGenerativeAiBaseUrl: FacadeModule["normalizeGoogleGenerativeAiBaseUrl"];
+export declare const normalizeGoogleModelId: FacadeModule["normalizeGoogleModelId"];
+export declare const normalizeGoogleProviderConfig: FacadeModule["normalizeGoogleProviderConfig"];
+export declare const parseGeminiAuth: FacadeModule["parseGeminiAuth"];
+export declare const resolveGoogleGenerativeAiApiOrigin: FacadeModule["resolveGoogleGenerativeAiApiOrigin"];
+export declare const resolveGoogleGenerativeAiTransport: FacadeModule["resolveGoogleGenerativeAiTransport"];
+export declare const shouldNormalizeGoogleProviderConfig: FacadeModule["shouldNormalizeGoogleProviderConfig"];
+export declare const shouldNormalizeGoogleGenerativeAiProviderConfig: FacadeModule["shouldNormalizeGoogleGenerativeAiProviderConfig"];
+export {};

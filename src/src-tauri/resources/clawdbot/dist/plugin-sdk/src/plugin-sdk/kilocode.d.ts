@@ -1,0 +1,17 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["kilocode"];
+type FacadeModule = FacadeEntry["module"];
+export declare const buildKilocodeProvider: FacadeModule["buildKilocodeProvider"];
+export declare const buildKilocodeProviderWithDiscovery: FacadeModule["buildKilocodeProviderWithDiscovery"];
+export declare const buildKilocodeModelDefinition: FacadeModule["buildKilocodeModelDefinition"];
+export declare const discoverKilocodeModels: FacadeModule["discoverKilocodeModels"];
+export declare const KILOCODE_BASE_URL = "https://api.kilo.ai/api/gateway/";
+export declare const KILOCODE_DEFAULT_CONTEXT_WINDOW = 1000000;
+export declare const KILOCODE_DEFAULT_COST: FacadeModule["KILOCODE_DEFAULT_COST"];
+export declare const KILOCODE_DEFAULT_MAX_TOKENS = 128000;
+export declare const KILOCODE_DEFAULT_MODEL_ID = "kilo/auto";
+export declare const KILOCODE_DEFAULT_MODEL_NAME = "Kilo Auto";
+export declare const KILOCODE_DEFAULT_MODEL_REF = "kilocode/kilo/auto";
+export declare const KILOCODE_MODELS_URL = "https://api.kilo.ai/api/gateway/models";
+export declare const KILOCODE_MODEL_CATALOG: FacadeModule["KILOCODE_MODEL_CATALOG"];
+export {};

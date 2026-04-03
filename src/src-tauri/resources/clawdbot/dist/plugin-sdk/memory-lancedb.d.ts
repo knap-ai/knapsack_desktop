@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/memory-lancedb.js";
+export * from "./src/plugin-sdk/memory-lancedb.js";

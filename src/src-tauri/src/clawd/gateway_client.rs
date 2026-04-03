@@ -196,9 +196,9 @@ fn ensure_browser_config() -> bool {
     Err(_) => return false,
   };
 
-  // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR) —
+  // Check the app data dir first (OPENCLAW_HOME / OPENCLAW_STATE_DIR) —
   // that's where service.rs creates the config the gateway actually reads.
-  for var in ["OPENCLAW_HOME", "CLAWDBOT_STATE_DIR"] {
+  for var in ["OPENCLAW_HOME", "OPENCLAW_STATE_DIR"] {
     if let Ok(dir) = std::env::var(var) {
       let dir = dir.trim().to_string();
       if !dir.is_empty() {
@@ -1376,12 +1376,10 @@ pub async fn gateway_request_agent(
 
 /// Get the gateway token from environment or config file.
 fn get_gateway_token() -> Option<String> {
-  for var in ["OPENCLAW_GATEWAY_TOKEN", "CLAWDBOT_GATEWAY_TOKEN"] {
-    if let Ok(token) = std::env::var(var) {
-      let t = token.trim().to_string();
-      if !t.is_empty() {
-        return Some(t);
-      }
+  if let Ok(token) = std::env::var("OPENCLAW_GATEWAY_TOKEN") {
+    let t = token.trim().to_string();
+    if !t.is_empty() {
+      return Some(t);
     }
   }
 
@@ -1420,11 +1418,11 @@ fn read_token_from_config() -> Option<String> {
     .or_else(|_| std::env::var("USERPROFILE"))
     .unwrap_or_else(|_| ".".to_string());
 
-  // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR),
+  // Check the app data dir first (OPENCLAW_HOME / OPENCLAW_STATE_DIR),
   // then standard user-level config locations.
   let mut candidates: Vec<std::path::PathBuf> = Vec::new();
 
-  for var in ["OPENCLAW_HOME", "CLAWDBOT_STATE_DIR"] {
+  for var in ["OPENCLAW_HOME", "OPENCLAW_STATE_DIR"] {
     if let Ok(dir) = std::env::var(var) {
       let dir = dir.trim().to_string();
       if !dir.is_empty() {

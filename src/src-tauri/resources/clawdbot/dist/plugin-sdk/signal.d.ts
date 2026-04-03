@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/signal.js";
+export * from "./src/plugin-sdk/signal.js";

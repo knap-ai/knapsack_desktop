@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/googlechat.js";
+export * from "./src/plugin-sdk/googlechat.js";

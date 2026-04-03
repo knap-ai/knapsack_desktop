@@ -735,7 +735,6 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   // via `resolve_token(None)` without needing an explicit parameter.
   let gw_token = &tokens.gateway_token;
   if !gw_token.trim().is_empty() {
-    std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw_token.trim());
     std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw_token.trim());
   }
 
@@ -745,7 +744,7 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   let home = app_clawdbot_home(app_handle);
   let home_str = home.to_string_lossy().to_string();
   std::env::set_var("OPENCLAW_HOME", &home_str);
-  std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
+  std::env::set_var("OPENCLAW_STATE_DIR", &home_str);
 }
 
 /// Allowlist of environment variable names that extra_provider_keys may set.
@@ -3164,7 +3163,7 @@ async fn prepare_gateway_config(
   ];
 
   // ── Build environment variables ───────────────────────────────────
-  let bundled_plugins_dir = resource_path(app_handle, "resources/clawdbot/extensions");
+  let bundled_plugins_dir = resource_path(app_handle, "resources/clawdbot/dist/extensions");
   let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
 
   let node_dir = node_path.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
@@ -3201,10 +3200,9 @@ async fn prepare_gateway_config(
     ("PATH".to_string(), clawdbot_path),
     ("HOME".to_string(), user_home.clone()),
     ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
-    ("CLAWDBOT_STATE_DIR".to_string(), clawdbot_home_str),
-    ("CLAWDBOT_GATEWAY_TOKEN".to_string(), tokens.gateway_token.clone()),
+    ("OPENCLAW_STATE_DIR".to_string(), clawdbot_home_str),
     ("OPENCLAW_GATEWAY_TOKEN".to_string(), tokens.gateway_token.clone()),
-    ("CLAWDBOT_GATEWAY_PORT".to_string(), "18789".to_string()),
+    ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
     ("OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
     ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
     // Ensure Node.js resolves packages from the bundled flat node_modules
@@ -3342,14 +3340,13 @@ async fn prepare_gateway_config(
   {
     let gw = tokens.gateway_token.trim();
     if !gw.is_empty() {
-      std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
       std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw);
     }
   }
   {
     let home_str = app_clawdbot_home(app_handle).to_string_lossy().to_string();
     std::env::set_var("OPENCLAW_HOME", &home_str);
-    std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
+    std::env::set_var("OPENCLAW_STATE_DIR", &home_str);
   }
 
   // Set browser base_url
@@ -3695,7 +3692,7 @@ pub async fn set_service_enabled(
       // Resolve bundled plugins directory early — needed for the
       // OPENCLAW_BUNDLED_PLUGINS_DIR env var and for cleaning up stale
       // plugins.load.paths entries from older configs.
-      let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/extensions");
+      let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/dist/extensions");
 
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
       // Without this, OpenClaw refuses to start on a fresh machine.
@@ -4263,25 +4260,18 @@ pub async fn set_service_enabled(
       let mut env = vec![
         ("PATH".to_string(), clawdbot_path),
         ("HOME".to_string(), user_home),
-        // OpenClaw 2026.2+ only recognizes OPENCLAW_HOME (no CLAWDBOT_HOME fallback).
         ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
         // Point state dir (config, sessions, logs) to the app data dir so
         // OpenClaw finds our config file instead of looking in ~/.openclaw/
-        ("CLAWDBOT_STATE_DIR".to_string(), clawdbot_home_str),
-        (
-          "CLAWDBOT_GATEWAY_TOKEN".to_string(),
-          tokens.gateway_token.clone(),
-        ),
+        ("OPENCLAW_STATE_DIR".to_string(), clawdbot_home_str),
         (
           "OPENCLAW_GATEWAY_TOKEN".to_string(),
           tokens.gateway_token.clone(),
         ),
-        // Browser control auth is now unified with gateway auth in OpenClaw 2026.2+.
-        // The old CLAWDBOT_BROWSER_CONTROL_TOKEN is no longer recognized.
         // Ensure control server family ports remain default.
-        ("CLAWDBOT_GATEWAY_PORT".to_string(), "18789".to_string()),
+        ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
         // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
-        // Note: only OPENCLAW_BUNDLED_PLUGINS_DIR is recognized in 2026.2+ (no CLAWDBOT_ fallback).
+        // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
         ("OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
         // Suppress the repetitive "Config was last written by a newer OpenClaw" warning.
         // The gateway logs this on every config read; setting this env var tells it to
@@ -4405,7 +4395,6 @@ pub async fn set_service_enabled(
       {
         let gw = tokens.gateway_token.trim();
         if !gw.is_empty() {
-          std::env::set_var("CLAWDBOT_GATEWAY_TOKEN", gw);
           std::env::set_var("OPENCLAW_GATEWAY_TOKEN", gw);
         }
       }
@@ -4414,7 +4403,7 @@ pub async fn set_service_enabled(
       {
         let home_str = clawdbot_home.to_string_lossy().to_string();
         std::env::set_var("OPENCLAW_HOME", &home_str);
-        std::env::set_var("CLAWDBOT_STATE_DIR", &home_str);
+        std::env::set_var("OPENCLAW_STATE_DIR", &home_str);
       }
 
       let plist = generate_plist(&program_args, &env);

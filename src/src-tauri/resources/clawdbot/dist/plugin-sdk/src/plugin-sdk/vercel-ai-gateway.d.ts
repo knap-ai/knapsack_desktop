@@ -1,0 +1,14 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["vercel-ai-gateway"];
+type FacadeModule = FacadeEntry["module"];
+export declare const buildVercelAiGatewayProvider: FacadeModule["buildVercelAiGatewayProvider"];
+export declare const discoverVercelAiGatewayModels: FacadeModule["discoverVercelAiGatewayModels"];
+export declare const getStaticVercelAiGatewayModelCatalog: FacadeModule["getStaticVercelAiGatewayModelCatalog"];
+export declare const VERCEL_AI_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh";
+export declare const VERCEL_AI_GATEWAY_DEFAULT_CONTEXT_WINDOW = 200000;
+export declare const VERCEL_AI_GATEWAY_DEFAULT_COST: FacadeModule["VERCEL_AI_GATEWAY_DEFAULT_COST"];
+export declare const VERCEL_AI_GATEWAY_DEFAULT_MAX_TOKENS = 128000;
+export declare const VERCEL_AI_GATEWAY_DEFAULT_MODEL_ID = "anthropic/claude-opus-4.6";
+export declare const VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF = "vercel-ai-gateway/anthropic/claude-opus-4.6";
+export declare const VERCEL_AI_GATEWAY_PROVIDER_ID = "vercel-ai-gateway";
+export {};

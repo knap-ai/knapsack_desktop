@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/discord.js";
+export * from "./src/plugin-sdk/discord.js";

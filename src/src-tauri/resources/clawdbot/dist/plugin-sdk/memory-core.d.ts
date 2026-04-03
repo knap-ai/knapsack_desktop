@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/memory-core.js";
+export * from "./src/plugin-sdk/memory-core.js";

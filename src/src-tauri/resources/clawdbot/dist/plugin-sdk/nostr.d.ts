@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/nostr.js";
+export * from "./src/plugin-sdk/nostr.js";

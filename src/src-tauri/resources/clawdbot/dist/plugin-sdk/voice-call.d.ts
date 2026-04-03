@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/voice-call.js";
+export * from "./src/plugin-sdk/voice-call.js";

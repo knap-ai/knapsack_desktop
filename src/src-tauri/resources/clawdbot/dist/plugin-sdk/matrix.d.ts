@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/matrix.js";
+export * from "./src/plugin-sdk/matrix.js";

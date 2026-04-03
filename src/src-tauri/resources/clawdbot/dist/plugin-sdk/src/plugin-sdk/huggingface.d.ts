@@ -1,0 +1,12 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["huggingface"];
+type FacadeModule = FacadeEntry["module"];
+export declare const buildHuggingfaceModelDefinition: FacadeModule["buildHuggingfaceModelDefinition"];
+export declare const buildHuggingfaceProvider: FacadeModule["buildHuggingfaceProvider"];
+export declare const discoverHuggingfaceModels: FacadeModule["discoverHuggingfaceModels"];
+export declare const HUGGINGFACE_BASE_URL = "https://router.huggingface.co/v1";
+export declare const HUGGINGFACE_DEFAULT_MODEL_REF = "huggingface/deepseek-ai/DeepSeek-R1";
+export declare const HUGGINGFACE_MODEL_CATALOG: FacadeModule["HUGGINGFACE_MODEL_CATALOG"];
+export declare const HUGGINGFACE_POLICY_SUFFIXES: FacadeModule["HUGGINGFACE_POLICY_SUFFIXES"];
+export declare const isHuggingfacePolicyLocked: FacadeModule["isHuggingfacePolicyLocked"];
+export {};

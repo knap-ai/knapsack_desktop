@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/bluebubbles.js";
+export * from "./src/plugin-sdk/bluebubbles.js";

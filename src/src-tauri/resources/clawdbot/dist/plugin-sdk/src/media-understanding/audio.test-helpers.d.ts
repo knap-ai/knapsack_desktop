@@ -1,0 +1,27 @@
+export declare function resolveRequestUrl(input: RequestInfo | URL): string;
+export declare function installPinnedHostnameTestHooks(): void;
+export declare function createAuthCaptureJsonFetch(responseBody: unknown): {
+    fetchFn: ((_input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) & {
+        preconnect: (url: string | URL, options?: {
+            dns?: boolean;
+            tcp?: boolean;
+            http?: boolean;
+            https?: boolean;
+        }) => void;
+    };
+    getAuthHeader: () => string | null;
+};
+export declare function createRequestCaptureJsonFetch(responseBody: unknown): {
+    fetchFn: ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) & {
+        preconnect: (url: string | URL, options?: {
+            dns?: boolean;
+            tcp?: boolean;
+            http?: boolean;
+            https?: boolean;
+        }) => void;
+    };
+    getRequest: () => {
+        url: string | null;
+        init: RequestInit | undefined;
+    };
+};

@@ -28,7 +28,7 @@ use crate::clawd::gateway_client;
 ///   OPENCLAW_OAUTH_DIR  →  {state_dir}/credentials
 ///
 /// where state_dir is:
-///   OPENCLAW_STATE_DIR / CLAWDBOT_STATE_DIR  →  ~/.openclaw
+///   OPENCLAW_STATE_DIR  →  ~/.openclaw
 fn resolve_credentials_dir() -> Option<PathBuf> {
   // Explicit override
   if let Ok(d) = std::env::var("OPENCLAW_OAUTH_DIR") {
@@ -39,7 +39,7 @@ fn resolve_credentials_dir() -> Option<PathBuf> {
   }
 
   // State dir from env
-  for var in ["OPENCLAW_STATE_DIR", "CLAWDBOT_STATE_DIR", "OPENCLAW_HOME"] {
+  for var in ["OPENCLAW_STATE_DIR", "OPENCLAW_HOME"] {
     if let Ok(d) = std::env::var(var) {
       let d = d.trim().to_string();
       if !d.is_empty() {
