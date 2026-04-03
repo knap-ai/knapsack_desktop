@@ -3528,6 +3528,31 @@ pub async fn set_service_enabled(
         }
       }
 
+      // Run "openclaw doctor --fix" to auto-migrate config for the new
+      // version (e.g. WhatsApp allowFrom validation, Telegram streaming rename).
+      {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW_DOCTOR: u32 = 0x08000000;
+        let mut doctor_cmd = std::process::Command::new(&setup.program_args[0]);
+        doctor_cmd
+          .arg(&setup.program_args[1])
+          .args(["doctor", "--fix"])
+          .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+          .current_dir(&setup.working_dir)
+          .creation_flags(CREATE_NO_WINDOW_DOCTOR);
+        match doctor_cmd.output() {
+          Ok(out) => {
+            if !out.status.success() {
+              let stderr = String::from_utf8_lossy(&out.stderr);
+              eprintln!("[clawd/service] openclaw doctor --fix exited with {}: {}", out.status, stderr.chars().take(500).collect::<String>());
+            } else {
+              eprintln!("[clawd/service] openclaw doctor --fix completed successfully");
+            }
+          }
+          Err(e) => eprintln!("[clawd/service] WARNING: failed to run openclaw doctor --fix: {}", e),
+        }
+      }
+
       // Spawn the gateway process
       let stdout_log = windows_log_path("stdout");
       let stderr_log = windows_log_path("stderr");

@@ -11,7 +11,8 @@
     "opusscript": "^0.0.8"
   },
   "overrides": {
-    "agent-base": "^7.1.0"
+    "https-proxy-agent": "^9.0.0",
+    "agent-base": "9.0.0"
   },
   "openclaw": {
     "extensions": [

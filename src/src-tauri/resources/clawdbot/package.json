@@ -3,7 +3,8 @@
   "version": "2026.4.2",
   "description": "Multi-channel AI gateway with extensible messaging integrations",
   "overrides": {
-    "agent-base": "^7.1.0"
+    "https-proxy-agent": "^9.0.0",
+    "agent-base": "9.0.0"
   },
   "keywords": [],
   "homepage": "https://github.com/openclaw/openclaw#readme",
