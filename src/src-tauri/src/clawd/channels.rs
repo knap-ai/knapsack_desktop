@@ -1313,6 +1313,124 @@ struct TelegramConfigureRequest {
     bot_token: String,
 }
 
+/// Request body for Telegram token validation.
+#[derive(Deserialize)]
+struct TelegramValidateRequest {
+    bot_token: String,
+}
+
+/// Response for Telegram token validation.
+#[derive(Serialize)]
+struct TelegramValidateResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    /// Bot username returned by Telegram's getMe, e.g. "mybot"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bot_username: Option<String>,
+    /// Bot display name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bot_name: Option<String>,
+}
+
+/// Validate a Telegram bot token by calling the Telegram Bot API `getMe`
+/// endpoint.  Returns the bot's username so the UI can display
+/// "Connected as @botname" immediately after the user pastes a token.
+///
+/// This endpoint does NOT store anything — it is purely read-only.
+/// Call it after `telegram/configure` to get the confirmed bot identity.
+#[post("/api/clawd/channels/telegram/validate")]
+pub async fn telegram_validate(
+    body: web::Json<TelegramValidateRequest>,
+) -> impl Responder {
+    let token = body.bot_token.trim().to_string();
+    if token.is_empty() {
+        return HttpResponse::BadRequest().json(TelegramValidateResponse {
+            success: false,
+            message: Some("Bot token is required".to_string()),
+            bot_username: None,
+            bot_name: None,
+        });
+    }
+
+    let url = format!("https://api.telegram.org/bot{}/getMe", token);
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return HttpResponse::Ok().json(TelegramValidateResponse {
+                success: false,
+                message: Some(format!("Failed to build HTTP client: {}", e)),
+                bot_username: None,
+                bot_name: None,
+            });
+        }
+    };
+
+    match client.get(&url).send().await {
+        Ok(resp) => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(body) => {
+                    let ok = body.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+                    if ok {
+                        let username = body
+                            .pointer("/result/username")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        let first_name = body
+                            .pointer("/result/first_name")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        log::info!("[channels] Telegram getMe succeeded: @{:?}", username);
+                        HttpResponse::Ok().json(TelegramValidateResponse {
+                            success: true,
+                            message: None,
+                            bot_username: username,
+                            bot_name: first_name,
+                        })
+                    } else {
+                        let desc = body
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Invalid bot token")
+                            .to_string();
+                        log::warn!("[channels] Telegram getMe rejected token: {}", desc);
+                        HttpResponse::Ok().json(TelegramValidateResponse {
+                            success: false,
+                            message: Some(desc),
+                            bot_username: None,
+                            bot_name: None,
+                        })
+                    }
+                }
+                Err(e) => {
+                    log::error!("[channels] Telegram getMe JSON parse error: {}", e);
+                    HttpResponse::Ok().json(TelegramValidateResponse {
+                        success: false,
+                        message: Some(format!("Unexpected response from Telegram: {}", e)),
+                        bot_username: None,
+                        bot_name: None,
+                    })
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("[channels] Telegram getMe request failed: {}", e);
+            HttpResponse::Ok().json(TelegramValidateResponse {
+                success: false,
+                message: Some(format!(
+                    "Network error contacting Telegram API — check your connection: {}",
+                    e
+                )),
+                bot_username: None,
+                bot_name: None,
+            })
+        }
+    }
+}
+
 // ── WhatsApp login-wait ─────────────────────────────────────────────────
 
 /// Response for WhatsApp login-wait
@@ -2769,6 +2887,113 @@ pub async fn channel_diagnostics() -> impl Responder {
                 match gateway_client::config_patch(&patch, &base_hash, None).await {
                     Ok(_) => repairs.push(format!("Set agents.defaults.model to '{}'", model_str)),
                     Err(e) => issues.push(format!("Failed to repair model: {}", e)),
+                }
+            }
+
+            // ── Web search provider fallback ──────────────────────────────────
+            // Priority order:
+            //   1. Brave API  (BRAVE_API_KEY present — explicit config or env var)
+            //   2. Browser CDP  (bundled Chromium available — /api/clawd/browser/search)
+            //   3. DuckDuckGo  (key-free HTTP fallback, browser unavailable)
+            //   4. Surface API key prompt  (only if all above fail)
+            {
+                let brave_key_in_config = snapshot
+                    .pointer("/plugins/entries/brave/config/webSearch/apiKey")
+                    .and_then(|v| v.as_str())
+                    .map(|s| !s.is_empty())
+                    .unwrap_or(false)
+                    || snapshot
+                        .pointer("/tools/web/search/apiKey")
+                        .and_then(|v| v.as_str())
+                        .map(|s| !s.is_empty())
+                        .unwrap_or(false);
+                let brave_key_env = std::env::var("BRAVE_API_KEY")
+                    .map(|s| !s.trim().is_empty())
+                    .unwrap_or(false);
+                let has_brave_key = brave_key_in_config || brave_key_env;
+
+                let explicit_provider = snapshot
+                    .pointer("/tools/web/search/provider")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                if has_brave_key || !explicit_provider.is_empty() {
+                    // Brave API key present or provider already explicitly set — nothing to repair.
+                    let label = if !explicit_provider.is_empty() {
+                        explicit_provider.clone()
+                    } else {
+                        "brave (API key found)".to_string()
+                    };
+                    log::info!("[channels] web_search provider: {}", label);
+                } else {
+                    // No Brave key and no explicit provider.
+                    // Check if the bundled browser (CDP) is available — if so it is the
+                    // primary search mechanism via /api/clawd/browser/search.
+                    let browser_ok = tokio::time::timeout(
+                        std::time::Duration::from_secs(3),
+                        gateway_client::browser_request(
+                            "GET", "/tabs",
+                            Some(serde_json::json!({"profile": "openclaw"})),
+                            None, None,
+                        ),
+                    ).await
+                    .map(|r| r.is_ok())
+                    .unwrap_or(false);
+
+                    if browser_ok {
+                        // Browser CDP is available — it serves as the primary search
+                        // mechanism via GET /api/clawd/browser/search.
+                        // Ensure the gateway web_search tool also has a key-free provider
+                        // (DDG) so the AI can use web_search as a secondary path, but
+                        // log clearly that browser is the primary.
+                        log::info!("[channels] web_search: browser CDP available — using browser as primary search (BRAVE_API_KEY not set)");
+                        repairs.push(
+                            "Browser CDP available — using /api/clawd/browser/search as primary \
+                             web search (BRAVE_API_KEY not set). DuckDuckGo configured as secondary."
+                                .to_string(),
+                        );
+                        // Also wire up DDG as secondary so web_search tool itself works
+                        let re_snapshot = gateway_client::config_get(None).await;
+                        if let Ok(snap) = re_snapshot {
+                            let bh = extract_base_hash(&snap);
+                            let ddg_patch = serde_json::json!({
+                                "tools": { "web": { "search": { "provider": "duckduckgo" } } }
+                            }).to_string();
+                            match gateway_client::config_patch(&ddg_patch, &bh, None).await {
+                                Ok(_) => log::info!("[channels] web_search: DDG configured as secondary provider"),
+                                Err(e) => log::warn!("[channels] web_search DDG secondary patch failed: {}", e),
+                            }
+                        }
+                    } else {
+                        // Browser not available — configure DDG as the sole fallback.
+                        log::info!("[channels] web_search: browser unavailable — configuring DuckDuckGo (BRAVE_API_KEY not set)");
+                        let re_snapshot = gateway_client::config_get(None).await;
+                        if let Ok(snap) = re_snapshot {
+                            let bh = extract_base_hash(&snap);
+                            let ddg_patch = serde_json::json!({
+                                "tools": { "web": { "search": { "provider": "duckduckgo" } } }
+                            }).to_string();
+                            match gateway_client::config_patch(&ddg_patch, &bh, None).await {
+                                Ok(_) => {
+                                    repairs.push(
+                                        "Configured DuckDuckGo as web_search provider \
+                                         (BRAVE_API_KEY not set, browser unavailable)."
+                                            .to_string(),
+                                    );
+                                }
+                                Err(e) => {
+                                    log::warn!("[channels] web_search DDG patch failed: {}", e);
+                                    // Both browser and DDG unavailable → surface the API key prompt
+                                    issues.push(format!(
+                                        "BRAVE_API_KEY not set, browser unavailable, and DuckDuckGo \
+                                         fallback patch failed: {}. Set BRAVE_API_KEY to enable web search.",
+                                        e
+                                    ));
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

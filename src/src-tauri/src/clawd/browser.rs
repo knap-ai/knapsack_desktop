@@ -3868,3 +3868,297 @@ pub async fn screenshot(
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
 }
+
+// ── Browser-based web search ──────────────────────────────────────────────
+//
+// When BRAVE_API_KEY is absent the gateway's `web_search` tool has no
+// API-backed provider configured.  This endpoint uses the bundled
+// Chromium (CDP) browser to navigate DuckDuckGo Lite, extract the plain-text
+// results, and return them as structured JSON.
+//
+// Priority order for web search (enforced by channel_diagnostics):
+//   1. Brave API  (BRAVE_API_KEY present)
+//   2. Browser CDP  (this endpoint, requires browser_ok)
+//   3. DuckDuckGo provider  (key-free HTTP fallback, browser unavailable)
+//   4. API key prompt  (all else failed)
+
+#[derive(Debug, Deserialize)]
+pub struct BrowserSearchQuery {
+  pub q: String,
+  /// Max number of results to return (default 5, max 10).
+  pub count: Option<usize>,
+  /// Use the isolated "openclaw" profile (default true).
+  pub chrome: Option<bool>,
+}
+
+#[derive(Serialize)]
+pub struct BrowserSearchResult {
+  pub title: String,
+  pub url: String,
+  pub snippet: String,
+}
+
+#[derive(Serialize)]
+pub struct BrowserSearchResponse {
+  pub success: bool,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub message: Option<String>,
+  pub results: Vec<BrowserSearchResult>,
+  /// Which mechanism was used ("browser" or "ddg-fallback").
+  pub provider: String,
+}
+
+/// Parse DuckDuckGo Lite plain-text snapshot into structured results.
+///
+/// DDG Lite renders results in the format:
+///   1. Title\n   URL\n   Snippet\n\n
+/// The snapshot returns readable text so we can pattern-match on it.
+fn parse_ddg_lite_snapshot(text: &str, max_results: usize) -> Vec<BrowserSearchResult> {
+  let mut results = Vec::new();
+  // Split on double-newlines to get result blocks.
+  let blocks: Vec<&str> = text.split("\n\n").collect();
+  for block in blocks {
+    let lines: Vec<&str> = block.trim().lines().collect();
+    if lines.len() < 2 {
+      continue;
+    }
+    // First line: "<N>. <Title>" or just "<Title>"
+    let title_line = lines[0].trim();
+    let title = if let Some(pos) = title_line.find(". ") {
+      let prefix = &title_line[..pos];
+      if prefix.chars().all(|c| c.is_ascii_digit()) {
+        title_line[pos + 2..].trim().to_string()
+      } else {
+        title_line.to_string()
+      }
+    } else {
+      title_line.to_string()
+    };
+
+    // Find a line that looks like a URL (starts with http)
+    let url = lines
+      .iter()
+      .find(|l| l.trim().starts_with("http"))
+      .map(|l| l.trim().to_string())
+      .unwrap_or_default();
+
+    // Remaining non-URL, non-empty lines = snippet
+    let snippet = lines
+      .iter()
+      .skip(1)
+      .filter(|l| !l.trim().starts_with("http") && !l.trim().is_empty())
+      .cloned()
+      .collect::<Vec<&str>>()
+      .join(" ")
+      .trim()
+      .to_string();
+
+    if !title.is_empty() && !url.is_empty() {
+      results.push(BrowserSearchResult { title, url, snippet });
+      if results.len() >= max_results {
+        break;
+      }
+    }
+  }
+  results
+}
+
+/// Browser-based web search via CDP (DuckDuckGo Lite).
+///
+/// `GET /api/clawd/browser/search?q=<query>[&count=5][&chrome=true]`
+///
+/// Opens a DuckDuckGo Lite tab in the bundled browser, waits for the page
+/// to render, takes a text snapshot, and returns parsed results.
+/// Falls back to a direct DuckDuckGo Lite HTTP request if the browser CDP
+/// is unavailable or returns an empty page.
+#[get("/api/clawd/browser/search")]
+pub async fn browser_search(
+  _app_handle: web::Data<tauri::AppHandle>,
+  _cfg: web::Data<SharedClawdbotConfig>,
+  query: web::Query<BrowserSearchQuery>,
+) -> impl Responder {
+  let q = query.q.trim().to_string();
+  if q.is_empty() {
+    return HttpResponse::BadRequest().json(BrowserSearchResponse {
+      success: false,
+      message: Some("Query parameter 'q' is required".to_string()),
+      results: vec![],
+      provider: "none".to_string(),
+    });
+  }
+  let max_results = query.count.unwrap_or(5).min(10);
+  let profile = clawd_profile(query.chrome);
+
+  // Percent-encode the query for the URL (spaces → +)
+  let encoded_q: String = q
+    .chars()
+    .map(|c| match c {
+      ' ' => '+'.to_string(),
+      c if c.is_ascii_alphanumeric() || "-_.~".contains(c) => c.to_string(),
+      c => {
+        let mut buf = [0u8; 4];
+        let s = c.encode_utf8(&mut buf);
+        s.bytes().map(|b| format!("%{:02X}", b)).collect()
+      }
+    })
+    .collect();
+
+  // DuckDuckGo Lite: server-rendered plain HTML, no JS, loads in <500ms
+  let ddg_url = format!("https://lite.duckduckgo.com/lite/?q={}", encoded_q);
+
+  log::info!("[browser_search] query={:?} url={}", q, ddg_url);
+
+  // ── Attempt 1: CDP browser ────────────────────────────────────────────
+  let rpc_query = serde_json::json!({ "profile": profile });
+
+  let open_result = tokio::time::timeout(
+    std::time::Duration::from_secs(15),
+    gateway_client::browser_request(
+      "POST",
+      "/tabs/open",
+      Some(rpc_query.clone()),
+      Some(serde_json::json!({ "url": ddg_url })),
+      None,
+    ),
+  ).await;
+
+  let target_id: Option<String> = match &open_result {
+    Ok(Ok(v)) => v.get("targetId").and_then(|t| t.as_str()).map(|s| s.to_string()),
+    _ => None,
+  };
+
+  if open_result.is_ok() && open_result.as_ref().unwrap().is_ok() {
+    // Wait for server-rendered HTML to arrive (DDG Lite renders without JS)
+    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+
+    let mut snap_query = rpc_query.clone();
+    if let Some(tid) = &target_id {
+      snap_query["targetId"] = serde_json::json!(tid);
+    }
+    snap_query["format"] = serde_json::json!("text");
+    snap_query["maxChars"] = serde_json::json!(20000);
+
+    let snap_result = tokio::time::timeout(
+      std::time::Duration::from_secs(10),
+      gateway_client::browser_request("GET", "/snapshot", Some(snap_query), None, None),
+    ).await;
+
+    // Always close the tab
+    if let Some(tid) = &target_id {
+      let _ = gateway_client::browser_request(
+        "POST",
+        "/tabs/close",
+        Some(rpc_query.clone()),
+        Some(serde_json::json!({ "targetId": tid })),
+        None,
+      ).await;
+    }
+
+    if let Ok(Ok(snap)) = snap_result {
+      let text = if snap.is_string() {
+        snap.as_str().unwrap_or("").to_string()
+      } else {
+        snap.to_string()
+      };
+
+      let results = parse_ddg_lite_snapshot(&text, max_results);
+      if !results.is_empty() {
+        log::info!("[browser_search] browser CDP: {} results for {:?}", results.len(), q);
+        return HttpResponse::Ok().json(BrowserSearchResponse {
+          success: true,
+          message: None,
+          results,
+          provider: "browser".to_string(),
+        });
+      }
+      log::warn!("[browser_search] browser CDP snapshot empty/unparseable — trying HTTP fallback");
+    } else {
+      log::warn!("[browser_search] browser CDP snapshot failed — trying HTTP fallback");
+    }
+  } else {
+    log::warn!("[browser_search] browser tab open failed — trying HTTP fallback");
+  }
+
+  // ── Attempt 2: Direct DuckDuckGo Lite HTTP request ───────────────────
+  log::info!("[browser_search] DDG Lite HTTP fallback for {:?}", q);
+  let http_client = match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(10))
+    .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+    .build()
+  {
+    Ok(c) => c,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(BrowserSearchResponse {
+        success: false,
+        message: Some(format!("Failed to build HTTP client: {}", e)),
+        results: vec![],
+        provider: "none".to_string(),
+      });
+    }
+  };
+
+  match http_client.get(&ddg_url).send().await {
+    Ok(resp) => match resp.text().await {
+      Ok(html) => {
+        let plain = strip_html_tags(&html);
+        let results = parse_ddg_lite_snapshot(&plain, max_results);
+        log::info!("[browser_search] DDG HTTP fallback: {} results", results.len());
+        HttpResponse::Ok().json(BrowserSearchResponse {
+          success: true,
+          message: if results.is_empty() {
+            Some("Search completed but no results were parsed from DuckDuckGo".to_string())
+          } else {
+            None
+          },
+          results,
+          provider: "ddg-fallback".to_string(),
+        })
+      }
+      Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
+        success: false,
+        message: Some(format!("Failed to read DuckDuckGo response: {}", e)),
+        results: vec![],
+        provider: "ddg-fallback".to_string(),
+      }),
+    },
+    Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
+      success: false,
+      message: Some(format!(
+        "Browser CDP and DuckDuckGo HTTP both failed. \
+         Set BRAVE_API_KEY for reliable API-backed search. Error: {}",
+        e
+      )),
+      results: vec![],
+      provider: "none".to_string(),
+    }),
+  }
+}
+
+/// Strip HTML tags from a string (simple state-machine, not a full parser).
+fn strip_html_tags(html: &str) -> String {
+  let mut result = String::with_capacity(html.len());
+  let mut in_tag = false;
+  for ch in html.chars() {
+    match ch {
+      '<' => in_tag = true,
+      '>' => { in_tag = false; result.push(' '); }
+      c if !in_tag => result.push(c),
+      _ => {}
+    }
+  }
+  // Collapse runs of blank lines
+  let mut out = String::with_capacity(result.len());
+  let mut prev_blank = false;
+  for line in result.lines() {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+      if !prev_blank { out.push('\n'); }
+      prev_blank = true;
+    } else {
+      out.push_str(trimmed);
+      out.push('\n');
+      prev_blank = false;
+    }
+  }
+  out
+}
