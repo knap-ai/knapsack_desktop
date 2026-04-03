@@ -1,8 +1,8 @@
-import { ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { ReactNode, useCallback, useMemo, useState } from 'react'
 
 import cn from 'classnames'
 
-import { AgentIdentity, Cadence } from 'src/automations/automation'
+import { AgentIdentity, Cadence, CadenceType, DaysOfWeek } from 'src/automations/automation'
 import { AGENT_TEMPLATES, AGENTMAKER_PROMPT } from 'src/automations/agentTemplates'
 import LoadingIcon from 'src/components/atoms/loading-icon'
 
@@ -151,13 +151,13 @@ function EditableText({
 // ── Schedule Picker ────────────────────────────────────────
 
 const SCHEDULE_OPTIONS = [
-  { label: 'Daily 07:00', type: 'daily' as const, time: '07:00' },
-  { label: 'Daily 07:30', type: 'daily' as const, time: '07:30' },
-  { label: 'Daily 08:00', type: 'daily' as const, time: '08:00' },
-  { label: 'Daily 09:00', type: 'daily' as const, time: '09:00' },
-  { label: 'Hourly', type: 'hourly' as const },
-  { label: 'Weekly Monday', type: 'weekly' as const, day: 'Monday', time: '08:00' },
-  { label: 'Weekly Friday', type: 'weekly' as const, day: 'Friday', time: '08:00' },
+  { label: 'Daily 07:00', type: CadenceType.DAILY, time: '07:00' },
+  { label: 'Daily 07:30', type: CadenceType.DAILY, time: '07:30' },
+  { label: 'Daily 08:00', type: CadenceType.DAILY, time: '08:00' },
+  { label: 'Daily 09:00', type: CadenceType.DAILY, time: '09:00' },
+  { label: 'Hourly', type: CadenceType.HOURLY },
+  { label: 'Weekly Monday', type: CadenceType.WEEKLY, day: DaysOfWeek.MONDAY, time: '08:00' },
+  { label: 'Weekly Friday', type: CadenceType.WEEKLY, day: DaysOfWeek.FRIDAY, time: '08:00' },
 ]
 
 function SchedulePicker({
