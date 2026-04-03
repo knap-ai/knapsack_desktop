@@ -337,6 +337,8 @@ async fn create_automation(
     trigger_cadences: Some(cadences),
     trigger_data_sources: None,
     steps: Some(steps),
+    show_library: true,
+    icon: String::new(),
   };
   automation.create();
   response.success = true;
