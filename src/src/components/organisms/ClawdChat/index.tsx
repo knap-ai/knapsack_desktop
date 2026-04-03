@@ -232,7 +232,7 @@ function friendlyError(raw: string, activeModel?: string): string {
   }
   // Image/vision not supported by model (e.g. Groq non-vision models)
   if (lower.includes('content must be a string') || lower.includes('does not support images')) {
-    return `🖼️ **This model (\`${activeModel}\`) does not support image attachments.** Switch to a vision-capable model (e.g. Llama 4 Scout) in Settings, or send your message without the image.`
+    return `🖼️ **This model (\`${activeModel}\`) does not support image attachments.** Remove the image from your message, or switch to a vision-capable model in Settings → Provider.`
   }
   // Model doesn't support tool/function calling (e.g. deepseek-r1, some Ollama models)
   if (lower.includes('does not support tools') || lower.includes('does not support function') || lower.includes('tool use is not supported')) {
@@ -2275,10 +2275,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     if (hasImages) {
       const { supported, modelName, visionModels } = currentModelSupportsVision()
       if (!supported) {
-        const suggestion = visionModels.length > 0
-          ? ` Try switching to ${visionModels[0]}.`
+        const visionList = visionModels.length > 0
+          ? ` Vision-capable models on this provider: **${visionModels.slice(0, 3).join('**, **')}**${visionModels.length > 3 ? ` (+${visionModels.length - 3} more)` : ''}.`
           : ''
-        pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+        pushAssistant(`⚠️ **${modelName}** does not support image analysis — the image was attached but will be ignored.${visionList} Switch models in the provider settings to enable vision.`)
       }
     }
 
@@ -2401,10 +2401,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     if (hasImages) {
       const { supported, modelName, visionModels } = currentModelSupportsVision()
       if (!supported) {
-        const suggestion = visionModels.length > 0
-          ? ` Try switching to ${visionModels[0]}.`
+        const visionList = visionModels.length > 0
+          ? ` Vision-capable models on this provider: **${visionModels.slice(0, 3).join('**, **')}**${visionModels.length > 3 ? ` (+${visionModels.length - 3} more)` : ''}.`
           : ''
-        pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+        pushAssistant(`⚠️ **${modelName}** does not support image analysis — the image was attached but will be ignored.${visionList} Switch models in the provider settings to enable vision.`)
       }
     }
   }, [currentModelSupportsVision])
@@ -2467,10 +2467,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           if (hasImages) {
             const { supported, modelName, visionModels } = currentModelSupportsVision()
             if (!supported) {
-              const suggestion = visionModels.length > 0
-                ? ` Try switching to ${visionModels[0]}.`
+              const visionList = visionModels.length > 0
+                ? ` Vision-capable models on this provider: **${visionModels.slice(0, 3).join('**, **')}**${visionModels.length > 3 ? ` (+${visionModels.length - 3} more)` : ''}.`
                 : ''
-              pushAssistant(`The current model (${modelName}) does not support image analysis.${suggestion} You can change your model in the provider settings.`)
+              pushAssistant(`⚠️ **${modelName}** does not support image analysis — the image was attached but will be ignored.${visionList} Switch models in the provider settings to enable vision.`)
             }
           }
         }
