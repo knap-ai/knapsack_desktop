@@ -31,6 +31,7 @@ use crate::memory::semantic::{semantic_search, SemanticService};
 use crate::api;
 use crate::audio;
 use crate::automations::api as automation_api;
+use crate::automations::workflow_api;
 use crate::connections;
 use crate::heartbeat::api as heartbeat_api;
 use crate::mcp::api as mcp_api;
@@ -190,6 +191,14 @@ pub async fn start_server<'a>(
       .service(automation_api::create_feed_item)
       .service(automation_api::update_feed_item)
       .service(automation_api::get_thread_transcript)
+      // Browser workflow endpoints
+      .service(workflow_api::get_workflows)
+      .service(workflow_api::get_workflow)
+      .service(workflow_api::create_workflow)
+      .service(workflow_api::update_workflow)
+      .service(workflow_api::delete_workflow)
+      .service(workflow_api::execute_workflow)
+      .service(workflow_api::get_workflow_runs)
       .service(audio::audio::start_recording)
       .service(audio::audio::stop_recording)
       .service(audio::audio::get_transcript_by_thread_id)

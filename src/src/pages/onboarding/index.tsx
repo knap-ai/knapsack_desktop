@@ -148,7 +148,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
                 Object.keys(connections).map(key => key),
               )
               syncConnections(response.profile.email, connections)
-              transitionToNextScreen(googleListenerTransitionIndex!)
+              transitionToExtensionScreen()
               setIsLoading(false)
             })
             .catch(error => {
@@ -199,7 +199,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
             Object.keys(connections).map(key => key),
           )
           syncMicrosoftConnections(event.payload.profile.email, connections)
-          transitionToNextScreen(microsoftListenerTransitionIndex!)
+          transitionToExtensionScreen()
           setIsLoading(false)
         },
       )
@@ -267,12 +267,26 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
 
   const onGoogleSkipClick = (index: number) => {
     KNAnalytics.trackEvent('Onboarding - Skipped Google Sign In', {})
-    transitionToNextScreen(index)
+    transitionToExtensionScreen()
+  }
+
+  const transitionToExtensionScreen = () => {
+    transitionToNextScreen(2)
   }
 
   const navigateToNextScreen = async () => {
     await setHasOnboarded(true)
     navigate('/home?=' + KN_ONBOARDING_URL_PARAM)
+  }
+
+  const onChromeExtensionInstallClick = (_index: number) => {
+    KNAnalytics.trackEvent('Onboarding - Installed Chrome Extension', {})
+    transitionToNextScreen(3)
+  }
+
+  const onChromeExtensionSkipClick = (_index: number) => {
+    KNAnalytics.trackEvent('Onboarding - Skipped Chrome Extension', {})
+    transitionToNextScreen(3)
   }
 
   // const onClickGrantNotificationPermission = async () => {
@@ -427,6 +441,8 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       onMicrosoftGrantClick={onMicrosoftGrantClick}
       isLoading={isLoading}
       error={error}
+      onChromeExtensionInstallClick={onChromeExtensionInstallClick}
+      onChromeExtensionSkipClick={onChromeExtensionSkipClick}
       connectedProvider={connectedProvider}
       onAgentPickerActivate={handleAgentPickerActivate}
       onAgentPickerSkip={handleAgentPickerSkip}

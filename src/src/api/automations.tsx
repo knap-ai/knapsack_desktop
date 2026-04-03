@@ -1,5 +1,6 @@
 import AboutMeAutomation from 'src/automations/steps/AboutMe'
 import BaseStep from 'src/automations/steps/Base'
+import BrowserWorkflowStep from 'src/automations/steps/BrowserWorkflow'
 import BusinessCoachAutomation from 'src/automations/steps/BusinessCoach'
 import FinraCompliance from 'src/automations/steps/FinraCompliance'
 import LeadScoring from 'src/automations/steps/LeadScoring'
@@ -92,6 +93,7 @@ const serializeAutomation = (automationData: {
     AboutMeAutomation,
     SocialMediaPlanner,
     LeadScoring,
+    BrowserWorkflowStep,
   ]
   const stepOrdering = automationData.steps.map(step => {
     return step.ordering

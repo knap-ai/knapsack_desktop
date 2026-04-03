@@ -1,6 +1,35 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    browser_workflows (id) {
+        id -> Nullable<Integer>,
+        uuid -> Text,
+        name -> Text,
+        description -> Text,
+        start_url -> Text,
+        steps_json -> Text,
+        browser_profile -> Text,
+        is_active -> Integer,
+        created_at -> Integer,
+        updated_at -> Integer,
+    }
+}
+
+diesel::table! {
+    browser_workflow_runs (id) {
+        id -> Nullable<Integer>,
+        workflow_uuid -> Text,
+        automation_run_id -> Nullable<Integer>,
+        status -> Text,
+        started_at -> Nullable<Integer>,
+        completed_at -> Nullable<Integer>,
+        result_json -> Nullable<Text>,
+        error_message -> Nullable<Text>,
+        screenshot_path -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
     automation_runs (id) {
         id -> Nullable<Integer>,
         automation_uuid -> Text,
@@ -303,6 +332,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     automation_runs,
     automation_steps,
     automations,
+    browser_workflow_runs,
+    browser_workflows,
     cadence_triggers,
     calendar_events,
     connections,
