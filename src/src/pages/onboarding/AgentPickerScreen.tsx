@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 
 import cn from 'classnames'
 
-import { AgentIdentity } from 'src/automations/automation'
+import { AgentIdentity, Cadence } from 'src/automations/automation'
 import { AGENT_TEMPLATES, AGENTMAKER_PROMPT } from 'src/automations/agentTemplates'
 import LoadingIcon from 'src/components/atoms/loading-icon'
 
@@ -18,6 +18,8 @@ export type AgentSelection = {
   customPrompt?: string
   customSources?: string[]
   customCadence?: string
+  cadenceOverride?: Cadence
+  descriptionOverride?: string
 }
 
 type AgentPickerScreenProps = {
@@ -66,20 +68,147 @@ function EmojiPicker({
 
 // ── Agent Card ──────────────────────────────────────────────
 
+// ── Inline Editable Text ───────────────────────────────────
+
+function EditableText({
+  value,
+  onChange,
+  className,
+  editClassName,
+  title,
+  multiline,
+}: {
+  value: string
+  onChange: (val: string) => void
+  className?: string
+  editClassName?: string
+  title?: string
+  multiline?: boolean
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+
+  if (isEditing) {
+    if (multiline) {
+      return (
+        <textarea
+          className={cn(editClassName ?? className, 'bg-transparent border-b-2 border-[#913631] outline-none w-full resize-none')}
+          defaultValue={value}
+          autoFocus
+          rows={3}
+          onClick={e => e.stopPropagation()}
+          onBlur={e => {
+            const val = e.target.value.trim()
+            if (val) onChange(val)
+            setIsEditing(false)
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              const val = (e.target as HTMLTextAreaElement).value.trim()
+              if (val) onChange(val)
+              setIsEditing(false)
+            }
+          }}
+        />
+      )
+    }
+    return (
+      <input
+        className={cn(editClassName ?? className, 'bg-transparent border-b-2 border-[#913631] outline-none w-full')}
+        defaultValue={value}
+        autoFocus
+        onClick={e => e.stopPropagation()}
+        onBlur={e => {
+          const val = e.target.value.trim()
+          if (val) onChange(val)
+          setIsEditing(false)
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            const val = (e.target as HTMLInputElement).value.trim()
+            if (val) onChange(val)
+            setIsEditing(false)
+          }
+        }}
+      />
+    )
+  }
+
+  return (
+    <button
+      className={cn(className, 'hover:text-[#913631] transition-colors cursor-text')}
+      onClick={e => {
+        e.stopPropagation()
+        setIsEditing(true)
+      }}
+      title={title ?? 'Click to edit'}
+    >
+      {value}
+    </button>
+  )
+}
+
+// ── Schedule Picker ────────────────────────────────────────
+
+const SCHEDULE_OPTIONS = [
+  { label: 'Daily 07:00', type: 'daily' as const, time: '07:00' },
+  { label: 'Daily 07:30', type: 'daily' as const, time: '07:30' },
+  { label: 'Daily 08:00', type: 'daily' as const, time: '08:00' },
+  { label: 'Daily 09:00', type: 'daily' as const, time: '09:00' },
+  { label: 'Hourly', type: 'hourly' as const },
+  { label: 'Weekly Monday', type: 'weekly' as const, day: 'Monday', time: '08:00' },
+  { label: 'Weekly Friday', type: 'weekly' as const, day: 'Friday', time: '08:00' },
+]
+
+function SchedulePicker({
+  currentLabel,
+  onSelect,
+  onClose,
+}: {
+  currentLabel: string
+  onSelect: (option: typeof SCHEDULE_OPTIONS[number]) => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-10 bg-white rounded-lg shadow-lg border border-gray-200 p-1 min-w-[140px]"
+      onMouseLeave={onClose}
+    >
+      {SCHEDULE_OPTIONS.map(opt => (
+        <button
+          key={opt.label}
+          className={cn(
+            'w-full text-left text-[11px] px-3 py-1.5 rounded hover:bg-[#913631]/10 cursor-pointer',
+            opt.label === currentLabel ? 'text-[#913631] font-semibold' : 'text-zinc-600',
+          )}
+          onClick={e => {
+            e.stopPropagation()
+            onSelect(opt)
+            onClose()
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Agent Card ──────────────────────────────────────────────
+
 function AgentCard({
   selection,
   onToggle,
-  onRename,
+  onUpdate,
   onEmojiChange,
 }: {
   selection: AgentSelection
   onToggle: () => void
-  onRename: (name: string) => void
+  onUpdate: (update: Partial<AgentSelection>) => void
   onEmojiChange: (emoji: string) => void
 }) {
-  const [isEditing, setIsEditing] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false)
 
   const template = AGENT_TEMPLATES.find(t => t.id === selection.templateId)
   const cadenceLabel = useMemo(() => {
@@ -87,16 +216,17 @@ function AgentCard({
       return selection.customCadence ?? 'Daily'
     }
     if (!template) return ''
-    const c = template.defaultCadence
+    const c = selection.cadenceOverride ?? template.defaultCadence
     if (c.type === 'weekly') return `Weekly ${c.dayOfWeek ?? ''}`
     if (c.type === 'daily') return `Daily ${c.time ?? ''}`
     if (c.type === 'hourly') return 'Hourly'
     return c.type
   }, [template, selection])
 
-  const description = selection.isCustom
-    ? (selection.customPrompt?.slice(0, 60) ?? '') + '...'
-    : template?.description ?? ''
+  const description = selection.descriptionOverride
+    ?? (selection.isCustom
+      ? (selection.customPrompt?.slice(0, 60) ?? '') + '...'
+      : template?.description ?? '')
 
   return (
     <div
@@ -146,52 +276,57 @@ function AgentCard({
       </div>
 
       {/* Name (editable) */}
-      {isEditing ? (
-        <input
-          ref={inputRef}
-          className="mt-2 text-center text-sm font-semibold font-InterTight text-zinc-900 bg-transparent border-b-2 border-[#913631] outline-none w-full"
-          defaultValue={selection.identity.displayName}
-          autoFocus
-          onClick={e => e.stopPropagation()}
-          onBlur={e => {
-            const val = e.target.value.trim()
-            if (val) onRename(val)
-            setIsEditing(false)
-          }}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              const val = (e.target as HTMLInputElement).value.trim()
-              if (val) onRename(val)
-              setIsEditing(false)
-            }
-          }}
-        />
-      ) : (
+      <EditableText
+        value={selection.identity.displayName}
+        onChange={name => onUpdate({ identity: { ...selection.identity, displayName: name } })}
+        className="mt-2 text-sm font-semibold font-InterTight text-zinc-900 text-center"
+        title="Click to rename"
+      />
+
+      {/* Personality / subtitle (editable) */}
+      <EditableText
+        value={selection.identity.personality}
+        onChange={personality => onUpdate({ identity: { ...selection.identity, personality } })}
+        className="mt-1 text-xs text-zinc-500 font-InterTight text-center leading-tight"
+        title="Click to edit subtitle"
+      />
+
+      {/* Description (editable) */}
+      <EditableText
+        value={description}
+        onChange={desc => onUpdate({ descriptionOverride: desc })}
+        className="mt-2 text-[10px] text-zinc-400 font-InterTight text-center leading-tight flex-1"
+        title="Click to edit description"
+        multiline
+      />
+
+      {/* Cadence badge (editable) */}
+      <div className="relative mt-2">
         <button
-          className="mt-2 text-sm font-semibold font-InterTight text-zinc-900 hover:text-[#913631] transition-colors cursor-text"
+          className="text-[10px] font-medium text-[#913631] bg-[#913631]/10 px-2 py-0.5 rounded-full hover:bg-[#913631]/20 transition-colors cursor-pointer"
           onClick={e => {
             e.stopPropagation()
-            setIsEditing(true)
+            setShowSchedulePicker(!showSchedulePicker)
           }}
-          title="Click to rename"
+          title="Click to change schedule"
         >
-          {selection.identity.displayName}
+          {cadenceLabel}
         </button>
-      )}
-
-      {/* Personality */}
-      <div className="mt-1 text-xs text-zinc-500 font-InterTight text-center leading-tight">
-        {selection.identity.personality}
-      </div>
-
-      {/* Description */}
-      <div className="mt-2 text-[10px] text-zinc-400 font-InterTight text-center leading-tight flex-1">
-        {description}
-      </div>
-
-      {/* Cadence badge */}
-      <div className="mt-2 text-[10px] font-medium text-[#913631] bg-[#913631]/10 px-2 py-0.5 rounded-full">
-        {cadenceLabel}
+        {showSchedulePicker && (
+          <SchedulePicker
+            currentLabel={cadenceLabel}
+            onSelect={opt => {
+              onUpdate({
+                cadenceOverride: {
+                  type: opt.type,
+                  time: opt.time,
+                  dayOfWeek: opt.day,
+                },
+              })
+            }}
+            onClose={() => setShowSchedulePicker(false)}
+          />
+        )}
       </div>
     </div>
   )
@@ -352,11 +487,7 @@ export default function AgentPickerScreen({
               onToggle={() =>
                 updateSelection(selection.templateId, { enabled: !selection.enabled })
               }
-              onRename={name =>
-                updateSelection(selection.templateId, {
-                  identity: { ...selection.identity, displayName: name },
-                })
-              }
+              onUpdate={update => updateSelection(selection.templateId, update)}
               onEmojiChange={emoji =>
                 updateSelection(selection.templateId, {
                   identity: { ...selection.identity, emoji },
@@ -380,11 +511,7 @@ export default function AgentPickerScreen({
                   onToggle={() =>
                     updateAgentmakerSelection(idx, { enabled: !selection.enabled })
                   }
-                  onRename={name =>
-                    updateAgentmakerSelection(idx, {
-                      identity: { ...selection.identity, displayName: name },
-                    })
-                  }
+                  onUpdate={update => updateAgentmakerSelection(idx, update)}
                   onEmojiChange={emoji =>
                     updateAgentmakerSelection(idx, {
                       identity: { ...selection.identity, emoji },
@@ -398,7 +525,7 @@ export default function AgentPickerScreen({
 
         {/* Hint text */}
         <div className="mt-4 text-xs text-zinc-400 font-InterTight">
-          Click any name to rename · Click emoji to change
+          Click any field to customize · Click emoji to change
         </div>
 
         {/* Activate button */}

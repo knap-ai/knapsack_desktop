@@ -362,7 +362,10 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
         // Preset template agent
         const template = AGENT_TEMPLATES.find(t => t.id === selection.templateId)
         if (!template) continue
-        automation = template.createAutomation(connectedProvider)
+        automation = template.createAutomation(connectedProvider, {
+          cadence: selection.cadenceOverride,
+          description: selection.descriptionOverride,
+        })
         automation.setIdentity(selection.identity)
       }
 
