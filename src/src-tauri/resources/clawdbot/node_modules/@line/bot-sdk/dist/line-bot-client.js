@@ -1,0 +1,58 @@
+/**
+ * This file is intended for manual edits.
+ *
+ * Generated delegation methods live in ./line-bot-client.generated.ts.
+ * Generated factory helpers live in ./line-bot-client.factory.generated.ts.
+ */
+import { LineBotClientBase } from "./line-bot-client.generated.js";
+import { createLineBotClientDelegates } from "./line-bot-client.factory.generated.js";
+function assertNonEmptyString(name, value) {
+    if (typeof value !== "string" || value.length === 0) {
+        throw new TypeError(`${name} must be a non-empty string.`);
+    }
+}
+/**
+ * A single client for all LINE Bot APIs, except channel access token management.
+ *
+ * Wraps all individual API clients (Messaging API, LIFF, Insight, etc.)
+ * and exposes their methods directly, so you don't need to manage
+ * multiple client instances.
+ * For channel access token operations, use {@link ChannelAccessTokenClient} directly.
+ *
+ * @example
+ * ```typescript
+ * const client = LineBotClient.fromChannelAccessToken({ channelAccessToken: "..." });
+ * ```
+ *
+ * @example Push a message to a user
+ * ```typescript
+ * await client.pushMessage({
+ *   to: userId,
+ *   messages: [{ type: "text", text: "Hi there!" }],
+ * });
+ * ```
+ *
+ * @example Get a user's profile
+ * ```typescript
+ * const profile = await client.getProfile(userId);
+ * console.log(profile.displayName);
+ * ```
+ */
+export class LineBotClient extends LineBotClientBase {
+    clients;
+    constructor(clients) {
+        super();
+        this.clients = clients;
+    }
+    static fromChannelAccessToken(config) {
+        assertNonEmptyString("channelAccessToken", config.channelAccessToken);
+        return new LineBotClient(createLineBotClientDelegates({
+            channelAccessToken: config.channelAccessToken,
+            defaultHeaders: config.defaultHeaders,
+            apiBaseURL: config.apiBaseURL,
+            dataApiBaseURL: config.dataApiBaseURL,
+            managerBaseURL: config.managerBaseURL,
+        }));
+    }
+}
+//# sourceMappingURL=line-bot-client.js.map

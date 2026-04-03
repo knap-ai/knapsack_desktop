@@ -1,0 +1,61 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.LineBotClient = void 0;
+/**
+ * This file is intended for manual edits.
+ *
+ * Generated delegation methods live in ./line-bot-client.generated.ts.
+ * Generated factory helpers live in ./line-bot-client.factory.generated.ts.
+ */
+const line_bot_client_generated_js_1 = require("./line-bot-client.generated.js");
+const line_bot_client_factory_generated_js_1 = require("./line-bot-client.factory.generated.js");
+function assertNonEmptyString(name, value) {
+    if (typeof value !== "string" || value.length === 0) {
+        throw new TypeError(`${name} must be a non-empty string.`);
+    }
+}
+/**
+ * A single client for all LINE Bot APIs, except channel access token management.
+ *
+ * Wraps all individual API clients (Messaging API, LIFF, Insight, etc.)
+ * and exposes their methods directly, so you don't need to manage
+ * multiple client instances.
+ * For channel access token operations, use {@link ChannelAccessTokenClient} directly.
+ *
+ * @example
+ * ```typescript
+ * const client = LineBotClient.fromChannelAccessToken({ channelAccessToken: "..." });
+ * ```
+ *
+ * @example Push a message to a user
+ * ```typescript
+ * await client.pushMessage({
+ *   to: userId,
+ *   messages: [{ type: "text", text: "Hi there!" }],
+ * });
+ * ```
+ *
+ * @example Get a user's profile
+ * ```typescript
+ * const profile = await client.getProfile(userId);
+ * console.log(profile.displayName);
+ * ```
+ */
+class LineBotClient extends line_bot_client_generated_js_1.LineBotClientBase {
+    constructor(clients) {
+        super();
+        this.clients = clients;
+    }
+    static fromChannelAccessToken(config) {
+        assertNonEmptyString("channelAccessToken", config.channelAccessToken);
+        return new LineBotClient((0, line_bot_client_factory_generated_js_1.createLineBotClientDelegates)({
+            channelAccessToken: config.channelAccessToken,
+            defaultHeaders: config.defaultHeaders,
+            apiBaseURL: config.apiBaseURL,
+            dataApiBaseURL: config.dataApiBaseURL,
+            managerBaseURL: config.managerBaseURL,
+        }));
+    }
+}
+exports.LineBotClient = LineBotClient;
+//# sourceMappingURL=line-bot-client.js.map
