@@ -265,7 +265,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     setMicrosoftListenerTransitionIndex(index)
   }
 
-  const onGoogleSkipClick = (index: number) => {
+  const onGoogleSkipClick = (_index: number) => {
     KNAnalytics.trackEvent('Onboarding - Skipped Google Sign In', {})
     transitionToExtensionScreen()
   }

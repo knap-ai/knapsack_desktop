@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   createWorkflow,
   getWorkflows,
@@ -12,6 +12,10 @@ import {
 } from 'src/api/browser_workflows'
 
 import { CadenceType, Cadence, DaysOfWeek } from 'src/automations/automation'
+
+// Chrome extension API types - available when running inside a Chrome context
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const chrome: any
 
 type RecorderStatus = 'idle' | 'recording' | 'saving' | 'playing'
 
@@ -64,7 +68,7 @@ export default function WorkflowRecorder() {
   const [error, setError] = useState<string | null>(null)
 
   // Recording state
-  const [recordingTabId, setRecordingTabId] = useState<number | null>(null)
+  const [, setRecordingTabId] = useState<number | null>(null)
   const [actionCount, setActionCount] = useState(0)
 
   // Education card
