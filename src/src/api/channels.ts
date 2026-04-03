@@ -130,6 +130,22 @@ export const configureTelegram = (botToken: string) =>
 export const disconnectTelegram = () =>
   post<GenericResponse>('/api/clawd/channels/telegram/disconnect', {})
 
+export interface TelegramValidateResponse {
+  success: boolean
+  message?: string
+  /** Bot username returned by getMe, e.g. "mybot" (no @). */
+  bot_username?: string
+  bot_name?: string
+}
+
+/**
+ * Validate a Telegram bot token by calling the Telegram Bot API getMe.
+ * Returns the bot username so the UI can display "Connected as @botname".
+ * Does NOT save anything — call after configureTelegram succeeds.
+ */
+export const validateTelegramToken = (botToken: string) =>
+  post<TelegramValidateResponse>('/api/clawd/channels/telegram/validate', { bot_token: botToken })
+
 // ── Generic Channels (Slack, Discord, Signal, IRC, Google Chat) ──
 
 /** Get status for a generic channel. */

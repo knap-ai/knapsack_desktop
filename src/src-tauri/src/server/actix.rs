@@ -289,6 +289,7 @@ pub async fn start_server<'a>(
       .service(clawd::channels::telegram_status)
       .service(clawd::channels::telegram_enable)
       .service(clawd::channels::telegram_configure)
+      .service(clawd::channels::telegram_validate)
       .service(clawd::channels::telegram_disconnect)
       .service(clawd::channels::voice_status)
       .service(clawd::channels::voice_enable)
