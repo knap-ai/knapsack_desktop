@@ -14,6 +14,7 @@ import {
 
 import { open } from '@tauri-apps/api/shell'
 
+import AgentPickerScreen, { AgentSelection } from './AgentPickerScreen'
 import styles from './styles.module.scss'
 import KnapsackLogoMedium from '/assets/images/knap-logo-medium.png'
 // import NotificationDefault from '/assets/images/notification-default.png'
@@ -349,6 +350,9 @@ type OnboardingTemplateProps = {
   onMicrosoftGrantClick: (index: number) => void
   isLoading: boolean
   error: string
+  connectedProvider: 'google' | 'microsoft' | null
+  onAgentPickerActivate: (selections: AgentSelection[]) => void
+  onAgentPickerSkip: (index: number) => void
   // onAudioGrantClick: (index: number) => void
 }
 
@@ -367,6 +371,9 @@ export const OnboardingTemplate = ({
   onMicrosoftGrantClick,
   isLoading,
   error,
+  connectedProvider,
+  onAgentPickerActivate,
+  onAgentPickerSkip,
   // onAudioGrantClick,
 }: OnboardingTemplateProps) => {
   return (
@@ -404,6 +411,14 @@ export const OnboardingTemplate = ({
           onMicrosoftGrantClick={onMicrosoftGrantClick}
           isLoading={isLoading}
           error={error}
+        />
+        <AgentPickerScreen
+          currentSlideInScreen={currentSlideInScreen}
+          currentSlideOutScreen={currentSlideOutScreen}
+          index={3}
+          connectedProvider={connectedProvider}
+          onActivate={onAgentPickerActivate}
+          onSkip={onAgentPickerSkip}
         />
         {/*<AudioPermissionsScreen
           currentSlideInScreen={currentSlideInScreen}

@@ -47,6 +47,12 @@ const serializeAutomation = (automationData: {
   isBeta: boolean
   showLibrary: boolean
   icon?: string
+  identity?: {
+    display_name: string
+    emoji: string
+    personality: string
+    soul: string
+  }
   triggerCadences: {
     id: number
     cadenceType: string
@@ -113,6 +119,14 @@ const serializeAutomation = (automationData: {
     isBeta: automationData.isBeta,
     showLibrary: automationData.showLibrary,
     icon: automationData.icon,
+    identity: automationData.identity
+      ? {
+          displayName: automationData.identity.display_name,
+          emoji: automationData.identity.emoji,
+          personality: automationData.identity.personality,
+          soul: automationData.identity.soul,
+        }
+      : undefined,
   })
   return automation
 }
@@ -139,7 +153,7 @@ export async function upsertAutomation(automation: Automation) {
   })
   const data = await response.json()
   if (!data || data['success'] !== true) {
-    console.log(`createAutomation data error`)
+    console.log(`createAutomation data error`, data)
     return false
   }
   return true
