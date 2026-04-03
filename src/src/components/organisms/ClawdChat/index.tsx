@@ -2877,16 +2877,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         // Poll for gateway/browser health — update the status indicators.
         // The LaunchAgent has KeepAlive=true so macOS restarts clawdbot
-        // automatically if it crashes.  We detect disconnect within 5s and
+        // automatically if it crashes.  We detect disconnect within 3s and
         // show "Reconnecting..." while the gateway comes back.
-        let gatewayAttempts = 0
-        const maxFastAttempts = 20
         let wasHealthy = false
         let consecutiveDownPolls = 0
         let lastHealthJson = ''
         let lastStatusJson = ''
+        // Exponential backoff for the catch branch (HTTP backend itself unreachable).
+        // Starts at 1s, doubles each failure up to 15s max.
+        let catchBackoffMs = 1000
         const pollGateway = async () => {
-          gatewayAttempts++
           try {
             const h = await apiGet<ServiceHealth>('/api/clawd/service/health')
             const hJson = JSON.stringify(h)
@@ -2902,57 +2902,55 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               setStatus(s2)
             }
 
+            // Reset catch-backoff whenever the HTTP backend is reachable
+            catchBackoffMs = 1000
+
             const isHealthy = h.gateway_ok && h.browser_ok
 
             if (isHealthy) {
+              // Fully healthy — reset reconnect state and slow-poll to detect drops
               wasHealthy = true
               consecutiveDownPolls = 0
-              // Healthy — slow poll every 5s to detect disconnect quickly
               setTimeout(pollGateway, 5000)
             } else if (h.gateway_ok && !h.browser_ok) {
               // Gateway is up but browser is still starting or not reachable.
-              // The backend sends a one-time /start nudge automatically.
-              // Keep polling at 5s so we detect when browser becomes ready.
+              // Poll every 3s so we detect browser readiness quickly.
+              // (Backend sends a one-time /start nudge automatically.)
               consecutiveDownPolls++
-              setTimeout(pollGateway, 5000)
-            } else if (!isHealthy && wasHealthy) {
-              // Was previously healthy but now down — gateway crashed.
-              // Poll fast to detect recovery quickly (reconnect within 5s).
-              consecutiveDownPolls++
-              // After 3 consecutive down polls (~15s), try to trigger a restart
-              // via the startup-ready endpoint which calls ensure_gateway_running.
-              if (consecutiveDownPolls === 3) {
-                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
-              }
-              setTimeout(pollGateway, 2000)
-            } else if (!isHealthy && gatewayAttempts < maxFastAttempts) {
-              // Initial startup — fast poll
-              consecutiveDownPolls++
-              // Trigger a restart attempt after several failed startup polls too,
-              // not just after a healthy→down transition. This handles the case
-              // where the gateway never started successfully.
-              if (consecutiveDownPolls === 6) {
-                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
-              }
-              setTimeout(pollGateway, 1500)
+              setTimeout(pollGateway, 3000)
             } else {
-              // Slow poll fallback — still try restart periodically
+              // Gateway is down (reconnecting state).
+              // Health-check-driven reconnect: poll every 3s so the UI transitions
+              // from "reconnecting" to "connected" within 3s of the gateway recovering,
+              // regardless of how long it has been down (no slow-down after N attempts).
               consecutiveDownPolls++
-              if (consecutiveDownPolls % 6 === 0) {
+
+              // Nudge the backend to restart the gateway if it stays down.
+              if (wasHealthy && consecutiveDownPolls === 3) {
+                // Was healthy before — kick a restart after ~9s of downtime
                 fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
-              setTimeout(pollGateway, 10000)
+              if (!wasHealthy && consecutiveDownPolls === 6) {
+                // Initial startup — nudge after several failed startup polls
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
+              }
+              if (!wasHealthy && consecutiveDownPolls > 6 && consecutiveDownPolls % 6 === 0) {
+                // Periodic nudge for extended outages
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
+              }
+
+              setTimeout(pollGateway, 3000)
             }
           } catch {
+            // HTTP backend itself is unreachable — back off exponentially (1s→15s)
+            // so we don't hammer it while it's starting up or restarting.
             consecutiveDownPolls++
-            if (gatewayAttempts < maxFastAttempts) {
-              setTimeout(pollGateway, 1500)
-            } else {
-              setTimeout(pollGateway, 5000)
-            }
+            setTimeout(pollGateway, catchBackoffMs)
+            catchBackoffMs = Math.min(catchBackoffMs * 2, 15000)
           }
         }
-        // Start polling for gateway
+        // Start polling after 500ms — gives the gateway a moment to start
+        // before the first check (handles the startup race condition).
         setTimeout(pollGateway, 500)
       } catch (e) {
         console.error('Failed to auto-enable service:', e)
@@ -4125,7 +4123,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       acc.push(part)
       return acc
     }, [])
-  }, [status, health, currentTargetId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, health, channelStatus.gatewayStarting, currentTargetId])
 
   // Memoize message parsing so extractPromptActions only re-runs when msgs change,
   // not on every re-render from status/health polling.

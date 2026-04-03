@@ -1100,6 +1100,15 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     }
     drop(pending);
     invalidate_client();
+
+    // Proactively reconnect with exponential backoff so the connection
+    // auto-recovers without waiting for the next incoming request.
+    // This drives the "Gateway: reconnecting → connected" transition
+    // automatically when the gateway process comes back up.
+    if let Some(token) = get_gateway_token() {
+      eprintln!("[gateway_client] WebSocket dropped — spawning reconnect task");
+      spawn_reconnect_task(token);
+    }
   });
 
   Ok(client)
@@ -1146,6 +1155,73 @@ async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
 fn invalidate_client() {
   let mut guard = CLIENT.write().unwrap();
   *guard = None;
+}
+
+/// Guards against spawning duplicate reconnect tasks.
+static RECONNECT_IN_PROGRESS: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
+
+/// Spawn a background task that retries the WebSocket connection with
+/// exponential backoff (1 s → 2 s → 4 s → 8 s → 15 s cap).
+///
+/// The task:
+/// 1. Checks whether the port is open before attempting the full handshake
+///    (avoids the 3-second TCP timeout when the gateway is still starting).
+/// 2. Stops as soon as a connection is established or the connection was
+///    re-established by an incoming request (checked each iteration).
+/// 3. Gives up after 20 attempts and lets health-check polling drive any
+///    further recovery.
+fn spawn_reconnect_task(token: String) {
+  // Only one reconnect task at a time.
+  if RECONNECT_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    return;
+  }
+  tokio::spawn(async move {
+    let backoff_steps: &[u64] = &[1000, 2000, 4000, 8000, 15000];
+    let mut step_idx = 0usize;
+    let max_attempts = 20usize;
+
+    for attempt in 0..max_attempts {
+      let delay_ms = backoff_steps[step_idx.min(backoff_steps.len() - 1)];
+      step_idx = (step_idx + 1).min(backoff_steps.len() - 1);
+
+      tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+
+      // If an incoming request already re-established the connection, stop.
+      {
+        let guard = CLIENT.read().unwrap();
+        if guard.is_some() {
+          eprintln!("[gateway_client] reconnect task: connection already re-established (attempt {})", attempt + 1);
+          RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+          return;
+        }
+      }
+
+      // Only attempt the full WS handshake when the port is actually open.
+      // This avoids the 3 s TCP timeout and lets us react immediately when
+      // the gateway starts accepting connections after a restart.
+      if !is_gateway_port_open().await {
+        eprintln!("[gateway_client] reconnect task: gateway port not open yet (attempt {}), backing off {}ms", attempt + 1, delay_ms);
+        continue;
+      }
+
+      match connect_and_handshake(&token).await {
+        Ok(client) => {
+          let mut guard = CLIENT.write().unwrap();
+          *guard = Some(client);
+          eprintln!("[gateway_client] reconnect task: connection re-established (attempt {})", attempt + 1);
+          RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+          return;
+        }
+        Err(e) => {
+          eprintln!("[gateway_client] reconnect task: attempt {} failed ({}), backing off {}ms", attempt + 1, e, delay_ms);
+        }
+      }
+    }
+
+    eprintln!("[gateway_client] reconnect task: gave up after {} attempts — health-check polling will drive recovery", max_attempts);
+    RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+  });
 }
 
 /// Public wrapper: drop the cached connection.
