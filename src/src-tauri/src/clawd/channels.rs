@@ -2892,11 +2892,11 @@ pub async fn channel_diagnostics() -> impl Responder {
             }
 
             // ── Web search provider fallback ──────────────────────────────────
-            // If no BRAVE_API_KEY is available and no explicit search provider
-            // is configured, auto-configure DuckDuckGo (free, no key needed) as
-            // the fallback provider so `web_search` always works out of the box.
-            // We only surface the API key prompt if browser_ok is also false
-            // (i.e. neither DDG nor browser automation can serve searches).
+            // Priority order:
+            //   1. Brave API  (BRAVE_API_KEY present — explicit config or env var)
+            //   2. Browser CDP  (bundled Chromium available — /api/clawd/browser/search)
+            //   3. DuckDuckGo  (key-free HTTP fallback, browser unavailable)
+            //   4. Surface API key prompt  (only if all above fail)
             {
                 let brave_key_in_config = snapshot
                     .pointer("/plugins/entries/brave/config/webSearch/apiKey")
@@ -2919,38 +2919,82 @@ pub async fn channel_diagnostics() -> impl Responder {
                     .unwrap_or("")
                     .to_string();
 
-                if !has_brave_key && explicit_provider.is_empty() {
-                    // No Brave key and no provider override — fall back to DDG.
-                    let re_snapshot = gateway_client::config_get(None).await;
-                    if let Ok(snap) = re_snapshot {
-                        let bh = extract_base_hash(&snap);
-                        let ddg_patch = serde_json::json!({
-                            "tools": { "web": { "search": { "provider": "duckduckgo" } } }
-                        }).to_string();
-                        match gateway_client::config_patch(&ddg_patch, &bh, None).await {
-                            Ok(_) => {
-                                log::info!("[channels] web_search: no BRAVE_API_KEY found — configured DuckDuckGo as search provider");
-                                repairs.push("Configured DuckDuckGo as web_search provider (BRAVE_API_KEY not set)".to_string());
+                if has_brave_key || !explicit_provider.is_empty() {
+                    // Brave API key present or provider already explicitly set — nothing to repair.
+                    let label = if !explicit_provider.is_empty() {
+                        explicit_provider.clone()
+                    } else {
+                        "brave (API key found)".to_string()
+                    };
+                    log::info!("[channels] web_search provider: {}", label);
+                } else {
+                    // No Brave key and no explicit provider.
+                    // Check if the bundled browser (CDP) is available — if so it is the
+                    // primary search mechanism via /api/clawd/browser/search.
+                    let browser_ok = tokio::time::timeout(
+                        std::time::Duration::from_secs(3),
+                        gateway_client::browser_request(
+                            "GET", "/tabs",
+                            Some(serde_json::json!({"profile": "openclaw"})),
+                            None, None,
+                        ),
+                    ).await
+                    .map(|r| r.is_ok())
+                    .unwrap_or(false);
+
+                    if browser_ok {
+                        // Browser CDP is available — it serves as the primary search
+                        // mechanism via GET /api/clawd/browser/search.
+                        // Ensure the gateway web_search tool also has a key-free provider
+                        // (DDG) so the AI can use web_search as a secondary path, but
+                        // log clearly that browser is the primary.
+                        log::info!("[channels] web_search: browser CDP available — using browser as primary search (BRAVE_API_KEY not set)");
+                        repairs.push(
+                            "Browser CDP available — using /api/clawd/browser/search as primary \
+                             web search (BRAVE_API_KEY not set). DuckDuckGo configured as secondary."
+                                .to_string(),
+                        );
+                        // Also wire up DDG as secondary so web_search tool itself works
+                        let re_snapshot = gateway_client::config_get(None).await;
+                        if let Ok(snap) = re_snapshot {
+                            let bh = extract_base_hash(&snap);
+                            let ddg_patch = serde_json::json!({
+                                "tools": { "web": { "search": { "provider": "duckduckgo" } } }
+                            }).to_string();
+                            match gateway_client::config_patch(&ddg_patch, &bh, None).await {
+                                Ok(_) => log::info!("[channels] web_search: DDG configured as secondary provider"),
+                                Err(e) => log::warn!("[channels] web_search DDG secondary patch failed: {}", e),
                             }
-                            Err(e) => {
-                                log::warn!("[channels] web_search fallback patch failed: {}", e);
-                                issues.push(format!(
-                                    "BRAVE_API_KEY not set and DuckDuckGo fallback patch failed: {}. \
-                                     Set BRAVE_API_KEY or configure a search provider to use web_search.",
-                                    e
-                                ));
+                        }
+                    } else {
+                        // Browser not available — configure DDG as the sole fallback.
+                        log::info!("[channels] web_search: browser unavailable — configuring DuckDuckGo (BRAVE_API_KEY not set)");
+                        let re_snapshot = gateway_client::config_get(None).await;
+                        if let Ok(snap) = re_snapshot {
+                            let bh = extract_base_hash(&snap);
+                            let ddg_patch = serde_json::json!({
+                                "tools": { "web": { "search": { "provider": "duckduckgo" } } }
+                            }).to_string();
+                            match gateway_client::config_patch(&ddg_patch, &bh, None).await {
+                                Ok(_) => {
+                                    repairs.push(
+                                        "Configured DuckDuckGo as web_search provider \
+                                         (BRAVE_API_KEY not set, browser unavailable)."
+                                            .to_string(),
+                                    );
+                                }
+                                Err(e) => {
+                                    log::warn!("[channels] web_search DDG patch failed: {}", e);
+                                    // Both browser and DDG unavailable → surface the API key prompt
+                                    issues.push(format!(
+                                        "BRAVE_API_KEY not set, browser unavailable, and DuckDuckGo \
+                                         fallback patch failed: {}. Set BRAVE_API_KEY to enable web search.",
+                                        e
+                                    ));
+                                }
                             }
                         }
                     }
-                } else {
-                    let provider_label = if !explicit_provider.is_empty() {
-                        explicit_provider.clone()
-                    } else if has_brave_key {
-                        "brave (API key found)".to_string()
-                    } else {
-                        "auto".to_string()
-                    };
-                    log::info!("[channels] web_search provider: {}", provider_label);
                 }
             }
 

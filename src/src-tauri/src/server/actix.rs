@@ -246,6 +246,7 @@ pub async fn start_server<'a>(
       .service(clawd::browser::snapshot)
       .service(clawd::browser::act)
       .service(clawd::browser::screenshot)
+      .service(clawd::browser::browser_search)
       .service(clawd::browser::chat)
       .service(clawd::browser::agent_chat)
       .service(clawd::browser::terminal_output)
