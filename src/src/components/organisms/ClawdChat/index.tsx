@@ -653,6 +653,27 @@ const SMART_PROMPT = 'Check my email and calendar and tell me what I should focu
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 const BUILD_WEBSITE_PROMPT = `Build a personal website about me`
 
+// Check for freshly onboarded agents and build a personalized intro prompt
+function getOnboardingAgentsPrompt(): { prompt: string; agents: { name: string; emoji: string; personality: string }[] } | null {
+  try {
+    const raw = localStorage.getItem('kn_onboarding_agents')
+    if (!raw) return null
+    const agents = JSON.parse(raw) as { name: string; emoji: string; personality: string }[]
+    if (!agents?.length) return null
+
+    const agentList = agents.map(a => `- ${a.emoji} **${a.name}**: ${a.personality}`).join('\n')
+    const prompt = `I just finished setting up Knapsack and activated ${agents.length} AI agent${agents.length > 1 ? 's' : ''}. Here's my team:\n\n${agentList}\n\nPlease:\n1. Welcome me and introduce each agent by name with a brief, warm description of what they'll do for me and when they'll run\n2. Ask me a few quick personalization questions to make these agents work better for me — things like what time I start my day, what my biggest priorities are this week, what kind of communication style I prefer, and anything else that would help you tailor the agents to my workflow\n3. Let me know I can rename any agent, change their schedule, or ask you to create new ones anytime\n\nKeep it conversational and make it feel like I'm meeting my new team, not configuring software.`
+
+    return { prompt, agents }
+  } catch {
+    return null
+  }
+}
+
+function clearOnboardingAgents() {
+  localStorage.removeItem('kn_onboarding_agents')
+}
+
 const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having connectivity issues. Please help me diagnose and fix this. Run these checks in order:
 
 1. Check the gateway service status by running: curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
@@ -1559,8 +1580,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return { tooltip: lines.join('\n'), colorClass }
   }, [channelStatus.whatsapp, channelStatus.imessage, channelStatus.telegram, channelStatus.genericChannels, channelStatus.channelErrors, channelStatus.gatewayHealthy, channelStatus.gatewayStarting])
 
+  const onboardingAgentsData = useMemo(() => getOnboardingAgentsPrompt(), [])
+
   const welcomeMessages = useMemo(
-    () => [
+    () => {
+      // If the user just onboarded with agents, show a team-oriented welcome
+      if (onboardingAgentsData) {
+        const agentNames = onboardingAgentsData.agents
+          .map(a => `${a.emoji} ${a.name}`)
+          .join(', ')
+        return [
+          {
+            id: 'welcome-1',
+            role: 'assistant' as Role,
+            text: `Your team is ready! You activated ${onboardingAgentsData.agents.length} agents: ${agentNames}. Let me introduce you to each one and get them dialed in for how you work.`,
+            ts: Date.now(),
+          },
+          {
+            id: 'welcome-2',
+            role: 'assistant' as Role,
+            text: "Let's personalize your agents so they work exactly how you need them.",
+            ts: Date.now() + 1,
+            promptActions: [
+              { label: 'Introduce my team & personalize', prompt: onboardingAgentsData.prompt },
+              { label: 'Skip intro — check my email & calendar', prompt: SMART_PROMPT },
+            ],
+          },
+        ]
+      }
+
+      return [
       {
         id: 'welcome-1',
         role: 'assistant' as Role,
@@ -1578,8 +1627,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           { label: 'Build a website about me', prompt: BUILD_WEBSITE_PROMPT },
         ],
       },
-    ],
-    [],
+    ]},
+    [onboardingAgentsData],
   )
 
   const checkAndPromptForKey = useCallback(async () => {
@@ -3037,6 +3086,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       autoTriggeredBriefingRef.current = true
       // Short delay to let the UI settle after initialization
       const timer = setTimeout(() => {
+        // If agents were just onboarded, auto-trigger the team intro instead
+        const agentsData = getOnboardingAgentsPrompt()
+        if (agentsData) {
+          clearOnboardingAgents()
+          handleSendWithTextRef.current?.(agentsData.prompt)
+          return
+        }
         handleSendWithTextRef.current?.(SMART_PROMPT)
       }, 800)
       return () => clearTimeout(timer)

@@ -376,6 +376,14 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       }
     }
 
+    // Save activated agents so the first chat session can introduce them
+    const activatedAgents = enabledSelections.map(s => ({
+      name: s.identity.displayName,
+      emoji: s.identity.emoji,
+      personality: s.identity.personality,
+    }))
+    localStorage.setItem('kn_onboarding_agents', JSON.stringify(activatedAgents))
+
     KNAnalytics.trackEvent('Onboarding - Agents Activated', {
       count: enabledSelections.length,
       agents: enabledSelections.map(s => s.identity.displayName),
