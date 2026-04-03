@@ -153,7 +153,7 @@ export async function upsertAutomation(automation: Automation) {
   })
   const data = await response.json()
   if (!data || data['success'] !== true) {
-    console.log(`createAutomation data error`)
+    console.log(`createAutomation data error`, data)
     return false
   }
   return true

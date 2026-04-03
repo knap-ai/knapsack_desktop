@@ -317,14 +317,6 @@ export class Automation {
       is_active: this.isActive,
       show_library: this.showLibrary,
       icon: this.icon,
-      identity: this.identity
-        ? {
-            display_name: this.identity.displayName,
-            emoji: this.identity.emoji,
-            personality: this.identity.personality,
-            soul: this.identity.soul,
-          }
-        : undefined,
     }
   }
 }
