@@ -8,6 +8,9 @@
     "@sinclair/typebox": "0.34.49",
     "https-proxy-agent": "^8.0.0"
   },
+  "overrides": {
+    "agent-base": "^7.1.0"
+  },
   "openclaw": {
     "extensions": [
       "./index.js"
