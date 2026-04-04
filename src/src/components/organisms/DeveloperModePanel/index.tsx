@@ -142,7 +142,7 @@ const KN_DEV_OPENCLAW_CHECK = 'kn_dev_mode_openclaw_check'
 const OPENCLAW_CHECK_INTERVAL_HOURS = 12
 
 /** Bundled OpenClaw version — read from the bundled package */
-const BUNDLED_OPENCLAW_VERSION = '2026.2.13'
+const BUNDLED_OPENCLAW_VERSION = '2026.4.2'
 
 /** npm registry URL for openclaw */
 const OPENCLAW_NPM_REGISTRY = 'https://registry.npmjs.org/openclaw'
