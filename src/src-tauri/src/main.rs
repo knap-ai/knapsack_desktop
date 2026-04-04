@@ -716,6 +716,22 @@ async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>
 }
 
 #[tauri::command]
+async fn kn_get_openclaw_version(app: AppHandle) -> Result<String, String> {
+    let pkg_path = app
+        .path_resolver()
+        .resolve_resource("resources/clawdbot/package.json")
+        .ok_or("Could not resolve clawdbot package.json")?;
+    let content = std::fs::read_to_string(&pkg_path)
+        .map_err(|e| format!("Failed to read clawdbot package.json: {}", e))?;
+    let json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse clawdbot package.json: {}", e))?;
+    json["version"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "No version field in clawdbot package.json".to_string())
+}
+
+#[tauri::command]
 async fn kn_get_log_path(app: AppHandle) -> Result<String, String> {
     let log_dir = app
         .path_resolver()
@@ -1322,6 +1338,7 @@ async fn main() {
       spotlight::toggle_overlay_window,
       kn_read_logs,
       kn_get_log_path,
+      kn_get_openclaw_version,
       kn_execute_command,
       kn_openclaw_configure_channels_cmd,
       kn_spawn_streaming_command,
