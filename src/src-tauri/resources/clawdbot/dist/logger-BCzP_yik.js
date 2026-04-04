@@ -2,7 +2,48 @@ import { t as resolveNodeRequireFromMeta } from "./node-require-BgDD9bTi.js";
 import { n as resolvePreferredOpenClawTmpDir, t as POSIX_OPENCLAW_TMP_DIR } from "./tmp-openclaw-dir-Day5KPIY.js";
 import fsSync from "node:fs";
 import path from "node:path";
-import { Logger } from "tslog";
+// Inline minimal tslog-compatible Logger (tslog was externalized during build but is
+// not available in the packaged app bundle — this shim matches the tslog v4 API used here).
+class Logger {
+	constructor(opts = {}) {
+		this._name = opts.name;
+		this._minLevel = opts.minLevel ?? 0;
+		this._transports = [];
+		this._prefix = opts.prefix ?? [];
+	}
+	_dispatch(tslogLevel, levelName, args) {
+		// tslog v4 numeric levels: trace=1, debug=2, info=3, warn=4, error=5, fatal=6
+		// minLevel is passed as levelToMinLevel(settingsLevel) which uses the same numbering.
+		// Filter: skip if this method's level is below the configured minimum.
+		if (tslogLevel < this._minLevel) return;
+		const logObj = {
+			date: new Date(),
+			_meta: { name: this._name, logLevelId: tslogLevel, logLevelName: levelName },
+			logLevelId: tslogLevel,
+			logLevel: levelName,
+		};
+		args.forEach((a, i) => { logObj[i] = a; });
+		for (const transport of this._transports) {
+			try { transport(logObj); } catch {}
+		}
+	}
+	attachTransport(fn) { this._transports.push(fn); }
+	getSubLogger(opts = {}) {
+		const child = new Logger({
+			name: opts.name ?? this._name,
+			minLevel: opts.minLevel ?? this._minLevel,
+			prefix: opts.prefix ?? this._prefix,
+		});
+		child._transports = this._transports;
+		return child;
+	}
+	trace(...args) { this._dispatch(1, "trace", args); }
+	debug(...args) { this._dispatch(2, "debug", args); }
+	info(...args) { this._dispatch(3, "info", args); }
+	warn(...args) { this._dispatch(4, "warn", args); }
+	error(...args) { this._dispatch(5, "error", args); }
+	fatal(...args) { this._dispatch(6, "fatal", args); }
+}
 //#region src/daemon/runtime-binary.ts
 const NODE_VERSIONED_PATTERN = /^node(?:-\d+|\d+)(?:\.\d+)*(?:\.exe)?$/;
 function normalizeRuntimeBasename(execPath) {
