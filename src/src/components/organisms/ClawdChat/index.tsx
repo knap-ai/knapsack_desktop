@@ -687,7 +687,8 @@ Based on the results, tell me:
 - Whether the gateway process is running
 - Whether the browser (Chrome CDP) is connected
 - Any specific errors you see in the logs (like permission denied, port conflicts, session expired)
-- The recommended fix (e.g. restart the gateway, grant Full Disk Access, re-link WhatsApp, kill stale processes)`
+- The recommended fix based on actual evidence found (e.g. restart the gateway, re-link WhatsApp, kill stale processes)
+IMPORTANT: Only suggest Full Disk Access if you see an explicit permission-denied error in the logs. Do not suggest it based on absence of a log file alone.`
 
 const GATEWAY_RESTART_PROMPT = `Please restart the Knapsack gateway service. Run this command:
 curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | python3 -m json.tool
@@ -697,7 +698,8 @@ Tell me whether the gateway and browser are now healthy.`
 
 const GATEWAY_VIEW_LOGS_PROMPT = `Show me the recent Knapsack error logs to help diagnose connectivity issues. Run:
 tail -50 ~/Library/Logs/ks_error.log 2>/dev/null || echo "No error log found at ~/Library/Logs/ks_error.log"
-Summarize any recurring errors, especially related to: gateway connectivity, browser/CDP failures, channel errors (WhatsApp, iMessage), permission issues, or port conflicts.`
+Summarize any recurring errors you find, especially related to: gateway connectivity, browser/CDP failures, channel errors (WhatsApp, iMessage), or port conflicts.
+IMPORTANT: If the log is empty or not found, do NOT speculate about Full Disk Access or other permissions — the absence of logs does not imply a permission issue. Instead, report that no errors were found and suggest waiting a bit longer for the browser to finish starting.`
 
 function buildWebsiteInstructions(userName: string, userEmail: string): string {
   const namePart = userName ? `My name is ${userName}.` : ''
@@ -1540,6 +1542,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [signalCaptchaToken, setSignalCaptchaToken] = useState('')
   const [signalNeedsCaptcha, setSignalNeedsCaptcha] = useState(false)
   const [, setSignalRegDone] = useState(false)
+  // Tracks how many consecutive polls have seen gateway_ok=true but browser_ok=false.
+  // The "browser not responding" banner is suppressed until this exceeds the threshold
+  // (20 polls × 3 s ≈ 60 s) so we don't alarm users during normal browser startup.
+  const [browserNotReadyPolls, setBrowserNotReadyPolls] = useState(0)
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
   const [googleChatWebhook, setGoogleChatWebhook] = useState('')
   const [skills, setSkills] = useState<SkillInfo[]>([])
@@ -2881,6 +2887,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // show "Reconnecting..." while the gateway comes back.
         let wasHealthy = false
         let consecutiveDownPolls = 0
+        // Separate counter for gateway_ok && !browser_ok polls so we can gate
+        // the troubleshooting banner without conflating gateway-down polls.
+        let browserNotReadyCount = 0
         let lastHealthJson = ''
         let lastStatusJson = ''
         // Exponential backoff for the catch branch (HTTP backend itself unreachable).
@@ -2911,12 +2920,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               // Fully healthy — reset reconnect state and slow-poll to detect drops
               wasHealthy = true
               consecutiveDownPolls = 0
+              browserNotReadyCount = 0
+              setBrowserNotReadyPolls(0)
               setTimeout(pollGateway, 5000)
             } else if (h.gateway_ok && !h.browser_ok) {
               // Gateway is up but browser is still starting or not reachable.
               // Poll every 3s so we detect browser readiness quickly.
               // (Backend sends a one-time /start nudge automatically.)
               consecutiveDownPolls++
+              browserNotReadyCount++
+              setBrowserNotReadyPolls(browserNotReadyCount)
               setTimeout(pollGateway, 3000)
             } else {
               // Gateway is down (reconnecting state).
@@ -2924,6 +2937,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               // from "reconnecting" to "connected" within 3s of the gateway recovering,
               // regardless of how long it has been down (no slow-down after N attempts).
               consecutiveDownPolls++
+              // Reset browser-not-ready counter when gateway goes down so we don't
+              // inherit stale counts into the next startup cycle.
+              browserNotReadyCount = 0
+              setBrowserNotReadyPolls(0)
 
               // Nudge the backend to restart the gateway if it stays down.
               if (wasHealthy && consecutiveDownPolls === 3) {
@@ -4502,8 +4519,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             </div>
           </div>
         )}
-        {/* Browser-only issue banner — gateway OK but browser not responding */}
-        {health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && (
+        {/* Browser-only issue banner — gateway OK but browser not responding for 60s+ */}
+        {health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && browserNotReadyPolls >= 20 && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner ClawdGatewayBanner--warn">
               <p className="ClawdGatewayBannerTitle">Browser is not responding</p>
