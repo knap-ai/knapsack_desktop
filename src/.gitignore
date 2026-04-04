@@ -44,6 +44,8 @@ src-tauri/resources/clawdbot/node_modules/signal-utils/
 src-tauri/resources/clawdbot/node_modules/sqlite-vec/
 # @mariozechner/pi-tui is statically imported in the dist bundle — must NOT be gitignored
 # src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-tui/
+# chalk is statically imported in 5+ dist chunks — must NOT be gitignored (shim in node_modules)
+# src-tauri/resources/clawdbot/node_modules/chalk/
 src-tauri/resources/clawdbot/node_modules/@cloudflare/
 src-tauri/resources/clawdbot/node_modules/web-streams-polyfill/
 src-tauri/resources/clawdbot/node_modules/bun-types/
