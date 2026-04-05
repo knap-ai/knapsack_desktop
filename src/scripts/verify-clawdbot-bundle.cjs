@@ -20,7 +20,8 @@ const REQUIRED_FILES = [
   // chalk is externalized in the dist bundle and resolved at runtime from node_modules.
   // A minimal shim lives at node_modules/chalk/ — if it's missing the gateway crashes
   // with ERR_MODULE_NOT_FOUND on startup.
-  'node_modules/chalk/index.js',
+  // The chalk package uses source/index.js as its entry point (see chalk/package.json "main").
+  'node_modules/chalk/source/index.js',
   'node_modules/chalk/package.json',
 ];
 
