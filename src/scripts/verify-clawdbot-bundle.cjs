@@ -147,6 +147,7 @@ const CRITICAL_PACKAGES = [
   'sonic-boom',
   'cli-highlight',
   'markdown-it',
+  '@anthropic-ai/vertex-sdk',
   '@sinclair/typebox',
   '@clack/prompts',
   '@modelcontextprotocol/sdk',
