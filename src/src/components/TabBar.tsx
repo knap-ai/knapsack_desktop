@@ -64,7 +64,7 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
     },
     {
       id: TabChoices.Library,
-      svg: '/assets/images/tabBar/automateTab.svg',
+      svg: '/assets/images/tabBar/libraryTab.svg',
       label: 'Library',
       isActive: true,
     },

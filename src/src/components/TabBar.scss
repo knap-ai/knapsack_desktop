@@ -1,6 +1,8 @@
 @import "../main.css";
 
 .TabBarContainer {
+  overflow-y: auto;
+
   &--collapsed {
     display: flex;
     flex-direction: column;
