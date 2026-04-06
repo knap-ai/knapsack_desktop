@@ -585,6 +585,12 @@ fn sanitize_config_file_allowlist(config_path: &Path) {
       ),
     }
   }
+  // Tighten perms whether or not we wrote — the file may have been
+  // created by another tool with a permissive default umask.
+  harden_file_permissions(config_path);
+  if let Some(parent) = config_path.parent() {
+    harden_dir_permissions(parent);
+  }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -661,6 +667,46 @@ fn harden_dir_permissions(path: &Path) {
   let _ = path;
 }
 
+/// Recursively tighten permissions on the OpenClaw state directory subtree.
+/// Directories become 0700 and regular files become 0600.  This is a
+/// best-effort sweep that addresses audit findings like
+/// `fs.state_dir.perms_readable` and `fs.sessions_store.perms_readable`,
+/// where files such as `agents/<id>/sessions/sessions.json` were created
+/// by clawdbot itself with the default umask (e.g. mode 644) and need to
+/// be tightened on every startup.  Errors are silently ignored — startup
+/// must never fail because of a stat/chmod error on a stale file.
+fn harden_state_subtree(root: &Path) {
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::PermissionsExt;
+    fn walk(path: &Path) {
+      let meta = match std::fs::symlink_metadata(path) {
+        Ok(m) => m,
+        Err(_) => return,
+      };
+      if meta.file_type().is_symlink() {
+        return; // never follow symlinks
+      }
+      if meta.is_dir() {
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+        let entries = match std::fs::read_dir(path) {
+          Ok(e) => e,
+          Err(_) => return,
+        };
+        for entry in entries.flatten() {
+          walk(&entry.path());
+        }
+      } else if meta.is_file() {
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+      }
+    }
+    if root.exists() {
+      walk(root);
+    }
+  }
+  let _ = root;
+}
+
 fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, String> {
   let home = app_clawdbot_home(app_handle);
   ensure_dir(&home)?;
@@ -672,8 +718,41 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     harden_file_permissions(&path);
     let s =
       fs::read_to_string(&path).map_err(|e| format!("Failed reading {}: {}", path.display(), e))?;
-    let t: StoredTokens =
+    let mut t: StoredTokens =
       serde_json::from_str(&s).map_err(|e| format!("Failed parsing {}: {}", path.display(), e))?;
+    // Backfill any missing/empty auth tokens.  An empty gateway_token would
+    // cause OpenClaw to start with `gateway.auth.token = ""`, which the
+    // security audit reports as `gateway.loopback_no_auth` /
+    // `browser.control_no_auth` (the gateway treats an empty token as
+    // "auth disabled").
+    let mut dirty = false;
+    if t.gateway_token.trim().is_empty() {
+      t.gateway_token =
+        uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
+      dirty = true;
+    }
+    if t.browser_control_token.trim().is_empty() {
+      t.browser_control_token =
+        uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
+      dirty = true;
+    }
+    if dirty {
+      if let Ok(json) = serde_json::to_string_pretty(&t) {
+        if let Err(e) = fs::write(&path, json) {
+          eprintln!(
+            "[clawd/service] WARNING: Could not persist regenerated tokens to {}: {}",
+            path.display(),
+            e
+          );
+        } else {
+          harden_file_permissions(&path);
+          eprintln!(
+            "[clawd/service] Regenerated empty auth token(s) in {}",
+            path.display()
+          );
+        }
+      }
+    }
     return Ok(t);
   }
 
@@ -1947,6 +2026,7 @@ pub async fn set_api_key(
         });
         if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
           let _ = fs::write(&config_path, json);
+          harden_file_permissions(&config_path);
           eprintln!("[clawd/service] Updated agents.defaults.model to '{}' in config file (provider switch)", model);
         }
       }
@@ -2140,6 +2220,7 @@ pub async fn set_api_key(
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
+        harden_file_permissions(&config_path);
         eprintln!("[clawd/service] Updated agents.defaults.model to '{}' in config file", model);
       }
     }
@@ -2418,6 +2499,7 @@ pub async fn ollama_configure(
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
+        harden_file_permissions(&config_path);
         eprintln!("[clawd/service] Updated agents.defaults.model to '{}' in config file", model);
       }
     }
@@ -2823,6 +2905,7 @@ async fn prepare_gateway_config(
   }
   if !config_path.exists() {
     let _ = ensure_dir(&clawdbot_home);
+    harden_dir_permissions(&clawdbot_home);
     let default_config = serde_json::json!({
       "gateway": {
         "mode": "local",
@@ -2859,7 +2942,9 @@ async fn prepare_gateway_config(
       Ok(_) => eprintln!("[clawd/service] Created default config at {}", config_path.display()),
       Err(e) => eprintln!("[clawd/service] WARNING: Failed to create config at {}: {}", config_path.display(), e),
     }
+    harden_file_permissions(&config_path);
   } else {
+    harden_file_permissions(&config_path);
     // Patch existing configs to ensure required fields are present.
     if let Ok(existing) = fs::read_to_string(&config_path) {
       if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&existing) {
@@ -3152,19 +3237,31 @@ async fn prepare_gateway_config(
             Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
             Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
           }
+          harden_file_permissions(&config_path);
         }
       }
     }
   }
+
+  // Tighten the entire state subtree on every startup so that files
+  // created by clawdbot itself (e.g. agents/*/sessions/sessions.json)
+  // pass the OpenClaw security audit's perms checks.
+  harden_dir_permissions(&clawdbot_home);
+  harden_state_subtree(&clawdbot_home);
 
   // ── Auto-heal global ~/.openclaw/openclaw.json ────────────────────
   // The global config is used by the CLI (`openclaw logs`, `status`, etc.)
   // and is separate from the app runtime config above.  Patch it too so
   // CLI commands never hit a fatal allowlist validation error.
   if let Some(home_dir) = dirs::home_dir() {
-    let global_config_path = home_dir.join(".openclaw").join("openclaw.json");
+    let global_state_dir = home_dir.join(".openclaw");
+    let global_config_path = global_state_dir.join("openclaw.json");
     if global_config_path.exists() {
       sanitize_config_file_allowlist(&global_config_path);
+    }
+    if global_state_dir.exists() {
+      harden_dir_permissions(&global_state_dir);
+      harden_state_subtree(&global_state_dir);
     }
   }
 
@@ -3800,6 +3897,7 @@ pub async fn set_service_enabled(
       }
       if !config_path.exists() {
         let _ = ensure_dir(&clawdbot_home);
+        harden_dir_permissions(&clawdbot_home);
         let default_config = serde_json::json!({
           "gateway": {
             "mode": "local",
@@ -3837,7 +3935,9 @@ pub async fn set_service_enabled(
           Ok(_) => eprintln!("[clawd/service] Created default config at {}", config_path.display()),
           Err(e) => eprintln!("[clawd/service] WARNING: Failed to create config at {}: {}", config_path.display(), e),
         }
+        harden_file_permissions(&config_path);
       } else {
+        harden_file_permissions(&config_path);
         // Patch existing configs to ensure required fields are present.
         if let Ok(existing) = fs::read_to_string(&config_path) {
           if let Ok(mut cfg) = serde_json::from_str::<serde_json::Value>(&existing) {
@@ -4240,19 +4340,31 @@ pub async fn set_service_enabled(
                 Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
                 Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
               }
+              harden_file_permissions(&config_path);
             }
           }
         }
       }
+
+      // Tighten the entire state subtree on every startup so that files
+      // created by clawdbot itself (e.g. agents/*/sessions/sessions.json)
+      // pass the OpenClaw security audit's perms checks.
+      harden_dir_permissions(&clawdbot_home);
+      harden_state_subtree(&clawdbot_home);
 
       // ── Auto-heal global ~/.openclaw/openclaw.json ──────────────────
       // CLI commands read the global config independently of OPENCLAW_HOME.
       // Patch it here so `openclaw logs`, `openclaw status`, etc. don't
       // hit a fatal allowlist validation error even when no app config exists.
       if let Some(home_dir) = dirs::home_dir() {
-        let global_config_path = home_dir.join(".openclaw").join("openclaw.json");
+        let global_state_dir = home_dir.join(".openclaw");
+        let global_config_path = global_state_dir.join("openclaw.json");
         if global_config_path.exists() {
           sanitize_config_file_allowlist(&global_config_path);
+        }
+        if global_state_dir.exists() {
+          harden_dir_permissions(&global_state_dir);
+          harden_state_subtree(&global_state_dir);
         }
       }
 
