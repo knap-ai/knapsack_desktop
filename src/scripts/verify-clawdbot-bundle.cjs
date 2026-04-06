@@ -17,12 +17,6 @@ const REQUIRED_FILES = [
   'dist/index.js',
   'dist/build-info.json',
   'package.json',
-  // chalk is externalized in the dist bundle and resolved at runtime from node_modules.
-  // A minimal shim lives at node_modules/chalk/ — if it's missing the gateway crashes
-  // with ERR_MODULE_NOT_FOUND on startup.
-  // The chalk package uses source/index.js as its entry point (see chalk/package.json "main").
-  'node_modules/chalk/source/index.js',
-  'node_modules/chalk/package.json',
 ];
 
 // Critical directories that must exist and not be empty
@@ -128,6 +122,59 @@ if (fs.existsSync(buildInfoPath)) {
   } else {
     console.log(`[verify-clawdbot] build version: ${buildInfo.version} ✓`);
   }
+}
+
+// Verify critical externalized npm packages exist in node_modules.
+// The dist bundle externalizes many packages that must be resolvable at runtime.
+// These are the packages required by the gateway startup path — if any are missing
+// the gateway crashes immediately with ERR_MODULE_NOT_FOUND.
+const CRITICAL_PACKAGES = [
+  'chalk',
+  'commander',
+  'chokidar',
+  'ws',
+  'yaml',
+  'zod',
+  'dotenv',
+  'express',
+  'undici',
+  'ajv',
+  'croner',
+  'json5',
+  'tar',
+  'jszip',
+  'https-proxy-agent',
+  'sonic-boom',
+  'cli-highlight',
+  'markdown-it',
+  '@sinclair/typebox',
+  '@clack/prompts',
+  '@modelcontextprotocol/sdk',
+  '@slack/bolt',
+  '@slack/web-api',
+];
+
+const nodeModulesDir = path.join(CLAWDBOT_DIR, 'node_modules');
+if (fs.existsSync(nodeModulesDir)) {
+  const missing = [];
+  for (const pkg of CRITICAL_PACKAGES) {
+    const pkgJson = path.join(nodeModulesDir, pkg, 'package.json');
+    if (!fs.existsSync(pkgJson)) {
+      missing.push(pkg);
+    }
+  }
+  if (missing.length > 0) {
+    console.error(`[verify-clawdbot] MISSING CRITICAL PACKAGES (${missing.length}):`);
+    for (const pkg of missing) {
+      console.error(`[verify-clawdbot]   - node_modules/${pkg}/package.json`);
+    }
+    errors += missing.length;
+  } else {
+    console.log(`[verify-clawdbot] critical packages: ${CRITICAL_PACKAGES.length} verified in node_modules ✓`);
+  }
+} else {
+  console.error('[verify-clawdbot] CRITICAL: node_modules directory is missing entirely');
+  errors++;
 }
 
 if (errors > 0) {
