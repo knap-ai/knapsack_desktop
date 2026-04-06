@@ -9,7 +9,7 @@ $ks-accent: #6474AC;
   display: flex;
   background: $ks-bg;
 
-  &--granola {
+  &--notetaker {
     background: $ks-bg;
   }
 
@@ -128,7 +128,7 @@ $ks-accent: #6474AC;
     background: $ks-bg;
 
     &--full {
-      // When sidebar is handled by GranolaSidebar, content takes full width
+      // When sidebar is handled by NotetakerSidebar, content takes full width
       flex: 1;
     }
   }
@@ -142,7 +142,7 @@ $ks-accent: #6474AC;
     text-align: center;
     padding: 40px;
 
-    &--granola {
+    &--notetaker {
       background: $ks-bg;
     }
   }
@@ -202,7 +202,7 @@ $ks-accent: #6474AC;
     border-radius: 12px;
     max-width: 500px;
 
-    &--granola {
+    &--notetaker {
       background: white;
       border: 1px solid $ks-border;
     }
@@ -246,7 +246,7 @@ $ks-accent: #6474AC;
     background: $ks-bg;
   }
 
-  // Granola-style top bar
+  // Notetaker top bar
   &__topbar {
     display: flex;
     align-items: center;

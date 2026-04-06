@@ -25,7 +25,7 @@ import AutomationLabModal from 'src/components/molecules/AutomationLabModal'
 import CenterWorkspace, { SubTabChoices } from 'src/components/organisms/CenterWorkspace'
 import EmailTabView from 'src/components/organisms/EmailTabView'
 import FeedSidebar from 'src/components/organisms/FeedSidebar'
-import GranolaSidebar from 'src/components/organisms/GranolaSidebar'
+import NotetakerSidebar from 'src/components/organisms/NotetakerSidebar'
 import GoogleAuthPopup from 'src/components/organisms/GoogleAuthPopUp'
 import { Header } from 'src/components/organisms/Header'
 import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
@@ -174,7 +174,7 @@ function Home({
     }
   }, [])
 
-  // Listen for system tray events (Granola-style)
+  // Listen for system tray events
   useEffect(() => {
     const unlistenQuickNote = listen('create_quick_note', () => {
       setCurrentTab(TabChoices.Meeting)
@@ -476,9 +476,9 @@ function Home({
       />
       <div className="overflow-hidden flex-1 bg-ks-bg-main rounded-b-[10px]">
         <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-ks-bg-main">
-          {/* Granola-style sidebar - hidden when viewing a meeting note */}
+          {/* Notetaker sidebar - hidden when viewing a meeting note */}
           {currentTab === TabChoices.Meeting && !hasMeetingNoteSelected && (
-            <GranolaSidebar
+            <NotetakerSidebar
               feed={feed}
               onQuickNote={() => feed.createNewMeeting()}
               onSettingsClick={() => setIsSettingsDialogOpened(true)}

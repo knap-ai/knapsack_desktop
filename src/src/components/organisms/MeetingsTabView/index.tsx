@@ -179,8 +179,8 @@ const MeetingsTabView = ({
   const showPermissionsOverlay = (!micPermission || !screenPermission) && !permissionsDismissed
 
   return (
-    <div className="MeetingsTabView MeetingsTabView--granola w-full h-full overflow-hidden flex flex-col">
-      {/* Granola-style top bar when viewing a meeting note */}
+    <div className="MeetingsTabView MeetingsTabView--notetaker w-full h-full overflow-hidden flex flex-col">
+      {/* Notetaker top bar when viewing a meeting note */}
       {selectedMeeting && isSelectedMeetingNote && (
         <div className="MeetingsTabView__topbar" data-tauri-drag-region>
           <div className="MeetingsTabView__topbar-left">
@@ -272,7 +272,7 @@ const MeetingsTabView = ({
             )}
 
             {!selectedMeeting || !isSelectedMeetingNote ? (
-              <div className="MeetingsTabView__welcome MeetingsTabView__welcome--granola">
+              <div className="MeetingsTabView__welcome MeetingsTabView__welcome--notetaker">
                 <div className="MeetingsTabView__welcome-icon">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#C8A951" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -293,7 +293,7 @@ const MeetingsTabView = ({
                 </div>
                 {/* Calendar connection prompt */}
                 {connections && !connections[ConnectionKeys.GOOGLE_CALENDAR] && !connections[ConnectionKeys.MICROSOFT_CALENDAR] && onConnectCalendar && (
-                  <div className="MeetingsTabView__calendar-prompt MeetingsTabView__calendar-prompt--granola">
+                  <div className="MeetingsTabView__calendar-prompt MeetingsTabView__calendar-prompt--notetaker">
                     <div className="MeetingsTabView__calendar-prompt-content">
                       <img src={CalendarIcon} alt="Calendar" className="MeetingsTabView__calendar-prompt-icon" />
                       <div className="MeetingsTabView__calendar-prompt-text">

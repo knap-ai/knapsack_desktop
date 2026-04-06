@@ -248,14 +248,14 @@ html, body {
   outline: none;
 }
 
-/* Granola-layout note detail view */
-.granola-note {
+/* Notetaker note detail view */
+.notetaker-note {
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
-.granola-note__container {
+.notetaker-note__container {
   width: 100%;
   max-width: 45rem;
   margin: 0 auto;
@@ -267,7 +267,7 @@ html, body {
   gap: 16px;
 }
 
-.granola-note__title {
+.notetaker-note__title {
   font-family: 'Lora', serif;
   font-size: 24px;
   font-weight: 700;
@@ -276,7 +276,7 @@ html, body {
   line-height: 1.3;
 }
 
-.granola-note__meta {
+.notetaker-note__meta {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -284,7 +284,7 @@ html, body {
   flex-wrap: wrap;
 }
 
-.granola-note__meta-item {
+.notetaker-note__meta-item {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -296,12 +296,12 @@ html, body {
   border-radius: 6px;
 }
 
-.granola-note__meta-item--recording {
+.notetaker-note__meta-item--recording {
   background: #FAE7E6;
   color: #A23933;
 }
 
-.granola-note__recording-dot {
+.notetaker-note__recording-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -314,21 +314,21 @@ html, body {
   50% { opacity: 0.4; }
 }
 
-.granola-note__meta-item svg {
+.notetaker-note__meta-item svg {
   flex-shrink: 0;
   color: #969595;
 }
 
-.granola-note__editor {
+.notetaker-note__editor {
   border: 1px solid #E3E2E2;
   border-radius: 8px;
 }
 
-.granola-note__editor--recording {
+.notetaker-note__editor--recording {
   border-color: transparent;
 }
 
-.granola-note__bottom-bar {
+.notetaker-note__bottom-bar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -338,7 +338,7 @@ html, body {
   flex-shrink: 0;
 }
 
-.granola-note__bottom-audio {
+.notetaker-note__bottom-audio {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -352,16 +352,16 @@ html, body {
   transition: all 0.1s ease;
 }
 
-.granola-note__bottom-audio:hover {
+.notetaker-note__bottom-audio:hover {
   background: #F0EFEF;
   color: #6A6969;
 }
 
-.granola-note__bottom-chat {
+.notetaker-note__bottom-chat {
   flex: 1;
 }
 
-.granola-note__bottom-chat-input {
+.notetaker-note__bottom-chat-input {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #E3E2E2;
@@ -374,15 +374,15 @@ html, body {
   transition: border-color 0.15s ease;
 }
 
-.granola-note__bottom-chat-input::placeholder {
+.notetaker-note__bottom-chat-input::placeholder {
   color: #ABA9A9;
 }
 
-.granola-note__bottom-chat-input:focus {
+.notetaker-note__bottom-chat-input:focus {
   border-color: #6474AC;
 }
 
-.granola-note__bottom-action {
+.notetaker-note__bottom-action {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -399,16 +399,16 @@ html, body {
   transition: background 0.1s ease;
 }
 
-.granola-note__bottom-action:hover {
+.notetaker-note__bottom-action:hover {
   background: #58649D;
 }
 
-.granola-note__bottom-action svg {
+.notetaker-note__bottom-action svg {
   flex-shrink: 0;
 }
 
 /* Recording-specific bottom bar */
-.granola-note__bottom-waveform {
+.notetaker-note__bottom-waveform {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -416,7 +416,7 @@ html, body {
   padding: 0 4px;
 }
 
-.granola-note__waveform-bar {
+.notetaker-note__waveform-bar {
   width: 3px;
   height: 12px;
   background: #C14841;
@@ -429,14 +429,14 @@ html, body {
   50% { height: 18px; }
 }
 
-.granola-note__bottom-recording-status {
+.notetaker-note__bottom-recording-status {
   font-size: 12px;
   color: #6A6969;
   font-family: 'Inter', sans-serif;
   font-style: italic;
 }
 
-.granola-note__bottom-stop {
+.notetaker-note__bottom-stop {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -453,6 +453,6 @@ html, body {
   transition: background 0.1s ease;
 }
 
-.granola-note__bottom-stop:hover {
+.notetaker-note__bottom-stop:hover {
   background: #A23933;
 }
