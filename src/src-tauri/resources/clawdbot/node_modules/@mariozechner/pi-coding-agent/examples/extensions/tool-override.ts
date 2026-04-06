@@ -21,10 +21,10 @@
  */
 
 import type { TextContent } from "@mariozechner/pi-ai";
-import { type ExtensionAPI, getAgentDir } from "@mariozechner/pi-coding-agent";
+import { type ExtensionAPI, getAgentDir, withFileMutationQueue } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { appendFileSync, constants, readFileSync } from "fs";
-import { access, readFile } from "fs/promises";
+import { constants, readFileSync } from "fs";
+import { access, appendFile, readFile } from "fs/promises";
 import { join, resolve } from "path";
 
 const LOG_FILE = join(getAgentDir(), "read-access.log");
@@ -44,14 +44,16 @@ function isBlockedPath(path: string): boolean {
 	return BLOCKED_PATTERNS.some((pattern) => pattern.test(path));
 }
 
-function logAccess(path: string, allowed: boolean, reason?: string) {
+async function logAccess(path: string, allowed: boolean, reason?: string) {
 	const timestamp = new Date().toISOString();
 	const status = allowed ? "ALLOWED" : "BLOCKED";
 	const msg = reason ? ` (${reason})` : "";
 	const line = `[${timestamp}] ${status}: ${path}${msg}\n`;
 
 	try {
-		appendFileSync(LOG_FILE, line);
+		await withFileMutationQueue(LOG_FILE, async () => {
+			await appendFile(LOG_FILE, line);
+		});
 	} catch {
 		// Ignore logging errors
 	}
@@ -77,7 +79,7 @@ export default function (pi: ExtensionAPI) {
 
 			// Check if path is blocked
 			if (isBlockedPath(absolutePath)) {
-				logAccess(absolutePath, false, "matches blocked pattern");
+				await logAccess(absolutePath, false, "matches blocked pattern");
 				return {
 					content: [
 						{
@@ -90,7 +92,7 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			// Log allowed access
-			logAccess(absolutePath, true);
+			await logAccess(absolutePath, true);
 
 			// Perform the actual read (simplified implementation)
 			try {

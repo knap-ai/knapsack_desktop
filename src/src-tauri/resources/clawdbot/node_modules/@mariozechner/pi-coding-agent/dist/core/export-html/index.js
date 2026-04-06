@@ -94,10 +94,11 @@ function generateHtml(sessionData, themeName) {
     const hljsJs = readFileSync(join(templateDir, "vendor", "highlight.min.js"), "utf-8");
     const themeVars = generateThemeVars(themeName);
     const colors = getResolvedThemeColors(themeName);
-    const exportColors = deriveExportColors(colors.userMessageBg || "#343541");
-    const bodyBg = exportColors.pageBg;
-    const containerBg = exportColors.cardBg;
-    const infoBg = exportColors.infoBg;
+    const themeExport = getThemeExportColors(themeName);
+    const derivedExportColors = deriveExportColors(colors.userMessageBg || "#343541");
+    const bodyBg = themeExport.pageBg ?? derivedExportColors.pageBg;
+    const containerBg = themeExport.cardBg ?? derivedExportColors.cardBg;
+    const infoBg = themeExport.infoBg ?? derivedExportColors.infoBg;
     // Base64 encode session data to avoid escaping issues
     const sessionDataBase64 = Buffer.from(JSON.stringify(sessionData)).toString("base64");
     // Build the CSS with theme variables injected
@@ -128,7 +129,7 @@ function preRenderCustomTools(entries, toolRenderer) {
         if (msg.role === "assistant" && Array.isArray(msg.content)) {
             for (const block of msg.content) {
                 if (block.type === "toolCall" && !BUILTIN_TOOLS.has(block.name)) {
-                    const callHtml = toolRenderer.renderCall(block.name, block.arguments);
+                    const callHtml = toolRenderer.renderCall(block.id, block.name, block.arguments);
                     if (callHtml) {
                         renderedTools[block.id] = { callHtml };
                     }
@@ -141,7 +142,7 @@ function preRenderCustomTools(entries, toolRenderer) {
             // Only render if we have a pre-rendered call OR it's not a built-in tool
             const existing = renderedTools[msg.toolCallId];
             if (existing || !BUILTIN_TOOLS.has(toolName)) {
-                const rendered = toolRenderer.renderResult(toolName, msg.content, msg.details, msg.isError || false);
+                const rendered = toolRenderer.renderResult(msg.toolCallId, toolName, msg.content, msg.details, msg.isError || false);
                 if (rendered) {
                     renderedTools[msg.toolCallId] = {
                         ...existing,

@@ -3,6 +3,8 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 const COMPACT_THRESHOLD_TOKENS = 100_000;
 
 export default function (pi: ExtensionAPI) {
+	let previousTokens: number | null | undefined;
+
 	const triggerCompaction = (ctx: ExtensionContext, customInstructions?: string) => {
 		if (ctx.hasUI) {
 			ctx.ui.notify("Compaction started", "info");
@@ -24,7 +26,15 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("turn_end", (_event, ctx) => {
 		const usage = ctx.getContextUsage();
-		if (!usage || usage.tokens === null || usage.tokens <= COMPACT_THRESHOLD_TOKENS) {
+		const currentTokens = usage?.tokens ?? null;
+		if (currentTokens === null) {
+			return;
+		}
+
+		const crossedThreshold =
+			previousTokens !== undefined && previousTokens !== null && previousTokens <= COMPACT_THRESHOLD_TOKENS;
+		previousTokens = currentTokens;
+		if (!crossedThreshold || currentTokens <= COMPACT_THRESHOLD_TOKENS) {
 			return;
 		}
 		triggerCompaction(ctx);

@@ -38,6 +38,10 @@ export async function processFileArguments(fileArgs, options) {
             let dimensionNote;
             if (autoResizeImages) {
                 const resized = await resizeImage({ type: "image", data: base64Content, mimeType });
+                if (!resized) {
+                    text += `<file name="${absolutePath}">[Image omitted: could not be resized below the inline image size limit.]</file>\n`;
+                    continue;
+                }
                 dimensionNote = formatDimensionNote(resized);
                 attachment = {
                     type: "image",
