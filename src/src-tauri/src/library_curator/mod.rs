@@ -7,7 +7,10 @@
 //! Pure side-effect free w.r.t. user data — only writes into the `workspaces`
 //! and `workspace_documents` tables, scoped via `auto_curated = 1`.
 
+pub mod chat_autosave;
 pub mod people;
+pub mod projects;
+pub mod retag;
 pub mod settings;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -59,8 +62,22 @@ pub async fn run_curation_pass() -> Result<(), Error> {
         }
     }
 
-    // Phase B.2 (LLM project detector), B.3 (chat autosave), B.4 (retag stale)
-    // hook in here in subsequent slices.
+    if cfg.sources_email || cfg.sources_calendar {
+        if let Err(e) = projects::detect_and_upsert(&cfg).await {
+            log::error!("[library_curator] projects detector failed: {:?}", e);
+        }
+    }
+
+    // Auto-save significant chat threads after Projects have been detected,
+    // so the routing layer has fresh project keywords to match against.
+    if let Err(e) = chat_autosave::autosave_significant_chats(&cfg) {
+        log::error!("[library_curator] chat autosave failed: {:?}", e);
+    }
+
+    // Backfill auto_tags / summary for any document that doesn't have them yet.
+    if let Err(e) = retag::retag_stale().await {
+        log::error!("[library_curator] retag stale failed: {:?}", e);
+    }
 
     cfg.mark_run_now();
     log::info!("[library_curator] pass complete");
