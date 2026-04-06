@@ -202,8 +202,17 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
     return new Date(timestamp * 1000).toLocaleDateString()
   }
 
-  /** Icon for document type. */
+  /** Icon for document type / source. */
   const docIcon = (doc: WorkspaceDocument) => {
+    // Source type takes priority — added by the library curator.
+    switch (doc.sourceType) {
+      case 'email': return '\u2709\uFE0F' // envelope
+      case 'calendar': return '\uD83D\uDCC5' // calendar
+      case 'meeting': return '\uD83C\uDFA4' // microphone
+      case 'drive': return '\uD83D\uDCC4' // page
+      case 'local_file': return '\uD83D\uDCBB' // laptop
+      case 'chat_output': return '\uD83D\uDCAC' // speech bubble
+    }
     if (doc.documentType === 'chat_output') return '\uD83D\uDCAC' // speech bubble
     if (doc.documentType === 'folder') return '\uD83D\uDCC2' // open folder
     return '\uD83D\uDCC4' // page

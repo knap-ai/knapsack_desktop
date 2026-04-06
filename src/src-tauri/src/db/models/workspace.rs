@@ -17,6 +17,14 @@ pub struct Workspace {
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
     pub documents: Option<Vec<WorkspaceDocument>>,
+    /// 0/1 — true when this workspace was created by the library curator.
+    pub auto_curated: Option<i32>,
+    /// 'person' | 'project' | None (None == manual collection).
+    pub entity_type: Option<String>,
+    /// Canonical identifier — email address for people, slug for projects.
+    pub entity_key: Option<String>,
+    /// Last time the curator successfully ran for this collection.
+    pub last_curated_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +41,10 @@ pub struct WorkspaceDocument {
     pub tags: Option<String>,
     pub auto_tags: Option<String>,
     pub summary: Option<String>,
+    /// 'email' | 'calendar' | 'meeting' | 'drive' | 'local_file' | 'chat_output' | 'manual' | None.
+    pub source_type: Option<String>,
+    /// Stable id from the originating row (e.g. email.id) used for dedupe.
+    pub source_id: Option<String>,
 }
 
 impl WorkspaceDocument {
@@ -65,7 +77,7 @@ impl Workspace {
             .as_secs() as i64;
 
         connection.execute(
-            "INSERT INTO workspaces (uuid, name, description, icon, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO workspaces (uuid, name, description, icon, created_at, updated_at, auto_curated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
             params![uuid, name, description, icon, now, now],
         )?;
 
@@ -80,7 +92,130 @@ impl Workspace {
             created_at: Some(now),
             updated_at: Some(now),
             documents: None,
+            auto_curated: Some(0),
+            entity_type: None,
+            entity_key: None,
+            last_curated_at: None,
         })
+    }
+
+    /// Find an auto-curated workspace by entity (person email or project slug).
+    pub fn find_by_entity(entity_type: &str, entity_key: &str) -> Result<Option<Workspace>, Error> {
+        let connection = get_db_conn();
+        let mut stmt = connection.prepare(
+            "SELECT id, uuid, name, description, icon, created_at, updated_at, auto_curated, entity_type, entity_key, last_curated_at
+             FROM workspaces WHERE entity_type = ?1 AND entity_key = ?2",
+        )?;
+        let workspace = stmt
+            .query_row(params![entity_type, entity_key], |row| {
+                Ok(Workspace {
+                    id: Some(row.get(0)?),
+                    uuid: row.get(1)?,
+                    name: row.get(2)?,
+                    description: row.get(3)?,
+                    icon: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
+                    documents: None,
+                    auto_curated: row.get(7)?,
+                    entity_type: row.get(8)?,
+                    entity_key: row.get(9)?,
+                    last_curated_at: row.get(10)?,
+                })
+            })
+            .optional()?;
+        Ok(workspace)
+    }
+
+    /// Insert-or-update an auto-curated collection. If a collection already exists for the
+    /// given (entity_type, entity_key), update its name/description and bump last_curated_at.
+    /// Skips collections that have been promoted to manual (auto_curated=0).
+    pub fn upsert_auto_collection(
+        entity_type: &str,
+        entity_key: &str,
+        name: &str,
+        description: Option<&str>,
+        icon: Option<&str>,
+    ) -> Result<Workspace, Error> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        if let Some(existing) = Self::find_by_entity(entity_type, entity_key)? {
+            // If user promoted this to manual, leave it alone.
+            if existing.auto_curated.unwrap_or(0) == 0 {
+                return Ok(existing);
+            }
+            let connection = get_db_conn();
+            connection.execute(
+                "UPDATE workspaces SET name = ?1, description = COALESCE(?2, description), icon = COALESCE(?3, icon), updated_at = ?4, last_curated_at = ?4 WHERE uuid = ?5",
+                params![name, description, icon, now, existing.uuid],
+            )?;
+            return Self::find_by_uuid(existing.uuid.clone()).map(|opt| opt.unwrap_or(existing));
+        }
+
+        let connection = get_db_conn();
+        let uuid = Uuid::new_v4().to_string();
+        connection.execute(
+            "INSERT INTO workspaces (uuid, name, description, icon, created_at, updated_at, auto_curated, entity_type, entity_key, last_curated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5, 1, ?6, ?7, ?5)",
+            params![uuid, name, description, icon, now, entity_type, entity_key],
+        )?;
+        let id = connection.last_insert_rowid() as u64;
+        Ok(Workspace {
+            id: Some(id),
+            uuid,
+            name: name.to_string(),
+            description: description.map(|s| s.to_string()),
+            icon: icon.map(|s| s.to_string()),
+            created_at: Some(now),
+            updated_at: Some(now),
+            documents: None,
+            auto_curated: Some(1),
+            entity_type: Some(entity_type.to_string()),
+            entity_key: Some(entity_key.to_string()),
+            last_curated_at: Some(now),
+        })
+    }
+
+    /// Promote an auto-curated collection to manual — clears the auto flag so the curator
+    /// won't overwrite it on the next pass.
+    pub fn promote_to_manual(uuid: &str) -> Result<(), Error> {
+        let connection = get_db_conn();
+        connection.execute(
+            "UPDATE workspaces SET auto_curated = 0 WHERE uuid = ?1",
+            params![uuid],
+        )?;
+        Ok(())
+    }
+
+    /// Wipe all auto-curated workspaces and their documents. Returns the number of
+    /// workspaces deleted.
+    pub fn wipe_auto_curated() -> Result<usize, Error> {
+        let connection = get_db_conn();
+        connection.execute_batch("BEGIN")?;
+        let result = (|| -> Result<usize, rusqlite::Error> {
+            connection.execute(
+                "DELETE FROM workspace_documents WHERE workspace_uuid IN (SELECT uuid FROM workspaces WHERE auto_curated = 1)",
+                [],
+            )?;
+            let n = connection.execute(
+                "DELETE FROM workspaces WHERE auto_curated = 1",
+                [],
+            )?;
+            Ok(n)
+        })();
+        match result {
+            Ok(n) => {
+                connection.execute_batch("COMMIT")?;
+                Ok(n)
+            }
+            Err(e) => {
+                let _ = connection.execute_batch("ROLLBACK");
+                Err(e.into())
+            }
+        }
     }
 
     /// Fetch all workspaces with their documents in 2 queries (avoids N+1).
@@ -89,7 +224,7 @@ impl Workspace {
 
         // Query 1: all workspaces
         let mut ws_stmt = connection.prepare(
-            "SELECT id, uuid, name, description, icon, created_at, updated_at FROM workspaces ORDER BY created_at DESC",
+            "SELECT id, uuid, name, description, icon, created_at, updated_at, auto_curated, entity_type, entity_key, last_curated_at FROM workspaces ORDER BY created_at DESC",
         )?;
         let ws_rows = ws_stmt.query_map([], |row| {
             Ok(Workspace {
@@ -101,6 +236,10 @@ impl Workspace {
                 created_at: row.get(5)?,
                 updated_at: row.get(6)?,
                 documents: Some(Vec::new()),
+                auto_curated: row.get(7)?,
+                entity_type: row.get(8)?,
+                entity_key: row.get(9)?,
+                last_curated_at: row.get(10)?,
             })
         })?;
 
@@ -118,7 +257,7 @@ impl Workspace {
 
         // Query 2: all documents, grouped by workspace
         let mut doc_stmt = connection.prepare(
-            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at, tags, auto_tags, summary FROM workspace_documents ORDER BY created_at DESC",
+            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at, tags, auto_tags, summary, source_type, source_id FROM workspace_documents ORDER BY created_at DESC",
         )?;
         let doc_rows = doc_stmt.query_map([], |row| {
             Ok(WorkspaceDocument {
@@ -133,6 +272,8 @@ impl Workspace {
                 tags: row.get(8)?,
                 auto_tags: row.get(9)?,
                 summary: row.get(10)?,
+                source_type: row.get(11)?,
+                source_id: row.get(12)?,
             })
         })?;
 
@@ -151,7 +292,7 @@ impl Workspace {
     pub fn find_all() -> Result<Vec<Workspace>, Error> {
         let connection = get_db_conn();
         let mut stmt = connection.prepare(
-            "SELECT id, uuid, name, description, icon, created_at, updated_at FROM workspaces ORDER BY created_at DESC",
+            "SELECT id, uuid, name, description, icon, created_at, updated_at, auto_curated, entity_type, entity_key, last_curated_at FROM workspaces ORDER BY created_at DESC",
         )?;
 
         let rows = stmt.query_map([], |row| {
@@ -164,6 +305,10 @@ impl Workspace {
                 created_at: row.get(5)?,
                 updated_at: row.get(6)?,
                 documents: None,
+                auto_curated: row.get(7)?,
+                entity_type: row.get(8)?,
+                entity_key: row.get(9)?,
+                last_curated_at: row.get(10)?,
             })
         })?;
 
@@ -177,7 +322,7 @@ impl Workspace {
     pub fn find_by_uuid(uuid: String) -> Result<Option<Workspace>, Error> {
         let connection = get_db_conn();
         let mut stmt = connection.prepare(
-            "SELECT id, uuid, name, description, icon, created_at, updated_at FROM workspaces WHERE uuid = ?1",
+            "SELECT id, uuid, name, description, icon, created_at, updated_at, auto_curated, entity_type, entity_key, last_curated_at FROM workspaces WHERE uuid = ?1",
         )?;
 
         let workspace = stmt
@@ -191,6 +336,10 @@ impl Workspace {
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
                     documents: None,
+                    auto_curated: row.get(7)?,
+                    entity_type: row.get(8)?,
+                    entity_key: row.get(9)?,
+                    last_curated_at: row.get(10)?,
                 })
             })
             .optional()?;
@@ -249,6 +398,29 @@ impl WorkspaceDocument {
         document_type: Option<String>,
         content_hash: Option<String>,
     ) -> Result<WorkspaceDocument, Error> {
+        Self::create_with_source(
+            workspace_uuid,
+            document_name,
+            document_path,
+            document_type,
+            content_hash,
+            None,
+            None,
+        )
+    }
+
+    /// Create a workspace document with optional source-tracking fields. Used by the
+    /// library curator to dedupe re-runs via the (workspace_uuid, source_type, source_id)
+    /// unique index — INSERT OR IGNORE returns Ok(None) if the row already exists.
+    pub fn create_with_source(
+        workspace_uuid: String,
+        document_name: String,
+        document_path: Option<String>,
+        document_type: Option<String>,
+        content_hash: Option<String>,
+        source_type: Option<String>,
+        source_id: Option<String>,
+    ) -> Result<WorkspaceDocument, Error> {
         let connection = get_db_conn();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -256,8 +428,8 @@ impl WorkspaceDocument {
             .as_secs() as i64;
 
         connection.execute(
-            "INSERT INTO workspace_documents (workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6)",
-            params![workspace_uuid, document_name, document_path, document_type, content_hash, now],
+            "INSERT OR IGNORE INTO workspace_documents (workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at, source_type, source_id) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7, ?8)",
+            params![workspace_uuid, document_name, document_path, document_type, content_hash, now, source_type, source_id],
         )?;
 
         let id = connection.last_insert_rowid() as u64;
@@ -274,13 +446,15 @@ impl WorkspaceDocument {
             tags: None,
             auto_tags: None,
             summary: None,
+            source_type,
+            source_id,
         })
     }
 
     pub fn find_by_workspace(workspace_uuid: String) -> Result<Vec<WorkspaceDocument>, Error> {
         let connection = get_db_conn();
         let mut stmt = connection.prepare(
-            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at, tags, auto_tags, summary FROM workspace_documents WHERE workspace_uuid = ?1 ORDER BY created_at DESC",
+            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at, tags, auto_tags, summary, source_type, source_id FROM workspace_documents WHERE workspace_uuid = ?1 ORDER BY created_at DESC",
         )?;
 
         let rows = stmt.query_map(params![workspace_uuid], |row| {
@@ -296,6 +470,8 @@ impl WorkspaceDocument {
                 tags: row.get(8)?,
                 auto_tags: row.get(9)?,
                 summary: row.get(10)?,
+                source_type: row.get(11)?,
+                source_id: row.get(12)?,
             })
         })?;
 
@@ -304,6 +480,48 @@ impl WorkspaceDocument {
             documents.push(row?);
         }
         Ok(documents)
+    }
+
+    /// Check whether a source document is already attached to a workspace.
+    pub fn exists_for_source(workspace_uuid: &str, source_type: &str, source_id: &str) -> Result<bool, Error> {
+        let connection = get_db_conn();
+        let mut stmt = connection.prepare(
+            "SELECT 1 FROM workspace_documents WHERE workspace_uuid = ?1 AND source_type = ?2 AND source_id = ?3 LIMIT 1",
+        )?;
+        let exists = stmt
+            .query_row(params![workspace_uuid, source_type, source_id], |_| Ok(()))
+            .optional()?
+            .is_some();
+        Ok(exists)
+    }
+
+    /// Find documents whose `auto_tags` is null — used by the curator to enqueue
+    /// auto-tagging for stale rows.
+    pub fn find_untagged(limit: i64) -> Result<Vec<WorkspaceDocument>, Error> {
+        let connection = get_db_conn();
+        let mut stmt = connection.prepare(
+            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at, tags, auto_tags, summary, source_type, source_id FROM workspace_documents WHERE auto_tags IS NULL ORDER BY created_at DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit], |row| {
+            Ok(WorkspaceDocument {
+                id: Some(row.get(0)?),
+                workspace_uuid: row.get(1)?,
+                document_name: row.get(2)?,
+                document_path: row.get(3)?,
+                document_type: row.get(4)?,
+                content_hash: row.get(5)?,
+                embedded: row.get(6)?,
+                created_at: row.get(7)?,
+                tags: row.get(8)?,
+                auto_tags: row.get(9)?,
+                summary: row.get(10)?,
+                source_type: row.get(11)?,
+                source_id: row.get(12)?,
+            })
+        })?;
+        let mut docs = Vec::new();
+        for r in rows { docs.push(r?); }
+        Ok(docs)
     }
 
     /// Update tags for a document.
