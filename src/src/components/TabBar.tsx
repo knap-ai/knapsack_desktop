@@ -18,7 +18,7 @@ export enum TabChoices {
   Chat = 'Chat',
   NewAutomation = 'NewAutomation',
   Activity = 'Activity',
-  Workspaces = 'Workspaces',
+  Library = 'Library',
   MCPMarketplace = 'MCPMarketplace',
 }
 
@@ -63,10 +63,10 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
       isActive: fullRelease === true,
     },
     {
-      id: TabChoices.Workspaces,
+      id: TabChoices.Library,
       svg: '/assets/images/tabBar/automateTab.svg',
-      label: 'RAG',
-      isActive: false,
+      label: 'Library',
+      isActive: true,
     },
     {
       id: TabChoices.MCPMarketplace,

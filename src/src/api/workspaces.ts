@@ -13,6 +13,19 @@ export interface WorkspaceDocument {
   contentHash: string | null
   embedded: number | null
   createdAt: number | null
+  tags: string | null
+  autoTags: string | null
+  summary: string | null
+}
+
+/** Parse a JSON-encoded tags string into an array. */
+export function parseTags(tagsJson: string | null): string[] {
+  if (!tagsJson) return []
+  try {
+    return JSON.parse(tagsJson)
+  } catch {
+    return []
+  }
 }
 
 export interface Workspace {
@@ -160,6 +173,35 @@ export const removeDocumentFromWorkspace = (
   workspaceUuid: string,
   docId: number,
 ) => del<GenericResponse>(`/api/knapsack/workspaces/${workspaceUuid}/documents/${docId}`)
+
+// ── Tag management ──────────────────────────────────────────
+
+export const updateDocumentTags = (
+  workspaceUuid: string,
+  docId: number,
+  tags: string[],
+) =>
+  put<GenericResponse>(
+    `/api/knapsack/workspaces/${workspaceUuid}/documents/${docId}/tags`,
+    { tags },
+  )
+
+// ── Save chat output to workspace ───────────────────────────
+
+export const saveChatToWorkspace = (
+  workspaceUuid: string,
+  text: string,
+  title: string,
+  sourceThreadId?: number,
+) =>
+  post<DocumentResponse>(
+    `/api/knapsack/workspaces/${workspaceUuid}/documents/from-chat`,
+    {
+      text,
+      title,
+      source_thread_id: sourceThreadId ?? null,
+    },
+  )
 
 // ── Scoped semantic search ───────────────────────────────────
 

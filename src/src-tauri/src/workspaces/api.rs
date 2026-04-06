@@ -38,6 +38,18 @@ pub struct WorkspaceSearchRequest {
     pub top: Option<usize>,
 }
 
+#[derive(Deserialize)]
+pub struct UpdateTagsRequest {
+    pub tags: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct SaveChatRequest {
+    pub text: String,
+    pub title: String,
+    pub source_thread_id: Option<u64>,
+}
+
 #[derive(Serialize)]
 struct WorkspaceResponse {
     success: bool,
@@ -313,4 +325,76 @@ pub async fn workspace_search(
         results: vec![],
         error: None,
     })
+}
+
+// ── Tag Management ──────────────────────────────────────────────
+
+#[put("/api/knapsack/workspaces/{uuid}/documents/{doc_id}/tags")]
+pub async fn update_document_tags(
+    path: web::Path<DocumentPath>,
+    payload: Json<UpdateTagsRequest>,
+) -> impl Responder {
+    let params = path.into_inner();
+    let tags_json = serde_json::to_string(&payload.tags).unwrap_or_default();
+    match WorkspaceDocument::update_tags(params.doc_id, Some(tags_json)) {
+        Ok(()) => HttpResponse::Ok().json(GenericResponse {
+            success: true,
+            error: None,
+        }),
+        Err(e) => HttpResponse::InternalServerError().json(GenericResponse {
+            success: false,
+            error: Some(format!("{:?}", e)),
+        }),
+    }
+}
+
+// ── Save Chat to Workspace ──────────────────────────────────────
+
+#[post("/api/knapsack/workspaces/{uuid}/documents/from-chat")]
+pub async fn save_chat_to_workspace(
+    path: web::Path<String>,
+    payload: Json<SaveChatRequest>,
+) -> impl Responder {
+    let workspace_uuid = path.into_inner();
+
+    // Verify workspace exists
+    match Workspace::find_by_uuid(workspace_uuid.clone()) {
+        Ok(None) => {
+            return HttpResponse::NotFound().json(DocumentResponse {
+                success: false,
+                data: None,
+                error: Some("Workspace not found".to_string()),
+            });
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(DocumentResponse {
+                success: false,
+                data: None,
+                error: Some(format!("{:?}", e)),
+            });
+        }
+        _ => {}
+    }
+
+    // Save the chat output as a workspace document.
+    // For now we store the text content inline via content_hash as a simple approach.
+    // A future enhancement could write .md files to disk and embed them.
+    match WorkspaceDocument::create(
+        workspace_uuid,
+        payload.title.clone(),
+        None, // no file path — it's an in-memory chat output
+        Some("chat_output".to_string()),
+        Some(payload.text.clone()),
+    ) {
+        Ok(doc) => HttpResponse::Ok().json(DocumentResponse {
+            success: true,
+            data: Some(doc),
+            error: None,
+        }),
+        Err(e) => HttpResponse::InternalServerError().json(DocumentResponse {
+            success: false,
+            data: None,
+            error: Some(format!("{:?}", e)),
+        }),
+    }
 }

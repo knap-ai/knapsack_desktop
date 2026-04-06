@@ -325,6 +325,9 @@ diesel::table! {
         content_hash -> Nullable<Text>,
         embedded -> Nullable<Integer>,
         created_at -> Nullable<Integer>,
+        tags -> Nullable<Text>,
+        auto_tags -> Nullable<Text>,
+        summary -> Nullable<Text>,
     }
 }
 

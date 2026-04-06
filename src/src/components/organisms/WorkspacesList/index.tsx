@@ -4,6 +4,7 @@ import {
   listWorkspaces,
   createWorkspace,
   deleteWorkspace,
+  parseTags,
 } from '../../../api/workspaces'
 
 interface WorkspacesListProps {
@@ -52,7 +53,7 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
 
   const handleDelete = async (e: React.MouseEvent, uuid: string) => {
     e.stopPropagation()
-    if (!confirm('Are you sure you want to delete this workspace and all its documents?')) return
+    if (!confirm('Are you sure you want to delete this collection and all its documents?')) return
     try {
       const res = await deleteWorkspace(uuid)
       if (res.success) {
@@ -68,11 +69,32 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     return new Date(timestamp * 1000).toLocaleDateString()
   }
 
+  /** Collect the top auto-tags across all documents in a workspace. */
+  const getTopTags = (workspace: Workspace, max = 4): string[] => {
+    const tagCounts = new Map<string, number>()
+    for (const doc of workspace.documents ?? []) {
+      for (const tag of parseTags(doc.autoTags)) {
+        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
+      }
+      for (const tag of parseTags(doc.tags)) {
+        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
+      }
+    }
+    return [...tagCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, max)
+      .map(([tag]) => tag)
+  }
+
+  /** Count saved chat outputs in a workspace. */
+  const chatOutputCount = (workspace: Workspace): number =>
+    (workspace.documents ?? []).filter(d => d.documentType === 'chat_output').length
+
   return (
     <div className="flex flex-col p-6 pl-10">
-      <div className="font-semibold text-2xl">Knowledge Bases</div>
+      <div className="font-semibold text-2xl">Your Library</div>
       <div className="font-medium text-lg mb-8 text-gray-500">
-        Create project-specific knowledge bases by adding documents.
+        Collect documents, save answers, and build your personal knowledge base.
       </div>
 
       <div className="flex flex-row flex-wrap gap-4">
@@ -80,46 +102,63 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
           <div className="text-gray-400 text-sm">Loading...</div>
         )}
 
-        {workspaces.map(workspace => (
-          <div
-            key={workspace.uuid}
-            className="border border-gray-200 rounded-lg h-48 w-64 flex flex-col justify-between p-4 cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
-            onClick={() => onWorkspaceOpen(workspace)}
-          >
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{workspace.icon || '\uD83D\uDCC1'}</span>
-                <span className="font-semibold text-lg truncate">{workspace.name}</span>
-              </div>
-              {workspace.description && (
-                <div className="text-sm text-gray-500 line-clamp-2">
-                  {workspace.description}
+        {workspaces.map(workspace => {
+          const topTags = getTopTags(workspace)
+          const savedAnswers = chatOutputCount(workspace)
+          return (
+            <div
+              key={workspace.uuid}
+              className="border border-gray-200 rounded-lg h-52 w-64 flex flex-col justify-between p-4 cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
+              onClick={() => onWorkspaceOpen(workspace)}
+            >
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{workspace.icon || '\uD83D\uDCC1'}</span>
+                  <span className="font-semibold text-lg truncate">{workspace.name}</span>
                 </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-gray-400">
-                {workspace.documents?.length ?? 0} doc{(workspace.documents?.length ?? 0) !== 1 ? 's' : ''}
-                {workspace.createdAt ? ` - ${formatDate(workspace.createdAt)}` : ''}
+                {workspace.description && (
+                  <div className="text-sm text-gray-500 line-clamp-2">
+                    {workspace.description}
+                  </div>
+                )}
+                {topTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {topTags.map(tag => (
+                      <span
+                        key={tag}
+                        className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 truncate max-w-[120px]"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-              <button
-                className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                onClick={(e) => handleDelete(e, workspace.uuid)}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
 
-        {/* Create new workspace card */}
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-gray-400">
+                  {workspace.documents?.length ?? 0} doc{(workspace.documents?.length ?? 0) !== 1 ? 's' : ''}
+                  {savedAnswers > 0 && ` · ${savedAnswers} saved answer${savedAnswers !== 1 ? 's' : ''}`}
+                  {workspace.createdAt ? ` · ${formatDate(workspace.createdAt)}` : ''}
+                </div>
+                <button
+                  className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                  onClick={(e) => handleDelete(e, workspace.uuid)}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Create new collection card */}
         <div
-          className="border border-dashed border-gray-300 rounded-lg h-48 w-64 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
+          className="border border-dashed border-gray-300 rounded-lg h-52 w-64 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
           onClick={() => setShowCreateModal(true)}
         >
           <div className="text-3xl text-gray-400 mb-2">+</div>
-          <div className="font-semibold text-gray-600">Create Knowledge Base</div>
+          <div className="font-semibold text-gray-600">Create Collection</div>
           <div className="text-sm text-gray-400 text-center px-4 mt-1">
             Add documents for project-specific search.
           </div>
@@ -130,7 +169,7 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-96 shadow-xl">
-            <div className="font-semibold text-lg mb-4">Create Knowledge Base</div>
+            <div className="font-semibold text-lg mb-4">Create Collection</div>
 
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -153,7 +192,7 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
               </label>
               <textarea
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                placeholder="What is this knowledge base about?"
+                placeholder="What is this collection about?"
                 rows={3}
                 value={newDescription}
                 onChange={e => setNewDescription(e.target.value)}

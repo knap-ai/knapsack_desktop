@@ -30,7 +30,30 @@ pub struct WorkspaceDocument {
     pub content_hash: Option<String>,
     pub embedded: Option<i32>,
     pub created_at: Option<i64>,
+    pub tags: Option<String>,
+    pub auto_tags: Option<String>,
+    pub summary: Option<String>,
 }
+
+impl WorkspaceDocument {
+    /// Parse tags JSON string into a Vec<String>.
+    pub fn get_tags(&self) -> Vec<String> {
+        self.tags
+            .as_ref()
+            .and_then(|t| serde_json::from_str(t).ok())
+            .unwrap_or_default()
+    }
+
+    /// Parse auto_tags JSON string into a Vec<String>.
+    pub fn get_auto_tags(&self) -> Vec<String> {
+        self.auto_tags
+            .as_ref()
+            .and_then(|t| serde_json::from_str(t).ok())
+            .unwrap_or_default()
+    }
+}
+
+// ── Workspace CRUD ──────────────────────────────────────────────────────
 
 impl Workspace {
     pub fn create(name: String, description: Option<String>, icon: Option<String>) -> Result<Workspace, Error> {
@@ -95,7 +118,7 @@ impl Workspace {
 
         // Query 2: all documents, grouped by workspace
         let mut doc_stmt = connection.prepare(
-            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at FROM workspace_documents ORDER BY created_at DESC",
+            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at, tags, auto_tags, summary FROM workspace_documents ORDER BY created_at DESC",
         )?;
         let doc_rows = doc_stmt.query_map([], |row| {
             Ok(WorkspaceDocument {
@@ -107,6 +130,9 @@ impl Workspace {
                 content_hash: row.get(5)?,
                 embedded: row.get(6)?,
                 created_at: row.get(7)?,
+                tags: row.get(8)?,
+                auto_tags: row.get(9)?,
+                summary: row.get(10)?,
             })
         })?;
 
@@ -245,13 +271,16 @@ impl WorkspaceDocument {
             content_hash,
             embedded: Some(0),
             created_at: Some(now),
+            tags: None,
+            auto_tags: None,
+            summary: None,
         })
     }
 
     pub fn find_by_workspace(workspace_uuid: String) -> Result<Vec<WorkspaceDocument>, Error> {
         let connection = get_db_conn();
         let mut stmt = connection.prepare(
-            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at FROM workspace_documents WHERE workspace_uuid = ?1 ORDER BY created_at DESC",
+            "SELECT id, workspace_uuid, document_name, document_path, document_type, content_hash, embedded, created_at, tags, auto_tags, summary FROM workspace_documents WHERE workspace_uuid = ?1 ORDER BY created_at DESC",
         )?;
 
         let rows = stmt.query_map(params![workspace_uuid], |row| {
@@ -264,6 +293,9 @@ impl WorkspaceDocument {
                 content_hash: row.get(5)?,
                 embedded: row.get(6)?,
                 created_at: row.get(7)?,
+                tags: row.get(8)?,
+                auto_tags: row.get(9)?,
+                summary: row.get(10)?,
             })
         })?;
 
@@ -272,6 +304,26 @@ impl WorkspaceDocument {
             documents.push(row?);
         }
         Ok(documents)
+    }
+
+    /// Update tags for a document.
+    pub fn update_tags(id: u64, tags: Option<String>) -> Result<(), Error> {
+        let connection = get_db_conn();
+        connection.execute(
+            "UPDATE workspace_documents SET tags = ?1 WHERE id = ?2",
+            params![tags, id],
+        )?;
+        Ok(())
+    }
+
+    /// Update auto-generated tags and summary for a document.
+    pub fn update_auto_tags(id: u64, auto_tags: Option<String>, summary: Option<String>) -> Result<(), Error> {
+        let connection = get_db_conn();
+        connection.execute(
+            "UPDATE workspace_documents SET auto_tags = ?1, summary = ?2 WHERE id = ?3",
+            params![auto_tags, summary, id],
+        )?;
+        Ok(())
     }
 
     /// Delete a document, but only if it belongs to the given workspace (authorization check).
