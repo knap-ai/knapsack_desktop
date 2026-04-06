@@ -1,5 +1,6 @@
 import AboutMeAutomation from 'src/automations/steps/AboutMe'
 import BaseStep from 'src/automations/steps/Base'
+import BrowserWorkflowStep from 'src/automations/steps/BrowserWorkflow'
 import BusinessCoachAutomation from 'src/automations/steps/BusinessCoach'
 import FinraCompliance from 'src/automations/steps/FinraCompliance'
 import LeadScoring from 'src/automations/steps/LeadScoring'
@@ -10,6 +11,7 @@ import StrategicPlan from 'src/automations/steps/StrategicPlan'
 import { Automation, CadenceType, DaysOfWeek } from '../automations/automation'
 import EmailSummary from '../automations/steps/EmailSummary'
 import MeetingPrep from '../automations/steps/MeetingPrep'
+import GatewayPrompt from '../automations/steps/GatewayPrompt'
 import Prompt from '../automations/steps/Prompt'
 import SemanticSearch from '../automations/steps/SemanticSearch'
 import {
@@ -47,6 +49,12 @@ const serializeAutomation = (automationData: {
   isBeta: boolean
   showLibrary: boolean
   icon?: string
+  identity?: {
+    display_name: string
+    emoji: string
+    personality: string
+    soul: string
+  }
   triggerCadences: {
     id: number
     cadenceType: string
@@ -76,6 +84,7 @@ const serializeAutomation = (automationData: {
     EmailSummary,
     MeetingPrep,
     Prompt,
+    GatewayPrompt,
     SemanticSearch,
     FinraCompliance,
     PostSafely,
@@ -84,6 +93,7 @@ const serializeAutomation = (automationData: {
     AboutMeAutomation,
     SocialMediaPlanner,
     LeadScoring,
+    BrowserWorkflowStep,
   ]
   const stepOrdering = automationData.steps.map(step => {
     return step.ordering
@@ -113,6 +123,14 @@ const serializeAutomation = (automationData: {
     isBeta: automationData.isBeta,
     showLibrary: automationData.showLibrary,
     icon: automationData.icon,
+    identity: automationData.identity
+      ? {
+          displayName: automationData.identity.display_name,
+          emoji: automationData.identity.emoji,
+          personality: automationData.identity.personality,
+          soul: automationData.identity.soul,
+        }
+      : undefined,
   })
   return automation
 }
@@ -139,7 +157,7 @@ export async function upsertAutomation(automation: Automation) {
   })
   const data = await response.json()
   if (!data || data['success'] !== true) {
-    console.log(`createAutomation data error`)
+    console.log(`createAutomation data error`, data)
     return false
   }
   return true

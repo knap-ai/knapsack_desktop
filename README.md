@@ -1,6 +1,6 @@
 # Knapsack 🎒
 
-Knapsack is the safe, simple and open-source way to run [OpenClaw](https://github.com/moltbot/moltbot) (née Moltbot née Clawdbot) on your Mac.
+Knapsack is the safe, simple and open-source way to run [OpenClaw](https://github.com/moltbot/moltbot) (née Moltbot née Clawdbot) on your Mac or Windows PC.
 
 OpenClaw is a powerful AI agent platform with browser automation, multi-channel messaging, file access, and code execution -- but running it raw means configuring tokens, locking down network bindings, managing process lifecycles, and getting file permissions right. Miss any of those and you have an agent with broad system access listening on all interfaces.
 
@@ -8,9 +8,9 @@ Knapsack wraps OpenClaw in a Tauri desktop app that handles all of that for you:
 
 - **Localhost-only by default** -- The OpenClaw gateway and browser control server bind to `127.0.0.1`. Nothing is exposed to your network.
 - **Hardened secret storage** -- API keys and auth tokens are stored in a single `tokens.json` file with `0600` permissions, managed by the Rust backend. No secrets in config files you have to chmod yourself.
-- **Managed process lifecycle** -- OpenClaw runs as a system service (LaunchAgent on macOS) with automatic health checks, restart-on-failure, and cleanup of orphaned browser processes.
+- **Managed process lifecycle** -- OpenClaw runs as a managed background service (LaunchAgent on macOS, Windows Service on Windows) with automatic health checks, restart-on-failure, and cleanup of orphaned browser processes.
 - **Sensible defaults** -- Knapsack auto-generates secure configuration on first launch so there is no manual `clawdbot.json` setup.
-- **Centralized API key management** -- Add your OpenAI, Anthropic, Gemini, or Groq keys in one place. They are propagated via environment variables, never through URLs.
+- **Centralized API key management** -- Add your OpenAI, Anthropic, Gemini, Groq, or Ollama endpoint in one place. They are propagated via environment variables, never through URLs.
 
 On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 
@@ -24,6 +24,10 @@ On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 - **Automations** -- Build workflows with triggers, data sources, and AI prompts (email summaries, meeting prep, lead scoring, and more)
 - **Browser Automation** -- Control a browser through OpenClaw's agent with token-authenticated access
 - **Local-First** -- Data is stored in a local SQLite database with Qdrant for vector search
+- **Ollama Support** -- Run models fully offline via a local Ollama endpoint; manage and delete models from Settings
+- **Background AI** -- Toggle AI processing in the background so the app continues working while minimized
+- **Token Cost Visibility** -- Per-model token cost estimates surfaced directly in the model picker
+- **In-App Updates** -- Updates download silently; a banner prompts you to restart when a new version is ready
 
 ## Tech Stack
 
@@ -35,13 +39,17 @@ On top of that safe OpenClaw foundation, Knapsack adds a productivity layer:
 | Rich Text | TipTap 2 |
 | Backend | Rust (Actix-web, Diesel ORM, Tokio) |
 | Database | SQLite (Diesel), Qdrant (vector search) |
-| AI/LLM | OpenAI, Anthropic, Gemini, Groq, llama.cpp |
+| AI/LLM | OpenAI, Anthropic, Gemini, Groq, Ollama, llama.cpp |
 | Agent Runtime | OpenClaw (bundled) |
 | Auth | Google OAuth2, Microsoft OAuth2 |
+| Platforms | macOS (universal: arm64 + x86_64), Windows (x64) |
 
 ## Getting Started
 
-**1. Install prerequisites (macOS):**
+**1. Install prerequisites**
+
+<details open>
+<summary>macOS</summary>
 
 ```bash
 xcode-select --install
@@ -50,6 +58,19 @@ source "$HOME/.cargo/env"                    # add cargo to your PATH
 brew install node                            # Node.js >= 16
 npm install --global @tauri-apps/cli@^1      # Tauri CLI
 ```
+</details>
+
+<details>
+<summary>Windows</summary>
+
+1. Install [Rust](https://www.rust-lang.org/tools/install) (the installer adds `cargo` to your PATH automatically)
+2. Install [Node.js >= 16](https://nodejs.org/)
+3. Install the Microsoft C++ build tools — either Visual Studio 2022 with the "Desktop development with C++" workload, or the standalone [Build Tools for Visual Studio](https://aka.ms/vs/17/release/vs_BuildTools.exe)
+4. Install the Tauri CLI:
+   ```powershell
+   npm install --global @tauri-apps/cli@^1
+   ```
+</details>
 
 <details>
 <summary>Linux prerequisites</summary>
@@ -177,6 +198,21 @@ npm run tauri -- build
 
 Bundled application output is written to `src/src-tauri/target/release/bundle/`.
 
+## Releasing
+
+Releases are fully automated via GitHub Actions. There is no need to create a release manually.
+
+1. Merge your changes to `main`
+2. Go to **Actions** → **Release** workflow → **Run workflow** (select the `main` branch)
+
+The workflow will:
+- Bump the version (patch) and create a git tag
+- Build a universal macOS binary (arm64 + x86_64), sign it, and notarize with Apple
+- Build Windows MSI and NSIS installers, sign with AzureSignTool
+- Create a GitHub Release with all artifacts and a `latest.json` for the Tauri auto-updater
+
+Required repository secrets: `TAURI_PRIVATE_KEY`, `TAURI_KEY_PASSWORD`, `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`, `AZURE_KEY_VAULT_URI`, `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_CERT_NAME`.
+
 ## macOS Code Signing & Notarization
 
 To distribute a macOS DMG that passes Gatekeeper, you must code sign and notarize the app. An automated script handles the full process.
@@ -279,6 +315,37 @@ spctl --assess --verbose=4 "$APP_PATH"
 | Notarization fails with unsigned binaries | Ensure you're using `sign-and-notarize.sh` (signs everything in correct order) |
 | Node crashes with SIGTRAP | Missing JIT entitlements -- check `build/entitlements/node.entitlements.plist` exists |
 | "Developer cannot be verified" | App not notarized, or ticket not stapled |
+
+## Windows Code Signing
+
+Windows builds are signed using [AzureSignTool](https://github.com/vcsjones/AzureSignTool) against a certificate stored in Azure Key Vault. This removes the need to export a `.pfx` file to the CI runner.
+
+### Prerequisites
+
+1. **Azure Key Vault** with a code-signing certificate (EV or OV)
+2. **Azure App Registration** with `Key Vault Certificate User` role on the vault
+3. **AzureSignTool** installed on the build machine:
+   ```powershell
+   dotnet tool install --global AzureSignTool
+   ```
+
+### Signing a build locally
+
+```powershell
+AzureSignTool sign `
+  -kvu $env:AZURE_KEY_VAULT_URI `
+  -kvi $env:AZURE_CLIENT_ID `
+  -kvt $env:AZURE_TENANT_ID `
+  -kvs $env:AZURE_CLIENT_SECRET `
+  -kvc $env:AZURE_CERT_NAME `
+  -tr http://timestamp.digicert.com `
+  -td sha256 `
+  path\to\Knapsack_x64.msi
+```
+
+### SmartScreen
+
+SmartScreen reputation is built over time through download volume. Newly signed builds may still show a SmartScreen prompt until the certificate accumulates sufficient reputation. EV certificates bypass this immediately.
 
 ## License
 

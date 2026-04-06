@@ -280,13 +280,10 @@ pub async fn gateway_request(
 
 /// Get the gateway token from environment or config file
 fn get_gateway_token() -> Option<String> {
-    // Check environment variables (OPENCLAW_ first, then CLAWDBOT_ fallback)
-    for var in ["OPENCLAW_GATEWAY_TOKEN", "CLAWDBOT_GATEWAY_TOKEN"] {
-        if let Ok(token) = std::env::var(var) {
-            let t = token.trim().to_string();
-            if !t.is_empty() {
-                return Some(t);
-            }
+    if let Ok(token) = std::env::var("OPENCLAW_GATEWAY_TOKEN") {
+        let t = token.trim().to_string();
+        if !t.is_empty() {
+            return Some(t);
         }
     }
 

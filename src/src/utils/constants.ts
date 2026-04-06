@@ -1,4 +1,4 @@
-export const KN_SERVER_HOST = 'http://localhost:8897' // TODO: phil: should this be https?
+export const KN_SERVER_HOST = 'http://127.0.0.1:8897'
 export const KN_API_REST_FUZZY_SEARCH = KN_SERVER_HOST + '/api/knapsack/fuzzy_search'
 export const KN_API_REST_SEMANTIC_SEARCH = KN_SERVER_HOST + '/api/knapsack/semantic_search'
 export const KN_API_STREAM_LLM_COMPLETE = KN_SERVER_HOST + '/api/knapsack/llm_complete'
@@ -75,7 +75,7 @@ export const KN_API_REST_LIST_EMAILS_AFTER_TIMESTAMP =
 export const KN_API_REST_GET_RECENT_CALENDAR_EVENTS =
   KN_SERVER_HOST + '/api/knapsack/recent_calendar_events'
 export const KN_API_REST_GET_CALENDAR_EVENT = KN_SERVER_HOST + '/api/knapsack/calendar_event'
-export const KN_API_GOOGLE_SIGNIN_REDIRECT = KN_SERVER_HOST + '/api/knapsack/google/signin'
+export const KN_API_GOOGLE_SIGNIN_REDIRECT = 'http://localhost:8897/api/knapsack/google/signin'
 export const KN_API_GOOGLE_RESTORE_AUTH =
   KN_SERVER_HOST + '/api/knapsack/google/restore-authentication'
 

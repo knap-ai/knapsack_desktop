@@ -5,6 +5,10 @@
  * restrictions on bash commands at the OS level (sandbox-exec on macOS,
  * bubblewrap on Linux).
  *
+ * Note: this example intentionally overrides the built-in `bash` tool to show
+ * how built-in tools can be replaced. Alternatively, you could sandbox `bash`
+ * via `tool_call` input mutation without replacing the tool.
+ *
  * Config files (merged, project takes precedence):
  * - ~/.pi/agent/sandbox.json (global)
  * - <cwd>/.pi/sandbox.json (project-local)
@@ -39,11 +43,10 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { type BashOperations, createBashTool } from "@mariozechner/pi-coding-agent";
+import { type BashOperations, createBashTool, getAgentDir } from "@mariozechner/pi-coding-agent";
 
 interface SandboxConfig extends SandboxRuntimeConfig {
 	enabled?: boolean;
@@ -75,7 +78,7 @@ const DEFAULT_CONFIG: SandboxConfig = {
 
 function loadConfig(cwd: string): SandboxConfig {
 	const projectConfigPath = join(cwd, ".pi", "sandbox.json");
-	const globalConfigPath = join(homedir(), ".pi", "agent", "sandbox.json");
+	const globalConfigPath = join(getAgentDir(), "extensions", "sandbox.json");
 
 	let globalConfig: Partial<SandboxConfig> = {};
 	let projectConfig: Partial<SandboxConfig> = {};

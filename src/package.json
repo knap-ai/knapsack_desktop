@@ -1,12 +1,12 @@
 {
   "name": "knapsack",
   "private": true,
-  "version": "0.9.700",
+  "version": "1.3.7",
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/sync-version.cjs && node scripts/prepare-node.cjs && node scripts/prune-clawdbot.cjs",
+    "prebuild": "node scripts/sync-version.cjs && node scripts/prepare-node.cjs && node scripts/prune-clawdbot.cjs && node scripts/verify-clawdbot-bundle.cjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "node scripts/load-env-and-run.cjs tauri",

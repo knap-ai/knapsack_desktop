@@ -260,6 +260,7 @@ export function useAutomations({
         let context: StepExecuteContext = {
           userEmail,
           trigger,
+          agentIdentity: automation.getIdentity(),
           ...runParams,
         }
 
@@ -292,6 +293,20 @@ export function useAutomations({
             automationArgs?.errorCallback()
             throw error
           }
+        }
+
+        // If a GatewayPrompt step was used, the reply is already in context —
+        // call the success handler directly instead of waiting for the LLM queue.
+        if (context.gatewayReply && automationArgs) {
+          await automationArgs.sucessHandler(
+            automationArgs.feedItem,
+            userEmail,
+            (context.userPrompt as string) ?? '',
+            context.gatewayReply as string,
+            (context.documents as number[]) ?? [],
+            context.userPromptFacade as string | undefined,
+          )
+          await syncAutomations()
         }
 
         return false
@@ -333,7 +348,11 @@ export function useAutomations({
         })
       }
 
-      let context: StepExecuteContext = { userEmail, trigger: AutomationTrigger.CLICK }
+      let context: StepExecuteContext = {
+        userEmail,
+        trigger: AutomationTrigger.CLICK,
+        agentIdentity: automation.getIdentity(),
+      }
       for (const step of automation.getSteps()) {
         try {
           const helpers = {
@@ -347,6 +366,14 @@ export function useAutomations({
           handleAutomationError(error as Error)
           throw error
         }
+      }
+
+      // If a GatewayPrompt step was used, deliver the reply directly
+      if (context.gatewayReply) {
+        onAutomationFinishCallback(
+          context.gatewayReply as string,
+          (context.documents as number[]) ?? [],
+        )
       }
     },
     [

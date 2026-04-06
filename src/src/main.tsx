@@ -10,6 +10,7 @@ import * as Sentry from '@sentry/react'
 import { BrowserRouter } from 'react-router-dom'
 
 import { RecordingProvider } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
+import { AppUpdateProvider } from 'src/hooks/useAppUpdate'
 
 import { ErrorPage } from './pages/error'
 
@@ -31,9 +32,11 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <Sentry.ErrorBoundary fallback={myFallback} showDialog>
       <BrowserRouter>
-        <RecordingProvider>
-          <App />
-        </RecordingProvider>
+        <AppUpdateProvider>
+          <RecordingProvider>
+            <App />
+          </RecordingProvider>
+        </AppUpdateProvider>
       </BrowserRouter>
     </Sentry.ErrorBoundary>
   </React.StrictMode>,

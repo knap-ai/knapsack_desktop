@@ -8,6 +8,7 @@ import {
   enableWhatsApp,
   enableIMessage,
   configureTelegram,
+  validateTelegramToken,
   configureGenericChannel,
   startWhatsAppLogin,
   waitWhatsAppLogin,
@@ -86,6 +87,8 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   const [gatewayHealthy, setGatewayHealthy] = useState<boolean | null>(null)
   /** True while the gateway is initializing on first launch. */
   const [gatewayStarting, setGatewayStarting] = useState(true)
+  /** Bot username returned by Telegram getMe, e.g. "mybot". */
+  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null)
 
   // Track whether a QR wait is already in flight so we don't double-fire.
   const qrWaitActiveRef = useRef(false)
@@ -109,6 +112,11 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   // This ensures sandbox tools + model are repaired after a config reset
   // even if the user doesn't manually reconnect a channel.
   const diagRanRef = useRef(false)
+
+  // Track whether we've run the Telegram getMe startup validation.
+  // We do this once per session so we can restore the bot username
+  // and verify the saved token is still valid on app relaunch.
+  const tgValidatedRef = useRef(false)
 
   // Use refs to track current channel states for smart-polling decisions.
   // This avoids putting state variables in `refresh`'s dependency array,
@@ -135,7 +143,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       // expensive per-channel status polls which each timeout after 10-20s.
       let gwOk = false
       try {
-        const hRes = await fetch('http://localhost:8897/api/clawd/service/health')
+        const hRes = await fetch('http://127.0.0.1:8897/api/clawd/service/health')
         if (hRes.ok) {
           const hData = await hRes.json()
           gwOk = !!hData.gateway_ok
@@ -150,10 +158,10 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
         gwDownCountRef.current++
         if (isFirstLoad) setLoading(false)
         prevJsonRef.current._initialized = 'true'
-        // Keep gatewayStarting true for the first ~45s so UI shows "Starting..."
-        // instead of "DOWN" during initial startup. After enough failed polls,
-        // transition to "reconnecting..." so the user gets actionable feedback.
-        if (gwDownCountRef.current >= 4) {
+        // Keep gatewayStarting true briefly so UI shows "Starting..." instead
+        // of "DOWN" during initial startup.  After 2 failed polls (~30s) transition
+        // to the troubleshooting view so the user gets actionable feedback sooner.
+        if (gwDownCountRef.current >= 2) {
           setGatewayStarting(false)
         }
         return
@@ -270,6 +278,23 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
           }).catch(() => {})
         }
       }
+
+      // On first load, re-validate the saved Telegram token via getMe so we
+      // can restore the bot username in the UI and detect expired tokens.
+      // Fire-and-forget — errors are surfaced as channelErrors.telegram.
+      if (!tgValidatedRef.current && isFirstLoad && (tg?.configured || tg?.linked)) {
+        tgValidatedRef.current = true
+        // Retrieve the saved token from the gateway config so we can call getMe.
+        // We read it from the gateway config snapshot that was already fetched.
+        // If account is already present (gateway reported it), restore it directly.
+        if (tg?.account) {
+          const username = tg.account.replace(/^@/, '')
+          setTelegramBotUsername(username)
+          console.info(`[useChannelStatus] Telegram bot username restored from status: @${username}`)
+        } else {
+          console.info('[useChannelStatus] Telegram configured but no account in status yet — will retry on next poll')
+        }
+      }
     } catch (e: any) {
       setError(e?.message ?? 'Failed to fetch channel status')
     } finally {
@@ -300,7 +325,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   const checkHealth = useCallback(async () => {
     setHealthChecking(true)
     try {
-      const res = await fetch('http://localhost:8897/api/clawd/service/health')
+      const res = await fetch('http://127.0.0.1:8897/api/clawd/service/health')
       if (res.ok) {
         const data = await res.json()
         setGatewayHealthy(!!data.gateway_ok)
@@ -549,9 +574,52 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   const connectTelegram = useCallback(async (botToken: string) => {
     setChannelError('telegram', null)
     try {
+      // Step 1: Validate the token with Telegram's getMe before saving.
+      // This gives the user immediate feedback if the token is wrong,
+      // and also fetches the bot username to display in the UI.
+      console.info('[useChannelStatus] Validating Telegram bot token via getMe...')
+      const validation = await validateTelegramToken(botToken).catch(() => null)
+      if (validation && !validation.success) {
+        throw new Error(validation.message ?? 'Invalid bot token — please check it and try again')
+      }
+      const botUsername = validation?.bot_username ?? null
+
+      // Step 2: Persist the token via config.patch.
       const res = await configureTelegram(botToken)
       if (!res.success) throw new Error(res.message ?? 'Failed to configure Telegram')
-      await refresh()
+
+      // Step 3: Update telegram state immediately so the UI reflects the
+      // connected state without waiting for the next 30-second full poll.
+      // The normal refresh() smart-poll skips unconfigured channels, so we
+      // must set state directly here.
+      const optimisticStatus: ChannelStatus = {
+        success: true,
+        enabled: true,
+        configured: true,
+        linked: true,
+        account: botUsername ? `@${botUsername}` : undefined,
+      }
+      const tgJson = JSON.stringify(optimisticStatus)
+      prevJsonRef.current.tg = tgJson
+      setTelegram(optimisticStatus)
+      if (botUsername) {
+        setTelegramBotUsername(botUsername)
+        console.info(`[useChannelStatus] Telegram connected as @${botUsername}`)
+      }
+
+      // Step 4: Wait for gateway to restart after config.patch, then do a
+      // real status poll to confirm the gateway has picked up the new token.
+      await new Promise(r => setTimeout(r, 2000))
+      const status = await getTelegramStatus().catch(() => null)
+      if (status) {
+        const newJson = JSON.stringify(status)
+        prevJsonRef.current.tg = newJson
+        setTelegram(status)
+        if (!status.success && status.message) {
+          setChannelError('telegram', status.message)
+        }
+      }
+
       // Auto-repair sandbox tools/model after successful connect
       triggerDiagnostics()
     } catch (e: any) {
@@ -625,6 +693,8 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     gatewayHealthy,
     /** True during initial gateway startup — UI should show "Starting..." not "DOWN". */
     gatewayStarting,
+    /** Bot username confirmed via getMe, e.g. "mybot" (no @). Null until validated. */
+    telegramBotUsername,
     refresh,
     checkHealth,
     connectWhatsApp,

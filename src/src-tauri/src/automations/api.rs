@@ -15,6 +15,7 @@ use crate::{
   db::models::{
     automation::Automation,
     automation_run::AutomationRun,
+    automation_step::AutomationStep,
     cadence_trigger::CadenceTrigger,
     calendar_event::CalendarEvent,
     data_source_trigger::DataSourceTrigger,
@@ -292,53 +293,55 @@ async fn create_automation(
     success: false,
     error: None,
   };
-  // let mut cadences: Vec<CadenceTrigger> = vec![];
-  // for data_cadence in data.cadences.clone() {
-  //   let cadence = CadenceTrigger {
-  //     id: None,
-  //     automation_uuid: data.uuid.clone(),
-  //     cadence_type: data_cadence.cadence_type,
-  //     day_of_week: data_cadence.day_of_week,
-  //     time: data_cadence.time,
-  //   };
-  //   cadences.push(cadence);
-  // }
-  // let mut steps: Vec<AutomationStep> = vec![];
-  // for (i, data_step) in data.steps.iter().enumerate() {
-  //   let step = AutomationStep {
-  //     id: None,
-  //     automation_uuid: data.uuid.clone(),
-  //     name: data_step.name.clone(),
-  //     ordering: i as u64,
-  //     args_json: data_step.args_json.clone(),
-  //   };
-  //   steps.push(step);
-  // }
+  let mut cadences: Vec<CadenceTrigger> = vec![];
+  for data_cadence in data.cadences.clone() {
+    let cadence = CadenceTrigger {
+      id: None,
+      automation_uuid: data.uuid.clone(),
+      cadence_type: data_cadence.cadence_type,
+      day_of_week: data_cadence.day_of_week,
+      time: data_cadence.time,
+    };
+    cadences.push(cadence);
+  }
+  let mut steps: Vec<AutomationStep> = vec![];
+  for (i, data_step) in data.steps.iter().enumerate() {
+    let step = AutomationStep {
+      id: None,
+      automation_uuid: data.uuid.clone(),
+      name: data_step.name.clone(),
+      ordering: i as u64,
+      args_json: data_step.args_json.clone(),
+    };
+    steps.push(step);
+  }
 
-  // let is_active = match data.is_active {
-  //   Some(i) => i.clone(),
-  //   None => true,
-  // };
+  let is_active = match data.is_active {
+    Some(i) => i.clone(),
+    None => true,
+  };
 
-  // let is_beta = match data.is_beta {
-  //   Some(i) => i.clone(),
-  //   None => true,
-  // };
+  let is_beta = match data.is_beta {
+    Some(i) => i.clone(),
+    None => true,
+  };
 
-  // let mut automation = Automation {
-  //   id: None,
-  //   uuid: data.uuid.clone(),
-  //   name: data.name.clone(),
-  //   description: data.description.clone(),
-  //   is_active,
-  //   is_beta,
-  //   runs: None,
-  //   trigger_cadences: Some(cadences),
-  //   trigger_data_sources: None,
-  //   steps: Some(steps),
-  // };
-  // automation.create();
-  // response.success = true;
+  let mut automation = Automation {
+    id: None,
+    uuid: data.uuid.clone(),
+    name: data.name.clone(),
+    description: data.description.clone(),
+    is_active,
+    is_beta,
+    runs: None,
+    trigger_cadences: Some(cadences),
+    trigger_data_sources: None,
+    steps: Some(steps),
+    show_library: true,
+    icon: String::new(),
+  };
+  automation.create();
+  response.success = true;
   Ok(HttpResponse::Ok().json(response))
 }
 

@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { sendNotification } from '@tauri-apps/api/notification'
 import './style.scss'
 
-const API_BASE = 'http://localhost:8897'
+const API_BASE = 'http://127.0.0.1:8897'
 const KN_GMAIL_SEARCH = API_BASE + '/api/knapsack/gmail_search'
 const KN_API_THREADS = API_BASE + '/api/knapsack/threads'
 const KN_API_TRANSCRIPT = API_BASE + '/api/knapsack/transcript'
@@ -140,9 +140,6 @@ const KN_DEV_OPENCLAW_CHECK = 'kn_dev_mode_openclaw_check'
 
 /** How often to re-check for OpenClaw updates (hours) */
 const OPENCLAW_CHECK_INTERVAL_HOURS = 12
-
-/** Bundled OpenClaw version — read from the bundled package */
-const BUNDLED_OPENCLAW_VERSION = '2026.2.13'
 
 /** npm registry URL for openclaw */
 const OPENCLAW_NPM_REGISTRY = 'https://registry.npmjs.org/openclaw'
@@ -469,6 +466,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
     } catch { /* ignore */ }
     return null
   })
+  const [bundledOpenclawVersion, setBundledOpenclawVersion] = useState<string | null>(null)
   const autoFixInProgressRef = useRef(false)
 
   // ── Email scanning: search for Sentry alerts ──
@@ -1070,8 +1068,10 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
       if (hoursSince < OPENCLAW_CHECK_INTERVAL_HOURS && openclawUpdate.status !== 'error') return
     }
 
+    const currentVersion = bundledOpenclawVersion ?? 'unknown'
+
     setOpenclawUpdate(prev => ({
-      currentVersion: BUNDLED_OPENCLAW_VERSION,
+      currentVersion,
       latestVersion: prev?.latestVersion || null,
       availableVersions: prev?.availableVersions || [],
       lastChecked: Date.now(),
@@ -1090,7 +1090,7 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         .sort((a, b) => compareVersions(b, a)) // newest first
 
       // Get recent versions newer than current
-      const newerVersions = allVersions.filter(v => compareVersions(v, BUNDLED_OPENCLAW_VERSION) > 0)
+      const newerVersions = allVersions.filter(v => compareVersions(v, currentVersion) > 0)
 
       // Collect changelog notes from newer versions
       let changelog = ''
@@ -1102,12 +1102,12 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
       }
 
       let status: OpenClawUpdateInfo['status'] = 'up-to-date'
-      if (latestVersion && compareVersions(BUNDLED_OPENCLAW_VERSION, latestVersion) < 0) {
-        status = isMajorUpdate(BUNDLED_OPENCLAW_VERSION, latestVersion) ? 'major-update' : 'update-available'
+      if (latestVersion && compareVersions(currentVersion, latestVersion) < 0) {
+        status = isMajorUpdate(currentVersion, latestVersion) ? 'major-update' : 'update-available'
       }
 
       const info: OpenClawUpdateInfo = {
-        currentVersion: BUNDLED_OPENCLAW_VERSION,
+        currentVersion,
         latestVersion,
         availableVersions: newerVersions.slice(0, 10),
         lastChecked: Date.now(),
@@ -1122,13 +1122,13 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
         try {
           sendNotification({
             title: 'OpenClaw major update available',
-            body: `${BUNDLED_OPENCLAW_VERSION} → ${latestVersion} (${newerVersions.length} versions behind)`,
+            body: `${currentVersion} → ${latestVersion} (${newerVersions.length} versions behind)`,
           })
         } catch { /* notification permission may not be granted */ }
       }
     } catch (e) {
       const info: OpenClawUpdateInfo = {
-        currentVersion: BUNDLED_OPENCLAW_VERSION,
+        currentVersion,
         latestVersion: null,
         availableVersions: [],
         lastChecked: Date.now(),
@@ -1138,10 +1138,13 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
       setOpenclawUpdate(info)
       localStorage.setItem(KN_DEV_OPENCLAW_CHECK, JSON.stringify(info))
     }
-  }, [openclawUpdate, proactiveMode])
+  }, [bundledOpenclawVersion, openclawUpdate, proactiveMode])
 
   // Check for OpenClaw updates on mount and during auto-scan
   useEffect(() => {
+    invoke<string>('kn_get_openclaw_version')
+      .then(v => setBundledOpenclawVersion(v))
+      .catch(() => { /* version unavailable */ })
     checkOpenClawUpdates()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

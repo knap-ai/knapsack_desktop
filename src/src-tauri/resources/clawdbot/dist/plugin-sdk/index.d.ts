@@ -1,1 +1,1 @@
-export * from "./plugin-sdk/index";
+export * from "./src/plugin-sdk/index.js";

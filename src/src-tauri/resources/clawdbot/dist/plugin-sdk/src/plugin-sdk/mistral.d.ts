@@ -1,0 +1,11 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["mistral"];
+type FacadeModule = FacadeEntry["module"];
+export declare const applyMistralConfig: FacadeModule["applyMistralConfig"];
+export declare const applyMistralProviderConfig: FacadeModule["applyMistralProviderConfig"];
+export declare const buildMistralModelDefinition: FacadeModule["buildMistralModelDefinition"];
+export declare const buildMistralProvider: FacadeModule["buildMistralProvider"];
+export declare const MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
+export declare const MISTRAL_DEFAULT_MODEL_ID = "mistral-large-latest";
+export declare const MISTRAL_DEFAULT_MODEL_REF = "mistral/mistral-large-latest";
+export {};

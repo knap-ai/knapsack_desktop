@@ -1,24 +1,19 @@
 var __defProp$1 = Object.defineProperty;
 var __exportAll = (all, no_symbols) => {
 	let target = {};
-	for (var name in all) {
-		__defProp$1(target, name, {
-			get: all[name],
-			enumerable: true
-		});
-	}
-	if (!no_symbols) {
-		__defProp$1(target, Symbol.toStringTag, { value: "Module" });
-	}
+	for (var name in all) __defProp$1(target, name, {
+		get: all[name],
+		enumerable: true
+	});
+	if (!no_symbols) __defProp$1(target, Symbol.toStringTag, { value: "Module" });
 	return target;
 };
-
 /**
 * @license
 * Copyright 2019 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
-const t$6 = globalThis, e$13 = t$6.ShadowRoot && (void 0 === t$6.ShadyCSS || t$6.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, s$8 = Symbol(), o$14 = new WeakMap();
+const t$6 = globalThis, e$13 = t$6.ShadowRoot && (void 0 === t$6.ShadyCSS || t$6.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, s$8 = Symbol(), o$14 = /* @__PURE__ */ new WeakMap();
 var n$12 = class {
 	constructor(t, e, o) {
 		if (this._$cssResult$ = !0, o !== s$8) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
@@ -38,12 +33,11 @@ var n$12 = class {
 	}
 };
 const r$11 = (t) => new n$12("string" == typeof t ? t : t + "", void 0, s$8), i$9 = (t, ...e) => {
-	const o = 1 === t.length ? t[0] : e.reduce((e, s, o) => e + ((t) => {
+	return new n$12(1 === t.length ? t[0] : e.reduce((e, s, o) => e + ((t) => {
 		if (!0 === t._$cssResult$) return t.cssText;
 		if ("number" == typeof t) return t;
 		throw Error("Value passed to 'css' function must be a 'css' function result: " + t + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-	})(s) + t[o + 1], t[0]);
-	return new n$12(o, t, s$8);
+	})(s) + t[o + 1], t[0]), t, s$8);
 }, S$1 = (s, o) => {
 	if (e$13) s.adoptedStyleSheets = o.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
 	else for (const e of o) {
@@ -55,7 +49,6 @@ const r$11 = (t) => new n$12("string" == typeof t ? t : t + "", void 0, s$8), i$
 	for (const s of t.cssRules) e += s.cssText;
 	return r$11(e);
 })(t) : t;
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -97,7 +90,7 @@ const r$11 = (t) => new n$12("string" == typeof t ? t : t + "", void 0, s$8), i$
 	useDefault: !1,
 	hasChanged: f$3
 };
-Symbol.metadata ??= Symbol("metadata"), a$1.litPropertyMetadata ??= new WeakMap();
+Symbol.metadata ??= Symbol("metadata"), a$1.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
 var y$1 = class extends HTMLElement {
 	static addInitializer(t) {
 		this._$Ei(), (this.l ??= []).push(t);
@@ -149,7 +142,7 @@ var y$1 = class extends HTMLElement {
 			const s = litPropertyMetadata.get(t);
 			if (void 0 !== s) for (const [t, i] of s) this.elementProperties.set(t, i);
 		}
-		this._$Eh = new Map();
+		this._$Eh = /* @__PURE__ */ new Map();
 		for (const [t, s] of this.elementProperties) {
 			const i = this._$Eu(t, s);
 			void 0 !== i && this._$Eh.set(i, t);
@@ -159,7 +152,7 @@ var y$1 = class extends HTMLElement {
 	static finalizeStyles(s) {
 		const i = [];
 		if (Array.isArray(s)) {
-			const e = new Set(s.flat(1 / 0).reverse());
+			const e = new Set(s.flat(Infinity).reverse());
 			for (const s of e) i.unshift(c$6(s));
 		} else void 0 !== s && i.push(c$6(s));
 		return i;
@@ -172,16 +165,16 @@ var y$1 = class extends HTMLElement {
 		super(), this._$Ep = void 0, this.isUpdatePending = !1, this.hasUpdated = !1, this._$Em = null, this._$Ev();
 	}
 	_$Ev() {
-		this._$ES = new Promise((t) => this.enableUpdating = t), this._$AL = new Map(), this._$E_(), this.requestUpdate(), this.constructor.l?.forEach((t) => t(this));
+		this._$ES = new Promise((t) => this.enableUpdating = t), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), this.constructor.l?.forEach((t) => t(this));
 	}
 	addController(t) {
-		(this._$EO ??= new Set()).add(t), void 0 !== this.renderRoot && this.isConnected && t.hostConnected?.();
+		(this._$EO ??= /* @__PURE__ */ new Set()).add(t), void 0 !== this.renderRoot && this.isConnected && t.hostConnected?.();
 	}
 	removeController(t) {
 		this._$EO?.delete(t);
 	}
 	_$E_() {
-		const t = new Map(), s = this.constructor.elementProperties;
+		const t = /* @__PURE__ */ new Map(), s = this.constructor.elementProperties;
 		for (const i of s.keys()) this.hasOwnProperty(i) && (t.set(i, this[i]), delete this[i]);
 		t.size > 0 && (this._$Ep = t);
 	}
@@ -224,7 +217,7 @@ var y$1 = class extends HTMLElement {
 		!1 === this.isUpdatePending && (this._$ES = this._$EP());
 	}
 	C(t, s, { useDefault: i, reflect: e, wrapped: h }, r) {
-		i && !(this._$Ej ??= new Map()).has(t) && (this._$Ej.set(t, r ?? s ?? this[t]), !0 !== h || void 0 !== r) || (this._$AL.has(t) || (this.hasUpdated || i || (s = void 0), this._$AL.set(t, s)), !0 === e && this._$Em !== t && (this._$Eq ??= new Set()).add(t));
+		i && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t) && (this._$Ej.set(t, r ?? s ?? this[t]), !0 !== h || void 0 !== r) || (this._$AL.has(t) || (this.hasUpdated || i || (s = void 0), this._$AL.set(t, s)), !0 === e && this._$Em !== t && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t));
 	}
 	async _$EP() {
 		this.isUpdatePending = !0;
@@ -266,7 +259,7 @@ var y$1 = class extends HTMLElement {
 		this._$EO?.forEach((t) => t.hostUpdated?.()), this.hasUpdated || (this.hasUpdated = !0, this.firstUpdated(t)), this.updated(t);
 	}
 	_$EM() {
-		this._$AL = new Map(), this.isUpdatePending = !1;
+		this._$AL = /* @__PURE__ */ new Map(), this.isUpdatePending = !1;
 	}
 	get updateComplete() {
 		return this.getUpdateComplete();
@@ -283,8 +276,7 @@ var y$1 = class extends HTMLElement {
 	updated(t) {}
 	firstUpdated(t) {}
 };
-y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$2("elementProperties")] = new Map(), y$1[d$2("finalized")] = new Map(), p$2?.({ ReactiveElement: y$1 }), (a$1.reactiveElementVersions ??= []).push("2.1.2");
-
+y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$2("elementProperties")] = /* @__PURE__ */ new Map(), y$1[d$2("finalized")] = /* @__PURE__ */ new Map(), p$2?.({ ReactiveElement: y$1 }), (a$1.reactiveElementVersions ??= []).push("2.1.2");
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -294,7 +286,9 @@ const t$5 = globalThis, i$7 = (t) => t, s$7 = t$5.trustedTypes, e$11 = s$7 ? s$7
 	_$litType$: t,
 	strings: i,
 	values: s
-}), b = x(1), w = x(2), T = x(3), E = Symbol.for("lit-noChange"), A = Symbol.for("lit-nothing"), C = new WeakMap(), P = l$3.createTreeWalker(l$3, 129);
+}), b = x(1), w = x(2);
+x(3);
+const E = Symbol.for("lit-noChange"), A = Symbol.for("lit-nothing"), C = /* @__PURE__ */ new WeakMap(), P = l$3.createTreeWalker(l$3, 129);
 function V(t, i) {
 	if (!u$2(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
 	return void 0 !== e$11 ? e$11.createHTML(i) : i;
@@ -467,7 +461,7 @@ var H = class {
 		return this._$AM._$AU;
 	}
 	constructor(t, i, s, e, h) {
-		this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t, this.name = i, this._$AM = e, this.options = h, s.length > 2 || "" !== s[0] || "" !== s[1] ? (this._$AH = Array(s.length - 1).fill(new String()), this.strings = s) : this._$AH = A;
+		this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t, this.name = i, this._$AM = e, this.options = h, s.length > 2 || "" !== s[0] || "" !== s[1] ? (this._$AH = Array(s.length - 1).fill(/* @__PURE__ */ new String()), this.strings = s) : this._$AH = A;
 	}
 	_$AI(t, i = this, s, e) {
 		const h = this.strings;
@@ -550,7 +544,6 @@ const D = (t, i, s) => {
 	}
 	return h._$AI(t), h;
 };
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -581,21 +574,7 @@ var i$6 = class extends y$1 {
 i$6._$litElement$ = !0, i$6["finalized"] = !0, s$6.litElementHydrateSupport?.({ LitElement: i$6 });
 const o$11 = s$6.litElementPolyfillSupport;
 o$11?.({ LitElement: i$6 });
-const n$9 = {
-	_$AK: (t, e, r) => {
-		t._$AK(e, r);
-	},
-	_$AL: (t) => t._$AL
-};
 (s$6.litElementVersions ??= []).push("4.2.2");
-
-/**
-* @license
-* Copyright 2022 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/
-const o$10 = !1;
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -627,21 +606,14 @@ var i$5 = class {
 		return this.render(...e);
 	}
 };
-
 /**
 * @license
 * Copyright 2020 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
-*/ const { I: t$3 } = j$1, i$4 = (o) => o, n$8 = (o) => null === o || "object" != typeof o && "function" != typeof o, e$9 = {
-	HTML: 1,
-	SVG: 2,
-	MATHML: 3
-}, l$2 = (o, t) => void 0 === t ? void 0 !== o?._$litType$ : o?._$litType$ === t, d = (o) => null != o?._$litType$?.h, c$3 = (o) => void 0 !== o?._$litDirective$, f$1 = (o) => o?._$litDirective$, r$8 = (o) => void 0 === o.strings, s$5 = () => document.createComment(""), v = (o, n, e) => {
+*/ const { I: t$3 } = j$1, i$4 = (o) => o, r$8 = (o) => void 0 === o.strings, s$5 = () => document.createComment(""), v = (o, n, e) => {
 	const l = o._$AA.parentNode, d = void 0 === n ? o._$AB : n._$AA;
-	if (void 0 === e) {
-		const i = l.insertBefore(s$5(), d), n = l.insertBefore(s$5(), d);
-		e = new t$3(i, n, o, o.options);
-	} else {
+	if (void 0 === e) e = new t$3(l.insertBefore(s$5(), d), l.insertBefore(s$5(), d), o, o.options);
+	else {
 		const t = e._$AB.nextSibling, n = e._$AM, c = n !== o;
 		if (c) {
 			let t;
@@ -658,17 +630,14 @@ var i$5 = class {
 	return e;
 }, u$1 = (o, t, i = o) => (o._$AI(t, i), o), m$1 = {}, p = (o, t = m$1) => o._$AH = t, M = (o) => o._$AH, h$4 = (o) => {
 	o._$AR(), o._$AA.remove();
-}, j = (o) => {
-	o._$AR();
 };
-
 /**
 * @license
 * Copyright 2017 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
 const u = (e, s, t) => {
-	const r = new Map();
+	const r = /* @__PURE__ */ new Map();
 	for (let l = s; l <= t; l++) r.set(e[l], l);
 	return r;
 }, c$2 = e$10(class extends i$5 {
@@ -720,7 +689,6 @@ const u = (e, s, t) => {
 		return this.ut = a, p(s, v$2), E;
 	}
 });
-
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -734,7 +702,6 @@ var s$4 = class extends Event {
 		}), this.context = s, this.contextTarget = t, this.callback = e, this.subscribe = o ?? !1;
 	}
 };
-
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -743,7 +710,6 @@ var s$4 = class extends Event {
 function n$7(n) {
 	return n;
 }
-
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -768,7 +734,6 @@ function n$7(n) {
 		this.host.dispatchEvent(new s$4(this.context, this.host, this.t, this.subscribe));
 	}
 };
-
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -786,7 +751,7 @@ var s$2 = class {
 		this.o = s, i && this.updateObservers();
 	}
 	constructor(s) {
-		this.subscriptions = new Map(), this.updateObservers = () => {
+		this.subscriptions = /* @__PURE__ */ new Map(), this.updateObservers = () => {
 			for (const [s, { disposer: t }] of this.subscriptions) s(this.o, t);
 		}, void 0 !== s && (this.value = s);
 	}
@@ -805,7 +770,6 @@ var s$2 = class {
 		this.subscriptions.clear();
 	}
 };
-
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -827,7 +791,7 @@ var i$3 = class extends s$2 {
 		}, this.onProviderRequest = (s) => {
 			if (s.context !== this.context) return;
 			if ((s.contextTarget ?? s.composedPath()[0]) === this.host) return;
-			const e = new Set();
+			const e = /* @__PURE__ */ new Set();
 			for (const [s, { consumerHost: i }] of this.subscriptions) e.has(s) || (e.add(s), i.dispatchEvent(new s$4(this.context, i, s, !0)));
 			s.stopPropagation();
 		}, this.host = s, void 0 !== e.context ? this.context = e.context : this.context = e, this.attachListeners(), this.host.addController?.(this);
@@ -839,98 +803,6 @@ var i$3 = class extends s$2 {
 		this.host.dispatchEvent(new e$8(this.context, this.host));
 	}
 };
-
-/**
-* @license
-* Copyright 2021 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/ var t$2 = class {
-	constructor() {
-		this.pendingContextRequests = new Map(), this.onContextProvider = (t) => {
-			const s = this.pendingContextRequests.get(t.context);
-			if (void 0 === s) return;
-			this.pendingContextRequests.delete(t.context);
-			const { requests: o } = s;
-			for (const { elementRef: s, callbackRef: n } of o) {
-				const o = s.deref(), c = n.deref();
-				void 0 === o || void 0 === c || o.dispatchEvent(new s$4(t.context, o, c, !0));
-			}
-		}, this.onContextRequest = (e) => {
-			if (!0 !== e.subscribe) return;
-			const t = e.contextTarget ?? e.composedPath()[0], s = e.callback;
-			let o = this.pendingContextRequests.get(e.context);
-			void 0 === o && this.pendingContextRequests.set(e.context, o = {
-				callbacks: new WeakMap(),
-				requests: []
-			});
-			let n = o.callbacks.get(t);
-			void 0 === n && o.callbacks.set(t, n = new WeakSet()), n.has(s) || (n.add(s), o.requests.push({
-				elementRef: new WeakRef(t),
-				callbackRef: new WeakRef(s)
-			}));
-		};
-	}
-	attach(e) {
-		e.addEventListener("context-request", this.onContextRequest), e.addEventListener("context-provider", this.onContextProvider);
-	}
-	detach(e) {
-		e.removeEventListener("context-request", this.onContextRequest), e.removeEventListener("context-provider", this.onContextProvider);
-	}
-};
-
-/**
-* @license
-* Copyright 2017 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/ function e$7({ context: e }) {
-	return (n, i) => {
-		const r = new WeakMap();
-		if ("object" == typeof i) return {
-			get() {
-				return n.get.call(this);
-			},
-			set(t) {
-				return r.get(this).setValue(t), n.set.call(this, t);
-			},
-			init(n) {
-				return r.set(this, new i$3(this, {
-					context: e,
-					initialValue: n
-				})), n;
-			}
-		};
-		{
-			n.constructor.addInitializer(((n) => {
-				r.set(n, new i$3(n, { context: e }));
-			}));
-			const o = Object.getOwnPropertyDescriptor(n, i);
-			let s;
-			if (void 0 === o) {
-				const t = new WeakMap();
-				s = {
-					get() {
-						return t.get(this);
-					},
-					set(e) {
-						r.get(this).setValue(e), t.set(this, e);
-					},
-					configurable: !0,
-					enumerable: !0
-				};
-			} else {
-				const t = o.set;
-				s = {
-					...o,
-					set(e) {
-						r.get(this).setValue(e), t?.call(this, e);
-					}
-				};
-			}
-			return void Object.defineProperty(n, i, s);
-		}
-	};
-}
-
 /**
 * @license
 * Copyright 2022 Google LLC
@@ -956,7 +828,6 @@ var i$3 = class extends s$2 {
 		}));
 	};
 }
-
 const eventInit = {
 	bubbles: true,
 	cancelable: true,
@@ -974,7 +845,6 @@ var StateEvent = class StateEvent extends CustomEvent {
 		this.payload = payload;
 	}
 };
-
 const opacityBehavior = `
   &:not([disabled]) {
     cursor: pointer;
@@ -1010,9 +880,6 @@ const behavior = `
     scrollbar-width: none;
   }
 `;
-
-const grid = 4;
-
 const border = `
   ${new Array(25).fill(0).map((_, idx) => {
 	return `
@@ -1023,7 +890,7 @@ const border = `
         .border-brw-${idx} { border-right-width: ${idx}px; }
 
         .border-ow-${idx} { outline-width: ${idx}px; }
-        .border-br-${idx} { border-radius: ${idx * grid}px; overflow: hidden;}`;
+        .border-br-${idx} { border-radius: ${idx * 4}px; overflow: hidden;}`;
 }).join("\n")}
 
   .border-br-50pc {
@@ -1034,7 +901,6 @@ const border = `
     border-style: solid;
   }
 `;
-
 const shades = [
 	0,
 	5,
@@ -1055,62 +921,36 @@ const shades = [
 	99,
 	100
 ];
-
 function merge(...classes) {
 	const styles = {};
-	for (const clazz of classes) {
-		for (const [key, val] of Object.entries(clazz)) {
-			const prefix = key.split("-").with(-1, "").join("-");
-			const existingKeys = Object.keys(styles).filter((key) => key.startsWith(prefix));
-			for (const existingKey of existingKeys) {
-				delete styles[existingKey];
-			}
-			styles[key] = val;
-		}
+	for (const clazz of classes) for (const [key, val] of Object.entries(clazz)) {
+		const prefix = key.split("-").with(-1, "").join("-");
+		const existingKeys = Object.keys(styles).filter((key) => key.startsWith(prefix));
+		for (const existingKey of existingKeys) delete styles[existingKey];
+		styles[key] = val;
 	}
 	return styles;
 }
 function appendToAll(target, exclusions, ...classes) {
 	const updatedTarget = structuredClone(target);
-	for (const clazz of classes) {
-		for (const key of Object.keys(clazz)) {
-			const prefix = key.split("-").with(-1, "").join("-");
-			for (const [tagName, classesToAdd] of Object.entries(updatedTarget)) {
-				if (exclusions.includes(tagName)) {
-					continue;
-				}
-				let found = false;
-				for (let t = 0; t < classesToAdd.length; t++) {
-					if (classesToAdd[t].startsWith(prefix)) {
-						found = true;
-						classesToAdd[t] = key;
-					}
-				}
-				if (!found) {
-					classesToAdd.push(key);
-				}
+	for (const clazz of classes) for (const key of Object.keys(clazz)) {
+		const prefix = key.split("-").with(-1, "").join("-");
+		for (const [tagName, classesToAdd] of Object.entries(updatedTarget)) {
+			if (exclusions.includes(tagName)) continue;
+			let found = false;
+			for (let t = 0; t < classesToAdd.length; t++) if (classesToAdd[t].startsWith(prefix)) {
+				found = true;
+				classesToAdd[t] = key;
 			}
+			if (!found) classesToAdd.push(key);
 		}
 	}
 	return updatedTarget;
 }
-function createThemeStyles(palettes) {
-	const styles = {};
-	for (const palette of Object.values(palettes)) {
-		for (const [key, val] of Object.entries(palette)) {
-			const prop = toProp(key);
-			styles[prop] = val;
-		}
-	}
-	return styles;
-}
 function toProp(key) {
-	if (key.startsWith("nv")) {
-		return `--nv-${key.slice(2)}`;
-	}
+	if (key.startsWith("nv")) return `--nv-${key.slice(2)}`;
 	return `--${key[0]}-${key.slice(1)}`;
 }
-
 const color = (src) => `
     ${src.map((key) => {
 	const inverseKey = getInverseKey(key);
@@ -1120,12 +960,10 @@ const color = (src) => `
     ${src.map((key) => {
 	const inverseKey = getInverseKey(key);
 	const vals = [`.color-bgc-${key} { background-color: light-dark(var(${toProp(key)}), var(${toProp(inverseKey)})); }`, `.color-bbgc-${key}::backdrop { background-color: light-dark(var(${toProp(key)}), var(${toProp(inverseKey)})); }`];
-	for (let o = .1; o < 1; o += .1) {
-		vals.push(`.color-bbgc-${key}_${(o * 100).toFixed(0)}::backdrop {
+	for (let o = .1; o < 1; o += .1) vals.push(`.color-bbgc-${key}_${(o * 100).toFixed(0)}::backdrop {
             background-color: light-dark(oklch(from var(${toProp(key)}) l c h / calc(alpha * ${o.toFixed(1)})), oklch(from var(${toProp(inverseKey)}) l c h / calc(alpha * ${o.toFixed(1)})) );
           }
         `);
-	}
 	return vals.join("\n");
 }).join("\n")}
 
@@ -1138,22 +976,23 @@ const getInverseKey = (key) => {
 	const match = key.match(/^([a-z]+)(\d+)$/);
 	if (!match) return key;
 	const [, prefix, shadeStr] = match;
-	const shade = parseInt(shadeStr, 10);
-	const target = 100 - shade;
-	const inverseShade = shades.reduce((prev, curr) => Math.abs(curr - target) < Math.abs(prev - target) ? curr : prev);
-	return `${prefix}${inverseShade}`;
+	const target = 100 - parseInt(shadeStr, 10);
+	return `${prefix}${shades.reduce((prev, curr) => Math.abs(curr - target) < Math.abs(prev - target) ? curr : prev)}`;
 };
 const keyFactory = (prefix) => {
 	return shades.map((v) => `${prefix}${v}`);
 };
-const colors = [
-	color(keyFactory("p")),
-	color(keyFactory("s")),
-	color(keyFactory("t")),
-	color(keyFactory("n")),
-	color(keyFactory("nv")),
-	color(keyFactory("e")),
-	`
+const structuralStyles$1 = [
+	behavior,
+	border,
+	[
+		color(keyFactory("p")),
+		color(keyFactory("s")),
+		color(keyFactory("t")),
+		color(keyFactory("n")),
+		color(keyFactory("nv")),
+		color(keyFactory("e")),
+		`
     .color-bgc-transparent {
       background-color: transparent;
     }
@@ -1162,18 +1001,8 @@ const colors = [
       color-scheme: var(--color-scheme);
     }
   `
-];
-
-/**
-* CSS classes for Google Symbols.
-*
-* Usage:
-*
-* ```html
-* <span class="g-icon">pen_spark</span>
-* ```
-*/
-const icons = `
+	],
+	`
   .g-icon {
     font-family: "Material Symbols Outlined", "Google Symbols";
     font-weight: normal;
@@ -1207,46 +1036,45 @@ const icons = `
         "ROND" 100;
     }
   }
-`;
-
-const layout = `
+`,
+	`
   :host {
     ${new Array(16).fill(0).map((_, idx) => {
-	return `--g-${idx + 1}: ${(idx + 1) * grid}px;`;
-}).join("\n")}
+		return `--g-${idx + 1}: ${(idx + 1) * 4}px;`;
+	}).join("\n")}
   }
 
   ${new Array(49).fill(0).map((_, index) => {
-	const idx = index - 24;
-	const lbl = idx < 0 ? `n${Math.abs(idx)}` : idx.toString();
-	return `
-        .layout-p-${lbl} { --padding: ${idx * grid}px; padding: var(--padding); }
-        .layout-pt-${lbl} { padding-top: ${idx * grid}px; }
-        .layout-pr-${lbl} { padding-right: ${idx * grid}px; }
-        .layout-pb-${lbl} { padding-bottom: ${idx * grid}px; }
-        .layout-pl-${lbl} { padding-left: ${idx * grid}px; }
+		const idx = index - 24;
+		const lbl = idx < 0 ? `n${Math.abs(idx)}` : idx.toString();
+		return `
+        .layout-p-${lbl} { --padding: ${idx * 4}px; padding: var(--padding); }
+        .layout-pt-${lbl} { padding-top: ${idx * 4}px; }
+        .layout-pr-${lbl} { padding-right: ${idx * 4}px; }
+        .layout-pb-${lbl} { padding-bottom: ${idx * 4}px; }
+        .layout-pl-${lbl} { padding-left: ${idx * 4}px; }
 
-        .layout-m-${lbl} { --margin: ${idx * grid}px; margin: var(--margin); }
-        .layout-mt-${lbl} { margin-top: ${idx * grid}px; }
-        .layout-mr-${lbl} { margin-right: ${idx * grid}px; }
-        .layout-mb-${lbl} { margin-bottom: ${idx * grid}px; }
-        .layout-ml-${lbl} { margin-left: ${idx * grid}px; }
+        .layout-m-${lbl} { --margin: ${idx * 4}px; margin: var(--margin); }
+        .layout-mt-${lbl} { margin-top: ${idx * 4}px; }
+        .layout-mr-${lbl} { margin-right: ${idx * 4}px; }
+        .layout-mb-${lbl} { margin-bottom: ${idx * 4}px; }
+        .layout-ml-${lbl} { margin-left: ${idx * 4}px; }
 
-        .layout-t-${lbl} { top: ${idx * grid}px; }
-        .layout-r-${lbl} { right: ${idx * grid}px; }
-        .layout-b-${lbl} { bottom: ${idx * grid}px; }
-        .layout-l-${lbl} { left: ${idx * grid}px; }`;
-}).join("\n")}
+        .layout-t-${lbl} { top: ${idx * 4}px; }
+        .layout-r-${lbl} { right: ${idx * 4}px; }
+        .layout-b-${lbl} { bottom: ${idx * 4}px; }
+        .layout-l-${lbl} { left: ${idx * 4}px; }`;
+	}).join("\n")}
 
   ${new Array(25).fill(0).map((_, idx) => {
-	return `
-        .layout-g-${idx} { gap: ${idx * grid}px; }`;
-}).join("\n")}
+		return `
+        .layout-g-${idx} { gap: ${idx * 4}px; }`;
+	}).join("\n")}
 
   ${new Array(8).fill(0).map((_, idx) => {
-	return `
+		return `
         .layout-grd-col${idx + 1} { grid-template-columns: ${"1fr ".repeat(idx + 1).trim()}; }`;
-}).join("\n")}
+	}).join("\n")}
 
   .layout-pos-a {
     position: absolute;
@@ -1357,26 +1185,24 @@ const layout = `
   /** Widths **/
 
   ${new Array(10).fill(0).map((_, idx) => {
-	const weight = (idx + 1) * 10;
-	return `.layout-w-${weight} { width: ${weight}%; max-width: ${weight}%; }`;
-}).join("\n")}
+		const weight = (idx + 1) * 10;
+		return `.layout-w-${weight} { width: ${weight}%; max-width: ${weight}%; }`;
+	}).join("\n")}
 
   ${new Array(16).fill(0).map((_, idx) => {
-	const weight = idx * grid;
-	return `.layout-wp-${idx} { width: ${weight}px; }`;
-}).join("\n")}
+		return `.layout-wp-${idx} { width: ${idx * 4}px; }`;
+	}).join("\n")}
 
   /** Heights **/
 
   ${new Array(10).fill(0).map((_, idx) => {
-	const height = (idx + 1) * 10;
-	return `.layout-h-${height} { height: ${height}%; }`;
-}).join("\n")}
+		const height = (idx + 1) * 10;
+		return `.layout-h-${height} { height: ${height}%; }`;
+	}).join("\n")}
 
   ${new Array(16).fill(0).map((_, idx) => {
-	const height = idx * grid;
-	return `.layout-hp-${idx} { height: ${height}px; }`;
-}).join("\n")}
+		return `.layout-hp-${idx} { height: ${idx * 4}px; }`;
+	}).join("\n")}
 
   .layout-el-cv {
     & img,
@@ -1397,15 +1223,13 @@ const layout = `
     width: calc(100% + var(--padding) * 2);
     height: calc(100% + var(--padding) * 2);
   }
-`;
-
-const opacity = `
+`,
+	`
   ${new Array(21).fill(0).map((_, idx) => {
-	return `.opacity-el-${idx * 5} { opacity: ${idx / 20}; }`;
-}).join("\n")}
-`;
-
-const type$1 = `
+		return `.opacity-el-${idx * 5} { opacity: ${idx / 20}; }`;
+	}).join("\n")}
+`,
+	`
   :host {
     --default-font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
     --default-font-family-mono: "Courier New", Courier, monospace;
@@ -1538,21 +1362,11 @@ const type$1 = `
   /** Weights **/
 
   ${new Array(9).fill(0).map((_, idx) => {
-	const weight = (idx + 1) * 100;
-	return `.typography-w-${weight} { font-weight: ${weight}; }`;
-}).join("\n")}
-`;
-
-const structuralStyles$1 = [
-	behavior,
-	border,
-	colors,
-	icons,
-	layout,
-	opacity,
-	type$1
+		const weight = (idx + 1) * 100;
+		return `.typography-w-${weight} { font-weight: ${weight}; }`;
+	}).join("\n")}
+`
 ].flat(Infinity).join("\n");
-
 var guards_exports = /* @__PURE__ */ __exportAll({
 	isComponentArrayReference: () => isComponentArrayReference,
 	isObject: () => isObject$1,
@@ -1601,8 +1415,7 @@ function isBooleanValue(value) {
 }
 function isAnyComponentNode(value) {
 	if (!isObject$1(value)) return false;
-	const hasBaseKeys = "id" in value && "type" in value && "properties" in value;
-	if (!hasBaseKeys) return false;
+	if (!("id" in value && "type" in value && "properties" in value)) return false;
 	return true;
 }
 function isResolvedAudioPlayer(props) {
@@ -1613,13 +1426,8 @@ function isResolvedButton(props) {
 }
 function isResolvedCard(props) {
 	if (!isObject$1(props)) return false;
-	if (!("child" in props)) {
-		if (!("children" in props)) {
-			return false;
-		} else {
-			return Array.isArray(props.children) && props.children.every(isAnyComponentNode);
-		}
-	}
+	if (!("child" in props)) if (!("children" in props)) return false;
+	else return Array.isArray(props.children) && props.children.every(isAnyComponentNode);
 	return isAnyComponentNode(props.child);
 }
 function isResolvedCheckbox(props) {
@@ -1670,7 +1478,6 @@ function isResolvedTextField(props) {
 function isResolvedVideo(props) {
 	return isObject$1(props) && "url" in props && isStringValue(props.url);
 }
-
 /**
 * Processes and consolidates A2UIProtocolMessage objects into a structured,
 * hierarchical model of UI surfaces.
@@ -1705,18 +1512,10 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 	}
 	processMessages(messages) {
 		for (const message of messages) {
-			if (message.beginRendering) {
-				this.#handleBeginRendering(message.beginRendering, message.beginRendering.surfaceId);
-			}
-			if (message.surfaceUpdate) {
-				this.#handleSurfaceUpdate(message.surfaceUpdate, message.surfaceUpdate.surfaceId);
-			}
-			if (message.dataModelUpdate) {
-				this.#handleDataModelUpdate(message.dataModelUpdate, message.dataModelUpdate.surfaceId);
-			}
-			if (message.deleteSurface) {
-				this.#handleDeleteSurface(message.deleteSurface);
-			}
+			if (message.beginRendering) this.#handleBeginRendering(message.beginRendering, message.beginRendering.surfaceId);
+			if (message.surfaceUpdate) this.#handleSurfaceUpdate(message.surfaceUpdate, message.surfaceUpdate.surfaceId);
+			if (message.dataModelUpdate) this.#handleDataModelUpdate(message.dataModelUpdate, message.dataModelUpdate.surfaceId);
+			if (message.deleteSurface) this.#handleDeleteSurface(message.deleteSurface);
 		}
 	}
 	/**
@@ -1728,11 +1527,8 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 		const surface = this.#getOrCreateSurface(surfaceId);
 		if (!surface) return null;
 		let finalPath;
-		if (relativePath === "." || relativePath === "") {
-			finalPath = node.dataContextPath ?? "/";
-		} else {
-			finalPath = this.resolvePath(relativePath, node.dataContextPath);
-		}
+		if (relativePath === "." || relativePath === "") finalPath = node.dataContextPath ?? "/";
+		else finalPath = this.resolvePath(relativePath, node.dataContextPath);
 		return this.#getDataByPath(surface.dataModel, finalPath);
 	}
 	setData(node, relativePath, value, surfaceId = A2uiMessageProcessor.DEFAULT_SURFACE_ID) {
@@ -1743,34 +1539,23 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 		const surface = this.#getOrCreateSurface(surfaceId);
 		if (!surface) return;
 		let finalPath;
-		if (relativePath === "." || relativePath === "") {
-			finalPath = node.dataContextPath ?? "/";
-		} else {
-			finalPath = this.resolvePath(relativePath, node.dataContextPath);
-		}
+		if (relativePath === "." || relativePath === "") finalPath = node.dataContextPath ?? "/";
+		else finalPath = this.resolvePath(relativePath, node.dataContextPath);
 		this.#setDataByPath(surface.dataModel, finalPath, value);
 	}
 	resolvePath(path, dataContextPath) {
-		if (path.startsWith("/")) {
-			return path;
-		}
-		if (dataContextPath && dataContextPath !== "/") {
-			return dataContextPath.endsWith("/") ? `${dataContextPath}${path}` : `${dataContextPath}/${path}`;
-		}
+		if (path.startsWith("/")) return path;
+		if (dataContextPath && dataContextPath !== "/") return dataContextPath.endsWith("/") ? `${dataContextPath}${path}` : `${dataContextPath}/${path}`;
 		return `/${path}`;
 	}
 	#parseIfJsonString(value) {
-		if (typeof value !== "string") {
-			return value;
-		}
+		if (typeof value !== "string") return value;
 		const trimmedValue = value.trim();
-		if (trimmedValue.startsWith("{") && trimmedValue.endsWith("}") || trimmedValue.startsWith("[") && trimmedValue.endsWith("]")) {
-			try {
-				return JSON.parse(value);
-			} catch (e) {
-				console.warn(`Failed to parse potential JSON string: "${value.substring(0, 50)}..."`, e);
-				return value;
-			}
+		if (trimmedValue.startsWith("{") && trimmedValue.endsWith("}") || trimmedValue.startsWith("[") && trimmedValue.endsWith("]")) try {
+			return JSON.parse(value);
+		} catch (e) {
+			console.warn(`Failed to parse potential JSON string: "${value.substring(0, 50)}..."`, e);
+			return value;
 		}
 		return value;
 	}
@@ -1787,75 +1572,48 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 			const valueKey = this.#findValueKey(item);
 			if (!valueKey) continue;
 			let value = item[valueKey];
-			if (valueKey === "valueMap" && Array.isArray(value)) {
-				value = this.#convertKeyValueArrayToMap(value);
-			} else if (typeof value === "string") {
-				value = this.#parseIfJsonString(value);
-			}
+			if (valueKey === "valueMap" && Array.isArray(value)) value = this.#convertKeyValueArrayToMap(value);
+			else if (typeof value === "string") value = this.#parseIfJsonString(value);
 			this.#setDataByPath(map, key, value);
 		}
 		return map;
 	}
 	#setDataByPath(root, path, value) {
-		if (Array.isArray(value) && (value.length === 0 || isObject$1(value[0]) && "key" in value[0])) {
-			if (value.length === 1 && isObject$1(value[0]) && value[0].key === ".") {
-				const item = value[0];
-				const valueKey = this.#findValueKey(item);
-				if (valueKey) {
-					value = item[valueKey];
-					if (valueKey === "valueMap" && Array.isArray(value)) {
-						value = this.#convertKeyValueArrayToMap(value);
-					} else if (typeof value === "string") {
-						value = this.#parseIfJsonString(value);
-					}
-				} else {
-					value = this.#convertKeyValueArrayToMap(value);
-				}
-			} else {
-				value = this.#convertKeyValueArrayToMap(value);
-			}
-		}
+		if (Array.isArray(value) && (value.length === 0 || isObject$1(value[0]) && "key" in value[0])) if (value.length === 1 && isObject$1(value[0]) && value[0].key === ".") {
+			const item = value[0];
+			const valueKey = this.#findValueKey(item);
+			if (valueKey) {
+				value = item[valueKey];
+				if (valueKey === "valueMap" && Array.isArray(value)) value = this.#convertKeyValueArrayToMap(value);
+				else if (typeof value === "string") value = this.#parseIfJsonString(value);
+			} else value = this.#convertKeyValueArrayToMap(value);
+		} else value = this.#convertKeyValueArrayToMap(value);
 		const segments = this.#normalizePath(path).split("/").filter((s) => s);
 		if (segments.length === 0) {
 			if (value instanceof Map || isObject$1(value)) {
-				if (!(value instanceof Map) && isObject$1(value)) {
-					value = new this.#mapCtor(Object.entries(value));
-				}
+				if (!(value instanceof Map) && isObject$1(value)) value = new this.#mapCtor(Object.entries(value));
 				root.clear();
-				for (const [key, v] of value.entries()) {
-					root.set(key, v);
-				}
-			} else {
-				console.error("Cannot set root of DataModel to a non-Map value.");
-			}
+				for (const [key, v] of value.entries()) root.set(key, v);
+			} else console.error("Cannot set root of DataModel to a non-Map value.");
 			return;
 		}
 		let current = root;
 		for (let i = 0; i < segments.length - 1; i++) {
 			const segment = segments[i];
 			let target;
-			if (current instanceof Map) {
-				target = current.get(segment);
-			} else if (Array.isArray(current) && /^\d+$/.test(segment)) {
-				target = current[parseInt(segment, 10)];
-			}
-			if (target === undefined || typeof target !== "object" || target === null) {
+			if (current instanceof Map) target = current.get(segment);
+			else if (Array.isArray(current) && /^\d+$/.test(segment)) target = current[parseInt(segment, 10)];
+			if (target === void 0 || typeof target !== "object" || target === null) {
 				target = new this.#mapCtor();
-				if (current instanceof this.#mapCtor) {
-					current.set(segment, target);
-				} else if (Array.isArray(current)) {
-					current[parseInt(segment, 10)] = target;
-				}
+				if (current instanceof this.#mapCtor) current.set(segment, target);
+				else if (Array.isArray(current)) current[parseInt(segment, 10)] = target;
 			}
 			current = target;
 		}
 		const finalSegment = segments[segments.length - 1];
 		const storedValue = value;
-		if (current instanceof this.#mapCtor) {
-			current.set(finalSegment, storedValue);
-		} else if (Array.isArray(current) && /^\d+$/.test(finalSegment)) {
-			current[parseInt(finalSegment, 10)] = storedValue;
-		}
+		if (current instanceof this.#mapCtor) current.set(finalSegment, storedValue);
+		else if (Array.isArray(current) && /^\d+$/.test(finalSegment)) current[parseInt(finalSegment, 10)] = storedValue;
 	}
 	/**
 	* Normalizes a path string into a consistent, slash-delimited format.
@@ -1864,24 +1622,17 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 	* e.g., "book.0.title" -> "/book/0/title"
 	*/
 	#normalizePath(path) {
-		const dotPath = path.replace(/\[(\d+)\]/g, ".$1");
-		const segments = dotPath.split(".");
-		return "/" + segments.filter((s) => s.length > 0).join("/");
+		return "/" + path.replace(/\[(\d+)\]/g, ".$1").split(".").filter((s) => s.length > 0).join("/");
 	}
 	#getDataByPath(root, path) {
 		const segments = this.#normalizePath(path).split("/").filter((s) => s);
 		let current = root;
 		for (const segment of segments) {
-			if (current === undefined || current === null) return null;
-			if (current instanceof Map) {
-				current = current.get(segment);
-			} else if (Array.isArray(current) && /^\d+$/.test(segment)) {
-				current = current[parseInt(segment, 10)];
-			} else if (isObject$1(current)) {
-				current = current[segment];
-			} else {
-				return null;
-			}
+			if (current === void 0 || current === null) return null;
+			if (current instanceof Map) current = current.get(segment);
+			else if (Array.isArray(current) && /^\d+$/.test(segment)) current = current[parseInt(segment, 10)];
+			else if (isObject$1(current)) current = current[segment];
+			else return null;
 		}
 		return current;
 	}
@@ -1907,9 +1658,7 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 	}
 	#handleSurfaceUpdate(message, surfaceId) {
 		const surface = this.#getOrCreateSurface(surfaceId);
-		for (const component of message.components) {
-			surface.components.set(component.id, component);
-		}
+		for (const component of message.components) surface.components.set(component.id, component);
 		this.#rebuildComponentTree(surface);
 	}
 	#handleDataModelUpdate(message, surfaceId) {
@@ -1947,23 +1696,15 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 	#buildNodeRecursive(baseComponentId, surface, visited, dataContextPath, idSuffix = "") {
 		const fullId = `${baseComponentId}${idSuffix}`;
 		const { components } = surface;
-		if (!components.has(baseComponentId)) {
-			return null;
-		}
-		if (visited.has(fullId)) {
-			throw new Error(`Circular dependency for component "${fullId}".`);
-		}
+		if (!components.has(baseComponentId)) return null;
+		if (visited.has(fullId)) throw new Error(`Circular dependency for component "${fullId}".`);
 		visited.add(fullId);
 		const componentData = components.get(baseComponentId);
 		const componentProps = componentData.component ?? {};
 		const componentType = Object.keys(componentProps)[0];
 		const unresolvedProperties = componentProps[componentType];
 		const resolvedProperties = new this.#objCtor();
-		if (isObject$1(unresolvedProperties)) {
-			for (const [key, value] of Object.entries(unresolvedProperties)) {
-				resolvedProperties[key] = this.#resolvePropertyValue(value, surface, visited, dataContextPath, idSuffix, key);
-			}
-		}
+		if (isObject$1(unresolvedProperties)) for (const [key, value] of Object.entries(unresolvedProperties)) resolvedProperties[key] = this.#resolvePropertyValue(value, surface, visited, dataContextPath, idSuffix, key);
 		visited.delete(fullId);
 		const baseNode = {
 			id: fullId,
@@ -1972,162 +1713,126 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 		};
 		switch (componentType) {
 			case "Text":
-				if (!isResolvedText(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedText(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Text",
 					properties: resolvedProperties
 				});
 			case "Image":
-				if (!isResolvedImage(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedImage(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Image",
 					properties: resolvedProperties
 				});
 			case "Icon":
-				if (!isResolvedIcon(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedIcon(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Icon",
 					properties: resolvedProperties
 				});
 			case "Video":
-				if (!isResolvedVideo(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedVideo(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Video",
 					properties: resolvedProperties
 				});
 			case "AudioPlayer":
-				if (!isResolvedAudioPlayer(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedAudioPlayer(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "AudioPlayer",
 					properties: resolvedProperties
 				});
 			case "Row":
-				if (!isResolvedRow(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedRow(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Row",
 					properties: resolvedProperties
 				});
 			case "Column":
-				if (!isResolvedColumn(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedColumn(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Column",
 					properties: resolvedProperties
 				});
 			case "List":
-				if (!isResolvedList(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedList(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "List",
 					properties: resolvedProperties
 				});
 			case "Card":
-				if (!isResolvedCard(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedCard(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Card",
 					properties: resolvedProperties
 				});
 			case "Tabs":
-				if (!isResolvedTabs(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedTabs(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Tabs",
 					properties: resolvedProperties
 				});
 			case "Divider":
-				if (!isResolvedDivider(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedDivider(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Divider",
 					properties: resolvedProperties
 				});
 			case "Modal":
-				if (!isResolvedModal(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedModal(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Modal",
 					properties: resolvedProperties
 				});
 			case "Button":
-				if (!isResolvedButton(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedButton(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Button",
 					properties: resolvedProperties
 				});
 			case "CheckBox":
-				if (!isResolvedCheckbox(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedCheckbox(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "CheckBox",
 					properties: resolvedProperties
 				});
 			case "TextField":
-				if (!isResolvedTextField(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedTextField(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "TextField",
 					properties: resolvedProperties
 				});
 			case "DateTimeInput":
-				if (!isResolvedDateTimeInput(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedDateTimeInput(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "DateTimeInput",
 					properties: resolvedProperties
 				});
 			case "MultipleChoice":
-				if (!isResolvedMultipleChoice(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedMultipleChoice(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "MultipleChoice",
 					properties: resolvedProperties
 				});
 			case "Slider":
-				if (!isResolvedSlider(resolvedProperties)) {
-					throw new Error(`Invalid data; expected ${componentType}`);
-				}
+				if (!isResolvedSlider(resolvedProperties)) throw new Error(`Invalid data; expected ${componentType}`);
 				return new this.#objCtor({
 					...baseNode,
 					type: "Slider",
@@ -2147,40 +1852,27 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 	*/
 	#resolvePropertyValue(value, surface, visited, dataContextPath, idSuffix = "", propertyKey = null) {
 		const isComponentIdReferenceKey = (key) => key === "child" || key.endsWith("Child");
-		if (typeof value === "string" && propertyKey && isComponentIdReferenceKey(propertyKey) && surface.components.has(value)) {
-			return this.#buildNodeRecursive(value, surface, visited, dataContextPath, idSuffix);
-		}
+		if (typeof value === "string" && propertyKey && isComponentIdReferenceKey(propertyKey) && surface.components.has(value)) return this.#buildNodeRecursive(value, surface, visited, dataContextPath, idSuffix);
 		if (isComponentArrayReference(value)) {
-			if (value.explicitList) {
-				return value.explicitList.map((id) => this.#buildNodeRecursive(id, surface, visited, dataContextPath, idSuffix));
-			}
+			if (value.explicitList) return value.explicitList.map((id) => this.#buildNodeRecursive(id, surface, visited, dataContextPath, idSuffix));
 			if (value.template) {
 				const fullDataPath = this.resolvePath(value.template.dataBinding, dataContextPath);
 				const data = this.#getDataByPath(surface.dataModel, fullDataPath);
 				const template = value.template;
-				if (Array.isArray(data)) {
-					return data.map((_, index) => {
-						const parentIndices = dataContextPath.split("/").filter((segment) => /^\d+$/.test(segment));
-						const newIndices = [...parentIndices, index];
-						const newSuffix = `:${newIndices.join(":")}`;
-						const childDataContextPath = `${fullDataPath}/${index}`;
-						return this.#buildNodeRecursive(template.componentId, surface, visited, childDataContextPath, newSuffix);
-					});
-				}
-				const mapCtor = this.#mapCtor;
-				if (data instanceof mapCtor) {
-					return Array.from(data.keys(), (key) => {
-						const newSuffix = `:${key}`;
-						const childDataContextPath = `${fullDataPath}/${key}`;
-						return this.#buildNodeRecursive(template.componentId, surface, visited, childDataContextPath, newSuffix);
-					});
-				}
+				if (Array.isArray(data)) return data.map((_, index) => {
+					const newSuffix = `:${[...dataContextPath.split("/").filter((segment) => /^\d+$/.test(segment)), index].join(":")}`;
+					const childDataContextPath = `${fullDataPath}/${index}`;
+					return this.#buildNodeRecursive(template.componentId, surface, visited, childDataContextPath, newSuffix);
+				});
+				if (data instanceof this.#mapCtor) return Array.from(data.keys(), (key) => {
+					const newSuffix = `:${key}`;
+					const childDataContextPath = `${fullDataPath}/${key}`;
+					return this.#buildNodeRecursive(template.componentId, surface, visited, childDataContextPath, newSuffix);
+				});
 				return new this.#arrayCtor();
 			}
 		}
-		if (Array.isArray(value)) {
-			return value.map((item) => this.#resolvePropertyValue(item, surface, visited, dataContextPath, idSuffix, propertyKey));
-		}
+		if (Array.isArray(value)) return value.map((item) => this.#resolvePropertyValue(item, surface, visited, dataContextPath, idSuffix, propertyKey));
 		if (isObject$1(value)) {
 			const newObj = new this.#objCtor();
 			for (const [key, propValue] of Object.entries(value)) {
@@ -2197,7 +1889,6 @@ var A2uiMessageProcessor = class A2uiMessageProcessor {
 		return value;
 	}
 };
-
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, {
 	enumerable: true,
@@ -2274,12 +1965,8 @@ const REACTIVE_NODE = {
 	consumerOnSignalRead: () => {}
 };
 function producerAccessed(node) {
-	if (inNotificationPhase) {
-		throw new Error(typeof ngDevMode !== "undefined" && ngDevMode ? `Assertion error: signal read during notification phase` : "");
-	}
-	if (activeConsumer === null) {
-		return;
-	}
+	if (inNotificationPhase) throw new Error(typeof ngDevMode !== "undefined" && ngDevMode ? `Assertion error: signal read during notification phase` : "");
+	if (activeConsumer === null) return;
 	activeConsumer.consumerOnSignalRead(node);
 	const idx = activeConsumer.nextProducerIndex++;
 	assertConsumerNode(activeConsumer);
@@ -2299,9 +1986,7 @@ function producerIncrementEpoch() {
 	epoch++;
 }
 function producerUpdateValueVersion(node) {
-	if (!node.dirty && node.lastCleanEpoch === epoch) {
-		return;
-	}
+	if (!node.dirty && node.lastCleanEpoch === epoch) return;
 	if (!node.producerMustRecompute(node) && !consumerPollProducersForChange(node)) {
 		node.dirty = false;
 		node.lastCleanEpoch = epoch;
@@ -2312,17 +1997,11 @@ function producerUpdateValueVersion(node) {
 	node.lastCleanEpoch = epoch;
 }
 function producerNotifyConsumers(node) {
-	if (node.liveConsumerNode === void 0) {
-		return;
-	}
+	if (node.liveConsumerNode === void 0) return;
 	const prev = inNotificationPhase;
 	inNotificationPhase = true;
 	try {
-		for (const consumer of node.liveConsumerNode) {
-			if (!consumer.dirty) {
-				consumerMarkDirty(consumer);
-			}
-		}
+		for (const consumer of node.liveConsumerNode) if (!consumer.dirty) consumerMarkDirty(consumer);
 	} finally {
 		inNotificationPhase = prev;
 	}
@@ -2334,7 +2013,7 @@ function consumerMarkDirty(node) {
 	var _a;
 	node.dirty = true;
 	producerNotifyConsumers(node);
-	(_a = node.consumerMarkedDirty) == null ? void 0 : _a.call(node.wrapper ?? node);
+	(_a = node.consumerMarkedDirty) == null || _a.call(node.wrapper ?? node);
 }
 function consumerBeforeComputation(node) {
 	node && (node.nextProducerIndex = 0);
@@ -2342,14 +2021,8 @@ function consumerBeforeComputation(node) {
 }
 function consumerAfterComputation(node, prevConsumer) {
 	setActiveConsumer(prevConsumer);
-	if (!node || node.producerNode === void 0 || node.producerIndexOfThis === void 0 || node.producerLastReadVersion === void 0) {
-		return;
-	}
-	if (consumerIsLive(node)) {
-		for (let i = node.nextProducerIndex; i < node.producerNode.length; i++) {
-			producerRemoveLiveConsumerAtIndex(node.producerNode[i], node.producerIndexOfThis[i]);
-		}
-	}
+	if (!node || node.producerNode === void 0 || node.producerIndexOfThis === void 0 || node.producerLastReadVersion === void 0) return;
+	if (consumerIsLive(node)) for (let i = node.nextProducerIndex; i < node.producerNode.length; i++) producerRemoveLiveConsumerAtIndex(node.producerNode[i], node.producerIndexOfThis[i]);
 	while (node.producerNode.length > node.nextProducerIndex) {
 		node.producerNode.pop();
 		node.producerLastReadVersion.pop();
@@ -2361,13 +2034,9 @@ function consumerPollProducersForChange(node) {
 	for (let i = 0; i < node.producerNode.length; i++) {
 		const producer = node.producerNode[i];
 		const seenVersion = node.producerLastReadVersion[i];
-		if (seenVersion !== producer.version) {
-			return true;
-		}
+		if (seenVersion !== producer.version) return true;
 		producerUpdateValueVersion(producer);
-		if (seenVersion !== producer.version) {
-			return true;
-		}
+		if (seenVersion !== producer.version) return true;
 	}
 	return false;
 }
@@ -2376,10 +2045,8 @@ function producerAddLiveConsumer(node, consumer, indexOfThis) {
 	assertProducerNode(node);
 	assertConsumerNode(node);
 	if (node.liveConsumerNode.length === 0) {
-		(_a = node.watched) == null ? void 0 : _a.call(node.wrapper);
-		for (let i = 0; i < node.producerNode.length; i++) {
-			node.producerIndexOfThis[i] = producerAddLiveConsumer(node.producerNode[i], node, i);
-		}
+		(_a = node.watched) == null || _a.call(node.wrapper);
+		for (let i = 0; i < node.producerNode.length; i++) node.producerIndexOfThis[i] = producerAddLiveConsumer(node.producerNode[i], node, i);
 	}
 	node.liveConsumerIndexOfThis.push(indexOfThis);
 	return node.liveConsumerNode.push(consumer) - 1;
@@ -2388,14 +2055,10 @@ function producerRemoveLiveConsumerAtIndex(node, idx) {
 	var _a;
 	assertProducerNode(node);
 	assertConsumerNode(node);
-	if (typeof ngDevMode !== "undefined" && ngDevMode && idx >= node.liveConsumerNode.length) {
-		throw new Error(`Assertion error: active consumer index ${idx} is out of bounds of ${node.liveConsumerNode.length} consumers)`);
-	}
+	if (typeof ngDevMode !== "undefined" && ngDevMode && idx >= node.liveConsumerNode.length) throw new Error(`Assertion error: active consumer index ${idx} is out of bounds of ${node.liveConsumerNode.length} consumers)`);
 	if (node.liveConsumerNode.length === 1) {
-		(_a = node.unwatched) == null ? void 0 : _a.call(node.wrapper);
-		for (let i = 0; i < node.producerNode.length; i++) {
-			producerRemoveLiveConsumerAtIndex(node.producerNode[i], node.producerIndexOfThis[i]);
-		}
+		(_a = node.unwatched) == null || _a.call(node.wrapper);
+		for (let i = 0; i < node.producerNode.length; i++) producerRemoveLiveConsumerAtIndex(node.producerNode[i], node.producerIndexOfThis[i]);
 	}
 	const lastIdx = node.liveConsumerNode.length - 1;
 	node.liveConsumerNode[idx] = node.liveConsumerNode[lastIdx];
@@ -2432,9 +2095,7 @@ function assertProducerNode(node) {
 function computedGet(node) {
 	producerUpdateValueVersion(node);
 	producerAccessed(node);
-	if (node.value === ERRORED) {
-		throw node.error;
-	}
+	if (node.value === ERRORED) throw node.error;
 	return node.value;
 }
 function createComputed(computation) {
@@ -2447,44 +2108,39 @@ function createComputed(computation) {
 const UNSET = /* @__PURE__ */ Symbol("UNSET");
 const COMPUTING = /* @__PURE__ */ Symbol("COMPUTING");
 const ERRORED = /* @__PURE__ */ Symbol("ERRORED");
-const COMPUTED_NODE = /* @__PURE__ */ (() => {
-	return {
-		...REACTIVE_NODE,
-		value: UNSET,
-		dirty: true,
-		error: null,
-		equal: defaultEquals,
-		producerMustRecompute(node) {
-			return node.value === UNSET || node.value === COMPUTING;
-		},
-		producerRecomputeValue(node) {
-			if (node.value === COMPUTING) {
-				throw new Error("Detected cycle in computations.");
-			}
-			const oldValue = node.value;
-			node.value = COMPUTING;
-			const prevConsumer = consumerBeforeComputation(node);
-			let newValue;
-			let wasEqual = false;
-			try {
-				newValue = node.computation.call(node.wrapper);
-				const oldOk = oldValue !== UNSET && oldValue !== ERRORED;
-				wasEqual = oldOk && node.equal.call(node.wrapper, oldValue, newValue);
-			} catch (err) {
-				newValue = ERRORED;
-				node.error = err;
-			} finally {
-				consumerAfterComputation(node, prevConsumer);
-			}
-			if (wasEqual) {
-				node.value = oldValue;
-				return;
-			}
-			node.value = newValue;
-			node.version++;
+const COMPUTED_NODE = {
+	...REACTIVE_NODE,
+	value: UNSET,
+	dirty: true,
+	error: null,
+	equal: defaultEquals,
+	producerMustRecompute(node) {
+		return node.value === UNSET || node.value === COMPUTING;
+	},
+	producerRecomputeValue(node) {
+		if (node.value === COMPUTING) throw new Error("Detected cycle in computations.");
+		const oldValue = node.value;
+		node.value = COMPUTING;
+		const prevConsumer = consumerBeforeComputation(node);
+		let newValue;
+		let wasEqual = false;
+		try {
+			newValue = node.computation.call(node.wrapper);
+			wasEqual = oldValue !== UNSET && oldValue !== ERRORED && node.equal.call(node.wrapper, oldValue, newValue);
+		} catch (err) {
+			newValue = ERRORED;
+			node.error = err;
+		} finally {
+			consumerAfterComputation(node, prevConsumer);
 		}
-	};
-})();
+		if (wasEqual) {
+			node.value = oldValue;
+			return;
+		}
+		node.value = newValue;
+		node.version++;
+	}
+};
 /**
 * @license
 * Copyright Google LLC All Rights Reserved.
@@ -2521,21 +2177,17 @@ function signalGetFn() {
 	return this.value;
 }
 function signalSetFn(node, newValue) {
-	if (!producerUpdatesAllowed()) {
-		throwInvalidWriteToSignalError();
-	}
+	if (!producerUpdatesAllowed()) throwInvalidWriteToSignalError();
 	if (!node.equal.call(node.wrapper, node.value, newValue)) {
 		node.value = newValue;
 		signalValueChanged(node);
 	}
 }
-const SIGNAL_NODE = /* @__PURE__ */ (() => {
-	return {
-		...REACTIVE_NODE,
-		equal: defaultEquals,
-		value: void 0
-	};
-})();
+const SIGNAL_NODE = {
+	...REACTIVE_NODE,
+	equal: defaultEquals,
+	value: void 0
+};
 function signalValueChanged(node) {
 	node.version++;
 	producerIncrementEpoch();
@@ -2560,20 +2212,17 @@ function signalValueChanged(node) {
 const NODE = Symbol("node");
 var Signal;
 ((Signal2) => {
-	var _a, _brand, brand_fn, _b, _brand2, brand_fn2;
+	var _a, _brand, _b, _brand2;
 	class State {
 		constructor(initialValue, options = {}) {
 			__privateAdd(this, _brand);
 			__publicField(this, _a);
-			const ref = createSignal(initialValue);
-			const node = ref[SIGNAL];
+			const node = createSignal(initialValue)[SIGNAL];
 			this[NODE] = node;
 			node.wrapper = this;
 			if (options) {
 				const equals = options.equals;
-				if (equals) {
-					node.equal = equals;
-				}
+				if (equals) node.equal = equals;
 				node.watched = options[Signal2.subtle.watched];
 				node.unwatched = options[Signal2.subtle.unwatched];
 			}
@@ -2584,32 +2233,26 @@ var Signal;
 		}
 		set(newValue) {
 			if (!(0, Signal2.isState)(this)) throw new TypeError("Wrong receiver type for Signal.State.prototype.set");
-			if (isInNotificationPhase()) {
-				throw new Error("Writes to signals not permitted during Watcher callback");
-			}
+			if (isInNotificationPhase()) throw new Error("Writes to signals not permitted during Watcher callback");
 			const ref = this[NODE];
 			signalSetFn(ref, newValue);
 		}
 	}
 	_a = NODE;
-	_brand = new WeakSet();
-	brand_fn = function() {};
+	_brand = /* @__PURE__ */ new WeakSet();
 	Signal2.isState = (s) => typeof s === "object" && __privateIn(_brand, s);
 	Signal2.State = State;
 	class Computed {
 		constructor(computation, options) {
 			__privateAdd(this, _brand2);
 			__publicField(this, _b);
-			const ref = createComputed(computation);
-			const node = ref[SIGNAL];
+			const node = createComputed(computation)[SIGNAL];
 			node.consumerAllowSignalWrites = true;
 			this[NODE] = node;
 			node.wrapper = this;
 			if (options) {
 				const equals = options.equals;
-				if (equals) {
-					node.equal = equals;
-				}
+				if (equals) node.equal = equals;
 				node.watched = options[Signal2.subtle.watched];
 				node.unwatched = options[Signal2.subtle.unwatched];
 			}
@@ -2620,12 +2263,11 @@ var Signal;
 		}
 	}
 	_b = NODE;
-	_brand2 = new WeakSet();
-	brand_fn2 = function() {};
+	_brand2 = /* @__PURE__ */ new WeakSet();
 	Signal2.isComputed = (c) => typeof c === "object" && __privateIn(_brand2, c);
 	Signal2.Computed = Computed;
 	((subtle2) => {
-		var _a2, _brand3, brand_fn3, _assertSignals, assertSignals_fn;
+		var _a2, _brand3, _assertSignals, assertSignals_fn;
 		function untrack(cb) {
 			let output;
 			let prevActiveConsumer = null;
@@ -2640,33 +2282,25 @@ var Signal;
 		subtle2.untrack = untrack;
 		function introspectSources(sink) {
 			var _a3;
-			if (!(0, Signal2.isComputed)(sink) && !(0, Signal2.isWatcher)(sink)) {
-				throw new TypeError("Called introspectSources without a Computed or Watcher argument");
-			}
+			if (!(0, Signal2.isComputed)(sink) && !(0, Signal2.isWatcher)(sink)) throw new TypeError("Called introspectSources without a Computed or Watcher argument");
 			return ((_a3 = sink[NODE].producerNode) == null ? void 0 : _a3.map((n) => n.wrapper)) ?? [];
 		}
 		subtle2.introspectSources = introspectSources;
 		function introspectSinks(signal) {
 			var _a3;
-			if (!(0, Signal2.isComputed)(signal) && !(0, Signal2.isState)(signal)) {
-				throw new TypeError("Called introspectSinks without a Signal argument");
-			}
+			if (!(0, Signal2.isComputed)(signal) && !(0, Signal2.isState)(signal)) throw new TypeError("Called introspectSinks without a Signal argument");
 			return ((_a3 = signal[NODE].liveConsumerNode) == null ? void 0 : _a3.map((n) => n.wrapper)) ?? [];
 		}
 		subtle2.introspectSinks = introspectSinks;
 		function hasSinks(signal) {
-			if (!(0, Signal2.isComputed)(signal) && !(0, Signal2.isState)(signal)) {
-				throw new TypeError("Called hasSinks without a Signal argument");
-			}
+			if (!(0, Signal2.isComputed)(signal) && !(0, Signal2.isState)(signal)) throw new TypeError("Called hasSinks without a Signal argument");
 			const liveConsumerNode = signal[NODE].liveConsumerNode;
 			if (!liveConsumerNode) return false;
 			return liveConsumerNode.length > 0;
 		}
 		subtle2.hasSinks = hasSinks;
 		function hasSources(signal) {
-			if (!(0, Signal2.isComputed)(signal) && !(0, Signal2.isWatcher)(signal)) {
-				throw new TypeError("Called hasSources without a Computed or Watcher argument");
-			}
+			if (!(0, Signal2.isComputed)(signal) && !(0, Signal2.isWatcher)(signal)) throw new TypeError("Called hasSources without a Computed or Watcher argument");
 			const producerNode = signal[NODE].producerNode;
 			if (!producerNode) return false;
 			return producerNode.length > 0;
@@ -2686,61 +2320,45 @@ var Signal;
 				this[NODE] = node;
 			}
 			watch(...signals) {
-				if (!(0, Signal2.isWatcher)(this)) {
-					throw new TypeError("Called unwatch without Watcher receiver");
-				}
+				if (!(0, Signal2.isWatcher)(this)) throw new TypeError("Called unwatch without Watcher receiver");
 				__privateMethod(this, _assertSignals, assertSignals_fn).call(this, signals);
 				const node = this[NODE];
 				node.dirty = false;
 				const prev = setActiveConsumer(node);
-				for (const signal of signals) {
-					producerAccessed(signal[NODE]);
-				}
+				for (const signal of signals) producerAccessed(signal[NODE]);
 				setActiveConsumer(prev);
 			}
 			unwatch(...signals) {
-				if (!(0, Signal2.isWatcher)(this)) {
-					throw new TypeError("Called unwatch without Watcher receiver");
-				}
+				if (!(0, Signal2.isWatcher)(this)) throw new TypeError("Called unwatch without Watcher receiver");
 				__privateMethod(this, _assertSignals, assertSignals_fn).call(this, signals);
 				const node = this[NODE];
 				assertConsumerNode(node);
-				for (let i = node.producerNode.length - 1; i >= 0; i--) {
-					if (signals.includes(node.producerNode[i].wrapper)) {
-						producerRemoveLiveConsumerAtIndex(node.producerNode[i], node.producerIndexOfThis[i]);
-						const lastIdx = node.producerNode.length - 1;
-						node.producerNode[i] = node.producerNode[lastIdx];
-						node.producerIndexOfThis[i] = node.producerIndexOfThis[lastIdx];
-						node.producerNode.length--;
-						node.producerIndexOfThis.length--;
-						node.nextProducerIndex--;
-						if (i < node.producerNode.length) {
-							const idxConsumer = node.producerIndexOfThis[i];
-							const producer = node.producerNode[i];
-							assertProducerNode(producer);
-							producer.liveConsumerIndexOfThis[idxConsumer] = i;
-						}
+				for (let i = node.producerNode.length - 1; i >= 0; i--) if (signals.includes(node.producerNode[i].wrapper)) {
+					producerRemoveLiveConsumerAtIndex(node.producerNode[i], node.producerIndexOfThis[i]);
+					const lastIdx = node.producerNode.length - 1;
+					node.producerNode[i] = node.producerNode[lastIdx];
+					node.producerIndexOfThis[i] = node.producerIndexOfThis[lastIdx];
+					node.producerNode.length--;
+					node.producerIndexOfThis.length--;
+					node.nextProducerIndex--;
+					if (i < node.producerNode.length) {
+						const idxConsumer = node.producerIndexOfThis[i];
+						const producer = node.producerNode[i];
+						assertProducerNode(producer);
+						producer.liveConsumerIndexOfThis[idxConsumer] = i;
 					}
 				}
 			}
 			getPending() {
-				if (!(0, Signal2.isWatcher)(this)) {
-					throw new TypeError("Called getPending without Watcher receiver");
-				}
-				const node = this[NODE];
-				return node.producerNode.filter((n) => n.dirty).map((n) => n.wrapper);
+				if (!(0, Signal2.isWatcher)(this)) throw new TypeError("Called getPending without Watcher receiver");
+				return this[NODE].producerNode.filter((n) => n.dirty).map((n) => n.wrapper);
 			}
 		}
 		_a2 = NODE;
-		_brand3 = new WeakSet();
-		brand_fn3 = function() {};
-		_assertSignals = new WeakSet();
+		_brand3 = /* @__PURE__ */ new WeakSet();
+		_assertSignals = /* @__PURE__ */ new WeakSet();
 		assertSignals_fn = function(signals) {
-			for (const signal of signals) {
-				if (!(0, Signal2.isComputed)(signal) && !(0, Signal2.isState)(signal)) {
-					throw new TypeError("Called watch/unwatch without a Computed or State argument");
-				}
-			}
+			for (const signal of signals) if (!(0, Signal2.isComputed)(signal) && !(0, Signal2.isState)(signal)) throw new TypeError("Called watch/unwatch without a Computed or State argument");
 		};
 		Signal2.isWatcher = (w) => __privateIn(_brand3, w);
 		subtle2.Watcher = Watcher;
@@ -2753,7 +2371,6 @@ var Signal;
 		subtle2.unwatched = Symbol("unwatched");
 	})(Signal2.subtle || (Signal2.subtle = {}));
 })(Signal || (Signal = {}));
-
 /**
 * equality check here is always false so that we can dirty the storage
 * via setting to _anything_
@@ -2766,19 +2383,6 @@ var Signal;
 * (though, see deep.ts for nested / deep behavior)
 */
 const createStorage = (initial = null) => new Signal.State(initial, { equals: () => false });
-/**
-* Just an alias for brevity
-*/
-const BOUND_FUNS = new WeakMap();
-function fnCacheFor(context) {
-	let fnCache = BOUND_FUNS.get(context);
-	if (!fnCache) {
-		fnCache = new Map();
-		BOUND_FUNS.set(context, fnCache);
-	}
-	return fnCache;
-}
-
 const ARRAY_GETTER_METHODS = new Set([
 	Symbol.iterator,
 	"concat",
@@ -2833,7 +2437,7 @@ var SignalArray = class SignalArray {
 	constructor(arr = []) {
 		let clone = arr.slice();
 		let self = this;
-		let boundFns = new Map();
+		let boundFns = /* @__PURE__ */ new Map();
 		/**
 		Flag to track whether we have *just* intercepted a call to `.push()` or
 		`.unshift()`, since in those cases (and only those cases!) the `Array`
@@ -2849,19 +2453,14 @@ var SignalArray = class SignalArray {
 					return target[index];
 				}
 				if (prop === "length") {
-					if (nativelyAccessingLengthFromPushOrUnshift) {
-						nativelyAccessingLengthFromPushOrUnshift = false;
-					} else {
-						self.#collection.get();
-					}
+					if (nativelyAccessingLengthFromPushOrUnshift) nativelyAccessingLengthFromPushOrUnshift = false;
+					else self.#collection.get();
 					return target[prop];
 				}
-				if (ARRAY_WRITE_THEN_READ_METHODS.has(prop)) {
-					nativelyAccessingLengthFromPushOrUnshift = true;
-				}
+				if (ARRAY_WRITE_THEN_READ_METHODS.has(prop)) nativelyAccessingLengthFromPushOrUnshift = true;
 				if (ARRAY_GETTER_METHODS.has(prop)) {
 					let fn = boundFns.get(prop);
-					if (fn === undefined) {
+					if (fn === void 0) {
 						fn = (...args) => {
 							self.#collection.get();
 							return target[prop](...args);
@@ -2878,9 +2477,7 @@ var SignalArray = class SignalArray {
 				if (index !== null) {
 					self.#dirtyStorageFor(index);
 					self.#collection.set(null);
-				} else if (prop === "length") {
-					self.#collection.set(null);
-				}
+				} else if (prop === "length") self.#collection.set(null);
 				return true;
 			},
 			getPrototypeOf() {
@@ -2889,10 +2486,10 @@ var SignalArray = class SignalArray {
 		});
 	}
 	#collection = createStorage();
-	#storages = new Map();
+	#storages = /* @__PURE__ */ new Map();
 	#readStorageFor(index) {
 		let storage = this.#storages.get(index);
-		if (storage === undefined) {
+		if (storage === void 0) {
 			storage = createStorage();
 			this.#storages.set(index, storage);
 		}
@@ -2900,24 +2497,18 @@ var SignalArray = class SignalArray {
 	}
 	#dirtyStorageFor(index) {
 		const storage = this.#storages.get(index);
-		if (storage) {
-			storage.set(null);
-		}
+		if (storage) storage.set(null);
 	}
 };
 Object.setPrototypeOf(SignalArray.prototype, Array.prototype);
-function signalArray(x) {
-	return new SignalArray(x);
-}
-
 var SignalMap = class {
 	collection = createStorage();
-	storages = new Map();
+	storages = /* @__PURE__ */ new Map();
 	vals;
 	readStorageFor(key) {
 		const { storages } = this;
 		let storage = storages.get(key);
-		if (storage === undefined) {
+		if (storage === void 0) {
 			storage = createStorage();
 			storages.set(key, storage);
 		}
@@ -2925,12 +2516,10 @@ var SignalMap = class {
 	}
 	dirtyStorageFor(key) {
 		const storage = this.storages.get(key);
-		if (storage) {
-			storage.set(null);
-		}
+		if (storage) storage.set(null);
 	}
 	constructor(existing) {
-		this.vals = existing ? new Map(existing) : new Map();
+		this.vals = existing ? new Map(existing) : /* @__PURE__ */ new Map();
 	}
 	get(key) {
 		this.readStorageFor(key);
@@ -2985,24 +2574,31 @@ var SignalMap = class {
 	}
 };
 Object.setPrototypeOf(SignalMap.prototype, Map.prototype);
-
 /**
-* Implementation based of tracked-built-ins' TrackedObject
-* https://github.com/tracked-tools/tracked-built-ins/blob/master/addon/src/-private/object.js
+* Create a reactive Object, backed by Signals, using a Proxy.
+* This allows dynamic creation and deletion of signals using the object primitive
+* APIs that most folks are familiar with -- the only difference is instantiation.
+* ```js
+* const obj = new SignalObject({ foo: 123 });
+*
+* obj.foo // 123
+* obj.foo = 456
+* obj.foo // 456
+* obj.bar = 2
+* obj.bar // 2
+* ```
 */
-var SignalObjectImpl = class SignalObjectImpl {
+const SignalObject = class SignalObjectImpl {
 	static fromEntries(entries) {
 		return new SignalObjectImpl(Object.fromEntries(entries));
 	}
-	#storages = new Map();
+	#storages = /* @__PURE__ */ new Map();
 	#collection = createStorage();
 	constructor(obj = {}) {
 		let proto = Object.getPrototypeOf(obj);
 		let descs = Object.getOwnPropertyDescriptors(obj);
 		let clone = Object.create(proto);
-		for (let prop in descs) {
-			Object.defineProperty(clone, prop, descs[prop]);
-		}
+		for (let prop in descs) Object.defineProperty(clone, prop, descs[prop]);
 		let self = this;
 		return new Proxy(clone, {
 			get(target, prop, receiver) {
@@ -3038,7 +2634,7 @@ var SignalObjectImpl = class SignalObjectImpl {
 	}
 	#readStorageFor(key) {
 		let storage = this.#storages.get(key);
-		if (storage === undefined) {
+		if (storage === void 0) {
 			storage = createStorage();
 			this.#storages.set(key, storage);
 		}
@@ -3046,41 +2642,20 @@ var SignalObjectImpl = class SignalObjectImpl {
 	}
 	#dirtyStorageFor(key) {
 		const storage = this.#storages.get(key);
-		if (storage) {
-			storage.set(null);
-		}
+		if (storage) storage.set(null);
 	}
 	#dirtyCollection() {
 		this.#collection.set(null);
 	}
 };
-/**
-* Create a reactive Object, backed by Signals, using a Proxy.
-* This allows dynamic creation and deletion of signals using the object primitive
-* APIs that most folks are familiar with -- the only difference is instantiation.
-* ```js
-* const obj = new SignalObject({ foo: 123 });
-*
-* obj.foo // 123
-* obj.foo = 456
-* obj.foo // 456
-* obj.bar = 2
-* obj.bar // 2
-* ```
-*/
-const SignalObject = SignalObjectImpl;
-function signalObject(obj) {
-	return new SignalObject(obj);
-}
-
 var SignalSet = class {
 	collection = createStorage();
-	storages = new Map();
+	storages = /* @__PURE__ */ new Map();
 	vals;
 	storageFor(key) {
 		const storages = this.storages;
 		let storage = storages.get(key);
-		if (storage === undefined) {
+		if (storage === void 0) {
 			storage = createStorage();
 			storages.set(key, storage);
 		}
@@ -3088,9 +2663,7 @@ var SignalSet = class {
 	}
 	dirtyStorageFor(key) {
 		const storage = this.storages.get(key);
-		if (storage) {
-			storage.set(null);
-		}
+		if (storage) storage.set(null);
 	}
 	constructor(existing) {
 		this.vals = new Set(existing);
@@ -3144,7 +2717,6 @@ var SignalSet = class {
 	}
 };
 Object.setPrototypeOf(SignalSet.prototype, Set.prototype);
-
 function create() {
 	return new A2uiMessageProcessor({
 		arrayCtor: SignalArray,
@@ -3153,741 +2725,11 @@ function create() {
 		setCtor: SignalSet
 	});
 }
-
-var server_to_client_with_standard_catalog_default = {
-	title: "A2UI Message Schema",
-	description: "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces. A message MUST contain exactly ONE of the action properties: 'beginRendering', 'surfaceUpdate', 'dataModelUpdate', or 'deleteSurface'.",
-	type: "object",
-	additionalProperties: false,
-	properties: {
-		"beginRendering": {
-			"type": "object",
-			"description": "Signals the client to begin rendering a surface with a root component and specific styles.",
-			"additionalProperties": false,
-			"properties": {
-				"surfaceId": {
-					"type": "string",
-					"description": "The unique identifier for the UI surface to be rendered."
-				},
-				"root": {
-					"type": "string",
-					"description": "The ID of the root component to render."
-				},
-				"styles": {
-					"type": "object",
-					"description": "Styling information for the UI.",
-					"additionalProperties": false,
-					"properties": {
-						"font": {
-							"type": "string",
-							"description": "The primary font for the UI."
-						},
-						"primaryColor": {
-							"type": "string",
-							"description": "The primary UI color as a hexadecimal code (e.g., '#00BFFF').",
-							"pattern": "^#[0-9a-fA-F]{6}$"
-						}
-					}
-				}
-			},
-			"required": ["root", "surfaceId"]
-		},
-		"surfaceUpdate": {
-			"type": "object",
-			"description": "Updates a surface with a new set of components.",
-			"additionalProperties": false,
-			"properties": {
-				"surfaceId": {
-					"type": "string",
-					"description": "The unique identifier for the UI surface to be updated. If you are adding a new surface this *must* be a new, unique identified that has never been used for any existing surfaces shown."
-				},
-				"components": {
-					"type": "array",
-					"description": "A list containing all UI components for the surface.",
-					"minItems": 1,
-					"items": {
-						"type": "object",
-						"description": "Represents a *single* component in a UI widget tree. This component could be one of many supported types.",
-						"additionalProperties": false,
-						"properties": {
-							"id": {
-								"type": "string",
-								"description": "The unique identifier for this component."
-							},
-							"weight": {
-								"type": "number",
-								"description": "The relative weight of this component within a Row or Column. This corresponds to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
-							},
-							"component": {
-								"type": "object",
-								"description": "A wrapper object that MUST contain exactly one key, which is the name of the component type (e.g., 'Heading'). The value is an object containing the properties for that specific component.",
-								"additionalProperties": false,
-								"properties": {
-									"Text": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"text": {
-												"type": "object",
-												"description": "The text content to display. This can be a literal string or a reference to a value in the data model ('path', e.g., '/doc/title'). While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.",
-												"additionalProperties": false,
-												"properties": {
-													"literalString": { "type": "string" },
-													"path": { "type": "string" }
-												}
-											},
-											"usageHint": {
-												"type": "string",
-												"description": "A hint for the base text style. One of:\n- `h1`: Largest heading.\n- `h2`: Second largest heading.\n- `h3`: Third largest heading.\n- `h4`: Fourth largest heading.\n- `h5`: Fifth largest heading.\n- `caption`: Small text for captions.\n- `body`: Standard body text.",
-												"enum": [
-													"h1",
-													"h2",
-													"h3",
-													"h4",
-													"h5",
-													"caption",
-													"body"
-												]
-											}
-										},
-										"required": ["text"]
-									},
-									"Image": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"url": {
-												"type": "object",
-												"description": "The URL of the image to display. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/thumbnail/url').",
-												"additionalProperties": false,
-												"properties": {
-													"literalString": { "type": "string" },
-													"path": { "type": "string" }
-												}
-											},
-											"fit": {
-												"type": "string",
-												"description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
-												"enum": [
-													"contain",
-													"cover",
-													"fill",
-													"none",
-													"scale-down"
-												]
-											},
-											"usageHint": {
-												"type": "string",
-												"description": "A hint for the image size and style. One of:\n- `icon`: Small square icon.\n- `avatar`: Circular avatar image.\n- `smallFeature`: Small feature image.\n- `mediumFeature`: Medium feature image.\n- `largeFeature`: Large feature image.\n- `header`: Full-width, full bleed, header image.",
-												"enum": [
-													"icon",
-													"avatar",
-													"smallFeature",
-													"mediumFeature",
-													"largeFeature",
-													"header"
-												]
-											}
-										},
-										"required": ["url"]
-									},
-									"Icon": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": { "name": {
-											"type": "object",
-											"description": "The name of the icon to display. This can be a literal string or a reference to a value in the data model ('path', e.g. '/form/submit').",
-											"additionalProperties": false,
-											"properties": {
-												"literalString": {
-													"type": "string",
-													"enum": [
-														"accountCircle",
-														"add",
-														"arrowBack",
-														"arrowForward",
-														"attachFile",
-														"calendarToday",
-														"call",
-														"camera",
-														"check",
-														"close",
-														"delete",
-														"download",
-														"edit",
-														"event",
-														"error",
-														"favorite",
-														"favoriteOff",
-														"folder",
-														"help",
-														"home",
-														"info",
-														"locationOn",
-														"lock",
-														"lockOpen",
-														"mail",
-														"menu",
-														"moreVert",
-														"moreHoriz",
-														"notificationsOff",
-														"notifications",
-														"payment",
-														"person",
-														"phone",
-														"photo",
-														"print",
-														"refresh",
-														"search",
-														"send",
-														"settings",
-														"share",
-														"shoppingCart",
-														"star",
-														"starHalf",
-														"starOff",
-														"upload",
-														"visibility",
-														"visibilityOff",
-														"warning"
-													]
-												},
-												"path": { "type": "string" }
-											}
-										} },
-										"required": ["name"]
-									},
-									"Video": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": { "url": {
-											"type": "object",
-											"description": "The URL of the video to display. This can be a literal string or a reference to a value in the data model ('path', e.g. '/video/url').",
-											"additionalProperties": false,
-											"properties": {
-												"literalString": { "type": "string" },
-												"path": { "type": "string" }
-											}
-										} },
-										"required": ["url"]
-									},
-									"AudioPlayer": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"url": {
-												"type": "object",
-												"description": "The URL of the audio to be played. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/song/url').",
-												"additionalProperties": false,
-												"properties": {
-													"literalString": { "type": "string" },
-													"path": { "type": "string" }
-												}
-											},
-											"description": {
-												"type": "object",
-												"description": "A description of the audio, such as a title or summary. This can be a literal string or a reference to a value in the data model ('path', e.g. '/song/title').",
-												"additionalProperties": false,
-												"properties": {
-													"literalString": { "type": "string" },
-													"path": { "type": "string" }
-												}
-											}
-										},
-										"required": ["url"]
-									},
-									"Row": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"children": {
-												"type": "object",
-												"description": "Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list.",
-												"additionalProperties": false,
-												"properties": {
-													"explicitList": {
-														"type": "array",
-														"items": { "type": "string" }
-													},
-													"template": {
-														"type": "object",
-														"description": "A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.",
-														"additionalProperties": false,
-														"properties": {
-															"componentId": { "type": "string" },
-															"dataBinding": { "type": "string" }
-														},
-														"required": ["componentId", "dataBinding"]
-													}
-												}
-											},
-											"distribution": {
-												"type": "string",
-												"description": "Defines the arrangement of children along the main axis (horizontally). This corresponds to the CSS 'justify-content' property.",
-												"enum": [
-													"center",
-													"end",
-													"spaceAround",
-													"spaceBetween",
-													"spaceEvenly",
-													"start"
-												]
-											},
-											"alignment": {
-												"type": "string",
-												"description": "Defines the alignment of children along the cross axis (vertically). This corresponds to the CSS 'align-items' property.",
-												"enum": [
-													"start",
-													"center",
-													"end",
-													"stretch"
-												]
-											}
-										},
-										"required": ["children"]
-									},
-									"Column": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"children": {
-												"type": "object",
-												"description": "Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list.",
-												"additionalProperties": false,
-												"properties": {
-													"explicitList": {
-														"type": "array",
-														"items": { "type": "string" }
-													},
-													"template": {
-														"type": "object",
-														"description": "A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.",
-														"additionalProperties": false,
-														"properties": {
-															"componentId": { "type": "string" },
-															"dataBinding": { "type": "string" }
-														},
-														"required": ["componentId", "dataBinding"]
-													}
-												}
-											},
-											"distribution": {
-												"type": "string",
-												"description": "Defines the arrangement of children along the main axis (vertically). This corresponds to the CSS 'justify-content' property.",
-												"enum": [
-													"start",
-													"center",
-													"end",
-													"spaceBetween",
-													"spaceAround",
-													"spaceEvenly"
-												]
-											},
-											"alignment": {
-												"type": "string",
-												"description": "Defines the alignment of children along the cross axis (horizontally). This corresponds to the CSS 'align-items' property.",
-												"enum": [
-													"center",
-													"end",
-													"start",
-													"stretch"
-												]
-											}
-										},
-										"required": ["children"]
-									},
-									"List": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"children": {
-												"type": "object",
-												"description": "Defines the children. Use 'explicitList' for a fixed set of children, or 'template' to generate children from a data list.",
-												"additionalProperties": false,
-												"properties": {
-													"explicitList": {
-														"type": "array",
-														"items": { "type": "string" }
-													},
-													"template": {
-														"type": "object",
-														"description": "A template for generating a dynamic list of children from a data model list. `componentId` is the component to use as a template, and `dataBinding` is the path to the map of components in the data model. Values in the map will define the list of children.",
-														"additionalProperties": false,
-														"properties": {
-															"componentId": { "type": "string" },
-															"dataBinding": { "type": "string" }
-														},
-														"required": ["componentId", "dataBinding"]
-													}
-												}
-											},
-											"direction": {
-												"type": "string",
-												"description": "The direction in which the list items are laid out.",
-												"enum": ["vertical", "horizontal"]
-											},
-											"alignment": {
-												"type": "string",
-												"description": "Defines the alignment of children along the cross axis.",
-												"enum": [
-													"start",
-													"center",
-													"end",
-													"stretch"
-												]
-											}
-										},
-										"required": ["children"]
-									},
-									"Card": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": { "child": {
-											"type": "string",
-											"description": "The ID of the component to be rendered inside the card."
-										} },
-										"required": ["child"]
-									},
-									"Tabs": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": { "tabItems": {
-											"type": "array",
-											"description": "An array of objects, where each object defines a tab with a title and a child component.",
-											"items": {
-												"type": "object",
-												"additionalProperties": false,
-												"properties": {
-													"title": {
-														"type": "object",
-														"description": "The tab title. Defines the value as either a literal value or a path to data model value (e.g. '/options/title').",
-														"additionalProperties": false,
-														"properties": {
-															"literalString": { "type": "string" },
-															"path": { "type": "string" }
-														}
-													},
-													"child": { "type": "string" }
-												},
-												"required": ["title", "child"]
-											}
-										} },
-										"required": ["tabItems"]
-									},
-									"Divider": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": { "axis": {
-											"type": "string",
-											"description": "The orientation of the divider.",
-											"enum": ["horizontal", "vertical"]
-										} }
-									},
-									"Modal": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"entryPointChild": {
-												"type": "string",
-												"description": "The ID of the component that opens the modal when interacted with (e.g., a button)."
-											},
-											"contentChild": {
-												"type": "string",
-												"description": "The ID of the component to be displayed inside the modal."
-											}
-										},
-										"required": ["entryPointChild", "contentChild"]
-									},
-									"Button": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"child": {
-												"type": "string",
-												"description": "The ID of the component to display in the button, typically a Text component."
-											},
-											"primary": {
-												"type": "boolean",
-												"description": "Indicates if this button should be styled as the primary action."
-											},
-											"action": {
-												"type": "object",
-												"description": "The client-side action to be dispatched when the button is clicked. It includes the action's name and an optional context payload.",
-												"additionalProperties": false,
-												"properties": {
-													"name": { "type": "string" },
-													"context": {
-														"type": "array",
-														"items": {
-															"type": "object",
-															"additionalProperties": false,
-															"properties": {
-																"key": { "type": "string" },
-																"value": {
-																	"type": "object",
-																	"description": "Defines the value to be included in the context as either a literal value or a path to a data model value (e.g. '/user/name').",
-																	"additionalProperties": false,
-																	"properties": {
-																		"path": { "type": "string" },
-																		"literalString": { "type": "string" },
-																		"literalNumber": { "type": "number" },
-																		"literalBoolean": { "type": "boolean" }
-																	}
-																}
-															},
-															"required": ["key", "value"]
-														}
-													}
-												},
-												"required": ["name"]
-											}
-										},
-										"required": ["child", "action"]
-									},
-									"CheckBox": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"label": {
-												"type": "object",
-												"description": "The text to display next to the checkbox. Defines the value as either a literal value or a path to data model ('path', e.g. '/option/label').",
-												"additionalProperties": false,
-												"properties": {
-													"literalString": { "type": "string" },
-													"path": { "type": "string" }
-												}
-											},
-											"value": {
-												"type": "object",
-												"description": "The current state of the checkbox (true for checked, false for unchecked). This can be a literal boolean ('literalBoolean') or a reference to a value in the data model ('path', e.g. '/filter/open').",
-												"additionalProperties": false,
-												"properties": {
-													"literalBoolean": { "type": "boolean" },
-													"path": { "type": "string" }
-												}
-											}
-										},
-										"required": ["label", "value"]
-									},
-									"TextField": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"label": {
-												"type": "object",
-												"description": "The text label for the input field. This can be a literal string or a reference to a value in the data model ('path, e.g. '/user/name').",
-												"additionalProperties": false,
-												"properties": {
-													"literalString": { "type": "string" },
-													"path": { "type": "string" }
-												}
-											},
-											"text": {
-												"type": "object",
-												"description": "The value of the text field. This can be a literal string or a reference to a value in the data model ('path', e.g. '/user/name').",
-												"additionalProperties": false,
-												"properties": {
-													"literalString": { "type": "string" },
-													"path": { "type": "string" }
-												}
-											},
-											"textFieldType": {
-												"type": "string",
-												"description": "The type of input field to display.",
-												"enum": [
-													"date",
-													"longText",
-													"number",
-													"shortText",
-													"obscured"
-												]
-											},
-											"validationRegexp": {
-												"type": "string",
-												"description": "A regular expression used for client-side validation of the input."
-											}
-										},
-										"required": ["label"]
-									},
-									"DateTimeInput": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"value": {
-												"type": "object",
-												"description": "The selected date and/or time value. This can be a literal string ('literalString') or a reference to a value in the data model ('path', e.g. '/user/dob').",
-												"additionalProperties": false,
-												"properties": {
-													"literalString": { "type": "string" },
-													"path": { "type": "string" }
-												}
-											},
-											"enableDate": {
-												"type": "boolean",
-												"description": "If true, allows the user to select a date."
-											},
-											"enableTime": {
-												"type": "boolean",
-												"description": "If true, allows the user to select a time."
-											},
-											"outputFormat": {
-												"type": "string",
-												"description": "The desired format for the output string after a date or time is selected."
-											}
-										},
-										"required": ["value"]
-									},
-									"MultipleChoice": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"selections": {
-												"type": "object",
-												"description": "The currently selected values for the component. This can be a literal array of strings or a path to an array in the data model('path', e.g. '/hotel/options').",
-												"additionalProperties": false,
-												"properties": {
-													"literalArray": {
-														"type": "array",
-														"items": { "type": "string" }
-													},
-													"path": { "type": "string" }
-												}
-											},
-											"options": {
-												"type": "array",
-												"description": "An array of available options for the user to choose from.",
-												"items": {
-													"type": "object",
-													"additionalProperties": false,
-													"properties": {
-														"label": {
-															"type": "object",
-															"description": "The text to display for this option. This can be a literal string or a reference to a value in the data model (e.g. '/option/label').",
-															"additionalProperties": false,
-															"properties": {
-																"literalString": { "type": "string" },
-																"path": { "type": "string" }
-															}
-														},
-														"value": {
-															"type": "string",
-															"description": "The value to be associated with this option when selected."
-														}
-													},
-													"required": ["label", "value"]
-												}
-											},
-											"maxAllowedSelections": {
-												"type": "integer",
-												"description": "The maximum number of options that the user is allowed to select."
-											}
-										},
-										"required": ["selections", "options"]
-									},
-									"Slider": {
-										"type": "object",
-										"additionalProperties": false,
-										"properties": {
-											"value": {
-												"type": "object",
-												"description": "The current value of the slider. This can be a literal number ('literalNumber') or a reference to a value in the data model ('path', e.g. '/restaurant/cost').",
-												"additionalProperties": false,
-												"properties": {
-													"literalNumber": { "type": "number" },
-													"path": { "type": "string" }
-												}
-											},
-											"minValue": {
-												"type": "number",
-												"description": "The minimum value of the slider."
-											},
-											"maxValue": {
-												"type": "number",
-												"description": "The maximum value of the slider."
-											}
-										},
-										"required": ["value"]
-									}
-								}
-							}
-						},
-						"required": ["id", "component"]
-					}
-				}
-			},
-			"required": ["surfaceId", "components"]
-		},
-		"dataModelUpdate": {
-			"type": "object",
-			"description": "Updates the data model for a surface.",
-			"additionalProperties": false,
-			"properties": {
-				"surfaceId": {
-					"type": "string",
-					"description": "The unique identifier for the UI surface this data model update applies to."
-				},
-				"path": {
-					"type": "string",
-					"description": "An optional path to a location within the data model (e.g., '/user/name'). If omitted, or set to '/', the entire data model will be replaced."
-				},
-				"contents": {
-					"type": "array",
-					"description": "An array of data entries. Each entry must contain a 'key' and exactly one corresponding typed 'value*' property.",
-					"items": {
-						"type": "object",
-						"description": "A single data entry. Exactly one 'value*' property should be provided alongside the key.",
-						"additionalProperties": false,
-						"properties": {
-							"key": {
-								"type": "string",
-								"description": "The key for this data entry."
-							},
-							"valueString": { "type": "string" },
-							"valueNumber": { "type": "number" },
-							"valueBoolean": { "type": "boolean" },
-							"valueMap": {
-								"description": "Represents a map as an adjacency list.",
-								"type": "array",
-								"items": {
-									"type": "object",
-									"description": "One entry in the map. Exactly one 'value*' property should be provided alongside the key.",
-									"additionalProperties": false,
-									"properties": {
-										"key": { "type": "string" },
-										"valueString": { "type": "string" },
-										"valueNumber": { "type": "number" },
-										"valueBoolean": { "type": "boolean" }
-									},
-									"required": ["key"]
-								}
-							}
-						},
-						"required": ["key"]
-					}
-				}
-			},
-			"required": ["contents", "surfaceId"]
-		},
-		"deleteSurface": {
-			"type": "object",
-			"description": "Signals the client to delete the surface identified by 'surfaceId'.",
-			"additionalProperties": false,
-			"properties": { "surfaceId": {
-				"type": "string",
-				"description": "The unique identifier for the UI surface to be deleted."
-			} },
-			"required": ["surfaceId"]
-		}
-	}
-};
-
 const Data = {
 	createSignalA2uiMessageProcessor: create,
 	A2uiMessageProcessor,
 	Guards: guards_exports
 };
-const Schemas = { A2UIClientEventMessage: server_to_client_with_standard_catalog_default };
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -3898,7 +2740,6 @@ const t$1 = (t) => (e, o) => {
 		customElements.define(t, e);
 	}) : customElements.define(t, e);
 };
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -3912,7 +2753,7 @@ const t$1 = (t) => (e, o) => {
 }, r$7 = (t = o$9, e, r) => {
 	const { kind: n, metadata: i } = r;
 	let s = globalThis.litPropertyMetadata.get(i);
-	if (void 0 === s && globalThis.litPropertyMetadata.set(i, s = new Map()), "setter" === n && ((t = Object.create(t)).wrapped = !0), s.set(r.name, t), "accessor" === n) {
+	if (void 0 === s && globalThis.litPropertyMetadata.set(i, s = /* @__PURE__ */ new Map()), "setter" === n && ((t = Object.create(t)).wrapped = !0), s.set(r.name, t), "accessor" === n) {
 		const { name: o } = r;
 		return {
 			set(r) {
@@ -3939,7 +2780,6 @@ function n$6(t) {
 		return e.constructor.createProperty(o, t), r ? Object.getOwnPropertyDescriptor(e, o) : void 0;
 	})(t, e, o);
 }
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -3951,26 +2791,12 @@ function n$6(t) {
 		attribute: !1
 	});
 }
-
-/**
-* @license
-* Copyright 2017 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/
-function t(t) {
-	return (n, o) => {
-		const c = "function" == typeof n ? n : n[o];
-		Object.assign(c, t);
-	};
-}
-
 /**
 * @license
 * Copyright 2017 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
 const e$6 = (e, t, c) => (c.configurable = !0, c.enumerable = !0, Reflect.decorate && "object" != typeof t && Object.defineProperty(e, t, c), c);
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -4000,58 +2826,6 @@ const e$6 = (e, t, c) => (c.configurable = !0, c.enumerable = !0, Reflect.decora
 		} });
 	};
 }
-
-/**
-* @license
-* Copyright 2017 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/
-let e$4;
-function r$5(r) {
-	return (n, o) => e$6(n, o, { get() {
-		return (this.renderRoot ?? (e$4 ??= document.createDocumentFragment())).querySelectorAll(r);
-	} });
-}
-
-/**
-* @license
-* Copyright 2017 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/
-function r$4(r) {
-	return (n, e) => e$6(n, e, { async get() {
-		return await this.updateComplete, this.renderRoot?.querySelector(r) ?? null;
-	} });
-}
-
-/**
-* @license
-* Copyright 2021 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/ function o$8(o) {
-	return (e, n) => {
-		const { slot: r, selector: s } = o ?? {}, c = "slot" + (r ? `[name=${r}]` : ":not([name])");
-		return e$6(e, n, { get() {
-			const t = this.renderRoot?.querySelector(c), e = t?.assignedElements(o) ?? [];
-			return void 0 === s ? e : e.filter((t) => t.matches(s));
-		} });
-	};
-}
-
-/**
-* @license
-* Copyright 2017 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/ function n$5(n) {
-	return (o, r) => {
-		const { slot: e } = n ?? {}, s = "slot" + (e ? `[name=${e}]` : ":not([name])");
-		return e$6(o, r, { get() {
-			const t = this.renderRoot?.querySelector(s);
-			return t?.assignedNodes(n) ?? [];
-		} });
-	};
-}
-
 /**
 * @license
 * Copyright 2023 Google LLC
@@ -4065,11 +2839,11 @@ const s$1 = new Signal.subtle.Watcher(() => {
 	}));
 }), h$3 = Symbol("SignalWatcherBrand"), e$3 = new FinalizationRegistry((i) => {
 	i.unwatch(...Signal.subtle.introspectSources(i));
-}), n$4 = new WeakMap();
+}), n$4 = /* @__PURE__ */ new WeakMap();
 function o$7(i) {
 	return !0 === i[h$3] ? (console.warn("SignalWatcher should not be applied to the same class more than once."), i) : class extends i {
 		constructor() {
-			super(...arguments), this._$St = new Map(), this._$So = new Signal.State(0), this._$Si = !1;
+			super(...arguments), this._$St = /* @__PURE__ */ new Map(), this._$So = new Signal.State(0), this._$Si = !1;
 		}
 		_$Sl() {
 			var t, i;
@@ -4128,7 +2902,6 @@ function o$7(i) {
 		}
 	};
 }
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -4147,7 +2920,7 @@ function o$7(i) {
 }, r$3 = (i) => {
 	for (let t; t = i._$AM; i = t) {
 		let e = t._$AN;
-		if (void 0 === e) t._$AN = e = new Set();
+		if (void 0 === e) t._$AN = e = /* @__PURE__ */ new Set();
 		else if (e.has(i)) break;
 		e.add(i), c(t);
 	}
@@ -4184,7 +2957,6 @@ var f = class extends i$5 {
 	disconnected() {}
 	reconnected() {}
 };
-
 /**
 * @license
 * Copyright 2023 Google LLC
@@ -4227,20 +2999,11 @@ var r$2 = class extends f {
 		this._$S_();
 	}
 };
-const h$1 = e$10(r$2);
-
-/**
-* @license
-* Copyright 2023 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/ const m = (o) => (t, ...m) => o(t, ...m.map((o) => o instanceof Signal.State || o instanceof Signal.Computed ? h$1(o) : o)), l$1 = m(b), r$1 = m(w);
-
-/**
-* @license
-* Copyright 2023 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/ const l = Signal.State, o$4 = Signal.Computed, r = (l, o) => new Signal.State(l, o), i$1 = (l, o) => new Signal.Computed(l, o);
-
+const h$1 = e$10(r$2), m = (o) => (t, ...m) => o(t, ...m.map((o) => o instanceof Signal.State || o instanceof Signal.Computed ? h$1(o) : o));
+m(b);
+m(w);
+Signal.State;
+Signal.Computed;
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -4252,7 +3015,6 @@ function* o$3(o, f) {
 		for (const t of o) yield f(t, i++);
 	}
 }
-
 let pending = false;
 let watcher = new Signal.subtle.Watcher(() => {
 	if (!pending) {
@@ -4264,9 +3026,7 @@ let watcher = new Signal.subtle.Watcher(() => {
 	}
 });
 function flushPending() {
-	for (const signal of watcher.getPending()) {
-		signal.get();
-	}
+	for (const signal of watcher.getPending()) signal.get();
 	watcher.watch();
 }
 /**
@@ -4281,46 +3041,34 @@ function effect(cb) {
 		watcher.unwatch(c);
 	};
 }
-
 const themeContext = n$7("A2UITheme");
-
 const structuralStyles = r$11(structuralStyles$1);
-
 var ComponentRegistry = class {
 	constructor() {
-		this.registry = new Map();
+		this.registry = /* @__PURE__ */ new Map();
 	}
 	register(typeName, constructor, tagName) {
-		if (!/^[a-zA-Z0-9]+$/.test(typeName)) {
-			throw new Error(`[Registry] Invalid typeName '${typeName}'. Must be alphanumeric.`);
-		}
+		if (!/^[a-zA-Z0-9]+$/.test(typeName)) throw new Error(`[Registry] Invalid typeName '${typeName}'. Must be alphanumeric.`);
 		this.registry.set(typeName, constructor);
 		const actualTagName = tagName || `a2ui-custom-${typeName.toLowerCase()}`;
 		const existingName = customElements.getName(constructor);
 		if (existingName) {
-			if (existingName !== actualTagName) {
-				throw new Error(`Component ${typeName} is already registered as ${existingName}, but requested as ${actualTagName}.`);
-			}
+			if (existingName !== actualTagName) throw new Error(`Component ${typeName} is already registered as ${existingName}, but requested as ${actualTagName}.`);
 			return;
 		}
-		if (!customElements.get(actualTagName)) {
-			customElements.define(actualTagName, constructor);
-		}
+		if (!customElements.get(actualTagName)) customElements.define(actualTagName, constructor);
 	}
 	get(typeName) {
 		return this.registry.get(typeName);
 	}
 };
 const componentRegistry = new ComponentRegistry();
-
-var __runInitializers$19 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$19 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-var __esDecorate$19 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$19 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -4347,10 +3095,8 @@ var __esDecorate$19 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
@@ -4596,13 +3342,10 @@ let Root = (() => {
 		#lightDomEffectDisposer = null;
 		willUpdate(changedProperties) {
 			if (changedProperties.has("childComponents")) {
-				if (this.#lightDomEffectDisposer) {
-					this.#lightDomEffectDisposer();
-				}
+				if (this.#lightDomEffectDisposer) this.#lightDomEffectDisposer();
 				this.#lightDomEffectDisposer = effect(() => {
 					const allChildren = this.childComponents ?? null;
-					const lightDomTemplate = this.renderComponentTree(allChildren);
-					D(lightDomTemplate, this, { host: this });
+					D(this.renderComponentTree(allChildren), this, { host: this });
 				});
 			}
 		}
@@ -4611,39 +3354,28 @@ let Root = (() => {
 		*/
 		disconnectedCallback() {
 			super.disconnectedCallback();
-			if (this.#lightDomEffectDisposer) {
-				this.#lightDomEffectDisposer();
-			}
+			if (this.#lightDomEffectDisposer) this.#lightDomEffectDisposer();
 		}
 		/**
 		* Turns the SignalMap into a renderable TemplateResult for Lit.
 		*/
 		renderComponentTree(components) {
-			if (!components) {
-				return A;
-			}
-			if (!Array.isArray(components)) {
-				return A;
-			}
+			if (!components) return A;
+			if (!Array.isArray(components)) return A;
 			return b` ${o$3(components, (component) => {
 				if (this.enableCustomElements) {
-					const registeredCtor = componentRegistry.get(component.type);
-					const elCtor = registeredCtor || customElements.get(component.type);
+					const elCtor = componentRegistry.get(component.type) || customElements.get(component.type);
 					if (elCtor) {
 						const node = component;
 						const el = new elCtor();
 						el.id = node.id;
-						if (node.slotName) {
-							el.slot = node.slotName;
-						}
+						if (node.slotName) el.slot = node.slotName;
 						el.component = node;
 						el.weight = node.weight ?? "initial";
 						el.processor = this.processor;
 						el.surfaceId = this.surfaceId;
 						el.dataContextPath = node.dataContextPath ?? "/";
-						for (const [prop, val] of Object.entries(component.properties)) {
-							el[prop] = val;
-						}
+						for (const [prop, val] of Object.entries(component.properties)) el[prop] = val;
 						return b`${el}`;
 					}
 				}
@@ -4666,9 +3398,7 @@ let Root = (() => {
 					case "Card": {
 						const node = component;
 						let childComponents = node.properties.children;
-						if (!childComponents && node.properties.child) {
-							childComponents = [node.properties.child];
-						}
+						if (!childComponents && node.properties.child) childComponents = [node.properties.child];
 						return b`<a2ui-card
             id=${node.id}
             slot=${node.slotName ? node.slotName : A}
@@ -4903,11 +3633,9 @@ let Root = (() => {
 						const node = component;
 						const titles = [];
 						const childComponents = [];
-						if (node.properties.tabItems) {
-							for (const item of node.properties.tabItems) {
-								titles.push(item.title);
-								childComponents.push(item.child);
-							}
+						if (node.properties.tabItems) for (const item of node.properties.tabItems) {
+							titles.push(item.title);
+							childComponents.push(item.child);
 						}
 						return b`<a2ui-tabs
             id=${node.id}
@@ -4938,35 +3666,24 @@ let Root = (() => {
             .enableCustomElements=${this.enableCustomElements}
           ></a2ui-modal>`;
 					}
-					default: {
-						return this.renderCustomComponent(component);
-					}
+					default: return this.renderCustomComponent(component);
 				}
 			})}`;
 		}
 		renderCustomComponent(component) {
-			if (!this.enableCustomElements) {
-				return;
-			}
+			if (!this.enableCustomElements) return;
 			const node = component;
-			const registeredCtor = componentRegistry.get(component.type);
-			const elCtor = registeredCtor || customElements.get(component.type);
-			if (!elCtor) {
-				return b`Unknown element ${component.type}`;
-			}
+			const elCtor = componentRegistry.get(component.type) || customElements.get(component.type);
+			if (!elCtor) return b`Unknown element ${component.type}`;
 			const el = new elCtor();
 			el.id = node.id;
-			if (node.slotName) {
-				el.slot = node.slotName;
-			}
+			if (node.slotName) el.slot = node.slotName;
 			el.component = node;
 			el.weight = node.weight ?? "initial";
 			el.processor = this.processor;
 			el.surfaceId = this.surfaceId;
 			el.dataContextPath = node.dataContextPath ?? "/";
-			for (const [prop, val] of Object.entries(component.properties)) {
-				el[prop] = val;
-			}
+			for (const [prop, val] of Object.entries(component.properties)) el[prop] = val;
 			return b`${el}`;
 		}
 		render() {
@@ -4976,9 +3693,8 @@ let Root = (() => {
 			__runInitializers$19(_classThis, _classExtraInitializers);
 		}
 	};
-	return Root = _classThis;
+	return _classThis;
 })();
-
 /**
 * @license
 * Copyright 2018 Google LLC
@@ -4992,7 +3708,7 @@ let Root = (() => {
 	}
 	update(s, [i]) {
 		if (void 0 === this.st) {
-			this.st = new Set(), void 0 !== s.strings && (this.nt = new Set(s.strings.join(" ").split(/\s/).filter((t) => "" !== t)));
+			this.st = /* @__PURE__ */ new Set(), void 0 !== s.strings && (this.nt = new Set(s.strings.join(" ").split(/\s/).filter((t) => "" !== t)));
 			for (const t in i) i[t] && !this.nt?.has(t) && this.st.add(t);
 			return this.render(i);
 		}
@@ -5005,7 +3721,6 @@ let Root = (() => {
 		return E;
 	}
 });
-
 /**
 * @license
 * Copyright 2018 Google LLC
@@ -5035,8 +3750,7 @@ let Root = (() => {
 		return E;
 	}
 });
-
-var __esDecorate$18 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$18 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -5063,22 +3777,18 @@ var __esDecorate$18 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$18 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$18 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Audio = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-audioplayer")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -5148,25 +3858,15 @@ let Audio = (() => {
     `];
 		}
 		#renderAudio() {
-			if (!this.url) {
-				return A;
-			}
+			if (!this.url) return A;
 			if (this.url && typeof this.url === "object") {
-				if ("literalString" in this.url) {
-					return b`<audio controls src=${this.url.literalString} />`;
-				} else if ("literal" in this.url) {
-					return b`<audio controls src=${this.url.literal} />`;
-				} else if (this.url && "path" in this.url && this.url.path) {
-					if (!this.processor || !this.component) {
-						return b`(no processor)`;
-					}
+				if ("literalString" in this.url) return b`<audio controls src=${this.url.literalString} />`;
+				else if ("literal" in this.url) return b`<audio controls src=${this.url.literal} />`;
+				else if (this.url && "path" in this.url && this.url.path) {
+					if (!this.processor || !this.component) return b`(no processor)`;
 					const audioUrl = this.processor.getData(this.component, this.url.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (!audioUrl) {
-						return b`Invalid audio URL`;
-					}
-					if (typeof audioUrl !== "string") {
-						return b`Invalid audio URL`;
-					}
+					if (!audioUrl) return b`Invalid audio URL`;
+					if (typeof audioUrl !== "string") return b`Invalid audio URL`;
 					return b`<audio controls src=${audioUrl} />`;
 				}
 			}
@@ -5188,10 +3888,9 @@ let Audio = (() => {
 			__runInitializers$18(_classThis, _classExtraInitializers);
 		}
 	};
-	return Audio = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$17 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$17 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -5218,22 +3917,18 @@ var __esDecorate$17 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$17 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$17 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Button = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-button")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -5297,9 +3992,7 @@ let Button = (() => {
       class=${e$2(this.theme.components.Button)}
       style=${this.theme.additionalStyles?.Button ? o$2(this.theme.additionalStyles?.Button) : A}
       @click=${() => {
-				if (!this.action) {
-					return;
-				}
+				if (!this.action) return;
 				const evt = new StateEvent({
 					eventType: "a2ui.action",
 					action: this.action,
@@ -5321,10 +4014,9 @@ let Button = (() => {
 			__runInitializers$17(_classThis, _classExtraInitializers);
 		}
 	};
-	return Button = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$16 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$16 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -5351,22 +4043,18 @@ var __esDecorate$16 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$16 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$16 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Card = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-card")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -5429,10 +4117,9 @@ let Card = (() => {
 			__runInitializers$16(_classThis, _classExtraInitializers);
 		}
 	};
-	return Card = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$15 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$15 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -5459,22 +4146,18 @@ var __esDecorate$15 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$15 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$15 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Checkbox = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-checkbox")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -5574,15 +4257,9 @@ let Checkbox = (() => {
     `];
 		}
 		#setBoundValue(value) {
-			if (!this.value || !this.processor) {
-				return;
-			}
-			if (!("path" in this.value)) {
-				return;
-			}
-			if (!this.value.path) {
-				return;
-			}
+			if (!this.value || !this.processor) return;
+			if (!("path" in this.value)) return;
+			if (!this.value.path) return;
 			this.processor.setData(this.component, this.value.path, value, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
 		}
 		#renderField(value) {
@@ -5594,9 +4271,7 @@ let Checkbox = (() => {
         class=${e$2(this.theme.components.CheckBox.element)}
         autocomplete="off"
         @input=${(evt) => {
-				if (!(evt.target instanceof HTMLInputElement)) {
-					return;
-				}
+				if (!(evt.target instanceof HTMLInputElement)) return;
 				this.#setBoundValue(evt.target.value);
 			}}
         id="data"
@@ -5610,21 +4285,13 @@ let Checkbox = (() => {
 		}
 		render() {
 			if (this.value && typeof this.value === "object") {
-				if ("literalBoolean" in this.value && this.value.literalBoolean) {
-					return this.#renderField(this.value.literalBoolean);
-				} else if ("literal" in this.value && this.value.literal !== undefined) {
-					return this.#renderField(this.value.literal);
-				} else if (this.value && "path" in this.value && this.value.path) {
-					if (!this.processor || !this.component) {
-						return b`(no model)`;
-					}
+				if ("literalBoolean" in this.value && this.value.literalBoolean) return this.#renderField(this.value.literalBoolean);
+				else if ("literal" in this.value && this.value.literal !== void 0) return this.#renderField(this.value.literal);
+				else if (this.value && "path" in this.value && this.value.path) {
+					if (!this.processor || !this.component) return b`(no model)`;
 					const textValue = this.processor.getData(this.component, this.value.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (textValue === null) {
-						return b`Invalid label`;
-					}
-					if (typeof textValue !== "boolean") {
-						return b`Invalid label`;
-					}
+					if (textValue === null) return b`Invalid label`;
+					if (typeof textValue !== "boolean") return b`Invalid label`;
 					return this.#renderField(textValue);
 				}
 			}
@@ -5638,10 +4305,9 @@ let Checkbox = (() => {
 			__runInitializers$15(_classThis, _classExtraInitializers);
 		}
 	};
-	return Checkbox = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$14 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$14 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -5668,22 +4334,18 @@ var __esDecorate$14 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$14 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$14 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Column = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-column")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -5839,10 +4501,9 @@ let Column = (() => {
 			__runInitializers$14(_classThis, _classExtraInitializers);
 		}
 	};
-	return Column = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$13 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$13 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -5869,22 +4530,18 @@ var __esDecorate$13 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$13 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$13 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let DateTimeInput = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-datetimeinput")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -6038,15 +4695,9 @@ let DateTimeInput = (() => {
     `];
 		}
 		#setBoundValue(value) {
-			if (!this.value || !this.processor) {
-				return;
-			}
-			if (!("path" in this.value)) {
-				return;
-			}
-			if (!this.value.path) {
-				return;
-			}
+			if (!this.value || !this.processor) return;
+			if (!("path" in this.value)) return;
+			if (!this.value.path) return;
 			this.processor.setData(this.component, this.value.path, value, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
 		}
 		#renderField(value) {
@@ -6063,9 +4714,7 @@ let DateTimeInput = (() => {
         class=${e$2(this.theme.components.DateTimeInput.element)}
         style=${this.theme.additionalStyles?.DateTimeInput ? o$2(this.theme.additionalStyles?.DateTimeInput) : A}
         @input=${(evt) => {
-				if (!(evt.target instanceof HTMLInputElement)) {
-					return;
-				}
+				if (!(evt.target instanceof HTMLInputElement)) return;
 				this.#setBoundValue(evt.target.value);
 			}}
         id="data"
@@ -6077,31 +4726,22 @@ let DateTimeInput = (() => {
     </section>`;
 		}
 		#getInputType() {
-			if (this.enableDate && this.enableTime) {
-				return "datetime-local";
-			} else if (this.enableDate) {
-				return "date";
-			} else if (this.enableTime) {
-				return "time";
-			}
+			if (this.enableDate && this.enableTime) return "datetime-local";
+			else if (this.enableDate) return "date";
+			else if (this.enableTime) return "time";
 			return "datetime-local";
 		}
 		#formatInputValue(value) {
 			const inputType = this.#getInputType();
 			const date = value ? new Date(value) : null;
-			if (!date || isNaN(date.getTime())) {
-				return "";
-			}
+			if (!date || isNaN(date.getTime())) return "";
 			const year = this.#padNumber(date.getFullYear());
 			const month = this.#padNumber(date.getMonth());
 			const day = this.#padNumber(date.getDate());
 			const hours = this.#padNumber(date.getHours());
 			const minutes = this.#padNumber(date.getMinutes());
-			if (inputType === "date") {
-				return `${year}-${month}-${day}`;
-			} else if (inputType === "time") {
-				return `${hours}:${minutes}`;
-			}
+			if (inputType === "date") return `${year}-${month}-${day}`;
+			else if (inputType === "time") return `${hours}:${minutes}`;
 			return `${year}-${month}-${day}T${hours}:${minutes}`;
 		}
 		#padNumber(value) {
@@ -6109,27 +4749,18 @@ let DateTimeInput = (() => {
 		}
 		#getPlaceholderText() {
 			const inputType = this.#getInputType();
-			if (inputType === "date") {
-				return "Date";
-			} else if (inputType === "time") {
-				return "Time";
-			}
+			if (inputType === "date") return "Date";
+			else if (inputType === "time") return "Time";
 			return "Date & Time";
 		}
 		render() {
 			if (this.value && typeof this.value === "object") {
-				if ("literalString" in this.value && this.value.literalString) {
-					return this.#renderField(this.value.literalString);
-				} else if ("literal" in this.value && this.value.literal !== undefined) {
-					return this.#renderField(this.value.literal);
-				} else if (this.value && "path" in this.value && this.value.path) {
-					if (!this.processor || !this.component) {
-						return b`(no model)`;
-					}
+				if ("literalString" in this.value && this.value.literalString) return this.#renderField(this.value.literalString);
+				else if ("literal" in this.value && this.value.literal !== void 0) return this.#renderField(this.value.literal);
+				else if (this.value && "path" in this.value && this.value.path) {
+					if (!this.processor || !this.component) return b`(no model)`;
 					const textValue = this.processor.getData(this.component, this.value.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (typeof textValue !== "string") {
-						return b`(invalid)`;
-					}
+					if (typeof textValue !== "string") return b`(invalid)`;
 					return this.#renderField(textValue);
 				}
 			}
@@ -6143,10 +4774,9 @@ let DateTimeInput = (() => {
 			__runInitializers$13(_classThis, _classExtraInitializers);
 		}
 	};
-	return DateTimeInput = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$12 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$12 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -6173,22 +4803,18 @@ var __esDecorate$12 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$12 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$12 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Divider = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-divider")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -6238,10 +4864,9 @@ let Divider = (() => {
 			__runInitializers$12(_classThis, _classExtraInitializers);
 		}
 	};
-	return Divider = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$11 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$11 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -6268,22 +4893,18 @@ var __esDecorate$11 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$11 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$11 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Icon = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-icon")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -6348,31 +4969,19 @@ let Icon = (() => {
     `];
 		}
 		#renderIcon() {
-			if (!this.name) {
-				return A;
-			}
+			if (!this.name) return A;
 			const render = (url) => {
 				url = url.replace(/([A-Z])/gm, "_$1").toLocaleLowerCase();
 				return b`<span class="g-icon">${url}</span>`;
 			};
 			if (this.name && typeof this.name === "object") {
-				if ("literalString" in this.name) {
-					const iconName = this.name.literalString ?? "";
-					return render(iconName);
-				} else if ("literal" in this.name) {
-					const iconName = this.name.literal ?? "";
-					return render(iconName);
-				} else if (this.name && "path" in this.name && this.name.path) {
-					if (!this.processor || !this.component) {
-						return b`(no model)`;
-					}
+				if ("literalString" in this.name) return render(this.name.literalString ?? "");
+				else if ("literal" in this.name) return render(this.name.literal ?? "");
+				else if (this.name && "path" in this.name && this.name.path) {
+					if (!this.processor || !this.component) return b`(no model)`;
 					const iconName = this.processor.getData(this.component, this.name.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (!iconName) {
-						return b`Invalid icon name`;
-					}
-					if (typeof iconName !== "string") {
-						return b`Invalid icon name`;
-					}
+					if (!iconName) return b`Invalid icon name`;
+					if (typeof iconName !== "string") return b`Invalid icon name`;
 					return render(iconName);
 				}
 			}
@@ -6394,10 +5003,9 @@ let Icon = (() => {
 			__runInitializers$11(_classThis, _classExtraInitializers);
 		}
 	};
-	return Icon = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$10 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$10 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -6424,22 +5032,18 @@ var __esDecorate$10 = void 0 && (void 0).__esDecorate || function(ctor, descript
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$10 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$10 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Image = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-image")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -6561,39 +5165,26 @@ let Image = (() => {
     `];
 		}
 		#renderImage() {
-			if (!this.url) {
-				return A;
-			}
+			if (!this.url) return A;
 			const render = (url) => {
 				return b`<img src=${url} />`;
 			};
 			if (this.url && typeof this.url === "object") {
-				if ("literalString" in this.url) {
-					const imageUrl = this.url.literalString ?? "";
-					return render(imageUrl);
-				} else if ("literal" in this.url) {
-					const imageUrl = this.url.literal ?? "";
-					return render(imageUrl);
-				} else if (this.url && "path" in this.url && this.url.path) {
-					if (!this.processor || !this.component) {
-						return b`(no model)`;
-					}
+				if ("literalString" in this.url) return render(this.url.literalString ?? "");
+				else if ("literal" in this.url) return render(this.url.literal ?? "");
+				else if (this.url && "path" in this.url && this.url.path) {
+					if (!this.processor || !this.component) return b`(no model)`;
 					const imageUrl = this.processor.getData(this.component, this.url.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (!imageUrl) {
-						return b`Invalid image URL`;
-					}
-					if (typeof imageUrl !== "string") {
-						return b`Invalid image URL`;
-					}
+					if (!imageUrl) return b`Invalid image URL`;
+					if (typeof imageUrl !== "string") return b`Invalid image URL`;
 					return render(imageUrl);
 				}
 			}
 			return b`(empty)`;
 		}
 		render() {
-			const classes = merge(this.theme.components.Image.all, this.usageHint ? this.theme.components.Image[this.usageHint] : {});
 			return b`<section
-      class=${e$2(classes)}
+      class=${e$2(merge(this.theme.components.Image.all, this.usageHint ? this.theme.components.Image[this.usageHint] : {}))}
       style=${o$2({
 				...this.theme.additionalStyles?.Image ?? {},
 				"--object-fit": this.fit ?? "fill"
@@ -6610,10 +5201,9 @@ let Image = (() => {
 			__runInitializers$10(_classThis, _classExtraInitializers);
 		}
 	};
-	return Image = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$9 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$9 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -6640,22 +5230,18 @@ var __esDecorate$9 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$9 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$9 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let List = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-list")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -6755,23 +5341,16 @@ let List = (() => {
 			__runInitializers$9(_classThis, _classExtraInitializers);
 		}
 	};
-	return List = _classThis;
+	return _classThis;
 })();
-
 function extractStringValue(val, component, processor, surfaceId) {
 	if (val !== null && typeof val === "object") {
-		if ("literalString" in val) {
-			return val.literalString ?? "";
-		} else if ("literal" in val && val.literal !== undefined) {
-			return val.literal ?? "";
-		} else if (val && "path" in val && val.path) {
-			if (!processor || !component) {
-				return "(no model)";
-			}
+		if ("literalString" in val) return val.literalString ?? "";
+		else if ("literal" in val && val.literal !== void 0) return val.literal ?? "";
+		else if (val && "path" in val && val.path) {
+			if (!processor || !component) return "(no model)";
 			const textValue = processor.getData(component, val.path, surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-			if (textValue === null || typeof textValue !== "string") {
-				return "";
-			}
+			if (textValue === null || typeof textValue !== "string") return "";
 			return textValue;
 		}
 	}
@@ -6779,31 +5358,22 @@ function extractStringValue(val, component, processor, surfaceId) {
 }
 function extractNumberValue(val, component, processor, surfaceId) {
 	if (val !== null && typeof val === "object") {
-		if ("literalNumber" in val) {
-			return val.literalNumber ?? 0;
-		} else if ("literal" in val && val.literal !== undefined) {
-			return val.literal ?? 0;
-		} else if (val && "path" in val && val.path) {
-			if (!processor || !component) {
-				return -1;
-			}
+		if ("literalNumber" in val) return val.literalNumber ?? 0;
+		else if ("literal" in val && val.literal !== void 0) return val.literal ?? 0;
+		else if (val && "path" in val && val.path) {
+			if (!processor || !component) return -1;
 			let numberValue = processor.getData(component, val.path, surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
 			if (typeof numberValue === "string") {
 				numberValue = Number.parseInt(numberValue, 10);
-				if (Number.isNaN(numberValue)) {
-					numberValue = null;
-				}
+				if (Number.isNaN(numberValue)) numberValue = null;
 			}
-			if (numberValue === null || typeof numberValue !== "number") {
-				return -1;
-			}
+			if (numberValue === null || typeof numberValue !== "number") return -1;
 			return numberValue;
 		}
 	}
 	return 0;
 }
-
-var __esDecorate$8 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$8 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -6830,22 +5400,18 @@ var __esDecorate$8 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$8 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$8 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let MultipleChoice = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-multiplechoice")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -6968,30 +5534,17 @@ let MultipleChoice = (() => {
 		}
 		#setBoundValue(value) {
 			console.log(value);
-			if (!this.selections || !this.processor) {
-				return;
-			}
-			if (!("path" in this.selections)) {
-				return;
-			}
-			if (!this.selections.path) {
-				return;
-			}
+			if (!this.selections || !this.processor) return;
+			if (!("path" in this.selections)) return;
+			if (!this.selections.path) return;
 			this.processor.setData(this.component, this.selections.path, value, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
 		}
 		willUpdate(changedProperties) {
-			const shouldUpdate = changedProperties.has("options");
-			if (!shouldUpdate) {
-				return;
-			}
-			if (!this.processor || !this.component || Array.isArray(this.selections)) {
-				return;
-			}
+			if (!changedProperties.has("options")) return;
+			if (!this.processor || !this.component || Array.isArray(this.selections)) return;
 			this.selections;
 			const selectionValue = this.processor.getData(this.component, this.selections.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-			if (!Array.isArray(selectionValue)) {
-				return;
-			}
+			if (!Array.isArray(selectionValue)) return;
 			this.#setBoundValue(selectionValue);
 		}
 		render() {
@@ -7003,9 +5556,7 @@ let MultipleChoice = (() => {
         class=${e$2(this.theme.components.MultipleChoice.element)}
         style=${this.theme.additionalStyles?.MultipleChoice ? o$2(this.theme.additionalStyles?.MultipleChoice) : A}
         @change=${(evt) => {
-				if (!(evt.target instanceof HTMLSelectElement)) {
-					return;
-				}
+				if (!(evt.target instanceof HTMLSelectElement)) return;
 				this.#setBoundValue([evt.target.value]);
 			}}
       >
@@ -7024,16 +5575,9 @@ let MultipleChoice = (() => {
 			__runInitializers$8(_classThis, _classExtraInitializers);
 		}
 	};
-	return MultipleChoice = _classThis;
+	return _classThis;
 })();
-
-/**
-* @license
-* Copyright 2020 Google LLC
-* SPDX-License-Identifier: BSD-3-Clause
-*/ const e$1 = () => new h();
-var h = class {};
-const o$1 = new WeakMap(), n = e$10(class extends f {
+const o$1 = /* @__PURE__ */ new WeakMap(), n = e$10(class extends f {
 	render(i) {
 		return A;
 	}
@@ -7045,7 +5589,7 @@ const o$1 = new WeakMap(), n = e$10(class extends f {
 		if (this.isConnected || (t = void 0), "function" == typeof this.G) {
 			const i = this.ht ?? globalThis;
 			let s = o$1.get(i);
-			void 0 === s && (s = new WeakMap(), o$1.set(i, s)), void 0 !== s.get(this.G) && this.G.call(this.ht, void 0), s.set(this.G, t), void 0 !== t && this.G.call(this.ht, t);
+			void 0 === s && (s = /* @__PURE__ */ new WeakMap(), o$1.set(i, s)), void 0 !== s.get(this.G) && this.G.call(this.ht, void 0), s.set(this.G, t), void 0 !== t && this.G.call(this.ht, t);
 		} else this.G.value = t;
 	}
 	get lt() {
@@ -7058,8 +5602,7 @@ const o$1 = new WeakMap(), n = e$10(class extends f {
 		this.rt(this.ct);
 	}
 });
-
-var __esDecorate$7 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$7 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -7086,29 +5629,25 @@ var __esDecorate$7 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$7 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$7 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-var __setFunctionName = void 0 && (void 0).__setFunctionName || function(f, name, prefix) {
+var __setFunctionName = function(f, name, prefix) {
 	if (typeof name === "symbol") name = name.description ? "[".concat(name.description, "]") : "";
 	return Object.defineProperty(f, "name", {
 		configurable: true,
 		value: prefix ? "".concat(prefix, " ", name) : name
 	});
 };
-let Modal = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-modal")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -7231,39 +5770,28 @@ let Modal = (() => {
 			return _private_modalRef_descriptor.set.call(this, value);
 		}
 		#closeModal() {
-			if (!this.#modalRef) {
-				return;
-			}
-			if (this.#modalRef.open) {
-				this.#modalRef.close();
-			}
+			if (!this.#modalRef) return;
+			if (this.#modalRef.open) this.#modalRef.close();
 			this.#showModal = false;
 		}
 		render() {
-			if (!this.#showModal) {
-				return b`<section
+			if (!this.#showModal) return b`<section
         @click=${() => {
-					this.#showModal = true;
-				}}
+				this.#showModal = true;
+			}}
       >
         <slot name="entry"></slot>
       </section>`;
-			}
 			return b`<dialog
       class=${e$2(this.theme.components.Modal.backdrop)}
       @click=${(evt) => {
 				const [top] = evt.composedPath();
-				if (!(top instanceof HTMLDialogElement)) {
-					return;
-				}
+				if (!(top instanceof HTMLDialogElement)) return;
 				this.#closeModal();
 			}}
       ${n((el) => {
 				const showModalIfNeeded = () => {
-					const validElement = el && el instanceof HTMLDialogElement;
-					if (!validElement || el.open) {
-						return;
-					}
+					if (!(el && el instanceof HTMLDialogElement) || el.open) return;
 					el.showModal();
 				};
 				requestAnimationFrame(showModalIfNeeded);
@@ -7294,10 +5822,9 @@ let Modal = (() => {
 			__runInitializers$7(_classThis, _classExtraInitializers);
 		}
 	};
-	return Modal = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$6 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$6 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -7324,22 +5851,18 @@ var __esDecorate$6 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$6 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$6 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Row = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-row")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -7495,10 +6018,9 @@ let Row = (() => {
 			__runInitializers$6(_classThis, _classExtraInitializers);
 		}
 	};
-	return Row = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$5 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$5 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -7525,22 +6047,18 @@ var __esDecorate$5 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$5 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$5 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Slider = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-slider")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -7711,15 +6229,9 @@ let Slider = (() => {
     `];
 		}
 		#setBoundValue(value) {
-			if (!this.value || !this.processor) {
-				return;
-			}
-			if (!("path" in this.value)) {
-				return;
-			}
-			if (!this.value.path) {
-				return;
-			}
+			if (!this.value || !this.processor) return;
+			if (!("path" in this.value)) return;
+			if (!this.value.path) return;
 			this.processor.setData(this.component, this.value.path, value, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
 		}
 		#renderField(value) {
@@ -7734,9 +6246,7 @@ let Slider = (() => {
         class=${e$2(this.theme.components.Slider.element)}
         style=${this.theme.additionalStyles?.Slider ? o$2(this.theme.additionalStyles?.Slider) : A}
         @input=${(evt) => {
-				if (!(evt.target instanceof HTMLInputElement)) {
-					return;
-				}
+				if (!(evt.target instanceof HTMLInputElement)) return;
 				this.#setBoundValue(evt.target.value);
 			}}
         id="data"
@@ -7753,21 +6263,13 @@ let Slider = (() => {
 		}
 		render() {
 			if (this.value && typeof this.value === "object") {
-				if ("literalNumber" in this.value && this.value.literalNumber) {
-					return this.#renderField(this.value.literalNumber);
-				} else if ("literal" in this.value && this.value.literal !== undefined) {
-					return this.#renderField(this.value.literal);
-				} else if (this.value && "path" in this.value && this.value.path) {
-					if (!this.processor || !this.component) {
-						return b`(no processor)`;
-					}
+				if ("literalNumber" in this.value && this.value.literalNumber) return this.#renderField(this.value.literalNumber);
+				else if ("literal" in this.value && this.value.literal !== void 0) return this.#renderField(this.value.literal);
+				else if (this.value && "path" in this.value && this.value.path) {
+					if (!this.processor || !this.component) return b`(no processor)`;
 					const textValue = this.processor.getData(this.component, this.value.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (textValue === null) {
-						return b`Invalid value`;
-					}
-					if (typeof textValue !== "string" && typeof textValue !== "number") {
-						return b`Invalid value`;
-					}
+					if (textValue === null) return b`Invalid value`;
+					if (typeof textValue !== "string" && typeof textValue !== "number") return b`Invalid value`;
 					return this.#renderField(textValue);
 				}
 			}
@@ -7781,10 +6283,9 @@ let Slider = (() => {
 			__runInitializers$5(_classThis, _classExtraInitializers);
 		}
 	};
-	return Slider = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$4 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$4 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -7811,22 +6312,18 @@ var __esDecorate$4 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$4 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$4 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Surface = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-surface")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -7952,46 +6449,38 @@ let Surface = (() => {
     `];
 		}
 		#renderLogo() {
-			if (!this.surface?.styles.logoUrl) {
-				return A;
-			}
+			if (!this.surface?.styles.logoUrl) return A;
 			return b`<div id="surface-logo">
       <img src=${this.surface.styles.logoUrl} />
     </div>`;
 		}
 		#renderSurface() {
 			const styles = {};
-			if (this.surface?.styles) {
-				for (const [key, value] of Object.entries(this.surface.styles)) {
-					switch (key) {
-						case "primaryColor": {
-							styles["--p-100"] = "#ffffff";
-							styles["--p-99"] = `color-mix(in srgb, ${value} 2%, white 98%)`;
-							styles["--p-98"] = `color-mix(in srgb, ${value} 4%, white 96%)`;
-							styles["--p-95"] = `color-mix(in srgb, ${value} 10%, white 90%)`;
-							styles["--p-90"] = `color-mix(in srgb, ${value} 20%, white 80%)`;
-							styles["--p-80"] = `color-mix(in srgb, ${value} 40%, white 60%)`;
-							styles["--p-70"] = `color-mix(in srgb, ${value} 60%, white 40%)`;
-							styles["--p-60"] = `color-mix(in srgb, ${value} 80%, white 20%)`;
-							styles["--p-50"] = value;
-							styles["--p-40"] = `color-mix(in srgb, ${value} 80%, black 20%)`;
-							styles["--p-35"] = `color-mix(in srgb, ${value} 70%, black 30%)`;
-							styles["--p-30"] = `color-mix(in srgb, ${value} 60%, black 40%)`;
-							styles["--p-25"] = `color-mix(in srgb, ${value} 50%, black 50%)`;
-							styles["--p-20"] = `color-mix(in srgb, ${value} 40%, black 60%)`;
-							styles["--p-15"] = `color-mix(in srgb, ${value} 30%, black 70%)`;
-							styles["--p-10"] = `color-mix(in srgb, ${value} 20%, black 80%)`;
-							styles["--p-5"] = `color-mix(in srgb, ${value} 10%, black 90%)`;
-							styles["--0"] = "#00000";
-							break;
-						}
-						case "font": {
-							styles["--font-family"] = value;
-							styles["--font-family-flex"] = value;
-							break;
-						}
-					}
-				}
+			if (this.surface?.styles) for (const [key, value] of Object.entries(this.surface.styles)) switch (key) {
+				case "primaryColor":
+					styles["--p-100"] = "#ffffff";
+					styles["--p-99"] = `color-mix(in srgb, ${value} 2%, white 98%)`;
+					styles["--p-98"] = `color-mix(in srgb, ${value} 4%, white 96%)`;
+					styles["--p-95"] = `color-mix(in srgb, ${value} 10%, white 90%)`;
+					styles["--p-90"] = `color-mix(in srgb, ${value} 20%, white 80%)`;
+					styles["--p-80"] = `color-mix(in srgb, ${value} 40%, white 60%)`;
+					styles["--p-70"] = `color-mix(in srgb, ${value} 60%, white 40%)`;
+					styles["--p-60"] = `color-mix(in srgb, ${value} 80%, white 20%)`;
+					styles["--p-50"] = value;
+					styles["--p-40"] = `color-mix(in srgb, ${value} 80%, black 20%)`;
+					styles["--p-35"] = `color-mix(in srgb, ${value} 70%, black 30%)`;
+					styles["--p-30"] = `color-mix(in srgb, ${value} 60%, black 40%)`;
+					styles["--p-25"] = `color-mix(in srgb, ${value} 50%, black 50%)`;
+					styles["--p-20"] = `color-mix(in srgb, ${value} 40%, black 60%)`;
+					styles["--p-15"] = `color-mix(in srgb, ${value} 30%, black 70%)`;
+					styles["--p-10"] = `color-mix(in srgb, ${value} 20%, black 80%)`;
+					styles["--p-5"] = `color-mix(in srgb, ${value} 10%, black 90%)`;
+					styles["--0"] = "#00000";
+					break;
+				case "font":
+					styles["--font-family"] = value;
+					styles["--font-family-flex"] = value;
+					break;
 			}
 			return b`<a2ui-root
       style=${o$2(styles)}
@@ -8001,9 +6490,7 @@ let Surface = (() => {
     ></a2ui-root>`;
 		}
 		render() {
-			if (!this.surface) {
-				return A;
-			}
+			if (!this.surface) return A;
 			return b`${[this.#renderLogo(), this.#renderSurface()]}`;
 		}
 		constructor() {
@@ -8014,10 +6501,9 @@ let Surface = (() => {
 			__runInitializers$4(_classThis, _classExtraInitializers);
 		}
 	};
-	return Surface = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$3 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$3 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -8044,22 +6530,18 @@ var __esDecorate$3 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$3 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$3 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Tabs = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-tabs")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -8145,46 +6627,31 @@ let Tabs = (() => {
 		willUpdate(changedProperties) {
 			super.willUpdate(changedProperties);
 			if (changedProperties.has("selected")) {
-				for (const child of this.children) {
-					child.removeAttribute("slot");
-				}
+				for (const child of this.children) child.removeAttribute("slot");
 				const selectedChild = this.children[this.selected];
-				if (!selectedChild) {
-					return;
-				}
+				if (!selectedChild) return;
 				selectedChild.slot = "current";
 			}
 		}
 		#renderTabs() {
-			if (!this.titles) {
-				return A;
-			}
+			if (!this.titles) return A;
 			return b`<div
       id="buttons"
       class=${e$2(this.theme.components.Tabs.element)}
     >
       ${c$2(this.titles, (title, idx) => {
 				let titleString = "";
-				if ("literalString" in title && title.literalString) {
-					titleString = title.literalString;
-				} else if ("literal" in title && title.literal !== undefined) {
-					titleString = title.literal;
-				} else if (title && "path" in title && title.path) {
-					if (!this.processor || !this.component) {
-						return b`(no model)`;
-					}
+				if ("literalString" in title && title.literalString) titleString = title.literalString;
+				else if ("literal" in title && title.literal !== void 0) titleString = title.literal;
+				else if (title && "path" in title && title.path) {
+					if (!this.processor || !this.component) return b`(no model)`;
 					const textValue = this.processor.getData(this.component, title.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (typeof textValue !== "string") {
-						return b`(invalid)`;
-					}
+					if (typeof textValue !== "string") return b`(invalid)`;
 					titleString = textValue;
 				}
 				let classes;
-				if (this.selected === idx) {
-					classes = merge(this.theme.components.Tabs.controls.all, this.theme.components.Tabs.controls.selected);
-				} else {
-					classes = { ...this.theme.components.Tabs.controls.all };
-				}
+				if (this.selected === idx) classes = merge(this.theme.components.Tabs.controls.all, this.theme.components.Tabs.controls.selected);
+				else classes = { ...this.theme.components.Tabs.controls.all };
 				return b`<button
           ?disabled=${this.selected === idx}
           class=${e$2(classes)}
@@ -8216,10 +6683,9 @@ let Tabs = (() => {
 			__runInitializers$3(_classThis, _classExtraInitializers);
 		}
 	};
-	return Tabs = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate$2 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate$2 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -8246,22 +6712,18 @@ var __esDecorate$2 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$2 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$2 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let TextField = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-textfield")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -8384,15 +6846,9 @@ let TextField = (() => {
     `];
 		}
 		#setBoundValue(value) {
-			if (!this.text || !this.processor) {
-				return;
-			}
-			if (!("path" in this.text)) {
-				return;
-			}
-			if (!this.text.path) {
-				return;
-			}
+			if (!this.text || !this.processor) return;
+			if (!("path" in this.text)) return;
+			if (!this.text.path) return;
 			this.processor.setData(this.component, this.text.path, value, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
 		}
 		#renderField(value, label) {
@@ -8409,9 +6865,7 @@ let TextField = (() => {
         class=${e$2(this.theme.components.TextField.element)}
         style=${this.theme.additionalStyles?.TextField ? o$2(this.theme.additionalStyles?.TextField) : A}
         @input=${(evt) => {
-				if (!(evt.target instanceof HTMLInputElement)) {
-					return;
-				}
+				if (!(evt.target instanceof HTMLInputElement)) return;
 				this.#setBoundValue(evt.target.value);
 			}}
         name="data"
@@ -8435,9 +6889,8 @@ let TextField = (() => {
 			__runInitializers$2(_classThis, _classExtraInitializers);
 		}
 	};
-	return TextField = _classThis;
+	return _classThis;
 })();
-
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -8462,13 +6915,10 @@ let TextField = (() => {
 };
 e.directiveName = "unsafeHTML", e.resultType = 1;
 const o = e$10(e);
-
 const decodeCache = {};
 function getDecodeCache(exclude) {
 	let cache = decodeCache[exclude];
-	if (cache) {
-		return cache;
-	}
+	if (cache) return cache;
 	cache = decodeCache[exclude] = [];
 	for (let i = 0; i < 128; i++) {
 		const ch = String.fromCharCode(i);
@@ -8481,9 +6931,7 @@ function getDecodeCache(exclude) {
 	return cache;
 }
 function decode$2(string, exclude) {
-	if (typeof exclude !== "string") {
-		exclude = decode$2.defaultChars;
-	}
+	if (typeof exclude !== "string") exclude = decode$2.defaultChars;
 	const cache = getDecodeCache(exclude);
 	return string.replace(/(%[a-f0-9]{2})+/gi, function(seq) {
 		let result = "";
@@ -8497,11 +6945,8 @@ function decode$2(string, exclude) {
 				const b2 = parseInt(seq.slice(i + 4, i + 6), 16);
 				if ((b2 & 192) === 128) {
 					const chr = b1 << 6 & 1984 | b2 & 63;
-					if (chr < 128) {
-						result += "��";
-					} else {
-						result += String.fromCharCode(chr);
-					}
+					if (chr < 128) result += "��";
+					else result += String.fromCharCode(chr);
 					i += 3;
 					continue;
 				}
@@ -8511,11 +6956,8 @@ function decode$2(string, exclude) {
 				const b3 = parseInt(seq.slice(i + 7, i + 9), 16);
 				if ((b2 & 192) === 128 && (b3 & 192) === 128) {
 					const chr = b1 << 12 & 61440 | b2 << 6 & 4032 | b3 & 63;
-					if (chr < 2048 || chr >= 55296 && chr <= 57343) {
-						result += "���";
-					} else {
-						result += String.fromCharCode(chr);
-					}
+					if (chr < 2048 || chr >= 55296 && chr <= 57343) result += "���";
+					else result += String.fromCharCode(chr);
 					i += 6;
 					continue;
 				}
@@ -8526,9 +6968,8 @@ function decode$2(string, exclude) {
 				const b4 = parseInt(seq.slice(i + 10, i + 12), 16);
 				if ((b2 & 192) === 128 && (b3 & 192) === 128 && (b4 & 192) === 128) {
 					let chr = b1 << 18 & 1835008 | b2 << 12 & 258048 | b3 << 6 & 4032 | b4 & 63;
-					if (chr < 65536 || chr > 1114111) {
-						result += "����";
-					} else {
+					if (chr < 65536 || chr > 1114111) result += "����";
+					else {
 						chr -= 65536;
 						result += String.fromCharCode(55296 + (chr >> 10), 56320 + (chr & 1023));
 					}
@@ -8543,25 +6984,17 @@ function decode$2(string, exclude) {
 }
 decode$2.defaultChars = ";/?:@&=+$,#";
 decode$2.componentChars = "";
-
 const encodeCache = {};
 function getEncodeCache(exclude) {
 	let cache = encodeCache[exclude];
-	if (cache) {
-		return cache;
-	}
+	if (cache) return cache;
 	cache = encodeCache[exclude] = [];
 	for (let i = 0; i < 128; i++) {
 		const ch = String.fromCharCode(i);
-		if (/^[0-9a-z]$/i.test(ch)) {
-			cache.push(ch);
-		} else {
-			cache.push("%" + ("0" + i.toString(16).toUpperCase()).slice(-2));
-		}
+		if (/^[0-9a-z]$/i.test(ch)) cache.push(ch);
+		else cache.push("%" + ("0" + i.toString(16).toUpperCase()).slice(-2));
 	}
-	for (let i = 0; i < exclude.length; i++) {
-		cache[exclude.charCodeAt(i)] = exclude[i];
-	}
+	for (let i = 0; i < exclude.length; i++) cache[exclude.charCodeAt(i)] = exclude[i];
 	return cache;
 }
 function encode$2(string, exclude, keepEscaped) {
@@ -8569,9 +7002,7 @@ function encode$2(string, exclude, keepEscaped) {
 		keepEscaped = exclude;
 		exclude = encode$2.defaultChars;
 	}
-	if (typeof keepEscaped === "undefined") {
-		keepEscaped = true;
-	}
+	if (typeof keepEscaped === "undefined") keepEscaped = true;
 	const cache = getEncodeCache(exclude);
 	let result = "";
 	for (let i = 0, l = string.length; i < l; i++) {
@@ -8605,25 +7036,19 @@ function encode$2(string, exclude, keepEscaped) {
 }
 encode$2.defaultChars = ";/?:@&=+$,-_.!~*'()#";
 encode$2.componentChars = "-_.!~*'()";
-
 function format(url) {
 	let result = "";
 	result += url.protocol || "";
 	result += url.slashes ? "//" : "";
 	result += url.auth ? url.auth + "@" : "";
-	if (url.hostname && url.hostname.indexOf(":") !== -1) {
-		result += "[" + url.hostname + "]";
-	} else {
-		result += url.hostname || "";
-	}
+	if (url.hostname && url.hostname.indexOf(":") !== -1) result += "[" + url.hostname + "]";
+	else result += url.hostname || "";
 	result += url.port ? ":" + url.port : "";
 	result += url.pathname || "";
 	result += url.search || "";
 	result += url.hash || "";
 	return result;
 }
-;
-
 function Url() {
 	this.protocol = null;
 	this.slashes = null;
@@ -8637,7 +7062,14 @@ function Url() {
 const protocolPattern = /^([a-z0-9.+-]+:)/i;
 const portPattern = /:[0-9]*$/;
 const simplePathPattern = /^(\/\/?(?!\/)[^\?\s]*)(\?[^\s]*)?$/;
-const delims = [
+const unwise = [
+	"{",
+	"}",
+	"|",
+	"\\",
+	"^",
+	"`"
+].concat([
 	"<",
 	">",
 	"\"",
@@ -8646,15 +7078,7 @@ const delims = [
 	"\r",
 	"\n",
 	"	"
-];
-const unwise = [
-	"{",
-	"}",
-	"|",
-	"\\",
-	"^",
-	"`"
-].concat(delims);
+]);
 const autoEscape = ["'"].concat(unwise);
 const nonHostChars = [
 	"%",
@@ -8701,9 +7125,7 @@ Url.prototype.parse = function(url, slashesDenoteHost) {
 		const simplePath = simplePathPattern.exec(rest);
 		if (simplePath) {
 			this.pathname = simplePath[1];
-			if (simplePath[2]) {
-				this.search = simplePath[2];
-			}
+			if (simplePath[2]) this.search = simplePath[2];
 			return this;
 		}
 	}
@@ -8725,16 +7147,11 @@ Url.prototype.parse = function(url, slashesDenoteHost) {
 		let hostEnd = -1;
 		for (let i = 0; i < hostEndingChars.length; i++) {
 			hec = rest.indexOf(hostEndingChars[i]);
-			if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) {
-				hostEnd = hec;
-			}
+			if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) hostEnd = hec;
 		}
 		let auth, atSign;
-		if (hostEnd === -1) {
-			atSign = rest.lastIndexOf("@");
-		} else {
-			atSign = rest.lastIndexOf("@", hostEnd);
-		}
+		if (hostEnd === -1) atSign = rest.lastIndexOf("@");
+		else atSign = rest.lastIndexOf("@", hostEnd);
 		if (atSign !== -1) {
 			auth = rest.slice(0, atSign);
 			rest = rest.slice(atSign + 1);
@@ -8743,16 +7160,10 @@ Url.prototype.parse = function(url, slashesDenoteHost) {
 		hostEnd = -1;
 		for (let i = 0; i < nonHostChars.length; i++) {
 			hec = rest.indexOf(nonHostChars[i]);
-			if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) {
-				hostEnd = hec;
-			}
+			if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) hostEnd = hec;
 		}
-		if (hostEnd === -1) {
-			hostEnd = rest.length;
-		}
-		if (rest[hostEnd - 1] === ":") {
-			hostEnd--;
-		}
+		if (hostEnd === -1) hostEnd = rest.length;
+		if (rest[hostEnd - 1] === ":") hostEnd--;
 		const host = rest.slice(0, hostEnd);
 		rest = rest.slice(hostEnd);
 		this.parseHost(host);
@@ -8762,18 +7173,11 @@ Url.prototype.parse = function(url, slashesDenoteHost) {
 			const hostparts = this.hostname.split(/\./);
 			for (let i = 0, l = hostparts.length; i < l; i++) {
 				const part = hostparts[i];
-				if (!part) {
-					continue;
-				}
+				if (!part) continue;
 				if (!part.match(hostnamePartPattern)) {
 					let newpart = "";
-					for (let j = 0, k = part.length; j < k; j++) {
-						if (part.charCodeAt(j) > 127) {
-							newpart += "x";
-						} else {
-							newpart += part[j];
-						}
-					}
+					for (let j = 0, k = part.length; j < k; j++) if (part.charCodeAt(j) > 127) newpart += "x";
+					else newpart += part[j];
 					if (!newpart.match(hostnamePartPattern)) {
 						const validParts = hostparts.slice(0, i);
 						const notHost = hostparts.slice(i + 1);
@@ -8782,21 +7186,15 @@ Url.prototype.parse = function(url, slashesDenoteHost) {
 							validParts.push(bit[1]);
 							notHost.unshift(bit[2]);
 						}
-						if (notHost.length) {
-							rest = notHost.join(".") + rest;
-						}
+						if (notHost.length) rest = notHost.join(".") + rest;
 						this.hostname = validParts.join(".");
 						break;
 					}
 				}
 			}
 		}
-		if (this.hostname.length > hostnameMaxLen) {
-			this.hostname = "";
-		}
-		if (ipv6Hostname) {
-			this.hostname = this.hostname.substr(1, this.hostname.length - 2);
-		}
+		if (this.hostname.length > hostnameMaxLen) this.hostname = "";
+		if (ipv6Hostname) this.hostname = this.hostname.substr(1, this.hostname.length - 2);
 	}
 	const hash = rest.indexOf("#");
 	if (hash !== -1) {
@@ -8808,47 +7206,31 @@ Url.prototype.parse = function(url, slashesDenoteHost) {
 		this.search = rest.substr(qm);
 		rest = rest.slice(0, qm);
 	}
-	if (rest) {
-		this.pathname = rest;
-	}
-	if (slashedProtocol[lowerProto] && this.hostname && !this.pathname) {
-		this.pathname = "";
-	}
+	if (rest) this.pathname = rest;
+	if (slashedProtocol[lowerProto] && this.hostname && !this.pathname) this.pathname = "";
 	return this;
 };
 Url.prototype.parseHost = function(host) {
 	let port = portPattern.exec(host);
 	if (port) {
 		port = port[0];
-		if (port !== ":") {
-			this.port = port.substr(1);
-		}
+		if (port !== ":") this.port = port.substr(1);
 		host = host.substr(0, host.length - port.length);
 	}
-	if (host) {
-		this.hostname = host;
-	}
+	if (host) this.hostname = host;
 };
-
 var mdurl_exports = /* @__PURE__ */ __exportAll({
 	decode: () => decode$2,
 	encode: () => encode$2,
 	format: () => format,
 	parse: () => urlParse
 });
-
 var regex_default$5 = /[\0-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
-
 var regex_default$4 = /[\0-\x1F\x7F-\x9F]/;
-
 var regex_default$3 = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
-
 var regex_default$2 = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1B7D\u1B7E\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDEAD\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD83A[\uDD5E\uDD5F]/;
-
 var regex_default$1 = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C0\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2426\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2B95\u2B97-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E3\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBC2\uFD40-\uFD4F\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED7\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDF76\uDF7B-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0\uDCB1\uDD00-\uDE53\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE88\uDE90-\uDEBD\uDEBF-\uDEC5\uDECE-\uDEDB\uDEE0-\uDEE8\uDEF0-\uDEF8\uDF00-\uDF92\uDF94-\uDFCA]/;
-
 var regex_default = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
-
 var uc_micro_exports = /* @__PURE__ */ __exportAll({
 	Any: () => regex_default$5,
 	Cc: () => regex_default$4,
@@ -8857,11 +7239,8 @@ var uc_micro_exports = /* @__PURE__ */ __exportAll({
 	S: () => regex_default$1,
 	Z: () => regex_default
 });
-
 var decode_data_html_default = new Uint16Array("ᵁ<Õıʊҝջאٵ۞ޢߖࠏ੊ઑඡ๭༉༦჊ረዡᐕᒝᓃᓟᔥ\0\0\0\0\0\0ᕫᛍᦍᰒᷝ὾⁠↰⊍⏀⏻⑂⠤⤒ⴈ⹈⿎〖㊺㘹㞬㣾㨨㩱㫠㬮ࠀEMabcfglmnoprstu\\bfms¦³¹ÈÏlig耻Æ䃆P耻&䀦cute耻Á䃁reve;䄂Āiyx}rc耻Â䃂;䐐r;쀀𝔄rave耻À䃀pha;䎑acr;䄀d;橓Āgp¡on;䄄f;쀀𝔸plyFunction;恡ing耻Å䃅Ācs¾Ãr;쀀𝒜ign;扔ilde耻Ã䃃ml耻Ä䃄ЀaceforsuåûþėĜĢħĪĀcrêòkslash;或Ŷöø;櫧ed;挆y;䐑ƀcrtąċĔause;戵noullis;愬a;䎒r;쀀𝔅pf;쀀𝔹eve;䋘còēmpeq;扎܀HOacdefhilorsuōőŖƀƞƢƵƷƺǜȕɳɸɾcy;䐧PY耻©䂩ƀcpyŝŢźute;䄆Ā;iŧŨ拒talDifferentialD;慅leys;愭ȀaeioƉƎƔƘron;䄌dil耻Ç䃇rc;䄈nint;戰ot;䄊ĀdnƧƭilla;䂸terDot;䂷òſi;䎧rcleȀDMPTǇǋǑǖot;抙inus;抖lus;投imes;抗oĀcsǢǸkwiseContourIntegral;戲eCurlyĀDQȃȏoubleQuote;思uote;怙ȀlnpuȞȨɇɕonĀ;eȥȦ户;橴ƀgitȯȶȺruent;扡nt;戯ourIntegral;戮ĀfrɌɎ;愂oduct;成nterClockwiseContourIntegral;戳oss;樯cr;쀀𝒞pĀ;Cʄʅ拓ap;才րDJSZacefiosʠʬʰʴʸˋ˗ˡ˦̳ҍĀ;oŹʥtrahd;椑cy;䐂cy;䐅cy;䐏ƀgrsʿ˄ˇger;怡r;憡hv;櫤Āayː˕ron;䄎;䐔lĀ;t˝˞戇a;䎔r;쀀𝔇Āaf˫̧Ācm˰̢riticalȀADGT̖̜̀̆cute;䂴oŴ̋̍;䋙bleAcute;䋝rave;䁠ilde;䋜ond;拄ferentialD;慆Ѱ̽\0\0\0͔͂\0Ѕf;쀀𝔻ƀ;DE͈͉͍䂨ot;惜qual;扐blèCDLRUVͣͲ΂ϏϢϸontourIntegraìȹoɴ͹\0\0ͻ»͉nArrow;懓Āeo·ΤftƀARTΐΖΡrrow;懐ightArrow;懔eåˊngĀLRΫτeftĀARγιrrow;柸ightArrow;柺ightArrow;柹ightĀATϘϞrrow;懒ee;抨pɁϩ\0\0ϯrrow;懑ownArrow;懕erticalBar;戥ǹABLRTaВЪаўѿͼrrowƀ;BUНОТ憓ar;椓pArrow;懵reve;䌑eft˒к\0ц\0ѐightVector;楐eeVector;楞ectorĀ;Bљњ憽ar;楖ightǔѧ\0ѱeeVector;楟ectorĀ;BѺѻ懁ar;楗eeĀ;A҆҇护rrow;憧ĀctҒҗr;쀀𝒟rok;䄐ࠀNTacdfglmopqstuxҽӀӄӋӞӢӧӮӵԡԯԶՒ՝ՠեG;䅊H耻Ð䃐cute耻É䃉ƀaiyӒӗӜron;䄚rc耻Ê䃊;䐭ot;䄖r;쀀𝔈rave耻È䃈ement;戈ĀapӺӾcr;䄒tyɓԆ\0\0ԒmallSquare;旻erySmallSquare;斫ĀgpԦԪon;䄘f;쀀𝔼silon;䎕uĀaiԼՉlĀ;TՂՃ橵ilde;扂librium;懌Āci՗՚r;愰m;橳a;䎗ml耻Ë䃋Āipժկsts;戃onentialE;慇ʀcfiosօֈ֍ֲ׌y;䐤r;쀀𝔉lledɓ֗\0\0֣mallSquare;旼erySmallSquare;斪Ͱֺ\0ֿ\0\0ׄf;쀀𝔽All;戀riertrf;愱cò׋؀JTabcdfgorstר׬ׯ׺؀ؒؖ؛؝أ٬ٲcy;䐃耻>䀾mmaĀ;d׷׸䎓;䏜reve;䄞ƀeiy؇،ؐdil;䄢rc;䄜;䐓ot;䄠r;쀀𝔊;拙pf;쀀𝔾eater̀EFGLSTصلَٖٛ٦qualĀ;Lؾؿ扥ess;招ullEqual;执reater;檢ess;扷lantEqual;橾ilde;扳cr;쀀𝒢;扫ЀAacfiosuڅڋږڛڞڪھۊRDcy;䐪Āctڐڔek;䋇;䁞irc;䄤r;愌lbertSpace;愋ǰگ\0ڲf;愍izontalLine;攀Āctۃۅòکrok;䄦mpńېۘownHumðįqual;扏܀EJOacdfgmnostuۺ۾܃܇܎ܚܞܡܨ݄ݸދޏޕcy;䐕lig;䄲cy;䐁cute耻Í䃍Āiyܓܘrc耻Î䃎;䐘ot;䄰r;愑rave耻Ì䃌ƀ;apܠܯܿĀcgܴܷr;䄪inaryI;慈lieóϝǴ݉\0ݢĀ;eݍݎ戬Āgrݓݘral;戫section;拂isibleĀCTݬݲomma;恣imes;恢ƀgptݿރވon;䄮f;쀀𝕀a;䎙cr;愐ilde;䄨ǫޚ\0ޞcy;䐆l耻Ï䃏ʀcfosuެ޷޼߂ߐĀiyޱ޵rc;䄴;䐙r;쀀𝔍pf;쀀𝕁ǣ߇\0ߌr;쀀𝒥rcy;䐈kcy;䐄΀HJacfosߤߨ߽߬߱ࠂࠈcy;䐥cy;䐌ppa;䎚Āey߶߻dil;䄶;䐚r;쀀𝔎pf;쀀𝕂cr;쀀𝒦րJTaceflmostࠥࠩࠬࡐࡣ঳সে্਷ੇcy;䐉耻<䀼ʀcmnpr࠷࠼ࡁࡄࡍute;䄹bda;䎛g;柪lacetrf;愒r;憞ƀaeyࡗ࡜ࡡron;䄽dil;䄻;䐛Āfsࡨ॰tԀACDFRTUVarࡾࢩࢱࣦ࣠ࣼयज़ΐ४Ānrࢃ࢏gleBracket;柨rowƀ;BR࢙࢚࢞憐ar;懤ightArrow;懆eiling;挈oǵࢷ\0ࣃbleBracket;柦nǔࣈ\0࣒eeVector;楡ectorĀ;Bࣛࣜ懃ar;楙loor;挊ightĀAV࣯ࣵrrow;憔ector;楎Āerँगeƀ;AVउऊऐ抣rrow;憤ector;楚iangleƀ;BEतथऩ抲ar;槏qual;抴pƀDTVषूौownVector;楑eeVector;楠ectorĀ;Bॖॗ憿ar;楘ectorĀ;B॥०憼ar;楒ightáΜs̀EFGLSTॾঋকঝঢভqualGreater;拚ullEqual;扦reater;扶ess;檡lantEqual;橽ilde;扲r;쀀𝔏Ā;eঽা拘ftarrow;懚idot;䄿ƀnpw৔ਖਛgȀLRlr৞৷ਂਐeftĀAR০৬rrow;柵ightArrow;柷ightArrow;柶eftĀarγਊightáοightáϊf;쀀𝕃erĀLRਢਬeftArrow;憙ightArrow;憘ƀchtਾੀੂòࡌ;憰rok;䅁;扪Ѐacefiosuਗ਼੝੠੷੼અઋ઎p;椅y;䐜Ādl੥੯iumSpace;恟lintrf;愳r;쀀𝔐nusPlus;戓pf;쀀𝕄cò੶;䎜ҀJacefostuણધભીଔଙඑ඗ඞcy;䐊cute;䅃ƀaey઴હાron;䅇dil;䅅;䐝ƀgswે૰଎ativeƀMTV૓૟૨ediumSpace;怋hiĀcn૦૘ë૙eryThiî૙tedĀGL૸ଆreaterGreateòٳessLesóੈLine;䀊r;쀀𝔑ȀBnptଢନଷ଺reak;恠BreakingSpace;䂠f;愕ڀ;CDEGHLNPRSTV୕ୖ୪୼஡௫ఄ౞಄ದ೘ൡඅ櫬Āou୛୤ngruent;扢pCap;扭oubleVerticalBar;戦ƀlqxஃஊ஛ement;戉ualĀ;Tஒஓ扠ilde;쀀≂̸ists;戄reater΀;EFGLSTஶஷ஽௉௓௘௥扯qual;扱ullEqual;쀀≧̸reater;쀀≫̸ess;批lantEqual;쀀⩾̸ilde;扵umpń௲௽ownHump;쀀≎̸qual;쀀≏̸eĀfsఊధtTriangleƀ;BEచఛడ拪ar;쀀⧏̸qual;括s̀;EGLSTవశ఼ౄోౘ扮qual;扰reater;扸ess;쀀≪̸lantEqual;쀀⩽̸ilde;扴estedĀGL౨౹reaterGreater;쀀⪢̸essLess;쀀⪡̸recedesƀ;ESಒಓಛ技qual;쀀⪯̸lantEqual;拠ĀeiಫಹverseElement;戌ghtTriangleƀ;BEೋೌ೒拫ar;쀀⧐̸qual;拭ĀquೝഌuareSuĀbp೨೹setĀ;E೰ೳ쀀⊏̸qual;拢ersetĀ;Eഃആ쀀⊐̸qual;拣ƀbcpഓതൎsetĀ;Eഛഞ쀀⊂⃒qual;抈ceedsȀ;ESTലള഻െ抁qual;쀀⪰̸lantEqual;拡ilde;쀀≿̸ersetĀ;E൘൛쀀⊃⃒qual;抉ildeȀ;EFT൮൯൵ൿ扁qual;扄ullEqual;扇ilde;扉erticalBar;戤cr;쀀𝒩ilde耻Ñ䃑;䎝܀Eacdfgmoprstuvලෂ෉෕ෛ෠෧෼ขภยา฿ไlig;䅒cute耻Ó䃓Āiy෎ීrc耻Ô䃔;䐞blac;䅐r;쀀𝔒rave耻Ò䃒ƀaei෮ෲ෶cr;䅌ga;䎩cron;䎟pf;쀀𝕆enCurlyĀDQฎบoubleQuote;怜uote;怘;橔Āclวฬr;쀀𝒪ash耻Ø䃘iŬื฼de耻Õ䃕es;樷ml耻Ö䃖erĀBP๋๠Āar๐๓r;怾acĀek๚๜;揞et;掴arenthesis;揜Ҁacfhilors๿ງຊຏຒດຝະ໼rtialD;戂y;䐟r;쀀𝔓i;䎦;䎠usMinus;䂱Āipຢອncareplanåڝf;愙Ȁ;eio຺ູ໠໤檻cedesȀ;EST່້໏໚扺qual;檯lantEqual;扼ilde;找me;怳Ādp໩໮uct;戏ortionĀ;aȥ໹l;戝Āci༁༆r;쀀𝒫;䎨ȀUfos༑༖༛༟OT耻\"䀢r;쀀𝔔pf;愚cr;쀀𝒬؀BEacefhiorsu༾གྷཇའཱིྦྷྪྭ႖ႩႴႾarr;椐G耻®䂮ƀcnrཎནབute;䅔g;柫rĀ;tཛྷཝ憠l;椖ƀaeyཧཬཱron;䅘dil;䅖;䐠Ā;vླྀཹ愜erseĀEUྂྙĀlq྇ྎement;戋uilibrium;懋pEquilibrium;楯r»ཹo;䎡ghtЀACDFTUVa࿁࿫࿳ဢဨၛႇϘĀnr࿆࿒gleBracket;柩rowƀ;BL࿜࿝࿡憒ar;懥eftArrow;懄eiling;按oǵ࿹\0စbleBracket;柧nǔည\0နeeVector;楝ectorĀ;Bဝသ懂ar;楕loor;挋Āerိ၃eƀ;AVဵံြ抢rrow;憦ector;楛iangleƀ;BEၐၑၕ抳ar;槐qual;抵pƀDTVၣၮၸownVector;楏eeVector;楜ectorĀ;Bႂႃ憾ar;楔ectorĀ;B႑႒懀ar;楓Āpuႛ႞f;愝ndImplies;楰ightarrow;懛ĀchႹႼr;愛;憱leDelayed;槴ڀHOacfhimoqstuფჱჷჽᄙᄞᅑᅖᅡᅧᆵᆻᆿĀCcჩხHcy;䐩y;䐨FTcy;䐬cute;䅚ʀ;aeiyᄈᄉᄎᄓᄗ檼ron;䅠dil;䅞rc;䅜;䐡r;쀀𝔖ortȀDLRUᄪᄴᄾᅉownArrow»ОeftArrow»࢚ightArrow»࿝pArrow;憑gma;䎣allCircle;战pf;쀀𝕊ɲᅭ\0\0ᅰt;戚areȀ;ISUᅻᅼᆉᆯ斡ntersection;抓uĀbpᆏᆞsetĀ;Eᆗᆘ抏qual;抑ersetĀ;Eᆨᆩ抐qual;抒nion;抔cr;쀀𝒮ar;拆ȀbcmpᇈᇛሉላĀ;sᇍᇎ拐etĀ;Eᇍᇕqual;抆ĀchᇠህeedsȀ;ESTᇭᇮᇴᇿ扻qual;檰lantEqual;扽ilde;承Tháྌ;我ƀ;esሒሓሣ拑rsetĀ;Eሜም抃qual;抇et»ሓրHRSacfhiorsሾቄ቉ቕ቞ቱቶኟዂወዑORN耻Þ䃞ADE;愢ĀHc቎ቒcy;䐋y;䐦Ābuቚቜ;䀉;䎤ƀaeyብቪቯron;䅤dil;䅢;䐢r;쀀𝔗Āeiቻ኉ǲኀ\0ኇefore;戴a;䎘Ācn኎ኘkSpace;쀀  Space;怉ldeȀ;EFTካኬኲኼ戼qual;扃ullEqual;扅ilde;扈pf;쀀𝕋ipleDot;惛Āctዖዛr;쀀𝒯rok;䅦ૡዷጎጚጦ\0ጬጱ\0\0\0\0\0ጸጽ፷ᎅ\0᏿ᐄᐊᐐĀcrዻጁute耻Ú䃚rĀ;oጇገ憟cir;楉rǣጓ\0጖y;䐎ve;䅬Āiyጞጣrc耻Û䃛;䐣blac;䅰r;쀀𝔘rave耻Ù䃙acr;䅪Ādiፁ፩erĀBPፈ፝Āarፍፐr;䁟acĀekፗፙ;揟et;掵arenthesis;揝onĀ;P፰፱拃lus;抎Āgp፻፿on;䅲f;쀀𝕌ЀADETadps᎕ᎮᎸᏄϨᏒᏗᏳrrowƀ;BDᅐᎠᎤar;椒ownArrow;懅ownArrow;憕quilibrium;楮eeĀ;AᏋᏌ报rrow;憥ownáϳerĀLRᏞᏨeftArrow;憖ightArrow;憗iĀ;lᏹᏺ䏒on;䎥ing;䅮cr;쀀𝒰ilde;䅨ml耻Ü䃜ҀDbcdefosvᐧᐬᐰᐳᐾᒅᒊᒐᒖash;披ar;櫫y;䐒ashĀ;lᐻᐼ抩;櫦Āerᑃᑅ;拁ƀbtyᑌᑐᑺar;怖Ā;iᑏᑕcalȀBLSTᑡᑥᑪᑴar;戣ine;䁼eparator;杘ilde;所ThinSpace;怊r;쀀𝔙pf;쀀𝕍cr;쀀𝒱dash;抪ʀcefosᒧᒬᒱᒶᒼirc;䅴dge;拀r;쀀𝔚pf;쀀𝕎cr;쀀𝒲Ȁfiosᓋᓐᓒᓘr;쀀𝔛;䎞pf;쀀𝕏cr;쀀𝒳ҀAIUacfosuᓱᓵᓹᓽᔄᔏᔔᔚᔠcy;䐯cy;䐇cy;䐮cute耻Ý䃝Āiyᔉᔍrc;䅶;䐫r;쀀𝔜pf;쀀𝕐cr;쀀𝒴ml;䅸ЀHacdefosᔵᔹᔿᕋᕏᕝᕠᕤcy;䐖cute;䅹Āayᕄᕉron;䅽;䐗ot;䅻ǲᕔ\0ᕛoWidtè૙a;䎖r;愨pf;愤cr;쀀𝒵௡ᖃᖊᖐ\0ᖰᖶᖿ\0\0\0\0ᗆᗛᗫᙟ᙭\0ᚕ᚛ᚲᚹ\0ᚾcute耻á䃡reve;䄃̀;Ediuyᖜᖝᖡᖣᖨᖭ戾;쀀∾̳;房rc耻â䃢te肻´̆;䐰lig耻æ䃦Ā;r²ᖺ;쀀𝔞rave耻à䃠ĀepᗊᗖĀfpᗏᗔsym;愵èᗓha;䎱ĀapᗟcĀclᗤᗧr;䄁g;樿ɤᗰ\0\0ᘊʀ;adsvᗺᗻᗿᘁᘇ戧nd;橕;橜lope;橘;橚΀;elmrszᘘᘙᘛᘞᘿᙏᙙ戠;榤e»ᘙsdĀ;aᘥᘦ戡ѡᘰᘲᘴᘶᘸᘺᘼᘾ;榨;榩;榪;榫;榬;榭;榮;榯tĀ;vᙅᙆ戟bĀ;dᙌᙍ抾;榝Āptᙔᙗh;戢»¹arr;捼Āgpᙣᙧon;䄅f;쀀𝕒΀;Eaeiop዁ᙻᙽᚂᚄᚇᚊ;橰cir;橯;扊d;手s;䀧roxĀ;e዁ᚒñᚃing耻å䃥ƀctyᚡᚦᚨr;쀀𝒶;䀪mpĀ;e዁ᚯñʈilde耻ã䃣ml耻ä䃤Āciᛂᛈoninôɲnt;樑ࠀNabcdefiklnoprsu᛭ᛱᜰ᜼ᝃᝈ᝸᝽០៦ᠹᡐᜍ᤽᥈ᥰot;櫭Ācrᛶ᜞kȀcepsᜀᜅᜍᜓong;扌psilon;䏶rime;怵imĀ;e᜚᜛戽q;拍Ŷᜢᜦee;抽edĀ;gᜬᜭ挅e»ᜭrkĀ;t፜᜷brk;掶Āoyᜁᝁ;䐱quo;怞ʀcmprtᝓ᝛ᝡᝤᝨausĀ;eĊĉptyv;榰séᜌnoõēƀahwᝯ᝱ᝳ;䎲;愶een;扬r;쀀𝔟g΀costuvwឍឝឳេ៕៛៞ƀaiuបពរðݠrc;旯p»፱ƀdptឤឨឭot;樀lus;樁imes;樂ɱឹ\0\0ើcup;樆ar;昅riangleĀdu៍្own;施p;斳plus;樄eåᑄåᒭarow;植ƀako៭ᠦᠵĀcn៲ᠣkƀlst៺֫᠂ozenge;槫riangleȀ;dlr᠒᠓᠘᠝斴own;斾eft;旂ight;斸k;搣Ʊᠫ\0ᠳƲᠯ\0ᠱ;斒;斑4;斓ck;斈ĀeoᠾᡍĀ;qᡃᡆ쀀=⃥uiv;쀀≡⃥t;挐Ȁptwxᡙᡞᡧᡬf;쀀𝕓Ā;tᏋᡣom»Ꮜtie;拈؀DHUVbdhmptuvᢅᢖᢪᢻᣗᣛᣬ᣿ᤅᤊᤐᤡȀLRlrᢎᢐᢒᢔ;敗;敔;敖;敓ʀ;DUduᢡᢢᢤᢦᢨ敐;敦;敩;敤;敧ȀLRlrᢳᢵᢷᢹ;敝;敚;敜;教΀;HLRhlrᣊᣋᣍᣏᣑᣓᣕ救;敬;散;敠;敫;敢;敟ox;槉ȀLRlrᣤᣦᣨᣪ;敕;敒;攐;攌ʀ;DUduڽ᣷᣹᣻᣽;敥;敨;攬;攴inus;抟lus;択imes;抠ȀLRlrᤙᤛᤝ᤟;敛;敘;攘;攔΀;HLRhlrᤰᤱᤳᤵᤷ᤻᤹攂;敪;敡;敞;攼;攤;攜Āevģ᥂bar耻¦䂦Ȁceioᥑᥖᥚᥠr;쀀𝒷mi;恏mĀ;e᜚᜜lƀ;bhᥨᥩᥫ䁜;槅sub;柈Ŭᥴ᥾lĀ;e᥹᥺怢t»᥺pƀ;Eeįᦅᦇ;檮Ā;qۜۛೡᦧ\0᧨ᨑᨕᨲ\0ᨷᩐ\0\0᪴\0\0᫁\0\0ᬡᬮ᭍᭒\0᯽\0ᰌƀcpr᦭ᦲ᧝ute;䄇̀;abcdsᦿᧀᧄ᧊᧕᧙戩nd;橄rcup;橉Āau᧏᧒p;橋p;橇ot;橀;쀀∩︀Āeo᧢᧥t;恁îړȀaeiu᧰᧻ᨁᨅǰ᧵\0᧸s;橍on;䄍dil耻ç䃧rc;䄉psĀ;sᨌᨍ橌m;橐ot;䄋ƀdmnᨛᨠᨦil肻¸ƭptyv;榲t脀¢;eᨭᨮ䂢räƲr;쀀𝔠ƀceiᨽᩀᩍy;䑇ckĀ;mᩇᩈ朓ark»ᩈ;䏇r΀;Ecefms᩟᩠ᩢᩫ᪤᪪᪮旋;槃ƀ;elᩩᩪᩭ䋆q;扗eɡᩴ\0\0᪈rrowĀlr᩼᪁eft;憺ight;憻ʀRSacd᪒᪔᪖᪚᪟»ཇ;擈st;抛irc;抚ash;抝nint;樐id;櫯cir;槂ubsĀ;u᪻᪼晣it»᪼ˬ᫇᫔᫺\0ᬊonĀ;eᫍᫎ䀺Ā;qÇÆɭ᫙\0\0᫢aĀ;t᫞᫟䀬;䁀ƀ;fl᫨᫩᫫戁îᅠeĀmx᫱᫶ent»᫩eóɍǧ᫾\0ᬇĀ;dኻᬂot;橭nôɆƀfryᬐᬔᬗ;쀀𝕔oäɔ脀©;sŕᬝr;愗Āaoᬥᬩrr;憵ss;朗Ācuᬲᬷr;쀀𝒸Ābpᬼ᭄Ā;eᭁᭂ櫏;櫑Ā;eᭉᭊ櫐;櫒dot;拯΀delprvw᭠᭬᭷ᮂᮬᯔ᯹arrĀlr᭨᭪;椸;椵ɰ᭲\0\0᭵r;拞c;拟arrĀ;p᭿ᮀ憶;椽̀;bcdosᮏᮐᮖᮡᮥᮨ截rcap;橈Āauᮛᮞp;橆p;橊ot;抍r;橅;쀀∪︀Ȁalrv᮵ᮿᯞᯣrrĀ;mᮼᮽ憷;椼yƀevwᯇᯔᯘqɰᯎ\0\0ᯒreã᭳uã᭵ee;拎edge;拏en耻¤䂤earrowĀlrᯮ᯳eft»ᮀight»ᮽeäᯝĀciᰁᰇoninôǷnt;戱lcty;挭ঀAHabcdefhijlorstuwz᰸᰻᰿ᱝᱩᱵᲊᲞᲬᲷ᳻᳿ᴍᵻᶑᶫᶻ᷆᷍rò΁ar;楥Ȁglrs᱈ᱍ᱒᱔ger;怠eth;愸òᄳhĀ;vᱚᱛ怐»ऊūᱡᱧarow;椏aã̕Āayᱮᱳron;䄏;䐴ƀ;ao̲ᱼᲄĀgrʿᲁr;懊tseq;橷ƀglmᲑᲔᲘ耻°䂰ta;䎴ptyv;榱ĀirᲣᲨsht;楿;쀀𝔡arĀlrᲳᲵ»ࣜ»သʀaegsv᳂͸᳖᳜᳠mƀ;oș᳊᳔ndĀ;ș᳑uit;晦amma;䏝in;拲ƀ;io᳧᳨᳸䃷de脀÷;o᳧ᳰntimes;拇nø᳷cy;䑒cɯᴆ\0\0ᴊrn;挞op;挍ʀlptuwᴘᴝᴢᵉᵕlar;䀤f;쀀𝕕ʀ;emps̋ᴭᴷᴽᵂqĀ;d͒ᴳot;扑inus;戸lus;戔quare;抡blebarwedgåúnƀadhᄮᵝᵧownarrowóᲃarpoonĀlrᵲᵶefôᲴighôᲶŢᵿᶅkaro÷གɯᶊ\0\0ᶎrn;挟op;挌ƀcotᶘᶣᶦĀryᶝᶡ;쀀𝒹;䑕l;槶rok;䄑Ādrᶰᶴot;拱iĀ;fᶺ᠖斿Āah᷀᷃ròЩaòྦangle;榦Āci᷒ᷕy;䑟grarr;柿ऀDacdefglmnopqrstuxḁḉḙḸոḼṉṡṾấắẽỡἪἷὄ὎὚ĀDoḆᴴoôᲉĀcsḎḔute耻é䃩ter;橮ȀaioyḢḧḱḶron;䄛rĀ;cḭḮ扖耻ê䃪lon;払;䑍ot;䄗ĀDrṁṅot;扒;쀀𝔢ƀ;rsṐṑṗ檚ave耻è䃨Ā;dṜṝ檖ot;檘Ȁ;ilsṪṫṲṴ檙nters;揧;愓Ā;dṹṺ檕ot;檗ƀapsẅẉẗcr;䄓tyƀ;svẒẓẕ戅et»ẓpĀ1;ẝẤĳạả;怄;怅怃ĀgsẪẬ;䅋p;怂ĀgpẴẸon;䄙f;쀀𝕖ƀalsỄỎỒrĀ;sỊị拕l;槣us;橱iƀ;lvỚớở䎵on»ớ;䏵ȀcsuvỪỳἋἣĀioữḱrc»Ḯɩỹ\0\0ỻíՈantĀglἂἆtr»ṝess»Ṻƀaeiἒ἖Ἒls;䀽st;扟vĀ;DȵἠD;橸parsl;槥ĀDaἯἳot;打rr;楱ƀcdiἾὁỸr;愯oô͒ĀahὉὋ;䎷耻ð䃰Āmrὓὗl耻ë䃫o;悬ƀcipὡὤὧl;䀡sôծĀeoὬὴctatioîՙnentialåչৡᾒ\0ᾞ\0ᾡᾧ\0\0ῆῌ\0ΐ\0ῦῪ \0 ⁚llingdotseñṄy;䑄male;晀ƀilrᾭᾳ῁lig;耀ﬃɩᾹ\0\0᾽g;耀ﬀig;耀ﬄ;쀀𝔣lig;耀ﬁlig;쀀fjƀaltῙ῜ῡt;晭ig;耀ﬂns;斱of;䆒ǰ΅\0ῳf;쀀𝕗ĀakֿῷĀ;vῼ´拔;櫙artint;樍Āao‌⁕Ācs‑⁒α‚‰‸⁅⁈\0⁐β•‥‧‪‬\0‮耻½䂽;慓耻¼䂼;慕;慙;慛Ƴ‴\0‶;慔;慖ʴ‾⁁\0\0⁃耻¾䂾;慗;慜5;慘ƶ⁌\0⁎;慚;慝8;慞l;恄wn;挢cr;쀀𝒻ࢀEabcdefgijlnorstv₂₉₟₥₰₴⃰⃵⃺⃿℃ℒℸ̗ℾ⅒↞Ā;lٍ₇;檌ƀcmpₐₕ₝ute;䇵maĀ;dₜ᳚䎳;檆reve;䄟Āiy₪₮rc;䄝;䐳ot;䄡Ȁ;lqsؾق₽⃉ƀ;qsؾٌ⃄lanô٥Ȁ;cdl٥⃒⃥⃕c;檩otĀ;o⃜⃝檀Ā;l⃢⃣檂;檄Ā;e⃪⃭쀀⋛︀s;檔r;쀀𝔤Ā;gٳ؛mel;愷cy;䑓Ȁ;Eajٚℌℎℐ;檒;檥;檤ȀEaesℛℝ℩ℴ;扩pĀ;p℣ℤ檊rox»ℤĀ;q℮ℯ檈Ā;q℮ℛim;拧pf;쀀𝕘Āci⅃ⅆr;愊mƀ;el٫ⅎ⅐;檎;檐茀>;cdlqr׮ⅠⅪⅮⅳⅹĀciⅥⅧ;檧r;橺ot;拗Par;榕uest;橼ʀadelsↄⅪ←ٖ↛ǰ↉\0↎proø₞r;楸qĀlqؿ↖lesó₈ií٫Āen↣↭rtneqq;쀀≩︀Å↪ԀAabcefkosy⇄⇇⇱⇵⇺∘∝∯≨≽ròΠȀilmr⇐⇔⇗⇛rsðᒄf»․ilôکĀdr⇠⇤cy;䑊ƀ;cwࣴ⇫⇯ir;楈;憭ar;意irc;䄥ƀalr∁∎∓rtsĀ;u∉∊晥it»∊lip;怦con;抹r;쀀𝔥sĀew∣∩arow;椥arow;椦ʀamopr∺∾≃≞≣rr;懿tht;戻kĀlr≉≓eftarrow;憩ightarrow;憪f;쀀𝕙bar;怕ƀclt≯≴≸r;쀀𝒽asè⇴rok;䄧Ābp⊂⊇ull;恃hen»ᱛૡ⊣\0⊪\0⊸⋅⋎\0⋕⋳\0\0⋸⌢⍧⍢⍿\0⎆⎪⎴cute耻í䃭ƀ;iyݱ⊰⊵rc耻î䃮;䐸Ācx⊼⊿y;䐵cl耻¡䂡ĀfrΟ⋉;쀀𝔦rave耻ì䃬Ȁ;inoܾ⋝⋩⋮Āin⋢⋦nt;樌t;戭fin;槜ta;愩lig;䄳ƀaop⋾⌚⌝ƀcgt⌅⌈⌗r;䄫ƀelpܟ⌏⌓inåގarôܠh;䄱f;抷ed;䆵ʀ;cfotӴ⌬⌱⌽⍁are;愅inĀ;t⌸⌹戞ie;槝doô⌙ʀ;celpݗ⍌⍐⍛⍡al;抺Āgr⍕⍙eróᕣã⍍arhk;樗rod;樼Ȁcgpt⍯⍲⍶⍻y;䑑on;䄯f;쀀𝕚a;䎹uest耻¿䂿Āci⎊⎏r;쀀𝒾nʀ;EdsvӴ⎛⎝⎡ӳ;拹ot;拵Ā;v⎦⎧拴;拳Ā;iݷ⎮lde;䄩ǫ⎸\0⎼cy;䑖l耻ï䃯̀cfmosu⏌⏗⏜⏡⏧⏵Āiy⏑⏕rc;䄵;䐹r;쀀𝔧ath;䈷pf;쀀𝕛ǣ⏬\0⏱r;쀀𝒿rcy;䑘kcy;䑔Ѐacfghjos␋␖␢␧␭␱␵␻ppaĀ;v␓␔䎺;䏰Āey␛␠dil;䄷;䐺r;쀀𝔨reen;䄸cy;䑅cy;䑜pf;쀀𝕜cr;쀀𝓀஀ABEHabcdefghjlmnoprstuv⑰⒁⒆⒍⒑┎┽╚▀♎♞♥♹♽⚚⚲⛘❝❨➋⟀⠁⠒ƀart⑷⑺⑼rò৆òΕail;椛arr;椎Ā;gঔ⒋;檋ar;楢ॣ⒥\0⒪\0⒱\0\0\0\0\0⒵Ⓔ\0ⓆⓈⓍ\0⓹ute;䄺mptyv;榴raîࡌbda;䎻gƀ;dlࢎⓁⓃ;榑åࢎ;檅uo耻«䂫rЀ;bfhlpst࢙ⓞⓦⓩ⓫⓮⓱⓵Ā;f࢝ⓣs;椟s;椝ë≒p;憫l;椹im;楳l;憢ƀ;ae⓿─┄檫il;椙Ā;s┉┊檭;쀀⪭︀ƀabr┕┙┝rr;椌rk;杲Āak┢┬cĀek┨┪;䁻;䁛Āes┱┳;榋lĀdu┹┻;榏;榍Ȁaeuy╆╋╖╘ron;䄾Ādi═╔il;䄼ìࢰâ┩;䐻Ȁcqrs╣╦╭╽a;椶uoĀ;rนᝆĀdu╲╷har;楧shar;楋h;憲ʀ;fgqs▋▌উ◳◿扤tʀahlrt▘▤▷◂◨rrowĀ;t࢙□aé⓶arpoonĀdu▯▴own»њp»०eftarrows;懇ightƀahs◍◖◞rrowĀ;sࣴࢧarpoonó྘quigarro÷⇰hreetimes;拋ƀ;qs▋ও◺lanôবʀ;cdgsব☊☍☝☨c;檨otĀ;o☔☕橿Ā;r☚☛檁;檃Ā;e☢☥쀀⋚︀s;檓ʀadegs☳☹☽♉♋pproøⓆot;拖qĀgq♃♅ôউgtò⒌ôছiíলƀilr♕࣡♚sht;楼;쀀𝔩Ā;Eজ♣;檑š♩♶rĀdu▲♮Ā;l॥♳;楪lk;斄cy;䑙ʀ;achtੈ⚈⚋⚑⚖rò◁orneòᴈard;楫ri;旺Āio⚟⚤dot;䅀ustĀ;a⚬⚭掰che»⚭ȀEaes⚻⚽⛉⛔;扨pĀ;p⛃⛄檉rox»⛄Ā;q⛎⛏檇Ā;q⛎⚻im;拦Ѐabnoptwz⛩⛴⛷✚✯❁❇❐Ānr⛮⛱g;柬r;懽rëࣁgƀlmr⛿✍✔eftĀar০✇ightá৲apsto;柼ightá৽parrowĀlr✥✩efô⓭ight;憬ƀafl✶✹✽r;榅;쀀𝕝us;樭imes;樴š❋❏st;戗áፎƀ;ef❗❘᠀旊nge»❘arĀ;l❤❥䀨t;榓ʀachmt❳❶❼➅➇ròࢨorneòᶌarĀ;d྘➃;業;怎ri;抿̀achiqt➘➝ੀ➢➮➻quo;怹r;쀀𝓁mƀ;egল➪➬;檍;檏Ābu┪➳oĀ;rฟ➹;怚rok;䅂萀<;cdhilqrࠫ⟒☹⟜⟠⟥⟪⟰Āci⟗⟙;檦r;橹reå◲mes;拉arr;楶uest;橻ĀPi⟵⟹ar;榖ƀ;ef⠀भ᠛旃rĀdu⠇⠍shar;楊har;楦Āen⠗⠡rtneqq;쀀≨︀Å⠞܀Dacdefhilnopsu⡀⡅⢂⢎⢓⢠⢥⢨⣚⣢⣤ઃ⣳⤂Dot;戺Ȁclpr⡎⡒⡣⡽r耻¯䂯Āet⡗⡙;時Ā;e⡞⡟朠se»⡟Ā;sျ⡨toȀ;dluျ⡳⡷⡻owîҌefôएðᏑker;斮Āoy⢇⢌mma;権;䐼ash;怔asuredangle»ᘦr;쀀𝔪o;愧ƀcdn⢯⢴⣉ro耻µ䂵Ȁ;acdᑤ⢽⣀⣄sôᚧir;櫰ot肻·Ƶusƀ;bd⣒ᤃ⣓戒Ā;uᴼ⣘;横ţ⣞⣡p;櫛ò−ðઁĀdp⣩⣮els;抧f;쀀𝕞Āct⣸⣽r;쀀𝓂pos»ᖝƀ;lm⤉⤊⤍䎼timap;抸ఀGLRVabcdefghijlmoprstuvw⥂⥓⥾⦉⦘⧚⧩⨕⨚⩘⩝⪃⪕⪤⪨⬄⬇⭄⭿⮮ⰴⱧⱼ⳩Āgt⥇⥋;쀀⋙̸Ā;v⥐௏쀀≫⃒ƀelt⥚⥲⥶ftĀar⥡⥧rrow;懍ightarrow;懎;쀀⋘̸Ā;v⥻ే쀀≪⃒ightarrow;懏ĀDd⦎⦓ash;抯ash;抮ʀbcnpt⦣⦧⦬⦱⧌la»˞ute;䅄g;쀀∠⃒ʀ;Eiop඄⦼⧀⧅⧈;쀀⩰̸d;쀀≋̸s;䅉roø඄urĀ;a⧓⧔普lĀ;s⧓ସǳ⧟\0⧣p肻\xA0ଷmpĀ;e௹ఀʀaeouy⧴⧾⨃⨐⨓ǰ⧹\0⧻;橃on;䅈dil;䅆ngĀ;dൾ⨊ot;쀀⩭̸p;橂;䐽ash;怓΀;Aadqsxஒ⨩⨭⨻⩁⩅⩐rr;懗rĀhr⨳⨶k;椤Ā;oᏲᏰot;쀀≐̸uiöୣĀei⩊⩎ar;椨í஘istĀ;s஠டr;쀀𝔫ȀEest௅⩦⩹⩼ƀ;qs஼⩭௡ƀ;qs஼௅⩴lanô௢ií௪Ā;rஶ⪁»ஷƀAap⪊⪍⪑rò⥱rr;憮ar;櫲ƀ;svྍ⪜ྌĀ;d⪡⪢拼;拺cy;䑚΀AEadest⪷⪺⪾⫂⫅⫶⫹rò⥦;쀀≦̸rr;憚r;急Ȁ;fqs఻⫎⫣⫯tĀar⫔⫙rro÷⫁ightarro÷⪐ƀ;qs఻⪺⫪lanôౕĀ;sౕ⫴»శiíౝĀ;rవ⫾iĀ;eచథiäඐĀpt⬌⬑f;쀀𝕟膀¬;in⬙⬚⬶䂬nȀ;Edvஉ⬤⬨⬮;쀀⋹̸ot;쀀⋵̸ǡஉ⬳⬵;拷;拶iĀ;vಸ⬼ǡಸ⭁⭃;拾;拽ƀaor⭋⭣⭩rȀ;ast୻⭕⭚⭟lleì୻l;쀀⫽⃥;쀀∂̸lint;樔ƀ;ceಒ⭰⭳uåಥĀ;cಘ⭸Ā;eಒ⭽ñಘȀAait⮈⮋⮝⮧rò⦈rrƀ;cw⮔⮕⮙憛;쀀⤳̸;쀀↝̸ghtarrow»⮕riĀ;eೋೖ΀chimpqu⮽⯍⯙⬄୸⯤⯯Ȁ;cerല⯆ഷ⯉uå൅;쀀𝓃ortɭ⬅\0\0⯖ará⭖mĀ;e൮⯟Ā;q൴൳suĀbp⯫⯭å೸åഋƀbcp⯶ⰑⰙȀ;Ees⯿ⰀഢⰄ抄;쀀⫅̸etĀ;eഛⰋqĀ;qണⰀcĀ;eലⰗñസȀ;EesⰢⰣൟⰧ抅;쀀⫆̸etĀ;e൘ⰮqĀ;qൠⰣȀgilrⰽⰿⱅⱇìௗlde耻ñ䃱çృiangleĀlrⱒⱜeftĀ;eచⱚñదightĀ;eೋⱥñ೗Ā;mⱬⱭ䎽ƀ;esⱴⱵⱹ䀣ro;愖p;怇ҀDHadgilrsⲏⲔⲙⲞⲣⲰⲶⳓⳣash;抭arr;椄p;쀀≍⃒ash;抬ĀetⲨⲬ;쀀≥⃒;쀀>⃒nfin;槞ƀAetⲽⳁⳅrr;椂;쀀≤⃒Ā;rⳊⳍ쀀<⃒ie;쀀⊴⃒ĀAtⳘⳜrr;椃rie;쀀⊵⃒im;쀀∼⃒ƀAan⳰⳴ⴂrr;懖rĀhr⳺⳽k;椣Ā;oᏧᏥear;椧ቓ᪕\0\0\0\0\0\0\0\0\0\0\0\0\0ⴭ\0ⴸⵈⵠⵥ⵲ⶄᬇ\0\0ⶍⶫ\0ⷈⷎ\0ⷜ⸙⸫⸾⹃Ācsⴱ᪗ute耻ó䃳ĀiyⴼⵅrĀ;c᪞ⵂ耻ô䃴;䐾ʀabios᪠ⵒⵗǈⵚlac;䅑v;樸old;榼lig;䅓Ācr⵩⵭ir;榿;쀀𝔬ͯ⵹\0\0⵼\0ⶂn;䋛ave耻ò䃲;槁Ābmⶈ෴ar;榵Ȁacitⶕ⶘ⶥⶨrò᪀Āir⶝ⶠr;榾oss;榻nå๒;槀ƀaeiⶱⶵⶹcr;䅍ga;䏉ƀcdnⷀⷅǍron;䎿;榶pf;쀀𝕠ƀaelⷔ⷗ǒr;榷rp;榹΀;adiosvⷪⷫⷮ⸈⸍⸐⸖戨rò᪆Ȁ;efmⷷⷸ⸂⸅橝rĀ;oⷾⷿ愴f»ⷿ耻ª䂪耻º䂺gof;抶r;橖lope;橗;橛ƀclo⸟⸡⸧ò⸁ash耻ø䃸l;折iŬⸯ⸴de耻õ䃵esĀ;aǛ⸺s;樶ml耻ö䃶bar;挽ૡ⹞\0⹽\0⺀⺝\0⺢⺹\0\0⻋ຜ\0⼓\0\0⼫⾼\0⿈rȀ;astЃ⹧⹲຅脀¶;l⹭⹮䂶leìЃɩ⹸\0\0⹻m;櫳;櫽y;䐿rʀcimpt⺋⺏⺓ᡥ⺗nt;䀥od;䀮il;怰enk;怱r;쀀𝔭ƀimo⺨⺰⺴Ā;v⺭⺮䏆;䏕maô੶ne;明ƀ;tv⺿⻀⻈䏀chfork»´;䏖Āau⻏⻟nĀck⻕⻝kĀ;h⇴⻛;愎ö⇴sҀ;abcdemst⻳⻴ᤈ⻹⻽⼄⼆⼊⼎䀫cir;樣ir;樢Āouᵀ⼂;樥;橲n肻±ຝim;樦wo;樧ƀipu⼙⼠⼥ntint;樕f;쀀𝕡nd耻£䂣Ԁ;Eaceinosu່⼿⽁⽄⽇⾁⾉⾒⽾⾶;檳p;檷uå໙Ā;c໎⽌̀;acens່⽙⽟⽦⽨⽾pproø⽃urlyeñ໙ñ໎ƀaes⽯⽶⽺pprox;檹qq;檵im;拨iíໟmeĀ;s⾈ຮ怲ƀEas⽸⾐⽺ð⽵ƀdfp໬⾙⾯ƀals⾠⾥⾪lar;挮ine;挒urf;挓Ā;t໻⾴ï໻rel;抰Āci⿀⿅r;쀀𝓅;䏈ncsp;怈̀fiopsu⿚⋢⿟⿥⿫⿱r;쀀𝔮pf;쀀𝕢rime;恗cr;쀀𝓆ƀaeo⿸〉〓tĀei⿾々rnionóڰnt;樖stĀ;e【】䀿ñἙô༔઀ABHabcdefhilmnoprstux぀けさすムㄎㄫㅇㅢㅲㆎ㈆㈕㈤㈩㉘㉮㉲㊐㊰㊷ƀartぇおがròႳòϝail;検aròᱥar;楤΀cdenqrtとふへみわゔヌĀeuねぱ;쀀∽̱te;䅕iãᅮmptyv;榳gȀ;del࿑らるろ;榒;榥å࿑uo耻»䂻rր;abcfhlpstw࿜ガクシスゼゾダッデナp;極Ā;f࿠ゴs;椠;椳s;椞ë≝ð✮l;楅im;楴l;憣;憝Āaiパフil;椚oĀ;nホボ戶aló༞ƀabrョリヮrò៥rk;杳ĀakンヽcĀekヹ・;䁽;䁝Āes㄂㄄;榌lĀduㄊㄌ;榎;榐Ȁaeuyㄗㄜㄧㄩron;䅙Ādiㄡㄥil;䅗ì࿲âヺ;䑀Ȁclqsㄴㄷㄽㅄa;椷dhar;楩uoĀ;rȎȍh;憳ƀacgㅎㅟངlȀ;ipsླྀㅘㅛႜnåႻarôྩt;断ƀilrㅩဣㅮsht;楽;쀀𝔯ĀaoㅷㆆrĀduㅽㅿ»ѻĀ;l႑ㆄ;楬Ā;vㆋㆌ䏁;䏱ƀgns㆕ㇹㇼht̀ahlrstㆤㆰ㇂㇘㇤㇮rrowĀ;t࿜ㆭaéトarpoonĀduㆻㆿowîㅾp»႒eftĀah㇊㇐rrowó࿪arpoonóՑightarrows;應quigarro÷ニhreetimes;拌g;䋚ingdotseñἲƀahm㈍㈐㈓rò࿪aòՑ;怏oustĀ;a㈞㈟掱che»㈟mid;櫮Ȁabpt㈲㈽㉀㉒Ānr㈷㈺g;柭r;懾rëဃƀafl㉇㉊㉎r;榆;쀀𝕣us;樮imes;樵Āap㉝㉧rĀ;g㉣㉤䀩t;榔olint;樒arò㇣Ȁachq㉻㊀Ⴜ㊅quo;怺r;쀀𝓇Ābu・㊊oĀ;rȔȓƀhir㊗㊛㊠reåㇸmes;拊iȀ;efl㊪ၙᠡ㊫方tri;槎luhar;楨;愞ൡ㋕㋛㋟㌬㌸㍱\0㍺㎤\0\0㏬㏰\0㐨㑈㑚㒭㒱㓊㓱\0㘖\0\0㘳cute;䅛quï➺Ԁ;Eaceinpsyᇭ㋳㋵㋿㌂㌋㌏㌟㌦㌩;檴ǰ㋺\0㋼;檸on;䅡uåᇾĀ;dᇳ㌇il;䅟rc;䅝ƀEas㌖㌘㌛;檶p;檺im;择olint;樓iíሄ;䑁otƀ;be㌴ᵇ㌵担;橦΀Aacmstx㍆㍊㍗㍛㍞㍣㍭rr;懘rĀhr㍐㍒ë∨Ā;oਸ਼਴t耻§䂧i;䀻war;椩mĀin㍩ðnuóñt;朶rĀ;o㍶⁕쀀𝔰Ȁacoy㎂㎆㎑㎠rp;景Āhy㎋㎏cy;䑉;䑈rtɭ㎙\0\0㎜iäᑤaraì⹯耻­䂭Āgm㎨㎴maƀ;fv㎱㎲㎲䏃;䏂Ѐ;deglnprካ㏅㏉㏎㏖㏞㏡㏦ot;橪Ā;q኱ኰĀ;E㏓㏔檞;檠Ā;E㏛㏜檝;檟e;扆lus;樤arr;楲aròᄽȀaeit㏸㐈㐏㐗Āls㏽㐄lsetmé㍪hp;樳parsl;槤Ādlᑣ㐔e;挣Ā;e㐜㐝檪Ā;s㐢㐣檬;쀀⪬︀ƀflp㐮㐳㑂tcy;䑌Ā;b㐸㐹䀯Ā;a㐾㐿槄r;挿f;쀀𝕤aĀdr㑍ЂesĀ;u㑔㑕晠it»㑕ƀcsu㑠㑹㒟Āau㑥㑯pĀ;sᆈ㑫;쀀⊓︀pĀ;sᆴ㑵;쀀⊔︀uĀbp㑿㒏ƀ;esᆗᆜ㒆etĀ;eᆗ㒍ñᆝƀ;esᆨᆭ㒖etĀ;eᆨ㒝ñᆮƀ;afᅻ㒦ְrť㒫ֱ»ᅼaròᅈȀcemt㒹㒾㓂㓅r;쀀𝓈tmîñiì㐕aræᆾĀar㓎㓕rĀ;f㓔ឿ昆Āan㓚㓭ightĀep㓣㓪psiloîỠhé⺯s»⡒ʀbcmnp㓻㕞ሉ㖋㖎Ҁ;Edemnprs㔎㔏㔑㔕㔞㔣㔬㔱㔶抂;櫅ot;檽Ā;dᇚ㔚ot;櫃ult;櫁ĀEe㔨㔪;櫋;把lus;檿arr;楹ƀeiu㔽㕒㕕tƀ;en㔎㕅㕋qĀ;qᇚ㔏eqĀ;q㔫㔨m;櫇Ābp㕚㕜;櫕;櫓c̀;acensᇭ㕬㕲㕹㕻㌦pproø㋺urlyeñᇾñᇳƀaes㖂㖈㌛pproø㌚qñ㌗g;晪ڀ123;Edehlmnps㖩㖬㖯ሜ㖲㖴㗀㗉㗕㗚㗟㗨㗭耻¹䂹耻²䂲耻³䂳;櫆Āos㖹㖼t;檾ub;櫘Ā;dሢ㗅ot;櫄sĀou㗏㗒l;柉b;櫗arr;楻ult;櫂ĀEe㗤㗦;櫌;抋lus;櫀ƀeiu㗴㘉㘌tƀ;enሜ㗼㘂qĀ;qሢ㖲eqĀ;q㗧㗤m;櫈Ābp㘑㘓;櫔;櫖ƀAan㘜㘠㘭rr;懙rĀhr㘦㘨ë∮Ā;oਫ਩war;椪lig耻ß䃟௡㙑㙝㙠ዎ㙳㙹\0㙾㛂\0\0\0\0\0㛛㜃\0㜉㝬\0\0\0㞇ɲ㙖\0\0㙛get;挖;䏄rë๟ƀaey㙦㙫㙰ron;䅥dil;䅣;䑂lrec;挕r;쀀𝔱Ȁeiko㚆㚝㚵㚼ǲ㚋\0㚑eĀ4fኄኁaƀ;sv㚘㚙㚛䎸ym;䏑Ācn㚢㚲kĀas㚨㚮pproø዁im»ኬsðኞĀas㚺㚮ð዁rn耻þ䃾Ǭ̟㛆⋧es膀×;bd㛏㛐㛘䃗Ā;aᤏ㛕r;樱;樰ƀeps㛡㛣㜀á⩍Ȁ;bcf҆㛬㛰㛴ot;挶ir;櫱Ā;o㛹㛼쀀𝕥rk;櫚á㍢rime;怴ƀaip㜏㜒㝤dåቈ΀adempst㜡㝍㝀㝑㝗㝜㝟ngleʀ;dlqr㜰㜱㜶㝀㝂斵own»ᶻeftĀ;e⠀㜾ñम;扜ightĀ;e㊪㝋ñၚot;旬inus;樺lus;樹b;槍ime;樻ezium;揢ƀcht㝲㝽㞁Āry㝷㝻;쀀𝓉;䑆cy;䑛rok;䅧Āio㞋㞎xô᝷headĀlr㞗㞠eftarro÷ࡏightarrow»ཝऀAHabcdfghlmoprstuw㟐㟓㟗㟤㟰㟼㠎㠜㠣㠴㡑㡝㡫㢩㣌㣒㣪㣶ròϭar;楣Ācr㟜㟢ute耻ú䃺òᅐrǣ㟪\0㟭y;䑞ve;䅭Āiy㟵㟺rc耻û䃻;䑃ƀabh㠃㠆㠋ròᎭlac;䅱aòᏃĀir㠓㠘sht;楾;쀀𝔲rave耻ù䃹š㠧㠱rĀlr㠬㠮»ॗ»ႃlk;斀Āct㠹㡍ɯ㠿\0\0㡊rnĀ;e㡅㡆挜r»㡆op;挏ri;旸Āal㡖㡚cr;䅫肻¨͉Āgp㡢㡦on;䅳f;쀀𝕦̀adhlsuᅋ㡸㡽፲㢑㢠ownáᎳarpoonĀlr㢈㢌efô㠭ighô㠯iƀ;hl㢙㢚㢜䏅»ᏺon»㢚parrows;懈ƀcit㢰㣄㣈ɯ㢶\0\0㣁rnĀ;e㢼㢽挝r»㢽op;挎ng;䅯ri;旹cr;쀀𝓊ƀdir㣙㣝㣢ot;拰lde;䅩iĀ;f㜰㣨»᠓Āam㣯㣲rò㢨l耻ü䃼angle;榧ހABDacdeflnoprsz㤜㤟㤩㤭㦵㦸㦽㧟㧤㧨㧳㧹㧽㨁㨠ròϷarĀ;v㤦㤧櫨;櫩asèϡĀnr㤲㤷grt;榜΀eknprst㓣㥆㥋㥒㥝㥤㦖appá␕othinçẖƀhir㓫⻈㥙opô⾵Ā;hᎷ㥢ïㆍĀiu㥩㥭gmá㎳Ābp㥲㦄setneqĀ;q㥽㦀쀀⊊︀;쀀⫋︀setneqĀ;q㦏㦒쀀⊋︀;쀀⫌︀Āhr㦛㦟etá㚜iangleĀlr㦪㦯eft»थight»ၑy;䐲ash»ံƀelr㧄㧒㧗ƀ;beⷪ㧋㧏ar;抻q;扚lip;拮Ābt㧜ᑨaòᑩr;쀀𝔳tré㦮suĀbp㧯㧱»ജ»൙pf;쀀𝕧roð໻tré㦴Ācu㨆㨋r;쀀𝓋Ābp㨐㨘nĀEe㦀㨖»㥾nĀEe㦒㨞»㦐igzag;榚΀cefoprs㨶㨻㩖㩛㩔㩡㩪irc;䅵Ādi㩀㩑Ābg㩅㩉ar;機eĀ;qᗺ㩏;扙erp;愘r;쀀𝔴pf;쀀𝕨Ā;eᑹ㩦atèᑹcr;쀀𝓌ૣណ㪇\0㪋\0㪐㪛\0\0㪝㪨㪫㪯\0\0㫃㫎\0㫘ៜ៟tré៑r;쀀𝔵ĀAa㪔㪗ròσrò৶;䎾ĀAa㪡㪤ròθrò৫að✓is;拻ƀdptឤ㪵㪾Āfl㪺ឩ;쀀𝕩imåឲĀAa㫇㫊ròώròਁĀcq㫒ីr;쀀𝓍Āpt៖㫜ré។Ѐacefiosu㫰㫽㬈㬌㬑㬕㬛㬡cĀuy㫶㫻te耻ý䃽;䑏Āiy㬂㬆rc;䅷;䑋n耻¥䂥r;쀀𝔶cy;䑗pf;쀀𝕪cr;쀀𝓎Ācm㬦㬩y;䑎l耻ÿ䃿Ԁacdefhiosw㭂㭈㭔㭘㭤㭩㭭㭴㭺㮀cute;䅺Āay㭍㭒ron;䅾;䐷ot;䅼Āet㭝㭡træᕟa;䎶r;쀀𝔷cy;䐶grarr;懝pf;쀀𝕫cr;쀀𝓏Ājn㮅㮇;怍j;怌".split("").map((c) => c.charCodeAt(0)));
-
 var decode_data_xml_default = new Uint16Array("Ȁaglq	\x1Bɭ\0\0p;䀦os;䀧t;䀾t;䀼uot;䀢".split("").map((c) => c.charCodeAt(0)));
-
 var _a;
 const decodeMap = new Map([
 	[0, 65533],
@@ -8913,22 +7292,9 @@ const fromCodePoint$1 = (_a = String.fromCodePoint) !== null && _a !== void 0 ? 
 */
 function replaceCodePoint(codePoint) {
 	var _a;
-	if (codePoint >= 55296 && codePoint <= 57343 || codePoint > 1114111) {
-		return 65533;
-	}
+	if (codePoint >= 55296 && codePoint <= 57343 || codePoint > 1114111) return 65533;
 	return (_a = decodeMap.get(codePoint)) !== null && _a !== void 0 ? _a : codePoint;
 }
-/**
-* Replace the code point if relevant, then convert it to a string.
-*
-* @deprecated Use `fromCodePoint(replaceCodePoint(codePoint))` instead.
-* @param codePoint The code point to decode.
-* @returns The decoded code point.
-*/
-function decodeCodePoint(codePoint) {
-	return fromCodePoint$1(replaceCodePoint(codePoint));
-}
-
 var CharCodes;
 (function(CharCodes) {
 	CharCodes[CharCodes["NUM"] = 35] = "NUM";
@@ -9035,7 +7401,7 @@ var EntityDecoder = class {
 	*/
 	write(str, offset) {
 		switch (this.state) {
-			case EntityDecoderState.EntityStart: {
+			case EntityDecoderState.EntityStart:
 				if (str.charCodeAt(offset) === CharCodes.NUM) {
 					this.state = EntityDecoderState.NumericStart;
 					this.consumed += 1;
@@ -9043,19 +7409,10 @@ var EntityDecoder = class {
 				}
 				this.state = EntityDecoderState.NamedEntity;
 				return this.stateNamedEntity(str, offset);
-			}
-			case EntityDecoderState.NumericStart: {
-				return this.stateNumericStart(str, offset);
-			}
-			case EntityDecoderState.NumericDecimal: {
-				return this.stateNumericDecimal(str, offset);
-			}
-			case EntityDecoderState.NumericHex: {
-				return this.stateNumericHex(str, offset);
-			}
-			case EntityDecoderState.NamedEntity: {
-				return this.stateNamedEntity(str, offset);
-			}
+			case EntityDecoderState.NumericStart: return this.stateNumericStart(str, offset);
+			case EntityDecoderState.NumericDecimal: return this.stateNumericDecimal(str, offset);
+			case EntityDecoderState.NumericHex: return this.stateNumericHex(str, offset);
+			case EntityDecoderState.NamedEntity: return this.stateNamedEntity(str, offset);
 		}
 	}
 	/**
@@ -9068,9 +7425,7 @@ var EntityDecoder = class {
 	* @returns The number of characters that were consumed, or -1 if the entity is incomplete.
 	*/
 	stateNumericStart(str, offset) {
-		if (offset >= str.length) {
-			return -1;
-		}
+		if (offset >= str.length) return -1;
 		if ((str.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
 			this.state = EntityDecoderState.NumericHex;
 			this.consumed += 1;
@@ -9099,9 +7454,8 @@ var EntityDecoder = class {
 		const startIdx = offset;
 		while (offset < str.length) {
 			const char = str.charCodeAt(offset);
-			if (isNumber(char) || isHexadecimalCharacter(char)) {
-				offset += 1;
-			} else {
+			if (isNumber(char) || isHexadecimalCharacter(char)) offset += 1;
+			else {
 				this.addToNumericResult(str, startIdx, offset, 16);
 				return this.emitNumericEntity(char, 3);
 			}
@@ -9122,9 +7476,8 @@ var EntityDecoder = class {
 		const startIdx = offset;
 		while (offset < str.length) {
 			const char = str.charCodeAt(offset);
-			if (isNumber(char)) {
-				offset += 1;
-			} else {
+			if (isNumber(char)) offset += 1;
+			else {
 				this.addToNumericResult(str, startIdx, offset, 10);
 				return this.emitNumericEntity(char, 2);
 			}
@@ -9148,19 +7501,14 @@ var EntityDecoder = class {
 	emitNumericEntity(lastCp, expectedLength) {
 		var _a;
 		if (this.consumed <= expectedLength) {
-			(_a = this.errors) === null || _a === void 0 ? void 0 : _a.absenceOfDigitsInNumericCharacterReference(this.consumed);
+			(_a = this.errors) === null || _a === void 0 || _a.absenceOfDigitsInNumericCharacterReference(this.consumed);
 			return 0;
 		}
-		if (lastCp === CharCodes.SEMI) {
-			this.consumed += 1;
-		} else if (this.decodeMode === DecodingMode.Strict) {
-			return 0;
-		}
+		if (lastCp === CharCodes.SEMI) this.consumed += 1;
+		else if (this.decodeMode === DecodingMode.Strict) return 0;
 		this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
 		if (this.errors) {
-			if (lastCp !== CharCodes.SEMI) {
-				this.errors.missingSemicolonAfterCharacterReference();
-			}
+			if (lastCp !== CharCodes.SEMI) this.errors.missingSemicolonAfterCharacterReference();
 			this.errors.validateNumericCharacterReference(this.result);
 		}
 		return this.consumed;
@@ -9181,15 +7529,11 @@ var EntityDecoder = class {
 		for (; offset < str.length; offset++, this.excess++) {
 			const char = str.charCodeAt(offset);
 			this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
-			if (this.treeIndex < 0) {
-				return this.result === 0 || this.decodeMode === DecodingMode.Attribute && (valueLength === 0 || isEntityInAttributeInvalidEnd(char)) ? 0 : this.emitNotTerminatedNamedEntity();
-			}
+			if (this.treeIndex < 0) return this.result === 0 || this.decodeMode === DecodingMode.Attribute && (valueLength === 0 || isEntityInAttributeInvalidEnd(char)) ? 0 : this.emitNotTerminatedNamedEntity();
 			current = decodeTree[this.treeIndex];
 			valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 			if (valueLength !== 0) {
-				if (char === CharCodes.SEMI) {
-					return this.emitNamedEntityData(this.treeIndex, valueLength, this.consumed + this.excess);
-				}
+				if (char === CharCodes.SEMI) return this.emitNamedEntityData(this.treeIndex, valueLength, this.consumed + this.excess);
 				if (this.decodeMode !== DecodingMode.Strict) {
 					this.result = this.treeIndex;
 					this.consumed += this.excess;
@@ -9209,7 +7553,7 @@ var EntityDecoder = class {
 		const { result, decodeTree } = this;
 		const valueLength = (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
 		this.emitNamedEntityData(result, valueLength, this.consumed);
-		(_a = this.errors) === null || _a === void 0 ? void 0 : _a.missingSemicolonAfterCharacterReference();
+		(_a = this.errors) === null || _a === void 0 || _a.missingSemicolonAfterCharacterReference();
 		return this.consumed;
 	}
 	/**
@@ -9224,9 +7568,7 @@ var EntityDecoder = class {
 	emitNamedEntityData(result, valueLength, consumed) {
 		const { decodeTree } = this;
 		this.emitCodePoint(valueLength === 1 ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH : decodeTree[result + 1], consumed);
-		if (valueLength === 3) {
-			this.emitCodePoint(decodeTree[result + 2], consumed);
-		}
+		if (valueLength === 3) this.emitCodePoint(decodeTree[result + 2], consumed);
 		return consumed;
 	}
 	/**
@@ -9239,22 +7581,13 @@ var EntityDecoder = class {
 	end() {
 		var _a;
 		switch (this.state) {
-			case EntityDecoderState.NamedEntity: {
-				return this.result !== 0 && (this.decodeMode !== DecodingMode.Attribute || this.result === this.treeIndex) ? this.emitNotTerminatedNamedEntity() : 0;
-			}
-			case EntityDecoderState.NumericDecimal: {
-				return this.emitNumericEntity(0, 2);
-			}
-			case EntityDecoderState.NumericHex: {
-				return this.emitNumericEntity(0, 3);
-			}
-			case EntityDecoderState.NumericStart: {
-				(_a = this.errors) === null || _a === void 0 ? void 0 : _a.absenceOfDigitsInNumericCharacterReference(this.consumed);
+			case EntityDecoderState.NamedEntity: return this.result !== 0 && (this.decodeMode !== DecodingMode.Attribute || this.result === this.treeIndex) ? this.emitNotTerminatedNamedEntity() : 0;
+			case EntityDecoderState.NumericDecimal: return this.emitNumericEntity(0, 2);
+			case EntityDecoderState.NumericHex: return this.emitNumericEntity(0, 3);
+			case EntityDecoderState.NumericStart:
+				(_a = this.errors) === null || _a === void 0 || _a.absenceOfDigitsInNumericCharacterReference(this.consumed);
 				return 0;
-			}
-			case EntityDecoderState.EntityStart: {
-				return 0;
-			}
+			case EntityDecoderState.EntityStart: return 0;
 		}
 	}
 };
@@ -9299,9 +7632,7 @@ function getDecoder(decodeTree) {
 function determineBranch(decodeTree, current, nodeIdx, char) {
 	const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
 	const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
-	if (branchCount === 0) {
-		return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
-	}
+	if (branchCount === 0) return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
 	if (jumpOffset) {
 		const value = char - jumpOffset;
 		return value < 0 || value >= branchCount ? -1 : decodeTree[nodeIdx + value] - 1;
@@ -9311,18 +7642,14 @@ function determineBranch(decodeTree, current, nodeIdx, char) {
 	while (lo <= hi) {
 		const mid = lo + hi >>> 1;
 		const midVal = decodeTree[mid];
-		if (midVal < char) {
-			lo = mid + 1;
-		} else if (midVal > char) {
-			hi = mid - 1;
-		} else {
-			return decodeTree[mid + branchCount];
-		}
+		if (midVal < char) lo = mid + 1;
+		else if (midVal > char) hi = mid - 1;
+		else return decodeTree[mid + branchCount];
 	}
 	return -1;
 }
 const htmlDecoder = getDecoder(decode_data_html_default);
-const xmlDecoder = getDecoder(decode_data_xml_default);
+getDecoder(decode_data_xml_default);
 /**
 * Decodes an HTML string.
 *
@@ -9333,41 +7660,11 @@ const xmlDecoder = getDecoder(decode_data_xml_default);
 function decodeHTML(str, mode = DecodingMode.Legacy) {
 	return htmlDecoder(str, mode);
 }
-/**
-* Decodes an HTML string in an attribute.
-*
-* @param str The string to decode.
-* @returns The decoded string.
-*/
-function decodeHTMLAttribute(str) {
-	return htmlDecoder(str, DecodingMode.Attribute);
-}
-/**
-* Decodes an HTML string, requiring all entities to be terminated by a semicolon.
-*
-* @param str The string to decode.
-* @returns The decoded string.
-*/
-function decodeHTMLStrict(str) {
-	return htmlDecoder(str, DecodingMode.Strict);
-}
-/**
-* Decodes an XML string, requiring all entities to be terminated by a semicolon.
-*
-* @param str The string to decode.
-* @returns The decoded string.
-*/
-function decodeXML(str) {
-	return xmlDecoder(str, DecodingMode.Strict);
-}
-
 function restoreDiff(arr) {
-	for (let i = 1; i < arr.length; i++) {
-		arr[i][0] += arr[i - 1][0] + 1;
-	}
+	for (let i = 1; i < arr.length; i++) arr[i][0] += arr[i - 1][0] + 1;
 	return arr;
 }
-var encode_html_default = new Map(/* @__PURE__ */ restoreDiff([
+new Map(/* @__PURE__ */ restoreDiff([
 	[9, "&Tab;"],
 	[0, "&NewLine;"],
 	[22, "&excl;"],
@@ -11067,8 +9364,6 @@ var encode_html_default = new Map(/* @__PURE__ */ restoreDiff([
 	[0, "&ffilig;"],
 	[0, "&ffllig;"]
 ]));
-
-const xmlReplacer = /["&'<>$\x80-\uFFFF]/g;
 const xmlCodeMap = new Map([
 	[34, "&quot;"],
 	[38, "&amp;"],
@@ -11076,42 +9371,7 @@ const xmlCodeMap = new Map([
 	[60, "&lt;"],
 	[62, "&gt;"]
 ]);
-const getCodePoint = String.prototype.codePointAt != null ? (str, index) => str.codePointAt(index) : (c, index) => (c.charCodeAt(index) & 64512) === 55296 ? (c.charCodeAt(index) - 55296) * 1024 + c.charCodeAt(index + 1) - 56320 + 65536 : c.charCodeAt(index);
-/**
-* Encodes all non-ASCII characters, as well as characters not valid in XML
-* documents using XML entities.
-*
-* If a character has no equivalent entity, a
-* numeric hexadecimal reference (eg. `&#xfc;`) will be used.
-*/
-function encodeXML(str) {
-	let ret = "";
-	let lastIdx = 0;
-	let match;
-	while ((match = xmlReplacer.exec(str)) !== null) {
-		const i = match.index;
-		const char = str.charCodeAt(i);
-		const next = xmlCodeMap.get(char);
-		if (next !== undefined) {
-			ret += str.substring(lastIdx, i) + next;
-			lastIdx = i + 1;
-		} else {
-			ret += `${str.substring(lastIdx, i)}&#x${getCodePoint(str, i).toString(16)};`;
-			lastIdx = xmlReplacer.lastIndex += Number((char & 64512) === 55296);
-		}
-	}
-	return ret + str.substr(lastIdx);
-}
-/**
-* Encodes all non-ASCII characters, as well as characters not valid in XML
-* documents using numeric hexadecimal reference (eg. `&#xfc;`).
-*
-* Have a look at `escapeUTF8` if you want a more concise output at the expense
-* of reduced transportability.
-*
-* @param data String to escape.
-*/
-const escape$1 = encodeXML;
+String.prototype.codePointAt;
 /**
 * Creates a function that escapes all characters matched by the given regular
 * expression using the given map of characters to escape to their entities.
@@ -11128,106 +9388,25 @@ function getEscaper(regex, map) {
 		let lastIdx = 0;
 		let result = "";
 		while (match = regex.exec(data)) {
-			if (lastIdx !== match.index) {
-				result += data.substring(lastIdx, match.index);
-			}
+			if (lastIdx !== match.index) result += data.substring(lastIdx, match.index);
 			result += map.get(match[0].charCodeAt(0));
 			lastIdx = match.index + 1;
 		}
 		return result + data.substring(lastIdx);
 	};
 }
-/**
-* Encodes all characters not valid in XML documents using XML entities.
-*
-* Note that the output will be character-set dependent.
-*
-* @param data String to escape.
-*/
-const escapeUTF8 = getEscaper(/[&<>'"]/g, xmlCodeMap);
-/**
-* Encodes all characters that have to be escaped in HTML attributes,
-* following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
-*
-* @param data String to escape.
-*/
-const escapeAttribute = getEscaper(/["&\u00A0]/g, new Map([
+getEscaper(/[&<>'"]/g, xmlCodeMap);
+getEscaper(/["&\u00A0]/g, new Map([
 	[34, "&quot;"],
 	[38, "&amp;"],
 	[160, "&nbsp;"]
 ]));
-/**
-* Encodes all characters that have to be escaped in HTML text,
-* following {@link https://html.spec.whatwg.org/multipage/parsing.html#escapingString}.
-*
-* @param data String to escape.
-*/
-const escapeText = getEscaper(/[&<>\u00A0]/g, new Map([
+getEscaper(/[&<>\u00A0]/g, new Map([
 	[38, "&amp;"],
 	[60, "&lt;"],
 	[62, "&gt;"],
 	[160, "&nbsp;"]
 ]));
-
-const htmlReplacer = /[\t\n!-,./:-@[-`\f{-}$\x80-\uFFFF]/g;
-/**
-* Encodes all characters in the input using HTML entities. This includes
-* characters that are valid ASCII characters in HTML documents, such as `#`.
-*
-* To get a more compact output, consider using the `encodeNonAsciiHTML`
-* function, which will only encode characters that are not valid in HTML
-* documents, as well as non-ASCII characters.
-*
-* If a character has no equivalent entity, a numeric hexadecimal reference
-* (eg. `&#xfc;`) will be used.
-*/
-function encodeHTML(data) {
-	return encodeHTMLTrieRe(htmlReplacer, data);
-}
-/**
-* Encodes all non-ASCII characters, as well as characters not valid in HTML
-* documents using HTML entities. This function will not encode characters that
-* are valid in HTML documents, such as `#`.
-*
-* If a character has no equivalent entity, a numeric hexadecimal reference
-* (eg. `&#xfc;`) will be used.
-*/
-function encodeNonAsciiHTML(data) {
-	return encodeHTMLTrieRe(xmlReplacer, data);
-}
-function encodeHTMLTrieRe(regExp, str) {
-	let ret = "";
-	let lastIdx = 0;
-	let match;
-	while ((match = regExp.exec(str)) !== null) {
-		const i = match.index;
-		ret += str.substring(lastIdx, i);
-		const char = str.charCodeAt(i);
-		let next = encode_html_default.get(char);
-		if (typeof next === "object") {
-			if (i + 1 < str.length) {
-				const nextChar = str.charCodeAt(i + 1);
-				const value = typeof next.n === "number" ? next.n === nextChar ? next.o : undefined : next.n.get(nextChar);
-				if (value !== undefined) {
-					ret += value;
-					lastIdx = regExp.lastIndex += 1;
-					continue;
-				}
-			}
-			next = next.v;
-		}
-		if (next !== undefined) {
-			ret += next;
-			lastIdx = i + 1;
-		} else {
-			const cp = getCodePoint(str, i);
-			ret += `&#x${cp.toString(16)};`;
-			lastIdx = regExp.lastIndex += Number(cp !== char);
-		}
-	}
-	return ret + str.substr(lastIdx);
-}
-
 /** The level of entities to support. */
 var EntityLevel;
 (function(EntityLevel) {
@@ -11265,53 +9444,6 @@ var EncodingMode;
 	*/
 	EncodingMode[EncodingMode["Text"] = 4] = "Text";
 })(EncodingMode || (EncodingMode = {}));
-/**
-* Decodes a string with entities.
-*
-* @param data String to decode.
-* @param options Decoding options.
-*/
-function decode$1(data, options = EntityLevel.XML) {
-	const level = typeof options === "number" ? options : options.level;
-	if (level === EntityLevel.HTML) {
-		const mode = typeof options === "object" ? options.mode : undefined;
-		return decodeHTML(data, mode);
-	}
-	return decodeXML(data);
-}
-/**
-* Decodes a string with entities. Does not allow missing trailing semicolons for entities.
-*
-* @param data String to decode.
-* @param options Decoding options.
-* @deprecated Use `decode` with the `mode` set to `Strict`.
-*/
-function decodeStrict(data, options = EntityLevel.XML) {
-	var _a;
-	const opts = typeof options === "number" ? { level: options } : options;
-	(_a = opts.mode) !== null && _a !== void 0 ? _a : opts.mode = DecodingMode.Strict;
-	return decode$1(data, opts);
-}
-/**
-* Encodes a string with entities.
-*
-* @param data String to encode.
-* @param options Encoding options.
-*/
-function encode$1(data, options = EntityLevel.XML) {
-	const opts = typeof options === "number" ? { level: options } : options;
-	if (opts.mode === EncodingMode.UTF8) return escapeUTF8(data);
-	if (opts.mode === EncodingMode.Attribute) return escapeAttribute(data);
-	if (opts.mode === EncodingMode.Text) return escapeText(data);
-	if (opts.level === EntityLevel.HTML) {
-		if (opts.mode === EncodingMode.ASCII) {
-			return encodeNonAsciiHTML(data);
-		}
-		return encodeHTML(data);
-	}
-	return encodeXML(data);
-}
-
 var utils_exports = /* @__PURE__ */ __exportAll({
 	arrayReplaceAt: () => arrayReplaceAt,
 	assign: () => assign$1,
@@ -11341,14 +9473,9 @@ function has(object, key) {
 	return _hasOwnProperty.call(object, key);
 }
 function assign$1(obj) {
-	const sources = Array.prototype.slice.call(arguments, 1);
-	sources.forEach(function(source) {
-		if (!source) {
-			return;
-		}
-		if (typeof source !== "object") {
-			throw new TypeError(source + "must be object");
-		}
+	Array.prototype.slice.call(arguments, 1).forEach(function(source) {
+		if (!source) return;
+		if (typeof source !== "object") throw new TypeError(source + "must be object");
 		Object.keys(source).forEach(function(key) {
 			obj[key] = source[key];
 		});
@@ -11359,30 +9486,14 @@ function arrayReplaceAt(src, pos, newElements) {
 	return [].concat(src.slice(0, pos), newElements, src.slice(pos + 1));
 }
 function isValidEntityCode(c) {
-	if (c >= 55296 && c <= 57343) {
-		return false;
-	}
-	if (c >= 64976 && c <= 65007) {
-		return false;
-	}
-	if ((c & 65535) === 65535 || (c & 65535) === 65534) {
-		return false;
-	}
-	if (c >= 0 && c <= 8) {
-		return false;
-	}
-	if (c === 11) {
-		return false;
-	}
-	if (c >= 14 && c <= 31) {
-		return false;
-	}
-	if (c >= 127 && c <= 159) {
-		return false;
-	}
-	if (c > 1114111) {
-		return false;
-	}
+	if (c >= 55296 && c <= 57343) return false;
+	if (c >= 64976 && c <= 65007) return false;
+	if ((c & 65535) === 65535 || (c & 65535) === 65534) return false;
+	if (c >= 0 && c <= 8) return false;
+	if (c === 11) return false;
+	if (c >= 14 && c <= 31) return false;
+	if (c >= 127 && c <= 159) return false;
+	if (c > 1114111) return false;
 	return true;
 }
 function fromCodePoint(c) {
@@ -11395,37 +9506,26 @@ function fromCodePoint(c) {
 	return String.fromCharCode(c);
 }
 const UNESCAPE_MD_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
-const ENTITY_RE = /&([a-z#][a-z0-9]{1,31});/gi;
-const UNESCAPE_ALL_RE = new RegExp(UNESCAPE_MD_RE.source + "|" + ENTITY_RE.source, "gi");
+const UNESCAPE_ALL_RE = new RegExp(UNESCAPE_MD_RE.source + "|" + /&([a-z#][a-z0-9]{1,31});/gi.source, "gi");
 const DIGITAL_ENTITY_TEST_RE = /^#((?:x[a-f0-9]{1,8}|[0-9]{1,8}))$/i;
 function replaceEntityPattern(match, name) {
 	if (name.charCodeAt(0) === 35 && DIGITAL_ENTITY_TEST_RE.test(name)) {
 		const code = name[1].toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
-		if (isValidEntityCode(code)) {
-			return fromCodePoint(code);
-		}
+		if (isValidEntityCode(code)) return fromCodePoint(code);
 		return match;
 	}
 	const decoded = decodeHTML(match);
-	if (decoded !== match) {
-		return decoded;
-	}
+	if (decoded !== match) return decoded;
 	return match;
 }
 function unescapeMd(str) {
-	if (str.indexOf("\\") < 0) {
-		return str;
-	}
+	if (str.indexOf("\\") < 0) return str;
 	return str.replace(UNESCAPE_MD_RE, "$1");
 }
 function unescapeAll(str) {
-	if (str.indexOf("\\") < 0 && str.indexOf("&") < 0) {
-		return str;
-	}
+	if (str.indexOf("\\") < 0 && str.indexOf("&") < 0) return str;
 	return str.replace(UNESCAPE_ALL_RE, function(match, escaped, entity) {
-		if (escaped) {
-			return escaped;
-		}
+		if (escaped) return escaped;
 		return replaceEntityPattern(match, entity);
 	});
 }
@@ -11441,9 +9541,7 @@ function replaceUnsafeChar(ch) {
 	return HTML_REPLACEMENTS[ch];
 }
 function escapeHtml(str) {
-	if (HTML_ESCAPE_TEST_RE.test(str)) {
-		return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
-	}
+	if (HTML_ESCAPE_TEST_RE.test(str)) return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
 	return str;
 }
 const REGEXP_ESCAPE_RE = /[.?*+^$[\]\\(){}|-]/g;
@@ -11458,9 +9556,7 @@ function isSpace(code) {
 	return false;
 }
 function isWhiteSpace(code) {
-	if (code >= 8192 && code <= 8202) {
-		return true;
-	}
+	if (code >= 8192 && code <= 8202) return true;
 	switch (code) {
 		case 9:
 		case 10:
@@ -11518,16 +9614,13 @@ function isMdAsciiPunct(ch) {
 }
 function normalizeReference(str) {
 	str = str.trim().replace(/\s+/g, " ");
-	if ("ẞ".toLowerCase() === "Ṿ") {
-		str = str.replace(/ẞ/g, "ß");
-	}
+	if ("ẞ".toLowerCase() === "Ṿ") str = str.replace(/ẞ/g, "ß");
 	return str.toLowerCase().toUpperCase();
 }
 const lib = {
 	mdurl: mdurl_exports,
 	ucmicro: uc_micro_exports
 };
-
 function parseLinkLabel(state, start, disableNested) {
 	let level, found, marker, prevPos;
 	const max = state.posMax;
@@ -11546,22 +9639,18 @@ function parseLinkLabel(state, start, disableNested) {
 		prevPos = state.pos;
 		state.md.inline.skipToken(state);
 		if (marker === 91) {
-			if (prevPos === state.pos - 1) {
-				level++;
-			} else if (disableNested) {
+			if (prevPos === state.pos - 1) level++;
+			else if (disableNested) {
 				state.pos = oldPos;
 				return -1;
 			}
 		}
 	}
 	let labelEnd = -1;
-	if (found) {
-		labelEnd = state.pos;
-	}
+	if (found) labelEnd = state.pos;
 	state.pos = oldPos;
 	return labelEnd;
 }
-
 function parseLinkDestination(str, start, max) {
 	let code;
 	let pos = start;
@@ -11574,12 +9663,8 @@ function parseLinkDestination(str, start, max) {
 		pos++;
 		while (pos < max) {
 			code = str.charCodeAt(pos);
-			if (code === 10) {
-				return result;
-			}
-			if (code === 60) {
-				return result;
-			}
+			if (code === 10) return result;
+			if (code === 60) return result;
 			if (code === 62) {
 				result.pos = pos + 1;
 				result.str = unescapeAll(str.slice(start + 1, pos));
@@ -11597,45 +9682,30 @@ function parseLinkDestination(str, start, max) {
 	let level = 0;
 	while (pos < max) {
 		code = str.charCodeAt(pos);
-		if (code === 32) {
-			break;
-		}
-		if (code < 32 || code === 127) {
-			break;
-		}
+		if (code === 32) break;
+		if (code < 32 || code === 127) break;
 		if (code === 92 && pos + 1 < max) {
-			if (str.charCodeAt(pos + 1) === 32) {
-				break;
-			}
+			if (str.charCodeAt(pos + 1) === 32) break;
 			pos += 2;
 			continue;
 		}
 		if (code === 40) {
 			level++;
-			if (level > 32) {
-				return result;
-			}
+			if (level > 32) return result;
 		}
 		if (code === 41) {
-			if (level === 0) {
-				break;
-			}
+			if (level === 0) break;
 			level--;
 		}
 		pos++;
 	}
-	if (start === pos) {
-		return result;
-	}
-	if (level !== 0) {
-		return result;
-	}
+	if (start === pos) return result;
+	if (level !== 0) return result;
 	result.str = unescapeAll(str.slice(start, pos));
 	result.pos = pos;
 	result.ok = true;
 	return result;
 }
-
 function parseLinkTitle(str, start, max, prev_state) {
 	let code;
 	let pos = start;
@@ -11650,18 +9720,12 @@ function parseLinkTitle(str, start, max, prev_state) {
 		state.str = prev_state.str;
 		state.marker = prev_state.marker;
 	} else {
-		if (pos >= max) {
-			return state;
-		}
+		if (pos >= max) return state;
 		let marker = str.charCodeAt(pos);
-		if (marker !== 34 && marker !== 39 && marker !== 40) {
-			return state;
-		}
+		if (marker !== 34 && marker !== 39 && marker !== 40) return state;
 		start++;
 		pos++;
-		if (marker === 40) {
-			marker = 41;
-		}
+		if (marker === 40) marker = 41;
 		state.marker = marker;
 	}
 	while (pos < max) {
@@ -11671,24 +9735,19 @@ function parseLinkTitle(str, start, max, prev_state) {
 			state.str += unescapeAll(str.slice(start, pos));
 			state.ok = true;
 			return state;
-		} else if (code === 40 && state.marker === 41) {
-			return state;
-		} else if (code === 92 && pos + 1 < max) {
-			pos++;
-		}
+		} else if (code === 40 && state.marker === 41) return state;
+		else if (code === 92 && pos + 1 < max) pos++;
 		pos++;
 	}
 	state.can_continue = true;
 	state.str += unescapeAll(str.slice(start, pos));
 	return state;
 }
-
 var helpers_exports = /* @__PURE__ */ __exportAll({
 	parseLinkDestination: () => parseLinkDestination,
 	parseLinkLabel: () => parseLinkLabel,
 	parseLinkTitle: () => parseLinkTitle
 });
-
 /**
 * class Renderer
 *
@@ -11716,20 +9775,14 @@ default_rules.fence = function(tokens, idx, options, env, slf) {
 		langAttrs = arr.slice(2).join("");
 	}
 	let highlighted;
-	if (options.highlight) {
-		highlighted = options.highlight(token.content, langName, langAttrs) || escapeHtml(token.content);
-	} else {
-		highlighted = escapeHtml(token.content);
-	}
-	if (highlighted.indexOf("<pre") === 0) {
-		return highlighted + "\n";
-	}
+	if (options.highlight) highlighted = options.highlight(token.content, langName, langAttrs) || escapeHtml(token.content);
+	else highlighted = escapeHtml(token.content);
+	if (highlighted.indexOf("<pre") === 0) return highlighted + "\n";
 	if (info) {
 		const i = token.attrIndex("class");
 		const tmpAttrs = token.attrs ? token.attrs.slice() : [];
-		if (i < 0) {
-			tmpAttrs.push(["class", options.langPrefix + langName]);
-		} else {
+		if (i < 0) tmpAttrs.push(["class", options.langPrefix + langName]);
+		else {
 			tmpAttrs[i] = tmpAttrs[i].slice();
 			tmpAttrs[i][1] += " " + options.langPrefix + langName;
 		}
@@ -11801,13 +9854,9 @@ function Renderer() {
 **/
 Renderer.prototype.renderAttrs = function renderAttrs(token) {
 	let i, l, result;
-	if (!token.attrs) {
-		return "";
-	}
+	if (!token.attrs) return "";
 	result = "";
-	for (i = 0, l = token.attrs.length; i < l; i++) {
-		result += " " + escapeHtml(token.attrs[i][0]) + "=\"" + escapeHtml(token.attrs[i][1]) + "\"";
-	}
+	for (i = 0, l = token.attrs.length; i < l; i++) result += " " + escapeHtml(token.attrs[i][0]) + "=\"" + escapeHtml(token.attrs[i][1]) + "\"";
 	return result;
 };
 /**
@@ -11822,28 +9871,19 @@ Renderer.prototype.renderAttrs = function renderAttrs(token) {
 Renderer.prototype.renderToken = function renderToken(tokens, idx, options) {
 	const token = tokens[idx];
 	let result = "";
-	if (token.hidden) {
-		return "";
-	}
-	if (token.block && token.nesting !== -1 && idx && tokens[idx - 1].hidden) {
-		result += "\n";
-	}
+	if (token.hidden) return "";
+	if (token.block && token.nesting !== -1 && idx && tokens[idx - 1].hidden) result += "\n";
 	result += (token.nesting === -1 ? "</" : "<") + token.tag;
 	result += this.renderAttrs(token);
-	if (token.nesting === 0 && options.xhtmlOut) {
-		result += " /";
-	}
+	if (token.nesting === 0 && options.xhtmlOut) result += " /";
 	let needLf = false;
 	if (token.block) {
 		needLf = true;
 		if (token.nesting === 1) {
 			if (idx + 1 < tokens.length) {
 				const nextToken = tokens[idx + 1];
-				if (nextToken.type === "inline" || nextToken.hidden) {
-					needLf = false;
-				} else if (nextToken.nesting === -1 && nextToken.tag === token.tag) {
-					needLf = false;
-				}
+				if (nextToken.type === "inline" || nextToken.hidden) needLf = false;
+				else if (nextToken.nesting === -1 && nextToken.tag === token.tag) needLf = false;
 			}
 		}
 	}
@@ -11863,11 +9903,8 @@ Renderer.prototype.renderInline = function(tokens, options, env) {
 	const rules = this.rules;
 	for (let i = 0, len = tokens.length; i < len; i++) {
 		const type = tokens[i].type;
-		if (typeof rules[type] !== "undefined") {
-			result += rules[type](tokens, i, options, env, this);
-		} else {
-			result += this.renderToken(tokens, i, options);
-		}
+		if (typeof rules[type] !== "undefined") result += rules[type](tokens, i, options, env, this);
+		else result += this.renderToken(tokens, i, options);
 	}
 	return result;
 };
@@ -11883,24 +9920,22 @@ Renderer.prototype.renderInline = function(tokens, options, env) {
 **/
 Renderer.prototype.renderInlineAsText = function(tokens, options, env) {
 	let result = "";
-	for (let i = 0, len = tokens.length; i < len; i++) {
-		switch (tokens[i].type) {
-			case "text":
-				result += tokens[i].content;
-				break;
-			case "image":
-				result += this.renderInlineAsText(tokens[i].children, options, env);
-				break;
-			case "html_inline":
-			case "html_block":
-				result += tokens[i].content;
-				break;
-			case "softbreak":
-			case "hardbreak":
-				result += "\n";
-				break;
-			default:
-		}
+	for (let i = 0, len = tokens.length; i < len; i++) switch (tokens[i].type) {
+		case "text":
+			result += tokens[i].content;
+			break;
+		case "image":
+			result += this.renderInlineAsText(tokens[i].children, options, env);
+			break;
+		case "html_inline":
+		case "html_block":
+			result += tokens[i].content;
+			break;
+		case "softbreak":
+		case "hardbreak":
+			result += "\n";
+			break;
+		default:
 	}
 	return result;
 };
@@ -11918,17 +9953,12 @@ Renderer.prototype.render = function(tokens, options, env) {
 	const rules = this.rules;
 	for (let i = 0, len = tokens.length; i < len; i++) {
 		const type = tokens[i].type;
-		if (type === "inline") {
-			result += this.renderInline(tokens[i].children, options, env);
-		} else if (typeof rules[type] !== "undefined") {
-			result += rules[type](tokens, i, options, env, this);
-		} else {
-			result += this.renderToken(tokens, i, options, env);
-		}
+		if (type === "inline") result += this.renderInline(tokens[i].children, options, env);
+		else if (typeof rules[type] !== "undefined") result += rules[type](tokens, i, options, env, this);
+		else result += this.renderToken(tokens, i, options, env);
 	}
 	return result;
 };
-
 /**
 * class Ruler
 *
@@ -11954,36 +9984,24 @@ function Ruler() {
 	this.__cache__ = null;
 }
 Ruler.prototype.__find__ = function(name) {
-	for (let i = 0; i < this.__rules__.length; i++) {
-		if (this.__rules__[i].name === name) {
-			return i;
-		}
-	}
+	for (let i = 0; i < this.__rules__.length; i++) if (this.__rules__[i].name === name) return i;
 	return -1;
 };
 Ruler.prototype.__compile__ = function() {
 	const self = this;
 	const chains = [""];
 	self.__rules__.forEach(function(rule) {
-		if (!rule.enabled) {
-			return;
-		}
+		if (!rule.enabled) return;
 		rule.alt.forEach(function(altName) {
-			if (chains.indexOf(altName) < 0) {
-				chains.push(altName);
-			}
+			if (chains.indexOf(altName) < 0) chains.push(altName);
 		});
 	});
 	self.__cache__ = {};
 	chains.forEach(function(chain) {
 		self.__cache__[chain] = [];
 		self.__rules__.forEach(function(rule) {
-			if (!rule.enabled) {
-				return;
-			}
-			if (chain && rule.alt.indexOf(chain) < 0) {
-				return;
-			}
+			if (!rule.enabled) return;
+			if (chain && rule.alt.indexOf(chain) < 0) return;
 			self.__cache__[chain].push(rule.fn);
 		});
 	});
@@ -12016,9 +10034,7 @@ Ruler.prototype.__compile__ = function() {
 Ruler.prototype.at = function(name, fn, options) {
 	const index = this.__find__(name);
 	const opt = options || {};
-	if (index === -1) {
-		throw new Error("Parser rule not found: " + name);
-	}
+	if (index === -1) throw new Error("Parser rule not found: " + name);
 	this.__rules__[index].fn = fn;
 	this.__rules__[index].alt = opt.alt || [];
 	this.__cache__ = null;
@@ -12050,9 +10066,7 @@ Ruler.prototype.at = function(name, fn, options) {
 Ruler.prototype.before = function(beforeName, ruleName, fn, options) {
 	const index = this.__find__(beforeName);
 	const opt = options || {};
-	if (index === -1) {
-		throw new Error("Parser rule not found: " + beforeName);
-	}
+	if (index === -1) throw new Error("Parser rule not found: " + beforeName);
 	this.__rules__.splice(index, 0, {
 		name: ruleName,
 		enabled: true,
@@ -12088,9 +10102,7 @@ Ruler.prototype.before = function(beforeName, ruleName, fn, options) {
 Ruler.prototype.after = function(afterName, ruleName, fn, options) {
 	const index = this.__find__(afterName);
 	const opt = options || {};
-	if (index === -1) {
-		throw new Error("Parser rule not found: " + afterName);
-	}
+	if (index === -1) throw new Error("Parser rule not found: " + afterName);
 	this.__rules__.splice(index + 1, 0, {
 		name: ruleName,
 		enabled: true,
@@ -12145,16 +10157,12 @@ Ruler.prototype.push = function(ruleName, fn, options) {
 * See also [[Ruler.disable]], [[Ruler.enableOnly]].
 **/
 Ruler.prototype.enable = function(list, ignoreInvalid) {
-	if (!Array.isArray(list)) {
-		list = [list];
-	}
+	if (!Array.isArray(list)) list = [list];
 	const result = [];
 	list.forEach(function(name) {
 		const idx = this.__find__(name);
 		if (idx < 0) {
-			if (ignoreInvalid) {
-				return;
-			}
+			if (ignoreInvalid) return;
 			throw new Error("Rules manager: invalid rule name " + name);
 		}
 		this.__rules__[idx].enabled = true;
@@ -12174,9 +10182,7 @@ Ruler.prototype.enable = function(list, ignoreInvalid) {
 * See also [[Ruler.disable]], [[Ruler.enable]].
 **/
 Ruler.prototype.enableOnly = function(list, ignoreInvalid) {
-	if (!Array.isArray(list)) {
-		list = [list];
-	}
+	if (!Array.isArray(list)) list = [list];
 	this.__rules__.forEach(function(rule) {
 		rule.enabled = false;
 	});
@@ -12195,16 +10201,12 @@ Ruler.prototype.enableOnly = function(list, ignoreInvalid) {
 * See also [[Ruler.enable]], [[Ruler.enableOnly]].
 **/
 Ruler.prototype.disable = function(list, ignoreInvalid) {
-	if (!Array.isArray(list)) {
-		list = [list];
-	}
+	if (!Array.isArray(list)) list = [list];
 	const result = [];
 	list.forEach(function(name) {
 		const idx = this.__find__(name);
 		if (idx < 0) {
-			if (ignoreInvalid) {
-				return;
-			}
+			if (ignoreInvalid) return;
 			throw new Error("Rules manager: invalid rule name " + name);
 		}
 		this.__rules__[idx].enabled = false;
@@ -12223,12 +10225,9 @@ Ruler.prototype.disable = function(list, ignoreInvalid) {
 * done intentionally, to keep signature monomorphic for high speed.
 **/
 Ruler.prototype.getRules = function(chainName) {
-	if (this.__cache__ === null) {
-		this.__compile__();
-	}
+	if (this.__cache__ === null) this.__compile__();
 	return this.__cache__[chainName] || [];
 };
-
 /**
 * class Token
 **/
@@ -12334,15 +10333,9 @@ function Token(type, tag, nesting) {
 * Search attribute index by name.
 **/
 Token.prototype.attrIndex = function attrIndex(name) {
-	if (!this.attrs) {
-		return -1;
-	}
+	if (!this.attrs) return -1;
 	const attrs = this.attrs;
-	for (let i = 0, len = attrs.length; i < len; i++) {
-		if (attrs[i][0] === name) {
-			return i;
-		}
-	}
+	for (let i = 0, len = attrs.length; i < len; i++) if (attrs[i][0] === name) return i;
 	return -1;
 };
 /**
@@ -12351,11 +10344,8 @@ Token.prototype.attrIndex = function attrIndex(name) {
 * Add `[ name, value ]` attribute to list. Init attrs if necessary
 **/
 Token.prototype.attrPush = function attrPush(attrData) {
-	if (this.attrs) {
-		this.attrs.push(attrData);
-	} else {
-		this.attrs = [attrData];
-	}
+	if (this.attrs) this.attrs.push(attrData);
+	else this.attrs = [attrData];
 };
 /**
 * Token.attrSet(name, value)
@@ -12365,11 +10355,8 @@ Token.prototype.attrPush = function attrPush(attrData) {
 Token.prototype.attrSet = function attrSet(name, value) {
 	const idx = this.attrIndex(name);
 	const attrData = [name, value];
-	if (idx < 0) {
-		this.attrPush(attrData);
-	} else {
-		this.attrs[idx] = attrData;
-	}
+	if (idx < 0) this.attrPush(attrData);
+	else this.attrs[idx] = attrData;
 };
 /**
 * Token.attrGet(name)
@@ -12379,9 +10366,7 @@ Token.prototype.attrSet = function attrSet(name, value) {
 Token.prototype.attrGet = function attrGet(name) {
 	const idx = this.attrIndex(name);
 	let value = null;
-	if (idx >= 0) {
-		value = this.attrs[idx][1];
-	}
+	if (idx >= 0) value = this.attrs[idx][1];
 	return value;
 };
 /**
@@ -12392,13 +10377,9 @@ Token.prototype.attrGet = function attrGet(name) {
 **/
 Token.prototype.attrJoin = function attrJoin(name, value) {
 	const idx = this.attrIndex(name);
-	if (idx < 0) {
-		this.attrPush([name, value]);
-	} else {
-		this.attrs[idx][1] = this.attrs[idx][1] + " " + value;
-	}
+	if (idx < 0) this.attrPush([name, value]);
+	else this.attrs[idx][1] = this.attrs[idx][1] + " " + value;
 };
-
 function StateCore(src, md, env) {
 	this.src = src;
 	this.env = env;
@@ -12407,7 +10388,6 @@ function StateCore(src, md, env) {
 	this.md = md;
 }
 StateCore.prototype.Token = Token;
-
 const NEWLINES_RE = /\r\n?|\n/g;
 const NULL_RE = /\0/g;
 function normalize(state) {
@@ -12416,7 +10396,6 @@ function normalize(state) {
 	str = str.replace(NULL_RE, "�");
 	state.src = str;
 }
-
 function block(state) {
 	let token;
 	if (state.inlineMode) {
@@ -12425,21 +10404,15 @@ function block(state) {
 		token.map = [0, 1];
 		token.children = [];
 		state.tokens.push(token);
-	} else {
-		state.md.block.parse(state.src, state.md, state.env, state.tokens);
-	}
+	} else state.md.block.parse(state.src, state.md, state.env, state.tokens);
 }
-
 function inline(state) {
 	const tokens = state.tokens;
 	for (let i = 0, l = tokens.length; i < l; i++) {
 		const tok = tokens[i];
-		if (tok.type === "inline") {
-			state.md.inline.parse(tok.content, state.md, state.env, tok.children);
-		}
+		if (tok.type === "inline") state.md.inline.parse(tok.content, state.md, state.env, tok.children);
 	}
 }
-
 function isLinkOpen$1(str) {
 	return /^<a[>\s]/i.test(str);
 }
@@ -12448,58 +10421,38 @@ function isLinkClose$1(str) {
 }
 function linkify$1(state) {
 	const blockTokens = state.tokens;
-	if (!state.md.options.linkify) {
-		return;
-	}
+	if (!state.md.options.linkify) return;
 	for (let j = 0, l = blockTokens.length; j < l; j++) {
-		if (blockTokens[j].type !== "inline" || !state.md.linkify.pretest(blockTokens[j].content)) {
-			continue;
-		}
+		if (blockTokens[j].type !== "inline" || !state.md.linkify.pretest(blockTokens[j].content)) continue;
 		let tokens = blockTokens[j].children;
 		let htmlLinkLevel = 0;
 		for (let i = tokens.length - 1; i >= 0; i--) {
 			const currentToken = tokens[i];
 			if (currentToken.type === "link_close") {
 				i--;
-				while (tokens[i].level !== currentToken.level && tokens[i].type !== "link_open") {
-					i--;
-				}
+				while (tokens[i].level !== currentToken.level && tokens[i].type !== "link_open") i--;
 				continue;
 			}
 			if (currentToken.type === "html_inline") {
-				if (isLinkOpen$1(currentToken.content) && htmlLinkLevel > 0) {
-					htmlLinkLevel--;
-				}
-				if (isLinkClose$1(currentToken.content)) {
-					htmlLinkLevel++;
-				}
+				if (isLinkOpen$1(currentToken.content) && htmlLinkLevel > 0) htmlLinkLevel--;
+				if (isLinkClose$1(currentToken.content)) htmlLinkLevel++;
 			}
-			if (htmlLinkLevel > 0) {
-				continue;
-			}
+			if (htmlLinkLevel > 0) continue;
 			if (currentToken.type === "text" && state.md.linkify.test(currentToken.content)) {
 				const text = currentToken.content;
 				let links = state.md.linkify.match(text);
 				const nodes = [];
 				let level = currentToken.level;
 				let lastPos = 0;
-				if (links.length > 0 && links[0].index === 0 && i > 0 && tokens[i - 1].type === "text_special") {
-					links = links.slice(1);
-				}
+				if (links.length > 0 && links[0].index === 0 && i > 0 && tokens[i - 1].type === "text_special") links = links.slice(1);
 				for (let ln = 0; ln < links.length; ln++) {
 					const url = links[ln].url;
 					const fullUrl = state.md.normalizeLink(url);
-					if (!state.md.validateLink(fullUrl)) {
-						continue;
-					}
+					if (!state.md.validateLink(fullUrl)) continue;
 					let urlText = links[ln].text;
-					if (!links[ln].schema) {
-						urlText = state.md.normalizeLinkText("http://" + urlText).replace(/^http:\/\//, "");
-					} else if (links[ln].schema === "mailto:" && !/^mailto:/i.test(urlText)) {
-						urlText = state.md.normalizeLinkText("mailto:" + urlText).replace(/^mailto:/, "");
-					} else {
-						urlText = state.md.normalizeLinkText(urlText);
-					}
+					if (!links[ln].schema) urlText = state.md.normalizeLinkText("http://" + urlText).replace(/^http:\/\//, "");
+					else if (links[ln].schema === "mailto:" && !/^mailto:/i.test(urlText)) urlText = state.md.normalizeLinkText("mailto:" + urlText).replace(/^mailto:/, "");
+					else urlText = state.md.normalizeLinkText(urlText);
 					const pos = links[ln].index;
 					if (pos > lastPos) {
 						const token = new state.Token("text", "", 0);
@@ -12535,7 +10488,6 @@ function linkify$1(state) {
 		}
 	}
 }
-
 const RARE_RE = /\+-|\.\.|\?\?\?\?|!!!!|,,|--/;
 const SCOPED_ABBR_TEST_RE = /\((c|tm|r)\)/i;
 const SCOPED_ABBR_RE = /\((c|tm|r)\)/gi;
@@ -12551,15 +10503,9 @@ function replace_scoped(inlineTokens) {
 	let inside_autolink = 0;
 	for (let i = inlineTokens.length - 1; i >= 0; i--) {
 		const token = inlineTokens[i];
-		if (token.type === "text" && !inside_autolink) {
-			token.content = token.content.replace(SCOPED_ABBR_RE, replaceFn);
-		}
-		if (token.type === "link_open" && token.info === "auto") {
-			inside_autolink--;
-		}
-		if (token.type === "link_close" && token.info === "auto") {
-			inside_autolink++;
-		}
+		if (token.type === "text" && !inside_autolink) token.content = token.content.replace(SCOPED_ABBR_RE, replaceFn);
+		if (token.type === "link_open" && token.info === "auto") inside_autolink--;
+		if (token.type === "link_close" && token.info === "auto") inside_autolink++;
 	}
 }
 function replace_rare(inlineTokens) {
@@ -12567,36 +10513,21 @@ function replace_rare(inlineTokens) {
 	for (let i = inlineTokens.length - 1; i >= 0; i--) {
 		const token = inlineTokens[i];
 		if (token.type === "text" && !inside_autolink) {
-			if (RARE_RE.test(token.content)) {
-				token.content = token.content.replace(/\+-/g, "±").replace(/\.{2,}/g, "…").replace(/([?!])…/g, "$1..").replace(/([?!]){4,}/g, "$1$1$1").replace(/,{2,}/g, ",").replace(/(^|[^-])---(?=[^-]|$)/gm, "$1—").replace(/(^|\s)--(?=\s|$)/gm, "$1–").replace(/(^|[^-\s])--(?=[^-\s]|$)/gm, "$1–");
-			}
+			if (RARE_RE.test(token.content)) token.content = token.content.replace(/\+-/g, "±").replace(/\.{2,}/g, "…").replace(/([?!])…/g, "$1..").replace(/([?!]){4,}/g, "$1$1$1").replace(/,{2,}/g, ",").replace(/(^|[^-])---(?=[^-]|$)/gm, "$1—").replace(/(^|\s)--(?=\s|$)/gm, "$1–").replace(/(^|[^-\s])--(?=[^-\s]|$)/gm, "$1–");
 		}
-		if (token.type === "link_open" && token.info === "auto") {
-			inside_autolink--;
-		}
-		if (token.type === "link_close" && token.info === "auto") {
-			inside_autolink++;
-		}
+		if (token.type === "link_open" && token.info === "auto") inside_autolink--;
+		if (token.type === "link_close" && token.info === "auto") inside_autolink++;
 	}
 }
 function replace(state) {
 	let blkIdx;
-	if (!state.md.options.typographer) {
-		return;
-	}
+	if (!state.md.options.typographer) return;
 	for (blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
-		if (state.tokens[blkIdx].type !== "inline") {
-			continue;
-		}
-		if (SCOPED_ABBR_TEST_RE.test(state.tokens[blkIdx].content)) {
-			replace_scoped(state.tokens[blkIdx].children);
-		}
-		if (RARE_RE.test(state.tokens[blkIdx].content)) {
-			replace_rare(state.tokens[blkIdx].children);
-		}
+		if (state.tokens[blkIdx].type !== "inline") continue;
+		if (SCOPED_ABBR_TEST_RE.test(state.tokens[blkIdx].content)) replace_scoped(state.tokens[blkIdx].children);
+		if (RARE_RE.test(state.tokens[blkIdx].content)) replace_rare(state.tokens[blkIdx].children);
 	}
 }
-
 const QUOTE_TEST_RE = /['"]/;
 const QUOTE_RE = /['"]/g;
 const APOSTROPHE = "’";
@@ -12609,138 +10540,100 @@ function process_inlines(tokens, state) {
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
 		const thisLevel = tokens[i].level;
-		for (j = stack.length - 1; j >= 0; j--) {
-			if (stack[j].level <= thisLevel) {
-				break;
-			}
-		}
+		for (j = stack.length - 1; j >= 0; j--) if (stack[j].level <= thisLevel) break;
 		stack.length = j + 1;
-		if (token.type !== "text") {
-			continue;
-		}
+		if (token.type !== "text") continue;
 		let text = token.content;
 		let pos = 0;
 		let max = text.length;
 		OUTER: while (pos < max) {
 			QUOTE_RE.lastIndex = pos;
 			const t = QUOTE_RE.exec(text);
-			if (!t) {
-				break;
-			}
+			if (!t) break;
 			let canOpen = true;
 			let canClose = true;
 			pos = t.index + 1;
 			const isSingle = t[0] === "'";
 			let lastChar = 32;
-			if (t.index - 1 >= 0) {
-				lastChar = text.charCodeAt(t.index - 1);
-			} else {
-				for (j = i - 1; j >= 0; j--) {
-					if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
-					if (!tokens[j].content) continue;
-					lastChar = tokens[j].content.charCodeAt(tokens[j].content.length - 1);
-					break;
-				}
+			if (t.index - 1 >= 0) lastChar = text.charCodeAt(t.index - 1);
+			else for (j = i - 1; j >= 0; j--) {
+				if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
+				if (!tokens[j].content) continue;
+				lastChar = tokens[j].content.charCodeAt(tokens[j].content.length - 1);
+				break;
 			}
 			let nextChar = 32;
-			if (pos < max) {
-				nextChar = text.charCodeAt(pos);
-			} else {
-				for (j = i + 1; j < tokens.length; j++) {
-					if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
-					if (!tokens[j].content) continue;
-					nextChar = tokens[j].content.charCodeAt(0);
-					break;
-				}
+			if (pos < max) nextChar = text.charCodeAt(pos);
+			else for (j = i + 1; j < tokens.length; j++) {
+				if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
+				if (!tokens[j].content) continue;
+				nextChar = tokens[j].content.charCodeAt(0);
+				break;
 			}
 			const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
 			const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
 			const isLastWhiteSpace = isWhiteSpace(lastChar);
 			const isNextWhiteSpace = isWhiteSpace(nextChar);
-			if (isNextWhiteSpace) {
-				canOpen = false;
-			} else if (isNextPunctChar) {
-				if (!(isLastWhiteSpace || isLastPunctChar)) {
-					canOpen = false;
-				}
+			if (isNextWhiteSpace) canOpen = false;
+			else if (isNextPunctChar) {
+				if (!(isLastWhiteSpace || isLastPunctChar)) canOpen = false;
 			}
-			if (isLastWhiteSpace) {
-				canClose = false;
-			} else if (isLastPunctChar) {
-				if (!(isNextWhiteSpace || isNextPunctChar)) {
-					canClose = false;
-				}
+			if (isLastWhiteSpace) canClose = false;
+			else if (isLastPunctChar) {
+				if (!(isNextWhiteSpace || isNextPunctChar)) canClose = false;
 			}
 			if (nextChar === 34 && t[0] === "\"") {
-				if (lastChar >= 48 && lastChar <= 57) {
-					canClose = canOpen = false;
-				}
+				if (lastChar >= 48 && lastChar <= 57) canClose = canOpen = false;
 			}
 			if (canOpen && canClose) {
 				canOpen = isLastPunctChar;
 				canClose = isNextPunctChar;
 			}
 			if (!canOpen && !canClose) {
-				if (isSingle) {
-					token.content = replaceAt(token.content, t.index, APOSTROPHE);
-				}
+				if (isSingle) token.content = replaceAt(token.content, t.index, APOSTROPHE);
 				continue;
 			}
-			if (canClose) {
-				for (j = stack.length - 1; j >= 0; j--) {
-					let item = stack[j];
-					if (stack[j].level < thisLevel) {
-						break;
+			if (canClose) for (j = stack.length - 1; j >= 0; j--) {
+				let item = stack[j];
+				if (stack[j].level < thisLevel) break;
+				if (item.single === isSingle && stack[j].level === thisLevel) {
+					item = stack[j];
+					let openQuote;
+					let closeQuote;
+					if (isSingle) {
+						openQuote = state.md.options.quotes[2];
+						closeQuote = state.md.options.quotes[3];
+					} else {
+						openQuote = state.md.options.quotes[0];
+						closeQuote = state.md.options.quotes[1];
 					}
-					if (item.single === isSingle && stack[j].level === thisLevel) {
-						item = stack[j];
-						let openQuote;
-						let closeQuote;
-						if (isSingle) {
-							openQuote = state.md.options.quotes[2];
-							closeQuote = state.md.options.quotes[3];
-						} else {
-							openQuote = state.md.options.quotes[0];
-							closeQuote = state.md.options.quotes[1];
-						}
-						token.content = replaceAt(token.content, t.index, closeQuote);
-						tokens[item.token].content = replaceAt(tokens[item.token].content, item.pos, openQuote);
-						pos += closeQuote.length - 1;
-						if (item.token === i) {
-							pos += openQuote.length - 1;
-						}
-						text = token.content;
-						max = text.length;
-						stack.length = j;
-						continue OUTER;
-					}
+					token.content = replaceAt(token.content, t.index, closeQuote);
+					tokens[item.token].content = replaceAt(tokens[item.token].content, item.pos, openQuote);
+					pos += closeQuote.length - 1;
+					if (item.token === i) pos += openQuote.length - 1;
+					text = token.content;
+					max = text.length;
+					stack.length = j;
+					continue OUTER;
 				}
 			}
-			if (canOpen) {
-				stack.push({
-					token: i,
-					pos: t.index,
-					single: isSingle,
-					level: thisLevel
-				});
-			} else if (canClose && isSingle) {
-				token.content = replaceAt(token.content, t.index, APOSTROPHE);
-			}
+			if (canOpen) stack.push({
+				token: i,
+				pos: t.index,
+				single: isSingle,
+				level: thisLevel
+			});
+			else if (canClose && isSingle) token.content = replaceAt(token.content, t.index, APOSTROPHE);
 		}
 	}
 }
 function smartquotes(state) {
-	if (!state.md.options.typographer) {
-		return;
-	}
+	if (!state.md.options.typographer) return;
 	for (let blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
-		if (state.tokens[blkIdx].type !== "inline" || !QUOTE_TEST_RE.test(state.tokens[blkIdx].content)) {
-			continue;
-		}
+		if (state.tokens[blkIdx].type !== "inline" || !QUOTE_TEST_RE.test(state.tokens[blkIdx].content)) continue;
 		process_inlines(state.tokens[blkIdx].children, state);
 	}
 }
-
 function text_join(state) {
 	let curr, last;
 	const blockTokens = state.tokens;
@@ -12749,27 +10642,15 @@ function text_join(state) {
 		if (blockTokens[j].type !== "inline") continue;
 		const tokens = blockTokens[j].children;
 		const max = tokens.length;
-		for (curr = 0; curr < max; curr++) {
-			if (tokens[curr].type === "text_special") {
-				tokens[curr].type = "text";
-			}
+		for (curr = 0; curr < max; curr++) if (tokens[curr].type === "text_special") tokens[curr].type = "text";
+		for (curr = last = 0; curr < max; curr++) if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+		else {
+			if (curr !== last) tokens[last] = tokens[curr];
+			last++;
 		}
-		for (curr = last = 0; curr < max; curr++) {
-			if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") {
-				tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
-			} else {
-				if (curr !== last) {
-					tokens[last] = tokens[curr];
-				}
-				last++;
-			}
-		}
-		if (curr !== last) {
-			tokens.length = last;
-		}
+		if (curr !== last) tokens.length = last;
 	}
 }
-
 /** internal
 * class Core
 *
@@ -12795,9 +10676,7 @@ function Core() {
 	* [[Ruler]] instance. Keep configuration of core rules.
 	**/
 	this.ruler = new Ruler();
-	for (let i = 0; i < _rules$2.length; i++) {
-		this.ruler.push(_rules$2[i][0], _rules$2[i][1]);
-	}
+	for (let i = 0; i < _rules$2.length; i++) this.ruler.push(_rules$2[i][0], _rules$2[i][1]);
 }
 /**
 * Core.process(state)
@@ -12806,12 +10685,9 @@ function Core() {
 **/
 Core.prototype.process = function(state) {
 	const rules = this.ruler.getRules("");
-	for (let i = 0, l = rules.length; i < l; i++) {
-		rules[i](state);
-	}
+	for (let i = 0, l = rules.length; i < l; i++) rules[i](state);
 };
 Core.prototype.State = StateCore;
-
 function StateBlock(src, md, env, tokens) {
 	this.src = src;
 	this.md = md;
@@ -12833,23 +10709,14 @@ function StateBlock(src, md, env, tokens) {
 	const s = this.src;
 	for (let start = 0, pos = 0, indent = 0, offset = 0, len = s.length, indent_found = false; pos < len; pos++) {
 		const ch = s.charCodeAt(pos);
-		if (!indent_found) {
-			if (isSpace(ch)) {
-				indent++;
-				if (ch === 9) {
-					offset += 4 - offset % 4;
-				} else {
-					offset++;
-				}
-				continue;
-			} else {
-				indent_found = true;
-			}
-		}
+		if (!indent_found) if (isSpace(ch)) {
+			indent++;
+			if (ch === 9) offset += 4 - offset % 4;
+			else offset++;
+			continue;
+		} else indent_found = true;
 		if (ch === 10 || pos === len - 1) {
-			if (ch !== 10) {
-				pos++;
-			}
+			if (ch !== 10) pos++;
 			this.bMarks.push(start);
 			this.eMarks.push(pos);
 			this.tShift.push(indent);
@@ -12881,92 +10748,51 @@ StateBlock.prototype.isEmpty = function isEmpty(line) {
 	return this.bMarks[line] + this.tShift[line] >= this.eMarks[line];
 };
 StateBlock.prototype.skipEmptyLines = function skipEmptyLines(from) {
-	for (let max = this.lineMax; from < max; from++) {
-		if (this.bMarks[from] + this.tShift[from] < this.eMarks[from]) {
-			break;
-		}
-	}
+	for (let max = this.lineMax; from < max; from++) if (this.bMarks[from] + this.tShift[from] < this.eMarks[from]) break;
 	return from;
 };
 StateBlock.prototype.skipSpaces = function skipSpaces(pos) {
-	for (let max = this.src.length; pos < max; pos++) {
-		const ch = this.src.charCodeAt(pos);
-		if (!isSpace(ch)) {
-			break;
-		}
-	}
+	for (let max = this.src.length; pos < max; pos++) if (!isSpace(this.src.charCodeAt(pos))) break;
 	return pos;
 };
 StateBlock.prototype.skipSpacesBack = function skipSpacesBack(pos, min) {
-	if (pos <= min) {
-		return pos;
-	}
-	while (pos > min) {
-		if (!isSpace(this.src.charCodeAt(--pos))) {
-			return pos + 1;
-		}
-	}
+	if (pos <= min) return pos;
+	while (pos > min) if (!isSpace(this.src.charCodeAt(--pos))) return pos + 1;
 	return pos;
 };
 StateBlock.prototype.skipChars = function skipChars(pos, code) {
-	for (let max = this.src.length; pos < max; pos++) {
-		if (this.src.charCodeAt(pos) !== code) {
-			break;
-		}
-	}
+	for (let max = this.src.length; pos < max; pos++) if (this.src.charCodeAt(pos) !== code) break;
 	return pos;
 };
 StateBlock.prototype.skipCharsBack = function skipCharsBack(pos, code, min) {
-	if (pos <= min) {
-		return pos;
-	}
-	while (pos > min) {
-		if (code !== this.src.charCodeAt(--pos)) {
-			return pos + 1;
-		}
-	}
+	if (pos <= min) return pos;
+	while (pos > min) if (code !== this.src.charCodeAt(--pos)) return pos + 1;
 	return pos;
 };
 StateBlock.prototype.getLines = function getLines(begin, end, indent, keepLastLF) {
-	if (begin >= end) {
-		return "";
-	}
+	if (begin >= end) return "";
 	const queue = new Array(end - begin);
 	for (let i = 0, line = begin; line < end; line++, i++) {
 		let lineIndent = 0;
 		const lineStart = this.bMarks[line];
 		let first = lineStart;
 		let last;
-		if (line + 1 < end || keepLastLF) {
-			last = this.eMarks[line] + 1;
-		} else {
-			last = this.eMarks[line];
-		}
+		if (line + 1 < end || keepLastLF) last = this.eMarks[line] + 1;
+		else last = this.eMarks[line];
 		while (first < last && lineIndent < indent) {
 			const ch = this.src.charCodeAt(first);
-			if (isSpace(ch)) {
-				if (ch === 9) {
-					lineIndent += 4 - (lineIndent + this.bsCount[line]) % 4;
-				} else {
-					lineIndent++;
-				}
-			} else if (first - lineStart < this.tShift[line]) {
-				lineIndent++;
-			} else {
-				break;
-			}
+			if (isSpace(ch)) if (ch === 9) lineIndent += 4 - (lineIndent + this.bsCount[line]) % 4;
+			else lineIndent++;
+			else if (first - lineStart < this.tShift[line]) lineIndent++;
+			else break;
 			first++;
 		}
-		if (lineIndent > indent) {
-			queue[i] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last);
-		} else {
-			queue[i] = this.src.slice(first, last);
-		}
+		if (lineIndent > indent) queue[i] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last);
+		else queue[i] = this.src.slice(first, last);
 	}
 	return queue.join("");
 };
 StateBlock.prototype.Token = Token;
-
 const MAX_AUTOCOMPLETED_CELLS = 65536;
 function getLine(state, line) {
 	const pos = state.bMarks[line] + state.tShift[line];
@@ -12982,15 +10808,13 @@ function escapedSplit(str) {
 	let lastPos = 0;
 	let current = "";
 	while (pos < max) {
-		if (ch === 124) {
-			if (!isEscaped) {
-				result.push(current + str.substring(lastPos, pos));
-				current = "";
-				lastPos = pos + 1;
-			} else {
-				current += str.substring(lastPos, pos - 1);
-				lastPos = pos;
-			}
+		if (ch === 124) if (!isEscaped) {
+			result.push(current + str.substring(lastPos, pos));
+			current = "";
+			lastPos = pos + 1;
+		} else {
+			current += str.substring(lastPos, pos - 1);
+			lastPos = pos;
 		}
 		isEscaped = ch === 92;
 		pos++;
@@ -13000,39 +10824,21 @@ function escapedSplit(str) {
 	return result;
 }
 function table(state, startLine, endLine, silent) {
-	if (startLine + 2 > endLine) {
-		return false;
-	}
+	if (startLine + 2 > endLine) return false;
 	let nextLine = startLine + 1;
-	if (state.sCount[nextLine] < state.blkIndent) {
-		return false;
-	}
-	if (state.sCount[nextLine] - state.blkIndent >= 4) {
-		return false;
-	}
+	if (state.sCount[nextLine] < state.blkIndent) return false;
+	if (state.sCount[nextLine] - state.blkIndent >= 4) return false;
 	let pos = state.bMarks[nextLine] + state.tShift[nextLine];
-	if (pos >= state.eMarks[nextLine]) {
-		return false;
-	}
+	if (pos >= state.eMarks[nextLine]) return false;
 	const firstCh = state.src.charCodeAt(pos++);
-	if (firstCh !== 124 && firstCh !== 45 && firstCh !== 58) {
-		return false;
-	}
-	if (pos >= state.eMarks[nextLine]) {
-		return false;
-	}
+	if (firstCh !== 124 && firstCh !== 45 && firstCh !== 58) return false;
+	if (pos >= state.eMarks[nextLine]) return false;
 	const secondCh = state.src.charCodeAt(pos++);
-	if (secondCh !== 124 && secondCh !== 45 && secondCh !== 58 && !isSpace(secondCh)) {
-		return false;
-	}
-	if (firstCh === 45 && isSpace(secondCh)) {
-		return false;
-	}
+	if (secondCh !== 124 && secondCh !== 45 && secondCh !== 58 && !isSpace(secondCh)) return false;
+	if (firstCh === 45 && isSpace(secondCh)) return false;
 	while (pos < state.eMarks[nextLine]) {
 		const ch = state.src.charCodeAt(pos);
-		if (ch !== 124 && ch !== 45 && ch !== 58 && !isSpace(ch)) {
-			return false;
-		}
+		if (ch !== 124 && ch !== 45 && ch !== 58 && !isSpace(ch)) return false;
 		pos++;
 	}
 	let lineText = getLine(state, startLine + 1);
@@ -13040,41 +10846,22 @@ function table(state, startLine, endLine, silent) {
 	const aligns = [];
 	for (let i = 0; i < columns.length; i++) {
 		const t = columns[i].trim();
-		if (!t) {
-			if (i === 0 || i === columns.length - 1) {
-				continue;
-			} else {
-				return false;
-			}
-		}
-		if (!/^:?-+:?$/.test(t)) {
-			return false;
-		}
-		if (t.charCodeAt(t.length - 1) === 58) {
-			aligns.push(t.charCodeAt(0) === 58 ? "center" : "right");
-		} else if (t.charCodeAt(0) === 58) {
-			aligns.push("left");
-		} else {
-			aligns.push("");
-		}
+		if (!t) if (i === 0 || i === columns.length - 1) continue;
+		else return false;
+		if (!/^:?-+:?$/.test(t)) return false;
+		if (t.charCodeAt(t.length - 1) === 58) aligns.push(t.charCodeAt(0) === 58 ? "center" : "right");
+		else if (t.charCodeAt(0) === 58) aligns.push("left");
+		else aligns.push("");
 	}
 	lineText = getLine(state, startLine).trim();
-	if (lineText.indexOf("|") === -1) {
-		return false;
-	}
-	if (state.sCount[startLine] - state.blkIndent >= 4) {
-		return false;
-	}
+	if (lineText.indexOf("|") === -1) return false;
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
 	columns = escapedSplit(lineText);
 	if (columns.length && columns[0] === "") columns.shift();
 	if (columns.length && columns[columns.length - 1] === "") columns.pop();
 	const columnCount = columns.length;
-	if (columnCount === 0 || columnCount !== aligns.length) {
-		return false;
-	}
-	if (silent) {
-		return true;
-	}
+	if (columnCount === 0 || columnCount !== aligns.length) return false;
+	if (silent) return true;
 	const oldParentType = state.parentType;
 	state.parentType = "table";
 	const terminatorRules = state.md.block.ruler.getRules("blockquote");
@@ -13087,9 +10874,7 @@ function table(state, startLine, endLine, silent) {
 	token_htro.map = [startLine, startLine + 1];
 	for (let i = 0; i < columns.length; i++) {
 		const token_ho = state.push("th_open", "th", 1);
-		if (aligns[i]) {
-			token_ho.attrs = [["style", "text-align:" + aligns[i]]];
-		}
+		if (aligns[i]) token_ho.attrs = [["style", "text-align:" + aligns[i]]];
 		const token_il = state.push("inline", "", 0);
 		token_il.content = columns[i].trim();
 		token_il.children = [];
@@ -13100,33 +10885,21 @@ function table(state, startLine, endLine, silent) {
 	let tbodyLines;
 	let autocompletedCells = 0;
 	for (nextLine = startLine + 2; nextLine < endLine; nextLine++) {
-		if (state.sCount[nextLine] < state.blkIndent) {
-			break;
-		}
+		if (state.sCount[nextLine] < state.blkIndent) break;
 		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) {
-			if (terminatorRules[i](state, nextLine, endLine, true)) {
-				terminate = true;
-				break;
-			}
-		}
-		if (terminate) {
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
 			break;
 		}
+		if (terminate) break;
 		lineText = getLine(state, nextLine).trim();
-		if (!lineText) {
-			break;
-		}
-		if (state.sCount[nextLine] - state.blkIndent >= 4) {
-			break;
-		}
+		if (!lineText) break;
+		if (state.sCount[nextLine] - state.blkIndent >= 4) break;
 		columns = escapedSplit(lineText);
 		if (columns.length && columns[0] === "") columns.shift();
 		if (columns.length && columns[columns.length - 1] === "") columns.pop();
 		autocompletedCells += columnCount - columns.length;
-		if (autocompletedCells > MAX_AUTOCOMPLETED_CELLS) {
-			break;
-		}
+		if (autocompletedCells > MAX_AUTOCOMPLETED_CELLS) break;
 		if (nextLine === startLine + 2) {
 			const token_tbo = state.push("tbody_open", "tbody", 1);
 			token_tbo.map = tbodyLines = [startLine + 2, 0];
@@ -13135,9 +10908,7 @@ function table(state, startLine, endLine, silent) {
 		token_tro.map = [nextLine, nextLine + 1];
 		for (let i = 0; i < columnCount; i++) {
 			const token_tdo = state.push("td_open", "td", 1);
-			if (aligns[i]) {
-				token_tdo.attrs = [["style", "text-align:" + aligns[i]]];
-			}
+			if (aligns[i]) token_tdo.attrs = [["style", "text-align:" + aligns[i]]];
 			const token_il = state.push("inline", "", 0);
 			token_il.content = columns[i] ? columns[i].trim() : "";
 			token_il.children = [];
@@ -13155,11 +10926,8 @@ function table(state, startLine, endLine, silent) {
 	state.line = nextLine;
 	return true;
 }
-
 function code(state, startLine, endLine) {
-	if (state.sCount[startLine] - state.blkIndent < 4) {
-		return false;
-	}
+	if (state.sCount[startLine] - state.blkIndent < 4) return false;
 	let nextLine = startLine + 1;
 	let last = nextLine;
 	while (nextLine < endLine) {
@@ -13180,62 +10948,37 @@ function code(state, startLine, endLine) {
 	token.map = [startLine, state.line];
 	return true;
 }
-
 function fence(state, startLine, endLine, silent) {
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
 	let max = state.eMarks[startLine];
-	if (state.sCount[startLine] - state.blkIndent >= 4) {
-		return false;
-	}
-	if (pos + 3 > max) {
-		return false;
-	}
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	if (pos + 3 > max) return false;
 	const marker = state.src.charCodeAt(pos);
-	if (marker !== 126 && marker !== 96) {
-		return false;
-	}
+	if (marker !== 126 && marker !== 96) return false;
 	let mem = pos;
 	pos = state.skipChars(pos, marker);
 	let len = pos - mem;
-	if (len < 3) {
-		return false;
-	}
+	if (len < 3) return false;
 	const markup = state.src.slice(mem, pos);
 	const params = state.src.slice(pos, max);
 	if (marker === 96) {
-		if (params.indexOf(String.fromCharCode(marker)) >= 0) {
-			return false;
-		}
+		if (params.indexOf(String.fromCharCode(marker)) >= 0) return false;
 	}
-	if (silent) {
-		return true;
-	}
+	if (silent) return true;
 	let nextLine = startLine;
 	let haveEndMarker = false;
 	for (;;) {
 		nextLine++;
-		if (nextLine >= endLine) {
-			break;
-		}
+		if (nextLine >= endLine) break;
 		pos = mem = state.bMarks[nextLine] + state.tShift[nextLine];
 		max = state.eMarks[nextLine];
-		if (pos < max && state.sCount[nextLine] < state.blkIndent) {
-			break;
-		}
-		if (state.src.charCodeAt(pos) !== marker) {
-			continue;
-		}
-		if (state.sCount[nextLine] - state.blkIndent >= 4) {
-			continue;
-		}
+		if (pos < max && state.sCount[nextLine] < state.blkIndent) break;
+		if (state.src.charCodeAt(pos) !== marker) continue;
+		if (state.sCount[nextLine] - state.blkIndent >= 4) continue;
 		pos = state.skipChars(pos, marker);
-		if (pos - mem < len) {
-			continue;
-		}
+		if (pos - mem < len) continue;
 		pos = state.skipSpaces(pos);
-		if (pos < max) {
-			continue;
-		}
+		if (pos < max) continue;
 		haveEndMarker = true;
 		break;
 	}
@@ -13248,20 +10991,13 @@ function fence(state, startLine, endLine, silent) {
 	token.map = [startLine, state.line];
 	return true;
 }
-
 function blockquote(state, startLine, endLine, silent) {
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
 	let max = state.eMarks[startLine];
 	const oldLineMax = state.lineMax;
-	if (state.sCount[startLine] - state.blkIndent >= 4) {
-		return false;
-	}
-	if (state.src.charCodeAt(pos) !== 62) {
-		return false;
-	}
-	if (silent) {
-		return true;
-	}
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	if (state.src.charCodeAt(pos) !== 62) return false;
+	if (silent) return true;
 	const oldBMarks = [];
 	const oldBSCount = [];
 	const oldSCount = [];
@@ -13275,9 +11011,7 @@ function blockquote(state, startLine, endLine, silent) {
 		const isOutdented = state.sCount[nextLine] < state.blkIndent;
 		pos = state.bMarks[nextLine] + state.tShift[nextLine];
 		max = state.eMarks[nextLine];
-		if (pos >= max) {
-			break;
-		}
+		if (pos >= max) break;
 		if (state.src.charCodeAt(pos++) === 62 && !isOutdented) {
 			let initial = state.sCount[nextLine] + 1;
 			let spaceAfterMarker;
@@ -13293,26 +11027,16 @@ function blockquote(state, startLine, endLine, silent) {
 					pos++;
 					initial++;
 					adjustTab = false;
-				} else {
-					adjustTab = true;
-				}
-			} else {
-				spaceAfterMarker = false;
-			}
+				} else adjustTab = true;
+			} else spaceAfterMarker = false;
 			let offset = initial;
 			oldBMarks.push(state.bMarks[nextLine]);
 			state.bMarks[nextLine] = pos;
 			while (pos < max) {
 				const ch = state.src.charCodeAt(pos);
-				if (isSpace(ch)) {
-					if (ch === 9) {
-						offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
-					} else {
-						offset++;
-					}
-				} else {
-					break;
-				}
+				if (isSpace(ch)) if (ch === 9) offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
+				else offset++;
+				else break;
 				pos++;
 			}
 			lastLineEmpty = pos >= max;
@@ -13324,15 +11048,11 @@ function blockquote(state, startLine, endLine, silent) {
 			state.tShift[nextLine] = pos - state.bMarks[nextLine];
 			continue;
 		}
-		if (lastLineEmpty) {
-			break;
-		}
+		if (lastLineEmpty) break;
 		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) {
-			if (terminatorRules[i](state, nextLine, endLine, true)) {
-				terminate = true;
-				break;
-			}
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
+			break;
 		}
 		if (terminate) {
 			state.lineMax = nextLine;
@@ -13372,52 +11092,33 @@ function blockquote(state, startLine, endLine, silent) {
 	state.blkIndent = oldIndent;
 	return true;
 }
-
 function hr(state, startLine, endLine, silent) {
 	const max = state.eMarks[startLine];
-	if (state.sCount[startLine] - state.blkIndent >= 4) {
-		return false;
-	}
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
 	const marker = state.src.charCodeAt(pos++);
-	if (marker !== 42 && marker !== 45 && marker !== 95) {
-		return false;
-	}
+	if (marker !== 42 && marker !== 45 && marker !== 95) return false;
 	let cnt = 1;
 	while (pos < max) {
 		const ch = state.src.charCodeAt(pos++);
-		if (ch !== marker && !isSpace(ch)) {
-			return false;
-		}
-		if (ch === marker) {
-			cnt++;
-		}
+		if (ch !== marker && !isSpace(ch)) return false;
+		if (ch === marker) cnt++;
 	}
-	if (cnt < 3) {
-		return false;
-	}
-	if (silent) {
-		return true;
-	}
+	if (cnt < 3) return false;
+	if (silent) return true;
 	state.line = startLine + 1;
 	const token = state.push("hr", "hr", 0);
 	token.map = [startLine, state.line];
 	token.markup = Array(cnt + 1).join(String.fromCharCode(marker));
 	return true;
 }
-
 function skipBulletListMarker(state, startLine) {
 	const max = state.eMarks[startLine];
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
 	const marker = state.src.charCodeAt(pos++);
-	if (marker !== 42 && marker !== 45 && marker !== 43) {
-		return -1;
-	}
+	if (marker !== 42 && marker !== 45 && marker !== 43) return -1;
 	if (pos < max) {
-		const ch = state.src.charCodeAt(pos);
-		if (!isSpace(ch)) {
-			return -1;
-		}
+		if (!isSpace(state.src.charCodeAt(pos))) return -1;
 	}
 	return pos;
 }
@@ -13425,62 +11126,42 @@ function skipOrderedListMarker(state, startLine) {
 	const start = state.bMarks[startLine] + state.tShift[startLine];
 	const max = state.eMarks[startLine];
 	let pos = start;
-	if (pos + 1 >= max) {
-		return -1;
-	}
+	if (pos + 1 >= max) return -1;
 	let ch = state.src.charCodeAt(pos++);
-	if (ch < 48 || ch > 57) {
-		return -1;
-	}
+	if (ch < 48 || ch > 57) return -1;
 	for (;;) {
-		if (pos >= max) {
-			return -1;
-		}
+		if (pos >= max) return -1;
 		ch = state.src.charCodeAt(pos++);
 		if (ch >= 48 && ch <= 57) {
-			if (pos - start >= 10) {
-				return -1;
-			}
+			if (pos - start >= 10) return -1;
 			continue;
 		}
-		if (ch === 41 || ch === 46) {
-			break;
-		}
+		if (ch === 41 || ch === 46) break;
 		return -1;
 	}
 	if (pos < max) {
 		ch = state.src.charCodeAt(pos);
-		if (!isSpace(ch)) {
-			return -1;
-		}
+		if (!isSpace(ch)) return -1;
 	}
 	return pos;
 }
 function markTightParagraphs(state, idx) {
 	const level = state.level + 2;
-	for (let i = idx + 2, l = state.tokens.length - 2; i < l; i++) {
-		if (state.tokens[i].level === level && state.tokens[i].type === "paragraph_open") {
-			state.tokens[i + 2].hidden = true;
-			state.tokens[i].hidden = true;
-			i += 2;
-		}
+	for (let i = idx + 2, l = state.tokens.length - 2; i < l; i++) if (state.tokens[i].level === level && state.tokens[i].type === "paragraph_open") {
+		state.tokens[i + 2].hidden = true;
+		state.tokens[i].hidden = true;
+		i += 2;
 	}
 }
 function list(state, startLine, endLine, silent) {
 	let max, pos, start, token;
 	let nextLine = startLine;
 	let tight = true;
-	if (state.sCount[nextLine] - state.blkIndent >= 4) {
-		return false;
-	}
-	if (state.listIndent >= 0 && state.sCount[nextLine] - state.listIndent >= 4 && state.sCount[nextLine] < state.blkIndent) {
-		return false;
-	}
+	if (state.sCount[nextLine] - state.blkIndent >= 4) return false;
+	if (state.listIndent >= 0 && state.sCount[nextLine] - state.listIndent >= 4 && state.sCount[nextLine] < state.blkIndent) return false;
 	let isTerminatingParagraph = false;
 	if (silent && state.parentType === "paragraph") {
-		if (state.sCount[nextLine] >= state.blkIndent) {
-			isTerminatingParagraph = true;
-		}
+		if (state.sCount[nextLine] >= state.blkIndent) isTerminatingParagraph = true;
 	}
 	let isOrdered;
 	let markerValue;
@@ -13490,27 +11171,18 @@ function list(state, startLine, endLine, silent) {
 		start = state.bMarks[nextLine] + state.tShift[nextLine];
 		markerValue = Number(state.src.slice(start, posAfterMarker - 1));
 		if (isTerminatingParagraph && markerValue !== 1) return false;
-	} else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) {
-		isOrdered = false;
-	} else {
-		return false;
-	}
+	} else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) isOrdered = false;
+	else return false;
 	if (isTerminatingParagraph) {
 		if (state.skipSpaces(posAfterMarker) >= state.eMarks[nextLine]) return false;
 	}
-	if (silent) {
-		return true;
-	}
+	if (silent) return true;
 	const markerCharCode = state.src.charCodeAt(posAfterMarker - 1);
 	const listTokIdx = state.tokens.length;
 	if (isOrdered) {
 		token = state.push("ordered_list_open", "ol", 1);
-		if (markerValue !== 1) {
-			token.attrs = [["start", markerValue]];
-		}
-	} else {
-		token = state.push("bullet_list_open", "ul", 1);
-	}
+		if (markerValue !== 1) token.attrs = [["start", markerValue]];
+	} else token = state.push("bullet_list_open", "ul", 1);
 	const listLines = [nextLine, 0];
 	token.map = listLines;
 	token.markup = String.fromCharCode(markerCharCode);
@@ -13525,33 +11197,22 @@ function list(state, startLine, endLine, silent) {
 		let offset = initial;
 		while (pos < max) {
 			const ch = state.src.charCodeAt(pos);
-			if (ch === 9) {
-				offset += 4 - (offset + state.bsCount[nextLine]) % 4;
-			} else if (ch === 32) {
-				offset++;
-			} else {
-				break;
-			}
+			if (ch === 9) offset += 4 - (offset + state.bsCount[nextLine]) % 4;
+			else if (ch === 32) offset++;
+			else break;
 			pos++;
 		}
 		const contentStart = pos;
 		let indentAfterMarker;
-		if (contentStart >= max) {
-			indentAfterMarker = 1;
-		} else {
-			indentAfterMarker = offset - initial;
-		}
-		if (indentAfterMarker > 4) {
-			indentAfterMarker = 1;
-		}
+		if (contentStart >= max) indentAfterMarker = 1;
+		else indentAfterMarker = offset - initial;
+		if (indentAfterMarker > 4) indentAfterMarker = 1;
 		const indent = initial + indentAfterMarker;
 		token = state.push("list_item_open", "li", 1);
 		token.markup = String.fromCharCode(markerCharCode);
 		const itemLines = [nextLine, 0];
 		token.map = itemLines;
-		if (isOrdered) {
-			token.info = state.src.slice(start, posAfterMarker - 1);
-		}
+		if (isOrdered) token.info = state.src.slice(start, posAfterMarker - 1);
 		const oldTight = state.tight;
 		const oldTShift = state.tShift[nextLine];
 		const oldSCount = state.sCount[nextLine];
@@ -13561,14 +11222,9 @@ function list(state, startLine, endLine, silent) {
 		state.tight = true;
 		state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
 		state.sCount[nextLine] = offset;
-		if (contentStart >= max && state.isEmpty(nextLine + 1)) {
-			state.line = Math.min(state.line + 2, endLine);
-		} else {
-			state.md.block.tokenize(state, nextLine, endLine, true);
-		}
-		if (!state.tight || prevEmptyEnd) {
-			tight = false;
-		}
+		if (contentStart >= max && state.isEmpty(nextLine + 1)) state.line = Math.min(state.line + 2, endLine);
+		else state.md.block.tokenize(state, nextLine, endLine, true);
+		if (!state.tight || prevEmptyEnd) tight = false;
 		prevEmptyEnd = state.line - nextLine > 1 && state.isEmpty(state.line - 1);
 		state.blkIndent = state.listIndent;
 		state.listIndent = oldListIndent;
@@ -13579,93 +11235,57 @@ function list(state, startLine, endLine, silent) {
 		token.markup = String.fromCharCode(markerCharCode);
 		nextLine = state.line;
 		itemLines[1] = nextLine;
-		if (nextLine >= endLine) {
-			break;
-		}
-		if (state.sCount[nextLine] < state.blkIndent) {
-			break;
-		}
-		if (state.sCount[nextLine] - state.blkIndent >= 4) {
-			break;
-		}
+		if (nextLine >= endLine) break;
+		if (state.sCount[nextLine] < state.blkIndent) break;
+		if (state.sCount[nextLine] - state.blkIndent >= 4) break;
 		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) {
-			if (terminatorRules[i](state, nextLine, endLine, true)) {
-				terminate = true;
-				break;
-			}
-		}
-		if (terminate) {
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
 			break;
 		}
+		if (terminate) break;
 		if (isOrdered) {
 			posAfterMarker = skipOrderedListMarker(state, nextLine);
-			if (posAfterMarker < 0) {
-				break;
-			}
+			if (posAfterMarker < 0) break;
 			start = state.bMarks[nextLine] + state.tShift[nextLine];
 		} else {
 			posAfterMarker = skipBulletListMarker(state, nextLine);
-			if (posAfterMarker < 0) {
-				break;
-			}
+			if (posAfterMarker < 0) break;
 		}
-		if (markerCharCode !== state.src.charCodeAt(posAfterMarker - 1)) {
-			break;
-		}
+		if (markerCharCode !== state.src.charCodeAt(posAfterMarker - 1)) break;
 	}
-	if (isOrdered) {
-		token = state.push("ordered_list_close", "ol", -1);
-	} else {
-		token = state.push("bullet_list_close", "ul", -1);
-	}
+	if (isOrdered) token = state.push("ordered_list_close", "ol", -1);
+	else token = state.push("bullet_list_close", "ul", -1);
 	token.markup = String.fromCharCode(markerCharCode);
 	listLines[1] = nextLine;
 	state.line = nextLine;
 	state.parentType = oldParentType;
-	if (tight) {
-		markTightParagraphs(state, listTokIdx);
-	}
+	if (tight) markTightParagraphs(state, listTokIdx);
 	return true;
 }
-
 function reference(state, startLine, _endLine, silent) {
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
 	let max = state.eMarks[startLine];
 	let nextLine = startLine + 1;
-	if (state.sCount[startLine] - state.blkIndent >= 4) {
-		return false;
-	}
-	if (state.src.charCodeAt(pos) !== 91) {
-		return false;
-	}
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	if (state.src.charCodeAt(pos) !== 91) return false;
 	function getNextLine(nextLine) {
 		const endLine = state.lineMax;
-		if (nextLine >= endLine || state.isEmpty(nextLine)) {
-			return null;
-		}
+		if (nextLine >= endLine || state.isEmpty(nextLine)) return null;
 		let isContinuation = false;
-		if (state.sCount[nextLine] - state.blkIndent > 3) {
-			isContinuation = true;
-		}
-		if (state.sCount[nextLine] < 0) {
-			isContinuation = true;
-		}
+		if (state.sCount[nextLine] - state.blkIndent > 3) isContinuation = true;
+		if (state.sCount[nextLine] < 0) isContinuation = true;
 		if (!isContinuation) {
 			const terminatorRules = state.md.block.ruler.getRules("reference");
 			const oldParentType = state.parentType;
 			state.parentType = "reference";
 			let terminate = false;
-			for (let i = 0, l = terminatorRules.length; i < l; i++) {
-				if (terminatorRules[i](state, nextLine, endLine, true)) {
-					terminate = true;
-					break;
-				}
+			for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+				terminate = true;
+				break;
 			}
 			state.parentType = oldParentType;
-			if (terminate) {
-				return null;
-			}
+			if (terminate) return null;
 		}
 		const pos = state.bMarks[nextLine] + state.tShift[nextLine];
 		const max = state.eMarks[nextLine];
@@ -13676,9 +11296,8 @@ function reference(state, startLine, _endLine, silent) {
 	let labelEnd = -1;
 	for (pos = 1; pos < max; pos++) {
 		const ch = str.charCodeAt(pos);
-		if (ch === 91) {
-			return false;
-		} else if (ch === 93) {
+		if (ch === 91) return false;
+		else if (ch === 93) {
 			labelEnd = pos;
 			break;
 		} else if (ch === 10) {
@@ -13700,9 +11319,7 @@ function reference(state, startLine, _endLine, silent) {
 			}
 		}
 	}
-	if (labelEnd < 0 || str.charCodeAt(labelEnd + 1) !== 58) {
-		return false;
-	}
+	if (labelEnd < 0 || str.charCodeAt(labelEnd + 1) !== 58) return false;
 	for (pos = labelEnd + 2; pos < max; pos++) {
 		const ch = str.charCodeAt(pos);
 		if (ch === 10) {
@@ -13712,18 +11329,12 @@ function reference(state, startLine, _endLine, silent) {
 				max = str.length;
 				nextLine++;
 			}
-		} else if (isSpace(ch)) {} else {
-			break;
-		}
+		} else if (isSpace(ch)) {} else break;
 	}
 	const destRes = state.md.helpers.parseLinkDestination(str, pos, max);
-	if (!destRes.ok) {
-		return false;
-	}
+	if (!destRes.ok) return false;
 	const href = state.md.normalizeLink(destRes.str);
-	if (!state.md.validateLink(href)) {
-		return false;
-	}
+	if (!state.md.validateLink(href)) return false;
 	pos = destRes.pos;
 	const destEndPos = pos;
 	const destEndLineNo = nextLine;
@@ -13737,9 +11348,7 @@ function reference(state, startLine, _endLine, silent) {
 				max = str.length;
 				nextLine++;
 			}
-		} else if (isSpace(ch)) {} else {
-			break;
-		}
+		} else if (isSpace(ch)) {} else break;
 	}
 	let titleRes = state.md.helpers.parseLinkTitle(str, pos, max);
 	while (titleRes.can_continue) {
@@ -13761,10 +11370,7 @@ function reference(state, startLine, _endLine, silent) {
 		nextLine = destEndLineNo;
 	}
 	while (pos < max) {
-		const ch = str.charCodeAt(pos);
-		if (!isSpace(ch)) {
-			break;
-		}
+		if (!isSpace(str.charCodeAt(pos))) break;
 		pos++;
 	}
 	if (pos < max && str.charCodeAt(pos) !== 10) {
@@ -13773,38 +11379,24 @@ function reference(state, startLine, _endLine, silent) {
 			pos = destEndPos;
 			nextLine = destEndLineNo;
 			while (pos < max) {
-				const ch = str.charCodeAt(pos);
-				if (!isSpace(ch)) {
-					break;
-				}
+				if (!isSpace(str.charCodeAt(pos))) break;
 				pos++;
 			}
 		}
 	}
-	if (pos < max && str.charCodeAt(pos) !== 10) {
-		return false;
-	}
+	if (pos < max && str.charCodeAt(pos) !== 10) return false;
 	const label = normalizeReference(str.slice(1, labelEnd));
-	if (!label) {
-		return false;
-	}
+	if (!label) return false;
 	/* istanbul ignore if */
-	if (silent) {
-		return true;
-	}
-	if (typeof state.env.references === "undefined") {
-		state.env.references = {};
-	}
-	if (typeof state.env.references[label] === "undefined") {
-		state.env.references[label] = {
-			title,
-			href
-		};
-	}
+	if (silent) return true;
+	if (typeof state.env.references === "undefined") state.env.references = {};
+	if (typeof state.env.references[label] === "undefined") state.env.references[label] = {
+		title,
+		href
+	};
 	state.line = nextLine;
 	return true;
 }
-
 var html_blocks_default = [
 	"address",
 	"article",
@@ -13869,22 +11461,9 @@ var html_blocks_default = [
 	"track",
 	"ul"
 ];
-
-const attr_name = "[a-zA-Z_:][a-zA-Z0-9:._-]*";
-const unquoted = "[^\"'=<>`\\x00-\\x20]+";
-const single_quoted = "'[^']*'";
-const double_quoted = "\"[^\"]*\"";
-const attr_value = "(?:" + unquoted + "|" + single_quoted + "|" + double_quoted + ")";
-const attribute = "(?:\\s+" + attr_name + "(?:\\s*=\\s*" + attr_value + ")?)";
-const open_tag = "<[A-Za-z][A-Za-z0-9\\-]*" + attribute + "*\\s*\\/?>";
-const close_tag = "<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>";
-const comment = "<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->";
-const processing = "<[?][\\s\\S]*?[?]>";
-const declaration = "<![A-Za-z][^>]*>";
-const cdata = "<!\\[CDATA\\[[\\s\\S]*?\\]\\]>";
-const HTML_TAG_RE = new RegExp("^(?:" + open_tag + "|" + close_tag + "|" + comment + "|" + processing + "|" + declaration + "|" + cdata + ")");
-const HTML_OPEN_CLOSE_TAG_RE = new RegExp("^(?:" + open_tag + "|" + close_tag + ")");
-
+const open_tag = "<[A-Za-z][A-Za-z0-9\\-]*(?:\\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(?:\\s*=\\s*(?:[^\"'=<>`\\x00-\\x20]+|'[^']*'|\"[^\"]*\"))?)*\\s*\\/?>";
+const HTML_TAG_RE = new RegExp("^(?:" + open_tag + "|<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>|<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->|<[?][\\s\\S]*?[?]>|<![A-Za-z][^>]*>|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>)");
+const HTML_OPEN_CLOSE_TAG_RE = new RegExp("^(?:" + open_tag + "|<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>)");
 const HTML_SEQUENCES = [
 	[
 		/^<(script|pre|style|textarea)(?=(\s|>|$))/i,
@@ -13925,43 +11504,23 @@ const HTML_SEQUENCES = [
 function html_block(state, startLine, endLine, silent) {
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
 	let max = state.eMarks[startLine];
-	if (state.sCount[startLine] - state.blkIndent >= 4) {
-		return false;
-	}
-	if (!state.md.options.html) {
-		return false;
-	}
-	if (state.src.charCodeAt(pos) !== 60) {
-		return false;
-	}
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	if (!state.md.options.html) return false;
+	if (state.src.charCodeAt(pos) !== 60) return false;
 	let lineText = state.src.slice(pos, max);
 	let i = 0;
-	for (; i < HTML_SEQUENCES.length; i++) {
-		if (HTML_SEQUENCES[i][0].test(lineText)) {
-			break;
-		}
-	}
-	if (i === HTML_SEQUENCES.length) {
-		return false;
-	}
-	if (silent) {
-		return HTML_SEQUENCES[i][2];
-	}
+	for (; i < HTML_SEQUENCES.length; i++) if (HTML_SEQUENCES[i][0].test(lineText)) break;
+	if (i === HTML_SEQUENCES.length) return false;
+	if (silent) return HTML_SEQUENCES[i][2];
 	let nextLine = startLine + 1;
-	if (!HTML_SEQUENCES[i][1].test(lineText)) {
-		for (; nextLine < endLine; nextLine++) {
-			if (state.sCount[nextLine] < state.blkIndent) {
-				break;
-			}
-			pos = state.bMarks[nextLine] + state.tShift[nextLine];
-			max = state.eMarks[nextLine];
-			lineText = state.src.slice(pos, max);
-			if (HTML_SEQUENCES[i][1].test(lineText)) {
-				if (lineText.length !== 0) {
-					nextLine++;
-				}
-				break;
-			}
+	if (!HTML_SEQUENCES[i][1].test(lineText)) for (; nextLine < endLine; nextLine++) {
+		if (state.sCount[nextLine] < state.blkIndent) break;
+		pos = state.bMarks[nextLine] + state.tShift[nextLine];
+		max = state.eMarks[nextLine];
+		lineText = state.src.slice(pos, max);
+		if (HTML_SEQUENCES[i][1].test(lineText)) {
+			if (lineText.length !== 0) nextLine++;
+			break;
 		}
 	}
 	state.line = nextLine;
@@ -13970,34 +11529,23 @@ function html_block(state, startLine, endLine, silent) {
 	token.content = state.getLines(startLine, nextLine, state.blkIndent, true);
 	return true;
 }
-
 function heading(state, startLine, endLine, silent) {
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
 	let max = state.eMarks[startLine];
-	if (state.sCount[startLine] - state.blkIndent >= 4) {
-		return false;
-	}
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
 	let ch = state.src.charCodeAt(pos);
-	if (ch !== 35 || pos >= max) {
-		return false;
-	}
+	if (ch !== 35 || pos >= max) return false;
 	let level = 1;
 	ch = state.src.charCodeAt(++pos);
 	while (ch === 35 && pos < max && level <= 6) {
 		level++;
 		ch = state.src.charCodeAt(++pos);
 	}
-	if (level > 6 || pos < max && !isSpace(ch)) {
-		return false;
-	}
-	if (silent) {
-		return true;
-	}
+	if (level > 6 || pos < max && !isSpace(ch)) return false;
+	if (silent) return true;
 	max = state.skipSpacesBack(max, pos);
 	const tmp = state.skipCharsBack(max, 35, pos);
-	if (tmp > pos && isSpace(state.src.charCodeAt(tmp - 1))) {
-		max = tmp;
-	}
+	if (tmp > pos && isSpace(state.src.charCodeAt(tmp - 1))) max = tmp;
 	state.line = startLine + 1;
 	const token_o = state.push("heading_open", "h" + String(level), 1);
 	token_o.markup = "########".slice(0, level);
@@ -14010,21 +11558,16 @@ function heading(state, startLine, endLine, silent) {
 	token_c.markup = "########".slice(0, level);
 	return true;
 }
-
 function lheading(state, startLine, endLine) {
 	const terminatorRules = state.md.block.ruler.getRules("paragraph");
-	if (state.sCount[startLine] - state.blkIndent >= 4) {
-		return false;
-	}
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
 	const oldParentType = state.parentType;
 	state.parentType = "paragraph";
 	let level = 0;
 	let marker;
 	let nextLine = startLine + 1;
 	for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
-		if (state.sCount[nextLine] - state.blkIndent > 3) {
-			continue;
-		}
+		if (state.sCount[nextLine] - state.blkIndent > 3) continue;
 		if (state.sCount[nextLine] >= state.blkIndent) {
 			let pos = state.bMarks[nextLine] + state.tShift[nextLine];
 			const max = state.eMarks[nextLine];
@@ -14040,23 +11583,15 @@ function lheading(state, startLine, endLine) {
 				}
 			}
 		}
-		if (state.sCount[nextLine] < 0) {
-			continue;
-		}
+		if (state.sCount[nextLine] < 0) continue;
 		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) {
-			if (terminatorRules[i](state, nextLine, endLine, true)) {
-				terminate = true;
-				break;
-			}
-		}
-		if (terminate) {
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
 			break;
 		}
+		if (terminate) break;
 	}
-	if (!level) {
-		return false;
-	}
+	if (!level) return false;
 	const content = state.getLines(startLine, nextLine, state.blkIndent, false).trim();
 	state.line = nextLine + 1;
 	const token_o = state.push("heading_open", "h" + String(level), 1);
@@ -14071,29 +11606,20 @@ function lheading(state, startLine, endLine) {
 	state.parentType = oldParentType;
 	return true;
 }
-
 function paragraph(state, startLine, endLine) {
 	const terminatorRules = state.md.block.ruler.getRules("paragraph");
 	const oldParentType = state.parentType;
 	let nextLine = startLine + 1;
 	state.parentType = "paragraph";
 	for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
-		if (state.sCount[nextLine] - state.blkIndent > 3) {
-			continue;
-		}
-		if (state.sCount[nextLine] < 0) {
-			continue;
-		}
+		if (state.sCount[nextLine] - state.blkIndent > 3) continue;
+		if (state.sCount[nextLine] < 0) continue;
 		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) {
-			if (terminatorRules[i](state, nextLine, endLine, true)) {
-				terminate = true;
-				break;
-			}
-		}
-		if (terminate) {
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
 			break;
 		}
+		if (terminate) break;
 	}
 	const content = state.getLines(startLine, nextLine, state.blkIndent, false).trim();
 	state.line = nextLine;
@@ -14107,7 +11633,6 @@ function paragraph(state, startLine, endLine) {
 	state.parentType = oldParentType;
 	return true;
 }
-
 /** internal
 * class ParserBlock
 *
@@ -14191,9 +11716,7 @@ function ParserBlock() {
 	* [[Ruler]] instance. Keep configuration of block rules.
 	**/
 	this.ruler = new Ruler();
-	for (let i = 0; i < _rules$1.length; i++) {
-		this.ruler.push(_rules$1[i][0], _rules$1[i][1], { alt: (_rules$1[i][2] || []).slice() });
-	}
+	for (let i = 0; i < _rules$1.length; i++) this.ruler.push(_rules$1[i][0], _rules$1[i][1], { alt: (_rules$1[i][2] || []).slice() });
 }
 ParserBlock.prototype.tokenize = function(state, startLine, endLine) {
 	const rules = this.ruler.getRules("");
@@ -14203,12 +11726,8 @@ ParserBlock.prototype.tokenize = function(state, startLine, endLine) {
 	let hasEmptyLines = false;
 	while (line < endLine) {
 		state.line = line = state.skipEmptyLines(line);
-		if (line >= endLine) {
-			break;
-		}
-		if (state.sCount[line] < state.blkIndent) {
-			break;
-		}
+		if (line >= endLine) break;
+		if (state.sCount[line] < state.blkIndent) break;
 		if (state.level >= maxNesting) {
 			state.line = endLine;
 			break;
@@ -14218,17 +11737,13 @@ ParserBlock.prototype.tokenize = function(state, startLine, endLine) {
 		for (let i = 0; i < len; i++) {
 			ok = rules[i](state, line, endLine, false);
 			if (ok) {
-				if (prevLine >= state.line) {
-					throw new Error("block rule didn't increment state.line");
-				}
+				if (prevLine >= state.line) throw new Error("block rule didn't increment state.line");
 				break;
 			}
 		}
 		if (!ok) throw new Error("none of the block rules matched");
 		state.tight = !hasEmptyLines;
-		if (state.isEmpty(state.line - 1)) {
-			hasEmptyLines = true;
-		}
+		if (state.isEmpty(state.line - 1)) hasEmptyLines = true;
 		line = state.line;
 		if (line < endLine && state.isEmpty(line)) {
 			hasEmptyLines = true;
@@ -14243,14 +11758,11 @@ ParserBlock.prototype.tokenize = function(state, startLine, endLine) {
 * Process input string and push block tokens into `outTokens`
 **/
 ParserBlock.prototype.parse = function(src, md, env, outTokens) {
-	if (!src) {
-		return;
-	}
+	if (!src) return;
 	const state = new this.State(src, md, env, outTokens);
 	this.tokenize(state, state.line, state.lineMax);
 };
 ParserBlock.prototype.State = StateBlock;
-
 function StateInline(src, md, env, outTokens) {
 	this.src = src;
 	this.env = env;
@@ -14278,9 +11790,7 @@ StateInline.prototype.pushPending = function() {
 	return token;
 };
 StateInline.prototype.push = function(type, tag, nesting) {
-	if (this.pending) {
-		this.pushPending();
-	}
+	if (this.pending) this.pushPending();
 	const token = new Token(type, tag, nesting);
 	let token_meta = null;
 	if (nesting < 0) {
@@ -14304,9 +11814,7 @@ StateInline.prototype.scanDelims = function(start, canSplitWord) {
 	const marker = this.src.charCodeAt(start);
 	const lastChar = start > 0 ? this.src.charCodeAt(start - 1) : 32;
 	let pos = start;
-	while (pos < max && this.src.charCodeAt(pos) === marker) {
-		pos++;
-	}
+	while (pos < max && this.src.charCodeAt(pos) === marker) pos++;
 	const count = pos - start;
 	const nextChar = pos < max ? this.src.charCodeAt(pos) : 32;
 	const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
@@ -14315,16 +11823,13 @@ StateInline.prototype.scanDelims = function(start, canSplitWord) {
 	const isNextWhiteSpace = isWhiteSpace(nextChar);
 	const left_flanking = !isNextWhiteSpace && (!isNextPunctChar || isLastWhiteSpace || isLastPunctChar);
 	const right_flanking = !isLastWhiteSpace && (!isLastPunctChar || isNextWhiteSpace || isNextPunctChar);
-	const can_open = left_flanking && (canSplitWord || !right_flanking || isLastPunctChar);
-	const can_close = right_flanking && (canSplitWord || !left_flanking || isNextPunctChar);
 	return {
-		can_open,
-		can_close,
+		can_open: left_flanking && (canSplitWord || !right_flanking || isLastPunctChar),
+		can_close: right_flanking && (canSplitWord || !left_flanking || isNextPunctChar),
 		length: count
 	};
 };
 StateInline.prototype.Token = Token;
-
 function isTerminatorChar(ch) {
 	switch (ch) {
 		case 10:
@@ -14355,19 +11860,12 @@ function isTerminatorChar(ch) {
 }
 function text(state, silent) {
 	let pos = state.pos;
-	while (pos < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos))) {
-		pos++;
-	}
-	if (pos === state.pos) {
-		return false;
-	}
-	if (!silent) {
-		state.pending += state.src.slice(state.pos, pos);
-	}
+	while (pos < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos))) pos++;
+	if (pos === state.pos) return false;
+	if (!silent) state.pending += state.src.slice(state.pos, pos);
 	state.pos = pos;
 	return true;
 }
-
 const SCHEME_RE = /(?:^|[^a-z0-9.+-])([a-z][a-z0-9.+-]*)$/i;
 function linkify(state, silent) {
 	if (!state.md.options.linkify) return false;
@@ -14386,12 +11884,8 @@ function linkify(state, silent) {
 	let url = link.url;
 	if (url.length <= proto.length) return false;
 	let urlEnd = url.length;
-	while (urlEnd > 0 && url.charCodeAt(urlEnd - 1) === 42) {
-		urlEnd--;
-	}
-	if (urlEnd !== url.length) {
-		url = url.slice(0, urlEnd);
-	}
+	while (urlEnd > 0 && url.charCodeAt(urlEnd - 1) === 42) urlEnd--;
+	if (urlEnd !== url.length) url = url.slice(0, urlEnd);
 	const fullUrl = state.md.normalizeLink(url);
 	if (!state.md.validateLink(fullUrl)) return false;
 	if (!silent) {
@@ -14409,41 +11903,28 @@ function linkify(state, silent) {
 	state.pos += url.length - proto.length;
 	return true;
 }
-
 function newline(state, silent) {
 	let pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 10) {
-		return false;
-	}
+	if (state.src.charCodeAt(pos) !== 10) return false;
 	const pmax = state.pending.length - 1;
 	const max = state.posMax;
-	if (!silent) {
-		if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) {
-			if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
-				let ws = pmax - 1;
-				while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
-				state.pending = state.pending.slice(0, ws);
-				state.push("hardbreak", "br", 0);
-			} else {
-				state.pending = state.pending.slice(0, -1);
-				state.push("softbreak", "br", 0);
-			}
-		} else {
-			state.push("softbreak", "br", 0);
-		}
+	if (!silent) if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
+		let ws = pmax - 1;
+		while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
+		state.pending = state.pending.slice(0, ws);
+		state.push("hardbreak", "br", 0);
+	} else {
+		state.pending = state.pending.slice(0, -1);
+		state.push("softbreak", "br", 0);
 	}
+	else state.push("softbreak", "br", 0);
 	pos++;
-	while (pos < max && isSpace(state.src.charCodeAt(pos))) {
-		pos++;
-	}
+	while (pos < max && isSpace(state.src.charCodeAt(pos))) pos++;
 	state.pos = pos;
 	return true;
 }
-
 const ESCAPED = [];
-for (let i = 0; i < 256; i++) {
-	ESCAPED.push(0);
-}
+for (let i = 0; i < 256; i++) ESCAPED.push(0);
 "\\!\"#$%&'()*+,./:;<=>?@[]^_`{|}~-".split("").forEach(function(ch) {
 	ESCAPED[ch.charCodeAt(0)] = 1;
 });
@@ -14455,9 +11936,7 @@ function escape(state, silent) {
 	if (pos >= max) return false;
 	let ch1 = state.src.charCodeAt(pos);
 	if (ch1 === 10) {
-		if (!silent) {
-			state.push("hardbreak", "br", 0);
-		}
+		if (!silent) state.push("hardbreak", "br", 0);
 		pos++;
 		while (pos < max) {
 			ch1 = state.src.charCodeAt(pos);
@@ -14478,30 +11957,21 @@ function escape(state, silent) {
 	const origStr = "\\" + escapedStr;
 	if (!silent) {
 		const token = state.push("text_special", "", 0);
-		if (ch1 < 256 && ESCAPED[ch1] !== 0) {
-			token.content = escapedStr;
-		} else {
-			token.content = origStr;
-		}
+		if (ch1 < 256 && ESCAPED[ch1] !== 0) token.content = escapedStr;
+		else token.content = origStr;
 		token.markup = origStr;
 		token.info = "escape";
 	}
 	state.pos = pos + 1;
 	return true;
 }
-
 function backtick(state, silent) {
 	let pos = state.pos;
-	const ch = state.src.charCodeAt(pos);
-	if (ch !== 96) {
-		return false;
-	}
+	if (state.src.charCodeAt(pos) !== 96) return false;
 	const start = pos;
 	pos++;
 	const max = state.posMax;
-	while (pos < max && state.src.charCodeAt(pos) === 96) {
-		pos++;
-	}
+	while (pos < max && state.src.charCodeAt(pos) === 96) pos++;
 	const marker = state.src.slice(start, pos);
 	const openerLength = marker.length;
 	if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
@@ -14513,9 +11983,7 @@ function backtick(state, silent) {
 	let matchStart;
 	while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1) {
 		matchEnd = matchStart + 1;
-		while (matchEnd < max && state.src.charCodeAt(matchEnd) === 96) {
-			matchEnd++;
-		}
+		while (matchEnd < max && state.src.charCodeAt(matchEnd) === 96) matchEnd++;
 		const closerLength = matchEnd - matchStart;
 		if (closerLength === openerLength) {
 			if (!silent) {
@@ -14533,22 +12001,15 @@ function backtick(state, silent) {
 	state.pos += openerLength;
 	return true;
 }
-
 function strikethrough_tokenize(state, silent) {
 	const start = state.pos;
 	const marker = state.src.charCodeAt(start);
-	if (silent) {
-		return false;
-	}
-	if (marker !== 126) {
-		return false;
-	}
+	if (silent) return false;
+	if (marker !== 126) return false;
 	const scanned = state.scanDelims(state.pos, true);
 	let len = scanned.length;
 	const ch = String.fromCharCode(marker);
-	if (len < 2) {
-		return false;
-	}
+	if (len < 2) return false;
 	let token;
 	if (len % 2) {
 		token = state.push("text", "", 0);
@@ -14576,12 +12037,8 @@ function postProcess$1(state, delimiters) {
 	const max = delimiters.length;
 	for (let i = 0; i < max; i++) {
 		const startDelim = delimiters[i];
-		if (startDelim.marker !== 126) {
-			continue;
-		}
-		if (startDelim.end === -1) {
-			continue;
-		}
+		if (startDelim.marker !== 126) continue;
+		if (startDelim.end === -1) continue;
 		const endDelim = delimiters[startDelim.end];
 		token = state.tokens[startDelim.token];
 		token.type = "s_open";
@@ -14595,16 +12052,12 @@ function postProcess$1(state, delimiters) {
 		token.nesting = -1;
 		token.markup = "~~";
 		token.content = "";
-		if (state.tokens[endDelim.token - 1].type === "text" && state.tokens[endDelim.token - 1].content === "~") {
-			loneMarkers.push(endDelim.token - 1);
-		}
+		if (state.tokens[endDelim.token - 1].type === "text" && state.tokens[endDelim.token - 1].content === "~") loneMarkers.push(endDelim.token - 1);
 	}
 	while (loneMarkers.length) {
 		const i = loneMarkers.pop();
 		let j = i + 1;
-		while (j < state.tokens.length && state.tokens[j].type === "s_close") {
-			j++;
-		}
+		while (j < state.tokens.length && state.tokens[j].type === "s_close") j++;
 		j--;
 		if (i !== j) {
 			token = state.tokens[j];
@@ -14617,26 +12070,17 @@ function strikethrough_postProcess(state) {
 	const tokens_meta = state.tokens_meta;
 	const max = state.tokens_meta.length;
 	postProcess$1(state, state.delimiters);
-	for (let curr = 0; curr < max; curr++) {
-		if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
-			postProcess$1(state, tokens_meta[curr].delimiters);
-		}
-	}
+	for (let curr = 0; curr < max; curr++) if (tokens_meta[curr] && tokens_meta[curr].delimiters) postProcess$1(state, tokens_meta[curr].delimiters);
 }
 var strikethrough_default = {
 	tokenize: strikethrough_tokenize,
 	postProcess: strikethrough_postProcess
 };
-
 function emphasis_tokenize(state, silent) {
 	const start = state.pos;
 	const marker = state.src.charCodeAt(start);
-	if (silent) {
-		return false;
-	}
-	if (marker !== 95 && marker !== 42) {
-		return false;
-	}
+	if (silent) return false;
+	if (marker !== 95 && marker !== 42) return false;
 	const scanned = state.scanDelims(state.pos, marker === 42);
 	for (let i = 0; i < scanned.length; i++) {
 		const token = state.push("text", "", 0);
@@ -14657,12 +12101,8 @@ function postProcess(state, delimiters) {
 	const max = delimiters.length;
 	for (let i = max - 1; i >= 0; i--) {
 		const startDelim = delimiters[i];
-		if (startDelim.marker !== 95 && startDelim.marker !== 42) {
-			continue;
-		}
-		if (startDelim.end === -1) {
-			continue;
-		}
+		if (startDelim.marker !== 95 && startDelim.marker !== 42) continue;
+		if (startDelim.end === -1) continue;
 		const endDelim = delimiters[startDelim.end];
 		const isStrong = i > 0 && delimiters[i - 1].end === startDelim.end + 1 && delimiters[i - 1].marker === startDelim.marker && delimiters[i - 1].token === startDelim.token - 1 && delimiters[startDelim.end + 1].token === endDelim.token + 1;
 		const ch = String.fromCharCode(startDelim.marker);
@@ -14689,61 +12129,43 @@ function emphasis_post_process(state) {
 	const tokens_meta = state.tokens_meta;
 	const max = state.tokens_meta.length;
 	postProcess(state, state.delimiters);
-	for (let curr = 0; curr < max; curr++) {
-		if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
-			postProcess(state, tokens_meta[curr].delimiters);
-		}
-	}
+	for (let curr = 0; curr < max; curr++) if (tokens_meta[curr] && tokens_meta[curr].delimiters) postProcess(state, tokens_meta[curr].delimiters);
 }
 var emphasis_default = {
 	tokenize: emphasis_tokenize,
 	postProcess: emphasis_post_process
 };
-
 function link(state, silent) {
 	let code, label, res, ref;
 	let href = "";
 	let title = "";
 	let start = state.pos;
 	let parseReference = true;
-	if (state.src.charCodeAt(state.pos) !== 91) {
-		return false;
-	}
+	if (state.src.charCodeAt(state.pos) !== 91) return false;
 	const oldPos = state.pos;
 	const max = state.posMax;
 	const labelStart = state.pos + 1;
 	const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos, true);
-	if (labelEnd < 0) {
-		return false;
-	}
+	if (labelEnd < 0) return false;
 	let pos = labelEnd + 1;
 	if (pos < max && state.src.charCodeAt(pos) === 40) {
 		parseReference = false;
 		pos++;
 		for (; pos < max; pos++) {
 			code = state.src.charCodeAt(pos);
-			if (!isSpace(code) && code !== 10) {
-				break;
-			}
+			if (!isSpace(code) && code !== 10) break;
 		}
-		if (pos >= max) {
-			return false;
-		}
+		if (pos >= max) return false;
 		start = pos;
 		res = state.md.helpers.parseLinkDestination(state.src, pos, state.posMax);
 		if (res.ok) {
 			href = state.md.normalizeLink(res.str);
-			if (state.md.validateLink(href)) {
-				pos = res.pos;
-			} else {
-				href = "";
-			}
+			if (state.md.validateLink(href)) pos = res.pos;
+			else href = "";
 			start = pos;
 			for (; pos < max; pos++) {
 				code = state.src.charCodeAt(pos);
-				if (!isSpace(code) && code !== 10) {
-					break;
-				}
+				if (!isSpace(code) && code !== 10) break;
 			}
 			res = state.md.helpers.parseLinkTitle(state.src, pos, state.posMax);
 			if (pos < max && start !== pos && res.ok) {
@@ -14751,35 +12173,22 @@ function link(state, silent) {
 				pos = res.pos;
 				for (; pos < max; pos++) {
 					code = state.src.charCodeAt(pos);
-					if (!isSpace(code) && code !== 10) {
-						break;
-					}
+					if (!isSpace(code) && code !== 10) break;
 				}
 			}
 		}
-		if (pos >= max || state.src.charCodeAt(pos) !== 41) {
-			parseReference = true;
-		}
+		if (pos >= max || state.src.charCodeAt(pos) !== 41) parseReference = true;
 		pos++;
 	}
 	if (parseReference) {
-		if (typeof state.env.references === "undefined") {
-			return false;
-		}
+		if (typeof state.env.references === "undefined") return false;
 		if (pos < max && state.src.charCodeAt(pos) === 91) {
 			start = pos + 1;
 			pos = state.md.helpers.parseLinkLabel(state, pos);
-			if (pos >= 0) {
-				label = state.src.slice(start, pos++);
-			} else {
-				pos = labelEnd + 1;
-			}
-		} else {
-			pos = labelEnd + 1;
-		}
-		if (!label) {
-			label = state.src.slice(labelStart, labelEnd);
-		}
+			if (pos >= 0) label = state.src.slice(start, pos++);
+			else pos = labelEnd + 1;
+		} else pos = labelEnd + 1;
+		if (!label) label = state.src.slice(labelStart, labelEnd);
 		ref = state.env.references[normalizeReference(label)];
 		if (!ref) {
 			state.pos = oldPos;
@@ -14794,9 +12203,7 @@ function link(state, silent) {
 		const token_o = state.push("link_open", "a", 1);
 		const attrs = [["href", href]];
 		token_o.attrs = attrs;
-		if (title) {
-			attrs.push(["title", title]);
-		}
+		if (title) attrs.push(["title", title]);
 		state.linkLevel++;
 		state.md.inline.tokenize(state);
 		state.linkLevel--;
@@ -14806,51 +12213,35 @@ function link(state, silent) {
 	state.posMax = max;
 	return true;
 }
-
 function image(state, silent) {
 	let code, content, label, pos, ref, res, title, start;
 	let href = "";
 	const oldPos = state.pos;
 	const max = state.posMax;
-	if (state.src.charCodeAt(state.pos) !== 33) {
-		return false;
-	}
-	if (state.src.charCodeAt(state.pos + 1) !== 91) {
-		return false;
-	}
+	if (state.src.charCodeAt(state.pos) !== 33) return false;
+	if (state.src.charCodeAt(state.pos + 1) !== 91) return false;
 	const labelStart = state.pos + 2;
 	const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos + 1, false);
-	if (labelEnd < 0) {
-		return false;
-	}
+	if (labelEnd < 0) return false;
 	pos = labelEnd + 1;
 	if (pos < max && state.src.charCodeAt(pos) === 40) {
 		pos++;
 		for (; pos < max; pos++) {
 			code = state.src.charCodeAt(pos);
-			if (!isSpace(code) && code !== 10) {
-				break;
-			}
+			if (!isSpace(code) && code !== 10) break;
 		}
-		if (pos >= max) {
-			return false;
-		}
+		if (pos >= max) return false;
 		start = pos;
 		res = state.md.helpers.parseLinkDestination(state.src, pos, state.posMax);
 		if (res.ok) {
 			href = state.md.normalizeLink(res.str);
-			if (state.md.validateLink(href)) {
-				pos = res.pos;
-			} else {
-				href = "";
-			}
+			if (state.md.validateLink(href)) pos = res.pos;
+			else href = "";
 		}
 		start = pos;
 		for (; pos < max; pos++) {
 			code = state.src.charCodeAt(pos);
-			if (!isSpace(code) && code !== 10) {
-				break;
-			}
+			if (!isSpace(code) && code !== 10) break;
 		}
 		res = state.md.helpers.parseLinkTitle(state.src, pos, state.posMax);
 		if (pos < max && start !== pos && res.ok) {
@@ -14858,36 +12249,23 @@ function image(state, silent) {
 			pos = res.pos;
 			for (; pos < max; pos++) {
 				code = state.src.charCodeAt(pos);
-				if (!isSpace(code) && code !== 10) {
-					break;
-				}
+				if (!isSpace(code) && code !== 10) break;
 			}
-		} else {
-			title = "";
-		}
+		} else title = "";
 		if (pos >= max || state.src.charCodeAt(pos) !== 41) {
 			state.pos = oldPos;
 			return false;
 		}
 		pos++;
 	} else {
-		if (typeof state.env.references === "undefined") {
-			return false;
-		}
+		if (typeof state.env.references === "undefined") return false;
 		if (pos < max && state.src.charCodeAt(pos) === 91) {
 			start = pos + 1;
 			pos = state.md.helpers.parseLinkLabel(state, pos);
-			if (pos >= 0) {
-				label = state.src.slice(start, pos++);
-			} else {
-				pos = labelEnd + 1;
-			}
-		} else {
-			pos = labelEnd + 1;
-		}
-		if (!label) {
-			label = state.src.slice(labelStart, labelEnd);
-		}
+			if (pos >= 0) label = state.src.slice(start, pos++);
+			else pos = labelEnd + 1;
+		} else pos = labelEnd + 1;
+		if (!label) label = state.src.slice(labelStart, labelEnd);
 		ref = state.env.references[normalizeReference(label)];
 		if (!ref) {
 			state.pos = oldPos;
@@ -14905,22 +12283,17 @@ function image(state, silent) {
 		token.attrs = attrs;
 		token.children = tokens;
 		token.content = content;
-		if (title) {
-			attrs.push(["title", title]);
-		}
+		if (title) attrs.push(["title", title]);
 	}
 	state.pos = pos;
 	state.posMax = max;
 	return true;
 }
-
 const EMAIL_RE = /^([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)$/;
 const AUTOLINK_RE = /^([a-zA-Z][a-zA-Z0-9+.-]{1,31}):([^<>\x00-\x20]*)$/;
 function autolink(state, silent) {
 	let pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 60) {
-		return false;
-	}
+	if (state.src.charCodeAt(pos) !== 60) return false;
 	const start = state.pos;
 	const max = state.posMax;
 	for (;;) {
@@ -14932,9 +12305,7 @@ function autolink(state, silent) {
 	const url = state.src.slice(start + 1, pos);
 	if (AUTOLINK_RE.test(url)) {
 		const fullUrl = state.md.normalizeLink(url);
-		if (!state.md.validateLink(fullUrl)) {
-			return false;
-		}
+		if (!state.md.validateLink(fullUrl)) return false;
 		if (!silent) {
 			const token_o = state.push("link_open", "a", 1);
 			token_o.attrs = [["href", fullUrl]];
@@ -14951,9 +12322,7 @@ function autolink(state, silent) {
 	}
 	if (EMAIL_RE.test(url)) {
 		const fullUrl = state.md.normalizeLink("mailto:" + url);
-		if (!state.md.validateLink(fullUrl)) {
-			return false;
-		}
+		if (!state.md.validateLink(fullUrl)) return false;
 		if (!silent) {
 			const token_o = state.push("link_open", "a", 1);
 			token_o.attrs = [["href", fullUrl]];
@@ -14970,7 +12339,6 @@ function autolink(state, silent) {
 	}
 	return false;
 }
-
 function isLinkOpen(str) {
 	return /^<a[>\s]/i.test(str);
 }
@@ -14982,22 +12350,14 @@ function isLetter(ch) {
 	return lc >= 97 && lc <= 122;
 }
 function html_inline(state, silent) {
-	if (!state.md.options.html) {
-		return false;
-	}
+	if (!state.md.options.html) return false;
 	const max = state.posMax;
 	const pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 60 || pos + 2 >= max) {
-		return false;
-	}
+	if (state.src.charCodeAt(pos) !== 60 || pos + 2 >= max) return false;
 	const ch = state.src.charCodeAt(pos + 1);
-	if (ch !== 33 && ch !== 63 && ch !== 47 && !isLetter(ch)) {
-		return false;
-	}
+	if (ch !== 33 && ch !== 63 && ch !== 47 && !isLetter(ch)) return false;
 	const match = state.src.slice(pos).match(HTML_TAG_RE);
-	if (!match) {
-		return false;
-	}
+	if (!match) return false;
 	if (!silent) {
 		const token = state.push("html_inline", "", 0);
 		token.content = match[0];
@@ -15007,7 +12367,6 @@ function html_inline(state, silent) {
 	state.pos += match[0].length;
 	return true;
 }
-
 const DIGITAL_RE = /^&#((?:x[a-f0-9]{1,6}|[0-9]{1,7}));/i;
 const NAMED_RE = /^&([a-z][a-z0-9]{1,31});/i;
 function entity(state, silent) {
@@ -15015,8 +12374,7 @@ function entity(state, silent) {
 	const max = state.posMax;
 	if (state.src.charCodeAt(pos) !== 38) return false;
 	if (pos + 1 >= max) return false;
-	const ch = state.src.charCodeAt(pos + 1);
-	if (ch === 35) {
+	if (state.src.charCodeAt(pos + 1) === 35) {
 		const match = state.src.slice(pos).match(DIGITAL_RE);
 		if (match) {
 			if (!silent) {
@@ -15047,7 +12405,6 @@ function entity(state, silent) {
 	}
 	return false;
 }
-
 function processDelimiters(delimiters) {
 	const openersBottom = {};
 	const max = delimiters.length;
@@ -15058,22 +12415,18 @@ function processDelimiters(delimiters) {
 	for (let closerIdx = 0; closerIdx < max; closerIdx++) {
 		const closer = delimiters[closerIdx];
 		jumps.push(0);
-		if (delimiters[headerIdx].marker !== closer.marker || lastTokenIdx !== closer.token - 1) {
-			headerIdx = closerIdx;
-		}
+		if (delimiters[headerIdx].marker !== closer.marker || lastTokenIdx !== closer.token - 1) headerIdx = closerIdx;
 		lastTokenIdx = closer.token;
 		closer.length = closer.length || 0;
 		if (!closer.close) continue;
-		if (!openersBottom.hasOwnProperty(closer.marker)) {
-			openersBottom[closer.marker] = [
-				-1,
-				-1,
-				-1,
-				-1,
-				-1,
-				-1
-			];
-		}
+		if (!openersBottom.hasOwnProperty(closer.marker)) openersBottom[closer.marker] = [
+			-1,
+			-1,
+			-1,
+			-1,
+			-1,
+			-1
+		];
 		const minOpenerIdx = openersBottom[closer.marker][(closer.open ? 3 : 0) + closer.length % 3];
 		let openerIdx = headerIdx - jumps[headerIdx] - 1;
 		let newMinOpenerIdx = openerIdx;
@@ -15084,9 +12437,7 @@ function processDelimiters(delimiters) {
 				let isOddMatch = false;
 				if (opener.close || closer.open) {
 					if ((opener.length + closer.length) % 3 === 0) {
-						if (opener.length % 3 !== 0 || closer.length % 3 !== 0) {
-							isOddMatch = true;
-						}
+						if (opener.length % 3 !== 0 || closer.length % 3 !== 0) isOddMatch = true;
 					}
 				}
 				if (!isOddMatch) {
@@ -15102,22 +12453,15 @@ function processDelimiters(delimiters) {
 				}
 			}
 		}
-		if (newMinOpenerIdx !== -1) {
-			openersBottom[closer.marker][(closer.open ? 3 : 0) + (closer.length || 0) % 3] = newMinOpenerIdx;
-		}
+		if (newMinOpenerIdx !== -1) openersBottom[closer.marker][(closer.open ? 3 : 0) + (closer.length || 0) % 3] = newMinOpenerIdx;
 	}
 }
 function link_pairs(state) {
 	const tokens_meta = state.tokens_meta;
 	const max = state.tokens_meta.length;
 	processDelimiters(state.delimiters);
-	for (let curr = 0; curr < max; curr++) {
-		if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
-			processDelimiters(tokens_meta[curr].delimiters);
-		}
-	}
+	for (let curr = 0; curr < max; curr++) if (tokens_meta[curr] && tokens_meta[curr].delimiters) processDelimiters(tokens_meta[curr].delimiters);
 }
-
 function fragments_join(state) {
 	let curr, last;
 	let level = 0;
@@ -15127,20 +12471,14 @@ function fragments_join(state) {
 		if (tokens[curr].nesting < 0) level--;
 		tokens[curr].level = level;
 		if (tokens[curr].nesting > 0) level++;
-		if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") {
-			tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
-		} else {
-			if (curr !== last) {
-				tokens[last] = tokens[curr];
-			}
+		if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+		else {
+			if (curr !== last) tokens[last] = tokens[curr];
 			last++;
 		}
 	}
-	if (curr !== last) {
-		tokens.length = last;
-	}
+	if (curr !== last) tokens.length = last;
 }
-
 /** internal
 * class ParserInline
 *
@@ -15176,9 +12514,7 @@ function ParserInline() {
 	* [[Ruler]] instance. Keep configuration of inline rules.
 	**/
 	this.ruler = new Ruler();
-	for (let i = 0; i < _rules.length; i++) {
-		this.ruler.push(_rules[i][0], _rules[i][1]);
-	}
+	for (let i = 0; i < _rules.length; i++) this.ruler.push(_rules[i][0], _rules[i][1]);
 	/**
 	* ParserInline#ruler2 -> Ruler
 	*
@@ -15186,9 +12522,7 @@ function ParserInline() {
 	* (e.g. in emphasis-like rules).
 	**/
 	this.ruler2 = new Ruler();
-	for (let i = 0; i < _rules2.length; i++) {
-		this.ruler2.push(_rules2[i][0], _rules2[i][1]);
-	}
+	for (let i = 0; i < _rules2.length; i++) this.ruler2.push(_rules2[i][0], _rules2[i][1]);
 }
 ParserInline.prototype.skipToken = function(state) {
 	const pos = state.pos;
@@ -15201,24 +12535,17 @@ ParserInline.prototype.skipToken = function(state) {
 		return;
 	}
 	let ok = false;
-	if (state.level < maxNesting) {
-		for (let i = 0; i < len; i++) {
-			state.level++;
-			ok = rules[i](state, true);
-			state.level--;
-			if (ok) {
-				if (pos >= state.pos) {
-					throw new Error("inline rule didn't increment state.pos");
-				}
-				break;
-			}
+	if (state.level < maxNesting) for (let i = 0; i < len; i++) {
+		state.level++;
+		ok = rules[i](state, true);
+		state.level--;
+		if (ok) {
+			if (pos >= state.pos) throw new Error("inline rule didn't increment state.pos");
+			break;
 		}
-	} else {
-		state.pos = state.posMax;
 	}
-	if (!ok) {
-		state.pos++;
-	}
+	else state.pos = state.posMax;
+	if (!ok) state.pos++;
 	cache[pos] = state.pos;
 };
 ParserInline.prototype.tokenize = function(state) {
@@ -15229,28 +12556,20 @@ ParserInline.prototype.tokenize = function(state) {
 	while (state.pos < end) {
 		const prevPos = state.pos;
 		let ok = false;
-		if (state.level < maxNesting) {
-			for (let i = 0; i < len; i++) {
-				ok = rules[i](state, false);
-				if (ok) {
-					if (prevPos >= state.pos) {
-						throw new Error("inline rule didn't increment state.pos");
-					}
-					break;
-				}
+		if (state.level < maxNesting) for (let i = 0; i < len; i++) {
+			ok = rules[i](state, false);
+			if (ok) {
+				if (prevPos >= state.pos) throw new Error("inline rule didn't increment state.pos");
+				break;
 			}
 		}
 		if (ok) {
-			if (state.pos >= end) {
-				break;
-			}
+			if (state.pos >= end) break;
 			continue;
 		}
 		state.pending += state.src[state.pos++];
 	}
-	if (state.pending) {
-		state.pushPending();
-	}
+	if (state.pending) state.pushPending();
 };
 /**
 * ParserInline.parse(str, md, env, outTokens)
@@ -15262,12 +12581,9 @@ ParserInline.prototype.parse = function(str, md, env, outTokens) {
 	this.tokenize(state);
 	const rules = this.ruler2.getRules("");
 	const len = rules.length;
-	for (let i = 0; i < len; i++) {
-		rules[i](state);
-	}
+	for (let i = 0; i < len; i++) rules[i](state);
 };
 ParserInline.prototype.State = StateInline;
-
 function re_default(opts) {
 	const re = {};
 	opts = opts || {};
@@ -15286,14 +12602,14 @@ function re_default(opts) {
 	re.src_ip4 = "(?:(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
 	re.src_auth = "(?:(?:(?!" + re.src_ZCc + "|[@/\\[\\]()]).)+@)?";
 	re.src_port = "(?::(?:6(?:[0-4]\\d{3}|5(?:[0-4]\\d{2}|5(?:[0-2]\\d|3[0-5])))|[1-5]?\\d{1,4}))?";
-	re.src_host_terminator = "(?=$|" + text_separators + "|" + re.src_ZPCc + ")" + "(?!" + (opts["---"] ? "-(?!--)|" : "-|") + "_|:\\d|\\.-|\\.(?!$|" + re.src_ZPCc + "))";
-	re.src_path = "(?:" + "[/?#]" + "(?:" + "(?!" + re.src_ZCc + "|" + text_separators + "|[()[\\]{}.,\"'?!\\-;]).|" + "\\[(?:(?!" + re.src_ZCc + "|\\]).)*\\]|" + "\\((?:(?!" + re.src_ZCc + "|[)]).)*\\)|" + "\\{(?:(?!" + re.src_ZCc + "|[}]).)*\\}|" + "\\\"(?:(?!" + re.src_ZCc + "|[\"]).)+\\\"|" + "\\'(?:(?!" + re.src_ZCc + "|[']).)+\\'|" + "\\'(?=" + re.src_pseudo_letter + "|[-])|" + "\\.{2,}[a-zA-Z0-9%/&]|" + "\\.(?!" + re.src_ZCc + "|[.]|$)|" + (opts["---"] ? "\\-(?!--(?:[^-]|$))(?:-*)|" : "\\-+|") + ",(?!" + re.src_ZCc + "|$)|" + ";(?!" + re.src_ZCc + "|$)|" + "\\!+(?!" + re.src_ZCc + "|[!]|$)|" + "\\?(?!" + re.src_ZCc + "|[?]|$)" + ")+" + "|\\/" + ")?";
+	re.src_host_terminator = "(?=$|" + text_separators + "|" + re.src_ZPCc + ")(?!" + (opts["---"] ? "-(?!--)|" : "-|") + "_|:\\d|\\.-|\\.(?!$|" + re.src_ZPCc + "))";
+	re.src_path = "(?:[/?#](?:(?!" + re.src_ZCc + "|[><｜]|[()[\\]{}.,\"'?!\\-;]).|\\[(?:(?!" + re.src_ZCc + "|\\]).)*\\]|\\((?:(?!" + re.src_ZCc + "|[)]).)*\\)|\\{(?:(?!" + re.src_ZCc + "|[}]).)*\\}|\\\"(?:(?!" + re.src_ZCc + "|[\"]).)+\\\"|\\'(?:(?!" + re.src_ZCc + "|[']).)+\\'|\\'(?=" + re.src_pseudo_letter + "|[-])|\\.{2,}[a-zA-Z0-9%/&]|\\.(?!" + re.src_ZCc + "|[.]|$)|" + (opts["---"] ? "\\-(?!--(?:[^-]|$))(?:-*)|" : "\\-+|") + ",(?!" + re.src_ZCc + "|$)|;(?!" + re.src_ZCc + "|$)|\\!+(?!" + re.src_ZCc + "|[!]|$)|\\?(?!" + re.src_ZCc + "|[?]|$))+|\\/)?";
 	re.src_email_name = "[\\-;:&=\\+\\$,\\.a-zA-Z0-9_][\\-;:&=\\+\\$,\\\"\\.a-zA-Z0-9_]*";
 	re.src_xn = "xn--[a-z0-9\\-]{1,59}";
-	re.src_domain_root = "(?:" + re.src_xn + "|" + re.src_pseudo_letter + "{1,63}" + ")";
-	re.src_domain = "(?:" + re.src_xn + "|" + "(?:" + re.src_pseudo_letter + ")" + "|" + "(?:" + re.src_pseudo_letter + "(?:-|" + re.src_pseudo_letter + "){0,61}" + re.src_pseudo_letter + ")" + ")";
-	re.src_host = "(?:" + "(?:(?:(?:" + re.src_domain + ")\\.)*" + re.src_domain + ")" + ")";
-	re.tpl_host_fuzzy = "(?:" + re.src_ip4 + "|" + "(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%))" + ")";
+	re.src_domain_root = "(?:" + re.src_xn + "|" + re.src_pseudo_letter + "{1,63})";
+	re.src_domain = "(?:" + re.src_xn + "|(?:" + re.src_pseudo_letter + ")|(?:" + re.src_pseudo_letter + "(?:-|" + re.src_pseudo_letter + "){0,61}" + re.src_pseudo_letter + "))";
+	re.src_host = "(?:(?:(?:(?:" + re.src_domain + ")\\.)*" + re.src_domain + "))";
+	re.tpl_host_fuzzy = "(?:" + re.src_ip4 + "|(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%)))";
 	re.tpl_host_no_ip_fuzzy = "(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%))";
 	re.src_host_strict = re.src_host + re.src_host_terminator;
 	re.tpl_host_fuzzy_strict = re.tpl_host_fuzzy + re.src_host_terminator;
@@ -15301,18 +12617,14 @@ function re_default(opts) {
 	re.tpl_host_port_fuzzy_strict = re.tpl_host_fuzzy + re.src_port + re.src_host_terminator;
 	re.tpl_host_port_no_ip_fuzzy_strict = re.tpl_host_no_ip_fuzzy + re.src_port + re.src_host_terminator;
 	re.tpl_host_fuzzy_test = "localhost|www\\.|\\.\\d{1,3}\\.|(?:\\.(?:%TLDS%)(?:" + re.src_ZPCc + "|>|$))";
-	re.tpl_email_fuzzy = "(^|" + text_separators + "|\"|\\(|" + re.src_ZCc + ")" + "(" + re.src_email_name + "@" + re.tpl_host_fuzzy_strict + ")";
-	re.tpl_link_fuzzy = "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))" + "((?![$+<=>^`|｜])" + re.tpl_host_port_fuzzy_strict + re.src_path + ")";
-	re.tpl_link_no_ip_fuzzy = "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))" + "((?![$+<=>^`|｜])" + re.tpl_host_port_no_ip_fuzzy_strict + re.src_path + ")";
+	re.tpl_email_fuzzy = "(^|" + text_separators + "|\"|\\(|" + re.src_ZCc + ")(" + re.src_email_name + "@" + re.tpl_host_fuzzy_strict + ")";
+	re.tpl_link_fuzzy = "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))((?![$+<=>^`|｜])" + re.tpl_host_port_fuzzy_strict + re.src_path + ")";
+	re.tpl_link_no_ip_fuzzy = "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))((?![$+<=>^`|｜])" + re.tpl_host_port_no_ip_fuzzy_strict + re.src_path + ")";
 	return re;
 }
-
 function assign(obj) {
-	const sources = Array.prototype.slice.call(arguments, 1);
-	sources.forEach(function(source) {
-		if (!source) {
-			return;
-		}
+	Array.prototype.slice.call(arguments, 1).forEach(function(source) {
+		if (!source) return;
 		Object.keys(source).forEach(function(key) {
 			obj[key] = source[key];
 		});
@@ -15350,40 +12662,26 @@ function isOptionsObj(obj) {
 const defaultSchemas = {
 	"http:": { validate: function(text, pos, self) {
 		const tail = text.slice(pos);
-		if (!self.re.http) {
-			self.re.http = new RegExp("^\\/\\/" + self.re.src_auth + self.re.src_host_port_strict + self.re.src_path, "i");
-		}
-		if (self.re.http.test(tail)) {
-			return tail.match(self.re.http)[0].length;
-		}
+		if (!self.re.http) self.re.http = new RegExp("^\\/\\/" + self.re.src_auth + self.re.src_host_port_strict + self.re.src_path, "i");
+		if (self.re.http.test(tail)) return tail.match(self.re.http)[0].length;
 		return 0;
 	} },
 	"https:": "http:",
 	"ftp:": "http:",
 	"//": { validate: function(text, pos, self) {
 		const tail = text.slice(pos);
-		if (!self.re.no_http) {
-			self.re.no_http = new RegExp("^" + self.re.src_auth + "(?:localhost|(?:(?:" + self.re.src_domain + ")\\.)+" + self.re.src_domain_root + ")" + self.re.src_port + self.re.src_host_terminator + self.re.src_path, "i");
-		}
+		if (!self.re.no_http) self.re.no_http = new RegExp("^" + self.re.src_auth + "(?:localhost|(?:(?:" + self.re.src_domain + ")\\.)+" + self.re.src_domain_root + ")" + self.re.src_port + self.re.src_host_terminator + self.re.src_path, "i");
 		if (self.re.no_http.test(tail)) {
-			if (pos >= 3 && text[pos - 3] === ":") {
-				return 0;
-			}
-			if (pos >= 3 && text[pos - 3] === "/") {
-				return 0;
-			}
+			if (pos >= 3 && text[pos - 3] === ":") return 0;
+			if (pos >= 3 && text[pos - 3] === "/") return 0;
 			return tail.match(self.re.no_http)[0].length;
 		}
 		return 0;
 	} },
 	"mailto:": { validate: function(text, pos, self) {
 		const tail = text.slice(pos);
-		if (!self.re.mailto) {
-			self.re.mailto = new RegExp("^" + self.re.src_email_name + "@" + self.re.src_host_strict, "i");
-		}
-		if (self.re.mailto.test(tail)) {
-			return tail.match(self.re.mailto)[0].length;
-		}
+		if (!self.re.mailto) self.re.mailto = new RegExp("^" + self.re.src_email_name + "@" + self.re.src_host_strict, "i");
+		if (self.re.mailto.test(tail)) return tail.match(self.re.mailto)[0].length;
 		return 0;
 	} }
 };
@@ -15396,9 +12694,7 @@ function resetScanCache(self) {
 function createValidator(re) {
 	return function(text, pos) {
 		const tail = text.slice(pos);
-		if (re.test(tail)) {
-			return tail.match(re)[0].length;
-		}
+		if (re.test(tail)) return tail.match(re)[0].length;
 		return 0;
 	};
 }
@@ -15411,9 +12707,7 @@ function compile(self) {
 	const re = self.re = re_default(self.__opts__);
 	const tlds = self.__tlds__.slice();
 	self.onCompile();
-	if (!self.__tlds_replaced__) {
-		tlds.push(tlds_2ch_src_re);
-	}
+	if (!self.__tlds_replaced__) tlds.push(tlds_2ch_src_re);
 	tlds.push(re.src_xn);
 	re.src_tlds = tlds.join("|");
 	function untpl(tpl) {
@@ -15430,29 +12724,19 @@ function compile(self) {
 	}
 	Object.keys(self.__schemas__).forEach(function(name) {
 		const val = self.__schemas__[name];
-		if (val === null) {
-			return;
-		}
+		if (val === null) return;
 		const compiled = {
 			validate: null,
 			link: null
 		};
 		self.__compiled__[name] = compiled;
 		if (isObject(val)) {
-			if (isRegExp(val.validate)) {
-				compiled.validate = createValidator(val.validate);
-			} else if (isFunction(val.validate)) {
-				compiled.validate = val.validate;
-			} else {
-				schemaError(name, val);
-			}
-			if (isFunction(val.normalize)) {
-				compiled.normalize = val.normalize;
-			} else if (!val.normalize) {
-				compiled.normalize = createNormalizer();
-			} else {
-				schemaError(name, val);
-			}
+			if (isRegExp(val.validate)) compiled.validate = createValidator(val.validate);
+			else if (isFunction(val.validate)) compiled.validate = val.validate;
+			else schemaError(name, val);
+			if (isFunction(val.normalize)) compiled.normalize = val.normalize;
+			else if (!val.normalize) compiled.normalize = createNormalizer();
+			else schemaError(name, val);
 			return;
 		}
 		if (isString(val)) {
@@ -15462,9 +12746,7 @@ function compile(self) {
 		schemaError(name, val);
 	});
 	aliases.forEach(function(alias) {
-		if (!self.__compiled__[self.__schemas__[alias]]) {
-			return;
-		}
+		if (!self.__compiled__[self.__schemas__[alias]]) return;
 		self.__compiled__[alias].validate = self.__compiled__[self.__schemas__[alias]].validate;
 		self.__compiled__[alias].normalize = self.__compiled__[self.__schemas__[alias]].normalize;
 	});
@@ -15570,9 +12852,7 @@ function createMatch(self, shift) {
 *
 **/
 function LinkifyIt(schemas, options) {
-	if (!(this instanceof LinkifyIt)) {
-		return new LinkifyIt(schemas, options);
-	}
+	if (!(this instanceof LinkifyIt)) return new LinkifyIt(schemas, options);
 	if (!options) {
 		if (isOptionsObj(schemas)) {
 			options = schemas;
@@ -15621,9 +12901,7 @@ LinkifyIt.prototype.set = function set(options) {
 LinkifyIt.prototype.test = function test(text) {
 	this.__text_cache__ = text;
 	this.__index__ = -1;
-	if (!text.length) {
-		return false;
-	}
+	if (!text.length) return false;
 	let m, ml, me, len, shift, next, re, tld_pos, at_pos;
 	if (this.re.schema_test.test(text)) {
 		re = this.re.schema_search;
@@ -15689,9 +12967,7 @@ LinkifyIt.prototype.pretest = function pretest(text) {
 * at given position. Returns length of found pattern (0 on fail).
 **/
 LinkifyIt.prototype.testSchemaAt = function testSchemaAt(text, schema, pos) {
-	if (!this.__compiled__[schema.toLowerCase()]) {
-		return 0;
-	}
+	if (!this.__compiled__[schema.toLowerCase()]) return 0;
 	return this.__compiled__[schema.toLowerCase()].validate(text, pos, this);
 };
 /**
@@ -15723,9 +12999,7 @@ LinkifyIt.prototype.match = function match(text) {
 		tail = tail.slice(this.__last_index__);
 		shift += this.__last_index__;
 	}
-	if (result.length) {
-		return result;
-	}
+	if (result.length) return result;
 	return null;
 };
 /**
@@ -15782,12 +13056,8 @@ LinkifyIt.prototype.tlds = function tlds(list, keepOld) {
 * Default normalizer (if schema does not define it's own).
 **/
 LinkifyIt.prototype.normalize = function normalize(match) {
-	if (!match.schema) {
-		match.url = "http://" + match.url;
-	}
-	if (match.schema === "mailto:" && !/^mailto:/i.test(match.url)) {
-		match.url = "mailto:" + match.url;
-	}
+	if (!match.schema) match.url = "http://" + match.url;
+	if (match.schema === "mailto:" && !/^mailto:/i.test(match.url)) match.url = "mailto:" + match.url;
 };
 /**
 * LinkifyIt#onCompile()
@@ -15795,7 +13065,6 @@ LinkifyIt.prototype.normalize = function normalize(match) {
 * Override to modify basic RegExp-s.
 **/
 LinkifyIt.prototype.onCompile = function onCompile() {};
-
 /** Highest positive signed 32-bit float value */
 const maxInt = 2147483647;
 /** Bootstring parameters */
@@ -15841,9 +13110,7 @@ function error(type) {
 function map(array, callback) {
 	const result = [];
 	let length = array.length;
-	while (length--) {
-		result[length] = callback(array[length]);
-	}
+	while (length--) result[length] = callback(array[length]);
 	return result;
 }
 /**
@@ -15864,8 +13131,7 @@ function mapDomain(domain, callback) {
 		domain = parts[1];
 	}
 	domain = domain.replace(regexSeparators, ".");
-	const labels = domain.split(".");
-	const encoded = map(labels, callback).join(".");
+	const encoded = map(domain.split("."), callback).join(".");
 	return result + encoded;
 }
 /**
@@ -15889,15 +13155,12 @@ function ucs2decode(string) {
 		const value = string.charCodeAt(counter++);
 		if (value >= 55296 && value <= 56319 && counter < length) {
 			const extra = string.charCodeAt(counter++);
-			if ((extra & 64512) == 56320) {
-				output.push(((value & 1023) << 10) + (extra & 1023) + 65536);
-			} else {
+			if ((extra & 64512) == 56320) output.push(((value & 1023) << 10) + (extra & 1023) + 65536);
+			else {
 				output.push(value);
 				counter--;
 			}
-		} else {
-			output.push(value);
-		}
+		} else output.push(value);
 	}
 	return output;
 }
@@ -15920,15 +13183,9 @@ const ucs2encode = (codePoints) => String.fromCodePoint(...codePoints);
 * the code point does not represent a value.
 */
 const basicToDigit = function(codePoint) {
-	if (codePoint >= 48 && codePoint < 58) {
-		return 26 + (codePoint - 48);
-	}
-	if (codePoint >= 65 && codePoint < 91) {
-		return codePoint - 65;
-	}
-	if (codePoint >= 97 && codePoint < 123) {
-		return codePoint - 97;
-	}
+	if (codePoint >= 48 && codePoint < 58) return 26 + (codePoint - 48);
+	if (codePoint >= 65 && codePoint < 91) return codePoint - 65;
+	if (codePoint >= 97 && codePoint < 123) return codePoint - 97;
 	return base;
 };
 /**
@@ -15954,9 +13211,7 @@ const adapt = function(delta, numPoints, firstTime) {
 	let k = 0;
 	delta = firstTime ? floor(delta / damp) : delta >> 1;
 	delta += floor(delta / numPoints);
-	for (; delta > baseMinusTMin * tMax >> 1; k += base) {
-		delta = floor(delta / baseMinusTMin);
-	}
+	for (; delta > baseMinusTMin * tMax >> 1; k += base) delta = floor(delta / baseMinusTMin);
 	return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
 };
 /**
@@ -15973,44 +13228,28 @@ const decode = function(input) {
 	let n = initialN;
 	let bias = initialBias;
 	let basic = input.lastIndexOf(delimiter);
-	if (basic < 0) {
-		basic = 0;
-	}
+	if (basic < 0) basic = 0;
 	for (let j = 0; j < basic; ++j) {
-		if (input.charCodeAt(j) >= 128) {
-			error("not-basic");
-		}
+		if (input.charCodeAt(j) >= 128) error("not-basic");
 		output.push(input.charCodeAt(j));
 	}
 	for (let index = basic > 0 ? basic + 1 : 0; index < inputLength;) {
 		const oldi = i;
 		for (let w = 1, k = base;; k += base) {
-			if (index >= inputLength) {
-				error("invalid-input");
-			}
+			if (index >= inputLength) error("invalid-input");
 			const digit = basicToDigit(input.charCodeAt(index++));
-			if (digit >= base) {
-				error("invalid-input");
-			}
-			if (digit > floor((maxInt - i) / w)) {
-				error("overflow");
-			}
+			if (digit >= base) error("invalid-input");
+			if (digit > floor((maxInt - i) / w)) error("overflow");
 			i += digit * w;
 			const t = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
-			if (digit < t) {
-				break;
-			}
+			if (digit < t) break;
 			const baseMinusT = base - t;
-			if (w > floor(maxInt / baseMinusT)) {
-				error("overflow");
-			}
+			if (w > floor(maxInt / baseMinusT)) error("overflow");
 			w *= baseMinusT;
 		}
 		const out = output.length + 1;
 		bias = adapt(i - oldi, out, oldi == 0);
-		if (floor(i / out) > maxInt - n) {
-			error("overflow");
-		}
+		if (floor(i / out) > maxInt - n) error("overflow");
 		n += floor(i / out);
 		i %= out;
 		output.splice(i++, 0, n);
@@ -16031,40 +13270,24 @@ const encode = function(input) {
 	let n = initialN;
 	let delta = 0;
 	let bias = initialBias;
-	for (const currentValue of input) {
-		if (currentValue < 128) {
-			output.push(stringFromCharCode(currentValue));
-		}
-	}
+	for (const currentValue of input) if (currentValue < 128) output.push(stringFromCharCode(currentValue));
 	const basicLength = output.length;
 	let handledCPCount = basicLength;
-	if (basicLength) {
-		output.push(delimiter);
-	}
+	if (basicLength) output.push(delimiter);
 	while (handledCPCount < inputLength) {
 		let m = maxInt;
-		for (const currentValue of input) {
-			if (currentValue >= n && currentValue < m) {
-				m = currentValue;
-			}
-		}
+		for (const currentValue of input) if (currentValue >= n && currentValue < m) m = currentValue;
 		const handledCPCountPlusOne = handledCPCount + 1;
-		if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
-			error("overflow");
-		}
+		if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) error("overflow");
 		delta += (m - n) * handledCPCountPlusOne;
 		n = m;
 		for (const currentValue of input) {
-			if (currentValue < n && ++delta > maxInt) {
-				error("overflow");
-			}
+			if (currentValue < n && ++delta > maxInt) error("overflow");
 			if (currentValue === n) {
 				let q = delta;
 				for (let k = base;; k += base) {
 					const t = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
-					if (q < t) {
-						break;
-					}
+					if (q < t) break;
 					const qMinusT = q - t;
 					const baseMinusT = base - t;
 					output.push(stringFromCharCode(digitToBasic(t + qMinusT % baseMinusT, 0)));
@@ -16125,110 +13348,103 @@ const punycode = {
 	"toASCII": toASCII,
 	"toUnicode": toUnicode
 };
-
-var default_default = {
-	options: {
-		html: false,
-		xhtmlOut: false,
-		breaks: false,
-		langPrefix: "language-",
-		linkify: false,
-		typographer: false,
-		quotes: "“”‘’",
-		highlight: null,
-		maxNesting: 100
-	},
-	components: {
-		core: {},
-		block: {},
-		inline: {}
-	}
-};
-
-var zero_default = {
-	options: {
-		html: false,
-		xhtmlOut: false,
-		breaks: false,
-		langPrefix: "language-",
-		linkify: false,
-		typographer: false,
-		quotes: "“”‘’",
-		highlight: null,
-		maxNesting: 20
-	},
-	components: {
-		core: { rules: [
-			"normalize",
-			"block",
-			"inline",
-			"text_join"
-		] },
-		block: { rules: ["paragraph"] },
-		inline: {
-			rules: ["text"],
-			rules2: ["balance_pairs", "fragments_join"]
-		}
-	}
-};
-
-var commonmark_default = {
-	options: {
-		html: true,
-		xhtmlOut: true,
-		breaks: false,
-		langPrefix: "language-",
-		linkify: false,
-		typographer: false,
-		quotes: "“”‘’",
-		highlight: null,
-		maxNesting: 20
-	},
-	components: {
-		core: { rules: [
-			"normalize",
-			"block",
-			"inline",
-			"text_join"
-		] },
-		block: { rules: [
-			"blockquote",
-			"code",
-			"fence",
-			"heading",
-			"hr",
-			"html_block",
-			"lheading",
-			"list",
-			"reference",
-			"paragraph"
-		] },
-		inline: {
-			rules: [
-				"autolink",
-				"backticks",
-				"emphasis",
-				"entity",
-				"escape",
-				"html_inline",
-				"image",
-				"link",
-				"newline",
-				"text"
-			],
-			rules2: [
-				"balance_pairs",
-				"emphasis",
-				"fragments_join"
-			]
-		}
-	}
-};
-
 const config = {
-	default: default_default,
-	zero: zero_default,
-	commonmark: commonmark_default
+	default: {
+		options: {
+			html: false,
+			xhtmlOut: false,
+			breaks: false,
+			langPrefix: "language-",
+			linkify: false,
+			typographer: false,
+			quotes: "“”‘’",
+			highlight: null,
+			maxNesting: 100
+		},
+		components: {
+			core: {},
+			block: {},
+			inline: {}
+		}
+	},
+	zero: {
+		options: {
+			html: false,
+			xhtmlOut: false,
+			breaks: false,
+			langPrefix: "language-",
+			linkify: false,
+			typographer: false,
+			quotes: "“”‘’",
+			highlight: null,
+			maxNesting: 20
+		},
+		components: {
+			core: { rules: [
+				"normalize",
+				"block",
+				"inline",
+				"text_join"
+			] },
+			block: { rules: ["paragraph"] },
+			inline: {
+				rules: ["text"],
+				rules2: ["balance_pairs", "fragments_join"]
+			}
+		}
+	},
+	commonmark: {
+		options: {
+			html: true,
+			xhtmlOut: true,
+			breaks: false,
+			langPrefix: "language-",
+			linkify: false,
+			typographer: false,
+			quotes: "“”‘’",
+			highlight: null,
+			maxNesting: 20
+		},
+		components: {
+			core: { rules: [
+				"normalize",
+				"block",
+				"inline",
+				"text_join"
+			] },
+			block: { rules: [
+				"blockquote",
+				"code",
+				"fence",
+				"heading",
+				"hr",
+				"html_block",
+				"lheading",
+				"list",
+				"reference",
+				"paragraph"
+			] },
+			inline: {
+				rules: [
+					"autolink",
+					"backticks",
+					"emphasis",
+					"entity",
+					"escape",
+					"html_inline",
+					"image",
+					"link",
+					"newline",
+					"text"
+				],
+				rules2: [
+					"balance_pairs",
+					"emphasis",
+					"fragments_join"
+				]
+			}
+		}
+	}
 };
 const BAD_PROTO_RE = /^(vbscript|javascript|file|data):/;
 const GOOD_DATA_RE = /^data:image\/(gif|png|jpeg|webp);/;
@@ -16244,22 +13460,18 @@ const RECODE_HOSTNAME_FOR = [
 function normalizeLink(url) {
 	const parsed = urlParse(url, true);
 	if (parsed.hostname) {
-		if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) {
-			try {
-				parsed.hostname = punycode.toASCII(parsed.hostname);
-			} catch (er) {}
-		}
+		if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) try {
+			parsed.hostname = punycode.toASCII(parsed.hostname);
+		} catch (er) {}
 	}
 	return encode$2(format(parsed));
 }
 function normalizeLinkText(url) {
 	const parsed = urlParse(url, true);
 	if (parsed.hostname) {
-		if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) {
-			try {
-				parsed.hostname = punycode.toUnicode(parsed.hostname);
-			} catch (er) {}
-		}
+		if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) try {
+			parsed.hostname = punycode.toUnicode(parsed.hostname);
+		} catch (er) {}
 	}
 	return decode$2(format(parsed), decode$2.defaultChars + "%");
 }
@@ -16396,9 +13608,7 @@ function normalizeLinkText(url) {
 *
 **/
 function MarkdownIt(presetName, options) {
-	if (!(this instanceof MarkdownIt)) {
-		return new MarkdownIt(presetName, options);
-	}
+	if (!(this instanceof MarkdownIt)) return new MarkdownIt(presetName, options);
 	if (!options) {
 		if (!isString$1(presetName)) {
 			options = presetName || {};
@@ -16504,9 +13714,7 @@ function MarkdownIt(presetName, options) {
 	this.helpers = assign$1({}, helpers_exports);
 	this.options = {};
 	this.configure(presetName);
-	if (options) {
-		this.set(options);
-	}
+	if (options) this.set(options);
 }
 /** chainable
 * MarkdownIt.set(options)
@@ -16546,26 +13754,14 @@ MarkdownIt.prototype.configure = function(presets) {
 	if (isString$1(presets)) {
 		const presetName = presets;
 		presets = config[presetName];
-		if (!presets) {
-			throw new Error("Wrong `markdown-it` preset \"" + presetName + "\", check name");
-		}
+		if (!presets) throw new Error("Wrong `markdown-it` preset \"" + presetName + "\", check name");
 	}
-	if (!presets) {
-		throw new Error("Wrong `markdown-it` preset, can't be empty");
-	}
-	if (presets.options) {
-		self.set(presets.options);
-	}
-	if (presets.components) {
-		Object.keys(presets.components).forEach(function(name) {
-			if (presets.components[name].rules) {
-				self[name].ruler.enableOnly(presets.components[name].rules);
-			}
-			if (presets.components[name].rules2) {
-				self[name].ruler2.enableOnly(presets.components[name].rules2);
-			}
-		});
-	}
+	if (!presets) throw new Error("Wrong `markdown-it` preset, can't be empty");
+	if (presets.options) self.set(presets.options);
+	if (presets.components) Object.keys(presets.components).forEach(function(name) {
+		if (presets.components[name].rules) self[name].ruler.enableOnly(presets.components[name].rules);
+		if (presets.components[name].rules2) self[name].ruler2.enableOnly(presets.components[name].rules2);
+	});
 	return this;
 };
 /** chainable
@@ -16587,9 +13783,7 @@ MarkdownIt.prototype.configure = function(presets) {
 **/
 MarkdownIt.prototype.enable = function(list, ignoreInvalid) {
 	let result = [];
-	if (!Array.isArray(list)) {
-		list = [list];
-	}
+	if (!Array.isArray(list)) list = [list];
 	[
 		"core",
 		"block",
@@ -16601,9 +13795,7 @@ MarkdownIt.prototype.enable = function(list, ignoreInvalid) {
 	const missed = list.filter(function(name) {
 		return result.indexOf(name) < 0;
 	});
-	if (missed.length && !ignoreInvalid) {
-		throw new Error("MarkdownIt. Failed to enable unknown rule(s): " + missed);
-	}
+	if (missed.length && !ignoreInvalid) throw new Error("MarkdownIt. Failed to enable unknown rule(s): " + missed);
 	return this;
 };
 /** chainable
@@ -16615,9 +13807,7 @@ MarkdownIt.prototype.enable = function(list, ignoreInvalid) {
 **/
 MarkdownIt.prototype.disable = function(list, ignoreInvalid) {
 	let result = [];
-	if (!Array.isArray(list)) {
-		list = [list];
-	}
+	if (!Array.isArray(list)) list = [list];
 	[
 		"core",
 		"block",
@@ -16629,9 +13819,7 @@ MarkdownIt.prototype.disable = function(list, ignoreInvalid) {
 	const missed = list.filter(function(name) {
 		return result.indexOf(name) < 0;
 	});
-	if (missed.length && !ignoreInvalid) {
-		throw new Error("MarkdownIt. Failed to disable unknown rule(s): " + missed);
-	}
+	if (missed.length && !ignoreInvalid) throw new Error("MarkdownIt. Failed to disable unknown rule(s): " + missed);
 	return this;
 };
 /** chainable
@@ -16671,9 +13859,7 @@ MarkdownIt.prototype.use = function(plugin) {
 * and then pass updated object to renderer.
 **/
 MarkdownIt.prototype.parse = function(src, env) {
-	if (typeof src !== "string") {
-		throw new Error("Input data should be a String");
-	}
+	if (typeof src !== "string") throw new Error("Input data should be a String");
 	const state = new this.core.State(src, this, env);
 	this.core.process(state);
 	return state.tokens;
@@ -16720,7 +13906,6 @@ MarkdownIt.prototype.renderInline = function(src, env) {
 	env = env || {};
 	return this.renderer.render(this.parseInline(src, env), this.options, env);
 };
-
 /**
 * This is only safe for (and intended to be used for) text node positions. If
 * you are using attribute position, then this is only safe if the attribute
@@ -16732,15 +13917,6 @@ function escapeNodeText(str) {
 	D(b`${str}`, frag);
 	return frag.innerHTML.replaceAll(/<!--([^-]*)-->/gim, "");
 }
-function unescapeNodeText(str) {
-	if (!str) {
-		return "";
-	}
-	const frag = document.createElement("textarea");
-	frag.innerHTML = str;
-	return frag.value;
-}
-
 var MarkdownDirective = class extends i$5 {
 	#markdownIt = MarkdownIt({ highlight: (str, lang) => {
 		switch (lang) {
@@ -16757,14 +13933,12 @@ var MarkdownDirective = class extends i$5 {
 	#lastValue = null;
 	#lastTagClassMap = null;
 	update(_part, [value, tagClassMap]) {
-		if (this.#lastValue === value && JSON.stringify(tagClassMap) === this.#lastTagClassMap) {
-			return E;
-		}
+		if (this.#lastValue === value && JSON.stringify(tagClassMap) === this.#lastTagClassMap) return E;
 		this.#lastValue = value;
 		this.#lastTagClassMap = JSON.stringify(tagClassMap);
 		return this.render(value, tagClassMap);
 	}
-	#originalClassMap = new Map();
+	#originalClassMap = /* @__PURE__ */ new Map();
 	#applyTagClassMap(tagClassMap) {
 		Object.entries(tagClassMap).forEach(([tag]) => {
 			let tokenName;
@@ -16799,24 +13973,18 @@ var MarkdownDirective = class extends i$5 {
 					tokenName = "em";
 					break;
 			}
-			if (!tokenName) {
-				return;
-			}
+			if (!tokenName) return;
 			const key = `${tokenName}_open`;
 			this.#markdownIt.renderer.rules[key] = (tokens, idx, options, _env, self) => {
 				const token = tokens[idx];
 				const tokenClasses = tagClassMap[token.tag] ?? [];
-				for (const clazz of tokenClasses) {
-					token.attrJoin("class", clazz);
-				}
+				for (const clazz of tokenClasses) token.attrJoin("class", clazz);
 				return self.renderToken(tokens, idx, options);
 			};
 		});
 	}
 	#unapplyTagClassMap() {
-		for (const [key] of this.#originalClassMap) {
-			delete this.#markdownIt.renderer.rules[key];
-		}
+		for (const [key] of this.#originalClassMap) delete this.#markdownIt.renderer.rules[key];
 		this.#originalClassMap.clear();
 	}
 	/**
@@ -16827,21 +13995,15 @@ var MarkdownDirective = class extends i$5 {
 	* @see https://github.com/markdown-it/markdown-it/blob/master/docs/security.md
 	*/
 	render(value, tagClassMap) {
-		if (tagClassMap) {
-			this.#applyTagClassMap(tagClassMap);
-		}
+		if (tagClassMap) this.#applyTagClassMap(tagClassMap);
 		const htmlString = this.#markdownIt.render(value);
 		this.#unapplyTagClassMap();
 		return o(htmlString);
 	}
 };
 const markdown = e$10(MarkdownDirective);
-const markdownItStandalone = MarkdownIt();
-function renderMarkdownToHtmlString(value) {
-	return markdownItStandalone.render(value);
-}
-
-var __esDecorate$1 = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+MarkdownIt();
+var __esDecorate$1 = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -16868,22 +14030,18 @@ var __esDecorate$1 = void 0 && (void 0).__esDecorate || function(ctor, descripto
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers$1 = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers$1 = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Text = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-text")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -16981,23 +14139,15 @@ let Text = (() => {
 		#renderText() {
 			let textValue = null;
 			if (this.text && typeof this.text === "object") {
-				if ("literalString" in this.text && this.text.literalString) {
-					textValue = this.text.literalString;
-				} else if ("literal" in this.text && this.text.literal !== undefined) {
-					textValue = this.text.literal;
-				} else if (this.text && "path" in this.text && this.text.path) {
-					if (!this.processor || !this.component) {
-						return b`(no model)`;
-					}
+				if ("literalString" in this.text && this.text.literalString) textValue = this.text.literalString;
+				else if ("literal" in this.text && this.text.literal !== void 0) textValue = this.text.literal;
+				else if (this.text && "path" in this.text && this.text.path) {
+					if (!this.processor || !this.component) return b`(no model)`;
 					const value = this.processor.getData(this.component, this.text.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (value !== null && value !== undefined) {
-						textValue = value.toString();
-					}
+					if (value !== null && value !== void 0) textValue = value.toString();
 				}
 			}
-			if (textValue === null || textValue === undefined) {
-				return b`(empty)`;
-			}
+			if (textValue === null || textValue === void 0) return b`(empty)`;
 			let markdownText = textValue;
 			switch (this.usageHint) {
 				case "h1":
@@ -17030,7 +14180,7 @@ let Text = (() => {
 			if (typeof styles !== "object") return false;
 			if (Array.isArray(styles)) return false;
 			if (!styles) return false;
-			const expected = [
+			return [
 				"h1",
 				"h2",
 				"h3",
@@ -17039,25 +14189,19 @@ let Text = (() => {
 				"h6",
 				"caption",
 				"body"
-			];
-			return expected.every((v) => v in styles);
+			].every((v) => v in styles);
 		}
 		#getAdditionalStyles() {
 			let additionalStyles = {};
 			const styles = this.theme.additionalStyles?.Text;
 			if (!styles) return additionalStyles;
-			if (this.#areHintedStyles(styles)) {
-				const hint = this.usageHint ?? "body";
-				additionalStyles = styles[hint];
-			} else {
-				additionalStyles = styles;
-			}
+			if (this.#areHintedStyles(styles)) additionalStyles = styles[this.usageHint ?? "body"];
+			else additionalStyles = styles;
 			return additionalStyles;
 		}
 		render() {
-			const classes = merge(this.theme.components.Text.all, this.usageHint ? this.theme.components.Text[this.usageHint] : {});
 			return b`<section
-      class=${e$2(classes)}
+      class=${e$2(merge(this.theme.components.Text.all, this.usageHint ? this.theme.components.Text[this.usageHint] : {}))}
       style=${this.theme.additionalStyles?.Text ? o$2(this.#getAdditionalStyles()) : A}
     >
       ${this.#renderText()}
@@ -17071,10 +14215,9 @@ let Text = (() => {
 			__runInitializers$1(_classThis, _classExtraInitializers);
 		}
 	};
-	return Text = _classThis;
+	return _classThis;
 })();
-
-var __esDecorate = void 0 && (void 0).__esDecorate || function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
+var __esDecorate = function(ctor, descriptorIn, decorators, contextIn, initializers, extraInitializers) {
 	function accept(f) {
 		if (f !== void 0 && typeof f !== "function") throw new TypeError("Function expected");
 		return f;
@@ -17101,22 +14244,18 @@ var __esDecorate = void 0 && (void 0).__esDecorate || function(ctor, descriptorI
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) {
-			if (kind === "field") initializers.unshift(_);
-			else descriptor[key] = _;
-		}
+		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
+		else descriptor[key] = _;
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;
 };
-var __runInitializers = void 0 && (void 0).__runInitializers || function(thisArg, initializers, value) {
+var __runInitializers = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
-	for (var i = 0; i < initializers.length; i++) {
-		value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
-	}
+	for (var i = 0; i < initializers.length; i++) value = useValue ? initializers[i].call(thisArg, value) : initializers[i].call(thisArg);
 	return useValue ? value : void 0;
 };
-let Video = (() => {
+(() => {
 	let _classDecorators = [t$1("a2ui-video")];
 	let _classDescriptor;
 	let _classExtraInitializers = [];
@@ -17186,25 +14325,15 @@ let Video = (() => {
     `];
 		}
 		#renderVideo() {
-			if (!this.url) {
-				return A;
-			}
+			if (!this.url) return A;
 			if (this.url && typeof this.url === "object") {
-				if ("literalString" in this.url) {
-					return b`<video controls src=${this.url.literalString} />`;
-				} else if ("literal" in this.url) {
-					return b`<video controls src=${this.url.literal} />`;
-				} else if (this.url && "path" in this.url && this.url.path) {
-					if (!this.processor || !this.component) {
-						return b`(no processor)`;
-					}
+				if ("literalString" in this.url) return b`<video controls src=${this.url.literalString} />`;
+				else if ("literal" in this.url) return b`<video controls src=${this.url.literal} />`;
+				else if (this.url && "path" in this.url && this.url.path) {
+					if (!this.processor || !this.component) return b`(no processor)`;
 					const videoUrl = this.processor.getData(this.component, this.url.path, this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID);
-					if (!videoUrl) {
-						return b`Invalid video URL`;
-					}
-					if (typeof videoUrl !== "string") {
-						return b`Invalid video URL`;
-					}
+					if (!videoUrl) return b`Invalid video URL`;
+					if (typeof videoUrl !== "string") return b`Invalid video URL`;
 					return b`<video controls src=${videoUrl} />`;
 				}
 			}
@@ -17226,25 +14355,8 @@ let Video = (() => {
 			__runInitializers(_classThis, _classExtraInitializers);
 		}
 	};
-	return Video = _classThis;
+	return _classThis;
 })();
-
-function registerCustomComponents() {}
-
-/**
-* Type-safely retrieves a custom element constructor using the tagName map.
-* @param tagName The tag name to look up (must exist in HTMLElementTagNameMap).
-* @returns The specific constructor type or undefined.
-*/
-function instanceOf(tagName) {
-	const ctor = customElements.get(tagName);
-	if (!ctor) {
-		console.warn("No element definition for", tagName);
-		return;
-	}
-	return new ctor();
-}
-
 const modalStyles = i$9`
   dialog {
     position: fixed;
@@ -17266,9 +14378,50 @@ const modalStyles = i$9`
   }
 `;
 const modalElement = customElements.get("a2ui-modal");
-if (modalElement && Array.isArray(modalElement.styles)) {
-	modalElement.styles = [...modalElement.styles, modalStyles];
-}
+if (modalElement && Array.isArray(modalElement.styles)) modalElement.styles = [...modalElement.styles, modalStyles];
+const appendComponentStyles = (tagName, extraStyles) => {
+	const component = customElements.get(tagName);
+	if (!component) return;
+	const current = component.styles;
+	if (!current) {
+		component.styles = [extraStyles];
+		return;
+	}
+	component.styles = Array.isArray(current) ? [...current, extraStyles] : [current, extraStyles];
+};
+appendComponentStyles("a2ui-row", i$9`
+    @media (max-width: 860px) {
+      section {
+        flex-wrap: wrap;
+        align-content: flex-start;
+      }
+
+      ::slotted(*) {
+        flex: 1 1 100%;
+        min-width: 100%;
+        width: 100%;
+        max-width: 100%;
+      }
+    }
+  `);
+appendComponentStyles("a2ui-column", i$9`
+    :host {
+      min-width: 0;
+    }
+
+    section {
+      min-width: 0;
+    }
+  `);
+appendComponentStyles("a2ui-card", i$9`
+    :host {
+      min-width: 0;
+    }
+
+    section {
+      min-width: 0;
+    }
+  `);
 const emptyClasses = () => ({});
 const textHintStyles = () => ({
 	h1: {},
@@ -17560,25 +14713,20 @@ var OpenClawA2UIHost = class extends i$6 {
   `;
 	connectedCallback() {
 		super.connectedCallback();
-		const api = {
+		globalThis.openclawA2UI = {
 			applyMessages: (messages) => this.applyMessages(messages),
 			reset: () => this.reset(),
 			getSurfaces: () => Array.from(this.#processor.getSurfaces().keys())
 		};
-		globalThis.openclawA2UI = api;
 		this.addEventListener("a2uiaction", (evt) => this.#handleA2UIAction(evt));
 		this.#statusListener = (evt) => this.#handleActionStatus(evt);
-		for (const eventName of ["openclaw:a2ui-action-status"]) {
-			globalThis.addEventListener(eventName, this.#statusListener);
-		}
+		for (const eventName of ["openclaw:a2ui-action-status"]) globalThis.addEventListener(eventName, this.#statusListener);
 		this.#syncSurfaces();
 	}
 	disconnectedCallback() {
 		super.disconnectedCallback();
 		if (this.#statusListener) {
-			for (const eventName of ["openclaw:a2ui-action-status"]) {
-				globalThis.removeEventListener(eventName, this.#statusListener);
-			}
+			for (const eventName of ["openclaw:a2ui-action-status"]) globalThis.removeEventListener(eventName, this.#statusListener);
 			this.#statusListener = null;
 		}
 	}
@@ -17602,19 +14750,14 @@ var OpenClawA2UIHost = class extends i$6 {
 	}
 	#handleActionStatus(evt) {
 		const detail = evt?.detail ?? null;
-		if (!detail || typeof detail.id !== "string") {
-			return;
-		}
-		if (!this.pendingAction || this.pendingAction.id !== detail.id) {
-			return;
-		}
-		if (detail.ok) {
-			this.pendingAction = {
-				...this.pendingAction,
-				phase: "sent",
-				sentAt: Date.now()
-			};
-		} else {
+		if (!detail || typeof detail.id !== "string") return;
+		if (!this.pendingAction || this.pendingAction.id !== detail.id) return;
+		if (detail.ok) this.pendingAction = {
+			...this.pendingAction,
+			phase: "sent",
+			sentAt: Date.now()
+		};
+		else {
 			const msg = typeof detail.error === "string" && detail.error ? detail.error : "send failed";
 			this.pendingAction = {
 				...this.pendingAction,
@@ -17627,14 +14770,10 @@ var OpenClawA2UIHost = class extends i$6 {
 	}
 	#handleA2UIAction(evt) {
 		const payload = evt?.detail ?? evt?.payload ?? null;
-		if (!payload || payload.eventType !== "a2ui.action") {
-			return;
-		}
+		if (!payload || payload.eventType !== "a2ui.action") return;
 		const action = payload.action;
 		const name = action?.name;
-		if (!name) {
-			return;
-		}
+		if (!name) return;
 		const sourceComponentId = payload.sourceComponentId ?? "";
 		const surfaces = this.#processor.getSurfaces();
 		let surfaceId = null;
@@ -17652,12 +14791,9 @@ var OpenClawA2UIHost = class extends i$6 {
 		for (const item of ctxItems) {
 			const key = item?.key;
 			const value = item?.value ?? null;
-			if (!key || !value) {
-				continue;
-			}
+			if (!key || !value) continue;
 			if (typeof value.path === "string") {
-				const resolved = sourceNode ? this.#processor.getData(sourceNode, value.path, surfaceId ?? undefined) : null;
-				context[key] = resolved;
+				context[key] = sourceNode ? this.#processor.getData(sourceNode, value.path, surfaceId ?? void 0) : null;
 				continue;
 			}
 			if (Object.prototype.hasOwnProperty.call(value, "literalString")) {
@@ -17686,30 +14822,26 @@ var OpenClawA2UIHost = class extends i$6 {
 			name,
 			surfaceId: surfaceId ?? "main",
 			sourceComponentId,
-			timestamp: new Date().toISOString(),
+			timestamp: (/* @__PURE__ */ new Date()).toISOString(),
 			...Object.keys(context).length ? { context } : {}
 		};
 		globalThis.__openclawLastA2UIAction = userAction;
 		const handler = globalThis.webkit?.messageHandlers?.openclawCanvasA2UIAction ?? globalThis.openclawCanvasA2UIAction;
-		if (handler?.postMessage) {
-			try {
-				if (handler === globalThis.openclawCanvasA2UIAction) {
-					handler.postMessage(JSON.stringify({ userAction }));
-				} else {
-					handler.postMessage({ userAction });
-				}
-			} catch (e) {
-				const msg = String(e?.message ?? e);
-				this.pendingAction = {
-					id: actionId,
-					name,
-					phase: "error",
-					startedAt: Date.now(),
-					error: msg
-				};
-				this.#setToast(`Failed: ${msg}`, "error", 4500);
-			}
-		} else {
+		if (handler?.postMessage) try {
+			if (handler === globalThis.openclawCanvasA2UIAction) handler.postMessage(JSON.stringify({ userAction }));
+			else handler.postMessage({ userAction });
+		} catch (e) {
+			const msg = String(e?.message ?? e);
+			this.pendingAction = {
+				id: actionId,
+				name,
+				phase: "error",
+				startedAt: Date.now(),
+				error: msg
+			};
+			this.#setToast(`Failed: ${msg}`, "error", 4500);
+		}
+		else {
 			this.pendingAction = {
 				id: actionId,
 				name,
@@ -17721,9 +14853,7 @@ var OpenClawA2UIHost = class extends i$6 {
 		}
 	}
 	applyMessages(messages) {
-		if (!Array.isArray(messages)) {
-			throw new Error("A2UI: expected messages array");
-		}
+		if (!Array.isArray(messages)) throw new Error("A2UI: expected messages array");
 		this.#processor.processMessages(messages);
 		this.#syncSurfaces();
 		if (this.pendingAction?.phase === "sent") {
@@ -17747,12 +14877,9 @@ var OpenClawA2UIHost = class extends i$6 {
 		this.surfaces = Array.from(this.#processor.getSurfaces().entries());
 	}
 	render() {
-		if (this.surfaces.length === 0) {
-			return b`<div class="empty">
+		if (this.surfaces.length === 0) return b`<div class="empty">
         <div class="empty-title">Canvas (A2UI)</div>
-        <div>Waiting for A2UI messages…</div>
       </div>`;
-		}
 		const statusText = this.pendingAction?.phase === "sent" ? `Working: ${this.pendingAction.name}` : this.pendingAction?.phase === "sending" ? `Sending: ${this.pendingAction.name}` : this.pendingAction?.phase === "error" ? `Failed: ${this.pendingAction.name}` : "";
 		return b`
       ${this.pendingAction && this.pendingAction.phase !== "error" ? b`<div class="status"><div class="spinner"></div><div>${statusText}</div></div>` : ""}
@@ -17766,6 +14893,4 @@ var OpenClawA2UIHost = class extends i$6 {
     </section>`;
 	}
 };
-if (!customElements.get("openclaw-a2ui-host")) {
-	customElements.define("openclaw-a2ui-host", OpenClawA2UIHost);
-}
+if (!customElements.get("openclaw-a2ui-host")) customElements.define("openclaw-a2ui-host", OpenClawA2UIHost);

@@ -15,7 +15,7 @@ const { execSync } = require('child_process');
 const https = require('https');
 const http = require('http');
 
-const NODE_VERSION = process.env.NODE_VERSION || '22.14.0';
+const NODE_VERSION = process.env.NODE_VERSION || '22.16.0';
 const SCRIPT_DIR = __dirname;
 const PROJECT_DIR = path.resolve(SCRIPT_DIR, '..');
 const TARGET_DIR = path.join(PROJECT_DIR, 'src-tauri', 'resources', 'node');
@@ -71,6 +71,7 @@ function download(url, dest) {
 async function main() {
   const osName = getOS();
   const arch = getArch();
+  const universalBuild = osName === 'darwin' && process.env.UNIVERSAL_BUILD === 'true';
   const binName = osName === 'win' ? 'node.exe' : 'node';
   const targetBin = path.join(TARGET_DIR, binName);
 
@@ -79,10 +80,21 @@ async function main() {
     try {
       const currentVersion = execSync(`"${targetBin}" --version`, { encoding: 'utf8' }).trim();
       if (currentVersion === `v${NODE_VERSION}`) {
-        console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
-        return;
+        if (universalBuild) {
+          // Verify it's already a universal binary
+          const lipoInfo = execSync(`lipo -info "${targetBin}"`, { encoding: 'utf8' });
+          if (lipoInfo.includes('x86_64') && lipoInfo.includes('arm64')) {
+            console.log(`[prepare-node] Node.js v${NODE_VERSION} universal binary already present — skipping download.`);
+            return;
+          }
+          console.log('[prepare-node] Found single-arch binary, need universal — re-downloading.');
+        } else {
+          console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
+          return;
+        }
+      } else {
+        console.log(`[prepare-node] Found ${currentVersion}, need v${NODE_VERSION} — re-downloading.`);
       }
-      console.log(`[prepare-node] Found ${currentVersion}, need v${NODE_VERSION} — re-downloading.`);
     } catch {
       console.log('[prepare-node] Existing binary failed version check — re-downloading.');
     }
@@ -91,34 +103,56 @@ async function main() {
 
   fs.mkdirSync(TARGET_DIR, { recursive: true });
 
-  // Download
-  const ext = osName === 'win' ? 'zip' : 'tar.gz';
-  const archive = `node-v${NODE_VERSION}-${osName}-${arch}.${ext}`;
-  const url = `https://nodejs.org/dist/v${NODE_VERSION}/${archive}`;
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prepare-node-'));
-  const archivePath = path.join(tmpDir, archive);
 
-  console.log(`[prepare-node] Downloading Node.js v${NODE_VERSION} for ${osName}-${arch}...`);
-  console.log(`[prepare-node]   ${url}`);
+  try {
+    if (universalBuild) {
+      // macOS universal build: download both architectures and combine with lipo
+      console.log('[prepare-node] Building universal Node.js binary for macOS (arm64 + x64)...');
 
-  await download(url, archivePath);
+      for (const dlArch of ['arm64', 'x64']) {
+        const archive = `node-v${NODE_VERSION}-darwin-${dlArch}.tar.gz`;
+        const url = `https://nodejs.org/dist/v${NODE_VERSION}/${archive}`;
+        const archivePath = path.join(tmpDir, archive);
+        console.log(`[prepare-node]   Downloading ${url}`);
+        await download(url, archivePath);
+        const prefix = `node-v${NODE_VERSION}-darwin-${dlArch}`;
+        execSync(`tar -xzf "${archivePath}" -C "${tmpDir}" "${prefix}/bin/node"`, { stdio: 'inherit' });
+        fs.renameSync(path.join(tmpDir, prefix, 'bin', 'node'), path.join(tmpDir, `node-${dlArch}`));
+      }
 
-  // Extract just the node binary
-  console.log('[prepare-node] Extracting node binary...');
-  const prefix = `node-v${NODE_VERSION}-${osName}-${arch}`;
+      console.log('[prepare-node] Creating universal binary with lipo...');
+      execSync(`lipo -create "${path.join(tmpDir, 'node-arm64')}" "${path.join(tmpDir, 'node-x64')}" -output "${targetBin}"`, { stdio: 'inherit' });
+      fs.chmodSync(targetBin, 0o755);
 
-  if (osName === 'win') {
-    // Use tar (available on Windows 10+) to extract from zip
-    execSync(`tar -xf "${archivePath}" -C "${tmpDir}" "${prefix}/node.exe"`, { stdio: 'inherit' });
-    fs.copyFileSync(path.join(tmpDir, prefix, 'node.exe'), targetBin);
-  } else {
-    execSync(`tar -xzf "${archivePath}" -C "${tmpDir}" "${prefix}/bin/node"`, { stdio: 'inherit' });
-    fs.copyFileSync(path.join(tmpDir, prefix, 'bin', 'node'), targetBin);
-    fs.chmodSync(targetBin, 0o755);
+    } else {
+      // Single-architecture download
+      const ext = osName === 'win' ? 'zip' : 'tar.gz';
+      const archive = `node-v${NODE_VERSION}-${osName}-${arch}.${ext}`;
+      const url = `https://nodejs.org/dist/v${NODE_VERSION}/${archive}`;
+      const archivePath = path.join(tmpDir, archive);
+
+      console.log(`[prepare-node] Downloading Node.js v${NODE_VERSION} for ${osName}-${arch}...`);
+      console.log(`[prepare-node]   ${url}`);
+
+      await download(url, archivePath);
+
+      console.log('[prepare-node] Extracting node binary...');
+      const prefix = `node-v${NODE_VERSION}-${osName}-${arch}`;
+
+      if (osName === 'win') {
+        execSync(`tar -xf "${archivePath}" -C "${tmpDir}" "${prefix}/node.exe"`, { stdio: 'inherit' });
+        fs.copyFileSync(path.join(tmpDir, prefix, 'node.exe'), targetBin);
+      } else {
+        execSync(`tar -xzf "${archivePath}" -C "${tmpDir}" "${prefix}/bin/node"`, { stdio: 'inherit' });
+        fs.copyFileSync(path.join(tmpDir, prefix, 'bin', 'node'), targetBin);
+        fs.chmodSync(targetBin, 0o755);
+      }
+    }
+  } finally {
+    // Cleanup
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-
-  // Cleanup
-  fs.rmSync(tmpDir, { recursive: true, force: true });
 
   // Verify
   try {
@@ -126,7 +160,13 @@ async function main() {
     if (installedVersion !== `v${NODE_VERSION}`) {
       throw new Error(`Expected v${NODE_VERSION}, got ${installedVersion}`);
     }
-    console.log(`[prepare-node] Node.js ${installedVersion} installed at ${targetBin}`);
+    if (universalBuild) {
+      const lipoInfo = execSync(`lipo -info "${targetBin}"`, { encoding: 'utf8' }).trim();
+      console.log(`[prepare-node] ✓ Node.js ${installedVersion} universal binary installed at ${targetBin}`);
+      console.log(`[prepare-node]   ${lipoInfo}`);
+    } else {
+      console.log(`[prepare-node] ✓ Node.js ${installedVersion} installed at ${targetBin}`);
+    }
   } catch (e) {
     console.error(`ERROR: Verification failed — ${e.message}`);
     process.exit(1);

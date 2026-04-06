@@ -1,25 +1,17 @@
-import "./paths-rb94mUrR.js";
-import { r as resolveAgentDir, s as resolveAgentWorkspaceDir, y as ensureAgentWorkspace } from "./agent-scope-CCxRobXB.js";
-import "./exec-DYHF__-L.js";
-import { J as DEFAULT_PROVIDER, d as resolveThinkingDefault, q as DEFAULT_MODEL } from "./model-selection-Ch-ZMovh.js";
-import { F as resolveAgentIdentity, N as resolveAgentTimeoutMs, t as runEmbeddedPiAgent } from "./pi-embedded-01rZsXNi.js";
-import "./github-copilot-token-Cr_SiZeh.js";
-import "./deliver-CJl4xZlW.js";
-import "./image-ops-DF9AQADy.js";
-import "./config-C94oBlHq.js";
-import { J as loadSessionStore, Z as saveSessionStore } from "./pi-embedded-helpers-ClCg4yHT.js";
-import "./pi-model-discovery-DWTTaAgY.js";
-import "./chrome-CEc011Ti.js";
-import { n as resolveSessionFilePath, s as resolveStorePath } from "./paths-Ckb-FaMf.js";
-import "./tool-images-B9awJkZZ.js";
-import "./image-BynuzqGd.js";
-import "./manager-Da1vOnnh.js";
-import "./sqlite-CH9BXV_A.js";
-import "./redact-DO22U0Pj.js";
-import "./common-BEfPwaXB.js";
-import "./ir-CA_q26JN.js";
-import "./fetch-Qc6XQcFW.js";
-import "./active-listener-C1ZpxW_K.js";
-import "./runner-BS6udPB2.js";
-
+import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "./defaults-BwiMD7ye.js";
+import { S as resolveThinkingDefault } from "./model-selection-8a6zD_aX.js";
+import { a as resolveAgentDir, p as resolveAgentWorkspaceDir } from "./agent-scope-CYXg_wTS.js";
+import { d as ensureAgentWorkspace } from "./workspace-R-NeOkBt.js";
+import { i as loadSessionStore, l as saveSessionStore } from "./store-BGmy-Wot.js";
+import "./sessions-DC7OiAdD.js";
+import { l as resolveStorePath, r as resolveSessionFilePath } from "./paths-DBIQqSpZ.js";
+import { n as resolveAgentIdentity } from "./identity-BVAU5Jb3.js";
+import { t as runEmbeddedPiAgent } from "./pi-embedded-BYdcxQ5A.js";
+import { n as resolveAgentTimeoutMs } from "./content-blocks-CWb2xgCb.js";
+//#region src/extensionAPI.ts
+if (process.env.VITEST !== "true" && process.env.OPENCLAW_SUPPRESS_EXTENSION_API_WARNING !== "1") process.emitWarning("openclaw/extension-api is deprecated. Migrate to api.runtime.agent.* or focused openclaw/plugin-sdk/<subpath> imports. See https://docs.openclaw.ai/plugins/sdk-migration", {
+	code: "OPENCLAW_EXTENSION_API_DEPRECATED",
+	detail: "This compatibility bridge is temporary. Bundled plugins should use the injected plugin runtime instead of importing host-side agent helpers directly. Migration guide: https://docs.openclaw.ai/plugins/sdk-migration"
+});
+//#endregion
 export { DEFAULT_MODEL, DEFAULT_PROVIDER, ensureAgentWorkspace, loadSessionStore, resolveAgentDir, resolveAgentIdentity, resolveAgentTimeoutMs, resolveAgentWorkspaceDir, resolveSessionFilePath, resolveStorePath, resolveThinkingDefault, runEmbeddedPiAgent, saveSessionStore };

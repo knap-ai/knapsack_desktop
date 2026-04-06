@@ -1,5 +1,5 @@
 'use strict'
-const log = require('npmlog')
+const log = require('./logger')
 
 class CMLog {
 	get level() {

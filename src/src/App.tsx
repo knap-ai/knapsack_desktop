@@ -34,7 +34,7 @@ import {
 
 import { Event, listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
-import { onUpdaterEvent } from '@tauri-apps/api/updater'
+import { UpdateBanner } from './components/molecules/UpdateBanner'
 
 import { KNChatMessage } from './api/threads'
 import { Automation, AutomationRun, Cadence } from './automations/automation'
@@ -632,6 +632,33 @@ function App() {
     }
   }, [fetchConnections, auth.updateProfile, syncConnections, userEmail])
 
+  // Listen for provider-fallback events and show a warning toast
+  useEffect(() => {
+    const unlistenFallback = listen(
+      'provider-fallback',
+      (event: Event<{ from: string; to: string; reason: string }>) => {
+        const { from, to, reason } = event.payload
+        setToastrState({
+          message: (
+            <>
+              <strong>Provider fallback:</strong> Switched from {from} to {to} due to rate
+              limiting. You may incur unexpected charges. Disable this in Settings &gt; API
+              &gt; &quot;Allow paid provider fallback&quot;.
+            </>
+          ) as ReactElement,
+          alertType: 'warning',
+          autoHideDuration: 10000,
+          icon: false,
+        })
+        console.warn(`[provider-fallback] ${from} → ${to}: ${reason}`)
+      },
+    )
+
+    return () => {
+      unlistenFallback.then(unlisten => unlisten())
+    }
+  }, [])
+
   const submitWebSearch = async (submittedUserPrompt: string) => {
     setSearchTextValue(submittedUserPrompt)
 
@@ -1109,39 +1136,11 @@ function App() {
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 
   useEffect(() => {
-    const setupUpdaterTracking = async () => {
-      const unlisten = await onUpdaterEvent(({ error, status }) => {
-        if (error) {
-          KNAnalytics.trackEvent('update_error', {
-            error: error,
-            timestamp: new Date().toISOString(),
-          })
-        } else {
-          const statusAmplitude = 'update_' + status.toLowerCase()
-          KNAnalytics.trackEvent(statusAmplitude, {
-            timestamp: new Date().toISOString(),
-          })
-        }
-      })
-      return unlisten
-    }
-
-    let unlistenUpdater: (() => void) | undefined
-    setupUpdaterTracking().then(unlisten => {
-      unlistenUpdater = unlisten
-    })
-
     fetchUUID()
 
     invoke('plugin:autostart|enable')
       .then(() => console.log('Autostart enabled'))
       .catch(error => console.error('Failed to enable autostart:', error))
-
-    return () => {
-      if (unlistenUpdater) {
-        unlistenUpdater()
-      }
-    }
   }, [])
 
   const fetchUUID = async () => {
@@ -1320,7 +1319,8 @@ function App() {
   }, [])
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <UpdateBanner />
       <Snackbar
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         open={!!toastrState.message}
@@ -1349,39 +1349,41 @@ function App() {
         </Alert>
       </Snackbar>
 
-      <Routes>
-        <Route path="/onboard" element={<Onboarding updateProfile={auth.updateProfile} />} />
-        <Route
-          path="/home"
-          element={
-            <Home
-              auth={auth}
-              feed={feed}
-              automations={automations}
-              connections={connections}
-              toastrState={toastrState}
-              votes={votes}
-              googleAuthControls={googleAuthControls}
-              handleOpenToastr={handleOpenToastr}
-              fetchConnections={fetchConnections}
-              deleteConnection={deleteConnectionApi}
-              handleError={handleError}
-              addToLLMQueue={addToLLMQueue}
-              updateAutomation={(automation: any) => updateAutomation(automation.id, automation)}
-              setVotes={setVotes}
-              llmBar={llmBar}
-              handleAutomationPreview={handleAutomationPreview}
-              recordingHandlers={recordingHandlers}
-              isSignInDialogOpened={isSignInDialogOpened}
-              setIsSignInDialogOpened={handleSignInDialogOpenChange}
-              reconnectKeys={reconnect}
-              isAnyRecording={isAnyRecording}
-            />
-          }
-        />
-        <Route path="/" element={<Navigate to="/onboard" />} />
-      </Routes>
-    </>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <Routes>
+          <Route path="/onboard" element={<Onboarding updateProfile={auth.updateProfile} />} />
+          <Route
+            path="/home"
+            element={
+              <Home
+                auth={auth}
+                feed={feed}
+                automations={automations}
+                connections={connections}
+                toastrState={toastrState}
+                votes={votes}
+                googleAuthControls={googleAuthControls}
+                handleOpenToastr={handleOpenToastr}
+                fetchConnections={fetchConnections}
+                deleteConnection={deleteConnectionApi}
+                handleError={handleError}
+                addToLLMQueue={addToLLMQueue}
+                updateAutomation={(automation: any) => updateAutomation(automation.id, automation)}
+                setVotes={setVotes}
+                llmBar={llmBar}
+                handleAutomationPreview={handleAutomationPreview}
+                recordingHandlers={recordingHandlers}
+                isSignInDialogOpened={isSignInDialogOpened}
+                setIsSignInDialogOpened={handleSignInDialogOpenChange}
+                reconnectKeys={reconnect}
+                isAnyRecording={isAnyRecording}
+              />
+            }
+          />
+          <Route path="/" element={<Navigate to="/onboard" />} />
+        </Routes>
+      </div>
+    </div>
   )
 }
 

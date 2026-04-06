@@ -1,13 +1,10 @@
-import "../../paths-BZtyHNCi.js";
-import { d as loadExtraBootstrapFiles, u as filterBootstrapFilesForSession } from "../../workspace-CUznpDHg.js";
-import "../../exec-DBtWJ4Ld.js";
-import "../../boolean-Bb19hm9Y.js";
-import { n as isAgentBootstrapEvent } from "../../internal-hooks-DweiUjdl.js";
-import "../../frontmatter-Uu27Y56g.js";
-import { t as resolveHookConfig } from "../../config-DQnKmI4q.js";
-
+import { t as createSubsystemLogger } from "../../subsystem-CJEvHE2o.js";
+import { f as filterBootstrapFilesForSession, m as loadExtraBootstrapFilesWithDiagnostics } from "../../workspace-R-NeOkBt.js";
+import { a as isAgentBootstrapEvent } from "../../internal-hooks-LWzilokd.js";
+import { r as resolveHookConfig } from "../../config-D4gCdbz1.js";
 //#region src/hooks/bundled/bootstrap-extra-files/handler.ts
 const HOOK_KEY = "bootstrap-extra-files";
+const log = createSubsystemLogger("bootstrap-extra-files");
 function normalizeStringArray(value) {
 	if (!Array.isArray(value)) return [];
 	return value.map((v) => typeof v === "string" ? v.trim() : "").filter(Boolean);
@@ -27,13 +24,19 @@ const bootstrapExtraFilesHook = async (event) => {
 	const patterns = resolveExtraBootstrapPatterns(hookConfig);
 	if (patterns.length === 0) return;
 	try {
-		const extras = await loadExtraBootstrapFiles(context.workspaceDir, patterns);
+		const { files: extras, diagnostics } = await loadExtraBootstrapFilesWithDiagnostics(context.workspaceDir, patterns);
+		if (diagnostics.length > 0) log.debug("skipped extra bootstrap candidates", {
+			skipped: diagnostics.length,
+			reasons: diagnostics.reduce((counts, item) => {
+				counts[item.reason] = (counts[item.reason] ?? 0) + 1;
+				return counts;
+			}, {})
+		});
 		if (extras.length === 0) return;
 		context.bootstrapFiles = filterBootstrapFilesForSession([...context.bootstrapFiles, ...extras], context.sessionKey);
 	} catch (err) {
-		console.warn(`[bootstrap-extra-files] failed: ${String(err)}`);
+		log.warn(`failed: ${String(err)}`);
 	}
 };
-
 //#endregion
 export { bootstrapExtraFilesHook as default };

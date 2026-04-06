@@ -22,7 +22,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 
 // Custom auth storage location
-const authStorage = new AuthStorage("/tmp/my-agent/auth.json");
+const authStorage = AuthStorage.create("/tmp/my-agent/auth.json");
 
 // Runtime API key override (not persisted)
 if (process.env.MY_ANTHROPIC_KEY) {
@@ -30,7 +30,7 @@ if (process.env.MY_ANTHROPIC_KEY) {
 }
 
 // Model registry with no custom models.json
-const modelRegistry = new ModelRegistry(authStorage);
+const modelRegistry = ModelRegistry.inMemory(authStorage);
 
 const model = getModel("anthropic", "claude-sonnet-4-20250514");
 if (!model) throw new Error("Model not found");
@@ -53,7 +53,6 @@ const resourceLoader: ResourceLoader = {
 	getSystemPrompt: () => `You are a minimal assistant.
 Available: read, bash. Be concise.`,
 	getAppendSystemPrompt: () => [],
-	getPathMetadata: () => new Map(),
 	extendResources: () => {},
 	reload: async () => {},
 };

@@ -3,7 +3,7 @@ import DataFetcher from 'src/utils/data_fetch'
 
 import { WebSearchResponse } from 'src/App'
 
-import { AutomationDataSources, AutomationTrigger } from '../automation'
+import { AgentIdentity, AutomationDataSources, AutomationTrigger } from '../automation'
 
 export type StepExecuteContext = {
   userEmail?: string
@@ -12,6 +12,7 @@ export type StepExecuteContext = {
   userPromptFacade?: string
   documents?: number[]
   trigger?: AutomationTrigger
+  agentIdentity?: AgentIdentity
   [key: string]: unknown
 }
 

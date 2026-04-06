@@ -6,5 +6,6 @@ pub mod gateway_supervisor;
 pub mod gateway_ws;
 pub mod gmail;
 pub mod meeting_context;
+pub mod pairing_auto_approve;
 pub mod service;
 pub mod sidecar;

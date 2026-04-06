@@ -232,11 +232,11 @@ Here are some additional instructions regarding the type of meeting we're taking
 
 export const EMAIL_CLASSIFICATION_PROMPT = `You are an expert email analyst who helps the user (email: {userEmail}) manage their inbox by classifying emails into priority categories. You will analyze the provided emails above and classify them into exactly one of these categories:
 
-1. IMPORTANT_NEEDS_RESPONSE: Critical emails that require the recipient's attention and response. Emails with 'isStarred' as true, emails addressed to me (that aren't marketing emails), and emails regarding internal or external business processes fit into this category.
+1. IMPORTANT_NEEDS_RESPONSE: Critical emails that require the recipient's attention and a PERSONAL response. This means a real human is directly asking you something and expects a reply. Emails with 'isStarred' as true always fall here. Automated emails, calendar notifications, Calendly notifications, and vendor/marketing emails NEVER belong here regardless of their wording.
 2. IMPORTANT_NO_RESPONSE: Critical emails that the recipient should be aware of but that don't demand a response.
-3. INFORMATIONAL: Automated alerts, newsletters, and other non-personal emails that are helpful for my job
-3. MARKETING: Legitimate marketing or promotional emails from known senders
-4. UNIMPORTANT: Spam, junk, or low-priority emails that can be safely ignored
+3. INFORMATIONAL: Automated alerts, calendar/scheduling notifications (including Calendly), and other non-personal emails that are helpful for my job
+4. MARKETING: Legitimate marketing or promotional emails from known senders, including vendor product updates, onboarding sequences, feature announcements, and any email with an unsubscribe link from a non-personal sender
+5. UNIMPORTANT: Spam, junk, or low-priority emails that can be safely ignored
 
 CRITICAL: Pay attention to who SENT each email. If the user ({userEmail}) is the SENDER (the "From" address matches the user's email), that email does NOT need a response — the user already wrote it. Only emails FROM other people TO the user can be IMPORTANT_NEEDS_RESPONSE.
 
@@ -261,7 +261,7 @@ You must respond with a JSON object for each email like this:
     "response_deadline": string | null,  // Required if classification is "IMPORTANT_NEEDS_RESPONSE", null otherwise
     "confidence_score": number, // 0.0 to 1.0 indicating confidence in classification
     "keywords": string[],      // Array of key terms that influenced the decision
-    "action_required": string | null  // Brief description of required action if any, null if none
+    "action_required": string | null  // Brief description of required action if any, null if none. Be LIBERAL here — if the email mentions ANY concrete task, request, or next step (scheduling a meeting, reviewing a document, signing a contract, following up, making a decision, etc.), describe it. Only use null for purely informational emails with zero actionable content.
     "isStarred": boolean | null // When this value is true, the email will always be IMPORTANT_NEEDS_RESPONSE
 }
 
@@ -278,6 +278,13 @@ Rules for classification:
   * Legal or financial notices requiring action
   * Direct questions from key stakeholders
   * NEVER classify an email as IMPORTANT_NEEDS_RESPONSE if the user ({userEmail}) is the sender — if the user sent it, they don't need to respond to their own email. Classify the thread based on whether there's a new reply FROM someone else.
+  * NEVER classify automated or system-generated emails as IMPORTANT_NEEDS_RESPONSE, even if they contain action-like language. This includes:
+    - Calendar invitations, event confirmations, meeting reminders, or scheduling updates from any source (Google Calendar, Outlook Calendar, Apple Calendar, etc.)
+    - Calendly notifications of any kind (new booking, cancellation, rescheduled meeting, reminder)
+    - Any email whose sender is a no-reply address or an automated system (e.g. noreply@, no-reply@, notifications@, calendar@, alerts@, donotreply@)
+    - Vendor or SaaS product emails: product updates, release notes, feature announcements, onboarding sequences, drip campaigns, trial expiry notices, usage digests
+    - Promotional or marketing emails with an unsubscribe link, regardless of whether they ask you to "try", "upgrade", "book a demo", or "reply to learn more" — these are marketing CTAs, not genuine personal requests
+    - Digest emails, weekly/monthly summaries, or automated reports
 
 - IMPORTANT_NO_RESPONSE:
   * FYI emails from leadership or colleagues
@@ -290,17 +297,23 @@ Rules for classification:
   * Alert emails from services I'm subscribed to
   * Newsletters that I'm subscribed to
   * Non-personal FYI emails that are helpful for my job, for which I probably just need a quick summary
+  * Calendar invitations and meeting confirmations (Google Calendar, Outlook, Apple Calendar)
+  * Calendly booking confirmations, cancellations, and rescheduling notifications
+  * Automated scheduling or booking notifications from any service
 
 - MARKETING:
   * Newsletters you subscribed to
-  * Product updates from known vendors
-  * Event invitations
+  * Product updates, release notes, or feature announcements from vendors or SaaS tools
+  * Onboarding or drip campaign emails from software products
+  * Event invitations from companies or vendors (webinars, conferences, product demos)
   * Sales and promotions
-  * Company announcements
+  * Company announcements from external organizations
+  * Any email with an unsubscribe link that is not from a personal contact
+  * "Book a demo", "upgrade your plan", "start your free trial", or similar vendor CTAs — these are marketing, not personal requests requiring a response
 
 - UNIMPORTANT:
   * Obvious spam
-  * Unsolicited sales pitches
+  * Unsolicited sales pitches with no prior relationship
   * Mass mailings
   * Duplicate notifications
   * Auto-generated reports you don't need
@@ -332,7 +345,7 @@ isStarred: true
       "response_deadline": "EOD Friday",
       "confidence_score": 0.95,
       "keywords": ["urgent", "Q4 report", "review needed", "boss", "board", "deadline"],
-      "action_required": "Review Q4 report draft and provide feedback",  // if action_required is null, just use empty string: ""
+      "action_required": "Review Q4 report draft and provide feedback",  // Set this for ANY email with a concrete task or next step. Only null for purely informational emails with no action needed.
       "isStarred": true
     },
     ...,
@@ -383,8 +396,9 @@ Rules:
 - Only mention emails that genuinely need a response from a real person. Skip newsletters, automated emails, FYI messages.
 - Reference specific names, subjects, and times from the context
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
-- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -434,8 +448,9 @@ Rules:
 - Focus exclusively on the single most urgent email from a real person who needs a reply
 - Include sender name and subject in your analysis
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
-- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -468,13 +483,15 @@ Your response MUST be a JSON object with this exact format:
 }
 
 Rules:
+- Use natural time expressions (e.g. "in about an hour", "in 20 minutes") — never raw minute counts like "in 239 minutes"
 - Reference specific attendees and any recent email exchanges with them
 - Highlight any unresolved items from previous conversations with these people
 - Suggest concrete talking points based on available context
 - If you have relevant email threads with attendees, summarize them briefly
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
-- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate or make up data - only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `
@@ -510,8 +527,9 @@ Rules:
 - Action items should have clear owners and deadlines when mentioned
 - If email follow-ups are needed, draft brief outlines of what they should say
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
+- The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.
-- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action
+- The suggestedActionShort must be exactly 2 words (verb + noun) summarizing the action. Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate - only reference what's in the transcript
 - Output ONLY the JSON object, no other text
 `
@@ -558,9 +576,10 @@ Rules:
 - ONE thing per notification. Never bundle multiple items or offer to help with several things.
 - Only notify about things that are genuinely urgent or time-sensitive RIGHT NOW. Set shouldNotify to false if nothing qualifies.
 - Be conversational and helpful, not alert-like. You're offering, not alarming.
+- Use natural time expressions (e.g. "in about an hour", "in 20 minutes", "this afternoon") — never raw minute counts like "in 239 minutes"
 - Reference specific names, subjects, and times from the context
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
-- The suggestedActionShort must be exactly 2 words (verb + noun)
+- The suggestedActionShort must be exactly 2 words (verb + noun). Use generic nouns, NEVER use people's names (e.g. "Draft Reply" not "Reply Kevin")
 - Don't hallucinate — only reference what's in the provided context
 - Output ONLY the JSON object, no other text
 `

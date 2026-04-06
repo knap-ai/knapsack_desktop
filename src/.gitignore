@@ -12,6 +12,11 @@ lerna-debug.log*
 
 node_modules
 !src-tauri/resources/clawdbot/node_modules/
+# Un-ignore nested node_modules inside clawdbot packages.  The blanket
+# "node_modules" rule above blocks these from git, but packages like
+# proper-lockfile need version-specific deps (e.g. signal-exit@3) that
+# differ from the hoisted root copy.  Without this, builds ship broken deps.
+!src-tauri/resources/clawdbot/node_modules/**/node_modules/
 # Heavy / unused packages — kept out of git, removed at build time by prune-clawdbot.sh
 src-tauri/resources/clawdbot/node_modules/@node-llama-cpp/
 src-tauri/resources/clawdbot/node_modules/node-llama-cpp/
@@ -39,6 +44,8 @@ src-tauri/resources/clawdbot/node_modules/signal-utils/
 src-tauri/resources/clawdbot/node_modules/sqlite-vec/
 # @mariozechner/pi-tui is statically imported in the dist bundle — must NOT be gitignored
 # src-tauri/resources/clawdbot/node_modules/@mariozechner/pi-tui/
+# chalk is statically imported in 5+ dist chunks — must NOT be gitignored (shim in node_modules)
+# src-tauri/resources/clawdbot/node_modules/chalk/
 src-tauri/resources/clawdbot/node_modules/@cloudflare/
 src-tauri/resources/clawdbot/node_modules/web-streams-polyfill/
 src-tauri/resources/clawdbot/node_modules/bun-types/

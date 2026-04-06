@@ -31,6 +31,7 @@ use crate::memory::semantic::{semantic_search, SemanticService};
 use crate::api;
 use crate::audio;
 use crate::automations::api as automation_api;
+use crate::automations::workflow_api;
 use crate::connections;
 use crate::heartbeat::api as heartbeat_api;
 use crate::mcp::api as mcp_api;
@@ -82,14 +83,76 @@ pub async fn start_server<'a>(
   // Clawdbot integration config (in-memory for now)
   let clawdbot_cfg: SharedClawdbotConfig =
     std::sync::Arc::new(tokio::sync::RwLock::new(ClawdbotConfig {
-      base_url: std::env::var("CLAWDBOT_BASE_URL")
+      base_url: std::env::var("OPENCLAW_BASE_URL")
         .ok()
         .map(|s| s.trim_end_matches('/').to_string())
         .or_else(|| Some("http://127.0.0.1:18791".to_string())),
     }));
 
+  // Pre-check: detect and attempt to kill zombie processes on this port
+  if let Ok(stream) = std::net::TcpStream::connect(("127.0.0.1", port)) {
+    drop(stream);
+    eprintln!("WARNING: Port {} is already in use! Attempting to kill zombie process...", port);
+
+    #[cfg(target_os = "windows")]
+    {
+      // Kill any process holding this port on Windows
+      use std::os::windows::process::CommandExt;
+      const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+      let netstat_output = std::process::Command::new("cmd")
+        .args(["/C", &format!("netstat -ano | findstr :{}", port)])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+
+      if let Ok(output) = netstat_output {
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for line in output_str.lines() {
+          if line.contains("LISTENING") {
+            if let Some(pid_str) = line.split_whitespace().last() {
+              eprintln!("Killing zombie process on port {} (PID: {})", port, pid_str);
+              let _ = std::process::Command::new("taskkill")
+                .args(["/PID", pid_str, "/F", "/T"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .status();
+              std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+          }
+        }
+      }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+      // Kill any process holding this port on Unix-like systems
+      let lsof_output = std::process::Command::new("lsof")
+        .args(["-ti", &format!(":{}", port)])
+        .output();
+
+      if let Ok(output) = lsof_output {
+        let pid_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !pid_str.is_empty() {
+          eprintln!("Killing zombie process on port {} (PID: {})", port, pid_str);
+          let _ = std::process::Command::new("kill")
+            .args(["-9", &pid_str])
+            .status();
+          std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+      }
+    }
+
+    // Verify port is now free
+    if let Ok(stream) = std::net::TcpStream::connect(("127.0.0.1", port)) {
+      drop(stream);
+      eprintln!("ERROR: Port {} is still in use after cleanup attempt!", port);
+      eprintln!("ERROR: Another Knapsack instance may be running. Please close it manually.");
+    } else {
+      eprintln!("SUCCESS: Port {} has been freed.", port);
+    }
+  }
+
   println!("actix.rs: start_server: Starting server on port: {}", port);
-  HttpServer::new(move || {
+  let server = HttpServer::new(move || {
     let cors = Cors::permissive();
     App::new()
       .app_data(Data::new(app_handle.clone()))
@@ -128,6 +191,14 @@ pub async fn start_server<'a>(
       .service(automation_api::create_feed_item)
       .service(automation_api::update_feed_item)
       .service(automation_api::get_thread_transcript)
+      // Browser workflow endpoints
+      .service(workflow_api::get_workflows)
+      .service(workflow_api::get_workflow)
+      .service(workflow_api::create_workflow)
+      .service(workflow_api::update_workflow)
+      .service(workflow_api::delete_workflow)
+      .service(workflow_api::execute_workflow)
+      .service(workflow_api::get_workflow_runs)
       .service(audio::audio::start_recording)
       .service(audio::audio::stop_recording)
       .service(audio::audio::get_transcript_by_thread_id)
@@ -184,8 +255,10 @@ pub async fn start_server<'a>(
       .service(clawd::browser::snapshot)
       .service(clawd::browser::act)
       .service(clawd::browser::screenshot)
+      .service(clawd::browser::browser_search)
       .service(clawd::browser::chat)
       .service(clawd::browser::agent_chat)
+      .service(clawd::browser::agent_run)
       .service(clawd::browser::terminal_output)
       .service(clawd::gmail::get_unread_important)
       .service(clawd::sidecar::status)
@@ -206,6 +279,7 @@ pub async fn start_server<'a>(
       .service(clawd::service::ollama_models)
       .service(clawd::service::ollama_configure)
       .service(clawd::service::ollama_pull)
+      .service(clawd::service::ollama_delete)
       // Skills management endpoints
       .service(clawd::service::skills_status)
       .service(clawd::service::skills_install)
@@ -226,6 +300,7 @@ pub async fn start_server<'a>(
       .service(clawd::channels::telegram_status)
       .service(clawd::channels::telegram_enable)
       .service(clawd::channels::telegram_configure)
+      .service(clawd::channels::telegram_validate)
       .service(clawd::channels::telegram_disconnect)
       .service(clawd::channels::voice_status)
       .service(clawd::channels::voice_enable)
@@ -274,7 +349,23 @@ pub async fn start_server<'a>(
       .service(mcp_api::add_custom_server)
   })
   .bind(("127.0.0.1", port))
-  .unwrap()
-  .run()
-  .await
+  .map_err(|e| {
+    eprintln!("FATAL: Failed to bind actix server to 127.0.0.1:{}: {}", port, e);
+    eprintln!("FATAL: Is another instance of Knapsack already running on this port?");
+    e
+  })?
+  .run();
+
+  // Set up graceful shutdown handler
+  let server_handle = server.handle();
+
+  // Spawn a task to listen for shutdown signals
+  tokio::spawn(async move {
+    tokio::signal::ctrl_c().await.ok();
+    eprintln!("Received shutdown signal, stopping actix server gracefully...");
+    server_handle.stop(true).await;
+  });
+
+  // Run the server
+  server.await
 }

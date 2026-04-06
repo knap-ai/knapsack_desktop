@@ -570,11 +570,11 @@ const EmailNotificationDrawer = ({
               >
                 No Response Needed
               </button>
-              {/* Take Action button — only show when there's a non-email action */}
-              {pendingEmail && actionRequired && (
+              {/* Take Action button — show for all important emails needing response */}
+              {pendingEmail && pendingEmail.classification?.classification === 'IMPORTANT_NEEDS_RESPONSE' && (
                 <TakeActionButton
                   email={pendingEmail}
-                  label={actionRequired}
+                  label={actionRequired || undefined}
                 />
               )}
               <button

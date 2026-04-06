@@ -173,12 +173,10 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
 fn bearer_token_for_control(app_handle: &tauri::AppHandle) -> Option<String> {
   // Browser control auth is now unified with gateway auth in OpenClaw 2026.2+.
   // Check the gateway token env vars first.
-  for var in ["OPENCLAW_GATEWAY_TOKEN", "CLAWDBOT_GATEWAY_TOKEN"] {
-    if let Ok(token) = std::env::var(var) {
-      let t = token.trim().to_string();
-      if !t.is_empty() {
-        return Some(t);
-      }
+  if let Ok(token) = std::env::var("OPENCLAW_GATEWAY_TOKEN") {
+    let t = token.trim().to_string();
+    if !t.is_empty() {
+      return Some(t);
     }
   }
 
@@ -200,14 +198,74 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   if chrome.unwrap_or(false) {
     "chrome"
   } else {
-    "knapsack"
+    "openclaw"
   }
 }
 
-/// Open a URL in the system Chrome/Chromium browser instead of the OS default
-/// browser.  Falls back to the system default only if no Chrome-family browser
+/// Determine the user-data-dir for the isolated "openclaw" browser profile.
+/// This keeps the fallback browser separate from the user's personal profile.
+fn openclaw_user_data_dir() -> PathBuf {
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| {
+      if cfg!(target_os = "windows") { r"C:\Users\Default".to_string() }
+      else { "/tmp".to_string() }
+    });
+  PathBuf::from(&home).join(".openclaw").join("browser-profiles").join("openclaw")
+}
+
+/// Path to the Knapsack Chrome extension installed via the Web Store or locally.
+/// Returns the path if the extension directory exists and contains a manifest.json.
+fn knapsack_extension_dir() -> Option<PathBuf> {
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_default();
+  if home.is_empty() {
+    return None;
+  }
+
+  // Check for locally installed extension (copied during onboarding or first-run)
+  let local_ext = PathBuf::from(&home).join(".knapsack").join("chrome-extension");
+  if local_ext.join("manifest.json").exists() {
+    return Some(local_ext);
+  }
+
+  // Check for extension installed via openclaw CLI
+  let openclaw_ext = PathBuf::from(&home).join(".openclaw").join("browser").join("chrome-extension");
+  if openclaw_ext.join("manifest.json").exists() {
+    return Some(openclaw_ext);
+  }
+
+  None
+}
+
+/// Build Chromium CLI args for the managed browser profile.
+/// Includes --user-data-dir and --load-extension if the Knapsack extension is found.
+fn build_chromium_args(url: &str) -> Vec<String> {
+  let user_data_dir = openclaw_user_data_dir();
+  let _ = std::fs::create_dir_all(&user_data_dir);
+  let udd_arg = format!("--user-data-dir={}", user_data_dir.to_string_lossy());
+
+  let mut args = vec![udd_arg];
+
+  // Auto-sideload the Knapsack extension if it's installed locally
+  if let Some(ext_dir) = knapsack_extension_dir() {
+    let ext_path = ext_dir.to_string_lossy().to_string();
+    args.push(format!("--load-extension={}", ext_path));
+    args.push(format!("--disable-extensions-except={}", ext_path));
+  }
+
+  args.push(url.to_string());
+  args
+}
+
+/// Open a URL in the system Chrome/Chromium browser using the isolated
+/// "openclaw" user data directory so it never hijacks the user's personal
+/// profile.  Falls back to the system default only if no Chrome-family browser
 /// can be found.
 fn open_url_in_chrome(url: &str) -> Result<(), String> {
+  let args = build_chromium_args(url);
+
   #[cfg(target_os = "macos")]
   {
     // Try Chrome → Brave → Edge → Chromium in order of preference.
@@ -220,7 +278,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
     for browser in browsers {
       if Path::new(browser).exists() {
         return std::process::Command::new(browser)
-          .arg(url)
+          .args(&args)
           .spawn()
           .map(|_| ())
           .map_err(|e| format!("Failed to launch {}: {}", browser, e));
@@ -230,7 +288,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
 
   #[cfg(target_os = "windows")]
   {
-    // Try well-known Chrome install locations on Windows.
+    // Try Chrome → Brave → Edge in well-known Windows install locations.
     let program_files = std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
     let program_files_x86 = std::env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
     let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
@@ -238,14 +296,19 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
       format!(r"{}\Google\Chrome\Application\chrome.exe", program_files),
       format!(r"{}\Google\Chrome\Application\chrome.exe", program_files_x86),
       format!(r"{}\Google\Chrome\Application\chrome.exe", local_appdata),
+      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", program_files),
+      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", program_files_x86),
+      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", local_appdata),
+      format!(r"{}\Microsoft\Edge\Application\msedge.exe", program_files),
+      format!(r"{}\Microsoft\Edge\Application\msedge.exe", program_files_x86),
     ];
     for browser in &candidates {
       if Path::new(browser).exists() {
         return std::process::Command::new(browser)
-          .arg(url)
+          .args(&args)
           .spawn()
           .map(|_| ())
-          .map_err(|e| format!("Failed to launch Chrome: {}", e));
+          .map_err(|e| format!("Failed to launch {}: {}", browser, e));
       }
     }
   }
@@ -257,7 +320,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
       if let Ok(output) = std::process::Command::new("which").arg(bin).output() {
         if output.status.success() {
           return std::process::Command::new(bin)
-            .arg(url)
+            .args(&args)
             .spawn()
             .map(|_| ())
             .map_err(|e| format!("Failed to launch {}: {}", bin, e));
@@ -379,6 +442,20 @@ fn groq_key(app_handle: &tauri::AppHandle) -> Option<String> {
     .filter(|s| !s.is_empty())
 }
 
+fn openrouter_key(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("OPENROUTER_API_KEY") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
+  }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.openrouter_api_key)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
 fn ollama_is_enabled(app_handle: &tauri::AppHandle) -> bool {
   load_or_create_tokens(app_handle)
     .ok()
@@ -406,6 +483,50 @@ fn active_provider(app_handle: &tauri::AppHandle) -> String {
     .and_then(|t| t.active_provider)
     .unwrap_or_else(|| "openai".to_string())
 }
+
+/// Returns true if paid-provider fallback is disabled.
+/// When the user selects a free/cheap provider like Groq, they may not want
+/// the app to silently fall back to expensive providers like Anthropic or OpenAI.
+fn is_paid_fallback_disabled() -> bool {
+  std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    .unwrap_or(true) // Default: paid fallback is DISABLED (opt-in, not opt-out)
+}
+
+/// Returns true if the given provider is considered "paid" (i.e. charges per token).
+/// Groq and Ollama are considered free/cheap; OpenAI and Anthropic are paid.
+fn is_paid_provider(provider: &str) -> bool {
+  matches!(provider, "openai" | "anthropic")
+}
+
+/// Emit a provider-fallback event so the frontend can notify the user.
+fn emit_fallback_event(app_handle: &tauri::AppHandle, from: &str, to: &str, reason: &str) {
+  let _ = app_handle.emit_all("provider-fallback", json!({
+    "from": from,
+    "to": to,
+    "reason": reason,
+    "timestamp": chrono::Utc::now().to_rfc3339(),
+  }));
+  eprintln!("[provider-fallback] Switched from {} to {} (reason: {})", from, to, reason);
+}
+
+/// Pending emails awaiting user confirmation.  The key is a random token; the
+/// value holds the draft details.  `send_email` stores a draft here on first
+/// call and only actually sends when called again with `confirmed: true` and the
+/// matching `pending_id`.  This prevents the LLM from sending emails without the
+/// user seeing the draft first.
+#[derive(Clone)]
+struct PendingEmail {
+    to: String,
+    cc: Option<String>,
+    subject: String,
+    body_html: String,
+    thread_id: Option<String>,
+    created_at: std::time::Instant,
+}
+
+static PENDING_EMAILS: Lazy<Mutex<HashMap<String, PendingEmail>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 static CHAT_HISTORY: Lazy<Mutex<HashMap<String, Vec<chat_agent::OaiMessage>>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
@@ -1183,9 +1304,28 @@ pub async fn agent_chat(
           });
 
         if !reply.is_empty() {
-          eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
-          open_first_url_in_reply(&app_handle, &reply);
-          Some(reply)
+          // Detect if the gateway returned a raw HTTP error string (e.g. "401 Missing
+          // Authentication header") rather than a real AI response.  These occur when
+          // the gateway's internal API calls fail with an auth error.  Treat them as
+          // gateway failures and fall back to direct chat so the frontend's friendlyError
+          // handler can surface an actionable message instead of raw error text.
+          // Note: no length cap — gateway error messages can be verbose (>250 chars)
+          // and would bypass detection if we required trimmed.len() < 250.
+          let trimmed = reply.trim();
+          let is_http_error = trimmed.len() >= 4
+            && trimmed.as_bytes().get(3) == Some(&b' ')
+            && trimmed[..3].parse::<u16>().map(|c| (300..=599).contains(&c)).unwrap_or(false);
+          if is_http_error {
+            eprintln!(
+              "[clawd/agent-chat] Gateway returned HTTP error reply: {:?}, falling back to direct chat",
+              &trimmed[..trimmed.len().min(100)]
+            );
+            None
+          } else {
+            eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
+            open_first_url_in_reply(&app_handle, &reply);
+            Some(reply)
+          }
         } else {
           eprintln!("[clawd/agent-chat] Gateway returned empty reply, falling back to direct chat");
           None
@@ -1274,6 +1414,78 @@ pub async fn agent_chat(
         "ok": false,
         "message": format!("Failed to init HTTP client: {}", e),
       }))
+    }
+  }
+}
+
+/// Run an automation agent through the gateway — no fallback to direct chat.
+///
+/// Accepts `{ text, agentId?, channel? }`.  If the gateway is unavailable the
+/// request fails explicitly so the cadence system knows to retry later.
+#[post("/api/clawd/agent-run")]
+pub async fn agent_run(
+  body: web::Json<JsonValue>,
+) -> impl Responder {
+  let text = body
+    .get("text")
+    .and_then(|v| v.as_str())
+    .unwrap_or("")
+    .trim()
+    .to_string();
+
+  if text.is_empty() {
+    return HttpResponse::BadRequest()
+      .json(serde_json::json!({"ok": false, "message": "text is required"}));
+  }
+
+  if !gateway_client::is_gateway_port_open().await {
+    return HttpResponse::ServiceUnavailable()
+      .json(serde_json::json!({"ok": false, "message": "Gateway not available"}));
+  }
+
+  eprintln!("[clawd/agent-run] Sending to gateway: {:?}", &text[..text.len().min(100)]);
+
+  let agent_id = body.get("agentId").and_then(|v| v.as_str());
+  let channel = body.get("channel").and_then(|v| v.as_str());
+
+  match gateway_client::agent_run(&text, agent_id, channel, None).await {
+    Ok(result) => {
+      eprintln!("[clawd/agent-run] Gateway returned OK. Keys: {:?}",
+        result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+
+      let reply = result
+        .pointer("/result/payloads")
+        .and_then(|p| p.as_array())
+        .map(|payloads| {
+          payloads
+            .iter()
+            .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+            .map(|raw| parse_sse_payload_text(raw))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+        })
+        .unwrap_or_else(|| {
+          result
+            .get("summary")
+            .and_then(|s| s.as_str())
+            .unwrap_or("")
+            .to_string()
+        });
+
+      if reply.is_empty() {
+        eprintln!("[clawd/agent-run] Gateway returned empty reply");
+        HttpResponse::Ok()
+          .json(serde_json::json!({"ok": false, "message": "Empty reply from gateway"}))
+      } else {
+        eprintln!("[clawd/agent-run] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
+        HttpResponse::Ok()
+          .json(serde_json::json!({"ok": true, "reply": reply, "gateway": true}))
+      }
+    }
+    Err(e) => {
+      eprintln!("[clawd/agent-run] Gateway agent request FAILED: {}", e);
+      HttpResponse::Ok()
+        .json(serde_json::json!({"ok": false, "message": format!("Gateway error: {}", e)}))
     }
   }
 }
@@ -1517,6 +1729,15 @@ pub async fn chat(
         }))
       }
     },
+    "openrouter" => match openrouter_key(&app_handle) {
+      Some(k) => k,
+      None => {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+          "ok": false,
+          "message": "OpenRouter API key is not set. Add it in Settings and Save, then re-enable."
+        }))
+      }
+    },
     _ => match openai_key(&app_handle) {
       Some(k) => k,
       None => {
@@ -1667,7 +1888,11 @@ pub async fn chat(
             let msg = e.to_string();
             let is_transient = msg.contains("onnection refused")
               || msg.contains("extension not connected")
-              || msg.contains("Extension not connected");
+              || msg.contains("Extension not connected")
+              || msg.contains("Can't reach")
+              || msg.contains("tab not found")
+              || msg.contains("not running")
+              || msg.contains("not ready");
             if is_transient && attempt < 1 {
               eprintln!("[clawd/chat] list_tabs attempt {} failed ({}), retrying...", attempt + 1, msg);
               tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
@@ -1704,7 +1929,10 @@ pub async fn chat(
               || last_err.contains("Extension not connected")
               || last_err.contains("No pages available")
               || last_err.contains("no tab is connected")
-              || last_err.contains("tab not found");
+              || last_err.contains("tab not found")
+              || last_err.contains("Can't reach")
+              || last_err.contains("not running")
+              || last_err.contains("not ready");
             if is_transient && attempt < 2 {
               eprintln!("[clawd/chat] snapshot attempt {} failed ({}), retrying...", attempt + 1, last_err);
               tokio::time::sleep(std::time::Duration::from_millis(1500 * (attempt as u64 + 1))).await;
@@ -2493,6 +2721,12 @@ pub async fn chat(
       }
     }
 
+    // Open Activity Panel — allows the AI to open the terminal drawer in the sidebar
+    if name == "open_activity_panel" {
+      let _ = app_handle.emit_all("open-activity-panel", json!({}));
+      return Ok(json!({"ok": true, "message": "Activity Panel opened. The user can now see the terminal and any running processes."}));
+    }
+
     // Read terminal output — allows AI to see what's in the terminal without user pasting
     if name == "read_terminal" {
       let session_id = args_map.get("session_id").and_then(|v| v.as_str());
@@ -2674,7 +2908,10 @@ pub async fn chat(
       }
     }
 
-    // Direct email sending via Gmail API (no browser automation needed)
+    // Direct email sending via Gmail API (no browser automation needed).
+    // Two-phase: first call drafts & stores a pending email; second call
+    // with confirmed=true + pending_id actually sends.  This ensures the
+    // user always sees the draft in the chat before it is sent.
     if name == "send_email" {
       if user_email.is_empty() {
         return Ok(json!({
@@ -2683,30 +2920,92 @@ pub async fn chat(
         }));
       }
 
-      let to = args_map.get("to").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let cc = args_map.get("cc").and_then(|v| v.as_str()).map(|s| s.trim());
-      let subject = args_map.get("subject").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let body_html = args_map.get("body").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let thread_id = args_map.get("thread_id").and_then(|v| v.as_str()).map(|s| s.trim());
+      let confirmed = args_map.get("confirmed").and_then(|v| v.as_bool()).unwrap_or(false);
+      let pending_id = args_map.get("pending_id").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
+
+      // Phase 2: send a previously confirmed draft.
+      if confirmed {
+        let pid = match pending_id {
+          Some(ref id) if !id.is_empty() => id.clone(),
+          _ => anyhow::bail!("confirmed=true requires a valid pending_id from the draft step"),
+        };
+        let pending = {
+          let mut store = PENDING_EMAILS.lock().unwrap();
+          // Expire stale drafts (> 10 min)
+          store.retain(|_, v| v.created_at.elapsed().as_secs() < 600);
+          store.remove(&pid)
+        };
+        let draft = match pending {
+          Some(d) => d,
+          None => return Ok(json!({
+            "ok": false,
+            "error": "No pending email found for this pending_id. The draft may have expired (10 min). Please draft the email again."
+          })),
+        };
+        match crate::clawd::gmail::send_gmail_email(
+          user_email,
+          user_name,
+          &draft.to,
+          draft.cc.as_deref(),
+          &draft.subject,
+          &draft.body_html,
+          draft.thread_id.as_deref(),
+        )
+        .await
+        {
+          Ok(msg) => return Ok(json!({"ok": true, "message": msg})),
+          Err(e) => return Ok(json!({"ok": false, "error": e})),
+        }
+      }
+
+      // Phase 1: draft the email and store it as pending.
+      let to = args_map.get("to").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+      let cc = args_map.get("cc").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
+      let subject = args_map.get("subject").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+      let body_html = args_map.get("body").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+      let thread_id = args_map.get("thread_id").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
 
       if to.is_empty() || subject.is_empty() || body_html.is_empty() {
         anyhow::bail!("to, subject, and body are all required");
       }
 
-      match crate::clawd::gmail::send_gmail_email(
-        user_email,
-        user_name,
-        to,
-        cc,
-        subject,
-        body_html,
-        thread_id,
-      )
-      .await
+      let pid = format!("email_{}", uuid::Uuid::new_v4().simple());
       {
-        Ok(msg) => return Ok(json!({"ok": true, "message": msg})),
-        Err(e) => return Ok(json!({"ok": false, "error": e})),
+        let mut store = PENDING_EMAILS.lock().unwrap();
+        // Expire stale drafts
+        store.retain(|_, v| v.created_at.elapsed().as_secs() < 600);
+        store.insert(pid.clone(), PendingEmail {
+          to: to.clone(),
+          cc: cc.clone(),
+          subject: subject.clone(),
+          body_html: body_html.clone(),
+          thread_id: thread_id.clone(),
+          created_at: std::time::Instant::now(),
+        });
       }
+
+      // Signal the frontend to show the draft in the Email Autopilot compose UI.
+      let _ = app_handle.emit_all("compose-email-ready", json!({
+        "to": to,
+        "cc": cc,
+        "subject": subject,
+        "body": body_html,
+        "threadId": thread_id,
+      }));
+
+      return Ok(json!({
+        "ok": true,
+        "pending": true,
+        "pending_id": pid,
+        "draft": {
+          "to": to,
+          "cc": cc,
+          "subject": subject,
+          "body": body_html,
+          "thread_id": thread_id,
+        },
+        "message": "Email draft created and opened in the Email Autopilot compose drawer. Tell the user their draft is ready to review and send in the Email tab. Do NOT ask for chat confirmation — the user sends from the drawer."
+      }));
     }
 
     anyhow::bail!("unknown tool: {}", name)
@@ -2851,25 +3150,36 @@ WRONG: "Once the browser cooperates, I'll pull headlines." (NEVER defer to the f
   } else {
     r#"
 
-## AUTONOMY MODE: ASSIST 🤝
-You are operating in **assist mode**. The user wants to stay in control and be consulted on decisions.
+## AUTONOMY MODE: CHIEF OF STAFF 🤝
+You are operating in **assist mode** — think of yourself as an experienced chief of staff. You RESEARCH independently and thoroughly, then ADVISE the user with clear recommendations. You gather all the facts so the user can make informed decisions quickly.
 
-### How to Work in This Mode
-- **EXPLAIN BEFORE ACTING**: Tell the user what you plan to do before doing it
-- **ASK FOR CONFIRMATION**: Check in before clicking buttons, submitting forms, or making changes
-- **SHOW YOUR WORK**: Explain your reasoning and what you're seeing
-- **OFFER OPTIONS**: When there are multiple approaches, present them and let the user choose
+### Your Role
+- **DO research, browse, search, read, and gather information independently** — never ask permission to look things up
+- **DO present findings with clear recommendations** — "Here's what I found, and here's what I recommend"
+- **DO use your tools proactively to get answers** — navigate to websites, read emails, check calendars, search the web
+- **DO make it easy for the user** — organize information, highlight what matters, suggest next steps
+- **ASK before taking external actions** — sending emails, submitting forms, making purchases, scheduling meetings with others, or anything that affects the outside world
 
-### What to Ask Permission For
-- Opening new tabs or navigating to new sites
-- Clicking buttons or links
-- Filling in form fields
-- Creating or modifying any content
-- Any action that changes state
+### What You Do Independently (no permission needed)
+- Navigate to websites, search, browse, read content
+- Check email inboxes, calendars, documents, and files
+- Search the web for information, prices, availability, news
+- Read and analyze documents, transcripts, and data
+- Cross-reference information across multiple sources
+- Compile findings into clear summaries
+
+### What You Advise On (present recommendation, let user decide)
+- Sending or replying to emails — draft it, show the user, let them approve
+- Booking or purchasing anything — present the best options with your recommendation
+- Scheduling meetings or events — suggest the best time, let the user confirm
+- Making changes to external systems (CRM updates, form submissions, etc.)
+- Any action visible to other people
 
 ### Example Workflow
-User: "Check my email and handle anything urgent"
-You should: "I'll navigate to Gmail now to check your inbox. [navigate] I can see you have 12 unread emails. The most urgent appears to be from John about tomorrow's deadline. Would you like me to read it and draft a response?"
+User: "I need to book flights for my reunion"
+CORRECT: Immediately use browser/web_search to look up the reunion dates, then navigate to the airline website, search for flights, read the results, and present: "Your reunion is May 28-31. I checked aa.com and found these award flights: [details]. I recommend the Wed evening red-eye — it has saver availability and gets you there Thursday morning. Want me to proceed with booking?"
+WRONG: "Here's how to search aa.com for flights..." (NEVER give instructions — do the research yourself)
+WRONG: "Would you like me to check aa.com?" (NEVER ask permission to research — just do it)
 "#.to_string()
   };
 
@@ -2981,16 +3291,15 @@ When the user asks "what can you do" or "what skills do you have", mention that 
 
   let email_section = if !user_email.is_empty() {
     r#"## EMAIL SENDING
-Your email account is connected. You have a **send_email** tool that sends emails directly via the Gmail API (no browser needed). This is the PREFERRED way to send emails — do NOT use browser automation to compose/send emails.
+Your email account is connected. You have a **send_email** tool that sends emails directly via the Gmail API. NEVER use browser automation to compose or send emails — always use the send_email tool.
 
 ### How to Send Emails
-1. **Draft the email** and show the user the full details (To, CC, Subject, Body) in your response
-2. **Ask for confirmation** — e.g. "Ready to send this email. Say **SEND** to confirm, or let me know what to change."
-3. **Only call send_email** after the user explicitly confirms (says "send", "send it", "yes", "confirmed", "go ahead", etc.)
-4. For **replies**, include the thread_id if available to maintain threading
+1. **Call send_email** with to, subject, body (and thread_id for replies). This creates a draft, stores it, AND opens it in the user's Email Autopilot UI automatically.
+2. **Tell the user** their draft is ready in the Email tab: e.g. "I've drafted your email — it's ready to review and send in the **Email tab**."
+3. The user reviews and sends from the Email tab. You do NOT need to ask for chat confirmation.
+4. If the user explicitly says "send it" or "yes send" in chat, call send_email again with `confirmed: true` and the `pending_id`.
 
-### When the User Says "Send"
-When the user says "send it", "yes send", "confirmed", or similar — immediately call the send_email tool. Do NOT ask for additional confirmation or re-show the email. One confirmation is enough."#.to_string()
+CRITICAL: NEVER use browser automation for email when this tool is available. NEVER navigate to gmail.com or outlook.com to send email."#.to_string()
   } else {
     r#"## EMAIL
 No email account is directly connected via the send_email tool. However, you CAN still help the user with email by using browser automation — navigate to Gmail (https://mail.google.com) or Outlook (https://outlook.live.com) in the browser to read, search, and compose emails. Do NOT tell the user that email is unavailable or ask them to connect their account — just use the browser to help with email tasks."#.to_string()
@@ -3038,6 +3347,7 @@ Users can attach screenshots, photos, and images to their messages. When an imag
 - **type(selector, text)**: Enter text into fields
 - **list_tabs()**: See all open browser tabs with their URLs
 - **focus_tab(tabId)**: Switch to a specific tab
+- **open_activity_panel()**: Open the Activity Panel / terminal drawer in the sidebar. Use when the user asks to open the terminal, open Claude Code, show the Activity Panel, or see terminal output.
 - **read_file(path)**: Read a local file's contents
 - **write_file(path, content)**: Write content to a local file (creates parent dirs as needed)
 - **list_directory(path)**: List files in a directory
@@ -3316,6 +3626,14 @@ You can suggest follow-up actions using the special `knapsack://prompt/` link fo
 - They should be things the USER would initiate, not things YOU should be doing right now
 - If you find yourself wanting to present action prompts for things you could do — STOP and just DO them instead
 
+**CRITICAL — Prompt content must be NATURAL LANGUAGE:**
+- NEVER put raw tool calls inside prompt links (e.g., `send_email(to=..., body=...)` is WRONG)
+- NEVER put HTML tags inside prompt links (e.g., `<p>`, `<ul>`, `<li>` is WRONG)
+- NEVER put code or function calls inside prompt links
+- Prompt text must be a plain English instruction, like "Draft a reply to Sarah about the budget"
+- WRONG: `[Draft Email](knapsack://prompt/send_email(to="x@y.com", body="<p>Hi</p>"))`
+- RIGHT: `[Draft Email to Sarah](knapsack://prompt/Draft a reply to Sarah about the Q3 budget, confirming the timeline)`
+
 **When NOT to use action prompts:**
 - NEVER use them to present "options" for what you should do next (just do it all)
 - NEVER use them mid-task as a way to check in with the user
@@ -3434,6 +3752,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
     "gemini" => super::service::get_gemini_model(&app_handle),
     "groq" => super::service::get_groq_model(&app_handle),
     "ollama" => ollama_model(&app_handle),
+    "openrouter" => super::service::get_openrouter_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
   };
   let current_ollama_base = ollama_base_url(&app_handle);
@@ -3452,6 +3771,9 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
         "ollama" => {
           let base = format!("{}/v1", ollama_base.trim_end_matches('/'));
           chat_agent::openai_compatible_chat(key, model, &base, msgs, tls).await
+        },
+        "openrouter" => {
+          chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls).await
         },
         _ => chat_agent::openai_chat(key, model, msgs, tls).await,
       }
@@ -3489,28 +3811,42 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
             serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
           );
         }
-        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq
+        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → Ollama
+        // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges on expensive providers
         eprintln!("[clawd/chat] {} hit credit/rate limit: {}", current_provider, err_str);
-        let fallbacks: [(&str, Option<String>); 4] = [
+        let disable_paid = is_paid_fallback_disabled();
+        let ollama_key = if ollama_is_enabled(&app_handle) { Some("ollama-local".to_string()) } else { None };
+        let fallbacks: [(&str, Option<String>); 6] = [
           ("openai", openai_key(&app_handle)),
           ("anthropic", anthropic_key(&app_handle)),
           ("gemini", gemini_key(&app_handle)),
           ("groq", groq_key(&app_handle)),
+          ("openrouter", openrouter_key(&app_handle)),
+          ("ollama", ollama_key),
         ];
         let mut fallback_resp = None;
         for (fb_provider, fb_key_opt) in &fallbacks {
           if *fb_provider == current_provider.as_str() { continue; }
+          // Skip paid providers if paid fallback is disabled and the user's
+          // active provider is not itself a paid provider
+          if disable_paid && is_paid_provider(fb_provider) && !is_paid_provider(&current_provider) {
+            eprintln!("[clawd/chat] Skipping paid fallback provider {} (KNAPSACK_DISABLE_PAID_FALLBACK=true)", fb_provider);
+            continue;
+          }
           if let Some(fb_key) = fb_key_opt {
             let fb_model = match *fb_provider {
               "anthropic" => super::service::get_anthropic_model(&app_handle),
               "gemini" => super::service::get_gemini_model(&app_handle),
               "groq" => super::service::get_groq_model(&app_handle),
+              "ollama" => ollama_model(&app_handle),
+              "openrouter" => super::service::get_openrouter_model(&app_handle),
               _ => super::service::get_openai_model(&app_handle),
             };
             eprintln!("[clawd/chat] Trying fallback provider={} model={}", fb_provider, fb_model);
             match call_provider(fb_provider, fb_key, &fb_model, messages.clone(), tools.clone(), &current_ollama_base).await {
               Ok(r) => {
                 eprintln!("[clawd/chat] Fallback to {} succeeded", fb_provider);
+                emit_fallback_event(&app_handle, &current_provider, fb_provider, &err_str);
                 current_provider = fb_provider.to_string();
                 current_api_key = fb_key.clone();
                 current_model = fb_model;
@@ -3526,8 +3862,8 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
         match fallback_resp {
           Some(r) => r,
           None => {
-            return HttpResponse::InternalServerError().json(
-              serde_json::json!({"ok": false, "message": format!("{} error: {}. All fallback providers also failed.", current_provider, e)}),
+            return HttpResponse::Ok().json(
+              serde_json::json!({"ok": false, "message": format!("All AI providers are unavailable. Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.")}),
             );
           }
         }
@@ -3643,4 +3979,298 @@ pub async fn screenshot(
     }
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
+}
+
+// ── Browser-based web search ──────────────────────────────────────────────
+//
+// When BRAVE_API_KEY is absent the gateway's `web_search` tool has no
+// API-backed provider configured.  This endpoint uses the bundled
+// Chromium (CDP) browser to navigate DuckDuckGo Lite, extract the plain-text
+// results, and return them as structured JSON.
+//
+// Priority order for web search (enforced by channel_diagnostics):
+//   1. Brave API  (BRAVE_API_KEY present)
+//   2. Browser CDP  (this endpoint, requires browser_ok)
+//   3. DuckDuckGo provider  (key-free HTTP fallback, browser unavailable)
+//   4. API key prompt  (all else failed)
+
+#[derive(Debug, Deserialize)]
+pub struct BrowserSearchQuery {
+  pub q: String,
+  /// Max number of results to return (default 5, max 10).
+  pub count: Option<usize>,
+  /// Use the isolated "openclaw" profile (default true).
+  pub chrome: Option<bool>,
+}
+
+#[derive(Serialize)]
+pub struct BrowserSearchResult {
+  pub title: String,
+  pub url: String,
+  pub snippet: String,
+}
+
+#[derive(Serialize)]
+pub struct BrowserSearchResponse {
+  pub success: bool,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub message: Option<String>,
+  pub results: Vec<BrowserSearchResult>,
+  /// Which mechanism was used ("browser" or "ddg-fallback").
+  pub provider: String,
+}
+
+/// Parse DuckDuckGo Lite plain-text snapshot into structured results.
+///
+/// DDG Lite renders results in the format:
+///   1. Title\n   URL\n   Snippet\n\n
+/// The snapshot returns readable text so we can pattern-match on it.
+fn parse_ddg_lite_snapshot(text: &str, max_results: usize) -> Vec<BrowserSearchResult> {
+  let mut results = Vec::new();
+  // Split on double-newlines to get result blocks.
+  let blocks: Vec<&str> = text.split("\n\n").collect();
+  for block in blocks {
+    let lines: Vec<&str> = block.trim().lines().collect();
+    if lines.len() < 2 {
+      continue;
+    }
+    // First line: "<N>. <Title>" or just "<Title>"
+    let title_line = lines[0].trim();
+    let title = if let Some(pos) = title_line.find(". ") {
+      let prefix = &title_line[..pos];
+      if prefix.chars().all(|c| c.is_ascii_digit()) {
+        title_line[pos + 2..].trim().to_string()
+      } else {
+        title_line.to_string()
+      }
+    } else {
+      title_line.to_string()
+    };
+
+    // Find a line that looks like a URL (starts with http)
+    let url = lines
+      .iter()
+      .find(|l| l.trim().starts_with("http"))
+      .map(|l| l.trim().to_string())
+      .unwrap_or_default();
+
+    // Remaining non-URL, non-empty lines = snippet
+    let snippet = lines
+      .iter()
+      .skip(1)
+      .filter(|l| !l.trim().starts_with("http") && !l.trim().is_empty())
+      .cloned()
+      .collect::<Vec<&str>>()
+      .join(" ")
+      .trim()
+      .to_string();
+
+    if !title.is_empty() && !url.is_empty() {
+      results.push(BrowserSearchResult { title, url, snippet });
+      if results.len() >= max_results {
+        break;
+      }
+    }
+  }
+  results
+}
+
+/// Browser-based web search via CDP (DuckDuckGo Lite).
+///
+/// `GET /api/clawd/browser/search?q=<query>[&count=5][&chrome=true]`
+///
+/// Opens a DuckDuckGo Lite tab in the bundled browser, waits for the page
+/// to render, takes a text snapshot, and returns parsed results.
+/// Falls back to a direct DuckDuckGo Lite HTTP request if the browser CDP
+/// is unavailable or returns an empty page.
+#[get("/api/clawd/browser/search")]
+pub async fn browser_search(
+  _app_handle: web::Data<tauri::AppHandle>,
+  _cfg: web::Data<SharedClawdbotConfig>,
+  query: web::Query<BrowserSearchQuery>,
+) -> impl Responder {
+  let q = query.q.trim().to_string();
+  if q.is_empty() {
+    return HttpResponse::BadRequest().json(BrowserSearchResponse {
+      success: false,
+      message: Some("Query parameter 'q' is required".to_string()),
+      results: vec![],
+      provider: "none".to_string(),
+    });
+  }
+  let max_results = query.count.unwrap_or(5).min(10);
+  let profile = clawd_profile(query.chrome);
+
+  // Percent-encode the query for the URL (spaces → +)
+  let encoded_q: String = q
+    .chars()
+    .map(|c| match c {
+      ' ' => '+'.to_string(),
+      c if c.is_ascii_alphanumeric() || "-_.~".contains(c) => c.to_string(),
+      c => {
+        let mut buf = [0u8; 4];
+        let s = c.encode_utf8(&mut buf);
+        s.bytes().map(|b| format!("%{:02X}", b)).collect()
+      }
+    })
+    .collect();
+
+  // DuckDuckGo Lite: server-rendered plain HTML, no JS, loads in <500ms
+  let ddg_url = format!("https://lite.duckduckgo.com/lite/?q={}", encoded_q);
+
+  log::info!("[browser_search] query={:?} url={}", q, ddg_url);
+
+  // ── Attempt 1: CDP browser ────────────────────────────────────────────
+  let rpc_query = serde_json::json!({ "profile": profile });
+
+  let open_result = tokio::time::timeout(
+    std::time::Duration::from_secs(15),
+    gateway_client::browser_request(
+      "POST",
+      "/tabs/open",
+      Some(rpc_query.clone()),
+      Some(serde_json::json!({ "url": ddg_url })),
+      None,
+    ),
+  ).await;
+
+  let target_id: Option<String> = match &open_result {
+    Ok(Ok(v)) => v.get("targetId").and_then(|t| t.as_str()).map(|s| s.to_string()),
+    _ => None,
+  };
+
+  if open_result.is_ok() && open_result.as_ref().unwrap().is_ok() {
+    // Wait for server-rendered HTML to arrive (DDG Lite renders without JS)
+    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+
+    let mut snap_query = rpc_query.clone();
+    if let Some(tid) = &target_id {
+      snap_query["targetId"] = serde_json::json!(tid);
+    }
+    snap_query["format"] = serde_json::json!("text");
+    snap_query["maxChars"] = serde_json::json!(20000);
+
+    let snap_result = tokio::time::timeout(
+      std::time::Duration::from_secs(10),
+      gateway_client::browser_request("GET", "/snapshot", Some(snap_query), None, None),
+    ).await;
+
+    // Always close the tab
+    if let Some(tid) = &target_id {
+      let _ = gateway_client::browser_request(
+        "POST",
+        "/tabs/close",
+        Some(rpc_query.clone()),
+        Some(serde_json::json!({ "targetId": tid })),
+        None,
+      ).await;
+    }
+
+    if let Ok(Ok(snap)) = snap_result {
+      let text = if snap.is_string() {
+        snap.as_str().unwrap_or("").to_string()
+      } else {
+        snap.to_string()
+      };
+
+      let results = parse_ddg_lite_snapshot(&text, max_results);
+      if !results.is_empty() {
+        log::info!("[browser_search] browser CDP: {} results for {:?}", results.len(), q);
+        return HttpResponse::Ok().json(BrowserSearchResponse {
+          success: true,
+          message: None,
+          results,
+          provider: "browser".to_string(),
+        });
+      }
+      log::warn!("[browser_search] browser CDP snapshot empty/unparseable — trying HTTP fallback");
+    } else {
+      log::warn!("[browser_search] browser CDP snapshot failed — trying HTTP fallback");
+    }
+  } else {
+    log::warn!("[browser_search] browser tab open failed — trying HTTP fallback");
+  }
+
+  // ── Attempt 2: Direct DuckDuckGo Lite HTTP request ───────────────────
+  log::info!("[browser_search] DDG Lite HTTP fallback for {:?}", q);
+  let http_client = match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(10))
+    .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+    .build()
+  {
+    Ok(c) => c,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(BrowserSearchResponse {
+        success: false,
+        message: Some(format!("Failed to build HTTP client: {}", e)),
+        results: vec![],
+        provider: "none".to_string(),
+      });
+    }
+  };
+
+  match http_client.get(&ddg_url).send().await {
+    Ok(resp) => match resp.text().await {
+      Ok(html) => {
+        let plain = strip_html_tags(&html);
+        let results = parse_ddg_lite_snapshot(&plain, max_results);
+        log::info!("[browser_search] DDG HTTP fallback: {} results", results.len());
+        HttpResponse::Ok().json(BrowserSearchResponse {
+          success: true,
+          message: if results.is_empty() {
+            Some("Search completed but no results were parsed from DuckDuckGo".to_string())
+          } else {
+            None
+          },
+          results,
+          provider: "ddg-fallback".to_string(),
+        })
+      }
+      Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
+        success: false,
+        message: Some(format!("Failed to read DuckDuckGo response: {}", e)),
+        results: vec![],
+        provider: "ddg-fallback".to_string(),
+      }),
+    },
+    Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
+      success: false,
+      message: Some(format!(
+        "Browser CDP and DuckDuckGo HTTP both failed. \
+         Set BRAVE_API_KEY for reliable API-backed search. Error: {}",
+        e
+      )),
+      results: vec![],
+      provider: "none".to_string(),
+    }),
+  }
+}
+
+/// Strip HTML tags from a string (simple state-machine, not a full parser).
+fn strip_html_tags(html: &str) -> String {
+  let mut result = String::with_capacity(html.len());
+  let mut in_tag = false;
+  for ch in html.chars() {
+    match ch {
+      '<' => in_tag = true,
+      '>' => { in_tag = false; result.push(' '); }
+      c if !in_tag => result.push(c),
+      _ => {}
+    }
+  }
+  // Collapse runs of blank lines
+  let mut out = String::with_capacity(result.len());
+  let mut prev_blank = false;
+  for line in result.lines() {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+      if !prev_blank { out.push('\n'); }
+      prev_blank = true;
+    } else {
+      out.push_str(trimmed);
+      out.push('\n');
+      prev_blank = false;
+    }
+  }
+  out
 }

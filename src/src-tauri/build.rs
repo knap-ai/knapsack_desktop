@@ -1,6 +1,48 @@
+use std::fs;
 use std::path::Path;
 
+/// Recursively remove broken symlinks under the given directory.
+/// With hoisted node_modules (.npmrc node-linker=hoisted), the only symlinks
+/// should be in .bin/. Clean up any dangling ones that could trip up Tauri.
+fn remove_broken_symlinks_recursive(dir: &Path) {
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let meta = match path.symlink_metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if meta.file_type().is_symlink() && !path.exists() {
+            // Dangling symlink – remove it
+            if fs::remove_file(&path).is_err() {
+                let _ = fs::remove_dir(&path);
+            }
+        } else if meta.file_type().is_dir() {
+            remove_broken_symlinks_recursive(&path);
+        }
+    }
+}
+
 fn main() {
+    let node_modules = Path::new("resources/clawdbot/node_modules");
+
+    // Remove .pnpm virtual store — not needed at runtime with hoisted
+    // node_modules, and it contains thousands of internal symlinks that
+    // bloat the bundle and can break Tauri's resource copier.
+    let pnpm_store = node_modules.join(".pnpm");
+    if pnpm_store.exists() {
+        let _ = fs::remove_dir_all(&pnpm_store);
+    }
+
+    // Clean up any broken symlinks (e.g. in .bin/) that could cause
+    // tauri_build to fail.
+    if node_modules.exists() {
+        remove_broken_symlinks_recursive(node_modules);
+    }
+
     // Fail the build early if the bundled Node.js binary is missing.
     // The binary is downloaded by `scripts/prepare-node.sh` (runs automatically
     // via the npm `prebuild` hook). If you're seeing this error, run:

@@ -9,7 +9,7 @@
   },
   "package": {
     "productName": "Knapsack",
-    "version": "0.9.700"
+    "version": "1.3.7"
   },
   "tauri": {
     "allowlist": {
@@ -68,6 +68,7 @@
           "https://accounts.google.com/**",
           "https://login.microsoftonline.com/**",
           "https://data.amplitude.com/**",
+          "https://x2.amplitude.com/**",
           "https://api.github.com/**"
         ]
       },
@@ -77,11 +78,19 @@
       "os": {
         "all": true
       },
-      "path": { "all": true },
+      "process": {
+        "all": false,
+        "relaunch": true
+      },
+      "path": {
+        "all": true
+      },
       "protocol": {
         "asset": true,
         "all": true,
-        "assetScope": ["**"]
+        "assetScope": [
+          "**"
+        ]
       },
       "shell": {
         "all": false,
@@ -122,21 +131,20 @@
     "bundle": {
       "active": true,
       "category": "Productivity",
-      "copyright": "",
+      "copyright": "Knap Inc.",
       "deb": {
         "depends": []
       },
-      "externalBin": [
-      ],
+      "externalBin": [],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
         "icons/128x128@2x.png",
-        "icons/icon.icns",
+        "icons/Knapsack.icns",
         "icons/icon.ico"
       ],
       "identifier": "ai.knap.knapsack",
-      "longDescription": "",
+      "longDescription": "Knapsack Desktop",
       "macOS": {
         "exceptionDomain": "",
         "frameworks": [],
@@ -145,9 +153,19 @@
         "entitlements": "tauri.entitlements"
       },
       "dmg": {
-        "appPosition": { "x": 180, "y": 170 },
-        "applicationFolderPosition": { "x": 480, "y": 170 },
-        "windowSize": { "width": 660, "height": 400 }
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        },
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "background": "icons/dmg-background.png"
       },
       "publisher": "Knap",
       "resources": [
@@ -156,29 +174,36 @@
         "resources/node/*",
         "resources/clawdbot/**/*"
       ],
-      "shortDescription": "",
+      "shortDescription": "Knapsack Desktop",
       "targets": "all",
       "windows": {
         "digestAlgorithm": "sha256",
         "timestampUrl": "http://timestamp.comodoca.com",
         "wix": {
           "language": "en-US"
+        },
+        "nsis": {
+          "installMode": "both",
+          "languages": [
+            "English"
+          ],
+          "displayLanguageSelector": false
         }
       }
     },
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.cdnfonts.com https://www.nerdfonts.com https://fonts.googleapis.com; font-src 'self' https://fonts.cdnfonts.com https://www.nerdfonts.com https://fonts.gstatic.com data:; img-src 'self' asset: https: data: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://knap.ai https://api.knapsack.ai https://api.openai.com https://gmail.googleapis.com https://www.googleapis.com https://accounts.google.com https://login.microsoftonline.com https://data.amplitude.com https://api.github.com https://*.loom.com; media-src 'self' blob: data:; frame-src 'self' https://*.loom.com; worker-src 'self' blob:"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.cdnfonts.com https://www.nerdfonts.com https://fonts.googleapis.com; font-src 'self' https://fonts.cdnfonts.com https://www.nerdfonts.com https://fonts.gstatic.com data:; img-src 'self' asset: https: data: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://knap.ai https://api.knapsack.ai https://api.openai.com https://gmail.googleapis.com https://www.googleapis.com https://accounts.google.com https://login.microsoftonline.com https://data.amplitude.com https://x2.amplitude.com https://api.github.com https://*.loom.com; media-src 'self' blob: data:; frame-src 'self' https://*.loom.com; worker-src 'self' blob:"
     },
     "updater": {
       "active": true,
       "endpoints": [
         "https://github.com/knap-ai/knapsack_desktop/releases/latest/download/latest.json"
       ],
-      "dialog": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBQ0JCMjk5MkQ0NkMwNDQKUldSRXdFWXRtYkxMNmlLZ1VjNXZheHVvQ0FoMVlZREM1OFNxV1dHNkd1QWZra2p3bHBiRGJJSmcK"
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZFRjZCMjlFRTU1NTYwMzQKUldRMFlGWGxuckwyL3FDa2k1djhyVVNVcTUrL00vVzhPeExrK0VQZDRML3BKYmM5eUxXRHdmQkMK"
     },
     "systemTray": {
-      "iconPath": "icons/icon.ico",
+      "iconPath": "icons/128x128.png",
       "iconAsTemplate": true
     },
     "macOSPrivateApi": true,

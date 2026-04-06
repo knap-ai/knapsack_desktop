@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
+use tokio::sync::Mutex;
+
+/// Global mutex to prevent concurrent `ensure_gateway_running` calls.
+/// Multiple callers (channel status, WS reconnect, RPC client) can trigger
+/// restarts simultaneously, causing launchctl bootout/bootstrap races that
+/// result in I/O errors and "service not found" failures.
+static RESTART_MUTEX: once_cell::sync::Lazy<Mutex<()>> = once_cell::sync::Lazy::new(|| Mutex::new(()));
 
 /// Minimal gateway supervisor helpers.
 ///
@@ -126,7 +133,24 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
   }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
+  // On Windows, we can't kickstart a LaunchAgent. The health check will
+  // trigger a re-enable via the /api/clawd/service/enable endpoint.
+  // For now, just check if the gateway port is already occupied.
+  let port_open = std::net::TcpStream::connect_timeout(
+    &std::net::SocketAddr::from(([127, 0, 0, 1], 18789u16)),
+    std::time::Duration::from_millis(500),
+  ).is_ok();
+
+  if port_open {
+    Ok(())
+  } else {
+    Err("Gateway not running on Windows — re-enable via the UI".to_string())
+  }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
   Err("kickstart not supported on this OS".to_string())
 }
@@ -134,8 +158,12 @@ pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
 /// Best-effort: if gateway isn't healthy, try kickstarting the LaunchAgent.
 ///
 /// This does NOT install/bootstrap the agent; it assumes the service is already enabled.
-/// Uses exponential backoff: retries up to 4 times with delays of 1s, 2s, 4s, 8s.
+/// Uses exponential backoff: retries up to 4 times with delays of 500ms, 1s, 2s, 4s.
+///
+/// Protected by a mutex — only one restart attempt runs at a time.  Concurrent
+/// callers wait for the in-progress attempt to finish and then re-check health.
 pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureResponse {
+  // Fast path: if already healthy, skip the mutex entirely.
   if is_gateway_healthy(token).await {
     return GatewayEnsureResponse {
       success: true,
@@ -144,8 +172,24 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
     };
   }
 
-  // Retry with exponential backoff: 1s, 2s, 4s, 8s
-  let backoff_ms: &[u64] = &[1000, 2000, 4000, 8000];
+  // Acquire the restart mutex — if another caller is already restarting,
+  // we wait for it to finish and then re-check health before trying ourselves.
+  let _guard = RESTART_MUTEX.lock().await;
+
+  // Re-check health after acquiring the lock — the previous holder may
+  // have already restarted the gateway successfully.
+  if is_gateway_healthy(token).await {
+    return GatewayEnsureResponse {
+      success: true,
+      running: true,
+      message: "Gateway healthy (recovered while waiting)".to_string(),
+    };
+  }
+
+  // Retry with exponential backoff: 500ms, 1s, 2s, 4s
+  // Start faster to reduce perceived startup time; the gateway usually
+  // comes up within the first second after kickstart.
+  let backoff_ms: &[u64] = &[500, 1000, 2000, 4000];
 
   for (attempt, &delay) in backoff_ms.iter().enumerate() {
     eprintln!(
@@ -175,7 +219,8 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
 
   // Dump the last few lines of the gateway's stderr log so we can see
   // why the process is failing to start.
-  let err_log = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
+  let err_log = super::service::gateway_stderr_log();
+  let mut detail = String::new();
   if let Ok(content) = std::fs::read_to_string(&err_log) {
     let tail: Vec<&str> = content.lines().rev().take(25).collect();
     if !tail.is_empty() {
@@ -185,13 +230,29 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
       for line in &lines {
         eprintln!("[gateway_supervisor]   {}", line);
       }
+      detail = format!("\nLast stderr:\n{}", lines.join("\n"));
+    }
+  }
+
+  // On macOS, check if the process is being killed by Gatekeeper (exit code 9 = SIGKILL).
+  #[cfg(target_os = "macos")]
+  {
+    let uid = unsafe { libc::getuid() };
+    let service = format!("gui/{}/{}", uid, label);
+    if let Ok(output) = Command::new("launchctl").args(["print", &service]).output() {
+      let info = String::from_utf8_lossy(&output.stdout);
+      // launchctl print shows "last exit code" for the service
+      if info.contains("last exit code = 9") || info.contains("last exit code = 137") {
+        eprintln!("[gateway_supervisor] Service was killed with SIGKILL — likely macOS Gatekeeper");
+        detail.push_str("\n[diagnostic] Gateway process was killed with SIGKILL (exit code 9). This typically means macOS Gatekeeper is blocking the binary due to missing or invalid code signature. Try re-installing from the latest notarized DMG.");
+      }
     }
   }
 
   GatewayEnsureResponse {
     success: false,
     running: false,
-    message: "Gateway not reachable after multiple retries".to_string(),
+    message: format!("Gateway not reachable after multiple retries (not running).{}", detail),
   }
 }
 

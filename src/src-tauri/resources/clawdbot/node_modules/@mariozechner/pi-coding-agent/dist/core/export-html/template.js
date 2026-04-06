@@ -966,7 +966,7 @@
           default: {
             // Check for pre-rendered custom tool HTML
             const rendered = renderedTools?.[call.id];
-            if (rendered?.callHtml || rendered?.resultHtml) {
+            if (rendered?.callHtml || rendered?.resultHtmlCollapsed || rendered?.resultHtmlExpanded) {
               // Custom tool with pre-rendered HTML from TUI renderer
               if (rendered.callHtml) {
                 html += `<div class="tool-header ansi-rendered">${rendered.callHtml}</div>`;
@@ -974,20 +974,17 @@
                 html += `<div class="tool-header"><span class="tool-name">${escapeHtml(name)}</span></div>`;
               }
               
-              if (rendered.resultHtml) {
-                // Apply same truncation as built-in tools (10 lines)
-                const lines = rendered.resultHtml.split('\n');
-                if (lines.length > 10) {
-                  const preview = lines.slice(0, 10).join('\n');
-                  html += `<div class="tool-output expandable ansi-rendered" onclick="this.classList.toggle('expanded')">
-                    <div class="output-preview">${preview}<div class="expand-hint">... (${lines.length - 10} more lines)</div></div>
-                    <div class="output-full">${rendered.resultHtml}</div>
-                  </div>`;
-                } else {
-                  html += `<div class="tool-output ansi-rendered">${rendered.resultHtml}</div>`;
-                }
+              if (rendered.resultHtmlCollapsed && rendered.resultHtmlExpanded && rendered.resultHtmlCollapsed !== rendered.resultHtmlExpanded) {
+                // Both collapsed and expanded differ - render expandable section
+                html += `<div class="tool-output expandable ansi-rendered" onclick="this.classList.toggle('expanded')">
+                  <div class="output-preview">${rendered.resultHtmlCollapsed}</div>
+                  <div class="output-full">${rendered.resultHtmlExpanded}</div>
+                </div>`;
+              } else if (rendered.resultHtmlExpanded) {
+                // Only expanded exists (or collapsed is identical) - show directly
+                html += `<div class="tool-output ansi-rendered">${rendered.resultHtmlExpanded}</div>`;
               } else if (result) {
-                // Fallback to JSON for result if no pre-rendered HTML
+                // No pre-rendered result HTML - fallback to JSON
                 const output = getResultText();
                 if (output) html += formatExpandableOutput(output, 10);
               }
@@ -1513,6 +1510,113 @@
       const sidebar = document.getElementById('sidebar');
       const overlay = document.getElementById('sidebar-overlay');
       const hamburger = document.getElementById('hamburger');
+      const sidebarResizer = document.getElementById('sidebar-resizer');
+      const SIDEBAR_WIDTH_STORAGE_KEY = 'pi-share:v1:sidebar-width';
+      const MIN_CONTENT_WIDTH = 320;
+
+      function isMobileLayout() {
+        return window.matchMedia('(max-width: 900px)').matches;
+      }
+
+      function getSidebarBounds() {
+        const rootStyles = getComputedStyle(document.documentElement);
+        const minWidth = parseFloat(rootStyles.getPropertyValue('--sidebar-min-width')) || 240;
+        const maxWidth = parseFloat(rootStyles.getPropertyValue('--sidebar-max-width')) || 720;
+        const viewportMaxWidth = window.innerWidth - MIN_CONTENT_WIDTH;
+        return {
+          minWidth,
+          maxWidth: Math.max(minWidth, Math.min(maxWidth, viewportMaxWidth))
+        };
+      }
+
+      function clampSidebarWidth(width) {
+        const { minWidth, maxWidth } = getSidebarBounds();
+        return Math.max(minWidth, Math.min(maxWidth, width));
+      }
+
+      function applySidebarWidth(width) {
+        document.documentElement.style.setProperty('--sidebar-width', `${Math.round(clampSidebarWidth(width))}px`);
+      }
+
+      function loadSidebarWidth() {
+        try {
+          const raw = localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+          if (raw === null) return null;
+          const width = Number(raw);
+          return Number.isFinite(width) ? width : null;
+        } catch {
+          return null;
+        }
+      }
+
+      function saveSidebarWidth(width) {
+        try {
+          localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(Math.round(clampSidebarWidth(width))));
+        } catch {
+          // Ignore storage failures (e.g. private browsing restrictions)
+        }
+      }
+
+      function setupSidebarResize() {
+        const savedWidth = loadSidebarWidth();
+        if (savedWidth !== null) {
+          applySidebarWidth(savedWidth);
+        }
+
+        if (!sidebarResizer) return;
+
+        let cleanupDrag = null;
+
+        const stopDrag = (pointerId) => {
+          if (cleanupDrag) {
+            cleanupDrag(pointerId);
+            cleanupDrag = null;
+          }
+        };
+
+        sidebarResizer.addEventListener('pointerdown', (e) => {
+          if (isMobileLayout()) return;
+
+          e.preventDefault();
+          const startX = e.clientX;
+          const startWidth = sidebar.getBoundingClientRect().width;
+          document.body.classList.add('sidebar-resizing');
+          sidebarResizer.setPointerCapture?.(e.pointerId);
+
+          const onPointerMove = (event) => {
+            applySidebarWidth(startWidth + (event.clientX - startX));
+          };
+
+          cleanupDrag = (pointerIdToRelease) => {
+            document.body.classList.remove('sidebar-resizing');
+            sidebarResizer.releasePointerCapture?.(pointerIdToRelease);
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+            window.removeEventListener('pointercancel', onPointerCancel);
+            saveSidebarWidth(sidebar.getBoundingClientRect().width);
+          };
+
+          const onPointerUp = (event) => stopDrag(event.pointerId);
+          const onPointerCancel = (event) => stopDrag(event.pointerId);
+
+          window.addEventListener('pointermove', onPointerMove);
+          window.addEventListener('pointerup', onPointerUp);
+          window.addEventListener('pointercancel', onPointerCancel);
+        });
+
+        sidebarResizer.addEventListener('dblclick', () => {
+          if (isMobileLayout()) return;
+          applySidebarWidth(400);
+          saveSidebarWidth(400);
+        });
+
+        window.addEventListener('resize', () => {
+          if (isMobileLayout()) return;
+          applySidebarWidth(sidebar.getBoundingClientRect().width);
+        });
+      }
+
+      setupSidebarResize();
 
       hamburger.addEventListener('click', () => {
         sidebar.classList.add('open');

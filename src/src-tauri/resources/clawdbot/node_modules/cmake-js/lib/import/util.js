@@ -1,6 +1,6 @@
 'use strict'
 
-const log = require('npmlog')
+const log = require('../logger')
 const cp = require('child_process')
 const path = require('path')
 

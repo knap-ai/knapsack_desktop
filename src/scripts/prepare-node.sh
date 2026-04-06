@@ -49,44 +49,74 @@ fi
 if [ -f "$TARGET_BIN" ]; then
   CURRENT_VERSION=$("$TARGET_BIN" --version 2>/dev/null || echo "unknown")
   if [ "$CURRENT_VERSION" = "v$NODE_VERSION" ]; then
-    echo "[prepare-node] Node.js v$NODE_VERSION ($OS-$ARCH) already present — skipping download."
-    exit 0
+    # On macOS, also verify it's a universal binary if UNIVERSAL_BUILD is set
+    if [ "$OS" = "darwin" ] && [ "${UNIVERSAL_BUILD:-}" = "true" ]; then
+      ARCH_COUNT=$(lipo -info "$TARGET_BIN" 2>/dev/null | grep -c "x86_64.*arm64\|arm64.*x86_64" || echo "0")
+      if [ "$ARCH_COUNT" -gt 0 ]; then
+        echo "[prepare-node] Node.js v$NODE_VERSION universal binary already present — skipping download."
+        exit 0
+      fi
+      echo "[prepare-node] Found single-arch binary, need universal — re-downloading."
+      rm -f "$TARGET_BIN"
+    else
+      echo "[prepare-node] Node.js v$NODE_VERSION ($OS-$ARCH) already present — skipping download."
+      exit 0
+    fi
+  else
+    echo "[prepare-node] Found $CURRENT_VERSION, need v$NODE_VERSION — re-downloading."
+    rm -f "$TARGET_BIN"
   fi
-  echo "[prepare-node] Found $CURRENT_VERSION, need v$NODE_VERSION — re-downloading."
-  rm -f "$TARGET_BIN"
 fi
 
 mkdir -p "$TARGET_DIR"
 
-# ---------------------------------------------------------------------------
-# Download
-# ---------------------------------------------------------------------------
-if [ "$OS" = "win" ]; then
-  ARCHIVE="node-v${NODE_VERSION}-${OS}-${ARCH}.zip"
-else
-  ARCHIVE="node-v${NODE_VERSION}-${OS}-${ARCH}.tar.gz"
-fi
-URL="https://nodejs.org/dist/v${NODE_VERSION}/${ARCHIVE}"
-
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-echo "[prepare-node] Downloading Node.js v${NODE_VERSION} for ${OS}-${ARCH}…"
-echo "[prepare-node]   $URL"
-
-curl -fsSL --retry 3 --retry-delay 2 "$URL" -o "$TMPDIR/$ARCHIVE"
-
 # ---------------------------------------------------------------------------
-# Extract just the node binary
+# macOS universal build: download both architectures and combine with lipo
 # ---------------------------------------------------------------------------
-echo "[prepare-node] Extracting node binary…"
-if [ "$OS" = "win" ]; then
-  unzip -qo "$TMPDIR/$ARCHIVE" "node-v${NODE_VERSION}-${OS}-${ARCH}/node.exe" -d "$TMPDIR"
-  mv "$TMPDIR/node-v${NODE_VERSION}-${OS}-${ARCH}/node.exe" "$TARGET_BIN"
-else
-  tar -xzf "$TMPDIR/$ARCHIVE" -C "$TMPDIR" "node-v${NODE_VERSION}-${OS}-${ARCH}/bin/node"
-  mv "$TMPDIR/node-v${NODE_VERSION}-${OS}-${ARCH}/bin/node" "$TARGET_BIN"
+if [ "$OS" = "darwin" ] && [ "${UNIVERSAL_BUILD:-}" = "true" ]; then
+  echo "[prepare-node] Building universal Node.js binary for macOS (arm64 + x86_64)…"
+
+  for DL_ARCH in arm64 x64; do
+    ARCHIVE="node-v${NODE_VERSION}-darwin-${DL_ARCH}.tar.gz"
+    URL="https://nodejs.org/dist/v${NODE_VERSION}/${ARCHIVE}"
+    echo "[prepare-node]   Downloading $URL"
+    curl -fsSL --retry 3 --retry-delay 2 "$URL" -o "$TMPDIR/$ARCHIVE"
+    tar -xzf "$TMPDIR/$ARCHIVE" -C "$TMPDIR" "node-v${NODE_VERSION}-darwin-${DL_ARCH}/bin/node"
+    mv "$TMPDIR/node-v${NODE_VERSION}-darwin-${DL_ARCH}/bin/node" "$TMPDIR/node-${DL_ARCH}"
+  done
+
+  echo "[prepare-node] Creating universal binary with lipo…"
+  lipo -create "$TMPDIR/node-arm64" "$TMPDIR/node-x64" -output "$TARGET_BIN"
   chmod +x "$TARGET_BIN"
+
+# ---------------------------------------------------------------------------
+# Single-architecture download (non-macOS or non-universal)
+# ---------------------------------------------------------------------------
+else
+  if [ "$OS" = "win" ]; then
+    ARCHIVE="node-v${NODE_VERSION}-${OS}-${ARCH}.zip"
+  else
+    ARCHIVE="node-v${NODE_VERSION}-${OS}-${ARCH}.tar.gz"
+  fi
+  URL="https://nodejs.org/dist/v${NODE_VERSION}/${ARCHIVE}"
+
+  echo "[prepare-node] Downloading Node.js v${NODE_VERSION} for ${OS}-${ARCH}…"
+  echo "[prepare-node]   $URL"
+
+  curl -fsSL --retry 3 --retry-delay 2 "$URL" -o "$TMPDIR/$ARCHIVE"
+
+  echo "[prepare-node] Extracting node binary…"
+  if [ "$OS" = "win" ]; then
+    unzip -qo "$TMPDIR/$ARCHIVE" "node-v${NODE_VERSION}-${OS}-${ARCH}/node.exe" -d "$TMPDIR"
+    mv "$TMPDIR/node-v${NODE_VERSION}-${OS}-${ARCH}/node.exe" "$TARGET_BIN"
+  else
+    tar -xzf "$TMPDIR/$ARCHIVE" -C "$TMPDIR" "node-v${NODE_VERSION}-${OS}-${ARCH}/bin/node"
+    mv "$TMPDIR/node-v${NODE_VERSION}-${OS}-${ARCH}/bin/node" "$TARGET_BIN"
+    chmod +x "$TARGET_BIN"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -98,4 +128,9 @@ if [ "$INSTALLED_VERSION" != "v$NODE_VERSION" ]; then
   exit 1
 fi
 
-echo "[prepare-node] ✓ Node.js $INSTALLED_VERSION installed at $TARGET_BIN"
+if [ "$OS" = "darwin" ] && [ "${UNIVERSAL_BUILD:-}" = "true" ]; then
+  echo "[prepare-node] ✓ Node.js $INSTALLED_VERSION universal binary installed at $TARGET_BIN"
+  lipo -info "$TARGET_BIN"
+else
+  echo "[prepare-node] ✓ Node.js $INSTALLED_VERSION installed at $TARGET_BIN"
+fi

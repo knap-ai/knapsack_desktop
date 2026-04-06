@@ -63,6 +63,9 @@ for (const ext of UNUSED_EXTENSIONS) {
 }
 
 // Step 2: Remove unused heavy packages
+// NOTE: 'chalk' must NOT appear here — it is externalized in the dist bundle and
+// resolved at runtime from node_modules/chalk/ (a minimal shim committed to git).
+// Removing it causes ERR_MODULE_NOT_FOUND on gateway startup.
 const UNUSED_PACKAGES = [
   '@node-llama-cpp', 'node-llama-cpp', 'pdfjs-dist', '@napi-rs', '@img',
   'sharp', '@larksuiteoapi', 'typescript', '@cloudflare',

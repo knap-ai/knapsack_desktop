@@ -165,12 +165,15 @@ export default function (pi: ExtensionAPI) {
 				ctx.ui.notify("Model openai/gpt-5.2 not found", "warning");
 			}
 
-			const apiKey = model ? await ctx.modelRegistry.getApiKey(model) : undefined;
-			if (!apiKey && ctx.hasUI) {
+			const auth = model ? await ctx.modelRegistry.getApiKeyAndHeaders(model) : undefined;
+			if (auth && !auth.ok && ctx.hasUI) {
+				ctx.ui.notify(auth.error, "warning");
+			}
+			if (auth?.ok && !auth.apiKey && ctx.hasUI) {
 				ctx.ui.notify("No API key for openai/gpt-5.2", "warning");
 			}
 
-			if (!model || !apiKey) {
+			if (!model || !auth?.ok || !auth.apiKey) {
 				return;
 			}
 
@@ -182,7 +185,15 @@ export default function (pi: ExtensionAPI) {
 				},
 			];
 
-			const response = await complete(model, { messages: summaryMessages }, { apiKey, reasoningEffort: "high" });
+			const response = await complete(
+				model,
+				{ messages: summaryMessages },
+				{
+					apiKey: auth.apiKey,
+					headers: auth.headers,
+					reasoningEffort: "high",
+				},
+			);
 
 			const summary = response.content
 				.filter((c): c is { type: "text"; text: string } => c.type === "text")

@@ -81,6 +81,47 @@ const KN_MORNING_BRIEFING_DATE = 'kn_morning_briefing_date'
 const KN_DAILY_NOTIFICATION_COUNT = 'kn_daily_notification_count'
 const KN_DAILY_NOTIFICATION_DATE = 'kn_daily_notification_date'
 const KN_LAST_PROACTIVE_CHECKIN = 'kn_last_proactive_checkin'
+const KN_PREPPED_MEETING_IDS = 'kn_prepped_meeting_ids'
+
+/** Load persisted prepped-meeting IDs from localStorage, pruning any older than 7 days. */
+function loadPreppedMeetingIds(): Set<string> {
+  try {
+    const stored = localStorage.getItem(KN_PREPPED_MEETING_IDS)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed)) {
+        // Each entry is { id, ts } where ts is when it was added
+        const now = Date.now()
+        const sevenDays = 7 * 24 * 60 * 60 * 1000
+        const valid = parsed.filter(
+          (e: { id: string; ts: number }) => now - e.ts < sevenDays,
+        )
+        // Re-save pruned list
+        localStorage.setItem(KN_PREPPED_MEETING_IDS, JSON.stringify(valid))
+        return new Set<string>(valid.map((e: { id: string }) => e.id))
+      }
+    }
+  } catch {
+    // ignore corrupt data
+  }
+  return new Set<string>()
+}
+
+/** Persist a meeting ID to the prepped set in localStorage. */
+function persistPreppedMeetingId(meetingKey: string) {
+  try {
+    const stored = localStorage.getItem(KN_PREPPED_MEETING_IDS)
+    const entries: { id: string; ts: number }[] = stored
+      ? JSON.parse(stored)
+      : []
+    if (!entries.some(e => e.id === meetingKey)) {
+      entries.push({ id: meetingKey, ts: Date.now() })
+    }
+    localStorage.setItem(KN_PREPPED_MEETING_IDS, JSON.stringify(entries))
+  } catch {
+    // ignore
+  }
+}
 
 export function useBackgroundNotifications({
   userEmail,
@@ -93,7 +134,7 @@ export function useBackgroundNotifications({
   const pendingInsightRef = useRef<BackgroundNotificationResult | null>(null)
   const pendingFollowupRef = useRef<BackgroundNotificationResult | null>(null)
   const lastNotificationTimeRef = useRef<number>(0)
-  const preppedMeetingIdsRef = useRef<Set<string>>(new Set())
+  const preppedMeetingIdsRef = useRef<Set<string>>(loadPreppedMeetingIds())
   const processingLockRef = useRef<boolean>(false)
   const channelsAttachedRef = useRef<boolean | null>(null)
 
@@ -282,9 +323,12 @@ export function useBackgroundNotifications({
   const gatherFullContext = useCallback(async (): Promise<string> => {
     const contextParts: string[] = []
 
-    // Fetch recent emails (last 2 days, up to 15)
+    // Fetch recent emails (last 2 days, up to 15), excluding emails sent by the user
     try {
-      const emails = await dataFetcher.getRecentGmailMessages(2, 15)
+      const allEmails = await dataFetcher.getRecentGmailMessages(2, 15)
+      const emails = allEmails?.filter(
+        e => !userEmail || !e.sender?.toLowerCase().includes(userEmail.toLowerCase()),
+      )
       if (emails?.length) {
         contextParts.push('## Recent Emails\n')
         for (const email of emails.slice(0, 10)) {
@@ -322,6 +366,10 @@ export function useBackgroundNotifications({
             : 'TBD'
           const attendees = event.attendees_json
             ? JSON.parse(event.attendees_json)
+                .filter((a: any) => {
+                  const email = a.email || a
+                  return !userEmail || !email.toLowerCase().includes(userEmail.toLowerCase())
+                })
                 .map((a: any) => a.email || a)
                 .join(', ')
             : 'N/A'
@@ -341,7 +389,12 @@ export function useBackgroundNotifications({
         contextParts.push('\n## Upcoming Meetings\n')
         for (const meeting of upcomingMeetings) {
           const startStr = dayjs(meeting.start).format('ddd MMM D, h:mm A')
-          const participants = meeting.participants?.join(', ') || 'N/A'
+          const participants = meeting.participants
+            ?.filter((p: any) => {
+              const email = typeof p === 'string' ? p : p.email
+              return !userEmail || !email?.toLowerCase().includes(userEmail.toLowerCase())
+            })
+            ?.join(', ') || 'N/A'
           contextParts.push(
             `- **${meeting.title}** at ${startStr} | Participants: ${participants}\n`,
           )
@@ -353,7 +406,7 @@ export function useBackgroundNotifications({
 
     if (contextParts.length === 0) return ''
     return contextParts.join('\n')
-  }, [dataFetcher])
+  }, [dataFetcher, userEmail])
 
   /**
    * Gather email-focused context for email alert notifications.
@@ -365,9 +418,11 @@ export function useBackgroundNotifications({
         const emails = await dataFetcher.getRecentGmailMessages(1, 20)
         if (!emails?.length) return { context: '', emailCount: 0 }
 
-        // Filter to recent emails (last 6 hours)
+        // Filter to recent emails (last 6 hours) and exclude emails sent by the user
         const sixHoursAgo = Date.now() / 1000 - 6 * 3600
-        const recentEmails = emails.filter(e => e.date > sixHoursAgo)
+        const recentEmails = emails.filter(
+          e => e.date > sixHoursAgo && (!userEmail || !e.sender?.toLowerCase().includes(userEmail.toLowerCase())),
+        )
         if (!recentEmails.length) return { context: '', emailCount: 0 }
 
         const contextParts: string[] = ['## Recent Emails (Last 6 Hours)\n']
@@ -385,7 +440,7 @@ export function useBackgroundNotifications({
         return { context: '', emailCount: 0 }
       }
     },
-    [dataFetcher],
+    [dataFetcher, userEmail],
   )
 
   /**
@@ -402,8 +457,11 @@ export function useBackgroundNotifications({
       const contextParts: string[] = []
 
       const startTime = dayjs(meeting.start).format('h:mm A')
+      const otherParticipants = meeting.participants?.filter(
+        p => !userEmail || !p.email?.toLowerCase().includes(userEmail.toLowerCase()),
+      )
       const participantNames =
-        meeting.participants?.map(p => p.name || p.email).join(', ') || 'N/A'
+        otherParticipants?.map(p => p.name || p.email).join(', ') || 'N/A'
       contextParts.push('## Upcoming Meeting\n')
       contextParts.push(`- **Title:** ${meeting.title}`)
       contextParts.push(`- **Time:** ${startTime}`)
@@ -435,7 +493,7 @@ export function useBackgroundNotifications({
 
       return contextParts.join('\n')
     },
-    [dataFetcher],
+    [dataFetcher, userEmail],
   )
 
   /**
@@ -565,17 +623,26 @@ export function useBackgroundNotifications({
       const upcomingMeetings = await dataFetcher.getRecentCalendarEvents()
       if (!upcomingMeetings?.length) return
 
+      const now = new Date()
+
+      // Filter out any events that have already started (safety guard for stale data)
+      const futureOnly = upcomingMeetings.filter(
+        m => new Date(m.start) > now,
+      )
+      if (!futureOnly.length) return
+
       let meetingNeedingPrep
       if (force) {
-        // When forced, pick the next upcoming meeting regardless of time window
-        meetingNeedingPrep = upcomingMeetings[0]
+        // When forced, pick the next upcoming future meeting regardless of time window
+        const meetingKey = futureOnly[0].eventId || String(futureOnly[0].id)
+        const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
+        meetingNeedingPrep = notAlreadyPrepped ? futureOnly[0] : undefined
       } else {
-        const now = new Date()
         const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000)
         const fifteenMinFromNow = new Date(now.getTime() + 15 * 60 * 1000)
 
         // Find meetings starting in the next 15-30 minutes with multiple attendees
-        meetingNeedingPrep = upcomingMeetings.find(meeting => {
+        meetingNeedingPrep = futureOnly.find(meeting => {
           const meetingStart = new Date(meeting.start)
           const hasMultipleAttendees = (meeting.participants?.length || 0) >= 2
           const isInWindow =
@@ -597,6 +664,7 @@ export function useBackgroundNotifications({
       const meetingKey =
         meetingNeedingPrep.eventId || String(meetingNeedingPrep.id)
       preppedMeetingIdsRef.current.add(meetingKey)
+      persistPreppedMeetingId(meetingKey)
 
       const context = await gatherMeetingPrepContext(meetingNeedingPrep)
 

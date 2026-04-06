@@ -1,6 +1,6 @@
 'use strict'
 
-const log = require('npmlog')
+const log = require('../logger')
 const { existsSync } = require('fs')
 const { win32: path } = require('path')
 const { regSearchKeys, execFile, logWithPrefix } = require('./util')

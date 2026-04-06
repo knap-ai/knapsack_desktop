@@ -1,0 +1,15 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["anthropic-vertex"];
+type FacadeModule = FacadeEntry["module"];
+export declare const ANTHROPIC_VERTEX_DEFAULT_MODEL_ID = "claude-sonnet-4-6";
+export declare const buildAnthropicVertexProvider: FacadeModule["buildAnthropicVertexProvider"];
+export declare const hasAnthropicVertexAvailableAuth: FacadeModule["hasAnthropicVertexAvailableAuth"];
+export declare const hasAnthropicVertexCredentials: FacadeModule["hasAnthropicVertexCredentials"];
+export declare const mergeImplicitAnthropicVertexProvider: FacadeModule["mergeImplicitAnthropicVertexProvider"];
+export declare const resolveAnthropicVertexClientRegion: FacadeModule["resolveAnthropicVertexClientRegion"];
+export declare const resolveAnthropicVertexConfigApiKey: FacadeModule["resolveAnthropicVertexConfigApiKey"];
+export declare const resolveImplicitAnthropicVertexProvider: FacadeModule["resolveImplicitAnthropicVertexProvider"];
+export declare const resolveAnthropicVertexProjectId: FacadeModule["resolveAnthropicVertexProjectId"];
+export declare const resolveAnthropicVertexRegion: FacadeModule["resolveAnthropicVertexRegion"];
+export declare const resolveAnthropicVertexRegionFromBaseUrl: FacadeModule["resolveAnthropicVertexRegionFromBaseUrl"];
+export {};

@@ -57,7 +57,11 @@ export function useLLMBar(
           scopes = [...scopes, ...googleConnections[key].scopes]
         }
       }
-      openGoogleAuthScreen(scopes.join(' '))
+      try {
+        openGoogleAuthScreen(scopes.join(' '))
+      } catch (error) {
+        console.error('Failed to open Google auth:', error)
+      }
       return
     }
 

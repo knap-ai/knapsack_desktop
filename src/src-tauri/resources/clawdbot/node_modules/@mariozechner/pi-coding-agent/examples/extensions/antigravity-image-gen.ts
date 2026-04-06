@@ -28,10 +28,9 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { StringEnum } from "@mariozechner/pi-ai";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { type ExtensionAPI, getAgentDir, withFileMutationQueue } from "@mariozechner/pi-coding-agent";
 import { type Static, Type } from "@sinclair/typebox";
 
 const PROVIDER = "google-antigravity";
@@ -49,8 +48,10 @@ type SaveMode = (typeof SAVE_MODES)[number];
 
 const ANTIGRAVITY_ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
 
+const DEFAULT_ANTIGRAVITY_VERSION = "1.18.3";
+
 const ANTIGRAVITY_HEADERS = {
-	"User-Agent": "antigravity/1.15.8 darwin/arm64",
+	"User-Agent": `antigravity/${process.env.PI_AI_ANTIGRAVITY_VERSION || DEFAULT_ANTIGRAVITY_VERSION} darwin/arm64`,
 	"X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
 	"Client-Metadata": JSON.stringify({
 		ideType: "IDE_UNSPECIFIED",
@@ -182,7 +183,8 @@ function readConfigFile(path: string): ExtensionConfig {
 }
 
 function loadConfig(cwd: string): ExtensionConfig {
-	const globalConfig = readConfigFile(join(homedir(), ".pi", "agent", "extensions", "antigravity-image-gen.json"));
+	const globalPath = join(getAgentDir(), "extensions", "antigravity-image-gen.json");
+	const globalConfig = readConfigFile(globalPath);
 	const projectConfig = readConfigFile(join(cwd, ".pi", "extensions", "antigravity-image-gen.json"));
 	return { ...globalConfig, ...projectConfig };
 }
@@ -202,7 +204,8 @@ function resolveSaveConfig(params: ToolParams, cwd: string): SaveConfig {
 	}
 
 	if (mode === "global") {
-		return { mode, outputDir: join(homedir(), ".pi", "agent", "generated-images") };
+		const outputDir = join(getAgentDir(), "generated-images");
+		return { mode, outputDir };
 	}
 
 	if (mode === "custom") {
@@ -225,12 +228,14 @@ function imageExtension(mimeType: string): string {
 }
 
 async function saveImage(base64Data: string, mimeType: string, outputDir: string): Promise<string> {
-	await mkdir(outputDir, { recursive: true });
 	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 	const ext = imageExtension(mimeType);
 	const filename = `image-${timestamp}-${randomUUID().slice(0, 8)}.${ext}`;
 	const filePath = join(outputDir, filename);
-	await writeFile(filePath, Buffer.from(base64Data, "base64"));
+	await withFileMutationQueue(filePath, async () => {
+		await mkdir(outputDir, { recursive: true });
+		await writeFile(filePath, Buffer.from(base64Data, "base64"));
+	});
 	return filePath;
 }
 

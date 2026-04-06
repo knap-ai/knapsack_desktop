@@ -374,12 +374,13 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         }),
       },
     },
-    // Direct email sending tool (uses Gmail/Outlook API, no browser needed)
+    // Direct email sending tool (uses Gmail/Outlook API, no browser needed).
+    // Two-phase: first call drafts, second call with confirmed=true sends.
     OaiToolSpec {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "send_email".to_string(),
-        description: "Send an email directly via Gmail or Outlook API. Works for both new emails and replies. Requires the user to be logged in with their email account. ALWAYS show the user the full email (to, cc, subject, body) and get explicit confirmation before calling this tool.".to_string(),
+        description: "Draft an email via Gmail or Outlook API. Call with to/subject/body to create a draft — this does NOT send immediately. The draft opens automatically in the Email Autopilot compose drawer for the user to review and send. After calling, tell the user their draft is ready in the Email tab. Do NOT ask for chat confirmation — the user sends from the drawer. Only call again with confirmed=true + pending_id if the user explicitly says to send in chat.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
@@ -388,9 +389,23 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
             "subject": { "type": "string", "description": "Email subject line" },
             "body": { "type": "string", "description": "Email body in HTML format. Use <p>, <br>, <b>, <i> tags for formatting." },
             "reply_to_uid": { "type": "string", "description": "If replying to an existing email, the email_uid of the message being replied to. Omit for new emails." },
-            "thread_id": { "type": "string", "description": "Gmail thread ID for threading replies. Omit for new emails." }
+            "thread_id": { "type": "string", "description": "Gmail thread ID for threading replies. Omit for new emails." },
+            "confirmed": { "type": "boolean", "description": "Set to true ONLY after the user has explicitly confirmed the draft. Must be accompanied by pending_id." },
+            "pending_id": { "type": "string", "description": "The pending_id returned from the draft step. Required when confirmed=true." }
           },
           "required": ["to", "subject", "body"],
+          "additionalProperties": false
+        }),
+      },
+    },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
+        name: "open_activity_panel".to_string(),
+        description: "Open the Activity Panel / terminal drawer in the sidebar. Use when the user asks to open the terminal, open Claude Code, show the Activity Panel, or see terminal output. This opens the panel UI — it does NOT start a Claude Code session.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {},
           "additionalProperties": false
         }),
       },
@@ -468,11 +483,45 @@ pub async fn groq_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
-  // Pass images through using the OpenAI-compatible vision format.
-  // Groq supports vision on models like llama-3.2-90b-vision-preview and
-  // llama-3.2-11b-vision-preview.  For text-only models the API will
-  // return an error, which is preferable to silently dropping images.
-  openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", messages, tools).await
+  // Groq supports vision only on specific models (llama-4-scout, llama-4-maverick,
+  // llama-3.2-*-vision-preview).  For text-only models like Kimi K2, sending
+  // multi-part content (array with image_url) causes a 400 "content must be a
+  // string" error.  Strip images for non-vision models proactively.
+  let model_lower = model.to_lowercase();
+  let supports_vision = model_lower.contains("llama-4-scout")
+    || model_lower.contains("llama-4-maverick")
+    || model_lower.contains("vision");
+
+  let messages = if supports_vision {
+    messages
+  } else {
+    strip_images(messages)
+  };
+
+  // Try with images first.  If Groq rejects multipart content (e.g. the model
+  // or endpoint doesn't actually support vision), retry with images stripped.
+  let result = openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", messages.clone(), tools.clone()).await;
+  match &result {
+    Err(e) if e.to_string().contains("content must be a string") => {
+      eprintln!("[groq_chat] Multipart content rejected, retrying without images");
+      let stripped = strip_images(messages);
+      openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", stripped, tools).await
+    }
+    _ => result,
+  }
+}
+
+/// Remove all image attachments from messages, keeping text content intact.
+fn strip_images(messages: Vec<OaiMessage>) -> Vec<OaiMessage> {
+  messages
+    .into_iter()
+    .map(|msg| match msg {
+      OaiMessage::User { content, images } if !images.is_empty() => {
+        OaiMessage::User { content, images: Vec::new() }
+      }
+      other => other,
+    })
+    .collect()
 }
 
 pub async fn openai_compatible_chat(
@@ -489,10 +538,14 @@ pub async fn openai_compatible_chat(
     .timeout(Duration::from_secs(timeout_secs))
     .build()?;
 
-  // o3, o1, and gpt-5.2-pro reasoning models only support temperature=1 (default)
-  // gpt-5.2 standard supports custom temperature
-  let temperature = if model.starts_with("o3") || model.starts_with("o1") || model == "gpt-5.2-pro" {
-    None // Use default temperature for reasoning models
+  // OpenAI reasoning models (o1, o3, o4-mini, gpt-5.2-pro) only support temperature=1 (default).
+  // Ollama models also often reject non-default temperatures for reasoning variants.
+  let is_reasoning_model = model.starts_with("o1")
+    || model.starts_with("o3")
+    || model.starts_with("o4")
+    || model == "gpt-5.2-pro";
+  let temperature = if is_reasoning_model {
+    None
   } else {
     Some(0.2)
   };
@@ -543,9 +596,15 @@ pub async fn openai_compatible_chat(
   let mut body = json!({
     "model": model,
     "messages": oai_messages,
-    "tools": tools,
-    "tool_choice": "auto"
   });
+  if !tools.is_empty() {
+    body["tools"] = json!(tools);
+    // Don't send tool_choice for local Ollama models — some models
+    // (e.g. gemma3) don't support this parameter via the OpenAI-compat API.
+    if !is_local {
+      body["tool_choice"] = json!("auto");
+    }
+  }
   if let Some(t) = temperature {
     body["temperature"] = json!(t);
   }
@@ -567,7 +626,7 @@ pub async fn openai_compatible_chat(
 
     if status.is_success() {
       let parsed: OaiChatResp = serde_json::from_str(&text)?;
-      return Ok(parsed);
+      return Ok(fixup_raw_tool_tokens(parsed));
     }
 
     // Check for rate limit (429)
@@ -614,6 +673,39 @@ pub async fn openai_compatible_chat(
       }
     }
 
+    // Ollama models (local) may return errors when tools are included but
+    // the model doesn't support them (e.g. gemma3).  Detect these errors
+    // and retry once without tools so the model can still respond.
+    let text_lower = text.to_lowercase();
+    let is_tool_error = text_lower.contains("does not support tools")
+      || text_lower.contains("does not support function")
+      || text_lower.contains("tool use is not supported")
+      || text_lower.contains("tools is not supported")
+      || text_lower.contains("unknown parameter: tools");
+    if is_tool_error && is_local && !tools.is_empty() {
+      eprintln!("[chat_agent] Ollama model does not support tools — retrying without tools");
+      let mut body_no_tools = json!({
+        "model": model,
+        "messages": oai_messages,
+      });
+      if let Some(t) = temperature {
+        body_no_tools["temperature"] = json!(t);
+      }
+      let retry_res = client
+        .post(format!("{}/chat/completions", base_url))
+        .bearer_auth(api_key)
+        .json(&body_no_tools)
+        .send()
+        .await?;
+      let retry_status = retry_res.status();
+      let retry_text = retry_res.text().await.unwrap_or_default();
+      if retry_status.is_success() {
+        let parsed: OaiChatResp = serde_json::from_str(&retry_text)?;
+        return Ok(fixup_raw_tool_tokens(parsed));
+      }
+      anyhow::bail!("LLM HTTP {}: {}", retry_status, retry_text);
+    }
+
     // For other errors, fail immediately
     anyhow::bail!("LLM HTTP {}: {}", status, text);
   }
@@ -646,6 +738,82 @@ fn parse_retry_after(text: &str) -> Option<f64> {
     }
   }
   None
+}
+
+/// Some models (e.g. Groq-hosted Llama) sometimes emit raw tool-call tokens as
+/// plain text in the `content` field instead of producing structured
+/// `tool_calls`.  Detect that pattern and convert the raw tokens into proper
+/// `OaiToolCall` entries so the rest of the pipeline processes them correctly.
+fn fixup_raw_tool_tokens(mut resp: OaiChatResp) -> OaiChatResp {
+  for choice in &mut resp.choices {
+    let msg = &mut choice.message;
+    // Only attempt recovery when the model returned no structured tool calls
+    // but the content contains the raw token markers.
+    if !msg.tool_calls.is_empty() {
+      continue;
+    }
+    let content = match &msg.content {
+      Some(c) if c.contains("<|tool_call_begin|>") => c.clone(),
+      _ => continue,
+    };
+
+    eprintln!("[chat_agent] detected raw tool-call tokens in content, attempting fixup");
+
+    let mut extracted: Vec<OaiToolCall> = Vec::new();
+    let mut tc_counter = 0u32;
+    // Remaining text after stripping tool-call tokens.
+    let mut cleaned = content.clone();
+
+    // Pattern: <|tool_call_begin|>functions.NAME:IGNORED<|tool_call_argument_begin|>ARGS<|tool_call_end|>
+    // The section may end with <|tool_calls_section_end|>
+    let re = match regex::Regex::new(
+      r#"<\|tool_call_begin\|>functions\.([^:<|]+)[^<]*<\|tool_call_argument_begin\|>([\s\S]*?)<\|tool_call_end\|>"#,
+    ) {
+      Ok(r) => r,
+      Err(_) => continue,
+    };
+
+    for cap in re.captures_iter(&content) {
+      let name = cap[1].to_string();
+      let args_raw = cap[2].trim().to_string();
+      // Ensure the arguments are valid JSON; fall back to empty object.
+      let args = if serde_json::from_str::<JsonValue>(&args_raw).is_ok() {
+        args_raw
+      } else {
+        "{}".to_string()
+      };
+      tc_counter += 1;
+      extracted.push(OaiToolCall {
+        id: format!("raw_tc_{}", tc_counter),
+        kind: "function".to_string(),
+        function: OaiToolFn {
+          name,
+          arguments: args,
+        },
+      });
+    }
+
+    if !extracted.is_empty() {
+      // Strip all raw tool-call tokens from the content.
+      let section_re = regex::Regex::new(
+        r#"<\|tool_call_begin\|>[\s\S]*?<\|tool_call_end\|>"#
+      ).unwrap();
+      cleaned = section_re.replace_all(&cleaned, "").to_string();
+      let end_re = regex::Regex::new(r#"<\|tool_calls_section_end\|>"#).unwrap();
+      cleaned = end_re.replace_all(&cleaned, "").to_string();
+      let cleaned = cleaned.trim().to_string();
+
+      eprintln!(
+        "[chat_agent] extracted {} tool call(s) from raw tokens: {:?}",
+        extracted.len(),
+        extracted.iter().map(|t| &t.function.name).collect::<Vec<_>>()
+      );
+
+      msg.tool_calls = extracted;
+      msg.content = if cleaned.is_empty() { None } else { Some(cleaned) };
+    }
+  }
+  resp
 }
 
 /// Call Anthropic Messages API and map the response back to OAI-compatible format.
@@ -902,14 +1070,32 @@ pub async fn gemini_chat(
           }
         }
         if let Some(tcs) = tool_calls {
+          // Gemini 2.5+ models with thinking enabled require thoughtSignature on all functionCall
+          // parts in conversation history. Use the skip_thought_signature_validator sentinel for
+          // function calls that don't have an actual signature (e.g. replayed from prior turns).
+          // See: https://ai.google.dev/gemini-api/docs/thought-signatures
+          let needs_thought_sig = {
+            let m = model.to_lowercase();
+            m.contains("gemini-2.5") || m.contains("gemini-3")
+          };
           for tc in tcs {
             let args: JsonValue = serde_json::from_str(&tc.function.arguments).unwrap_or(json!({}));
-            parts.push(json!({
-              "functionCall": {
-                "name": tc.function.name,
-                "args": args
-              }
-            }));
+            if needs_thought_sig {
+              parts.push(json!({
+                "functionCall": {
+                  "name": tc.function.name,
+                  "args": args
+                },
+                "thoughtSignature": "skip_thought_signature_validator"
+              }));
+            } else {
+              parts.push(json!({
+                "functionCall": {
+                  "name": tc.function.name,
+                  "args": args
+                }
+              }));
+            }
           }
         }
         if parts.is_empty() {

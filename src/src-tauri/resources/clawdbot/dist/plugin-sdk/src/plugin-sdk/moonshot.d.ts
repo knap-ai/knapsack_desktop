@@ -1,0 +1,11 @@
+import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
+type FacadeEntry = PluginSdkFacadeTypeMap["moonshot"];
+type FacadeModule = FacadeEntry["module"];
+export declare const applyMoonshotNativeStreamingUsageCompat: FacadeModule["applyMoonshotNativeStreamingUsageCompat"];
+export declare const buildMoonshotProvider: FacadeModule["buildMoonshotProvider"];
+export declare const isNativeMoonshotBaseUrl: FacadeModule["isNativeMoonshotBaseUrl"];
+export declare const MOONSHOT_BASE_URL = "https://api.moonshot.ai/v1";
+export declare const MOONSHOT_CN_BASE_URL = "https://api.moonshot.cn/v1";
+export declare const MOONSHOT_DEFAULT_MODEL_ID = "kimi-k2.5";
+export declare const MOONSHOT_DEFAULT_MODEL_REF = "moonshot/kimi-k2.5";
+export {};

@@ -1,6 +1,6 @@
 /** API helpers for Workspace / Knowledge Base endpoints. */
 
-const API_BASE = 'http://localhost:8897'
+const API_BASE = 'http://127.0.0.1:8897'
 
 // ── Types ────────────────────────────────────────────────────
 

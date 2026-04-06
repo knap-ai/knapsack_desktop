@@ -180,7 +180,7 @@ async fn ensure_gateway_best_effort(token: &str) {
 }
 
 /// Ensure the OpenClaw config has browser settings suitable for the desktop app:
-///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "knapsack".
+///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "openclaw".
 ///
 /// The `set_service_enabled` endpoint (macOS launchctl setup) also patches these,
 /// but that path is never hit in `npm run tauri dev` or on non-macOS.  Running this
@@ -188,14 +188,17 @@ async fn ensure_gateway_best_effort(token: &str) {
 /// of how the gateway was started.
 /// Returns `true` when the on-disk config was changed (browser settings patched).
 fn ensure_browser_config() -> bool {
-  let home = match std::env::var("HOME") {
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = match std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+  {
     Ok(h) => h,
     Err(_) => return false,
   };
 
-  // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR) —
+  // Check the app data dir first (OPENCLAW_HOME / OPENCLAW_STATE_DIR) —
   // that's where service.rs creates the config the gateway actually reads.
-  for var in ["OPENCLAW_HOME", "CLAWDBOT_STATE_DIR"] {
+  for var in ["OPENCLAW_HOME", "OPENCLAW_STATE_DIR"] {
     if let Ok(dir) = std::env::var(var) {
       let dir = dir.trim().to_string();
       if !dir.is_empty() {
@@ -242,7 +245,9 @@ fn ensure_tools_md(config_path: &std::path::Path) {
     Err(_) => return,
   };
 
-  let home = match std::env::var("HOME") {
+  let home = match std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+  {
     Ok(h) => h,
     Err(_) => return,
   };
@@ -264,7 +269,7 @@ fn ensure_tools_md(config_path: &std::path::Path) {
 
   let should_write = if tools_md_path.exists() {
     std::fs::read_to_string(&tools_md_path)
-      .map(|c| !c.contains("## Shell & Code Execution"))
+      .map(|c| !c.contains("SELF-REVIEW"))
       .unwrap_or(true)
   } else {
     true
@@ -274,52 +279,8 @@ fn ensure_tools_md(config_path: &std::path::Path) {
     return;
   }
 
-  // Same content as service.rs writes; kept in sync manually.
-  let tools_md = r#"# Tools
-
-## Cross-Channel Awareness
-
-You are running inside the **Knapsack desktop app** on the user's computer. You serve the same user across multiple channels — the desktop chat UI, Telegram, WhatsApp, and iMessage all share the same session and capabilities.
-
-**Key facts:**
-- Messages from **Telegram, WhatsApp, and iMessage** are handled by the same agent as the desktop chat — they share history and session state
-- You have access to a **real desktop browser** on the user's machine — use it to check email, calendars, web apps, etc. regardless of which channel the message came from
-- When a user messages you from Telegram asking to "check my calendar" or "look up something online", **use the browser tool** — you CAN do it
-- The browser is logged into the user's accounts (Google, Microsoft, etc.), so you can access authenticated services
-- Never say "I can't browse the web" or "I don't have access to your calendar" — you DO have access via the browser tool
-
-**Reviewing past channel conversations:**
-- To check what you've been discussing on **Telegram, WhatsApp, iMessage**, or any channel: use `sessions_list` to find sessions from that channel, then `sessions_history` to read the conversation
-- Example: if the user asks "what have we been talking about on Telegram?", use `sessions_list` with a filter for Telegram sessions, then read the history — do NOT browse to web.telegram.org or the messaging app's website
-- You already have direct access to all channel conversation history through the sessions tools — no need to use the browser for this
-
-**Channel-specific notes:**
-- **Desktop chat**: The user sees your response directly in the Knapsack app
-- **Telegram/WhatsApp/iMessage**: The user sees your response in their messaging app. Keep responses concise and mobile-friendly. You can still use the browser, run scripts, and access files — the user just won't see the browser directly
-
-## Browser Automation
-
-You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
-
-- **Check email**: Navigate to Gmail/Outlook and read/summarize
-- **Check calendar**: Navigate to Google Calendar and read upcoming events
-- **Access web apps**: Gmail, Google Calendar, Google Drive, LinkedIn, GitHub, Slack, HubSpot, Salesforce, Notion, Jira, etc.
-- **Fill forms, click buttons, type text** on any website
-
-## Web Fetch & Web Search
-
-Use `web_fetch` to read URLs directly. Use `web_search` to find information online. Use **browser** for interactive tasks requiring login, JavaScript-heavy pages, or multi-step flows.
-
-## Shell & Code Execution
-
-You have shell access on the user's desktop machine. Use these tools to execute commands, edit files, and automate tasks:
-
-- **`exec`** — Execute shell commands (bash/zsh). Use for installing software, running CLI tools, git operations, build scripts, etc.
-- **`process`** — Manage running processes (start, stop, check status).
-- **`read`** / **`write`** / **`edit`** / **`apply_patch`** — Read, write, edit, and patch files on the local filesystem.
-
-**IMPORTANT:** When the user asks you to run a command, write code, install something, or automate a task — DO IT directly using these tools. Never tell the user to run commands themselves or say you lack shell access.
-"#;
+  // Single source of truth: tools_md_content.txt (same as service.rs uses).
+  let tools_md = include_str!("tools_md_content.txt");
   match std::fs::write(&tools_md_path, tools_md) {
     Ok(_) => eprintln!("[gateway_client] Wrote TOOLS.md at {}", tools_md_path.display()),
     Err(e) => eprintln!("[gateway_client] Failed to write TOOLS.md: {}", e),
@@ -389,12 +350,12 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     patched = true;
   }
 
-  // browser.defaultProfile = "knapsack"  (managed, isolated)
+  // browser.defaultProfile = "openclaw"  (managed, isolated)
   let profile = cfg.pointer("/browser/defaultProfile").and_then(|v| v.as_str()).unwrap_or("chrome");
-  if profile == "chrome" || profile == "openclaw" || profile.is_empty() {
+  if profile == "chrome" || profile == "knapsack" || profile.is_empty() {
     cfg.pointer_mut("/browser").unwrap().as_object_mut().unwrap()
-      .insert("defaultProfile".into(), serde_json::json!("knapsack"));
-    eprintln!("[gateway_client] Patched browser.defaultProfile to knapsack");
+      .insert("defaultProfile".into(), serde_json::json!("openclaw"));
+    eprintln!("[gateway_client] Patched browser.defaultProfile to openclaw");
     patched = true;
   }
 
@@ -489,10 +450,28 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   // can execute shell commands and edit files when Advanced Mode is on.
   // The gateway controls whether the agent actually *uses* them via the system
   // prompt and TOOLS.md; having them in the allow list just makes them available.
+  //
+  // Use group aliases (group:fs, group:runtime) instead of individual tool names
+  // where possible.  The gateway validates the allowlist against registered core
+  // tools; "apply_patch" is only registered when tools.exec.applyPatch.enabled
+  // is true, so listing it individually causes a spurious "unknown entries"
+  // warning.  group:fs expands to [read, write, edit, apply_patch] and is
+  // always recognised by the validator.
   let exec_tools: Vec<&str> = vec![
-    "exec", "process", "read", "write", "edit", "apply_patch",
+    "exec", "process", "group:fs",
   ];
   if let Some(allow) = cfg.pointer_mut("/tools/allow").and_then(|v| v.as_array_mut()) {
+    // Remove legacy individual entries that are now covered by group:fs
+    let covered_by_group_fs = ["read", "write", "edit", "apply_patch"];
+    let before_len = allow.len();
+    allow.retain(|item| {
+      item.as_str().map(|s| !covered_by_group_fs.contains(&s)).unwrap_or(true)
+    });
+    if allow.len() != before_len {
+      eprintln!("[gateway_client] Cleaned up individual file tool entries (now covered by group:fs)");
+      patched = true;
+    }
+
     for tool_name in &exec_tools {
       let already = allow.iter().any(|item| item.as_str() == Some(tool_name));
       if !already {
@@ -501,6 +480,29 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
         patched = true;
       }
     }
+  }
+
+  // ── Enable apply_patch tool ──────────────────────────────────────────────
+  //
+  // apply_patch is gated behind tools.exec.applyPatch.enabled.  Without this
+  // flag the tool isn't registered, and adding it to tools.allow causes a
+  // "unknown entries (apply_patch)" warning on every config reload.
+  if cfg.pointer("/tools/exec").is_none() {
+    cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap()
+      .insert("exec".into(), serde_json::json!({}));
+  }
+  if cfg.pointer("/tools/exec/applyPatch").is_none() {
+    cfg.pointer_mut("/tools/exec").unwrap().as_object_mut().unwrap()
+      .insert("applyPatch".into(), serde_json::json!({}));
+  }
+  let apply_patch_enabled = cfg.pointer("/tools/exec/applyPatch/enabled")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
+  if !apply_patch_enabled {
+    cfg.pointer_mut("/tools/exec/applyPatch").unwrap().as_object_mut().unwrap()
+      .insert("enabled".into(), serde_json::json!(true));
+    eprintln!("[gateway_client] Enabled tools.exec.applyPatch");
+    patched = true;
   }
 
   // ── Ensure browser tool is allowed in SANDBOX mode (Telegram/WhatsApp/etc.) ─
@@ -550,7 +552,7 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     } else {
       cfg.pointer_mut("/tools/sandbox/tools").unwrap().as_object_mut().unwrap()
         .insert("allow".into(), serde_json::json!([
-          "exec", "process", "read", "write", "edit", "apply_patch",
+          "exec", "process", "group:fs",
           "image", "sessions_list", "sessions_history",
           "sessions_send", "sessions_spawn", "session_status",
           "browser", "group:web"
@@ -558,6 +560,32 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     }
     eprintln!("[gateway_client] Added browser + group:web to tools.sandbox.tools.allow");
     patched = true;
+  }
+
+  // ── Telegram: cap the HTTP client timeout ────────────────────────────────
+  //
+  // Grammy's default timeoutSeconds is 500 (≈8 min).  getUpdates long-polls
+  // block for that entire duration, and when they do time out the resulting
+  // AbortError floods the log.  Set a reasonable 60s cap if Telegram is
+  // configured but no explicit timeout is set.
+  let tg_has_token = cfg
+    .pointer("/channels/telegram/botToken")
+    .and_then(|v| v.as_str())
+    .map(|s| !s.trim().is_empty())
+    .unwrap_or(false);
+  if tg_has_token {
+    let tg_has_timeout = cfg
+      .pointer("/channels/telegram/timeoutSeconds")
+      .and_then(|v| v.as_u64())
+      .is_some();
+    if !tg_has_timeout {
+      if cfg.pointer("/channels/telegram").is_some() {
+        cfg.pointer_mut("/channels/telegram").unwrap().as_object_mut().unwrap()
+          .insert("timeoutSeconds".into(), serde_json::json!(60));
+        eprintln!("[gateway_client] Set channels.telegram.timeoutSeconds to 60 (was Grammy default 500)");
+        patched = true;
+      }
+    }
   }
 
   if patched {
@@ -576,18 +604,98 @@ static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
 
 /// Push browser config to a running gateway via a **temporary** WebSocket
 /// Pick the best default LLM model based on which API key is available.
-fn resolve_default_model() -> &'static str {
-  for (var, model) in [
-    ("ANTHROPIC_API_KEY", "anthropic/claude-opus-4-6"),
-    ("OPENAI_API_KEY", "openai/gpt-4o"),
-    ("GROQ_API_KEY", "groq/llama-3.3-70b-versatile"),
-    ("GEMINI_API_KEY", "google/gemini-2.0-flash"),
-  ] {
-    if std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false) {
-      return model;
+/// Public so service.rs can call the same model resolution logic when
+/// updating the config file on provider change.
+pub fn resolve_default_model() -> String {
+  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+  let has_key = |var: &str| std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false);
+
+  // Respect the user's active provider selection and configured model
+  match active.as_str() {
+    "openrouter" => {
+      let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+        .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+      return format!("openrouter/{}", model);
+    }
+    "ollama" => {
+      let model = std::env::var("KNAPSACK_OLLAMA_MODEL")
+        .unwrap_or_else(|_| "llama3.1".to_string());
+      return format!("ollama/{}", model);
+    }
+    "anthropic" if has_key("ANTHROPIC_API_KEY") => {
+      let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+        .unwrap_or_else(|_| "claude-opus-4-6".to_string());
+      return format!("anthropic/{}", model);
+    }
+    "openai" if has_key("OPENAI_API_KEY") => {
+      let model = std::env::var("KNAPSACK_OPENAI_MODEL")
+        .unwrap_or_else(|_| "gpt-5.4".to_string());
+      return format!("openai/{}", model);
+    }
+    "groq" if has_key("GROQ_API_KEY") => {
+      let model = std::env::var("KNAPSACK_GROQ_MODEL")
+        .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+      return format!("groq/{}", model);
+    }
+    "gemini" if has_key("GEMINI_API_KEY") => {
+      let model = std::env::var("KNAPSACK_GEMINI_MODEL")
+        .unwrap_or_else(|_| "gemini-2.0-flash".to_string());
+      return format!("google/{}", model);
+    }
+    _ => {}
+  }
+
+  // Fallback: try providers in preference order using user's configured model.
+  // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silently selecting expensive models.
+  let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    .unwrap_or(true);
+  let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter");
+
+  if !disable_paid || !active_is_free {
+    if has_key("ANTHROPIC_API_KEY") {
+      let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+        .unwrap_or_else(|_| "claude-opus-4-6".to_string());
+      log::warn!("[resolve_default_model] Falling back to anthropic/{} (active={})", model, active);
+      return format!("anthropic/{}", model);
+    }
+    if has_key("OPENAI_API_KEY") {
+      let model = std::env::var("KNAPSACK_OPENAI_MODEL")
+        .unwrap_or_else(|_| "gpt-5.4".to_string());
+      log::warn!("[resolve_default_model] Falling back to openai/{} (active={})", model, active);
+      return format!("openai/{}", model);
+    }
+  } else {
+    if has_key("ANTHROPIC_API_KEY") {
+      log::info!("[resolve_default_model] Skipping Anthropic fallback (paid fallback disabled, active={})", active);
+    }
+    if has_key("OPENAI_API_KEY") {
+      log::info!("[resolve_default_model] Skipping OpenAI fallback (paid fallback disabled, active={})", active);
     }
   }
-  "anthropic/claude-opus-4-6"
+  if has_key("GROQ_API_KEY") {
+    let model = std::env::var("KNAPSACK_GROQ_MODEL")
+      .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+    return format!("groq/{}", model);
+  }
+  if has_key("GEMINI_API_KEY") {
+    let model = std::env::var("KNAPSACK_GEMINI_MODEL")
+      .unwrap_or_else(|_| "gemini-2.0-flash".to_string());
+    return format!("google/{}", model);
+  }
+  if has_key("OPENROUTER_API_KEY") {
+    let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+      .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+    return format!("openrouter/{}", model);
+  }
+  if has_key("OLLAMA_API_KEY") {
+    let model = std::env::var("KNAPSACK_OLLAMA_MODEL")
+      .unwrap_or_else(|_| "llama3.1".to_string());
+    return format!("ollama/{}", model);
+  }
+  // Final fallback: use Groq free model instead of expensive Anthropic Opus
+  log::warn!("[resolve_default_model] No provider keys found, defaulting to groq/llama-3.3-70b-versatile");
+  "groq/llama-3.3-70b-versatile".to_string()
 }
 
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
@@ -743,17 +851,20 @@ async fn apply_runtime_browser_config(token: &str) {
     "browser": {
       "enabled": true,
       "headless": false,
-      "defaultProfile": "knapsack",
+      "defaultProfile": "openclaw",
       "noSandbox": no_sandbox
     },
     "tools": {
       "deny": ["canvas", "nodes", "cron", "gateway"],
-      "allow": ["browser", "group:web"],
+      "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+      "exec": {
+        "applyPatch": { "enabled": true }
+      },
       "sandbox": {
         "tools": {
           "deny": ["canvas", "nodes", "cron", "gateway"],
           "allow": [
-            "exec", "process", "read", "write", "edit", "apply_patch",
+            "exec", "process", "group:fs",
             "image", "sessions_list", "sessions_history",
             "sessions_send", "sessions_spawn", "session_status",
             "browser", "group:web"
@@ -763,28 +874,29 @@ async fn apply_runtime_browser_config(token: &str) {
     }
   });
 
-  // Check if agents.defaults.model is already set in the config.
+  // Always patch agents.defaults.model from the current active provider.
+  // The config file may contain a stale model (e.g. ollama) if the user
+  // switched providers without restarting the gateway.  By always including
+  // the resolved model in the runtime patch we ensure the gateway uses
+  // whatever the user selected most recently in Settings.
+  let model = resolve_default_model();
   let config_inner = cfg_val.get("config").unwrap_or(&cfg_val);
-  let has_model = config_inner
+  let existing_model = config_inner
     .pointer("/agents/defaults/model")
     .and_then(|v| match v {
-      Value::String(s) => if s.trim().is_empty() { None } else { Some(()) },
+      Value::String(s) => Some(s.as_str().to_string()),
       Value::Object(o) => o.get("primary")
         .and_then(|v| v.as_str())
-        .filter(|s| !s.trim().is_empty())
-        .map(|_| ()),
+        .map(|s| s.to_string()),
       _ => None,
-    })
-    .is_some();
-
-  if !has_model {
-    // Pick the best model based on available API keys.
-    let model = resolve_default_model();
-    patch_obj.as_object_mut().unwrap().insert(
-      "agents".to_string(),
-      serde_json::json!({"defaults": {"model": model}}),
-    );
-    eprintln!("[gateway_client] agents.defaults.model missing — adding '{}' to runtime patch", model);
+    });
+  let model_changed = existing_model.as_deref() != Some(&model);
+  patch_obj.as_object_mut().unwrap().insert(
+    "agents".to_string(),
+    serde_json::json!({"defaults": {"model": model}}),
+  );
+  if model_changed {
+    eprintln!("[gateway_client] agents.defaults.model updated: {:?} → '{}' in runtime patch", existing_model, model);
   }
 
   let raw_patch = patch_obj.to_string();
@@ -988,6 +1100,15 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     }
     drop(pending);
     invalidate_client();
+
+    // Proactively reconnect with exponential backoff so the connection
+    // auto-recovers without waiting for the next incoming request.
+    // This drives the "Gateway: reconnecting → connected" transition
+    // automatically when the gateway process comes back up.
+    if let Some(token) = get_gateway_token() {
+      eprintln!("[gateway_client] WebSocket dropped — spawning reconnect task");
+      spawn_reconnect_task(token);
+    }
   });
 
   Ok(client)
@@ -1034,6 +1155,73 @@ async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
 fn invalidate_client() {
   let mut guard = CLIENT.write().unwrap();
   *guard = None;
+}
+
+/// Guards against spawning duplicate reconnect tasks.
+static RECONNECT_IN_PROGRESS: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
+
+/// Spawn a background task that retries the WebSocket connection with
+/// exponential backoff (1 s → 2 s → 4 s → 8 s → 15 s cap).
+///
+/// The task:
+/// 1. Checks whether the port is open before attempting the full handshake
+///    (avoids the 3-second TCP timeout when the gateway is still starting).
+/// 2. Stops as soon as a connection is established or the connection was
+///    re-established by an incoming request (checked each iteration).
+/// 3. Gives up after 20 attempts and lets health-check polling drive any
+///    further recovery.
+fn spawn_reconnect_task(token: String) {
+  // Only one reconnect task at a time.
+  if RECONNECT_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    return;
+  }
+  tokio::spawn(async move {
+    let backoff_steps: &[u64] = &[1000, 2000, 4000, 8000, 15000];
+    let mut step_idx = 0usize;
+    let max_attempts = 20usize;
+
+    for attempt in 0..max_attempts {
+      let delay_ms = backoff_steps[step_idx.min(backoff_steps.len() - 1)];
+      step_idx = (step_idx + 1).min(backoff_steps.len() - 1);
+
+      tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+
+      // If an incoming request already re-established the connection, stop.
+      {
+        let guard = CLIENT.read().unwrap();
+        if guard.is_some() {
+          eprintln!("[gateway_client] reconnect task: connection already re-established (attempt {})", attempt + 1);
+          RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+          return;
+        }
+      }
+
+      // Only attempt the full WS handshake when the port is actually open.
+      // This avoids the 3 s TCP timeout and lets us react immediately when
+      // the gateway starts accepting connections after a restart.
+      if !is_gateway_port_open().await {
+        eprintln!("[gateway_client] reconnect task: gateway port not open yet (attempt {}), backing off {}ms", attempt + 1, delay_ms);
+        continue;
+      }
+
+      match connect_and_handshake(&token).await {
+        Ok(client) => {
+          let mut guard = CLIENT.write().unwrap();
+          *guard = Some(client);
+          eprintln!("[gateway_client] reconnect task: connection re-established (attempt {})", attempt + 1);
+          RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+          return;
+        }
+        Err(e) => {
+          eprintln!("[gateway_client] reconnect task: attempt {} failed ({}), backing off {}ms", attempt + 1, e, delay_ms);
+        }
+      }
+    }
+
+    eprintln!("[gateway_client] reconnect task: gave up after {} attempts — health-check polling will drive recovery", max_attempts);
+    RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+  });
 }
 
 /// Public wrapper: drop the cached connection.
@@ -1264,16 +1452,17 @@ pub async fn gateway_request_agent(
 
 /// Get the gateway token from environment or config file.
 fn get_gateway_token() -> Option<String> {
-  for var in ["OPENCLAW_GATEWAY_TOKEN", "CLAWDBOT_GATEWAY_TOKEN"] {
-    if let Ok(token) = std::env::var(var) {
-      let t = token.trim().to_string();
-      if !t.is_empty() {
-        return Some(t);
-      }
+  if let Ok(token) = std::env::var("OPENCLAW_GATEWAY_TOKEN") {
+    let t = token.trim().to_string();
+    if !t.is_empty() {
+      return Some(t);
     }
   }
 
-  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| ".".to_string());
   let config_candidates = [
     std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json"),
     std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json"),
@@ -1300,13 +1489,16 @@ fn get_gateway_token() -> Option<String> {
 /// Read the gateway token directly from config files, bypassing env vars.
 /// Used as a fallback when the env var token doesn't match the running gateway.
 fn read_token_from_config() -> Option<String> {
-  let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+  // On Windows, HOME is typically not set — fall back to USERPROFILE.
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| ".".to_string());
 
-  // Check the app data dir first (OPENCLAW_HOME / CLAWDBOT_STATE_DIR),
+  // Check the app data dir first (OPENCLAW_HOME / OPENCLAW_STATE_DIR),
   // then standard user-level config locations.
   let mut candidates: Vec<std::path::PathBuf> = Vec::new();
 
-  for var in ["OPENCLAW_HOME", "CLAWDBOT_STATE_DIR"] {
+  for var in ["OPENCLAW_HOME", "OPENCLAW_STATE_DIR"] {
     if let Ok(dir) = std::env::var(var) {
       let dir = dir.trim().to_string();
       if !dir.is_empty() {
@@ -1379,6 +1571,8 @@ fn is_transient_browser_error(err: &str) -> bool {
     || err.contains("Target closed")
     || err.contains("Browser not started")
     || err.contains("browser is not running")
+    || err.contains("Can't reach")
+    || err.contains("tab not found")
     || err.contains("CDP") && err.contains("not")
 }
 
@@ -1496,6 +1690,33 @@ pub async fn agent_chat(
     "deliver": false,
     "channel": "webchat",
     "agentId": "main",
+  });
+  // 5 minute timeout — LLM tool loops can take a while
+  gateway_request_agent("agent", Some(params), &t, 300).await
+}
+
+/// Send an automation agent run through the gateway's `agent` RPC method.
+///
+/// Unlike `agent_chat`, this is used for scheduled/triggered automation runs
+/// (not interactive chat).  It uses the "automation" channel by default and
+/// accepts an optional custom `agent_id` and `channel`.
+pub async fn agent_run(
+  message: &str,
+  agent_id: Option<&str>,
+  channel: Option<&str>,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  let idem = format!("knapsack-auto-{}", std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_millis());
+  let params = serde_json::json!({
+    "message": message,
+    "idempotencyKey": idem,
+    "deliver": false,
+    "channel": channel.unwrap_or("automation"),
+    "agentId": agent_id.unwrap_or("main"),
   });
   // 5 minute timeout — LLM tool loops can take a while
   gateway_request_agent("agent", Some(params), &t, 300).await

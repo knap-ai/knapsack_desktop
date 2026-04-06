@@ -1,3 +1,8 @@
+# v8.0.0 - 27/01/26
+
+- feat: require nodejs 20 or later
+- feat: update deprecated dependencies
+
 # v7.4.0 - 14/11/25
 
 - feat(windows): support msvc 2026 (Thanks to @Norgerkaj)

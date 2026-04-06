@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict'
 
-const log = require('npmlog')
+const log = require('../lib/logger')
 const BuildSystem = require('../').BuildSystem
 const util = require('util')
 const version = require('../package').version
@@ -186,7 +186,6 @@ if (argv.h) {
 
 if (argv.l && logLevels.includes(argv.l)) {
 	log.level = argv.l
-	log.resume()
 }
 
 log.silly('CON', 'argv:')

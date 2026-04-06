@@ -125,24 +125,41 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     _ => {} // Fall through to priority-based resolution
   }
 
-  // Fallback: try providers in order of preference
-  if let Some(key) = openai_key {
-    return Ok(ResolvedProvider {
-      name: "openai".into(),
-      api_key: key,
-      model: openai_model,
-      base_url: "https://api.openai.com/v1".into(),
-      is_anthropic: false,
-    });
+  // Fallback: try providers in order of preference.
+  // When KNAPSACK_DISABLE_PAID_FALLBACK is enabled (default), skip paid providers
+  // if the user's active provider selection is a free/cheap one.
+  let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    .unwrap_or(true);
+  let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter");
+
+  if !disable_paid || !active_is_free {
+    if let Some(key) = openai_key {
+      log::warn!("[resolve_provider] Active provider '{}' unavailable, falling back to openai", active);
+      return Ok(ResolvedProvider {
+        name: "openai".into(),
+        api_key: key,
+        model: openai_model,
+        base_url: "https://api.openai.com/v1".into(),
+        is_anthropic: false,
+      });
+    }
+  } else if openai_key.is_some() {
+    log::info!("[resolve_provider] Skipping OpenAI fallback (paid fallback disabled, active={})", active);
   }
-  if let Some(key) = anthropic_key {
-    return Ok(ResolvedProvider {
-      name: "anthropic".into(),
-      api_key: key,
-      model: anthropic_model,
-      base_url: "https://api.anthropic.com/v1".into(),
-      is_anthropic: true,
-    });
+  if !disable_paid || !active_is_free {
+    if let Some(key) = anthropic_key {
+      log::warn!("[resolve_provider] Active provider '{}' unavailable, falling back to anthropic", active);
+      return Ok(ResolvedProvider {
+        name: "anthropic".into(),
+        api_key: key,
+        model: anthropic_model,
+        base_url: "https://api.anthropic.com/v1".into(),
+        is_anthropic: true,
+      });
+    }
+  } else if anthropic_key.is_some() {
+    log::info!("[resolve_provider] Skipping Anthropic fallback (paid fallback disabled, active={})", active);
   }
   if let Some(key) = gemini_key {
     return Ok(ResolvedProvider {
@@ -569,7 +586,13 @@ pub async fn multi_provider_completion(
     Err(e) => {
       log::warn!("[notes] {} failed: {}. Trying fallback providers...", provider.name, e);
 
-      // Try all other configured providers as fallback
+      // Try all other configured providers as fallback.
+      // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges.
+      let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(true); // Default: paid fallback disabled
+      let primary_is_paid = matches!(provider.name.as_str(), "openai" | "anthropic");
+
       let fb_openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
       let fb_anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
       let fb_gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
@@ -587,6 +610,11 @@ pub async fn multi_provider_completion(
 
       for (fb_name, fb_key_opt, fb_model, fb_url, fb_is_anthropic) in &fallbacks {
         if *fb_name == provider.name { continue; }
+        // Skip paid providers when paid fallback is disabled and primary isn't paid
+        if disable_paid && !primary_is_paid && matches!(*fb_name, "openai" | "anthropic") {
+          log::info!("[notes] Skipping paid fallback provider {} (KNAPSACK_DISABLE_PAID_FALLBACK)", fb_name);
+          continue;
+        }
         if let Some(fb_key) = fb_key_opt {
           log::info!("[notes] Trying fallback provider: {} ({})", fb_name, fb_model);
           let fb_provider = ResolvedProvider {

@@ -9,6 +9,11 @@ use tokio::sync::Mutex;
 
 use crate::db::models::heartbeat::{HeartbeatConfig, HeartbeatLog};
 
+/// Track recently sent notification messages to avoid repeating the same alert.
+/// Stores (message, timestamp) pairs; entries older than 4 hours are pruned.
+static RECENT_NOTIFICATIONS: once_cell::sync::Lazy<Mutex<Vec<(String, i64)>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
+
 /// The payload emitted to the frontend via Tauri event.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,8 +124,14 @@ async fn run_single_heartbeat(
     // Gather context from local APIs
     let context = gather_context(&config).await;
 
+    // Collect recent notification messages so the LLM can avoid repeats
+    let recent_msgs: Vec<String> = {
+        let recent = RECENT_NOTIFICATIONS.lock().await;
+        recent.iter().map(|(m, _)| m.clone()).collect()
+    };
+
     // Build the LLM prompt
-    let prompt = build_prompt(&context);
+    let prompt = build_prompt(&context, &recent_msgs);
 
     // Call the LLM for judgment
     let decision = call_llm_for_decision(&prompt).await;
@@ -133,22 +144,42 @@ async fn run_single_heartbeat(
         }
     };
 
-    // If notify, emit Tauri event
+    // If notify, emit Tauri event — but skip if we recently sent the same message
     if should_notify && !notification_message.is_empty() {
         let now_ts = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
 
-        let payload = HeartbeatNotification {
-            message: notification_message.clone(),
-            timestamp: now_ts,
+        let is_duplicate = {
+            let mut recent = RECENT_NOTIFICATIONS.lock().await;
+            // Prune entries older than 4 hours
+            let cutoff = now_ts - 4 * 3600;
+            recent.retain(|(_, ts)| *ts > cutoff);
+            // Check if this message (or very similar) was already sent
+            let msg_lower = notification_message.to_lowercase();
+            recent.iter().any(|(prev, _)| {
+                let prev_lower = prev.to_lowercase();
+                prev_lower == msg_lower || msg_lower.contains(&prev_lower) || prev_lower.contains(&msg_lower)
+            })
         };
 
-        if let Err(e) = app_handle.emit_all("heartbeat_notification", &payload) {
-            error!("[heartbeat] Failed to emit notification event: {}", e);
+        if is_duplicate {
+            info!("[heartbeat] Suppressed duplicate notification: {}", &notification_message);
         } else {
-            info!("[heartbeat] Notification emitted: {}", &notification_message);
+            let payload = HeartbeatNotification {
+                message: notification_message.clone(),
+                timestamp: now_ts,
+            };
+
+            if let Err(e) = app_handle.emit_all("heartbeat_notification", &payload) {
+                error!("[heartbeat] Failed to emit notification event: {}", e);
+            } else {
+                info!("[heartbeat] Notification emitted: {}", &notification_message);
+                // Track this notification
+                let mut recent = RECENT_NOTIFICATIONS.lock().await;
+                recent.push((notification_message.clone(), now_ts));
+            }
         }
     }
 
@@ -306,11 +337,30 @@ async fn gather_context(config: &HeartbeatConfig) -> GatheredContext {
                             } else {
                                 0
                             };
+                            let time_display = if minutes_until < 2 {
+                                "in about 1 minute".to_string()
+                            } else if minutes_until < 60 {
+                                format!("in {} minutes", minutes_until)
+                            } else {
+                                let hours = minutes_until / 60;
+                                let remaining_mins = minutes_until % 60;
+                                if hours == 1 {
+                                    if remaining_mins > 15 {
+                                        "in about 1.5 hours".to_string()
+                                    } else {
+                                        "in about 1 hour".to_string()
+                                    }
+                                } else if remaining_mins > 15 {
+                                    format!("in about {}.5 hours", hours)
+                                } else {
+                                    format!("in about {} hours", hours)
+                                }
+                            };
                             summaries.push(format!(
-                                "{}. {} (in {} minutes)",
+                                "{}. {} ({})",
                                 i + 1,
                                 title,
-                                minutes_until
+                                time_display
                             ));
                         }
                         if !summaries.is_empty() {
@@ -334,8 +384,18 @@ async fn gather_context(config: &HeartbeatConfig) -> GatheredContext {
 }
 
 /// Build the LLM assessment prompt from gathered context.
-fn build_prompt(context: &GatheredContext) -> String {
+fn build_prompt(context: &GatheredContext, recent_notifications: &[String]) -> String {
     let now_str = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
+
+    let recent_section = if recent_notifications.is_empty() {
+        String::from("(none)")
+    } else {
+        recent_notifications
+            .iter()
+            .map(|m| format!("- {}", m))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
 
     format!(
         r#"You are the user's proactive assistant at Knapsack. Your job is to surface the ONE most important, time-sensitive thing the user should know about right now.
@@ -348,6 +408,8 @@ Context:
 - Upcoming meetings today ({} total):
 {}
 - Current time: {}
+- Notifications already sent recently (DO NOT repeat these):
+{}
 
 When to notify (pick the FIRST one that applies — only mention that ONE thing):
 1. A meeting is coming up in the next 60 minutes — mention prep, who's attending
@@ -357,7 +419,7 @@ When to notify (pick the FIRST one that applies — only mention that ONE thing)
 When to stay SILENT:
 - Emails are routine, automated, or informational (Apple Developer notices, Sentry alerts, newsletters, shipping notifications, marketing, CI/CD reports, etc.) — these are NEVER worth notifying about
 - Nothing is genuinely time-sensitive or urgent right now
-- You already notified about the exact same item recently
+- You already notified about the exact same item recently — check the "Notifications already sent recently" list above. If a meeting or email has already been mentioned there, do NOT notify about it again
 - There are no upcoming meetings and no emails that require a human reply
 - The only emails are from automated systems, bots, or no-reply addresses
 
@@ -371,7 +433,8 @@ Respond with ONLY valid JSON, no markdown, no explanation:
         context.email_summary,
         context.event_count,
         context.calendar_summary,
-        now_str
+        now_str,
+        recent_section
     )
 }
 
@@ -506,64 +569,129 @@ struct HeartbeatProvider {
     is_anthropic: bool,
 }
 
-/// Resolve the cheapest/fastest available LLM provider for heartbeat checks.
-/// Priority: Groq (free/fast) > Gemini Flash > OpenAI mini > Anthropic Haiku
+/// Resolve the cheapest available model for the user's active provider.
+/// The heartbeat always uses the cheapest model regardless of what the user
+/// has configured for chat — background checks don't need expensive models.
+///
+/// Cheapest models per provider:
+///   Groq: free (llama-3.3-70b-versatile)
+///   Gemini: gemini-2.5-flash (~$0.15/1M input)
+///   OpenAI: gpt-4o-mini (~$0.15/1M input)
+///   Anthropic: claude-haiku-4-5 (~$0.25/1M input)
+///   OpenRouter: free tier model
+///
+/// If the user's active provider key is unavailable, falls back to the
+/// cheapest available provider. Respects KNAPSACK_DISABLE_PAID_FALLBACK.
 fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
-    let groq_key = std::env::var("GROQ_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty());
-    let gemini_key = std::env::var("GEMINI_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty());
-    let openai_key = std::env::var("OPENAI_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty());
-    let anthropic_key = std::env::var("ANTHROPIC_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty());
+    let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+    let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(true);
 
-    // Prefer Groq — free and fast
+    let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
+
+    // First: try the user's active provider with its CHEAPEST model
+    match active.as_str() {
+        "groq" if groq_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "groq".into(),
+                api_key: groq_key.unwrap(),
+                model: "llama-3.3-70b-versatile".into(),
+                base_url: "https://api.groq.com/openai/v1".into(),
+                is_anthropic: false,
+            });
+        }
+        "gemini" if gemini_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "gemini".into(),
+                api_key: gemini_key.unwrap(),
+                model: "gemini-2.5-flash".into(),
+                base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
+                is_anthropic: false,
+            });
+        }
+        "openai" if openai_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "openai".into(),
+                api_key: openai_key.unwrap(),
+                model: "gpt-4o-mini".into(), // cheapest, NOT the user's chat model
+                base_url: "https://api.openai.com/v1".into(),
+                is_anthropic: false,
+            });
+        }
+        "anthropic" if anthropic_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "anthropic".into(),
+                api_key: anthropic_key.unwrap(),
+                model: "claude-haiku-4-5-20251001".into(), // cheapest, NOT Sonnet/Opus
+                base_url: "https://api.anthropic.com/v1".into(),
+                is_anthropic: true,
+            });
+        }
+        "openrouter" if openrouter_key.is_some() => {
+            return Ok(HeartbeatProvider {
+                name: "openrouter".into(),
+                api_key: openrouter_key.unwrap(),
+                model: "meta-llama/llama-3.3-70b-instruct:free".into(),
+                base_url: "https://openrouter.ai/api/v1".into(),
+                is_anthropic: false,
+            });
+        }
+        _ => {}
+    }
+
+    // Fallback: cheapest available provider (free → cheap → paid)
+    log::info!("[heartbeat] Active provider '{}' unavailable, trying cheapest fallback", active);
+    let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter" | "");
+
     if let Some(key) = groq_key {
         return Ok(HeartbeatProvider {
-            name: "groq".into(),
-            api_key: key,
+            name: "groq".into(), api_key: key,
             model: "llama-3.3-70b-versatile".into(),
             base_url: "https://api.groq.com/openai/v1".into(),
             is_anthropic: false,
         });
     }
-
-    // Gemini Flash — very cheap
     if let Some(key) = gemini_key {
         return Ok(HeartbeatProvider {
-            name: "gemini".into(),
-            api_key: key,
+            name: "gemini".into(), api_key: key,
             model: "gemini-2.5-flash".into(),
             base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
             is_anthropic: false,
         });
     }
-
-    // OpenAI mini — affordable
-    if let Some(key) = openai_key {
+    if let Some(key) = openrouter_key {
         return Ok(HeartbeatProvider {
-            name: "openai".into(),
-            api_key: key,
-            model: "gpt-4o-mini".into(),
-            base_url: "https://api.openai.com/v1".into(),
+            name: "openrouter".into(), api_key: key,
+            model: "meta-llama/llama-3.3-70b-instruct:free".into(),
+            base_url: "https://openrouter.ai/api/v1".into(),
             is_anthropic: false,
         });
     }
-
-    // Anthropic Haiku — cheapest Anthropic option
-    if let Some(key) = anthropic_key {
-        return Ok(HeartbeatProvider {
-            name: "anthropic".into(),
-            api_key: key,
-            model: "claude-haiku-4-5-20251001".into(),
-            base_url: "https://api.anthropic.com/v1".into(),
-            is_anthropic: true,
-        });
+    // Only try paid providers if allowed
+    if !disable_paid || !active_is_free {
+        if let Some(key) = openai_key {
+            return Ok(HeartbeatProvider {
+                name: "openai".into(), api_key: key,
+                model: "gpt-4o-mini".into(),
+                base_url: "https://api.openai.com/v1".into(),
+                is_anthropic: false,
+            });
+        }
+        if let Some(key) = anthropic_key {
+            return Ok(HeartbeatProvider {
+                name: "anthropic".into(), api_key: key,
+                model: "claude-haiku-4-5-20251001".into(),
+                base_url: "https://api.anthropic.com/v1".into(),
+                is_anthropic: true,
+            });
+        }
+    } else {
+        log::info!("[heartbeat] Skipping paid providers (KNAPSACK_DISABLE_PAID_FALLBACK, active={})", active);
     }
 
     Err("No API key configured for heartbeat. Please add an API key in Settings.".into())

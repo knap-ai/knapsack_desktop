@@ -1,6 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use tauri::{utils::config::AppUrl, window::WindowBuilder, WindowUrl};
+use tauri::{window::WindowBuilder, WindowUrl};
 
 #[macro_use]
 extern crate lazy_static;
@@ -74,6 +74,26 @@ use console_subscriber;
 
 pub const KNAPSACK_DATA_DIR: &str = ".knapsack";
 pub const TRANSCRIPTS_DIR: &str = "transcripts";
+
+/// Query the primary-monitor work area on Windows (screen rect minus taskbar).
+/// Returns `(x, y, width, height)` in physical pixels, or `None` on failure /
+/// non-Windows platforms.
+#[cfg(target_os = "windows")]
+fn windows_work_area() -> Option<(i32, i32, i32, i32)> {
+  #[repr(C)]
+  struct Rect { left: i32, top: i32, right: i32, bottom: i32 }
+  extern "system" {
+    fn SystemParametersInfoW(action: u32, param: u32, pvparam: *mut Rect, winini: u32) -> i32;
+  }
+  const SPI_GETWORKAREA: u32 = 0x0030;
+  let mut rc = Rect { left: 0, top: 0, right: 0, bottom: 0 };
+  let ok = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut rc, 0) };
+  if ok != 0 {
+    Some((rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top))
+  } else {
+    None
+  }
+}
 
 const NOTIF_HEIGHT: f64 = 180.0;
 const NOTIF_WIDTH: f64 = 720.0;
@@ -425,28 +445,60 @@ fn activate_main_window_from_notification(window: tauri::Window) {
     // Determine position and size from the notification window so the main
     // window appears to "expand" from it.
     if let Some(notification_window) = app.get_window("notification") {
-      if let (Ok(notif_pos), Ok(Some(monitor))) = (
-        notification_window.outer_position(),
-        notification_window.current_monitor(),
-      ) {
-        let screen_size = monitor.size();
-        let scale_factor = monitor.scale_factor();
+      if let Ok(notif_pos) = notification_window.outer_position() {
+        // On Windows, use the actual work area so we never overlap the taskbar.
+        #[cfg(target_os = "windows")]
+        {
+          if let Some((_wa_x, wa_y, _wa_w, wa_h)) = windows_work_area() {
+            let scale_factor = notification_window.current_monitor()
+              .ok().flatten()
+              .map(|m| m.scale_factor())
+              .unwrap_or(1.0);
+            // Subtract frame overhead so the outer window fits in the work area
+            let frame_overhead_physical = main_window.outer_size()
+              .ok()
+              .and_then(|outer| main_window.inner_size().ok().map(|inner| {
+                outer.height as i32 - inner.height as i32
+              }))
+              .unwrap_or(0);
+            let usable_h = (wa_h - frame_overhead_physical).max(400);
+            let wa_h_logical = usable_h as f64 / scale_factor;
 
-        // Use the same width as the notification and full screen height
-        let logical_height = screen_size.height as f64 / scale_factor;
+            let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+              width: NOTIF_WIDTH,
+              height: wa_h_logical,
+            }));
+            let _ = main_window.set_position(tauri::Position::Physical(
+              tauri::PhysicalPosition { x: notif_pos.x, y: wa_y },
+            ));
+          }
+        }
 
-        let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-          width: NOTIF_WIDTH,
-          height: logical_height,
-        }));
+        #[cfg(not(target_os = "windows"))]
+        {
+          if let Ok(Some(monitor)) = notification_window.current_monitor() {
+            let screen_size = monitor.size();
+            let monitor_pos = monitor.position();
+            let scale_factor = monitor.scale_factor();
 
-        // Align horizontally with the notification, pin to top of screen
-        let _ = main_window.set_position(tauri::Position::Physical(
-          tauri::PhysicalPosition {
-            x: notif_pos.x,
-            y: 0,
-          },
-        ));
+            // macOS: ~25px for the menu bar at the top
+            let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
+            let logical_height = screen_size.height as f64 / scale_factor - menu_bar_height;
+
+            let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+              width: NOTIF_WIDTH,
+              height: logical_height,
+            }));
+
+            let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
+            let _ = main_window.set_position(tauri::Position::Physical(
+              tauri::PhysicalPosition {
+                x: notif_pos.x,
+                y: (y * scale_factor) as i32,
+              },
+            ));
+          }
+        }
       }
     }
 
@@ -649,8 +701,8 @@ async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>
 
     let log_path = match log_type.as_str() {
         "error" => log_dir.join("ks_error.log"),
-        "clawdbot_err" => std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log"),
-        "clawdbot_out" => std::path::PathBuf::from("/tmp/knapsack-clawdbot.out.log"),
+        "clawdbot_err" => crate::clawd::service::gateway_stderr_log(),
+        "clawdbot_out" => crate::clawd::service::gateway_stdout_log(),
         _ => log_dir.join("ks.log"),
     };
 
@@ -661,6 +713,22 @@ async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>
     let max = max_lines.unwrap_or(500);
     let start = if lines.len() > max { lines.len() - max } else { 0 };
     Ok(lines[start..].to_vec())
+}
+
+#[tauri::command]
+async fn kn_get_openclaw_version(app: AppHandle) -> Result<String, String> {
+    let pkg_path = app
+        .path_resolver()
+        .resolve_resource("resources/clawdbot/package.json")
+        .ok_or("Could not resolve clawdbot package.json")?;
+    let content = std::fs::read_to_string(&pkg_path)
+        .map_err(|e| format!("Failed to read clawdbot package.json: {}", e))?;
+    let json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse clawdbot package.json: {}", e))?;
+    json["version"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "No version field in clawdbot package.json".to_string())
 }
 
 #[tauri::command]
@@ -754,8 +822,21 @@ async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<Stri
     let mut cmd = Command::new(&shell);
     cmd.args(&args);
 
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
+    } else {
+        // Default to user home so cmd.exe doesn't inherit a potentially
+        // invalid working directory from the Tauri process on Windows.
+        if let Some(home) = dirs::home_dir() {
+            cmd.current_dir(home);
+        }
     }
 
     let output = cmd.output().map_err(|e| format!("Failed to execute command: {}", e))?;
@@ -827,6 +908,13 @@ async fn kn_spawn_streaming_command(
     {
         use std::os::unix::process::CommandExt;
         cmd.process_group(0);
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
     if let Some(ref dir) = cwd {
@@ -925,8 +1013,11 @@ async fn kn_kill_streaming_process(
         #[cfg(windows)]
         {
             use std::process::Command;
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
             Command::new("taskkill")
                 .args(&["/PID", &pid.to_string(), "/T", "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output()
                 .ok();
         }
@@ -989,21 +1080,9 @@ async fn main() {
   };
   let recording_state = RecordingState::default();
 
-  let mut context = tauri::generate_context!();
-  let url = format!("http://localhost:1420").parse().unwrap();
-  let window_url = WindowUrl::External(url);
-  // rewrite the config so the IPC is enabled on this URL
-  context.config_mut().build.dist_dir = AppUrl::Url(window_url.clone());
+  let context = tauri::generate_context!();
 
   let mut builder = tauri::Builder::default();
-
-  // Only load the localhost plugin in production builds.
-  // In dev mode, Vite's dev server runs on port 1420 (configured in vite.config.ts).
-  // Loading the plugin in dev steals port 1420 from Vite, causing a white screen.
-  #[cfg(not(dev))]
-  {
-    builder = builder.plugin(tauri_plugin_localhost::Builder::new(1420).build());
-  }
 
   builder = builder
     .plugin(tauri_plugin_store::Builder::default().build())
@@ -1027,11 +1106,7 @@ async fn main() {
       let mut window_builder = WindowBuilder::new(
         app,
         "main".to_string(),
-        if cfg!(dev) {
-          Default::default()
-        } else {
-          window_url.clone()
-        },
+        Default::default(),
       )
       .title("")
       .fullscreen(false)
@@ -1049,44 +1124,84 @@ async fn main() {
 
       let main_window = window_builder.build()?;
 
-      // Position the window like Granola: right-aligned, below the menu bar,
-      // filling the usable screen height.  This avoids the window opening
-      // behind the macOS menu bar (y=0) where the drag region and chat input
-      // are inaccessible.
-      if let Ok(Some(monitor)) = main_window.current_monitor() {
-        let screen_size = monitor.size();
-        let monitor_pos = monitor.position();
-        let scale_factor = monitor.scale_factor();
-        let screen_width_logical = screen_size.width as f64 / scale_factor;
-        let screen_height_logical = screen_size.height as f64 / scale_factor;
+      // Position the window: right-aligned, filling the usable screen height.
+      // On Windows we query the actual work area (excludes taskbar regardless
+      // of its position/size).  On macOS we subtract the menu bar height.
+      #[cfg(target_os = "windows")]
+      {
+        if let Some((wa_x, wa_y, wa_w, wa_h)) = windows_work_area() {
+          let scale_factor = main_window.current_monitor()
+            .ok().flatten()
+            .map(|m| m.scale_factor())
+            .unwrap_or(1.0);
 
-        // Reserve space for the macOS menu bar (~25px) and a small bottom
-        // margin so the window feels grounded rather than flush.
-        let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
-        let bottom_margin: f64 = 0.0;
-        let usable_height = screen_height_logical - menu_bar_height - bottom_margin;
+          // Measure the window frame overhead (title bar + borders).
+          // set_size / inner_size sets the *client* area, so the outer
+          // window extends beyond by the frame dimensions.
+          let frame_overhead_physical = main_window.outer_size()
+            .ok()
+            .and_then(|outer| main_window.inner_size().ok().map(|inner| {
+              outer.height as i32 - inner.height as i32
+            }))
+            .unwrap_or(0);
 
-        // Cap width so the window doesn't exceed the screen
-        let window_width = 1440.0_f64.min(screen_width_logical);
+          let wa_w_logical = wa_w as f64 / scale_factor;
+          // Subtract the frame overhead so the *outer* window fits inside the work area
+          let usable_h = (wa_h - frame_overhead_physical).max(400);
+          let wa_h_logical = usable_h as f64 / scale_factor;
+          let window_width = 1440.0_f64.min(wa_w_logical);
 
-        main_window
-          .set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: window_width,
-            height: usable_height,
-          }))
-          .unwrap();
+          main_window
+            .set_size(tauri::Size::Logical(tauri::LogicalSize {
+              width: window_width,
+              height: wa_h_logical,
+            }))
+            .unwrap();
 
-        // Right-align: x = screen_right_edge - window_width
-        let monitor_x_logical = monitor_pos.x as f64 / scale_factor;
-        let x = (monitor_x_logical + screen_width_logical - window_width).max(0.0);
-        let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
+          // Right-align within the work area
+          let x = wa_x as f64 + (wa_w as f64 - window_width * scale_factor);
+          main_window
+            .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+              x: x as i32,
+              y: wa_y,
+            }))
+            .unwrap();
+        } else {
+          main_window.center()?;
+        }
+      }
 
-        main_window
-          .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))
-          .unwrap();
-      } else {
-        // Fallback: just center if we can't detect the monitor
-        main_window.center()?;
+      #[cfg(not(target_os = "windows"))]
+      {
+        if let Ok(Some(monitor)) = main_window.current_monitor() {
+          let screen_size = monitor.size();
+          let monitor_pos = monitor.position();
+          let scale_factor = monitor.scale_factor();
+          let screen_width_logical = screen_size.width as f64 / scale_factor;
+          let screen_height_logical = screen_size.height as f64 / scale_factor;
+
+          // macOS: ~25px for the menu bar at the top
+          let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
+          let usable_height = screen_height_logical - menu_bar_height;
+          let window_width = 1440.0_f64.min(screen_width_logical);
+
+          main_window
+            .set_size(tauri::Size::Logical(tauri::LogicalSize {
+              width: window_width,
+              height: usable_height,
+            }))
+            .unwrap();
+
+          let monitor_x_logical = monitor_pos.x as f64 / scale_factor;
+          let x = (monitor_x_logical + screen_width_logical - window_width).max(0.0);
+          let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
+
+          main_window
+            .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))
+            .unwrap();
+        } else {
+          main_window.center()?;
+        }
       }
 
       // NOTE: Do NOT call set_decorations(false) on macOS — it disables
@@ -1223,6 +1338,7 @@ async fn main() {
       spotlight::toggle_overlay_window,
       kn_read_logs,
       kn_get_log_path,
+      kn_get_openclaw_version,
       kn_execute_command,
       kn_openclaw_configure_channels_cmd,
       kn_spawn_streaming_command,
@@ -1308,6 +1424,8 @@ async fn main() {
         }
         SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
           "quit" => {
+            // Clean up child processes before exiting so they don't linger
+            clawd::service::cleanup_gateway_on_exit();
             std::process::exit(0);
           }
           "open_knapsack" => {

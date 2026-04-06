@@ -1,6 +1,6 @@
 [package]
 name = "knapsack"
-version = "0.9.700"
+version = "0.9.610"
 description = "Knapsack"
 authors = ["you"]
 license = "AGPL-3.0"
@@ -17,7 +17,6 @@ tauri-build = { version = ">=1.0.0, <2.0.0", features = [] }
 [dependencies]
 diesel = { version = "2.0", features = ["sqlite"] }
 diesel_migrations = "2.0"
-tauri-plugin-localhost = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 serde_json = "=1.0"
 serde = { version = "=1.0", features = ["derive"] }
 tauri = { version = "=1.8.1", features = [ "shell-sidecar", "shell-open", "os-all", "dialog-all", "window-all", "path-all", "os-all", "global-shortcut-all", "protocol-all", "notification-all", "fs-all", "http-all", "updater", "macos-private-api", "process-command-api", "devtools", "system-tray" ] }
@@ -111,6 +110,12 @@ coreaudio-sys = "0.2.16"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.15.0"
+
+[patch.crates-io]
+# Local patch for wry 0.24.11: adds null check in run_file_upload_panel to
+# prevent a null pointer dereference crash when NSOpenPanel returns nil on
+# macOS (reproducible on macOS 26.x beta when clicking the file attach button).
+wry = { path = "patches/wry" }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

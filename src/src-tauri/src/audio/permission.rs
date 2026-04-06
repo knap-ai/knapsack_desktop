@@ -46,11 +46,14 @@ pub fn open_screen_recording_settings() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         // Windows doesn't have a separate "screen recording" permission.
         // Open the general privacy settings.
         let output = Command::new("cmd")
             .args(["/C", "start", "ms-settings:privacy-microphone"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
 
         match output {
@@ -231,32 +234,65 @@ pub fn diagnose_audio_permissions() -> Result<serde_json::Value, String> {
 /// recording. System audio now uses "System Audio Recording Only"
 /// (kTCCServiceAudioCapture) instead of the full "Screen & System Audio Recording"
 /// (kTCCServiceScreenCapture).
+///
+/// Marked `async` so Tauri dispatches it on the Tokio async runtime rather than
+/// the macOS main thread. The actual blocking work (subprocess spawning for
+/// `osascript`, `sw_vers`, Core Audio tap probe) is pushed onto a blocking
+/// thread via `spawn_blocking`. This prevents the beachball observed on Intel
+/// Macs where sequential subprocess invocations can take 5–15 s.
+/// A 6-second timeout ensures we always return promptly — on timeout we fall
+/// back to the cached localStorage values the frontend already holds.
 #[tauri::command]
-pub fn check_audio_permissions() -> Result<serde_json::Value, String> {
+pub async fn check_audio_permissions() -> Result<serde_json::Value, String> {
     #[cfg(target_os = "macos")]
     {
-        // The notetaker uses Core Audio Taps (AudioHardwareCreateProcessTap /
-        // CATapDescription) which require macOS 14.2+. On older versions we
-        // return early with a clear upgrade message instead of letting the
-        // permission probe silently fail.
-        if !check_macos_version_sufficient() {
-            return Ok(json!({
-                "microphone": false,
-                "screen_recording": false,
-                "all_granted": false,
-                "os_update_required": true,
-                "os_update_message": "Meeting notes require macOS 14.2 (Sonoma) or later. Please update your operating system to use this feature."
-            }));
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(6),
+            tokio::task::spawn_blocking(|| -> serde_json::Value {
+                // The notetaker uses Core Audio Taps (AudioHardwareCreateProcessTap /
+                // CATapDescription) which require macOS 14.2+. On older versions we
+                // return early with a clear upgrade message instead of letting the
+                // permission probe silently fail.
+                if !check_macos_version_sufficient() {
+                    return json!({
+                        "microphone": false,
+                        "screen_recording": false,
+                        "all_granted": false,
+                        "os_update_required": true,
+                        "os_update_message": "Meeting notes require macOS 14.2 (Sonoma) or later. Please update your operating system to use this feature."
+                    });
+                }
+
+                let mic_granted = check_microphone_permission_macos();
+                let system_audio_granted = check_system_audio_permission_macos();
+
+                log::info!(
+                    "[check_audio_permissions] microphone={} system_audio={}",
+                    mic_granted, system_audio_granted
+                );
+
+                json!({
+                    "microphone": mic_granted,
+                    "screen_recording": system_audio_granted,
+                    "all_granted": mic_granted && system_audio_granted
+                })
+            }),
+        )
+        .await;
+
+        match result {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(join_err)) => {
+                log::error!("[check_audio_permissions] spawn_blocking panicked: {}", join_err);
+                // Return a neutral result so the frontend falls back to localStorage
+                Err(format!("Permission check panicked: {}", join_err))
+            }
+            Err(_timeout) => {
+                log::warn!("[check_audio_permissions] timed out after 6s — returning cached state");
+                // Timeout: frontend will fall back to its cached localStorage values
+                Err("Permission check timed out".to_string())
+            }
         }
-
-        let mic_granted = check_microphone_permission_macos();
-        let system_audio_granted = check_system_audio_permission_macos();
-
-        Ok(json!({
-            "microphone": mic_granted,
-            "screen_recording": system_audio_granted,
-            "all_granted": mic_granted && system_audio_granted
-        }))
     }
 
     #[cfg(not(target_os = "macos"))]

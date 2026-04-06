@@ -6,10 +6,10 @@ use std::{error::Error as StdError, fmt};
 
 use crate::llm::types::LLMError;
 use crate::server::qdrant::start_qdrant;
-pub type Result<T> = std::result::Result<T, Error>;
 use crate::connections::utils::FetchUuidError;
 
 #[derive(Debug, From)]
+#[allow(dead_code)]
 pub enum Error {
 
   #[from]
@@ -74,6 +74,7 @@ pub struct BaseQdrantResponse {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum QdrantError {
   ConnectionError(ReqwestError),
   StatusError(ReqwestError),
@@ -96,7 +97,7 @@ impl fmt::Display for QdrantError {
 
 pub fn handle_qdrant_request_error(error: ReqwestError) -> QdrantError {
   if error.is_connect() {
-    start_qdrant();
+    let _ = start_qdrant();
     return QdrantError::ConnectionError(error);
   }
   return QdrantError::StatusError(error);

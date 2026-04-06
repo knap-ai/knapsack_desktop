@@ -1,4 +1,4 @@
-# build-windows.ps1 — Build Knapsack for Windows
+# build-windows.ps1 -Build Knapsack for Windows
 #
 # Prerequisites:
 #   1. Rust toolchain: https://rustup.rs/
@@ -65,11 +65,31 @@ node scripts/sync-version.cjs
 node scripts/prepare-node.cjs
 node scripts/prune-clawdbot.cjs
 
-# Build the Tauri app
+# Build the Tauri app (use load-env-and-run.cjs so .env vars are available
+# to the Rust env!() macro at compile time)
 Write-Host "`n[5/5] Building Tauri app for Windows..." -ForegroundColor Yellow
-npx tauri build
+node scripts/load-env-and-run.cjs npx tauri build
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "`n=== Build FAILED ===" -ForegroundColor Red
+    exit $LASTEXITCODE
+}
 
 Write-Host "`n=== Build Complete ===" -ForegroundColor Green
-Write-Host "Output files are in: src-tauri\target\release\bundle\" -ForegroundColor Cyan
-Write-Host "  MSI installer:  src-tauri\target\release\bundle\msi\" -ForegroundColor Cyan
-Write-Host "  NSIS installer: src-tauri\target\release\bundle\nsis\" -ForegroundColor Cyan
+
+$bundleDir = Join-Path (Get-Location) "src-tauri\target\release\bundle"
+Write-Host "Output files are in: $bundleDir" -ForegroundColor Cyan
+
+# Try to launch the NSIS installer (.exe), fall back to MSI, fall back to opening the folder
+$nsisExe = Get-ChildItem -Path "$bundleDir\nsis\*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+$msiFile = Get-ChildItem -Path "$bundleDir\msi\*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+if ($nsisExe) {
+    Write-Host "Launching installer: $($nsisExe.FullName)" -ForegroundColor Green
+    Invoke-Item $nsisExe.FullName
+} elseif ($msiFile) {
+    Write-Host "Launching installer: $($msiFile.FullName)" -ForegroundColor Green
+    Invoke-Item $msiFile.FullName
+} else {
+    Write-Host "No installer found - opening bundle folder..." -ForegroundColor Yellow
+    explorer.exe $bundleDir
+}

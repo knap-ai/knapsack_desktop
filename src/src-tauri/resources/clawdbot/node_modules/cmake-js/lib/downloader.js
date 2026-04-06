@@ -1,7 +1,6 @@
 'use strict'
 const crypto = require('crypto')
-const axios = require('axios')
-const MemoryStream = require('memory-stream')
+const { Readable } = require('node:stream')
 const zlib = require('zlib')
 const tar = require('tar')
 const fs = require('fs')
@@ -19,15 +18,18 @@ class Downloader {
 			let length = 0
 			let done = 0
 			let lastPercent = 0
-			axios
-				.get(url, { responseType: 'stream' })
+			fetch(url)
 				.then(function (response) {
-					length = parseInt(response.headers['content-length'])
-					if (typeof length !== 'number') {
+					if (!response.ok) {
+						throw new Error(response.statusText || 'Request failed')
+					}
+					length = parseInt(response.headers.get('content-length'))
+					if (Number.isNaN(length)) {
 						length = 0
 					}
 
-					response.data.on('data', function (chunk) {
+					const readable = Readable.fromWeb(response.body)
+					readable.on('data', function (chunk) {
 						if (shasum) {
 							shasum.update(chunk)
 						}
@@ -42,7 +44,10 @@ class Downloader {
 						}
 					})
 
-					response.data.pipe(stream)
+					readable.pipe(stream)
+					readable.on('error', function (err) {
+						reject(err)
+					})
 				})
 				.catch(function (err) {
 					reject(err)
@@ -58,9 +63,11 @@ class Downloader {
 		})
 	}
 	async downloadString(url) {
-		const result = new MemoryStream()
-		await this.downloadToStream(url, result)
-		return result.toString()
+		const response = await fetch(url)
+		if (!response.ok) {
+			throw new Error(response.statusText || 'Request failed')
+		}
+		return response.text()
 	}
 	async downloadFile(url, options) {
 		if (typeof options === 'string') {
