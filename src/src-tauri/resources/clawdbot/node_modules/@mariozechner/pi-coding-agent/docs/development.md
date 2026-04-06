@@ -14,8 +14,10 @@ npm run build
 Run from source:
 
 ```bash
-./pi-test.sh
+/path/to/pi-mono/pi-test.sh
 ```
+
+The script can be run from any directory. Pi keeps the caller's current working directory.
 
 ## Forking / Rebranding
 

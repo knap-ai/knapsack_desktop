@@ -7,11 +7,13 @@ export class AssistantMessageComponent extends Container {
     contentContainer;
     hideThinkingBlock;
     markdownTheme;
+    hiddenThinkingLabel;
     lastMessage;
-    constructor(message, hideThinkingBlock = false, markdownTheme = getMarkdownTheme()) {
+    constructor(message, hideThinkingBlock = false, markdownTheme = getMarkdownTheme(), hiddenThinkingLabel = "Thinking...") {
         super();
         this.hideThinkingBlock = hideThinkingBlock;
         this.markdownTheme = markdownTheme;
+        this.hiddenThinkingLabel = hiddenThinkingLabel;
         // Container for text/thinking content
         this.contentContainer = new Container();
         this.addChild(this.contentContainer);
@@ -27,6 +29,15 @@ export class AssistantMessageComponent extends Container {
     }
     setHideThinkingBlock(hide) {
         this.hideThinkingBlock = hide;
+        if (this.lastMessage) {
+            this.updateContent(this.lastMessage);
+        }
+    }
+    setHiddenThinkingLabel(label) {
+        this.hiddenThinkingLabel = label;
+        if (this.lastMessage) {
+            this.updateContent(this.lastMessage);
+        }
     }
     updateContent(message) {
         this.lastMessage = message;
@@ -51,8 +62,8 @@ export class AssistantMessageComponent extends Container {
                     .slice(i + 1)
                     .some((c) => (c.type === "text" && c.text.trim()) || (c.type === "thinking" && c.thinking.trim()));
                 if (this.hideThinkingBlock) {
-                    // Show static "Thinking..." label when hidden
-                    this.contentContainer.addChild(new Text(theme.italic(theme.fg("thinkingText", "Thinking...")), 1, 0));
+                    // Show static thinking label when hidden
+                    this.contentContainer.addChild(new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), 1, 0));
                     if (hasVisibleContentAfter) {
                         this.contentContainer.addChild(new Spacer(1));
                     }

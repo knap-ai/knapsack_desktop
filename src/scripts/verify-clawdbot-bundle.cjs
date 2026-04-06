@@ -148,11 +148,14 @@ const CRITICAL_PACKAGES = [
   'cli-highlight',
   'markdown-it',
   '@anthropic-ai/vertex-sdk',
+  '@mariozechner/pi-coding-agent',
   '@sinclair/typebox',
   '@clack/prompts',
   '@modelcontextprotocol/sdk',
   '@slack/bolt',
   '@slack/web-api',
+  'matrix-js-sdk',
+  'file-type',
 ];
 
 const nodeModulesDir = path.join(CLAWDBOT_DIR, 'node_modules');
