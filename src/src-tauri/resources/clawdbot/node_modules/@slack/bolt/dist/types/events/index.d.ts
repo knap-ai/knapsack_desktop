@@ -1,0 +1,124 @@
+import type { FunctionExecutedEvent, SlackEvent } from '@slack/types';
+import type { FunctionCompleteFn, FunctionFailFn } from '../../CustomFunction';
+import type { SayStreamFn } from '../../context/create-say-stream';
+import type { SetStatusFn } from '../../context/create-set-status';
+import type { AckFn, SayFn, StringIndexed } from '../utilities';
+export type SlackEventMiddlewareArgsOptions = {
+    autoAcknowledge: boolean;
+};
+/**
+ * Union of event shapes from which a channel ID can be extracted at runtime.
+ * MUST stay in sync with `extractEventChannelId` in `src/helpers.ts`.
+ */
+type EventWithChannelContext = {
+    channel: string;
+} | {
+    channel: {
+        id: string;
+    };
+} | {
+    channel_id: string;
+} | {
+    item: {
+        channel: string;
+    };
+} | {
+    assistant_thread: {
+        channel_id: string;
+    };
+};
+/**
+ * Union of event shapes from which a thread_ts can be extracted at runtime.
+ * MUST stay in sync with `extractEventThreadTs` in `src/helpers.ts`.
+ */
+type EventWithThreadTsContext = {
+    thread_ts: string;
+} | {
+    assistant_thread: {
+        thread_ts: string;
+    };
+} | {
+    message: {
+        thread_ts: string;
+    };
+} | {
+    previous_message: {
+        thread_ts: string;
+    };
+};
+/**
+ * Union of event shapes from which a ts can be extracted at runtime.
+ * MUST stay in sync with `extractEventTs` in `src/helpers.ts`.
+ */
+type EventWithTsContext = {
+    ts: string;
+};
+/**
+ * Arguments which listeners and middleware receive to process an event from Slack's Events API.
+ */
+export type SlackEventMiddlewareArgs<EventType extends string = string> = {
+    payload: EventFromType<EventType>;
+    event: EventFromType<EventType>;
+    body: EnvelopedEvent<EventFromType<EventType>>;
+} & (EventType extends 'message' ? {
+    message: EventFromType<EventType>;
+} : unknown) & (EventFromType<EventType> extends {
+    channel: string;
+} | {
+    item: {
+        channel: string;
+    };
+} ? {
+    say: SayFn;
+} : unknown) & (EventFromType<EventType> extends EventWithChannelContext ? EventFromType<EventType> extends EventWithThreadTsContext | EventWithTsContext ? {
+    sayStream: SayStreamFn;
+    setStatus: SetStatusFn;
+} : unknown : unknown) & (EventType extends 'function_executed' ? {
+    inputs: FunctionExecutedEvent['inputs'];
+    complete: FunctionCompleteFn;
+    fail: FunctionFailFn;
+    ack: AckFn<void>;
+} : {
+    ack?: undefined;
+});
+export interface BaseSlackEvent<T extends string = string> {
+    type: T;
+}
+export type EventTypePattern = string | RegExp;
+export type FunctionInputs = Record<string, unknown>;
+/**
+ * A Slack Events API event wrapped in the standard envelope.
+ *
+ * This describes the entire JSON-encoded body of a request from Slack's Events API.
+ */
+export interface EnvelopedEvent<Event = BaseSlackEvent> extends StringIndexed {
+    token: string;
+    team_id: string;
+    enterprise_id?: string;
+    api_app_id: string;
+    event: Event;
+    type: 'event_callback';
+    event_id: string;
+    event_time: number;
+    is_ext_shared_channel?: boolean;
+    authorizations?: Authorization[];
+}
+interface Authorization {
+    enterprise_id: string | null;
+    team_id: string | null;
+    user_id: string;
+    is_bot: boolean;
+    is_enterprise_install?: boolean;
+}
+/**
+ * Type function which given a string `T` returns a type for the matching Slack event(s).
+ *
+ * When the string matches known event(s) from the `SlackEvent` union, only those types are returned (also as a union).
+ * Otherwise, the `BasicSlackEvent<T>` type is returned.
+ */
+export type EventFromType<T extends string> = KnownEventFromType<T> extends never ? BaseSlackEvent<T> : KnownEventFromType<T>;
+export type KnownEventFromType<T extends string> = Extract<SlackEvent, {
+    type: T;
+}>;
+export {};
+//# sourceMappingURL=index.d.ts.map

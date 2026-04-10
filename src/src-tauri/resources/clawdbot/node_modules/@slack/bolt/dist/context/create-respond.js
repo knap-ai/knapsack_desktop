@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createRespond = void 0;
+function createRespond(axiosInstance, responseUrl) {
+    return async (message) => {
+        const normalizedArgs = typeof message === 'string' ? { text: message } : message;
+        return axiosInstance.post(responseUrl, normalizedArgs);
+    };
+}
+exports.createRespond = createRespond;
+//# sourceMappingURL=create-respond.js.map
