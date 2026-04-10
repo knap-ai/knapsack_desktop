@@ -1,0 +1,4 @@
+import type { AxiosInstance, AxiosResponse } from 'axios';
+import type { RespondArguments } from '../types';
+export declare function createRespond(axiosInstance: AxiosInstance, responseUrl: string): (response: string | RespondArguments) => Promise<AxiosResponse>;
+//# sourceMappingURL=create-respond.d.ts.map

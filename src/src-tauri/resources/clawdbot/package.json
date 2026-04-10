@@ -1,6 +1,6 @@
 {
   "name": "openclaw",
-  "version": "2026.4.2",
+  "version": "2026.4.9",
   "description": "Multi-channel AI gateway with extensible messaging integrations",
   "overrides": {
     "https-proxy-agent": "^9.0.0",
@@ -1226,6 +1226,7 @@
     "@agentclientprotocol/sdk": "0.17.1",
     "@anthropic-ai/vertex-sdk": "^0.14.4",
     "@aws-sdk/client-bedrock": "3.1020.0",
+    "@buape/carbon": "0.0.0-beta-20260216184201",
     "@clack/prompts": "^1.1.0",
     "@homebridge/ciao": "^1.3.6",
     "@line/bot-sdk": "^10.6.0",
@@ -1238,6 +1239,8 @@
     "@modelcontextprotocol/sdk": "1.29.0",
     "@mozilla/readability": "^0.6.0",
     "@sinclair/typebox": "0.34.49",
+    "@slack/bolt": "^4.7.0",
+    "@whiskeysockets/baileys": "7.0.0-rc.9",
     "ajv": "^8.18.0",
     "chalk": "^5.6.2",
     "chokidar": "^5.0.0",
@@ -1263,6 +1266,7 @@
     "playwright-core": "1.58.2",
     "qrcode-terminal": "^0.12.0",
     "sharp": "^0.34.5",
+    "sonic-boom": "^5.0.0",
     "sqlite-vec": "0.1.9",
     "tar": "7.5.13",
     "tslog": "^4.10.2",
