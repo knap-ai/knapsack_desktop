@@ -646,6 +646,11 @@ function Home({
                   onBack={() => {
                     // Back from note view returns to sidebar
                   }}
+                  onChatClick={() => setMeetingSubView('chat')}
+                  onEmailClick={(notesMarkdown) => {
+                    if (copyToClipboard) copyToClipboard(notesMarkdown)
+                    setCurrentTab(TabChoices.Email)
+                  }}
                 />
               )}
 

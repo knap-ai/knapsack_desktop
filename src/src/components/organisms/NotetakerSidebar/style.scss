@@ -402,6 +402,10 @@ $ks-red: #C14841;
     color: $ks-text-muted;
   }
 
+  &__note-has-notes {
+    flex-shrink: 0;
+  }
+
   &__note-time {
     font-size: 11px;
     color: $ks-text-muted;
