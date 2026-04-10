@@ -32,6 +32,11 @@
     background-color: rgba(0, 0, 0, 0.05);
     color: #6474AC;
   }
+
+  &--active {
+    color: #6474AC;
+    background-color: rgba(100, 116, 172, 0.1);
+  }
 }
 
 // Subtle chevron at top of expanded sidebar to collapse
