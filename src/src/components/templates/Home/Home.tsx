@@ -101,6 +101,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
 
   // Check if a meeting note is currently selected (for hiding sidebar in full-width note view)
@@ -489,7 +490,19 @@ function Home({
           )}
           {/* Legacy TabBar for non-meeting tabs */}
           {currentTab !== TabChoices.Meeting && (
-            <TabBar currentTab={currentTab} setCurrentTab={setCurrentTab} fullRelease={fullRelease} />
+            <TabBar
+              currentTab={currentTab}
+              setCurrentTab={setCurrentTab}
+              fullRelease={fullRelease}
+              onCalendarToggle={() => {
+                setIsCalendarOpen(!isCalendarOpen)
+                if (!isCalendarOpen) {
+                  setCurrentTab(TabChoices.Meeting)
+                  setMeetingSubView('meetings')
+                }
+              }}
+              isCalendarOpen={isCalendarOpen}
+            />
           )}
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
             <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main">

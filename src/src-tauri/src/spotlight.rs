@@ -134,6 +134,23 @@ pub fn toggle_overlay_window(app_handle: AppHandle<Wry>) {
   }
 }
 
+// ── Recording indicator floating pill commands ──
+
+#[tauri::command]
+pub fn show_recording_indicator(app_handle: AppHandle<Wry>) {
+  if let Some(window) = app_handle.get_window("recording-indicator") {
+    window.show().expect("Failed to show recording indicator");
+    window.emit("recording-indicator-show", {}).unwrap_or_default();
+  }
+}
+
+#[tauri::command]
+pub fn hide_recording_indicator(app_handle: AppHandle<Wry>) {
+  if let Some(window) = app_handle.get_window("recording-indicator") {
+    window.hide().expect("Failed to hide recording indicator");
+  }
+}
+
 // TODO: do we still need these, if we're using an NSWindow instead of an NSPanel?
 #[tauri::command]
 pub fn set_window_level_bottom(app_handle: AppHandle<Wry>) {

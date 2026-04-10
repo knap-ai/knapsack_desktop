@@ -315,6 +315,12 @@ pub async fn start_recording(
   recording_state.is_paused.store(false, Ordering::Relaxed);
   log::info!("[recording] Recording state set: is_recording=true, is_paused=false");
 
+  // Show the floating recording indicator pill
+  if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+    let _ = indicator_window.show();
+    let _ = indicator_window.emit("recording-indicator-show", {});
+  }
+
   let opt = Opt::parse();
   let host = cpal::default_host();
   log::info!("[recording] Audio host: {:?}, device setting: {}", host.id(), opt.device);
@@ -932,6 +938,11 @@ async fn notify_meeting_ended(app_handle: &tauri::AppHandle) -> Result<(), Error
   let window = app_handle.get_window(WINDOW_LABEL).unwrap();
   window.emit("meeting_ended", {}).unwrap();
 
+  // Hide the floating recording indicator pill
+  if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+    let _ = indicator_window.hide();
+  }
+
   Ok(())
 }
 
@@ -1195,6 +1206,11 @@ async fn stream_audio(
 
 async fn handle_stop_events(app_handle: &tauri::AppHandle) -> Result<(), Error> {
   let window = app_handle.get_window(WINDOW_LABEL).unwrap();
+
+  // Hide the floating recording indicator pill
+  if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+    let _ = indicator_window.hide();
+  }
 
   window.emit("open_feed_item", {}).unwrap();
   sleep(Duration::from_millis(100)).await;
