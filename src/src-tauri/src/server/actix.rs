@@ -337,6 +337,14 @@ pub async fn start_server<'a>(
       .service(workspace_api::add_document)
       .service(workspace_api::remove_document)
       .service(workspace_api::workspace_search)
+      .service(workspace_api::update_document_tags)
+      .service(workspace_api::save_chat_to_workspace)
+      // Library curator endpoints
+      .service(workspace_api::get_curation_status)
+      .service(workspace_api::update_curation_settings)
+      .service(workspace_api::curate_now)
+      .service(workspace_api::promote_workspace)
+      .service(workspace_api::wipe_library)
       // MCP Marketplace endpoints
       .service(mcp_api::list_servers)
       .service(mcp_api::list_installed_servers)
