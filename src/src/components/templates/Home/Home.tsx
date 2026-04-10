@@ -485,6 +485,7 @@ function Home({
               onSettingsClick={() => setIsSettingsDialogOpened(true)}
               onChatClick={() => setMeetingSubView('chat')}
               onHomeClick={() => setMeetingSubView('meetings')}
+              onMeetingSelect={() => setMeetingSubView('meetings')}
               activeView={meetingSubView === 'chat' ? 'chat' : 'home'}
             />
           )}
@@ -642,6 +643,9 @@ function Home({
                   recordingHandlers={recordingHandlers}
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
+                  onBack={() => {
+                    // Back from note view returns to sidebar
+                  }}
                 />
               )}
 

@@ -16,11 +16,12 @@ interface NotetakerSidebarProps {
   onQuickNote: () => void
   onSettingsClick: () => void
   onChatClick?: () => void
+  onMeetingSelect?: () => void
   onHomeClick?: () => void
   activeView?: NotetakerView
 }
 
-function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onHomeClick, activeView: controlledView }: NotetakerSidebarProps) {
+function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onHomeClick, onMeetingSelect, activeView: controlledView }: NotetakerSidebarProps) {
   const [internalView, setInternalView] = useState<NotetakerView>('home')
   const activeView = controlledView ?? internalView
   const [searchQuery, setSearchQuery] = useState('')
@@ -226,8 +227,10 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
                             onClick={() => {
                               if (item.id != null) {
                                 feed.selectFeedItem(key, item.id)
+                                onMeetingSelect?.()
                               } else if (item.calendarEvent) {
                                 feed.openCalendarEvent(item.calendarEvent)
+                                onMeetingSelect?.()
                               }
                             }}
                           >
@@ -248,6 +251,7 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
                                     feed.selectFeedItem(key, item.id)
                                   }
                                   feed.createNewMeeting()
+                                  onMeetingSelect?.()
                                 }}
                               >
                                 Start now
@@ -286,6 +290,7 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
                     onClick={() => {
                       if (item.id != null) {
                         feed.selectFeedItem(key, item.id)
+                        onMeetingSelect?.()
                       }
                     }}
                   >
@@ -339,6 +344,7 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
                     onClick={() => {
                       if (item.id != null) {
                         feed.selectFeedItem(todayKey, item.id)
+                        onMeetingSelect?.()
                       }
                     }}
                   >
