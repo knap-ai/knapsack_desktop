@@ -591,13 +591,41 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
             </div>
           </div>
           {/* Loading skeleton */}
-          <div className="mt-6 space-y-3 animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-3/4" />
-            <div className="h-4 bg-gray-200 rounded w-1/2" />
-            <div className="h-4 bg-gray-200 rounded w-5/6" />
-            <div className="h-4 bg-gray-200 rounded w-2/3" />
-          </div>
+          {!recordingHandlers.isRecording(thread.id) && (
+            <div className="mt-6 space-y-3 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4" />
+              <div className="h-4 bg-gray-200 rounded w-1/2" />
+              <div className="h-4 bg-gray-200 rounded w-5/6" />
+              <div className="h-4 bg-gray-200 rounded w-2/3" />
+            </div>
+          )}
+          {/* Show recording notice + stop button when recording during loading */}
+          {recordingHandlers.isRecording(thread.id) && (
+            <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
+          )}
         </div>
+        {/* Bottom bar stop button available even during loading */}
+        {recordingHandlers.isRecording(thread.id) && (
+          <div className="notetaker-note__bottom-bar">
+            <div className="notetaker-note__bottom-waveform">
+              <span className="notetaker-note__waveform-bar" style={{animationDelay: '0ms'}} />
+              <span className="notetaker-note__waveform-bar" style={{animationDelay: '150ms'}} />
+              <span className="notetaker-note__waveform-bar" style={{animationDelay: '300ms'}} />
+              <span className="notetaker-note__waveform-bar" style={{animationDelay: '450ms'}} />
+              <span className="notetaker-note__waveform-bar" style={{animationDelay: '600ms'}} />
+            </div>
+            <div className="notetaker-note__bottom-recording-status">
+              Privately transcribing...
+            </div>
+            <div className="flex-1" />
+            <button
+              className="notetaker-note__bottom-stop"
+              onClick={() => handleStopRecording('Manually')}
+            >
+              Stop recording
+            </button>
+          </div>
+        )}
       </div>
     )
   }
