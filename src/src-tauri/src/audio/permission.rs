@@ -338,7 +338,7 @@ return status as integer"#,
 /// (kTCCServiceAudioCapture) on macOS 14.4+.
 ///
 /// This is the less-intrusive permission that only captures system audio
-/// (like Granola, ChatGPT, krisp, Limitless) instead of full screen recording.
+/// (like ChatGPT, krisp, Limitless) instead of full screen recording.
 #[cfg(target_os = "macos")]
 fn check_system_audio_permission_macos() -> bool {
     // Strategy 1 (most reliable): Try to actually create a Core Audio process tap.

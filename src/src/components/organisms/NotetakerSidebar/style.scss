@@ -1,0 +1,453 @@
+// Notetaker sidebar using Knapsack color scheme
+$ks-bg: #FAFAFA;
+$ks-bg-hover: #F0EFEF;
+$ks-bg-selected: #E3E2E2;
+$ks-text: #333333;
+$ks-text-secondary: #6A6969;
+$ks-text-muted: #ABA9A9;
+$ks-border: #E3E2E2;
+$ks-accent: #6474AC;
+$ks-accent-light: #E6EBF3;
+$ks-red: #C14841;
+
+.notetaker-sidebar {
+  width: 300px;
+  min-width: 260px;
+  max-width: 340px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: $ks-bg;
+  border-right: 1px solid $ks-border;
+  font-family: 'Inter', -apple-system, sans-serif;
+  user-select: none;
+
+  // Search
+  &__search {
+    padding: 12px 16px 8px;
+  }
+
+  &__search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+
+    &--focused {
+      background: white;
+      border-color: $ks-border;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+  }
+
+  &__search-icon {
+    flex-shrink: 0;
+    color: $ks-text-muted;
+  }
+
+  &__search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 13px;
+    color: $ks-text;
+    font-family: inherit;
+
+    &::placeholder {
+      color: $ks-text-muted;
+    }
+  }
+
+  &__search-shortcut {
+    font-size: 10px;
+    color: $ks-text-muted;
+    background: rgba(0, 0, 0, 0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: inherit;
+    border: none;
+    white-space: nowrap;
+  }
+
+  // Navigation
+  &__nav {
+    padding: 4px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  &__nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: $ks-text-secondary;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.1s ease;
+    text-align: left;
+    width: 100%;
+
+    &:hover {
+      background: $ks-bg-hover;
+      color: $ks-text;
+    }
+
+    &--active {
+      background: $ks-bg-selected;
+      color: $ks-text;
+      font-weight: 500;
+    }
+
+    svg {
+      flex-shrink: 0;
+    }
+  }
+
+  // Spaces
+  &__spaces {
+    padding: 12px 12px 4px;
+  }
+
+  &__spaces-header {
+    font-size: 11px;
+    font-weight: 500;
+    color: $ks-text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 10px 6px;
+  }
+
+  &__space-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: $ks-text-secondary;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    width: 100%;
+    transition: all 0.1s ease;
+
+    &:hover {
+      background: $ks-bg-hover;
+      color: $ks-text;
+    }
+
+    &--active {
+      color: $ks-text;
+      font-weight: 500;
+    }
+
+    svg {
+      flex-shrink: 0;
+    }
+  }
+
+  // Scrollable content
+  &__content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0;
+
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  // Coming up section
+  &__coming-up {
+    padding: 0 16px 12px;
+  }
+
+  &__section-title {
+    font-family: 'Lora', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: $ks-text;
+    margin: 0 0 12px;
+  }
+
+  &__calendar-card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid $ks-border;
+    overflow: hidden;
+  }
+
+  &__calendar-day {
+    display: flex;
+    padding: 12px 16px;
+    gap: 16px;
+    border-bottom: 1px solid $ks-border;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__calendar-date {
+    flex-shrink: 0;
+    width: 52px;
+    text-align: left;
+  }
+
+  &__calendar-date-num {
+    font-size: 24px;
+    font-weight: 400;
+    color: $ks-text;
+    line-height: 1;
+    display: block;
+  }
+
+  &__calendar-date-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  &__calendar-month {
+    font-size: 11px;
+    color: $ks-text-muted;
+    font-weight: 400;
+  }
+
+  &__calendar-today-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: $ks-red;
+    flex-shrink: 0;
+  }
+
+  &__calendar-day-name {
+    font-size: 11px;
+    color: $ks-text-muted;
+    font-weight: 400;
+  }
+
+  &__calendar-events {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__calendar-event {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+
+    &:hover {
+      background: $ks-bg-hover;
+    }
+
+    &--now {
+      background: $ks-accent-light;
+
+      &:hover {
+        background: darken($ks-accent-light, 3%);
+      }
+    }
+  }
+
+  &__calendar-event-bar {
+    width: 3px;
+    height: 28px;
+    border-radius: 2px;
+    background: $ks-accent;
+    flex-shrink: 0;
+  }
+
+  &__calendar-event-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__calendar-event-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: $ks-text;
+    word-break: break-word;
+  }
+
+  &__calendar-event-time {
+    font-size: 11px;
+    color: $ks-text-muted;
+  }
+
+  &__now-label {
+    color: $ks-red;
+    font-weight: 600;
+  }
+
+  &__start-now-btn {
+    flex-shrink: 0;
+    padding: 4px 12px;
+    border-radius: 6px;
+    background: $ks-text;
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.1s ease;
+
+    &:hover {
+      background: lighten($ks-text, 15%);
+    }
+  }
+
+  // Notes list
+  &__notes-group {
+    padding: 0 8px;
+    margin-bottom: 8px;
+  }
+
+  &__notes-date {
+    font-size: 12px;
+    font-weight: 500;
+    color: $ks-text-muted;
+    padding: 8px 12px 4px;
+  }
+
+  &__note-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+
+    &:hover {
+      background: $ks-bg-hover;
+    }
+
+    &--selected {
+      background: $ks-bg-selected;
+    }
+  }
+
+  &__note-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #B5C4DB, #91A5C9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  &__note-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__note-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: $ks-text;
+    word-break: break-word;
+  }
+
+  &__note-subtitle {
+    font-size: 11px;
+    color: $ks-text-muted;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__note-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  &__note-lock {
+    color: $ks-text-muted;
+  }
+
+  &__note-has-notes {
+    flex-shrink: 0;
+  }
+
+  &__note-time {
+    font-size: 11px;
+    color: $ks-text-muted;
+    white-space: nowrap;
+  }
+
+  // Bottom bar
+  &__bottom {
+    padding: 8px 16px 12px;
+    border-top: 1px solid $ks-border;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__bottom-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  &__bottom-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: $ks-text-muted;
+    cursor: pointer;
+    transition: all 0.1s ease;
+
+    &:hover {
+      background: $ks-bg-hover;
+      color: $ks-text-secondary;
+    }
+  }
+
+  &__version {
+    font-size: 10px;
+    color: $ks-text-muted;
+    padding: 0 4px;
+  }
+}

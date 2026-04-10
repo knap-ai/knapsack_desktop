@@ -26,9 +26,11 @@ interface TabBarProps {
   currentTab: TabChoices
   setCurrentTab: (tabChoice: TabChoices) => void
   fullRelease: boolean | null
+  onCalendarToggle?: () => void
+  isCalendarOpen?: boolean
 }
 
-const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease }) => {
+const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease, onCalendarToggle, isCalendarOpen }) => {
   const [collapsed, setCollapsed] = useState(true)
 
   const tabs: TabData[] = [
@@ -83,6 +85,20 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
   if (collapsed) {
     return (
       <div data-tauri-drag-region className="TabBarContainer TabBarContainer--collapsed mt-12 select-none">
+        {/* Calendar toggle button */}
+        <button
+          className={`TabBarExpandBtn ${isCalendarOpen ? 'TabBarExpandBtn--active' : ''}`}
+          onClick={onCalendarToggle}
+          title={isCalendarOpen ? 'Hide calendar' : 'Show calendar'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        </button>
+        {/* Expand tabs button */}
         <button
           className="TabBarExpandBtn"
           onClick={() => setCollapsed(false)}
@@ -103,6 +119,20 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease 
       data-tauri-drag-region
       className="TabBarContainer mt-12 select-none flex flex-col space-y-0"
     >
+      {/* Calendar toggle */}
+      <button
+        className={`TabBarExpandBtn ${isCalendarOpen ? 'TabBarExpandBtn--active' : ''}`}
+        onClick={onCalendarToggle}
+        title={isCalendarOpen ? 'Hide calendar' : 'Show calendar'}
+        style={{ marginBottom: 4 }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      </button>
       <button
         className="TabBarCollapseBtn"
         onClick={() => setCollapsed(true)}
