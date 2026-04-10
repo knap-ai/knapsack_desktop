@@ -523,6 +523,7 @@ pub async fn stop_recording(
   data: Json<StopRecordingRequest>,
   recording_state: Data<RecordingState>,
   _handle: Data<Arc<Handle>>,
+  app_handle: Data<tauri::AppHandle>,
 ) -> HttpResponse {
   log::info!(
     "[recording] stop_recording: thread_id={} save_transcript={}",
@@ -537,6 +538,11 @@ pub async fn stop_recording(
 
   recording_state.is_recording.store(false, Ordering::Relaxed);
   log::info!("[recording] is_recording set to false, waiting for threads to finish");
+
+  // Hide the floating recording indicator pill
+  if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+    let _ = indicator_window.hide();
+  }
 
   let input_filename = {
     let input_filename_guard = recording_state.input_filename.lock().unwrap();
@@ -1205,17 +1211,23 @@ async fn stream_audio(
 }
 
 async fn handle_stop_events(app_handle: &tauri::AppHandle) -> Result<(), Error> {
-  let window = app_handle.get_window(WINDOW_LABEL).unwrap();
+  let window = match app_handle.get_window(WINDOW_LABEL) {
+    Some(w) => w,
+    None => {
+      log::warn!("[recording] Main window not found during handle_stop_events");
+      return Ok(());
+    }
+  };
 
   // Hide the floating recording indicator pill
   if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
     let _ = indicator_window.hide();
   }
 
-  window.emit("open_feed_item", {}).unwrap();
+  let _ = window.emit("open_feed_item", {});
   sleep(Duration::from_millis(100)).await;
 
-  window.emit("stop_recording", {}).unwrap();
+  let _ = window.emit("stop_recording", {});
   sleep(Duration::from_millis(500)).await;
 
   focus_window(window);
