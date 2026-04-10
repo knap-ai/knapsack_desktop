@@ -226,8 +226,8 @@ pub async fn record_speaker_output(
 
   #[cfg(target_os = "macos")]
   {
-    use objc2::runtime::{AnyClass, AnyObject, Bool as ObjcBool};
-    use objc2::{msg_send, msg_send_id, sel, rc::{Allocated, Id}};
+    use objc2::runtime::{AnyClass, AnyObject};
+    use objc2::{msg_send, msg_send_id, rc::{Allocated, Id}};
     use core_foundation::base::{CFRelease, TCFType};
     use core_foundation::string::CFString;
     use core_foundation::dictionary::CFDictionary;
@@ -273,64 +273,24 @@ pub async fn record_speaker_output(
     }
 
     // Get the tap's UUID (needed for aggregate device configuration).
-    // On macOS 14–15, CATapDescription has a `uuid` property.
-    // On macOS 26 (Tahoe), Apple renamed/removed it — try `UUID`, `tapUUID`,
-    // and `identifier` selectors, then fall back to a generated NSUUID.
+    // In macOS 26+, the `uuid` property was removed from CATapDescription.
+    // We check at runtime and fall back to generating a fresh NSUUID if unavailable.
     let tap_uuid_rust: String = unsafe {
-      let has_uuid: bool = {
-        let s = sel!(uuid);
-        let result: ObjcBool = msg_send![&*tap_desc, respondsToSelector: s];
-        result.as_bool()
-      };
-      let has_upper_uuid: bool = {
-        let s = sel!(UUID);
-        let result: ObjcBool = msg_send![&*tap_desc, respondsToSelector: s];
-        result.as_bool()
-      };
-
-      if has_uuid {
+      let uuid_sel = objc2::sel!(uuid);
+      let responds: bool = msg_send![&*tap_desc, respondsToSelector: uuid_sel];
+      if responds {
         let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, uuid];
         let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
         let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
         std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
-      } else if has_upper_uuid {
-        let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, UUID];
-        let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
-        let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
-        std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
       } else {
-        // macOS 26+: try `tapUUID` or `identifier` as alternative selectors.
-        let has_tap_uuid: bool = {
-          let s = sel!(tapUUID);
-          let result: ObjcBool = msg_send![&*tap_desc, respondsToSelector: s];
-          result.as_bool()
-        };
-        let has_identifier: bool = {
-          let s = sel!(identifier);
-          let result: ObjcBool = msg_send![&*tap_desc, respondsToSelector: s];
-          result.as_bool()
-        };
-
-        if has_tap_uuid {
-          let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, tapUUID];
-          let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
-          let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
-          std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
-        } else if has_identifier {
-          let tap_id_obj: Id<AnyObject> = msg_send_id![&*tap_desc, identifier];
-          let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_id_obj, UUIDString];
-          let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
-          std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
-        } else {
-          // Last resort: generate a fresh NSUUID. The aggregate device
-          // creation may fail, but at least the app won't crash.
-          log::warn!("[audio tap] CATapDescription does not respond to any known UUID selector; generating NSUUID");
-          let nsuuid_class = AnyClass::get("NSUUID").unwrap();
-          let nsuuid: Id<AnyObject> = msg_send_id![nsuuid_class, UUID];
-          let uuid_string: Id<AnyObject> = msg_send_id![&*nsuuid, UUIDString];
-          let uuid_str: *const libc::c_char = msg_send![&*uuid_string, UTF8String];
-          std::ffi::CStr::from_ptr(uuid_str).to_str().unwrap().to_string()
-        }
+        // macOS 26+: the uuid property no longer exists on CATapDescription.
+        // Generate a fresh UUID for the aggregate device configuration.
+        let nsuuid_class = AnyClass::get("NSUUID").unwrap();
+        let nsuuid: Id<AnyObject> = msg_send_id![nsuuid_class, UUID];
+        let uuid_string: Id<AnyObject> = msg_send_id![&*nsuuid, UUIDString];
+        let uuid_str: *const libc::c_char = msg_send![&*uuid_string, UTF8String];
+        std::ffi::CStr::from_ptr(uuid_str).to_str().unwrap().to_string()
       }
     };
     log::info!("[audio tap] Tap UUID: {}", tap_uuid_rust);

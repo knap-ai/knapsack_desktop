@@ -1,17 +1,6 @@
-$ks-bg: #FAFAFA;
-$ks-text: #333333;
-$ks-text-secondary: #6A6969;
-$ks-text-muted: #ABA9A9;
-$ks-border: #E3E2E2;
-$ks-accent: #6474AC;
-
 .MeetingsTabView {
   display: flex;
-  background: $ks-bg;
-
-  &--notetaker {
-    background: $ks-bg;
-  }
+  background: var(--ks-bg-main);
 
   &__sidebar {
     width: 22.5em;
@@ -21,9 +10,9 @@ $ks-accent: #6474AC;
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: $ks-bg;
+    background: var(--ks-bg-main);
     padding-top: 1.5rem;
-    border-right: 1px solid $ks-border;
+    border-right: 1px solid var(--ks-warm-grey-200, #e5e5e5);
   }
 
   &__sidebar-scroll {
@@ -68,10 +57,10 @@ $ks-accent: #6474AC;
     margin-top: 0.25rem;
     margin-bottom: 0.25rem;
     line-height: 1rem;
-    color: $ks-text-secondary;
+    color: var(--ks-warm-grey-800);
 
     &--today {
-      color: $ks-text;
+      color: var(--ks-warm-grey-950);
     }
   }
 
@@ -108,7 +97,7 @@ $ks-accent: #6474AC;
   &__empty {
     padding: 24px 16px;
     text-align: center;
-    color: $ks-text-secondary;
+    color: var(--ks-warm-grey-600);
 
     p {
       margin: 0 0 8px;
@@ -118,19 +107,13 @@ $ks-accent: #6474AC;
 
   &__empty-hint {
     font-size: 12px !important;
-    color: $ks-text-muted;
+    color: var(--ks-warm-grey-500);
   }
 
   &__content {
     flex: 1;
     overflow: hidden;
     position: relative;
-    background: $ks-bg;
-
-    &--full {
-      // When sidebar is handled by NotetakerSidebar, content takes full width
-      flex: 1;
-    }
   }
 
   &__welcome {
@@ -141,71 +124,34 @@ $ks-accent: #6474AC;
     height: 100%;
     text-align: center;
     padding: 40px;
-
-    &--notetaker {
-      background: $ks-bg;
-    }
-  }
-
-  &__welcome-icon {
-    margin-bottom: 20px;
-    opacity: 0.6;
   }
 
   &__welcome-title {
-    font-family: 'EB Garamond', 'Lora', serif;
-    font-size: 26px;
-    font-weight: 400;
-    color: $ks-text;
+    font-family: var(--font-serif);
+    font-size: 32px;
+    font-weight: 500;
+    color: var(--ks-warm-grey-950);
     margin: 0 0 12px;
-    letter-spacing: -0.01em;
   }
 
   &__welcome-subtitle {
     font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    color: $ks-text-muted;
-    margin: 0 0 28px;
+    font-size: 16px;
+    color: var(--ks-warm-grey-600);
+    margin: 0 0 32px;
     max-width: 400px;
   }
 
-  &__welcome-actions {
-    display: flex;
-    gap: 12px;
-  }
-
-  &__quick-note-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 20px;
-    border-radius: 8px;
-    background: white;
-    border: 1px solid $ks-border;
-    color: $ks-text;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    transition: all 0.15s ease;
-
-    &:hover {
-      background: darken(white, 2%);
-      border-color: darken($ks-border, 8%);
-    }
+  &__welcome-action {
+    // Button styling handled by Button component
   }
 
   &__calendar-prompt {
     margin-top: 48px;
     padding: 20px 24px;
-    background: rgba(0, 0, 0, 0.03);
+    background: var(--ks-warm-grey-100);
     border-radius: 12px;
     max-width: 500px;
-
-    &--notetaker {
-      background: white;
-      border: 1px solid $ks-border;
-    }
   }
 
   &__calendar-prompt-content {
@@ -229,129 +175,20 @@ $ks-accent: #6474AC;
     font-family: 'Inter', sans-serif;
     font-size: 14px;
     font-weight: 600;
-    color: $ks-text;
+    color: var(--ks-warm-grey-950);
     margin: 0 0 4px;
   }
 
   &__calendar-prompt-subtitle {
     font-family: 'Inter', sans-serif;
     font-size: 13px;
-    color: $ks-text-muted;
+    color: var(--ks-warm-grey-600);
     margin: 0;
   }
 
   &__meeting-content {
     height: 100%;
     overflow-y: auto;
-    background: $ks-bg;
-  }
-
-  // Notetaker top bar
-  &__topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    border-bottom: 1px solid $ks-border;
-    background: $ks-bg;
-    flex-shrink: 0;
-    min-height: 44px;
-    -webkit-app-region: drag;
-  }
-
-  &__topbar-left,
-  &__topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    -webkit-app-region: no-drag;
-  }
-
-  &__topbar-left {
-    padding-left: 60px; // space for macOS traffic lights
-  }
-
-  &__topbar-back {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    border: none;
-    background: transparent;
-    color: $ks-text-secondary;
-    cursor: pointer;
-    transition: all 0.1s ease;
-
-    &:hover {
-      background: darken($ks-bg, 3%);
-      color: $ks-text;
-    }
-  }
-
-  &__topbar-center {
-    display: flex;
-    align-items: center;
-    -webkit-app-region: no-drag;
-  }
-
-  &__topbar-summary {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: 6px;
-    border: none;
-    background: transparent;
-    color: $ks-text-secondary;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    transition: all 0.1s ease;
-
-    &:hover {
-      background: darken($ks-bg, 3%);
-      color: $ks-text;
-    }
-  }
-
-  &__topbar-share {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: 6px;
-    border: 1px solid $ks-border;
-    background: white;
-    color: $ks-text;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    transition: all 0.1s ease;
-
-    &:hover {
-      background: darken(white, 2%);
-    }
-  }
-
-  &__topbar-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    border: none;
-    background: transparent;
-    color: $ks-text-secondary;
-    cursor: pointer;
-    transition: all 0.1s ease;
-
-    &:hover {
-      background: darken($ks-bg, 3%);
-      color: $ks-text;
-    }
+    padding: 24px 24px 16px;
   }
 }

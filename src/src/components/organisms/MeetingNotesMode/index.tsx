@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import dayjs from 'dayjs'
 
 import { mergeAttributes } from '@tiptap/core'
 import { Color } from '@tiptap/extension-color'
@@ -95,8 +94,6 @@ interface MeetingNotesModeProps {
   closeTasks: () => void
   recordingHandlers: RecordingContextProps
   handleOpenTasks?: (threadId: number | undefined, tasks: TaskItem[]) => void
-  onChatClick?: () => void
-  onEmailClick?: (notesMarkdown: string) => void
 }
 
 const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
@@ -119,12 +116,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   closeTasks,
   recordingHandlers,
   handleOpenTasks,
-  onChatClick,
-  onEmailClick,
 }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
-  const [permissionError, setPermissionError] = useState<string | null>(null)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [isTitleSet, setIsTitleSet] = useState(thread.subtitle !== 'Untitled Meeting')
   const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
@@ -479,13 +473,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         isStart,
       )
     } catch (err: any) {
-      const isPermissionIssue = err?.message?.includes('permission') || err?.message?.includes('Permission')
-      const message = isPermissionIssue
+      const message = err?.message?.includes('permission') || err?.message?.includes('Permission')
         ? 'Recording requires audio permissions. Please grant access in System Settings > Privacy & Security, then try again. If already enabled, try toggling the permission off and on, then restart Knapsack.'
         : "Couldn't start recording. Check that your microphone is available and try again."
-      if (isPermissionIssue) {
-        setPermissionError(message)
-      }
       handleErrorContact(message)
     }
   }
@@ -552,83 +542,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }, [isSynthesizing, synthTimedOut])
 
-  if (!editor || isInitialLoading) {
-    return (
-      <div className="notetaker-note">
-        <div className="notetaker-note__container">
-          <div className="w-full flex flex-col gap-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <h1 className="notetaker-note__title">
-                  {thread.subtitle}
-                </h1>
-                <div className="notetaker-note__meta">
-                  <span className="notetaker-note__meta-item">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                    {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
-                  </span>
-                </div>
-              </div>
-              <div className="flex-shrink-0 flex items-center gap-2">
-                {!thread.recorded && (
-                  <RecordControlPanel
-                    onClickJoin={() => handleRecordClick(true)}
-                    onClickEnd={() => handleStopRecording('Manually')}
-                    onClickPause={() => recordingHandlers.pauseRecording()}
-                    onClickResume={() => handleRecordClick(false)}
-                    isRecording={recordingHandlers.isRecording(thread.id)}
-                    isDisabled={disableIsRecording}
-                    isSynthesizing={isSynthesizing()}
-                    isPaused={recordingHandlers.isPaused}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-          {/* Loading skeleton */}
-          {!recordingHandlers.isRecording(thread.id) && (
-            <div className="mt-6 space-y-3 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4" />
-              <div className="h-4 bg-gray-200 rounded w-1/2" />
-              <div className="h-4 bg-gray-200 rounded w-5/6" />
-              <div className="h-4 bg-gray-200 rounded w-2/3" />
-            </div>
-          )}
-          {/* Show recording notice + stop button when recording during loading */}
-          {recordingHandlers.isRecording(thread.id) && (
-            <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
-          )}
-        </div>
-        {/* Bottom bar stop button available even during loading */}
-        {recordingHandlers.isRecording(thread.id) && (
-          <div className="notetaker-note__bottom-bar">
-            <div className="notetaker-note__bottom-waveform">
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '0ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '150ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '300ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '450ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '600ms'}} />
-            </div>
-            <div className="notetaker-note__bottom-recording-status">
-              Privately transcribing...
-            </div>
-            <div className="flex-1" />
-            <button
-              className="notetaker-note__bottom-stop"
-              onClick={() => handleStopRecording('Manually')}
-            >
-              Stop recording
-            </button>
-          </div>
-        )}
-      </div>
-    )
-  }
+  if (!editor || isInitialLoading) return null
 
   const extractActionItems = (markdownContent: string): string[] => {
     if (!markdownContent) return []
@@ -679,44 +593,16 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   }
 
   return (
-    <div className="notetaker-note">
-      <div className="notetaker-note__container">
+    <div>
+      <div className="TightShadow w-full max-w-[45rem] mx-auto flex flex-col gap-y-4 rounded-[10px] bg-white relative p-4 mb-2">
         <div className="w-full flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <h1 className="notetaker-note__title">
+              <div className="text-zinc-800 text-xl font-Lora font-bold leading-7">
                 {thread.subtitle}
-              </h1>
-              {/* Metadata row */}
-              <div className="notetaker-note__meta">
-                {recordingHandlers.isRecording(thread.id) && (
-                  <span className="notetaker-note__meta-item notetaker-note__meta-item--recording">
-                    <span className="notetaker-note__recording-dot" />
-                    Recording
-                  </span>
-                )}
-                <span className="notetaker-note__meta-item">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                  {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
-                </span>
-                {meeting?.participants && meeting.participants.length > 0 && (
-                  <span className="notetaker-note__meta-item">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                    </svg>
-                    {meeting.participants.slice(0, 3).map(p => p.name || p.email.split('@')[0]).join(', ')}
-                    {meeting.participants.length > 3 && ` +${meeting.participants.length - 3}`}
-                  </span>
-                )}
               </div>
             </div>
-            <div className="flex-shrink-0 flex items-center gap-2">
+            <div className="flex-shrink-0">
               {!thread.recorded && (
                 <RecordControlPanel
                   onClickJoin={() => handleRecordClick(true)}
@@ -756,139 +642,104 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Recording notice */}
+        <MeetingNotesTabBar
+          thread={thread}
+          feedItemId={feedItemId}
+          feed={feed}
+          templateLabel={templatePrompt.title}
+          hasActionItems={hasActionItems()}
+          onOpenTemplatesClick={handleOpenTemplates}
+          onViewTranscriptClick={handleOpenTranscript}
+          onTasksButtonClick={handleTasksButtonClick}
+          onCopyClick={() => {
+            if (copyToClipboard) copyToClipboard(notesMarkdown)
+          }}
+          canChangeTemplate={true}
+          isEditing={isEditing}
+          onEditClick={onEditClick}
+        />
         {recordingHandlers.isRecording(thread.id) && (
-          <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
-        )}
-
-        {/* Permission error banner */}
-        {permissionError && !recordingHandlers.isRecording(thread.id) && (
-          <div className="notetaker-note__permission-error">
-            <div className="notetaker-note__permission-error-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
+          <div className="flex flex-col gap-2">
+            <div className="h-[49px] bg-ks-red-100 border-ks-red-200 border rounded-md py-3 px-3 w-full flex items-center">
+              <span className="text-ks-red-800 text-xxs font-semibold ml-2 font-InterTight mr-1 tracking-[0.08em]">
+                RECORDING.
+              </span>
+              <span className="text-ks-red-800 text-xxs font-InterTight tracking-[0.08em]">
+                PLEASE NOTIFY ATTENDEES THAT THIS MEETING IS BEING RECORDED
+              </span>
             </div>
-            <div className="notetaker-note__permission-error-content">
-              <strong>Microphone access required</strong>
-              <p>{permissionError}</p>
-              <div className="notetaker-note__permission-error-steps">
-                <p><strong>To fix:</strong></p>
-                <ol>
-                  <li>Open <strong>System Settings</strong> &rarr; <strong>Privacy &amp; Security</strong> &rarr; <strong>Microphone</strong></li>
-                  <li>Toggle <strong>Knapsack</strong> on (or off then on if already enabled)</li>
-                  <li>Restart Knapsack and try recording again</li>
-                </ol>
-              </div>
-            </div>
-            <button
-              className="notetaker-note__permission-error-dismiss"
-              onClick={() => setPermissionError(null)}
-              title="Dismiss"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+            <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
           </div>
         )}
-
-        {/* Tab bar for template, transcript, tasks - hidden during active recording for clean view */}
-        {!recordingHandlers.isRecording(thread.id) && (
-          <MeetingNotesTabBar
-            thread={thread}
-            feedItemId={feedItemId}
-            feed={feed}
-            templateLabel={templatePrompt.title}
-            hasActionItems={hasActionItems()}
-            onOpenTemplatesClick={handleOpenTemplates}
-            onViewTranscriptClick={handleOpenTranscript}
-            onTasksButtonClick={handleTasksButtonClick}
-            onCopyClick={() => {
-              if (copyToClipboard) copyToClipboard(notesMarkdown)
-            }}
-            canChangeTemplate={true}
-            isEditing={isEditing}
-            onEditClick={onEditClick}
-          />
-        )}
-
-        {/* Editor - always shown, focused during recording */}
         {isEditing ? (
-          <div className={`notetaker-note__editor ${recordingHandlers.isRecording(thread.id) ? 'notetaker-note__editor--recording' : ''}`}>
-            {!recordingHandlers.isRecording(thread.id) && (
-              <div className="border-0 border-b-[1px] outline-none mx-3 py-1">
-                <div className="flex flex-wrap gap-1 rounded-md px-2">
-                  <div className="flex gap-1 font-RobotoMono">
+          <div className="border-[1px] rounded-lg">
+            <div className="border-0 border-b-[1px] outline-none mx-3 py-1">
+              <div className="flex flex-wrap gap-1 rounded-md px-2">
+                <div className="flex gap-1 font-RobotoMono">
+                  <MenuButton
+                    onClick={() => editor.chain().focus().toggleBold().run()}
+                    isActive={editor.isActive('bold')}
+                    title="Bold (Cmd + B)"
+                  >
+                    <span className="font-bold">B</span>
+                  </MenuButton>
+                  <MenuButton
+                    onClick={() => editor.chain().focus().toggleItalic().run()}
+                    isActive={editor.isActive('italic')}
+                    title="Italic (Cmd + I)"
+                  >
+                    <span className="italic">I</span>
+                  </MenuButton>
+                  <div className="w-px h-6 bg-gray-200 mt-2 mx-2" />
+
+                  <div className="flex gap-1">
                     <MenuButton
-                      onClick={() => editor.chain().focus().toggleBold().run()}
-                      isActive={editor.isActive('bold')}
-                      title="Bold (Cmd + B)"
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                      isActive={editor.isActive('heading', { level: 1 })}
+                      title="Heading 1"
                     >
-                      <span className="font-bold">B</span>
+                      H1
                     </MenuButton>
+
                     <MenuButton
-                      onClick={() => editor.chain().focus().toggleItalic().run()}
-                      isActive={editor.isActive('italic')}
-                      title="Italic (Cmd + I)"
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                      isActive={editor.isActive('heading', { level: 2 })}
+                      title="Heading 2"
                     >
-                      <span className="italic">I</span>
+                      H2
                     </MenuButton>
-                    <div className="w-px h-6 bg-gray-200 mt-2 mx-2" />
 
-                    <div className="flex gap-1">
-                      <MenuButton
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                        isActive={editor.isActive('heading', { level: 1 })}
-                        title="Heading 1"
-                      >
-                        H1
-                      </MenuButton>
+                    <MenuButton
+                      onClick={() => editor.chain().focus().toggleBulletList().run()}
+                      isActive={editor.isActive('bulletList')}
+                      title="Bullet List"
+                    >
+                      • List
+                    </MenuButton>
 
-                      <MenuButton
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                        isActive={editor.isActive('heading', { level: 2 })}
-                        title="Heading 2"
-                      >
-                        H2
-                      </MenuButton>
+                    <MenuButton
+                      onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                      isActive={editor.isActive('orderedList')}
+                      title="Numbered List"
+                    >
+                      1. List
+                    </MenuButton>
+                  </div>
 
-                      <MenuButton
-                        onClick={() => editor.chain().focus().toggleBulletList().run()}
-                        isActive={editor.isActive('bulletList')}
-                        title="Bullet List"
-                      >
-                        • List
-                      </MenuButton>
+                  <div className="w-px h-6 bg-gray-200 mt-2 mx-1" />
 
-                      <MenuButton
-                        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                        isActive={editor.isActive('orderedList')}
-                        title="Numbered List"
-                      >
-                        1. List
-                      </MenuButton>
-                    </div>
-
-                    <div className="w-px h-6 bg-gray-200 mt-2 mx-1" />
-
-                    <div className="flex gap-1">
-                      <MenuButton
-                        onClick={() => editor.chain().focus().setHorizontalRule().run()}
-                        isActive={editor.isActive('orderedList')}
-                        title="Horizontal Rule (---)"
-                      >
-                        <span>―</span>
-                      </MenuButton>
-                    </div>
+                  <div className="flex gap-1">
+                    <MenuButton
+                      onClick={() => editor.chain().focus().setHorizontalRule().run()}
+                      isActive={editor.isActive('orderedList')}
+                      title="Horizontal Rule (---)"
+                    >
+                      <span>―</span>
+                    </MenuButton>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
             <div className="text-left text-wrap max-w-[85vh] min-h-[320px]">
               <EditorContent editor={editor} />
             </div>
@@ -902,70 +753,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
           />
         )}
 
-      </div>
-
-      {/* Notetaker bottom bar */}
-      <div className="notetaker-note__bottom-bar">
-        {recordingHandlers.isRecording(thread.id) ? (
-          <>
-            <div className="notetaker-note__bottom-waveform">
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '0ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '150ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '300ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '450ms'}} />
-              <span className="notetaker-note__waveform-bar" style={{animationDelay: '600ms'}} />
-            </div>
-            <div className="notetaker-note__bottom-recording-status">
-              Privately transcribing...
-            </div>
-            <div className="flex-1" />
-            <button
-              className="notetaker-note__bottom-stop"
-              onClick={() => handleStopRecording('Manually')}
-            >
-              Stop recording
-            </button>
-          </>
-        ) : (
-          <>
-            <button className="notetaker-note__bottom-audio" title="Audio waveform">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="4" y1="8" x2="4" y2="16" />
-                <line x1="8" y1="5" x2="8" y2="19" />
-                <line x1="12" y1="2" x2="12" y2="22" />
-                <line x1="16" y1="5" x2="16" y2="19" />
-                <line x1="20" y1="8" x2="20" y2="16" />
-              </svg>
-            </button>
-            <div
-              className="notetaker-note__bottom-chat"
-              onClick={() => onChatClick?.()}
-              style={{ cursor: 'pointer' }}
-            >
-              <input
-                type="text"
-                placeholder="Continue chat"
-                className="notetaker-note__bottom-chat-input"
-                readOnly
-                style={{ cursor: 'pointer' }}
-              />
-            </div>
-            {thread.recorded && (
-              <button
-                className="notetaker-note__bottom-action"
-                onClick={() => onEmailClick?.(notesMarkdown)}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
-                  <path d="M9 13h6" />
-                  <path d="M9 17h3" />
-                  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-                </svg>
-                Write follow up email
-              </button>
-            )}
-          </>
-        )}
       </div>
     </div>
   )

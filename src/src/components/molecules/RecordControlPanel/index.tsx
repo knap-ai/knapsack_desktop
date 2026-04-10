@@ -42,26 +42,19 @@ const RecordControlPanel: React.FC<RecordPanelProps> = ({
         />
       ) : isRecording ? (
         !isPaused ? (
-          <div className="inline-flex justify-start items-center gap-2">
-            <RecordButton
-              text="Stop"
-              onClick={onClickEnd}
-              isDisabled={false}
-              variant={RecordButtonVariant.white}
-            />
-            <Tooltip
-              label="Meeting recording in progress"
-              component={
-                <RecordButton
-                  text="Pause"
-                  onClick={onClickPause}
-                  isDisabled={false}
-                  variant={RecordButtonVariant.recordingInProgress}
-                />
-              }
-              variant={TooltipVariant.inProgressMeeting}
-            />
-          </div>
+          <Tooltip
+            label="Meeting recording in progress"
+            component={
+              <RecordButton
+                text="Pause"
+                //onClick={() => handleStopRecording('Manually')}
+                onClick={onClickPause}
+                isDisabled={false}
+                variant={RecordButtonVariant.recordingInProgress}
+              />
+            }
+            variant={TooltipVariant.inProgressMeeting}
+          />
         ) : (
           <div className="inline-flex justify-start items-center gap-2">
             <RecordButton

@@ -38,8 +38,7 @@ export default defineConfig(async () => ({
       input: {
         main: 'index.html',
         notification: 'notification.html',
-        overlay: 'overlay.html',
-        'recording-indicator': 'recording-indicator.html'
+        overlay: 'overlay.html'
       }
     }
   },

@@ -9,7 +9,6 @@ extern crate derive_more;
 extern crate dirs;
 extern crate qdrant_client;
 extern crate serde;
-use serde::Deserialize;
 extern crate tokio;
 
 mod api;
@@ -52,7 +51,7 @@ use std::sync::Mutex as StdMutex;
 use tauri::async_runtime::TokioJoinHandle;
 use tauri::{
   AppHandle, CustomMenuItem, FileDropEvent, Manager, State, SystemTray, SystemTrayEvent,
-  SystemTrayMenu, SystemTrayMenuItem, WindowEvent,
+  SystemTrayMenu, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
 use tokio::sync::Mutex;
@@ -1056,138 +1055,6 @@ fn create_db_env_variable() {
   env::set_var("DATABASE_URL", db_path_str);
 }
 
-// ── System tray menu bar ──
-
-fn build_default_tray_menu() -> SystemTrayMenu {
-  let open_knapsack = CustomMenuItem::new("open_knapsack", "Open Knapsack");
-  let quick_note = CustomMenuItem::new("quick_note", "Quick Note");
-  let settings = CustomMenuItem::new("settings", "Settings");
-  let version = CustomMenuItem::new("version", format!("Knapsack v{}", env!("CARGO_PKG_VERSION"))).disabled();
-  let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
-  let quit = CustomMenuItem::new("quit", "Quit");
-
-  SystemTrayMenu::new()
-    .add_item(open_knapsack)
-    .add_item(quick_note)
-    .add_item(settings)
-    .add_native_item(SystemTrayMenuItem::Separator)
-    .add_item(version)
-    .add_item(check_updates)
-    .add_native_item(SystemTrayMenuItem::Separator)
-    .add_item(quit)
-}
-
-fn handle_tray_menu_click(app: &AppHandle, id: &str) {
-  match id {
-    "open_knapsack" | "show" => {
-      if let Some(window) = app.get_window("main") {
-        window.show().unwrap();
-        window.set_focus().unwrap();
-      }
-    }
-    "quick_note" => {
-      if let Some(window) = app.get_window("main") {
-        window.show().unwrap();
-        window.set_focus().unwrap();
-        let _ = window.emit("create_quick_note", {});
-      }
-    }
-    "settings" => {
-      if let Some(window) = app.get_window("main") {
-        window.show().unwrap();
-        window.set_focus().unwrap();
-        let _ = window.emit("open_settings", {});
-      }
-    }
-    "check_updates" => {
-      if let Some(window) = app.get_window("main") {
-        window.show().unwrap();
-        window.set_focus().unwrap();
-      }
-    }
-    "quit" => {
-      clawd::service::cleanup_gateway_on_exit();
-      std::process::exit(0);
-    }
-    _ => {
-      if id.starts_with("meeting_") {
-        if let Some(window) = app.get_window("main") {
-          window.show().unwrap();
-          window.set_focus().unwrap();
-          let _ = window.emit("tray_meeting_click", id);
-        }
-      }
-    }
-  }
-}
-
-#[derive(Debug, Deserialize)]
-struct TrayMeetingItem {
-  title: String,
-  time: String,
-  #[serde(default)]
-  is_now: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct TrayMeetingGroup {
-  label: String,
-  meetings: Vec<TrayMeetingItem>,
-}
-
-#[tauri::command]
-fn update_tray_menu(app: AppHandle, groups: Vec<TrayMeetingGroup>) {
-  let mut menu = SystemTrayMenu::new();
-
-  let mut meeting_index = 0;
-  for group in &groups {
-    let header = CustomMenuItem::new(format!("header_{}", group.label), &group.label).disabled();
-    menu = menu.add_item(header);
-
-    for meeting in &group.meetings {
-      let label = format!("{}\n{}", meeting.title, meeting.time);
-      let item = CustomMenuItem::new(format!("meeting_{}", meeting_index), label);
-      menu = menu.add_item(item);
-      meeting_index += 1;
-    }
-  }
-
-  if meeting_index > 0 {
-    menu = menu.add_native_item(SystemTrayMenuItem::Separator);
-  }
-
-  let open_knapsack = CustomMenuItem::new("open_knapsack", "Open Knapsack");
-  let quick_note = CustomMenuItem::new("quick_note", "Quick Note");
-  let settings = CustomMenuItem::new("settings", "Settings");
-  let version = CustomMenuItem::new("version", format!("Knapsack v{}", env!("CARGO_PKG_VERSION"))).disabled();
-  let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
-  let quit = CustomMenuItem::new("quit", "Quit");
-
-  menu = menu
-    .add_item(open_knapsack)
-    .add_item(quick_note)
-    .add_item(settings)
-    .add_native_item(SystemTrayMenuItem::Separator)
-    .add_item(version)
-    .add_item(check_updates)
-    .add_native_item(SystemTrayMenuItem::Separator)
-    .add_item(quit);
-
-  let _ = app.tray_handle().set_menu(menu);
-}
-
-#[tauri::command]
-fn update_tray_title(app: AppHandle, title: String) {
-  #[cfg(target_os = "macos")]
-  {
-    let _ = app.tray_handle().set_title(&title);
-  }
-  #[cfg(not(target_os = "macos"))]
-  {
-    let _ = app.tray_handle().set_tooltip(&title);
-  }
-}
-
 #[tokio::main]
 async fn main() {
   create_data_dir();
@@ -1422,45 +1289,6 @@ async fn main() {
           .unwrap();
       }
 
-      // Recording indicator floating pill window
-      let mut rec_indicator_builder = WindowBuilder::new(
-        app,
-        "recording-indicator",
-        WindowUrl::App("recording-indicator.html".into()),
-      )
-      .title("Recording")
-      .inner_size(180.0, 48.0)
-      .resizable(false)
-      .decorations(false)
-      .always_on_top(true)
-      .transparent(true)
-      .visible(false);
-
-      #[cfg(target_os = "macos")]
-      {
-        rec_indicator_builder = rec_indicator_builder.accept_first_mouse(true);
-      }
-
-      let rec_indicator_window = rec_indicator_builder.build()?;
-
-      // Position recording indicator at bottom-right of screen
-      if let Ok(Some(monitor)) = rec_indicator_window.current_monitor() {
-        let screen_size = monitor.size();
-        let scale_factor = monitor.scale_factor();
-        let screen_width_logical = screen_size.width as f64 / scale_factor;
-        let screen_height_logical = screen_size.height as f64 / scale_factor;
-        let indicator_width = 180.0_f64;
-        let indicator_height = 48.0_f64;
-        let indicator_x = (screen_width_logical - indicator_width - 24.0) * scale_factor;
-        let indicator_y = ((screen_height_logical - indicator_height) / 2.0) * scale_factor;
-        rec_indicator_window
-          .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-            x: indicator_x as i32,
-            y: indicator_y as i32,
-          }))
-          .unwrap();
-      }
-
       let llm_path = app
         .path_resolver()
         .resolve_resource("resources/llm.gguf")
@@ -1517,10 +1345,6 @@ async fn main() {
       spotlight::show_overlay_window,
       spotlight::hide_overlay_window,
       spotlight::toggle_overlay_window,
-      spotlight::show_recording_indicator,
-      spotlight::hide_recording_indicator,
-      update_tray_menu,
-      update_tray_title,
       kn_read_logs,
       kn_get_log_path,
       kn_get_openclaw_version,
@@ -1575,11 +1399,14 @@ async fn main() {
       _ => {}
     });
 
-  // System tray with meetings menu (all platforms)
+  #[cfg(any(target_os = "windows", target_os = "linux"))]
   {
-    let tray_menu = build_default_tray_menu();
-    let system_tray = SystemTray::new().with_menu(tray_menu);
+    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
+    let show = CustomMenuItem::new("show".to_string(), "Show");
 
+    let tray_menu = SystemTrayMenu::new().add_item(show).add_item(quit);
+
+    let system_tray = SystemTray::new().with_menu(tray_menu);
     builder = builder
       .system_tray(system_tray)
       .on_system_tray_event(|app, event| match event {
@@ -1588,14 +1415,23 @@ async fn main() {
           size: _,
           ..
         } => {
-          if let Some(window) = app.get_window("main") {
+          let window = app.get_window("main").unwrap();
+          window.show().unwrap();
+          window.set_focus().unwrap();
+        }
+        SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
+          "quit" => {
+            // Clean up child processes before exiting so they don't linger
+            clawd::service::cleanup_gateway_on_exit();
+            std::process::exit(0);
+          }
+          "show" => {
+            let window = app.get_window("main").unwrap();
             window.show().unwrap();
             window.set_focus().unwrap();
           }
-        }
-        SystemTrayEvent::MenuItemClick { id, .. } => {
-          handle_tray_menu_click(app, &id);
-        }
+          _ => {}
+        },
         _ => {}
       });
   }

@@ -252,22 +252,16 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     eventId?: number,
   ) => {
     setIsPaused(false)
-    console.info(`[Recording] stopRecording threadId=${threadId} frontendState=${isRecording(threadId)}`)
+    console.info(`[Recording] stopRecording threadId=${threadId}`)
 
-    // Always attempt to stop — don't gate on frontend state which can desync
-    const wasRecording = isRecording(threadId)
-    setLoadingState(threadId, true)
-    let stopSucceeded = false
-    try {
-      await stopRecord(threadId, saveTranscript, eventId)
-      console.info(`[Recording] stopRecord succeeded for threadId=${threadId}`)
-      stopSucceeded = true
-    } catch (err: any) {
-      // If backend says "no recording in progress", that's OK — state was out of sync
-      if (err?.message?.includes('No recording in progress')) {
-        console.warn(`[Recording] Backend had no recording for threadId=${threadId}, clearing frontend state`)
-        stopSucceeded = true // Still clear state
-      } else {
+    if (isRecording(threadId)) {
+      setLoadingState(threadId, true)
+      try {
+        await stopRecord(threadId, saveTranscript, eventId)
+        console.info(`[Recording] stopRecord succeeded for threadId=${threadId}`)
+        setFeedIsRecording(false)
+        setIsRecording(threadId, false)
+      } catch (err: any) {
         console.error(`[Recording] stopRecording failed for threadId=${threadId}:`, err)
         logError(
           new Error('Error stopping recording'),
@@ -277,15 +271,8 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
           },
           true,
         )
-        setLoadingState(threadId, false)
         throw new Error('Error stop recording')
       }
-    }
-    // Always clear recording state after successful stop
-    setFeedIsRecording(false)
-    setIsRecording(threadId, false)
-
-    if (wasRecording && stopSucceeded) {
       await generateNotes(threadId, synthesizeContent, saveNotes, notesMarkdown, meeting)
     }
 
