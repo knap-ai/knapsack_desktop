@@ -62,6 +62,26 @@ const FROM_ANGLE = `from\\s+${DIM_ANGLE}`;
 const AT_POSITION = `at\\s+(?:${POS_1}|${POS_2}|${POS_4})`;
 const TO_SIDE_CORNER = `to\\s+(?:(?:${L_R})(?:\\s(?:${T_B}))?|(?:${T_B})(?:\\s(?:${L_R}))?)`;
 const IN_COLOR_SPACE = `in\\s+(?:${CS_RECT}|${CS_HUE})`;
+const LINE_SYNTAX_LINEAR = [
+  `(?:${DIM_ANGLE}|${TO_SIDE_CORNER})(?:\\s+${IN_COLOR_SPACE})?`,
+  `${IN_COLOR_SPACE}(?:\\s+(?:${DIM_ANGLE}|${TO_SIDE_CORNER}))?`
+].join('|');
+const LINE_SYNTAX_RADIAL = [
+  `(?:${RAD_SHAPE})(?:\\s+(?:${RAD_SIZE}))?(?:\\s+${AT_POSITION})?(?:\\s+${IN_COLOR_SPACE})?`,
+  `(?:${RAD_SIZE})(?:\\s+(?:${RAD_SHAPE}))?(?:\\s+${AT_POSITION})?(?:\\s+${IN_COLOR_SPACE})?`,
+  `${AT_POSITION}(?:\\s+${IN_COLOR_SPACE})?`,
+  `${IN_COLOR_SPACE}(?:\\s+${RAD_SHAPE})(?:\\s+(?:${RAD_SIZE}))?(?:\\s+${AT_POSITION})?`,
+  `${IN_COLOR_SPACE}(?:\\s+${RAD_SIZE})(?:\\s+(?:${RAD_SHAPE}))?(?:\\s+${AT_POSITION})?`,
+  `${IN_COLOR_SPACE}(?:\\s+${AT_POSITION})?`
+].join('|');
+const LINE_SYNTAX_CONIC = [
+  `${FROM_ANGLE}(?:\\s+${AT_POSITION})?(?:\\s+${IN_COLOR_SPACE})?`,
+  `${AT_POSITION}(?:\\s+${IN_COLOR_SPACE})?`,
+  `${IN_COLOR_SPACE}(?:\\s+${FROM_ANGLE})?(?:\\s+${AT_POSITION})?`
+].join('|');
+const REG_LINE_LINEAR = new RegExp(`^(?:${LINE_SYNTAX_LINEAR})$`);
+const REG_LINE_RADIAL = new RegExp(`^(?:${LINE_SYNTAX_RADIAL})$`);
+const REG_LINE_CONIC = new RegExp(`^(?:${LINE_SYNTAX_CONIC})$`);
 
 /* type definitions */
 /**
@@ -136,51 +156,19 @@ export const validateGradientLine = (
   if (isString(value) && isString(type)) {
     value = value.trim();
     type = type.trim();
-    let lineSyntax = '';
-    const defaultValues = [];
+    let reg: RegExp | null = null;
+    let defaultValues: RegExp[] = [];
     if (/^(?:repeating-)?linear-gradient$/.test(type)) {
-      /*
-       * <linear-gradient-line> = [
-       *   [ <angle> | to <side-or-corner> ] ||
-       *   <color-interpolation-method>
-       * ]
-       */
-      lineSyntax = [
-        `(?:${DIM_ANGLE}|${TO_SIDE_CORNER})(?:\\s+${IN_COLOR_SPACE})?`,
-        `${IN_COLOR_SPACE}(?:\\s+(?:${DIM_ANGLE}|${TO_SIDE_CORNER}))?`
-      ].join('|');
-      defaultValues.push(/to\s+bottom/);
+      reg = REG_LINE_LINEAR;
+      defaultValues = [/to\s+bottom/];
     } else if (/^(?:repeating-)?radial-gradient$/.test(type)) {
-      /*
-       * <radial-gradient-line> = [
-       *   [ [ <radial-shape> || <radial-size> ]? [ at <position> ]? ] ||
-       *   <color-interpolation-method>]?
-       */
-      lineSyntax = [
-        `(?:${RAD_SHAPE})(?:\\s+(?:${RAD_SIZE}))?(?:\\s+${AT_POSITION})?(?:\\s+${IN_COLOR_SPACE})?`,
-        `(?:${RAD_SIZE})(?:\\s+(?:${RAD_SHAPE}))?(?:\\s+${AT_POSITION})?(?:\\s+${IN_COLOR_SPACE})?`,
-        `${AT_POSITION}(?:\\s+${IN_COLOR_SPACE})?`,
-        `${IN_COLOR_SPACE}(?:\\s+${RAD_SHAPE})(?:\\s+(?:${RAD_SIZE}))?(?:\\s+${AT_POSITION})?`,
-        `${IN_COLOR_SPACE}(?:\\s+${RAD_SIZE})(?:\\s+(?:${RAD_SHAPE}))?(?:\\s+${AT_POSITION})?`,
-        `${IN_COLOR_SPACE}(?:\\s+${AT_POSITION})?`
-      ].join('|');
-      defaultValues.push(/ellipse/, /farthest-corner/, /at\s+center/);
+      reg = REG_LINE_RADIAL;
+      defaultValues = [/ellipse/, /farthest-corner/, /at\s+center/];
     } else if (/^(?:repeating-)?conic-gradient$/.test(type)) {
-      /*
-       * <conic-gradient-line> = [
-       *   [ [ from <angle> ]? [ at <position> ]? ] ||
-       *   <color-interpolation-method>
-       * ]
-       */
-      lineSyntax = [
-        `${FROM_ANGLE}(?:\\s+${AT_POSITION})?(?:\\s+${IN_COLOR_SPACE})?`,
-        `${AT_POSITION}(?:\\s+${IN_COLOR_SPACE})?`,
-        `${IN_COLOR_SPACE}(?:\\s+${FROM_ANGLE})?(?:\\s+${AT_POSITION})?`
-      ].join('|');
-      defaultValues.push(/at\s+center/);
+      reg = REG_LINE_CONIC;
+      defaultValues = [/at\s+center/];
     }
-    if (lineSyntax) {
-      const reg = new RegExp(`^(?:${lineSyntax})$`);
+    if (reg) {
       const valid = reg.test(value);
       if (valid) {
         let line = value;
@@ -188,21 +176,12 @@ export const validateGradientLine = (
           line = line.replace(defaultValue, '');
         }
         line = line.replace(/\s{2,}/g, ' ').trim();
-        return {
-          line,
-          valid
-        };
+        return { line, valid };
       }
-      return {
-        valid,
-        line: value
-      };
+      return { valid, line: value };
     }
   }
-  return {
-    line: value,
-    valid: false
-  };
+  return { line: value, valid: false };
 };
 
 /**

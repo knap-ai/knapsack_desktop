@@ -126,8 +126,7 @@ export function resolveColorChannels(
   let nest = 0;
   let func = '';
   let precededPct = false;
-  while (tokens.length) {
-    const token = tokens.shift();
+  for (const token of tokens) {
     if (!Array.isArray(token)) {
       throw new TypeError(`${token} is not an array.`);
     }
@@ -390,8 +389,9 @@ export function extractOriginColor(
     const tokens = tokenize({ css: restValue });
     const originColor: string[] = [];
     let nest = 0;
-    while (tokens.length) {
-      const [type, tokenValue] = tokens.shift() as [TokenType, string];
+    let tokenIndex = 0;
+    for (const [type, tokenValue] of tokens) {
+      tokenIndex++;
       switch (type) {
         case FUNC:
         case PAREN_OPEN: {
@@ -438,7 +438,7 @@ export function extractOriginColor(
       setCache(cacheKey, null);
       return resolvedOriginColor;
     }
-    const channelValues = resolveColorChannels(tokens, opt);
+    const channelValues = resolveColorChannels(tokens.slice(tokenIndex), opt);
     if (channelValues instanceof NullObject) {
       setCache(cacheKey, null);
       return channelValues;
