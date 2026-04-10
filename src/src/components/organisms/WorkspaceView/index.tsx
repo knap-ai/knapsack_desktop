@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { open } from '@tauri-apps/api/dialog'
 import {
   Workspace,
@@ -9,6 +9,7 @@ import {
   addDocumentToWorkspace,
   removeDocumentFromWorkspace,
   searchWorkspace,
+  parseTags,
 } from '../../../api/workspaces'
 
 interface WorkspaceViewProps {
@@ -26,6 +27,8 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState(workspace.name)
   const [editDescription, setEditDescription] = useState(workspace.description ?? '')
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null)
+  const [expandedSummary, setExpandedSummary] = useState<number | null>(null)
   const dropRef = useRef<HTMLDivElement>(null)
 
   const refreshWorkspace = useCallback(async () => {
@@ -43,6 +46,25 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   useEffect(() => {
     refreshWorkspace()
   }, [refreshWorkspace])
+
+  /** Collect all unique tags across documents for the filter bar. */
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    for (const doc of documents) {
+      for (const tag of parseTags(doc.autoTags)) tagSet.add(tag)
+      for (const tag of parseTags(doc.tags)) tagSet.add(tag)
+    }
+    return [...tagSet].sort()
+  }, [documents])
+
+  /** Filter documents by active tag. */
+  const filteredDocuments = useMemo(() => {
+    if (!activeTagFilter) return documents
+    return documents.filter(doc => {
+      const docTags = [...parseTags(doc.autoTags), ...parseTags(doc.tags)]
+      return docTags.includes(activeTagFilter)
+    })
+  }, [documents, activeTagFilter])
 
   const handleAddFiles = async () => {
     try {
@@ -163,8 +185,6 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-        // Note: In Tauri, dropped files provide the full path through
-        // the file drop event. For web-based drag and drop, we use the file name.
         await addDocumentToWorkspace(
           currentWorkspace.uuid,
           file.name,
@@ -180,6 +200,22 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   const formatDate = (timestamp: number | null) => {
     if (!timestamp) return ''
     return new Date(timestamp * 1000).toLocaleDateString()
+  }
+
+  /** Icon for document type / source. */
+  const docIcon = (doc: WorkspaceDocument) => {
+    // Source type takes priority — added by the library curator.
+    switch (doc.sourceType) {
+      case 'email': return '\u2709\uFE0F' // envelope
+      case 'calendar': return '\uD83D\uDCC5' // calendar
+      case 'meeting': return '\uD83C\uDFA4' // microphone
+      case 'drive': return '\uD83D\uDCC4' // page
+      case 'local_file': return '\uD83D\uDCBB' // laptop
+      case 'chat_output': return '\uD83D\uDCAC' // speech bubble
+    }
+    if (doc.documentType === 'chat_output') return '\uD83D\uDCAC' // speech bubble
+    if (doc.documentType === 'folder') return '\uD83D\uDCC2' // open folder
+    return '\uD83D\uDCC4' // page
   }
 
   return (
@@ -250,13 +286,42 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
         </div>
       )}
 
+      {/* Tag filter bar */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          <button
+            className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+              !activeTagFilter
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+            }`}
+            onClick={() => setActiveTagFilter(null)}
+          >
+            All
+          </button>
+          {allTags.map(tag => (
+            <button
+              key={tag}
+              className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                activeTagFilter === tag
+                  ? 'bg-blue-500 text-white border-blue-500'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+              }`}
+              onClick={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Search */}
       <div className="mb-6">
         <div className="flex gap-2">
           <input
             type="text"
             className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Search within this knowledge base..."
+            placeholder="Search within this collection..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -316,50 +381,113 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
         onDrop={handleDrop}
       >
         <div className="text-sm font-medium text-gray-700 mb-3">
-          Documents ({documents.length})
+          Documents ({filteredDocuments.length}{activeTagFilter ? ` of ${documents.length}` : ''})
         </div>
 
-        {documents.length === 0 ? (
+        {filteredDocuments.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-            <div className="text-lg mb-1">Drop files here</div>
-            <div className="text-sm">
-              or use the &quot;Add Files&quot; button above
-            </div>
+            {activeTagFilter ? (
+              <>
+                <div className="text-sm">No documents matching tag &quot;{activeTagFilter}&quot;</div>
+                <button
+                  className="text-xs text-blue-500 hover:text-blue-600 mt-2"
+                  onClick={() => setActiveTagFilter(null)}
+                >
+                  Clear filter
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-lg mb-1">Drop files here</div>
+                <div className="text-sm">
+                  or use the &quot;Add Files&quot; button above
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
-            {documents.map(doc => (
-              <div
-                key={doc.id}
-                className="flex items-center justify-between border border-gray-100 rounded-md p-3 hover:bg-gray-50 transition-colors group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-gray-400 text-sm flex-shrink-0">
-                    {doc.documentType === 'folder' ? '\uD83D\uDCC2' : '\uD83D\uDCC4'}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{doc.documentName}</div>
-                    {doc.documentPath && (
-                      <div className="text-xs text-gray-400 truncate">{doc.documentPath}</div>
-                    )}
-                  </div>
-                </div>
+            {filteredDocuments.map(doc => {
+              const autoTags = parseTags(doc.autoTags)
+              const userTags = parseTags(doc.tags)
+              const hasSummary = !!doc.summary
+              const isExpanded = expandedSummary === doc.id
 
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  {doc.createdAt && (
-                    <span className="text-xs text-gray-400">
-                      {formatDate(doc.createdAt)}
-                    </span>
+              return (
+                <div
+                  key={doc.id}
+                  className="border border-gray-100 rounded-md p-3 hover:bg-gray-50 transition-colors group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-gray-400 text-sm flex-shrink-0">
+                        {docIcon(doc)}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{doc.documentName}</div>
+                        {doc.documentPath && (
+                          <div className="text-xs text-gray-400 truncate">{doc.documentPath}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      {hasSummary && (
+                        <button
+                          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                          onClick={() => setExpandedSummary(isExpanded ? null : doc.id)}
+                          title={isExpanded ? 'Hide summary' : 'Show summary'}
+                        >
+                          {isExpanded ? 'Hide' : 'Summary'}
+                        </button>
+                      )}
+                      {doc.createdAt && (
+                        <span className="text-xs text-gray-400">
+                          {formatDate(doc.createdAt)}
+                        </span>
+                      )}
+                      <button
+                        className="text-xs text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 rounded hover:bg-red-50"
+                        onClick={() => doc.id && handleRemoveDocument(doc.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tags row */}
+                  {(autoTags.length > 0 || userTags.length > 0) && (
+                    <div className="flex flex-wrap gap-1 mt-2 ml-8">
+                      {autoTags.map(tag => (
+                        <span
+                          key={`auto-${tag}`}
+                          className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 cursor-pointer hover:bg-gray-200 transition-colors"
+                          onClick={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                      {userTags.map(tag => (
+                        <span
+                          key={`user-${tag}`}
+                          className="text-xs px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 cursor-pointer hover:bg-blue-100 transition-colors"
+                          onClick={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   )}
-                  <button
-                    className="text-xs text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 rounded hover:bg-red-50"
-                    onClick={() => doc.id && handleRemoveDocument(doc.id)}
-                  >
-                    Remove
-                  </button>
+
+                  {/* Expandable summary */}
+                  {isExpanded && doc.summary && (
+                    <div className="mt-2 ml-8 text-xs text-gray-500 bg-gray-50 rounded-md p-2">
+                      {doc.summary}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

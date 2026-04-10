@@ -23,6 +23,7 @@ mod db;
 mod error;
 mod file_upload;
 mod heartbeat;
+mod library_curator;
 mod llm;
 mod local_fs;
 mod memory;
@@ -211,6 +212,14 @@ fn setup_handler(
         heartbeat_app_handle,
         heartbeat_is_chatting,
       ));
+  });
+
+  // Start the library curator background loop. Auto-populates the user's
+  // Library with People + Project collections from synced data sources.
+  std::thread::spawn(|| {
+    tokio::runtime::Runtime::new()
+      .unwrap()
+      .block_on(library_curator::run_curator_forever());
   });
 
   info!(

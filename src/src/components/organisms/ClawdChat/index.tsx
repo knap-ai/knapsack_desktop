@@ -8,6 +8,7 @@ import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { QRCodeSVG } from 'qrcode.react'
+import WorkspacePicker from '../../molecules/WorkspacePicker'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import type { ChannelStatus } from 'src/api/channels'
 import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist } from 'src/api/channels'
@@ -907,6 +908,8 @@ const ChatMessage = memo(function ChatMessage({
   msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction, onReply, replyToMsg, onScrollToMsg,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
+  const [showSavePicker, setShowSavePicker] = useState(false)
+  const [savedToast, setSavedToast] = useState<string | null>(null)
 
   const handleCopy = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -920,6 +923,16 @@ const ChatMessage = memo(function ChatMessage({
     e.stopPropagation()
     onReply?.(m)
   }, [m, onReply])
+
+  const handleSaveClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowSavePicker(prev => !prev)
+  }, [])
+
+  const handleSaved = useCallback((workspaceName: string) => {
+    setSavedToast(workspaceName)
+    setTimeout(() => setSavedToast(null), 2500)
+  }, [])
 
   const handleScrollToReply = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -1000,6 +1013,32 @@ const ChatMessage = memo(function ChatMessage({
                 </svg>
               )}
             </button>
+            {m.role === 'assistant' && (
+              <div className="ClawdSaveBtn-wrap">
+                <button
+                  className={`ClawdSaveBtn ${savedToast ? 'ClawdSaveBtn--saved' : ''}`}
+                  onClick={handleSaveClick}
+                  title={savedToast ? `Saved to ${savedToast}` : 'Save to Library'}
+                >
+                  {savedToast ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                    </svg>
+                  )}
+                </button>
+                {showSavePicker && (
+                  <WorkspacePicker
+                    text={m.text}
+                    onClose={() => setShowSavePicker(false)}
+                    onSaved={handleSaved}
+                  />
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

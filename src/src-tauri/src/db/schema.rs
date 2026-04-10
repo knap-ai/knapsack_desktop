@@ -312,6 +312,10 @@ diesel::table! {
         icon -> Nullable<Text>,
         created_at -> Nullable<Integer>,
         updated_at -> Nullable<Integer>,
+        auto_curated -> Nullable<Integer>,
+        entity_type -> Nullable<Text>,
+        entity_key -> Nullable<Text>,
+        last_curated_at -> Nullable<Integer>,
     }
 }
 
@@ -325,6 +329,11 @@ diesel::table! {
         content_hash -> Nullable<Text>,
         embedded -> Nullable<Integer>,
         created_at -> Nullable<Integer>,
+        tags -> Nullable<Text>,
+        auto_tags -> Nullable<Text>,
+        summary -> Nullable<Text>,
+        source_type -> Nullable<Text>,
+        source_id -> Nullable<Text>,
     }
 }
 

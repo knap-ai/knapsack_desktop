@@ -670,7 +670,7 @@ function Home({
                 </div>
               )}
 
-              {currentTab === TabChoices.Workspaces && (
+              {currentTab === TabChoices.Library && (
                 <div className="overflow-auto w-full h-full">
                   {selectedWorkspace ? (
                     <WorkspaceView

@@ -108,12 +108,12 @@ fn remove_repeated_whitespace(input: &str) -> String {
 }
 
 pub fn read_pdf_contents(path: PathBuf) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-  // println!("read_pdf_contents: inside");
-  let output = Command::new_sidecar(PDF_TO_TEXT_BINARY_NAME)
-    .expect("Failed to execute command.")
-    .args(&["-layout", path.to_str().unwrap(), "-"])
+  let cmd = Command::new_sidecar(PDF_TO_TEXT_BINARY_NAME)
+    .map_err(|e| format!("pdftotext sidecar not found (is it bundled?): {}", e))?;
+  let output = cmd
+    .args(&["-layout", path.to_str().unwrap_or(""), "-"])
     .output()
-    .expect("Failed to get pdftotext sidecar output.");
+    .map_err(|e| format!("pdftotext failed to run: {}", e))?;
   // println!("read_pdf_contents: after");
 
   if !output.status.success() {
