@@ -456,3 +456,64 @@ html, body {
 .notetaker-note__bottom-stop:hover {
   background: #A23933;
 }
+
+.notetaker-note__permission-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 12px 0;
+  background: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: 10px;
+}
+
+.notetaker-note__permission-error-icon {
+  flex-shrink: 0;
+  color: #D97706;
+  margin-top: 2px;
+}
+
+.notetaker-note__permission-error-content {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #78350F;
+}
+
+.notetaker-note__permission-error-content strong {
+  font-weight: 600;
+}
+
+.notetaker-note__permission-error-content p {
+  margin: 4px 0;
+}
+
+.notetaker-note__permission-error-steps {
+  margin-top: 8px;
+}
+
+.notetaker-note__permission-error-steps ol {
+  margin: 4px 0 0 20px;
+  padding: 0;
+  list-style-type: decimal;
+}
+
+.notetaker-note__permission-error-steps li {
+  margin: 2px 0;
+}
+
+.notetaker-note__permission-error-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #92400E;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  transition: background 0.1s ease;
+}
+
+.notetaker-note__permission-error-dismiss:hover {
+  background: rgba(0, 0, 0, 0.08);
+}

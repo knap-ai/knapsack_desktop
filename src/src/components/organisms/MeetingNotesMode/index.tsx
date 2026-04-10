@@ -120,6 +120,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
+  const [permissionError, setPermissionError] = useState<string | null>(null)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [isTitleSet, setIsTitleSet] = useState(thread.subtitle !== 'Untitled Meeting')
   const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
@@ -474,9 +475,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         isStart,
       )
     } catch (err: any) {
-      const message = err?.message?.includes('permission') || err?.message?.includes('Permission')
+      const isPermissionIssue = err?.message?.includes('permission') || err?.message?.includes('Permission')
+      const message = isPermissionIssue
         ? 'Recording requires audio permissions. Please grant access in System Settings > Privacy & Security, then try again. If already enabled, try toggling the permission off and on, then restart Knapsack.'
         : "Couldn't start recording. Check that your microphone is available and try again."
+      if (isPermissionIssue) {
+        setPermissionError(message)
+      }
       handleErrorContact(message)
     }
   }
@@ -543,7 +548,55 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }, [isSynthesizing, synthTimedOut])
 
-  if (!editor || isInitialLoading) return null
+  if (!editor || isInitialLoading) {
+    return (
+      <div className="notetaker-note">
+        <div className="notetaker-note__container">
+          <div className="w-full flex flex-col gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h1 className="notetaker-note__title">
+                  {thread.subtitle}
+                </h1>
+                <div className="notetaker-note__meta">
+                  <span className="notetaker-note__meta-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
+                  </span>
+                </div>
+              </div>
+              <div className="flex-shrink-0 flex items-center gap-2">
+                {!thread.recorded && (
+                  <RecordControlPanel
+                    onClickJoin={() => handleRecordClick(true)}
+                    onClickEnd={() => handleStopRecording('Manually')}
+                    onClickPause={() => recordingHandlers.pauseRecording()}
+                    onClickResume={() => handleRecordClick(false)}
+                    isRecording={recordingHandlers.isRecording(thread.id)}
+                    isDisabled={disableIsRecording}
+                    isSynthesizing={isSynthesizing()}
+                    isPaused={recordingHandlers.isPaused}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+          {/* Loading skeleton */}
+          <div className="mt-6 space-y-3 animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4" />
+            <div className="h-4 bg-gray-200 rounded w-1/2" />
+            <div className="h-4 bg-gray-200 rounded w-5/6" />
+            <div className="h-4 bg-gray-200 rounded w-2/3" />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const extractActionItems = (markdownContent: string): string[] => {
     if (!markdownContent) return []
@@ -675,6 +728,41 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         {/* Recording notice */}
         {recordingHandlers.isRecording(thread.id) && (
           <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
+        )}
+
+        {/* Permission error banner */}
+        {permissionError && !recordingHandlers.isRecording(thread.id) && (
+          <div className="notetaker-note__permission-error">
+            <div className="notetaker-note__permission-error-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div className="notetaker-note__permission-error-content">
+              <strong>Microphone access required</strong>
+              <p>{permissionError}</p>
+              <div className="notetaker-note__permission-error-steps">
+                <p><strong>To fix:</strong></p>
+                <ol>
+                  <li>Open <strong>System Settings</strong> &rarr; <strong>Privacy &amp; Security</strong> &rarr; <strong>Microphone</strong></li>
+                  <li>Toggle <strong>Knapsack</strong> on (or off then on if already enabled)</li>
+                  <li>Restart Knapsack and try recording again</li>
+                </ol>
+              </div>
+            </div>
+            <button
+              className="notetaker-note__permission-error-dismiss"
+              onClick={() => setPermissionError(null)}
+              title="Dismiss"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
         )}
 
         {/* Tab bar for template, transcript, tasks - hidden during active recording for clean view */}
