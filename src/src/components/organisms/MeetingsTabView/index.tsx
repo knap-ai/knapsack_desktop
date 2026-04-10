@@ -236,7 +236,7 @@ const MeetingsTabView = ({
               onClick={() => {
                 // Copy the meeting notes as markdown
                 const notesThread = selectedMeeting.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
-                const noteContent = notesThread?.messages?.[0]?.content || selectedMeeting.getTitle?.() || ''
+                const noteContent = notesThread?.messages?.[0]?.text || selectedMeeting.getTitle?.() || ''
                 if (copyToClipboard && noteContent) {
                   copyToClipboard(noteContent)
                 }

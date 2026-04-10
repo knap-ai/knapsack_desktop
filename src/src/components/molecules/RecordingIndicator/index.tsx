@@ -75,7 +75,6 @@ function RecordingIndicator() {
           boxShadow: '0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',
           fontFamily: "'Inter', -apple-system, sans-serif",
           userSelect: 'none',
-          WebkitAppRegion: 'drag' as any,
         }}
       >
         {/* Knapsack logo */}
