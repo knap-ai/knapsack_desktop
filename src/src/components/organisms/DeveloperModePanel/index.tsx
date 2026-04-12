@@ -1680,7 +1680,11 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
       </div>
 
       {/* Business Context Reader */}
-      <BusinessContextReader onInitiateSession={onInitiateSession} />
+      <BusinessContextReader
+        onInitiateSession={onInitiateSession}
+        activeRepo={activeRepo}
+        githubRepos={githubRepos}
+      />
 
       {/* Agent Team */}
       <AgentTeamPanel onInitiateSession={onInitiateSession} activeRepo={activeRepo} />
