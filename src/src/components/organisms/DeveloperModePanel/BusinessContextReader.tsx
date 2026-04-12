@@ -125,14 +125,45 @@ export default function BusinessContextReader({
     setError(null)
   }, [])
 
+  const buildDescriptionFromContext = useCallback((ctx: AggregatedContext): string => {
+    const lines: string[] = []
+
+    // Summarize meetings
+    for (const m of ctx.meetings) {
+      if (m.summary) lines.push(`From meeting "${m.title}" (${m.date}): ${m.summary}`)
+    }
+
+    // Summarize emails
+    for (const e of ctx.emails) {
+      if (e.snippet) lines.push(`From email "${e.subject}": ${e.snippet}`)
+    }
+
+    // Summarize workspace docs
+    for (const d of ctx.workspace_documents) {
+      if (d.snippet) lines.push(`From ${d.source} doc "${d.title}": ${d.snippet}`)
+    }
+
+    // Summarize browser pages
+    for (const p of ctx.browser_pages) {
+      if (p.content_snippet) lines.push(`From ${p.title}: ${p.content_snippet}`)
+    }
+
+    return lines.length > 0
+      ? lines.join('\n\n')
+      : ''
+  }, [])
+
   const handleGatherContext = useCallback(async () => {
-    if (!activeProject?.description.trim()) return
+    if (!activeProject?.name.trim()) return
     setStatus('gathering')
     setError(null)
 
+    // Use description if user already typed something, otherwise use project name
+    const searchQuery = activeProject.description.trim() || activeProject.name
+
     try {
       const result = await aggregateContext({
-        project_description: activeProject.description,
+        project_description: searchQuery,
         sources,
         time_range_hours: 168,
       })
@@ -140,6 +171,16 @@ export default function BusinessContextReader({
       if (result.ok && result.context) {
         setContext(result.context)
         setStatus('ready')
+
+        // Auto-fill description from gathered context if currently empty or still the default
+        const isDefault = !activeProject.description.trim()
+          || activeProject.description === `Building features for ${activeProject.name}`
+        if (isDefault) {
+          const autoDesc = buildDescriptionFromContext(result.context)
+          if (autoDesc) {
+            updateProject('description', autoDesc)
+          }
+        }
       } else {
         setError(result.message || 'Failed to aggregate context')
         setStatus('error')
@@ -148,7 +189,7 @@ export default function BusinessContextReader({
       setError(e instanceof Error ? e.message : 'Network error')
       setStatus('error')
     }
-  }, [activeProject, sources])
+  }, [activeProject, sources, buildDescriptionFromContext, updateProject])
 
   const handleGeneratePlan = useCallback(() => {
     if (!context?.combined_prompt) return
@@ -172,7 +213,7 @@ export default function BusinessContextReader({
     (context?.workspace_documents.length || 0) +
     (context?.browser_pages.length || 0)
 
-  const canGather = !!activeProject?.description.trim() && status !== 'gathering'
+  const canGather = !!activeProject?.name.trim() && status !== 'gathering'
 
   return (
     <div className="DevModePanel__section">
@@ -315,9 +356,9 @@ export default function BusinessContextReader({
             }}
           />
 
-          {/* Description */}
+          {/* Description — auto-filled from context, editable */}
           <textarea
-            placeholder="Describe what you're building... (e.g., 'Add user profile page with avatar upload, bio editor, and social links')"
+            placeholder="Auto-filled when you Gather Context, or type your own description..."
             value={activeProject.description}
             onChange={e => updateProject('description', e.target.value)}
             rows={3}
