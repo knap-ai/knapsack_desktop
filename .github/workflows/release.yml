@@ -76,6 +76,10 @@ jobs:
         working-directory: src
         run: cp .env.example .env
 
+      - name: Install clawdbot dependencies
+        working-directory: src/src-tauri/resources/clawdbot
+        run: npm ci --ignore-scripts
+
       - name: Run prebuild scripts
         working-directory: src
         env:
@@ -189,6 +193,10 @@ jobs:
       - name: Create .env from example
         working-directory: src
         run: Copy-Item .env.example .env
+
+      - name: Install clawdbot dependencies
+        working-directory: src/src-tauri/resources/clawdbot
+        run: npm ci --ignore-scripts
 
       - name: Run prebuild scripts
         working-directory: src
