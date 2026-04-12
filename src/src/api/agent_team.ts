@@ -4,7 +4,7 @@ const API_BASE = 'http://127.0.0.1:8897'
 
 // ── Types ────────────────────────────────────────────────────
 
-export type RoleType = 'PM' | 'Critic' | 'FrontendDev' | 'BackendDev' | 'QA'
+export type RoleType = 'PM' | 'FrontendDev' | 'BackendDev' | 'QA'
 
 export interface TeamRole {
   role_type: RoleType

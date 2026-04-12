@@ -52,7 +52,6 @@ pub struct TeamRole {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RoleType {
   PM,
-  Critic,
   FrontendDev,
   BackendDev,
   QA,
@@ -62,7 +61,6 @@ impl RoleType {
   fn agent_id(&self) -> &'static str {
     match self {
       RoleType::PM => "team-pm",
-      RoleType::Critic => "team-critic",
       RoleType::FrontendDev => "team-frontend",
       RoleType::BackendDev => "team-backend",
       RoleType::QA => "team-qa",
@@ -72,7 +70,6 @@ impl RoleType {
   fn display_name(&self) -> &'static str {
     match self {
       RoleType::PM => "PM Agent",
-      RoleType::Critic => "Critic",
       RoleType::FrontendDev => "Frontend Dev",
       RoleType::BackendDev => "Backend Dev",
       RoleType::QA => "QA Agent",
@@ -82,7 +79,6 @@ impl RoleType {
   fn default_prompt(&self) -> &'static str {
     match self {
       RoleType::PM => PM_SYSTEM_PROMPT,
-      RoleType::Critic => CRITIC_SYSTEM_PROMPT,
       RoleType::FrontendDev => FRONTEND_DEV_PROMPT,
       RoleType::BackendDev => BACKEND_DEV_PROMPT,
       RoleType::QA => QA_AGENT_PROMPT,
@@ -295,10 +291,6 @@ pub async fn launch_team(
         custom_prompt: None,
       },
       TeamRole {
-        role_type: RoleType::Critic,
-        custom_prompt: None,
-      },
-      TeamRole {
         role_type: RoleType::FrontendDev,
         custom_prompt: None,
       },
@@ -456,7 +448,6 @@ async fn orchestrate_team(
 ) {
   let channel = format!("team-{}", run_id);
   let has_pm = roles.iter().any(|r| r.role_type == RoleType::PM);
-  let has_critic = roles.iter().any(|r| r.role_type == RoleType::Critic);
   let has_frontend = roles.iter().any(|r| r.role_type == RoleType::FrontendDev);
   let has_backend = roles.iter().any(|r| r.role_type == RoleType::BackendDev);
   let has_qa = roles.iter().any(|r| r.role_type == RoleType::QA);
@@ -509,7 +500,7 @@ async fn orchestrate_team(
           let mut guard = team_state.lock().await;
           if let Some(state) = guard.get_mut(run_id) {
             state.spec = Some(reply.clone());
-            state.status = if has_critic {
+            state.status = if has_qa {
               TeamStatus::Reviewing
             } else {
               TeamStatus::Building
@@ -548,26 +539,25 @@ async fn orchestrate_team(
   }
 
   // -----------------------------------------------------------------------
-  // Phase 1b: Adversarial review of the plan (Critic → PM revision)
+  // Phase 1b: QA adversarial review of the plan (Sentry → PM revision)
   // -----------------------------------------------------------------------
-  let spec = if has_critic && has_pm {
-    let critic_role = roles.iter().find(|r| r.role_type == RoleType::Critic);
-    let critic_prompt = critic_role
-      .and_then(|r| r.custom_prompt.as_deref())
-      .unwrap_or(RoleType::Critic.default_prompt());
+  let spec = if has_qa && has_pm {
+    let review_prompt = format!(
+      "{}\n\n--- PLAN TO REVIEW ---\n{}",
+      CRITIC_SYSTEM_PROMPT, spec
+    );
 
-    let critic_full_prompt = format!("{}\n\n--- PLAN TO REVIEW ---\n{}", critic_prompt, spec);
-
-    update_agent_status(&team_state, run_id, RoleType::Critic, |a| {
+    update_agent_status(&team_state, run_id, RoleType::QA, |a| {
       a.status = AgentRunStatus::Running;
+      a.last_feedback = Some("Reviewing plan...".to_string());
     })
     .await;
 
-    eprintln!("[agent_team] Critic agent starting for run: {}", run_id);
+    eprintln!("[agent_team] QA plan review starting for run: {}", run_id);
 
     match gateway_client::agent_run(
-      &critic_full_prompt,
-      Some(RoleType::Critic.agent_id()),
+      &review_prompt,
+      Some(RoleType::QA.agent_id()),
       Some(&channel),
       None,
     )
@@ -577,14 +567,15 @@ async fn orchestrate_team(
         let critique = extract_reply(&result);
         let critique_summary = truncate(&critique, 500);
 
-        update_agent_status(&team_state, run_id, RoleType::Critic, |a| {
-          a.status = AgentRunStatus::Success;
-          a.output_summary = Some(critique_summary);
+        update_agent_status(&team_state, run_id, RoleType::QA, |a| {
+          a.status = AgentRunStatus::Pending; // reset to pending for Phase 3
+          a.output_summary = Some(critique_summary.clone());
+          a.last_feedback = Some("Plan review complete, waiting for engineers".to_string());
         })
         .await;
 
         eprintln!(
-          "[agent_team] Critic done, PM revising plan for run: {}",
+          "[agent_team] QA review done, PM revising plan for run: {}",
           run_id
         );
 
@@ -598,11 +589,11 @@ async fn orchestrate_team(
 
         let revision_prompt = format!(
           "You previously produced this implementation plan:\n\n{}\n\n\
-                     An adversarial reviewer found these issues:\n\n{}\n\n\
-                     Revise your plan to address every Blocker and High-impact issue. \
-                     Keep the DAG node format. Update dependencies, add missing tasks, \
-                     and resolve any contradictions identified. \
-                     Write the revised plan to PLAN.md.",
+           An adversarial reviewer found these issues:\n\n{}\n\n\
+           Revise your plan to address every Blocker and High-impact issue. \
+           Keep the DAG node format. Update dependencies, add missing tasks, \
+           and resolve any contradictions identified. \
+           Write the revised plan to PLAN.md.",
           spec, critique
         );
 
@@ -646,7 +637,6 @@ async fn orchestrate_team(
             })
             .await;
 
-            // Fall back to original spec
             {
               let mut guard = team_state.lock().await;
               if let Some(state) = guard.get_mut(run_id) {
@@ -658,14 +648,13 @@ async fn orchestrate_team(
         }
       }
       Err(e) => {
-        eprintln!("[agent_team] Critic agent failed: {}, skipping review", e);
-        update_agent_status(&team_state, run_id, RoleType::Critic, |a| {
-          a.status = AgentRunStatus::Failed;
-          a.error = Some(e);
+        eprintln!("[agent_team] QA plan review failed: {}, skipping review", e);
+        update_agent_status(&team_state, run_id, RoleType::QA, |a| {
+          a.status = AgentRunStatus::Pending; // reset for Phase 3
+          a.error = Some(format!("Plan review failed: {}", e));
         })
         .await;
 
-        // Skip review, proceed with original plan
         {
           let mut guard = team_state.lock().await;
           if let Some(state) = guard.get_mut(run_id) {
@@ -676,14 +665,6 @@ async fn orchestrate_team(
       }
     }
   } else {
-    // No critic — skip review, mark as Building
-    if has_critic {
-      // Critic role exists but no PM to revise — skip critic
-      update_agent_status(&team_state, run_id, RoleType::Critic, |a| {
-        a.status = AgentRunStatus::Skipped;
-      })
-      .await;
-    }
     {
       let mut guard = team_state.lock().await;
       if let Some(state) = guard.get_mut(run_id) {

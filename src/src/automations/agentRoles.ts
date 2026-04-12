@@ -20,14 +20,6 @@ export const DEVELOPER_ROLES: RoleDefinition[] = [
     defaultEnabled: true,
   },
   {
-    role_type: 'Critic',
-    label: 'Critic',
-    emoji: '\uD83D\uDD0D',
-    description:
-      'Adversarially reviews the PM plan — challenges assumptions, finds missing dependencies, identifies contradictions between parallel branches, and flags gaps in the task DAG.',
-    defaultEnabled: true,
-  },
-  {
     role_type: 'FrontendDev',
     label: 'Frontend Dev',
     emoji: '\uD83C\uDFA8',
