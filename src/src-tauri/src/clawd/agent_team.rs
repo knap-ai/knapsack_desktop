@@ -368,14 +368,8 @@ async fn orchestrate_team(
     let has_backend = roles.iter().any(|r| r.role_type == RoleType::BackendDev);
     let has_qa = roles.iter().any(|r| r.role_type == RoleType::QA);
 
-    // Check for cancellation
-    let is_cancelled = |state: &SharedTeamState, rid: &str| async move {
-        let guard = state.lock().await;
-        guard
-            .get(rid)
-            .map(|s| s.status == TeamStatus::Cancelled)
-            .unwrap_or(false)
-    };
+    // Check for cancellation — helper is defined as a standalone async fn
+    // to avoid lifetime issues with async closures borrowing references.
 
     // -----------------------------------------------------------------------
     // Phase 1: PM writes the spec
@@ -733,6 +727,14 @@ async fn orchestrate_team(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+async fn is_cancelled(state: &SharedTeamState, run_id: &str) -> bool {
+    let guard = state.lock().await;
+    guard
+        .get(run_id)
+        .map(|s| s.status == TeamStatus::Cancelled)
+        .unwrap_or(false)
+}
 
 async fn update_agent_status<F>(state: &SharedTeamState, run_id: &str, role: RoleType, f: F)
 where
