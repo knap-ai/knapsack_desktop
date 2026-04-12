@@ -9,6 +9,7 @@ interface AgentTeamPanelProps {
 
 const ROLE_ICONS: Record<RoleType, string> = {
   PM: '\uD83D\uDCCB',
+  Critic: '\uD83D\uDD0D',
   FrontendDev: '\uD83C\uDFA8',
   BackendDev: '\u2699\uFE0F',
   QA: '\uD83E\uDDEA',

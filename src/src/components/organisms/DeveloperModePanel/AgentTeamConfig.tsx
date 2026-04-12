@@ -15,6 +15,7 @@ interface RoleEntry {
 
 const INITIAL_ROLES: RoleEntry[] = [
   { role_type: 'PM', defaultLabel: 'PM', name: 'Sage', enabled: true },
+  { role_type: 'Critic', defaultLabel: 'Critic', name: 'Raven', enabled: true },
   { role_type: 'FrontendDev', defaultLabel: 'Frontend Dev', name: 'Pixel', enabled: true },
   { role_type: 'BackendDev', defaultLabel: 'Backend Dev', name: 'Forge', enabled: true },
   { role_type: 'QA', defaultLabel: 'QA Engineer', name: 'Sentry', enabled: true },

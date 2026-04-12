@@ -16,7 +16,15 @@ export const DEVELOPER_ROLES: RoleDefinition[] = [
     label: 'PM Agent',
     emoji: '\uD83D\uDCCB',
     description:
-      'Reads business context and writes a detailed technical spec with acceptance criteria, component breakdown, and API contracts.',
+      'Decomposes the project into a DAG of tasks with explicit dependencies, parallel branches, and synthesis points. Produces a structured spec that engineers can execute node-by-node.',
+    defaultEnabled: true,
+  },
+  {
+    role_type: 'Critic',
+    label: 'Critic',
+    emoji: '\uD83D\uDD0D',
+    description:
+      'Adversarially reviews the PM plan — challenges assumptions, finds missing dependencies, identifies contradictions between parallel branches, and flags gaps in the task DAG.',
     defaultEnabled: true,
   },
   {
