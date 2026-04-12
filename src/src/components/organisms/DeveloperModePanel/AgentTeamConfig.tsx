@@ -14,10 +14,10 @@ interface RoleEntry {
 }
 
 const INITIAL_ROLES: RoleEntry[] = [
-  { role_type: 'PM', defaultLabel: 'PM', name: 'Sarah Chen', enabled: true },
-  { role_type: 'FrontendDev', defaultLabel: 'Frontend Dev', name: 'Alex Rivera', enabled: true },
-  { role_type: 'BackendDev', defaultLabel: 'Backend Dev', name: 'Jordan Patel', enabled: true },
-  { role_type: 'QA', defaultLabel: 'QA Engineer', name: 'Sam Nakamura', enabled: true },
+  { role_type: 'PM', defaultLabel: 'PM', name: 'Sage', enabled: true },
+  { role_type: 'FrontendDev', defaultLabel: 'Frontend Dev', name: 'Pixel', enabled: true },
+  { role_type: 'BackendDev', defaultLabel: 'Backend Dev', name: 'Forge', enabled: true },
+  { role_type: 'QA', defaultLabel: 'QA Engineer', name: 'Scout', enabled: true },
 ]
 
 export default function AgentTeamConfig({ onLaunch, launching }: AgentTeamConfigProps) {
