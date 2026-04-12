@@ -1,11 +1,14 @@
 pub mod browser;
 pub mod channels;
 pub mod chat_agent;
+pub mod context_aggregator;
+pub mod dev_feedback_loop;
 pub mod gateway_client;
 pub mod gateway_supervisor;
 pub mod gateway_ws;
 pub mod gmail;
 pub mod meeting_context;
 pub mod pairing_auto_approve;
+pub mod agent_team;
 pub mod service;
 pub mod sidecar;

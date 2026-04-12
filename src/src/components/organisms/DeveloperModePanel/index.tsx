@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { sendNotification } from '@tauri-apps/api/notification'
 import './style.scss'
+import BusinessContextReader from './BusinessContextReader'
+import AgentTeamPanel from './AgentTeamPanel'
+import QASuitePanel from './QASuitePanel'
 
 const API_BASE = 'http://127.0.0.1:8897'
 const KN_GMAIL_SEARCH = API_BASE + '/api/knapsack/gmail_search'
@@ -1675,6 +1678,15 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
       <div className="DevModePanel__description">
         Self-improving mode: scans all error sources — Sentry emails, backend logs (ks.log, ks_error.log), clawdbot gateway logs (/tmp/knapsack-clawdbot.err.log), browser console, frontend exceptions, heartbeat errors, OpenClaw agent errors, and terminal output — then suggests PRs and fixes. Enable auto-scan for continuous self-improvement.
       </div>
+
+      {/* Business Context Reader */}
+      <BusinessContextReader onInitiateSession={onInitiateSession} />
+
+      {/* Agent Team */}
+      <AgentTeamPanel onInitiateSession={onInitiateSession} activeRepo={activeRepo} />
+
+      {/* Automated QA */}
+      <QASuitePanel onInitiateSession={onInitiateSession} />
 
       {/* GitHub repository targeting */}
       <div className="DevModePanel__repos">
