@@ -6,54 +6,60 @@ interface AgentTeamConfigProps {
   launching: boolean
 }
 
-const DEFAULT_ROLES: TeamRole[] = [
-  { role_type: 'PM' },
-  { role_type: 'FrontendDev' },
-  { role_type: 'BackendDev' },
-  { role_type: 'QA' },
-]
-
-const ROLE_LABELS: Record<RoleType, string> = {
-  PM: 'PM (writes spec)',
-  FrontendDev: 'Frontend Dev',
-  BackendDev: 'Backend Dev',
-  QA: 'QA Engineer',
+interface RoleEntry {
+  role_type: RoleType
+  defaultLabel: string
+  name: string
+  enabled: boolean
 }
+
+const INITIAL_ROLES: RoleEntry[] = [
+  { role_type: 'PM', defaultLabel: 'PM', name: 'Sarah Chen', enabled: true },
+  { role_type: 'FrontendDev', defaultLabel: 'Frontend Dev', name: 'Alex Rivera', enabled: true },
+  { role_type: 'BackendDev', defaultLabel: 'Backend Dev', name: 'Jordan Patel', enabled: true },
+  { role_type: 'QA', defaultLabel: 'QA Engineer', name: 'Sam Nakamura', enabled: true },
+]
 
 export default function AgentTeamConfig({ onLaunch, launching }: AgentTeamConfigProps) {
   const [description, setDescription] = useState('')
   const [devUrl, setDevUrl] = useState('http://localhost:3000')
   const [maxIterations, setMaxIterations] = useState(5)
-  const [selectedRoles, setSelectedRoles] = useState<Set<RoleType>>(
-    new Set(['PM', 'FrontendDev', 'BackendDev', 'QA']),
-  )
+  const [roles, setRoles] = useState<RoleEntry[]>(INITIAL_ROLES)
+  const [editingRole, setEditingRole] = useState<RoleType | null>(null)
   const [businessContext, setBusinessContext] = useState('')
 
-  const toggleRole = useCallback((role: RoleType) => {
-    setSelectedRoles(prev => {
-      const next = new Set(prev)
-      if (next.has(role)) {
-        next.delete(role)
-      } else {
-        next.add(role)
-      }
-      return next
-    })
+  const toggleRole = useCallback((roleType: RoleType) => {
+    setRoles(prev =>
+      prev.map(r => (r.role_type === roleType ? { ...r, enabled: !r.enabled } : r)),
+    )
   }, [])
+
+  const updateRoleName = useCallback((roleType: RoleType, name: string) => {
+    setRoles(prev =>
+      prev.map(r => (r.role_type === roleType ? { ...r, name } : r)),
+    )
+  }, [])
+
+  const enabledRoles = roles.filter(r => r.enabled)
 
   const handleLaunch = useCallback(() => {
     if (!description.trim()) return
+
+    const teamRoles: TeamRole[] = enabledRoles.map(r => ({
+      role_type: r.role_type,
+      display_name: r.name,
+    }))
 
     const config: TeamConfig = {
       project_description: description,
       dev_url: devUrl || undefined,
       max_iterations: maxIterations,
-      roles: DEFAULT_ROLES.filter(r => selectedRoles.has(r.role_type)),
+      roles: teamRoles,
       business_context: businessContext || undefined,
     }
 
     onLaunch(config)
-  }, [description, devUrl, maxIterations, selectedRoles, businessContext, onLaunch])
+  }, [description, devUrl, maxIterations, enabledRoles, businessContext, onLaunch])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -71,6 +77,7 @@ export default function AgentTeamConfig({ onLaunch, launching }: AgentTeamConfig
           borderRadius: 8,
           resize: 'vertical',
           fontFamily: 'inherit',
+          boxSizing: 'border-box',
         }}
       />
 
@@ -92,34 +99,84 @@ export default function AgentTeamConfig({ onLaunch, launching }: AgentTeamConfig
         />
       </div>
 
-      {/* Role selection */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {DEFAULT_ROLES.map(role => (
-          <label
+      {/* Role selection with editable names */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {roles.map(role => (
+          <div
             key={role.role_type}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
-              fontSize: 11,
-              cursor: 'pointer',
-              padding: '3px 8px',
+              gap: 6,
+              padding: '5px 8px',
               borderRadius: 6,
-              background: selectedRoles.has(role.role_type)
-                ? 'rgba(139,92,246,0.1)'
-                : '#f5f5f5',
-              color: selectedRoles.has(role.role_type) ? '#7c3aed' : '#888',
-              border: `1px solid ${selectedRoles.has(role.role_type) ? 'rgba(139,92,246,0.2)' : '#e0e0e0'}`,
+              background: role.enabled ? 'rgba(139,92,246,0.06)' : '#fafafa',
+              border: `1px solid ${role.enabled ? 'rgba(139,92,246,0.15)' : '#eee'}`,
             }}
           >
+            {/* Checkbox */}
             <input
               type="checkbox"
-              checked={selectedRoles.has(role.role_type)}
+              checked={role.enabled}
               onChange={() => toggleRole(role.role_type)}
-              style={{ display: 'none' }}
+              style={{ width: 14, height: 14, accentColor: '#8b5cf6', cursor: 'pointer', flexShrink: 0 }}
             />
-            {ROLE_LABELS[role.role_type]}
-          </label>
+
+            {/* Role label */}
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: role.enabled ? '#7c3aed' : '#aaa',
+                minWidth: 75,
+                flexShrink: 0,
+              }}
+            >
+              {role.defaultLabel}
+            </span>
+
+            {/* Editable name */}
+            {editingRole === role.role_type ? (
+              <input
+                autoFocus
+                type="text"
+                value={role.name}
+                onChange={e => updateRoleName(role.role_type, e.target.value)}
+                onBlur={() => setEditingRole(null)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === 'Escape') setEditingRole(null)
+                }}
+                style={{
+                  flex: 1,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  padding: '2px 6px',
+                  border: '1px solid rgba(139,92,246,0.3)',
+                  borderRadius: 4,
+                  outline: 'none',
+                  background: '#fff',
+                  color: '#333',
+                }}
+              />
+            ) : (
+              <span
+                onClick={() => role.enabled && setEditingRole(role.role_type)}
+                title="Click to rename"
+                style={{
+                  flex: 1,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: role.enabled ? '#333' : '#bbb',
+                  cursor: role.enabled ? 'text' : 'default',
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  border: '1px solid transparent',
+                }}
+              >
+                {role.name}
+              </span>
+            )}
+          </div>
         ))}
       </div>
 
@@ -162,6 +219,7 @@ export default function AgentTeamConfig({ onLaunch, launching }: AgentTeamConfig
             marginTop: 6,
             resize: 'vertical',
             fontFamily: 'inherit',
+            boxSizing: 'border-box',
           }}
         />
       </details>
@@ -169,7 +227,7 @@ export default function AgentTeamConfig({ onLaunch, launching }: AgentTeamConfig
       {/* Launch */}
       <button
         onClick={handleLaunch}
-        disabled={!description.trim() || launching || selectedRoles.size === 0}
+        disabled={!description.trim() || launching || enabledRoles.length === 0}
         style={{
           fontSize: 12,
           fontWeight: 600,
@@ -177,20 +235,20 @@ export default function AgentTeamConfig({ onLaunch, launching }: AgentTeamConfig
           border: 'none',
           borderRadius: 8,
           background:
-            description.trim() && !launching && selectedRoles.size > 0
+            description.trim() && !launching && enabledRoles.length > 0
               ? 'linear-gradient(135deg, #7c3aed, #6d28d9)'
               : '#e0e0e0',
           color:
-            description.trim() && !launching && selectedRoles.size > 0
+            description.trim() && !launching && enabledRoles.length > 0
               ? '#fff'
               : '#999',
           cursor:
-            description.trim() && !launching && selectedRoles.size > 0
+            description.trim() && !launching && enabledRoles.length > 0
               ? 'pointer'
               : 'default',
         }}
       >
-        {launching ? 'Launching Team...' : `Launch ${selectedRoles.size}-Agent Team`}
+        {launching ? 'Launching Team...' : `Launch ${enabledRoles.length}-Agent Team`}
       </button>
     </div>
   )

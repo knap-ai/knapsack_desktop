@@ -8,6 +8,7 @@ export type RoleType = 'PM' | 'FrontendDev' | 'BackendDev' | 'QA'
 
 export interface TeamRole {
   role_type: RoleType
+  display_name?: string
   custom_prompt?: string
 }
 
