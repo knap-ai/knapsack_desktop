@@ -58,7 +58,7 @@ export default function BusinessContextReader({
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [addingProject, setAddingProject] = useState(false)
-  const [newProjectRepo, setNewProjectRepo] = useState('')
+  const [newProjectName, setNewProjectName] = useState('')
 
   // Sync projects when activeRepo / githubRepos changes from parent
   useEffect(() => {
@@ -91,23 +91,23 @@ export default function BusinessContextReader({
   }, [activeId])
 
   const handleAddProject = useCallback(() => {
-    const repo = newProjectRepo.trim()
-    if (!repo) return
-    const id = repo.includes('/') ? repo : `custom-${Date.now()}`
+    const name = newProjectName.trim()
+    if (!name) return
+    const id = `project-${Date.now()}`
     const proj: Project = {
       id,
-      name: repoToName(repo.split('/').pop() || repo),
+      name,
       description: '',
-      github_url: repo.includes('/') ? `https://github.com/${repo}` : '',
+      github_url: '',
       dev_url: 'http://localhost:3000',
     }
     setProjects(prev => [...prev, proj])
     setActiveId(id)
-    setNewProjectRepo('')
+    setNewProjectName('')
     setAddingProject(false)
     setContext(null)
     setStatus('idle')
-  }, [newProjectRepo])
+  }, [newProjectName])
 
   const handleRemoveProject = useCallback((id: string) => {
     setProjects(prev => {
@@ -211,9 +211,9 @@ export default function BusinessContextReader({
           <input
             autoFocus
             type="text"
-            placeholder="owner/repo or project name"
-            value={newProjectRepo}
-            onChange={e => setNewProjectRepo(e.target.value)}
+            placeholder="Project name (e.g. 'Mobile App', 'Billing API')"
+            value={newProjectName}
+            onChange={e => setNewProjectName(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') handleAddProject()
               if (e.key === 'Escape') setAddingProject(false)
@@ -222,15 +222,15 @@ export default function BusinessContextReader({
           />
           <button
             onClick={handleAddProject}
-            disabled={!newProjectRepo.trim()}
+            disabled={!newProjectName.trim()}
             style={{
               fontSize: 11,
               padding: '4px 10px',
               border: 'none',
               borderRadius: 6,
-              background: newProjectRepo.trim() ? '#7c3aed' : '#e0e0e0',
-              color: newProjectRepo.trim() ? '#fff' : '#999',
-              cursor: newProjectRepo.trim() ? 'pointer' : 'default',
+              background: newProjectName.trim() ? '#7c3aed' : '#e0e0e0',
+              color: newProjectName.trim() ? '#fff' : '#999',
+              cursor: newProjectName.trim() ? 'pointer' : 'default',
             }}
           >
             Add
@@ -299,10 +299,10 @@ export default function BusinessContextReader({
             }}
           />
 
-          {/* GitHub URL */}
+          {/* GitHub URL (optional for pre-repo projects) */}
           <input
             type="text"
-            placeholder="GitHub URL (e.g. https://github.com/owner/repo)"
+            placeholder="GitHub URL (optional — leave blank for pre-repo projects)"
             value={activeProject.github_url}
             onChange={e => updateProject('github_url', e.target.value)}
             style={{
