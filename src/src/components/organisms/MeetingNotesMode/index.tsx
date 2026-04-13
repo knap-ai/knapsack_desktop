@@ -95,6 +95,7 @@ interface MeetingNotesModeProps {
   closeTasks: () => void
   recordingHandlers: RecordingContextProps
   handleOpenTasks?: (threadId: number | undefined, tasks: TaskItem[]) => void
+  handleOpenInsights?: (threadId: number | undefined) => void
   onChatClick?: () => void
   onEmailClick?: (notesMarkdown: string) => void
 }
@@ -119,6 +120,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   closeTasks,
   recordingHandlers,
   handleOpenTasks,
+  handleOpenInsights,
   onChatClick,
   onEmailClick,
 }) => {
@@ -811,6 +813,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
             onOpenTemplatesClick={handleOpenTemplates}
             onViewTranscriptClick={handleOpenTranscript}
             onTasksButtonClick={handleTasksButtonClick}
+            onInsightsClick={handleOpenInsights ? () => handleOpenInsights(thread.id) : undefined}
             onCopyClick={() => {
               if (copyToClipboard) copyToClipboard(notesMarkdown)
             }}

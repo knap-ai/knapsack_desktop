@@ -88,6 +88,7 @@ export const KN_API_STOP_RECORD = KN_SERVER_HOST + '/api/knapsack/stop_recording
 export const KN_API_GET_TRANSCRIPT = KN_SERVER_HOST + '/api/knapsack/transcript'
 export const KN_API_DELETE_TRANSCRIPT = KN_SERVER_HOST + '/api/knapsack/transcript'
 export const KN_API_TRANSCRIPTS_LIST = KN_SERVER_HOST + '/api/knapsack/transcripts/list'
+export const KN_API_MEETING_INSIGHTS = KN_SERVER_HOST + '/api/knapsack/meeting_insights'
 export const KN_API_NOTES = KN_SERVER_HOST + '/api/knapsack/notes'
 export const KN_API_RECORD_STATUS = KN_SERVER_HOST + '/api/knapsack/recording_status'
 export const KN_API_MIC_USAGE = KN_SERVER_HOST + '/api/knapsack/mic/usage'

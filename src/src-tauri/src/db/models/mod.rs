@@ -22,3 +22,4 @@ pub mod workspace;
 pub mod mcp_server;
 pub mod browser_workflow;
 pub mod browser_workflow_run;
+pub mod meeting_insight;

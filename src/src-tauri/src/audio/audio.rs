@@ -43,6 +43,7 @@ use crate::audio::utils::sanitize_filename;
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::feed_item::{FeedItem, FeedItemComplete};
 use crate::db::models::thread::Thread;
+use crate::db::models::meeting_insight::MeetingInsight;
 use crate::db::models::transcript::{Transcript, TranscriptWithContent};
 use crate::error::Error;
 use crate::spotlight::WINDOW_LABEL;
@@ -1133,6 +1134,10 @@ async fn stream_audio(
       match generate_meeting_insight(&heartbeat_input_filename, &heartbeat_output_filename).await {
         Ok(insight) => {
           log::info!("[heartbeat] Insight generated: {}", &insight);
+          // Persist the insight so it can be recovered from the meeting view
+          if let Err(e) = MeetingInsight::create(data.thread_id, elapsed_minutes, &insight) {
+            log::warn!("[heartbeat] Failed to persist meeting insight: {:?}", e);
+          }
           if let Some(window) = app_handle.get_window(WINDOW_LABEL) {
             let _ = window.emit("meeting_heartbeat", json!({
               "threadId": data.thread_id,
@@ -1318,6 +1323,24 @@ pub async fn pause_recording(recording_state: Data<RecordingState>) -> HttpRespo
   recording_state.is_paused.store(true, Ordering::Relaxed);
   log::info!("[recording] Recording paused successfully");
   HttpResponse::Ok().body("Recording paused")
+}
+
+#[get("/api/knapsack/meeting_insights/{thread_id}")]
+pub async fn get_meeting_insights(path: web::Path<u64>) -> impl Responder {
+  let thread_id = path.into_inner();
+  match MeetingInsight::find_by_thread_id(thread_id) {
+    Ok(insights) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "data": insights,
+    })),
+    Err(e) => {
+      log::error!("Failed to get meeting insights for thread {}: {:?}", thread_id, e);
+      HttpResponse::InternalServerError().json(json!({
+        "error": "Failed to get meeting insights",
+        "success": false,
+      }))
+    }
+  }
 }
 
 #[cfg(test)]

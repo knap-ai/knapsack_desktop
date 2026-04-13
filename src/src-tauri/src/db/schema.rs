@@ -173,6 +173,16 @@ diesel::table! {
 }
 
 diesel::table! {
+    meeting_insights (id) {
+        id -> Nullable<Integer>,
+        thread_id -> Integer,
+        elapsed_minutes -> Integer,
+        insight -> Text,
+        created_at -> Integer,
+    }
+}
+
+diesel::table! {
     emails (id) {
         id -> Nullable<Integer>,
         email_uid -> Text,

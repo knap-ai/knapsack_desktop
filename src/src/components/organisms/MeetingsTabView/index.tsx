@@ -12,6 +12,7 @@ import MeetingNotesMode from 'src/components/organisms/MeetingNotesMode'
 import AudioPermissionChecker from 'src/components/molecules/AudioPermissionChecker'
 import TemplatesView from 'src/components/organisms/TemplatesView'
 import TranscriptView from 'src/components/organisms/TranscriptView'
+import InsightsView from 'src/components/organisms/InsightsView'
 import MeetingTasks from 'src/components/molecules/MeetingTasks'
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 import { TaskItem } from 'src/components/organisms/CenterWorkspace'
@@ -34,6 +35,11 @@ interface TasksState {
   isOpen: boolean
   threadId?: number
   tasks: TaskItem[]
+}
+
+interface InsightsState {
+  isOpen: boolean
+  threadId?: number
 }
 
 interface MeetingsTabViewProps {
@@ -72,6 +78,7 @@ const MeetingsTabView = ({
   const [transcriptState, setTranscriptState] = useState<TranscriptState>({ isOpen: false })
   const [templatesState, setTemplatesState] = useState<TemplatesState>({ isOpen: false })
   const [tasksState, setTasksState] = useState<TasksState>({ isOpen: false, tasks: [] })
+  const [insightsState, setInsightsState] = useState<InsightsState>({ isOpen: false })
 
   const onSynthesisFinish = () => setSynthesisState(prev => !prev)
 
@@ -168,6 +175,21 @@ const MeetingsTabView = ({
 
   const closeTasks = () => {
     setTasksState(prev => ({ ...prev, isOpen: false }))
+  }
+
+  const handleOpenInsights = (threadId: number | undefined) => {
+    if (!threadId) return
+    setInsightsState(prev => ({
+      isOpen: !prev.isOpen || prev.threadId !== threadId,
+      threadId,
+    }))
+    setTranscriptState(prev => ({ ...prev, isOpen: false }))
+    setTemplatesState(prev => ({ ...prev, isOpen: false }))
+    setTasksState(prev => ({ ...prev, isOpen: false }))
+  }
+
+  const closeInsights = () => {
+    setInsightsState({ isOpen: false })
   }
 
   const setMeetingTemplatePrompt = async (meetingTemplate: MeetingTemplatePrompt) => {
@@ -354,6 +376,7 @@ const MeetingsTabView = ({
                       handleErrorContact={handleErrorContact}
                       recordingHandlers={recordingHandlers}
                       handleOpenTasks={handleOpenTasks}
+                      handleOpenInsights={handleOpenInsights}
                       onChatClick={onChatClick}
                       onEmailClick={onEmailClick}
                     />
@@ -379,6 +402,12 @@ const MeetingsTabView = ({
               threadId={tasksState.threadId}
               tasks={tasksState.tasks}
               onClose={closeTasks}
+            />
+          )}
+          {insightsState.isOpen && insightsState.threadId && (
+            <InsightsView
+              threadId={insightsState.threadId}
+              onClose={closeInsights}
             />
           )}
         </div>

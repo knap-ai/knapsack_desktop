@@ -207,6 +207,7 @@ pub async fn start_server<'a>(
       .service(audio::audio::get_mic_usage)
       .service(audio::audio::pause_recording)
       .service(audio::audio::list_all_transcripts)
+      .service(audio::audio::get_meeting_insights)
       .service(api::document::get_document_infos)
       .service(api::notes::list_all_notes)
       .service(api::notes::get_notes)
