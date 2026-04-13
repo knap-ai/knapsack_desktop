@@ -3334,9 +3334,29 @@ CRITICAL: NEVER use browser automation for email when this tool is available. NE
 No email account is directly connected via the send_email tool. However, you CAN still help the user with email by using browser automation — navigate to Gmail (https://mail.google.com) or Outlook (https://outlook.live.com) in the browser to read, search, and compose emails. Do NOT tell the user that email is unavailable or ask them to connect their account — just use the browser to help with email tasks."#.to_string()
   };
 
+  let platform_section = {
+    let os_name = if cfg!(target_os = "windows") {
+      "Windows"
+    } else if cfg!(target_os = "macos") {
+      "macOS"
+    } else {
+      "Linux"
+    };
+    let shell_info = if cfg!(target_os = "windows") {
+      "cmd.exe (Windows Command Prompt). Use Windows-native commands: `dir` instead of `ls`, `type` instead of `cat`, `findstr` instead of `grep`, `tasklist` instead of `ps`, `netstat -ano` instead of `lsof`, `Get-Content` (PowerShell) instead of `tail`. Do NOT use Unix commands (ls, cat, grep, ps, tail, lsof, chmod, tar) — they will fail."
+    } else {
+      "/bin/bash. Standard Unix commands are available (ls, cat, grep, ps, tail, etc.)."
+    };
+    let home_dir = home_dir_string();
+    format!(
+      "\n\n## PLATFORM\nOperating System: **{}**\nShell: {}\nUser home directory: `{}`\nIMPORTANT: Always use commands compatible with this platform when using run_command.\n",
+      os_name, shell_info, home_dir
+    )
+  };
+
   let system_content = format!(
     r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
-{}{}{}{}{}{}
+{}{}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
 
@@ -3752,6 +3772,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
     meeting_section,
     advanced_section,
     skills_section,
+    platform_section,
     email_section
   );
 
