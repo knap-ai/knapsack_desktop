@@ -658,15 +658,47 @@ function Home({
                 <div className="overflow-hidden w-full h-full flex flex-row relative">
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat
-                      showActivityPanel={false}
-                      onToggleActivity={() => {}}
-                      onCloseActivity={() => {}}
+                      showActivityPanel={showActivityPanel}
+                      onToggleActivity={() => setShowActivityPanel(prev => !prev)}
+                      onCloseActivity={() => setShowActivityPanel(false)}
                       userEmail={userEmail}
                       userName={userName}
                       onBusyChange={setIsChatBusy}
                       openProviderPanel={openProviderPanelTrigger}
                     />
                   </div>
+                  {showActivityPanel && (
+                    <>
+                      <div
+                        className="activity-resize-handle"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          isResizingRef.current = true
+                          const startX = e.clientX
+                          const startWidth = activityPanelWidth
+                          const onMove = (ev: MouseEvent) => {
+                            if (!isResizingRef.current) return
+                            const delta = startX - ev.clientX
+                            setActivityPanelWidth(Math.max(280, Math.min(800, startWidth + delta)))
+                          }
+                          const onUp = () => {
+                            isResizingRef.current = false
+                            document.removeEventListener('mousemove', onMove)
+                            document.removeEventListener('mouseup', onUp)
+                            document.body.style.cursor = ''
+                            document.body.style.userSelect = ''
+                          }
+                          document.body.style.cursor = 'col-resize'
+                          document.body.style.userSelect = 'none'
+                          document.addEventListener('mousemove', onMove)
+                          document.addEventListener('mouseup', onUp)
+                        }}
+                      />
+                      <div className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white" style={{ width: activityPanelWidth, flexShrink: 0 }}>
+                        <ActivityPanel onClose={() => setShowActivityPanel(false)} />
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 

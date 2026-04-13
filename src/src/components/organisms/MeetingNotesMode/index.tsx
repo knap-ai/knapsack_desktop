@@ -35,8 +35,8 @@ import RecordControlPanel from 'src/components/molecules/RecordControlPanel'
 import MarkdownDisplay from 'src/components/molecules/MarkdownDisplay'
 
 import { Event, listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/tauri'
 
-import { sendNotification } from 'src/utils/permissions/notification'
 import MeetingChatNotice from 'src/components/molecules/MeetingChatNotice'
 import { TaskItem } from '../CenterWorkspace'
 import { RecordingContextProps } from './RecordingContext'
@@ -316,12 +316,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       },
     )
     const unlistenAutoStartRecordingPromise = listen('stop_recording', async () => {
-      const statusRecord = await statusRecordByThreadID(thread.id)
       const statusDisable = await isRecordingStatus()
-      recordingHandlers.setIsRecording(thread.id, statusRecord)
       if (statusDisable && statusDisable.isRecording) {
         setDisableIsRecording(statusDisable.threadId !== thread.id)
       }
+      // Do NOT update isRecording state here — stopRecording() manages it.
+      // Setting it to false before calling handleStopRecording would cause
+      // wasRecording to be false inside stopRecording, preventing note generation.
       handleStopRecording('Automatic')
     })
     // Listen for 15-minute heartbeat insights during recording (proactive mode only)
@@ -333,10 +334,12 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
         const { insight, elapsedMinutes } = event.payload
         const mins = Math.round(elapsedMinutes)
-        sendNotification({
+        invoke('show_notification_window', {
+          eventId: null,
+          buttonConfigs: [{ buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' }],
           title: `Meeting insight (${mins} min)`,
-          body: insight,
-        })
+          time: insight,
+        }).catch(e => console.error('Failed to show meeting insight notification:', e))
       },
     )
     return () => {
