@@ -5,7 +5,7 @@
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/ensure-clawdbot-deps.cjs && vite",
     "prebuild": "node scripts/sync-version.cjs && node scripts/prepare-node.cjs && node scripts/prune-clawdbot.cjs && node scripts/verify-clawdbot-bundle.cjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
