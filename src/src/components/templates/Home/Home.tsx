@@ -486,6 +486,10 @@ function Home({
               onChatClick={() => setMeetingSubView('chat')}
               onHomeClick={() => setMeetingSubView('meetings')}
               onMeetingSelect={() => setMeetingSubView('meetings')}
+              onExitMeetingView={() => {
+                setIsCalendarOpen(false)
+                setCurrentTab(TabChoices.Openclaw)
+              }}
               activeView={meetingSubView === 'chat' ? 'chat' : 'home'}
             />
           )}
