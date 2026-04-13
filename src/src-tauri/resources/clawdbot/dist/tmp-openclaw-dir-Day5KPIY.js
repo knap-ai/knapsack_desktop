@@ -79,6 +79,11 @@ function resolvePreferredOpenClawTmpDir(options = {}) {
 		if (resolveDirState(fallbackPath) !== "available" && !tryRepairWritableBits(fallbackPath)) throw new Error(`Unsafe fallback OpenClaw temp dir: ${fallbackPath}`);
 		return fallbackPath;
 	};
+	// On Windows, /tmp/openclaw is not a valid path — skip straight to the
+	// platform-appropriate fallback (os.tmpdir(), e.g. C:\Users\…\AppData\Local\Temp).
+	if (process.platform === "win32") {
+		return ensureTrustedFallbackDir();
+	}
 	const existingPreferredState = resolveDirState(POSIX_OPENCLAW_TMP_DIR);
 	if (existingPreferredState === "available") return POSIX_OPENCLAW_TMP_DIR;
 	if (existingPreferredState === "invalid") {
