@@ -1333,6 +1333,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         }
       }
 
+      #[cfg(target_os = "windows")]
+      let err_path = windows_log_path("stderr");
+      #[cfg(not(target_os = "windows"))]
       let err_path = gateway_stderr_log();
       // Also check legacy /tmp path for users who haven't restarted the service yet.
       let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
