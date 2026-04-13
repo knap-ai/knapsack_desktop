@@ -169,7 +169,13 @@ pub fn gateway_log_dir() -> PathBuf {
   } else {
     dirs::home_dir()
       .map(|h| h.join(".knapsack/logs"))
-      .unwrap_or_else(|| PathBuf::from("/tmp"))
+      .unwrap_or_else(|| {
+        if cfg!(target_os = "windows") {
+          PathBuf::from(std::env::var("TEMP").unwrap_or_else(|_| r"C:\Temp".to_string()))
+        } else {
+          PathBuf::from("/tmp")
+        }
+      })
   };
   let _ = std::fs::create_dir_all(&base);
   base

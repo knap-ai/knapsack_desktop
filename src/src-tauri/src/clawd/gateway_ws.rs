@@ -288,7 +288,9 @@ fn get_gateway_token() -> Option<String> {
     }
 
     // Try to read from config file (openclaw.json first, then clawdbot.json)
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
     let config_candidates = [
         std::path::PathBuf::from(&home).join(".openclaw").join("openclaw.json"),
         std::path::PathBuf::from(&home).join(".clawdbot").join("clawdbot.json"),

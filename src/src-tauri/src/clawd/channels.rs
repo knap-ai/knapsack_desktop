@@ -1942,7 +1942,9 @@ pub async fn signal_check_cli() -> impl Responder {
     ];
 
     // Also check the openclaw tools directory
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
     let openclaw_tools_path = format!("{}/.config/openclaw/tools/signal-cli", home);
 
     for candidate in &candidates {
@@ -2173,8 +2175,22 @@ async fn signal_install_from_release() -> HttpResponse {
         });
     }
 
+    // signal-cli auto-install requires tar/chmod which are not available on Windows
+    if cfg!(target_os = "windows") {
+        let _ = std::fs::remove_file(&archive_path);
+        return HttpResponse::Ok().json(SignalCliResponse {
+            success: false,
+            installed: false,
+            cli_path: None,
+            version: None,
+            message: Some("signal-cli auto-install is not supported on Windows. Please install it manually.".to_string()),
+        });
+    }
+
     // Extract to ~/.config/openclaw/tools/signal-cli/<version>
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| "/tmp".to_string());
     let install_dir = format!("{}/.config/openclaw/tools/signal-cli/{}", home, version);
     let _ = std::fs::create_dir_all(&install_dir);
 
