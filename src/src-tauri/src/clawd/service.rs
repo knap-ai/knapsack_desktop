@@ -507,10 +507,10 @@ fn ensure_operator_admin_scope(value: &mut serde_json::Value) -> bool {
     *value = serde_json::json!(["operator.admin", "operator.read", "operator.write"]);
     return true;
   };
-  let has = |s: &str| arr.iter().any(|v| v.as_str() == Some(s));
   let mut changed = false;
   for scope in ["operator.admin", "operator.read", "operator.write"] {
-    if !has(scope) {
+    let present = arr.iter().any(|v| v.as_str() == Some(scope));
+    if !present {
       arr.push(serde_json::Value::String(scope.to_string()));
       changed = true;
     }
