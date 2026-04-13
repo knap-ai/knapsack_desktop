@@ -156,6 +156,7 @@ pub async fn start_server<'a>(
   let dev_team_state = Data::new(clawd::agent_team::new_shared_team_state());
   let dev_qa_state = Data::new(crate::automations::qa_suite::new_shared_qa_state());
   let dev_qa_scenarios = Data::new(crate::automations::qa_suite::new_shared_scenarios());
+  let dev_mode_state = Data::new(clawd::dev_remote::new_shared_dev_mode_state());
 
   println!("actix.rs: start_server: Starting server on port: {}", port);
   let server = HttpServer::new(move || {
@@ -178,6 +179,7 @@ pub async fn start_server<'a>(
       .app_data(dev_team_state.clone())
       .app_data(dev_qa_state.clone())
       .app_data(dev_qa_scenarios.clone())
+      .app_data(dev_mode_state.clone())
       .wrap(cors)
       .wrap(Logger::default())
       .service(llm_complete)
@@ -379,6 +381,10 @@ pub async fn start_server<'a>(
       .service(crate::automations::qa_suite::list_scenarios)
       .service(crate::automations::qa_suite::save_scenario)
       .service(crate::automations::qa_suite::delete_scenario)
+      // Developer Mode: Remote control (channels, API)
+      .service(clawd::dev_remote::get_dev_state)
+      .service(clawd::dev_remote::remote_command)
+      .service(clawd::dev_remote::notify_channel)
   })
   .bind(("127.0.0.1", port))
   .map_err(|e| {

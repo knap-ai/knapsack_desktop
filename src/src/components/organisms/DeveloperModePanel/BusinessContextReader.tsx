@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { aggregateContext, AggregatedContext } from '../../../api/context_aggregator'
+import { getDevState, DevProject as RemoteProject } from '../../../api/dev_remote'
 
 interface Project {
   id: string
@@ -99,6 +100,46 @@ export default function BusinessContextReader({
       return toAdd.length > 0 ? [...prev, ...toAdd] : prev
     })
   }, [githubRepos])
+
+  // Sync with server-side state (picks up projects set from channels)
+  const remoteVersionRef = useRef(0)
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const result = await getDevState()
+        if (!result.ok || !result.state) return
+        const remote = result.state
+        if (remote.version <= remoteVersionRef.current) return
+        remoteVersionRef.current = remote.version
+
+        // Merge remote projects that don't exist locally
+        if (remote.projects.length > 0) {
+          setProjects(prev => {
+            const localIds = new Set(prev.map(p => p.id))
+            const newProjects: Project[] = remote.projects
+              .filter((rp: RemoteProject) => !localIds.has(rp.id))
+              .map((rp: RemoteProject) => ({
+                id: rp.id,
+                name: rp.name,
+                description: rp.description,
+                github_url: rp.github_url,
+                dev_url: rp.dev_url,
+              }))
+            if (newProjects.length === 0) return prev
+            return [...prev, ...newProjects]
+          })
+          if (remote.active_project_id) {
+            setActiveId(remote.active_project_id)
+          }
+        }
+      } catch {
+        // Best-effort polling
+      }
+    }
+    const interval = setInterval(poll, 5000)
+    poll() // initial
+    return () => clearInterval(interval)
+  }, [])
 
   const activeProject = projects.find(p => p.id === activeId) ?? projects[0]
 
