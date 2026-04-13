@@ -58,6 +58,24 @@ export default function BusinessContextReader({
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [addingProject, setAddingProject] = useState(false)
+
+  // Listen for chat-driven population
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const description = (e as CustomEvent<string>).detail
+      if (!description) return
+
+      // Update the active project's description
+      setProjects(prev => {
+        const updated = prev.map(p =>
+          p.id === activeId ? { ...p, description } : p,
+        )
+        return updated
+      })
+    }
+    window.addEventListener('clawd-dev-populate', handler)
+    return () => window.removeEventListener('clawd-dev-populate', handler)
+  }, [activeId])
   const [newProjectName, setNewProjectName] = useState('')
 
   // Sync projects when activeRepo / githubRepos changes from parent

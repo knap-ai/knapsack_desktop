@@ -5,6 +5,7 @@ import './style.scss'
 import BusinessContextReader from './BusinessContextReader'
 import AgentTeamPanel from './AgentTeamPanel'
 import QASuitePanel from './QASuitePanel'
+import GitHubConnect from './GitHubConnect'
 
 const API_BASE = 'http://127.0.0.1:8897'
 const KN_GMAIL_SEARCH = API_BASE + '/api/knapsack/gmail_search'
@@ -1757,6 +1758,9 @@ export const DeveloperModePanel = ({ onInitiateSession, userEmail: _userEmail, p
           Bugs and PRs will target the selected repository
         </div>
       </div>
+
+      {/* GitHub skill connection */}
+      <GitHubConnect activeRepo={activeRepo} />
 
       {error && <div className="DevModePanel__error">{error}</div>}
 
