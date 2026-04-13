@@ -19,8 +19,16 @@ if (fs.existsSync(NODE_MODULES)) {
 }
 
 console.log('[ensure-clawdbot-deps] node_modules missing — running npm install in clawdbot/...');
+// --omit=dev: skip devDependencies (we only need runtime deps)
+// --ignore-scripts: skip postinstall/prepare scripts — the bundled clawdbot
+//   references scripts/postinstall-bundled-plugins.mjs which is not included
+//   in the dist bundle.  We just need the dependency tree, not to run the
+//   bundler's own tooling.
 try {
-  execSync('npm install --omit=dev', { cwd: CLAWDBOT_DIR, stdio: 'inherit' });
+  execSync('npm install --omit=dev --ignore-scripts', {
+    cwd: CLAWDBOT_DIR,
+    stdio: 'inherit',
+  });
   console.log('[ensure-clawdbot-deps] Done.');
 } catch (err) {
   console.error('[ensure-clawdbot-deps] npm install failed:', err.message);
