@@ -14,6 +14,13 @@ const { spawn } = require('child_process');
 
 const projectDir = path.resolve(__dirname, '..');
 const envFile = path.join(projectDir, '.env');
+const envExample = path.join(projectDir, '.env.example');
+
+// Auto-create .env from .env.example on first run so defaults are available
+if (!fs.existsSync(envFile) && fs.existsSync(envExample)) {
+  fs.copyFileSync(envExample, envFile);
+  console.log('[load-env] Created .env from .env.example — edit it to override defaults.');
+}
 
 // Load .env file if it exists
 if (fs.existsSync(envFile)) {
