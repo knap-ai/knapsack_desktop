@@ -169,7 +169,13 @@ pub fn gateway_log_dir() -> PathBuf {
   } else {
     dirs::home_dir()
       .map(|h| h.join(".knapsack/logs"))
-      .unwrap_or_else(|| PathBuf::from("/tmp"))
+      .unwrap_or_else(|| {
+        if cfg!(target_os = "windows") {
+          PathBuf::from(std::env::var("TEMP").unwrap_or_else(|_| r"C:\Temp".to_string()))
+        } else {
+          PathBuf::from("/tmp")
+        }
+      })
   };
   let _ = std::fs::create_dir_all(&base);
   base
@@ -417,6 +423,99 @@ fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
     .app_data_dir()
     .unwrap_or_else(|| PathBuf::from("."))
     .join("clawdbot")
+}
+
+/// Workaround for OpenClaw upstream issue #23006 / #46997: the auto-pairing
+/// flow creates paired devices with only `operator.read` scope, causing every
+/// `browser.request` call to fail with "missing scope: operator.write".  This
+/// function patches `paired.json` to ensure all paired devices have
+/// `operator.admin` scope (which normalizes to include read + write).
+///
+/// Called before starting the gateway and periodically afterwards, since the
+/// gateway may rewrite paired.json during auto-pairing.
+pub fn patch_paired_json_scopes(app_handle: &tauri::AppHandle) {
+  let clawdbot_home = app_clawdbot_home(app_handle);
+
+  // Paths to check: OPENCLAW_STATE_DIR (= clawdbot_home) and fallback ~/.openclaw
+  let mut candidates: Vec<PathBuf> = Vec::new();
+  candidates.push(clawdbot_home.join("devices").join("paired.json"));
+  if let Some(home) = dirs::home_dir() {
+    candidates.push(home.join(".openclaw").join("devices").join("paired.json"));
+  }
+
+  for paired_path in &candidates {
+    if !paired_path.exists() {
+      continue;
+    }
+    let Ok(content) = fs::read_to_string(paired_path) else { continue };
+    let Ok(mut state) = serde_json::from_str::<serde_json::Value>(&content) else {
+      eprintln!("[clawd/service] paired.json at {} is not valid JSON — skipping scope patch", paired_path.display());
+      continue;
+    };
+
+    let mut changed = false;
+    // Target: { pairedByDeviceId: { <id>: { scopes: [...], approvedScopes: [...], tokens: { <role>: { scopes: [...] } } } } }
+    if let Some(paired_map) = state
+      .get_mut("pairedByDeviceId")
+      .and_then(|v| v.as_object_mut())
+    {
+      for (_device_id, device) in paired_map.iter_mut() {
+        let Some(device_obj) = device.as_object_mut() else { continue };
+        for key in ["scopes", "approvedScopes"] {
+          if ensure_operator_admin_scope(device_obj.entry(key.to_string()).or_insert_with(|| serde_json::json!([]))) {
+            changed = true;
+          }
+        }
+        if let Some(tokens) = device_obj.get_mut("tokens").and_then(|v| v.as_object_mut()) {
+          for (_role, token) in tokens.iter_mut() {
+            let Some(token_obj) = token.as_object_mut() else { continue };
+            if ensure_operator_admin_scope(token_obj.entry("scopes".to_string()).or_insert_with(|| serde_json::json!([]))) {
+              changed = true;
+            }
+          }
+        }
+      }
+    }
+
+    if changed {
+      match serde_json::to_string_pretty(&state) {
+        Ok(s) => match fs::write(paired_path, s) {
+          Ok(_) => eprintln!(
+            "[clawd/service] Patched paired.json at {} to include operator.admin scope (workaround for OpenClaw #23006)",
+            paired_path.display()
+          ),
+          Err(e) => eprintln!(
+            "[clawd/service] WARNING: failed to write patched paired.json at {}: {}",
+            paired_path.display(),
+            e
+          ),
+        },
+        Err(e) => eprintln!(
+          "[clawd/service] WARNING: failed to serialize patched paired.json: {}",
+          e
+        ),
+      }
+    }
+  }
+}
+
+/// Ensure a JSON scopes array includes "operator.admin".  Returns true if
+/// the array was modified.  Also ensures "operator.read" and "operator.write"
+/// are present (matching the gateway's normalization).
+fn ensure_operator_admin_scope(value: &mut serde_json::Value) -> bool {
+  let Some(arr) = value.as_array_mut() else {
+    *value = serde_json::json!(["operator.admin", "operator.read", "operator.write"]);
+    return true;
+  };
+  let mut changed = false;
+  for scope in ["operator.admin", "operator.read", "operator.write"] {
+    let present = arr.iter().any(|v| v.as_str() == Some(scope));
+    if !present {
+      arr.push(serde_json::Value::String(scope.to_string()));
+      changed = true;
+    }
+  }
+  changed
 }
 
 fn ensure_dir(p: &Path) -> Result<(), String> {
@@ -1327,6 +1426,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         }
       }
 
+      #[cfg(target_os = "windows")]
+      let err_path = windows_log_path("stderr");
+      #[cfg(not(target_os = "windows"))]
       let err_path = gateway_stderr_log();
       // Also check legacy /tmp path for users who haven't restarted the service yet.
       let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
@@ -3693,6 +3795,18 @@ pub async fn set_service_enabled(
           GATEWAY_PID.store(pid, Ordering::Relaxed);
           GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           eprintln!("[clawd/service] Spawned gateway process (pid {})", pid);
+
+          // Workaround for OpenClaw #23006: patch paired.json periodically
+          // during startup to ensure devices get operator.admin scope.  The
+          // gateway may rewrite paired.json during auto-pairing, so we retry
+          // several times over the first minute.
+          let ah: tauri::AppHandle = app_handle.get_ref().clone();
+          tokio::spawn(async move {
+            for delay_s in [2u64, 5, 10, 20, 40] {
+              tokio::time::sleep(std::time::Duration::from_secs(delay_s)).await;
+              patch_paired_json_scopes(&ah);
+            }
+          });
         }
         Err(e) => {
           GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);

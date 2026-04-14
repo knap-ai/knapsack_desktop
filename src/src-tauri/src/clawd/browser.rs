@@ -214,6 +214,32 @@ fn openclaw_user_data_dir() -> PathBuf {
   PathBuf::from(&home).join(".openclaw").join("browser-profiles").join("openclaw")
 }
 
+/// Cross-platform home directory string (prefers dirs::home_dir, then HOME/USERPROFILE).
+fn home_dir_string() -> String {
+  dirs::home_dir()
+    .map(|p| p.to_string_lossy().to_string())
+    .unwrap_or_else(|| {
+      std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| {
+          if cfg!(target_os = "windows") { r"C:\Users\Default".to_string() }
+          else { "/tmp".to_string() }
+        })
+    })
+}
+
+/// Expand leading `~/` to the user's home directory using cross-platform path joining.
+fn expand_tilde(path: &str) -> String {
+  if path.starts_with("~/") {
+    PathBuf::from(home_dir_string())
+      .join(&path[2..])
+      .to_string_lossy()
+      .to_string()
+  } else {
+    path.to_string()
+  }
+}
+
 /// Path to the Knapsack Chrome extension installed via the Web Store or locally.
 /// Returns the path if the extension directory exists and contains a manifest.json.
 fn knapsack_extension_dir() -> Option<PathBuf> {
@@ -549,8 +575,8 @@ fn gateway_transcript_path(session_id: &str) -> Option<PathBuf> {
     return None;
   }
 
-  let home = std::env::var("HOME").ok()?;
-  let sessions_dir = PathBuf::from(&home)
+  let home = dirs::home_dir()?;
+  let sessions_dir = home
     .join(".openclaw")
     .join("agents")
     .join("main")
@@ -651,11 +677,11 @@ fn append_to_transcript(session_id: &str, messages: &[chat_agent::OaiMessage]) {
 
 /// Update the gateway's sessions.json to register/refresh the desktop session.
 fn update_sessions_json(session_id: &str) {
-  let home = match std::env::var("HOME").ok() {
+  let home = match dirs::home_dir() {
     Some(h) => h,
     None => return,
   };
-  let store_path = PathBuf::from(&home)
+  let store_path = home
     .join(".openclaw")
     .join("agents")
     .join("main")
@@ -1997,12 +2023,7 @@ pub async fn chat(
         anyhow::bail!("path is required");
       }
       // Expand ~ to home directory
-      let path = if path_raw.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
-        format!("{}/{}", home, &path_raw[2..])
-      } else {
-        path_raw.to_string()
-      };
+      let path = expand_tilde(path_raw);
       match std::fs::read_to_string(&path) {
         Ok(content) => {
           // Truncate if too large
@@ -2033,12 +2054,7 @@ pub async fn chat(
         anyhow::bail!("path is required");
       }
       // Expand ~ to home directory
-      let path = if path_raw.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
-        format!("{}/{}", home, &path_raw[2..])
-      } else {
-        path_raw.to_string()
-      };
+      let path = expand_tilde(path_raw);
       match std::fs::read_dir(&path) {
         Ok(entries) => {
           let mut items: Vec<String> = Vec::new();
@@ -2075,12 +2091,7 @@ pub async fn chat(
         anyhow::bail!("path and pattern are required");
       }
       // Expand ~ to home directory
-      let path = if path_raw.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
-        format!("{}/{}", home, &path_raw[2..])
-      } else {
-        path_raw.to_string()
-      };
+      let path = expand_tilde(path_raw);
       // Simple glob matching
       let glob_pattern =
         glob::Pattern::new(pattern).map_err(|e| anyhow::anyhow!("Invalid pattern: {}", e))?;
@@ -2138,12 +2149,7 @@ pub async fn chat(
         anyhow::bail!("path is required");
       }
       // Expand ~ to home directory
-      let path = if path_raw.starts_with("~/") {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
-        format!("{}/{}", home, &path_raw[2..])
-      } else {
-        path_raw.to_string()
-      };
+      let path = expand_tilde(path_raw);
       // Block writes to sensitive paths (defense in depth)
       let sensitive_prefixes = [
         ".ssh/",
@@ -2158,10 +2164,12 @@ pub async fn chat(
         ".netrc",
         ".docker/config.json",
       ];
-      let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+      let home = home_dir_string();
       for prefix in &sensitive_prefixes {
-        let sensitive_path = format!("{}/{}", home, prefix);
-        if path.starts_with(&sensitive_path) {
+        let sensitive_path = PathBuf::from(&home).join(prefix);
+        let sensitive_native = sensitive_path.to_string_lossy();
+        let sensitive_fwd = format!("{}/{}", home, prefix);
+        if path.starts_with(sensitive_native.as_ref()) || path.starts_with(&sensitive_fwd) {
           return Ok(
             json!({"ok": false, "error": format!("Refusing to write to sensitive path: {}", path)}),
           );
@@ -2569,14 +2577,9 @@ pub async fn chat(
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()));
+        .unwrap_or_else(|| home_dir_string());
 
-      let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
-      let wd = if working_dir.starts_with("~/") {
-        format!("{}/{}", home, &working_dir[2..])
-      } else {
-        working_dir
-      };
+      let wd = expand_tilde(&working_dir);
 
       eprintln!("[clawd/chat] run_claude_code: prompt={} cwd={}", prompt, wd);
 
@@ -2615,9 +2618,23 @@ pub async fn chat(
         use std::io::{BufRead, BufReader};
         use std::process::{Command, Stdio};
 
-        let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-        let mut child = Command::new(&user_shell)
-          .args(["-l", "-c", &claude_cmd])
+        let mut cmd = if cfg!(target_os = "windows") {
+          let mut c = Command::new("cmd");
+          c.args(["/C", &claude_cmd]);
+          c
+        } else {
+          let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+          let mut c = Command::new(&user_shell);
+          c.args(["-l", "-c", &claude_cmd]);
+          c
+        };
+        #[cfg(target_os = "windows")]
+        {
+          use std::os::windows::process::CommandExt;
+          const CREATE_NO_WINDOW: u32 = 0x08000000;
+          cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        let mut child = cmd
           .current_dir(&wd_clone)
           .stdout(Stdio::piped())
           .stderr(Stdio::piped())
@@ -2766,7 +2783,7 @@ pub async fn chat(
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()));
+        .unwrap_or_else(|| home_dir_string());
 
       // Safety: block dangerous command patterns
       let dangerous_patterns = [
@@ -2816,7 +2833,7 @@ pub async fn chat(
       }
 
       // Block writes to sensitive paths
-      let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+      let home = home_dir_string();
       let sensitive_dirs = [
         ".ssh",
         ".gnupg",
@@ -2827,20 +2844,18 @@ pub async fn chat(
         ".password-store",
       ];
       for dir in &sensitive_dirs {
-        let sensitive = format!("{}/{}", home, dir);
-        if command.contains(&sensitive) {
+        let sensitive_path = PathBuf::from(&home).join(dir);
+        let sensitive_native = sensitive_path.to_string_lossy();
+        let sensitive_fwd = format!("{}/{}", home, dir);
+        if command.contains(sensitive_native.as_ref()) || command.contains(&sensitive_fwd) {
           return Ok(
-            json!({"ok": false, "error": format!("Blocked: command references sensitive path ({})", sensitive)}),
+            json!({"ok": false, "error": format!("Blocked: command references sensitive path ({})", sensitive_native)}),
           );
         }
       }
 
       // Expand ~ in working_dir
-      let wd = if working_dir.starts_with("~/") {
-        format!("{}/{}", home, &working_dir[2..])
-      } else {
-        working_dir
-      };
+      let wd = expand_tilde(&working_dir);
 
       eprintln!(
         "[clawd/chat] run_command: {} (timeout={}s, cwd={})",
@@ -2853,8 +2868,22 @@ pub async fn chat(
       let result = tokio::time::timeout(
         timeout_duration,
         tokio::task::spawn_blocking(move || {
-          std::process::Command::new("/bin/bash")
-            .args(["-c", &cmd_clone])
+          let mut proc = if cfg!(target_os = "windows") {
+            let mut c = std::process::Command::new("cmd");
+            c.args(["/C", &cmd_clone]);
+            c
+          } else {
+            let mut c = std::process::Command::new("/bin/bash");
+            c.args(["-c", &cmd_clone]);
+            c
+          };
+          #[cfg(target_os = "windows")]
+          {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            proc.creation_flags(CREATE_NO_WINDOW);
+          }
+          proc
             .current_dir(&wd_clone)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -3305,9 +3334,29 @@ CRITICAL: NEVER use browser automation for email when this tool is available. NE
 No email account is directly connected via the send_email tool. However, you CAN still help the user with email by using browser automation — navigate to Gmail (https://mail.google.com) or Outlook (https://outlook.live.com) in the browser to read, search, and compose emails. Do NOT tell the user that email is unavailable or ask them to connect their account — just use the browser to help with email tasks."#.to_string()
   };
 
+  let platform_section = {
+    let os_name = if cfg!(target_os = "windows") {
+      "Windows"
+    } else if cfg!(target_os = "macos") {
+      "macOS"
+    } else {
+      "Linux"
+    };
+    let shell_info = if cfg!(target_os = "windows") {
+      "cmd.exe (Windows Command Prompt). Use Windows-native commands: `dir` instead of `ls`, `type` instead of `cat`, `findstr` instead of `grep`, `tasklist` instead of `ps`, `netstat -ano` instead of `lsof`, `Get-Content` (PowerShell) instead of `tail`. Do NOT use Unix commands (ls, cat, grep, ps, tail, lsof, chmod, tar) — they will fail."
+    } else {
+      "/bin/bash. Standard Unix commands are available (ls, cat, grep, ps, tail, etc.)."
+    };
+    let home_dir = home_dir_string();
+    format!(
+      "\n\n## PLATFORM\nOperating System: **{}**\nShell: {}\nUser home directory: `{}`\nIMPORTANT: Always use commands compatible with this platform when using run_command.\n",
+      os_name, shell_info, home_dir
+    )
+  };
+
   let system_content = format!(
     r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
-{}{}{}{}{}{}
+{}{}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
 
@@ -3723,6 +3772,7 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
     meeting_section,
     advanced_section,
     skills_section,
+    platform_section,
     email_section
   );
 

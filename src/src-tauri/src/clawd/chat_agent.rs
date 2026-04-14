@@ -436,7 +436,7 @@ pub fn advanced_tools() -> Vec<OaiToolSpec> {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "run_command".to_string(),
-        description: "Execute a shell command and return stdout, stderr, and exit code. Use for installing software (brew, npm, pip), running CLI tools, checking versions, and system tasks. Commands run via /bin/bash -c with a timeout. Dangerous commands (rm -rf /, shutdown, etc.) and writes to sensitive paths (~/.ssh, ~/.aws, etc.) are blocked.".to_string(),
+        description: "Execute a shell command and return stdout, stderr, and exit code. Use for installing software (brew, npm, pip), running CLI tools, checking versions, and system tasks. Commands run via the system shell with a timeout. Dangerous commands (rm -rf /, shutdown, etc.) and writes to sensitive paths (~/.ssh, ~/.aws, etc.) are blocked.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
