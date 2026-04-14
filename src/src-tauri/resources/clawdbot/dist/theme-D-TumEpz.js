@@ -1,4 +1,4 @@
-import chalk, { Chalk } from "chalk";
+import chalk from "chalk"; const { Chalk } = chalk;
 //#region src/terminal/palette.ts
 const LOBSTER_PALETTE = {
 	accent: "#FF5A2D",

@@ -49,8 +49,22 @@ function findPluginsNeedingRuntimeDeps() {
   return plugins;
 }
 
-// Step 1: install the main clawdbot deps if missing.
-if (!fs.existsSync(NODE_MODULES)) {
+// Step 1: install the main clawdbot deps if missing or out of date.
+// Re-run if node_modules doesn't exist OR if any direct dependency from
+// package.json is missing from node_modules (handles newly-added packages
+// without relying on mtime, which is unreliable on Windows with git).
+const needsInstall = (() => {
+  if (!fs.existsSync(NODE_MODULES)) return true;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(CLAWDBOT_DIR, 'package.json'), 'utf8'));
+    const deps = Object.keys(pkg.dependencies || {});
+    return deps.some(dep => !fs.existsSync(path.join(NODE_MODULES, dep)));
+  } catch {
+    return true;
+  }
+})();
+
+if (needsInstall) {
   try {
     runNpmInstall(CLAWDBOT_DIR, 'clawdbot/');
   } catch (err) {
