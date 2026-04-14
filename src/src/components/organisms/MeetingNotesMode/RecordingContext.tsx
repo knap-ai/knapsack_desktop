@@ -278,7 +278,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
           true,
         )
         setLoadingState(threadId, false)
-        throw new Error('Error stop recording')
+        throw new Error(err.message || 'Error stop recording')
       }
     }
     // Always clear recording state after successful stop
