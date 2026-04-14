@@ -151,6 +151,13 @@ pub async fn start_server<'a>(
     }
   }
 
+  // Developer Mode shared state
+  let dev_loop_state = Data::new(clawd::dev_feedback_loop::new_shared_state());
+  let dev_team_state = Data::new(clawd::agent_team::new_shared_team_state());
+  let dev_qa_state = Data::new(crate::automations::qa_suite::new_shared_qa_state());
+  let dev_qa_scenarios = Data::new(crate::automations::qa_suite::new_shared_scenarios());
+  let dev_mode_state = Data::new(clawd::dev_remote::new_shared_dev_mode_state());
+
   println!("actix.rs: start_server: Starting server on port: {}", port);
   let server = HttpServer::new(move || {
     let cors = Cors::permissive();
@@ -168,6 +175,11 @@ pub async fn start_server<'a>(
       .app_data(Data::new(recording_state.clone()))
       .app_data(Data::new(handle.clone()))
       .app_data(Data::new(clawdbot_cfg.clone()))
+      .app_data(dev_loop_state.clone())
+      .app_data(dev_team_state.clone())
+      .app_data(dev_qa_state.clone())
+      .app_data(dev_qa_scenarios.clone())
+      .app_data(dev_mode_state.clone())
       .wrap(cors)
       .wrap(Logger::default())
       .service(llm_complete)
@@ -355,6 +367,24 @@ pub async fn start_server<'a>(
       .service(mcp_api::disable_server)
       .service(mcp_api::update_server_config)
       .service(mcp_api::add_custom_server)
+      // Developer Mode: Business Context Aggregator
+      .service(clawd::context_aggregator::aggregate_context)
+      // Developer Mode: Agent Team orchestration
+      .service(clawd::agent_team::launch_team)
+      .service(clawd::agent_team::team_status)
+      .service(clawd::agent_team::cancel_team)
+      .service(clawd::agent_team::agent_output)
+      // Developer Mode: QA Suite
+      .service(crate::automations::qa_suite::run_qa_suite)
+      .service(crate::automations::qa_suite::qa_status)
+      .service(crate::automations::qa_suite::qa_results)
+      .service(crate::automations::qa_suite::list_scenarios)
+      .service(crate::automations::qa_suite::save_scenario)
+      .service(crate::automations::qa_suite::delete_scenario)
+      // Developer Mode: Remote control (channels, API)
+      .service(clawd::dev_remote::get_dev_state)
+      .service(clawd::dev_remote::remote_command)
+      .service(clawd::dev_remote::notify_channel)
   })
   .bind(("127.0.0.1", port))
   .map_err(|e| {

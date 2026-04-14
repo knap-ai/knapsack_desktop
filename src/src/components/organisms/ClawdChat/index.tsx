@@ -16,6 +16,8 @@ import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
 import { TokenCostsView } from 'src/components/organisms/ActivityPanel'
+import { detectBuildIntent, extractProjectDescription } from 'src/utils/devIntentDetector'
+import { dispatchDevPopulate, dispatchOpenDevPanel } from 'src/utils/devModeEvents'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -3190,6 +3192,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => window.removeEventListener('clawd-send-user', handler)
   }, [])
 
+  // Listen for requests to open the developer panel from chat intent detection
+  useEffect(() => {
+    const handler = () => {
+      if (developerMode) setShowDevPanel(true)
+    }
+    window.addEventListener('clawd-open-dev-panel', handler)
+    return () => window.removeEventListener('clawd-open-dev-panel', handler)
+  }, [developerMode])
+
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
   }
@@ -3418,6 +3429,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       runInTerminalTimerRef.current = null
     }
 
+    // Handle developer mode activation via prompt action
+    if (text.trim() === '__ENABLE_DEV_MODE__') {
+      toggleDeveloperMode()
+      return
+    }
+
     // Intercept slash commands before any LLM processing
     const slashEvent = SLASH_COMMANDS[text.trim().toLowerCase()]
     if (slashEvent) {
@@ -3449,6 +3466,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       ? `\n\n📎 *Attached: ${currentAttachments.map(f => f.name).join(', ')}*`
       : ''
     pushUser(text + attachmentSummary, currentReplyTo?.id)
+
+    // --- Developer mode intent detection ---
+    if (!developerMode && detectBuildIntent(text)) {
+      // User is talking about building but dev mode is off — suggest it
+      setTimeout(() => {
+        pushAssistantRef.current?.(
+          "It sounds like you're building something! **Developer mode** can help you move faster with:\n\n" +
+          '- **Business context gathering** from meetings, emails, and docs\n' +
+          '- **Agent team** (PM, Frontend Dev, Backend Dev, QA) working in parallel\n' +
+          '- **Automated QA** with smoke tests, accessibility, and visual regression\n\n' +
+          '[Enable Developer Mode](knapsack://prompt/__ENABLE_DEV_MODE__)'
+        )
+      }, 500)
+    } else if (developerMode && detectBuildIntent(text)) {
+      // Dev mode is on — populate the panel with this description
+      dispatchDevPopulate(extractProjectDescription(text))
+      dispatchOpenDevPanel()
+    }
 
     // Parse "command args..." form
     const [rawCmd, ...rest] = text.split(/\s+/)
