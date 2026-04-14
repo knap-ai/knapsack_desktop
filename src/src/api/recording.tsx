@@ -35,11 +35,16 @@ export async function startRecord(
     body: body,
   })
   if (!response.ok) {
-    logError(new Error('Failed to start recording'), {
-      additionalInfo: '',
-      error: await response.text(),
-    })
-    throw new Error('Failed to start recording')
+    const raw = await response.text()
+    let detail = raw
+    try {
+      const parsed = JSON.parse(raw)
+      detail = parsed?.error || parsed?.message || raw
+    } catch {
+      // raw is plain text
+    }
+    logError(new Error('Failed to start recording'), { additionalInfo: '', error: raw })
+    throw new Error(detail || 'Failed to start recording')
   }
   return true
 }
@@ -63,15 +68,16 @@ export async function stopRecord(
     body: body,
   })
   if (!response.ok) {
-    logError(
-      new Error('Failed to stop recording'),
-      {
-        additionalInfo: '',
-        error: await response.text(),
-      },
-      true,
-    )
-    throw new Error('Failed to stop recording')
+    const raw = await response.text()
+    let detail = raw
+    try {
+      const parsed = JSON.parse(raw)
+      detail = parsed?.error || parsed?.message || raw
+    } catch {
+      // raw is plain text
+    }
+    logError(new Error('Failed to stop recording'), { additionalInfo: '', error: raw }, true)
+    throw new Error(detail || 'Failed to stop recording')
   }
   return true
 }

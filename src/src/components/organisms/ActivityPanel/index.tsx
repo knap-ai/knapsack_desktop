@@ -3,6 +3,7 @@ import './style.scss'
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
+import { getFrontendLogs, clearFrontendLogs, FrontendLogEntry } from 'src/utils/frontendLog'
 import {
   KN_API_TOKEN_USAGE_SUMMARY,
   KN_API_TOKEN_USAGE_RECENT,
@@ -136,7 +137,7 @@ function initModuleListeners() {
 
 initModuleListeners()
 
-type ActivitySubTab = 'logs' | 'costs' | 'terminal'
+type ActivitySubTab = 'logs' | 'apperrors' | 'costs' | 'terminal'
 
 interface TerminalLine {
   type: 'command' | 'stdout' | 'stderr' | 'system'
@@ -166,13 +167,14 @@ const ActivityPanel: React.FC<ActivityPanelProps> = ({ onClose }) => {
     <div className="ActivityPanel w-full h-full flex flex-col overflow-hidden">
       {/* Sub-tab bar */}
       <div className="ActivityPanel__tabs flex px-4 pt-3 bg-white items-center">
-        {(['logs', 'costs', 'terminal'] as ActivitySubTab[]).map(tab => (
+        {(['logs', 'apperrors', 'costs', 'terminal'] as ActivitySubTab[]).map(tab => (
           <button
             key={tab}
             className={`ActivityPanel__tab ${activeSubTab === tab ? 'ActivityPanel__tab--active' : ''}`}
             onClick={() => setActiveSubTab(tab)}
           >
-            {tab === 'logs' && 'Logs'}
+            {tab === 'logs' && 'System Logs'}
+            {tab === 'apperrors' && 'App Errors'}
             {tab === 'costs' && 'Token Costs'}
             {tab === 'terminal' && 'Terminal'}
           </button>
@@ -191,6 +193,7 @@ const ActivityPanel: React.FC<ActivityPanelProps> = ({ onClose }) => {
       {/* Tab content */}
       <div className="flex-1 overflow-hidden">
         {activeSubTab === 'logs' && <LogsView />}
+        {activeSubTab === 'apperrors' && <AppErrorsView />}
         {activeSubTab === 'costs' && <TokenCostsView />}
         {activeSubTab === 'terminal' && <TerminalView />}
       </div>
@@ -337,6 +340,150 @@ const LogsView: React.FC = () => {
       <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
         <span>{filteredLogs.length} entries</span>
         {autoRefresh && <span>Auto-refreshing every 5s</span>}
+      </div>
+    </div>
+  )
+}
+
+/* =========================================================
+   APP ERRORS VIEW  (in-memory frontend error log)
+   ========================================================= */
+
+const AppErrorsView: React.FC = () => {
+  const [entries, setEntries] = useState<FrontendLogEntry[]>([])
+  const [filterText, setFilterText] = useState('')
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const refresh = useCallback(() => {
+    setEntries(getFrontendLogs().reverse()) // newest first
+  }, [])
+
+  useEffect(() => {
+    refresh()
+    const interval = setInterval(refresh, 3000)
+    return () => clearInterval(interval)
+  }, [refresh])
+
+  // Scroll to top when new errors arrive
+  useEffect(() => {
+    if (containerRef.current) containerRef.current.scrollTop = 0
+  }, [entries.length])
+
+  const filtered = useMemo(() => {
+    if (!filterText) return entries
+    const lower = filterText.toLowerCase()
+    return entries.filter(
+      e =>
+        e.message.toLowerCase().includes(lower) ||
+        (e.detail && e.detail.toLowerCase().includes(lower)),
+    )
+  }, [entries, filterText])
+
+  const toggleExpanded = (id: number) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const formatTime = (d: Date) =>
+    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+
+  const copyAll = () => {
+    const text = filtered
+      .map(e => `[${formatTime(e.timestamp)}] ${e.message}${e.detail ? '\n  ' + e.detail : ''}`)
+      .join('\n')
+    navigator.clipboard.writeText(text)
+  }
+
+  return (
+    <div className="flex flex-col h-full px-4 py-3">
+      {/* Controls */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <input
+          type="text"
+          placeholder="Filter errors..."
+          value={filterText}
+          onChange={e => setFilterText(e.target.value)}
+          className="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-gray-400 bg-white"
+        />
+        <button
+          onClick={copyAll}
+          disabled={filtered.length === 0}
+          className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+        >
+          Copy All
+        </button>
+        <button
+          onClick={() => {
+            clearFrontendLogs()
+            setEntries([])
+          }}
+          disabled={entries.length === 0}
+          className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-red-500 rounded-lg transition-colors disabled:opacity-50"
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Error list */}
+      <div ref={containerRef} className="flex-1 overflow-y-auto flex flex-col gap-1">
+        {filtered.length === 0 ? (
+          <div className="text-gray-400 text-xs text-center py-10">
+            {entries.length === 0 ? 'No errors recorded this session' : 'No matches'}
+          </div>
+        ) : (
+          filtered.map(entry => {
+            const isOpen = expanded.has(entry.id)
+            let parsedDetail: Record<string, string> | null = null
+            if (entry.detail) {
+              try { parsedDetail = JSON.parse(entry.detail) } catch { /* plain string */ }
+            }
+            return (
+              <div
+                key={entry.id}
+                className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs"
+              >
+                <div className="flex items-start gap-2">
+                  <span className="text-red-400 font-mono shrink-0 pt-0.5">
+                    {formatTime(entry.timestamp)}
+                  </span>
+                  <span className="flex-1 text-red-800 break-words">{entry.message}</span>
+                  {entry.detail && (
+                    <button
+                      onClick={() => toggleExpanded(entry.id)}
+                      className="shrink-0 text-red-400 hover:text-red-600 font-mono"
+                      title={isOpen ? 'Hide detail' : 'Show detail'}
+                    >
+                      {isOpen ? '▲' : '▼'}
+                    </button>
+                  )}
+                </div>
+                {isOpen && entry.detail && (
+                  <div className="mt-2 pt-2 border-t border-red-100 font-mono text-red-700 space-y-0.5 break-all">
+                    {parsedDetail ? (
+                      Object.entries(parsedDetail).map(([k, v]) => (
+                        <div key={k}>
+                          <span className="text-red-400">{k}:</span> {String(v)}
+                        </div>
+                      ))
+                    ) : (
+                      <div>{entry.detail}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Status bar */}
+      <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
+        <span>{filtered.length} error{filtered.length !== 1 ? 's' : ''} this session</span>
+        <span>Auto-refreshing every 3s</span>
       </div>
     </div>
   )

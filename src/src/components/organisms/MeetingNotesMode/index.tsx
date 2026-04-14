@@ -35,8 +35,8 @@ import RecordControlPanel from 'src/components/molecules/RecordControlPanel'
 import MarkdownDisplay from 'src/components/molecules/MarkdownDisplay'
 
 import { Event, listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/tauri'
 
-import { sendNotification } from 'src/utils/permissions/notification'
 import MeetingChatNotice from 'src/components/molecules/MeetingChatNotice'
 import { TaskItem } from '../CenterWorkspace'
 import { RecordingContextProps } from './RecordingContext'
@@ -95,6 +95,7 @@ interface MeetingNotesModeProps {
   closeTasks: () => void
   recordingHandlers: RecordingContextProps
   handleOpenTasks?: (threadId: number | undefined, tasks: TaskItem[]) => void
+  handleOpenInsights?: (threadId: number | undefined) => void
   onChatClick?: () => void
   onEmailClick?: (notesMarkdown: string) => void
 }
@@ -119,6 +120,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   closeTasks,
   recordingHandlers,
   handleOpenTasks,
+  handleOpenInsights,
   onChatClick,
   onEmailClick,
 }) => {
@@ -316,12 +318,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       },
     )
     const unlistenAutoStartRecordingPromise = listen('stop_recording', async () => {
-      const statusRecord = await statusRecordByThreadID(thread.id)
       const statusDisable = await isRecordingStatus()
-      recordingHandlers.setIsRecording(thread.id, statusRecord)
       if (statusDisable && statusDisable.isRecording) {
         setDisableIsRecording(statusDisable.threadId !== thread.id)
       }
+      // Do NOT update isRecording state here — stopRecording() manages it.
+      // Setting it to false before calling handleStopRecording would cause
+      // wasRecording to be false inside stopRecording, preventing note generation.
       handleStopRecording('Automatic')
     })
     // Listen for 15-minute heartbeat insights during recording (proactive mode only)
@@ -333,10 +336,12 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
         const { insight, elapsedMinutes } = event.payload
         const mins = Math.round(elapsedMinutes)
-        sendNotification({
+        invoke('show_notification_window', {
+          eventId: null,
+          buttonConfigs: [{ buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' }],
           title: `Meeting insight (${mins} min)`,
-          body: insight,
-        })
+          time: insight,
+        }).catch(e => console.error('Failed to show meeting insight notification:', e))
       },
     )
     return () => {
@@ -479,11 +484,26 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         isStart,
       )
     } catch (err: any) {
-      const isPermissionIssue = err?.message?.includes('permission') || err?.message?.includes('Permission')
-      const message = isPermissionIssue
-        ? 'Recording requires audio permissions. Please grant access in System Settings > Privacy & Security, then try again. If already enabled, try toggling the permission off and on, then restart Knapsack.'
-        : "Couldn't start recording. Check that your microphone is available and try again."
-      if (isPermissionIssue) {
+      const msg: string = err?.message || ''
+      const isPermissionIssue = msg.includes('permission') || msg.includes('Permission') || msg.includes('Recording requires')
+      const isMacOSIssue = msg.includes('macOS') || msg.includes('Sonoma')
+
+      let message: string
+      if (isPermissionIssue || isMacOSIssue) {
+        // Detailed messages already constructed upstream in RecordingContext
+        message = msg || 'Recording requires audio permissions. Please grant access in System Settings > Privacy & Security, then try again.'
+      } else if (msg.includes('Permission check failed')) {
+        message = msg
+      } else if (msg.includes('Recording is already in progress') || msg.includes('already in progress')) {
+        message = "A recording is already in progress. Stop the current recording first, or restart Knapsack if you believe no recording is active."
+      } else if (msg.includes('Failed to create transcript record')) {
+        message = "Couldn't start recording due to a database error. Please restart Knapsack and try again."
+      } else if (msg) {
+        message = `Couldn't start recording. Error: ${msg}`
+      } else {
+        message = "Couldn't start recording. Check that your microphone is available and try again."
+      }
+      if (isPermissionIssue || isMacOSIssue) {
         setPermissionError(message)
       }
       handleErrorContact(message)
@@ -517,8 +537,25 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         meeting,
         eventId,
       )
-    } catch (err) {
-      handleErrorContact("Couldn't stop recording. Please try again.")
+    } catch (err: any) {
+      const msg: string = err?.message || ''
+      let userMessage: string
+      if (msg.includes('Mic recording task failed to complete')) {
+        userMessage = "Microphone recording stopped unexpectedly. Your transcript was partially saved — meeting notes may be incomplete."
+      } else if (msg.includes('Audio output recording task failed to complete')) {
+        userMessage = "System audio recording stopped unexpectedly. Your transcript was partially saved — meeting notes may be incomplete."
+      } else if (msg.includes('Failed to combine') || msg.includes('generate transcript')) {
+        userMessage = "Couldn't process the recording. Check that you have enough disk space, then try regenerating notes from the template menu."
+      } else if (msg.includes('Transcript not found') || msg.includes('transcript not found') || msg.includes('Failed to retrieve transcript')) {
+        userMessage = "Recording transcript not found. The recording may not have captured audio — try starting a new recording."
+      } else if (msg.includes('No thread found') || msg.includes('Failed to get thread') || msg.includes('Failed to update thread')) {
+        userMessage = "A database error occurred while saving the recording. Please restart Knapsack and try again."
+      } else if (msg) {
+        userMessage = `Couldn't stop recording. Error: ${msg}`
+      } else {
+        userMessage = "Couldn't stop recording. Please try again."
+      }
+      handleErrorContact(userMessage)
     }
   }
 
@@ -808,6 +845,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
             onOpenTemplatesClick={handleOpenTemplates}
             onViewTranscriptClick={handleOpenTranscript}
             onTasksButtonClick={handleTasksButtonClick}
+            onInsightsClick={handleOpenInsights ? () => handleOpenInsights(thread.id) : undefined}
             onCopyClick={() => {
               if (copyToClipboard) copyToClipboard(notesMarkdown)
             }}

@@ -16,6 +16,7 @@ interface MeetingNotesTabBarProps {
   canChangeTemplate: boolean
   onViewTranscriptClick: (threadId: number) => void
   onTasksButtonClick: () => void
+  onInsightsClick?: () => void
   onCopyClick: () => void
   isEditing: boolean
   onEditClick: () => void
@@ -28,6 +29,7 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
   onOpenTemplatesClick,
   onViewTranscriptClick,
   onTasksButtonClick,
+  onInsightsClick,
   onCopyClick,
   canChangeTemplate,
   onEditClick,
@@ -66,6 +68,22 @@ const MeetingNotesTabBar: React.FC<MeetingNotesTabBarProps> = ({
           icon={<img className="mr-1.5" src="/assets/images/icons/TasksIcon.svg" />}
           className="h-fit py-0 px-0 bg-transparent text-xxs uppercase font-semibold hover:underline font-InterTight tracking-[0.08em] text-ks-warm-grey-800 transition-all duration-150 rounded-sm"
           onClick={onTasksButtonClick}
+        />
+      )}
+      {thread.recorded && onInsightsClick && (
+        <Button
+          label="Insights"
+          variant={ButtonVariant.regular}
+          size={ButtonSize.medium}
+          icon={
+            <svg className="mr-1.5" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          }
+          className="h-fit py-0 px-0 bg-transparent text-xxs uppercase font-semibold hover:underline font-InterTight tracking-[0.08em] text-ks-warm-grey-800 transition-all duration-150 rounded-sm"
+          onClick={onInsightsClick}
         />
       )}
       <CopyButton onClick={onCopyClick} />

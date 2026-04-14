@@ -18,10 +18,11 @@ interface NotetakerSidebarProps {
   onChatClick?: () => void
   onMeetingSelect?: () => void
   onHomeClick?: () => void
+  onExitMeetingView?: () => void
   activeView?: NotetakerView
 }
 
-function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onHomeClick, onMeetingSelect, activeView: controlledView }: NotetakerSidebarProps) {
+function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onHomeClick, onMeetingSelect, onExitMeetingView, activeView: controlledView }: NotetakerSidebarProps) {
   const [internalView, setInternalView] = useState<NotetakerView>('home')
   const activeView = controlledView ?? internalView
   const [searchQuery, setSearchQuery] = useState('')
@@ -384,6 +385,19 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
       {/* Bottom bar */}
       <div className="notetaker-sidebar__bottom">
         <div className="notetaker-sidebar__bottom-actions">
+          {onExitMeetingView && (
+            <button
+              className="notetaker-sidebar__bottom-btn"
+              onClick={onExitMeetingView}
+              title="Back to menu"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+          )}
           <button
             className="notetaker-sidebar__bottom-btn"
             onClick={onQuickNote}
