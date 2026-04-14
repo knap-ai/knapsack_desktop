@@ -2,7 +2,7 @@ import { t as resolveNodeRequireFromMeta } from "./node-require-BgDD9bTi.js";
 import { S as shouldSkipMutatingLoggingConfigRead, a as getLogger, f as formatLocalIsoWithOffset, g as loggingState, h as resolveEnvLogLevelOverride, i as getChildLogger, p as formatTimestamp, s as isFileLogLevelEnabled, v as levelToMinLevel, x as readLoggingConfig, y as normalizeLogLevel } from "./logger-BCzP_yik.js";
 import { t as isVerbose } from "./global-state-DUuMGgts.js";
 import { r as stripAnsi } from "./ansi-B_0KjIJj.js";
-import { Chalk } from "chalk";
+import chalk_pkg from "chalk"; const { Chalk } = chalk_pkg;
 import util from "node:util";
 //#region src/terminal/progress-line.ts
 let activeStream = null;

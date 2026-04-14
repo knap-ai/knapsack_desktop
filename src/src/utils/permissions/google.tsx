@@ -38,14 +38,20 @@ export const openGoogleAuthScreen = (scope: string) => {
   console.log('[Google OAuth] Opening URL:', fullUrl)
   console.log('[Google OAuth] redirect_uri:', KN_API_GOOGLE_SIGNIN_REDIRECT)
 
-  try {
-    open(fullUrl)
-  } catch (error: any) {
-    logError(new Error('Error opening Google Auth screen:'), {
-      additionalInfo: '',
-      error: error.message,
-    })
-    console.error('Error opening Google Auth screen:', error)
-    throw error
+  // window.open with _blank causes Tauri/WebView2 to route to the system browser,
+  // which avoids Google blocking OAuth inside embedded webviews.
+  const popup = window.open(fullUrl, '_blank', 'noopener,noreferrer')
+  if (!popup) {
+    // Fallback for environments where window.open is blocked
+    try {
+      open(fullUrl)
+    } catch (error: any) {
+      logError(new Error('Error opening Google Auth screen:'), {
+        additionalInfo: '',
+        error: error.message,
+      })
+      console.error('Error opening Google Auth screen:', error)
+      throw error
+    }
   }
 }
