@@ -619,6 +619,37 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     }
   }
 
+  // ── Sync agents.defaults.model from the current active provider ──────────
+  //
+  // The model is resolved at runtime from env vars (KNAPSACK_ACTIVE_PROVIDER,
+  // ANTHROPIC_API_KEY, etc.).  If the disk config has a stale model (e.g. from
+  // a previous provider), the gateway will use the wrong LLM until a restart.
+  //
+  // By writing the current model to disk here we ensure that `disk_config_changed`
+  // reflects a true change, and the `apply_runtime_browser_config()` call in
+  // `connect_and_handshake()` will push the updated model to the live gateway
+  // (triggering a SIGUSR1 restart) only when the model actually changed.
+  {
+    let current_model = resolve_default_model();
+    let disk_model = cfg
+      .pointer("/agents/defaults/model")
+      .and_then(|v| v.as_str())
+      .unwrap_or("");
+    if disk_model != current_model {
+      if cfg.get("agents").is_none() {
+        cfg.as_object_mut().unwrap().insert("agents".into(), serde_json::json!({}));
+      }
+      if cfg.pointer("/agents/defaults").is_none() {
+        cfg.pointer_mut("/agents").unwrap().as_object_mut().unwrap()
+          .insert("defaults".into(), serde_json::json!({}));
+      }
+      cfg.pointer_mut("/agents/defaults").unwrap().as_object_mut().unwrap()
+        .insert("model".into(), serde_json::json!(current_model));
+      eprintln!("[gateway_client] Patched agents.defaults.model: {:?} → '{}'", disk_model, current_model);
+      patched = true;
+    }
+  }
+
   if patched {
     if let Ok(json) = serde_json::to_string_pretty(&cfg) {
       let _ = std::fs::write(config_path, json);
@@ -973,25 +1004,25 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   // never runs.
   let disk_config_changed = ensure_browser_config();
 
-  // Always push browser config to the running gateway on first connection.
-  // Even if the on-disk config didn't change (because we patched it in a
-  // previous app session), the running gateway may have been started with
-  // stale config (e.g., headless=true).  We track with BROWSER_CONFIG_APPLIED
-  // so we only do this once per process lifetime.
+  // Push browser config to the running gateway when the on-disk config was
+  // actually changed.  If the disk config was already correct (patched by a
+  // previous run), the live gateway already has the right settings — forcing
+  // an unnecessary config.patch triggers a ~14-second SIGUSR1 restart on every
+  // app open, which causes the "Gateway: reconnecting..." window seen on startup.
+  //
+  // BROWSER_CONFIG_APPLIED prevents doing this more than once per process
+  // lifetime (e.g., on reconnects after a transient WS drop).
   //
   // IMPORTANT: We do this BEFORE establishing our main connection, using a
   // temporary connection.  config.patch triggers a SIGUSR1 restart on the
   // gateway, which would kill any in-flight requests on the same connection.
-  let need_runtime_patch = !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
+  let need_runtime_patch = disk_config_changed
+    && !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
     && is_gateway_port_open().await;
 
   if need_runtime_patch {
     BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
-    if disk_config_changed {
-      eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
-    } else {
-      eprintln!("[gateway_client] Pushing browser config to running gateway (ensure headless=false, browser enabled)");
-    }
+    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
     apply_runtime_browser_config(token).await;
   }
 
@@ -1272,17 +1303,27 @@ pub fn invalidate() {
   invalidate_client();
 }
 
-/// Quick TCP probe to check if the gateway port is listening.
-/// Returns true if the port accepts connections within 500ms.
-/// Channel status endpoints can call this to fail fast.
+/// Check if the gateway port is listening by sending an HTTP request.
+///
+/// Using a plain HTTP GET instead of a raw TCP probe prevents the gateway's
+/// WebSocket server from logging spurious "closed before connect code=1006"
+/// errors that a raw TCP connect-then-drop generates.  Any HTTP response
+/// (including 401/404) confirms the port is up.
 pub async fn is_gateway_port_open() -> bool {
+  let client = match reqwest::Client::builder()
+    .timeout(Duration::from_millis(500))
+    .build()
+  {
+    Ok(c) => c,
+    Err(_) => return false,
+  };
   tokio::time::timeout(
     Duration::from_millis(500),
-    tokio::net::TcpStream::connect("127.0.0.1:18789"),
+    client.get("http://127.0.0.1:18789/health").send(),
   )
-    .await
-    .map(|r| r.is_ok())
-    .unwrap_or(false)
+  .await
+  .map(|r| r.is_ok())
+  .unwrap_or(false)
 }
 
 /// Best-effort gateway restart for callers that want to wait briefly.
