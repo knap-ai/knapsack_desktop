@@ -588,6 +588,37 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     }
   }
 
+  // ── Ensure Tauri app origins are in gateway.controlUi.allowedOrigins ──────
+  // Without this, the gateway refuses WebSocket connections from the Tauri
+  // webview with CONTROL_UI_ORIGIN_NOT_ALLOWED.
+  {
+    const REQUIRED_ORIGINS: &[&str] = &["tauri://localhost", "http://localhost:1420"];
+    let existing: Vec<String> = cfg
+      .pointer("/gateway/controlUi/allowedOrigins")
+      .and_then(|v| v.as_array())
+      .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+      .unwrap_or_default();
+    let missing: Vec<&str> = REQUIRED_ORIGINS.iter()
+      .filter(|&&o| !existing.iter().any(|e| e == o))
+      .copied()
+      .collect();
+    if !missing.is_empty() {
+      if cfg.get("gateway").is_none() {
+        cfg.as_object_mut().unwrap().insert("gateway".into(), serde_json::json!({}));
+      }
+      if cfg.pointer("/gateway/controlUi").is_none() {
+        cfg.pointer_mut("/gateway").unwrap().as_object_mut().unwrap()
+          .insert("controlUi".into(), serde_json::json!({}));
+      }
+      let mut merged = existing;
+      merged.extend(missing.iter().map(|s| s.to_string()));
+      cfg.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+        .insert("allowedOrigins".into(), serde_json::json!(merged));
+      eprintln!("[gateway_client] Patched gateway.controlUi.allowedOrigins to include Tauri origins");
+      patched = true;
+    }
+  }
+
   if patched {
     if let Ok(json) = serde_json::to_string_pretty(&cfg) {
       let _ = std::fs::write(config_path, json);
