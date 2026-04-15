@@ -629,15 +629,21 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   // reflects a true change, and the `apply_runtime_browser_config()` call in
   // `connect_and_handshake()` will push the updated model to the live gateway
   // (triggering a SIGUSR1 restart) only when the model actually changed.
+  //
+  // NOTE: service.rs writes model as {"primary": "..."} on provider switch;
+  // apply_runtime_browser_config writes it as a plain string.  Read both forms.
   {
     let current_model = resolve_default_model();
-    // Convert to owned String so we don't hold an immutable borrow on `cfg`
-    // across the mutable mutations below.
     let disk_model = cfg
       .pointer("/agents/defaults/model")
-      .and_then(|v| v.as_str())
-      .unwrap_or("")
-      .to_owned();
+      .and_then(|v| match v {
+        Value::String(s) => Some(s.clone()),
+        Value::Object(o) => o.get("primary")
+          .and_then(|p| p.as_str())
+          .map(|s| s.to_string()),
+        _ => None,
+      })
+      .unwrap_or_default();
     if disk_model != current_model {
       if cfg.get("agents").is_none() {
         cfg.as_object_mut().unwrap().insert("agents".into(), serde_json::json!({}));
@@ -646,6 +652,7 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
         cfg.pointer_mut("/agents").unwrap().as_object_mut().unwrap()
           .insert("defaults".into(), serde_json::json!({}));
       }
+      // Write as plain string (gateway accepts both forms; string is simpler).
       cfg.pointer_mut("/agents/defaults").unwrap().as_object_mut().unwrap()
         .insert("model".into(), serde_json::json!(current_model));
       eprintln!("[gateway_client] Patched agents.defaults.model: {:?} → '{}'", disk_model, current_model);
