@@ -274,7 +274,8 @@ pub async fn check_audio_permissions() -> Result<serde_json::Value, String> {
                 json!({
                     "microphone": mic_granted,
                     "screen_recording": system_audio_granted,
-                    "all_granted": mic_granted && system_audio_granted
+                    "system_audio": system_audio_granted,
+                    "all_granted": mic_granted
                 })
             }),
         )
@@ -332,6 +333,18 @@ return status as integer"#,
             false
         }
     }
+}
+
+/// Public helper for other modules (e.g. audio.rs) to gate the speaker-output
+/// thread on system audio permission without re-doing the full TCC check.
+#[cfg(target_os = "macos")]
+pub fn has_system_audio_permission() -> bool {
+    check_system_audio_permission_macos()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn has_system_audio_permission() -> bool {
+    true // Windows/Linux handle audio capture without this permission
 }
 
 /// Check if the app has "System Audio Recording Only" permission

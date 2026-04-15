@@ -370,9 +370,11 @@ pub async fn start_recording(
     }
   });
 
-  // Start system audio recording via Core Audio Taps.
-  // Both mic and system audio permissions are checked upfront before reaching here.
-  {
+  // Start system audio recording via Core Audio Taps — only if the user has
+  // granted System Audio Recording permission. On macOS 15 (Sequoia) many users
+  // have microphone but not system audio permission; we record mic-only in that
+  // case rather than blocking recording entirely.
+  if crate::audio::permission::has_system_audio_permission() {
     let output_file_semaphore = Arc::clone(&recording_state.output_file_semaphore);
     let output_thread = handle.spawn_blocking(move || {
       if let Err(e) = tokio::runtime::Runtime::new()
@@ -396,6 +398,8 @@ pub async fn start_recording(
       let mut output_thread_guard = recording_state.output_thread.lock().unwrap();
       *output_thread_guard = Some(output_thread);
     }
+  } else {
+    log::info!("[recording] Recording mic only — system audio permission not granted");
   }
 
   {
