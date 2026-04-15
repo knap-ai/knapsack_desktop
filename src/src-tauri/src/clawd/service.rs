@@ -1273,11 +1273,18 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // method.  Send a lightweight request to verify it's responsive.
     // Use a 5-second timeout to avoid blocking the health endpoint when the
     // browser RPC is slow (the default pooled request timeout is 30s).
+    // Windows Chrome startup is slower (antivirus, disk I/O) so we use
+    // longer timeouts there to avoid false browser_ok=false reports.
+    #[cfg(target_os = "windows")]
+    let (stage1_secs, stage2_secs) = (10u64, 6u64);
+    #[cfg(not(target_os = "windows"))]
+    let (stage1_secs, stage2_secs) = (5u64, 3u64);
+
     let browser_ok = if gateway_ok {
       // Try with "openclaw" profile (the managed, isolated browser profile
       // created by the gateway).  Fall back to no-profile if it fails.
       let check = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(stage1_secs),
         gateway_client::browser_request(
           "GET", "/tabs", Some(serde_json::json!({"profile": "openclaw"})), None, None,
         ),
@@ -1288,7 +1295,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           eprintln!("[clawd/service] browser health check failed (profile=openclaw): {}", e);
           // Fallback: try without profile restriction
           match tokio::time::timeout(
-            std::time::Duration::from_secs(3),
+            std::time::Duration::from_secs(stage2_secs),
             gateway_client::browser_request("GET", "/tabs", None, None, None),
           ).await {
             Ok(Ok(_)) => {
@@ -1300,13 +1307,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
               false
             }
             Err(_) => {
-              eprintln!("[clawd/service] browser health check timed out (no profile, 3s)");
+              eprintln!("[clawd/service] browser health check timed out (no profile, {}s)", stage2_secs);
               false
             }
           }
         }
         Err(_) => {
-          eprintln!("[clawd/service] browser health check timed out (5s)");
+          eprintln!("[clawd/service] browser health check timed out ({}s)", stage1_secs);
           false
         }
       }
@@ -1479,8 +1486,14 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   // If gateway is up, also wait for the browser CDP to become reachable.
   // Chrome takes a few seconds to start after the gateway launches it.
+  // Windows Chrome startup is slower so we give it more time there.
+  #[cfg(target_os = "windows")]
+  let browser_wait_secs = 25u64;
+  #[cfg(not(target_os = "windows"))]
+  let browser_wait_secs = 15u64;
+
   let browser_ok = if ready {
-    gateway_client::wait_for_browser_ready(None, 15).await
+    gateway_client::wait_for_browser_ready(None, browser_wait_secs).await
   } else {
     false
   };

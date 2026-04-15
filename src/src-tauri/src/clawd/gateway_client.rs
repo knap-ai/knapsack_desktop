@@ -1594,7 +1594,10 @@ pub async fn browser_request(
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
 
-  let backoffs: &[u64] = &[500, 1000, 2000];
+  // Extra retries help on Windows where Chrome CDP startup is slower and
+  // more variable — the additional attempts catch the browser becoming
+  // ready 1-3s after the first attempt failed.
+  let backoffs: &[u64] = &[300, 600, 1200, 2000, 3000];
   let mut last_err = String::new();
 
   for attempt in 0..=backoffs.len() {
