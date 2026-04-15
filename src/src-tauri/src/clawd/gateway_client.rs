@@ -631,10 +631,13 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   // (triggering a SIGUSR1 restart) only when the model actually changed.
   {
     let current_model = resolve_default_model();
+    // Convert to owned String so we don't hold an immutable borrow on `cfg`
+    // across the mutable mutations below.
     let disk_model = cfg
       .pointer("/agents/defaults/model")
       .and_then(|v| v.as_str())
-      .unwrap_or("");
+      .unwrap_or("")
+      .to_owned();
     if disk_model != current_model {
       if cfg.get("agents").is_none() {
         cfg.as_object_mut().unwrap().insert("agents".into(), serde_json::json!({}));
