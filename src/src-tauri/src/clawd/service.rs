@@ -3565,6 +3565,22 @@ async fn prepare_gateway_config(
           }
         }
 
+        // Remove gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback.
+        // This flag was set as a break-glass workaround in older configs before
+        // the proper allowedOrigins fix was in place.  It weakens origin checks
+        // and is no longer needed now that allowedOrigins is managed above.
+        if cfg_val
+          .pointer("/gateway/controlUi/dangerouslyAllowHostHeaderOriginFallback")
+          .and_then(|v| v.as_bool())
+          .unwrap_or(false)
+        {
+          if let Some(cui) = cfg_val.pointer_mut("/gateway/controlUi").and_then(|v| v.as_object_mut()) {
+            cui.remove("dangerouslyAllowHostHeaderOriginFallback");
+            eprintln!("[clawd/service] Removed gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback (replaced by allowedOrigins)");
+            patched = true;
+          }
+        }
+
         // ── Auto-heal allowlist channels ──────────────────────────────
         // Must run AFTER other patches so that the in-memory cfg_val is
         // already up-to-date before we persist it.
@@ -4375,6 +4391,19 @@ pub async fn set_service_enabled(
                 cfg.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
                   .insert("allowedOrigins".to_string(), serde_json::json!(merged));
                 eprintln!("[clawd/service] Patched gateway.controlUi.allowedOrigins to include Tauri origins");
+                patched = true;
+              }
+            }
+
+            // Remove gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback.
+            if cfg
+              .pointer("/gateway/controlUi/dangerouslyAllowHostHeaderOriginFallback")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false)
+            {
+              if let Some(cui) = cfg.pointer_mut("/gateway/controlUi").and_then(|v| v.as_object_mut()) {
+                cui.remove("dangerouslyAllowHostHeaderOriginFallback");
+                eprintln!("[clawd/service] Removed gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback (replaced by allowedOrigins)");
                 patched = true;
               }
             }
