@@ -161,7 +161,7 @@ pub async fn gateway_request(
             token: t.to_string(),
         }),
         role: "operator",
-        scopes: vec!["operator.admin"],
+        scopes: vec!["operator.admin", "operator.read", "operator.write"],
     };
     let connect_params_value = serde_json::to_value(connect_params)
         .map_err(|e| format!("Failed to serialize connect params: {}", e))?;

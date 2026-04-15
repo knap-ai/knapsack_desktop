@@ -817,7 +817,7 @@ async fn apply_runtime_browser_config(token: &str) {
     },
     auth: Some(AuthInfo { token: token.to_string() }),
     role: "operator",
-    scopes: vec!["operator.admin", "operator.read"],
+    scopes: vec!["operator.admin", "operator.read", "operator.write"],
   };
 
   let connect_frame = RequestFrame {
@@ -1083,7 +1083,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
       token: token.to_string(),
     }),
     role: "operator",
-    scopes: vec!["operator.admin", "operator.read"],
+    scopes: vec!["operator.admin", "operator.read", "operator.write"],
   };
 
   let connect_frame = RequestFrame {
