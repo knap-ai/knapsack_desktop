@@ -11,14 +11,20 @@
  * grammy, discord needs discord.js, slack needs @slack/bolt, etc.).
  * The upstream `scripts/postinstall-bundled-plugins.mjs` that normally
  * handles this is not included in the dist bundle.
+ *
+ * In `tauri dev` mode, Tauri copies resources from the source tree into
+ * src-tauri/target/debug/resources/ and runs the gateway from there.
+ * This script installs deps in both the source dir AND the target debug dir
+ * (when it exists) so that hot-reload cycles don't lose npm packages.
  */
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'clawdbot');
-const NODE_MODULES = path.join(CLAWDBOT_DIR, 'node_modules');
-const EXTENSIONS_DIR = path.join(CLAWDBOT_DIR, 'dist', 'extensions');
+// Source (checked-in) clawdbot dir
+const SOURCE_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'clawdbot');
+// Tauri dev target dir — only present during/after `tauri dev`
+const TARGET_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'target', 'debug', 'resources', 'clawdbot');
 
 function runNpmInstall(cwd, label) {
   console.log(`[ensure-clawdbot-deps] npm install in ${label}...`);
@@ -28,19 +34,36 @@ function runNpmInstall(cwd, label) {
   });
 }
 
-function findPluginsNeedingRuntimeDeps() {
-  if (!fs.existsSync(EXTENSIONS_DIR)) return [];
+function needsMainInstall(clawdbotDir) {
+  const nodeModules = path.join(clawdbotDir, 'node_modules');
+  if (!fs.existsSync(nodeModules)) return true;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(clawdbotDir, 'package.json'), 'utf8'));
+    const deps = Object.keys(pkg.dependencies || {});
+    return deps.some(dep => !fs.existsSync(path.join(nodeModules, dep)));
+  } catch {
+    return true;
+  }
+}
+
+function findPluginsNeedingRuntimeDeps(extensionsDir) {
+  if (!fs.existsSync(extensionsDir)) return [];
   const plugins = [];
-  for (const entry of fs.readdirSync(EXTENSIONS_DIR, { withFileTypes: true })) {
+  for (const entry of fs.readdirSync(extensionsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const pkgPath = path.join(EXTENSIONS_DIR, entry.name, 'package.json');
+    const pkgPath = path.join(extensionsDir, entry.name, 'package.json');
     if (!fs.existsSync(pkgPath)) continue;
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
       const staged = pkg?.openclaw?.bundle?.stageRuntimeDependencies === true;
       if (!staged) continue;
-      // Skip if the plugin's own node_modules already exists.
-      if (fs.existsSync(path.join(EXTENSIONS_DIR, entry.name, 'node_modules'))) continue;
+      // Skip if the plugin's own node_modules already has all deps.
+      const pluginNodeModules = path.join(extensionsDir, entry.name, 'node_modules');
+      if (fs.existsSync(pluginNodeModules)) {
+        const pluginDeps = Object.keys(pkg.dependencies || {});
+        const allPresent = pluginDeps.every(dep => fs.existsSync(path.join(pluginNodeModules, dep)));
+        if (allPresent) continue;
+      }
       plugins.push(entry.name);
     } catch {
       // Ignore unreadable package.json
@@ -49,42 +72,41 @@ function findPluginsNeedingRuntimeDeps() {
   return plugins;
 }
 
-// Step 1: install the main clawdbot deps if missing or out of date.
-// Re-run if node_modules doesn't exist OR if any direct dependency from
-// package.json is missing from node_modules (handles newly-added packages
-// without relying on mtime, which is unreliable on Windows with git).
-const needsInstall = (() => {
-  if (!fs.existsSync(NODE_MODULES)) return true;
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(CLAWDBOT_DIR, 'package.json'), 'utf8'));
-    const deps = Object.keys(pkg.dependencies || {});
-    return deps.some(dep => !fs.existsSync(path.join(NODE_MODULES, dep)));
-  } catch {
-    return true;
-  }
-})();
+// Collect the directories to install into (source always; target when present).
+const clawdbotDirs = [SOURCE_CLAWDBOT_DIR];
+if (fs.existsSync(TARGET_CLAWDBOT_DIR)) {
+  clawdbotDirs.push(TARGET_CLAWDBOT_DIR);
+}
 
-if (needsInstall) {
-  try {
-    runNpmInstall(CLAWDBOT_DIR, 'clawdbot/');
-  } catch (err) {
-    console.error('[ensure-clawdbot-deps] clawdbot npm install failed:', err.message);
-    process.exit(1);
+// Step 1: install main clawdbot deps in each dir.
+for (const dir of clawdbotDirs) {
+  if (!fs.existsSync(dir)) continue;
+  if (needsMainInstall(dir)) {
+    try {
+      runNpmInstall(dir, path.relative(path.join(__dirname, '..'), dir));
+    } catch (err) {
+      console.error('[ensure-clawdbot-deps] clawdbot npm install failed:', err.message);
+      process.exit(1);
+    }
   }
 }
 
 // Step 2: install runtime deps for bundled plugins that need them.
-const pluginsToInstall = findPluginsNeedingRuntimeDeps();
-if (pluginsToInstall.length > 0) {
-  console.log(
-    `[ensure-clawdbot-deps] Installing runtime deps for ${pluginsToInstall.length} bundled plugin(s): ${pluginsToInstall.join(', ')}`,
-  );
-  for (const plugin of pluginsToInstall) {
-    try {
-      runNpmInstall(path.join(EXTENSIONS_DIR, plugin), `extensions/${plugin}/`);
-    } catch (err) {
-      // Non-fatal: a plugin dep failure just means that plugin won't load.
-      console.warn(`[ensure-clawdbot-deps] WARNING: failed to install deps for ${plugin}: ${err.message}`);
+for (const dir of clawdbotDirs) {
+  const extensionsDir = path.join(dir, 'dist', 'extensions');
+  if (!fs.existsSync(extensionsDir)) continue;
+  const pluginsToInstall = findPluginsNeedingRuntimeDeps(extensionsDir);
+  if (pluginsToInstall.length > 0) {
+    console.log(
+      `[ensure-clawdbot-deps] Installing runtime deps for ${pluginsToInstall.length} bundled plugin(s) in ${path.relative(path.join(__dirname, '..'), extensionsDir)}: ${pluginsToInstall.join(', ')}`,
+    );
+    for (const plugin of pluginsToInstall) {
+      try {
+        runNpmInstall(path.join(extensionsDir, plugin), `extensions/${plugin}/`);
+      } catch (err) {
+        // Non-fatal: a plugin dep failure just means that plugin won't load.
+        console.warn(`[ensure-clawdbot-deps] WARNING: failed to install deps for ${plugin}: ${err.message}`);
+      }
     }
   }
 }

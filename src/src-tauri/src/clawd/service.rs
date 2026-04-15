@@ -3026,6 +3026,9 @@ async fn prepare_gateway_config(
         "mode": "local",
         "auth": {
           "token": tokens.gateway_token.clone()
+        },
+        "controlUi": {
+          "allowInsecureAuth": true
         }
       },
       "browser": {
@@ -3337,6 +3340,29 @@ async fn prepare_gateway_config(
               "browser", "group:web"
             ]));
           eprintln!("[clawd/service] Created tools.sandbox.tools.allow (with browser + group:web)");
+          patched = true;
+        }
+
+        // Ensure gateway.controlUi.allowInsecureAuth = true so the desktop
+        // backend (which uses the "openclaw-control-ui" client ID) can connect
+        // with operator scopes using the shared token without device-pairing.
+        // The gateway only applies this to loopback connections so it does not
+        // weaken remote access.
+        let control_ui_allow_insecure = cfg_val
+          .pointer("/gateway/controlUi/allowInsecureAuth")
+          .and_then(|v| v.as_bool())
+          .unwrap_or(false);
+        if !control_ui_allow_insecure {
+          if cfg_val.get("gateway").is_none() {
+            cfg_val.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+          }
+          let gw = cfg_val.pointer_mut("/gateway").unwrap().as_object_mut().unwrap();
+          if !gw.contains_key("controlUi") {
+            gw.insert("controlUi".to_string(), serde_json::json!({}));
+          }
+          cfg_val.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+            .insert("allowInsecureAuth".to_string(), serde_json::json!(true));
+          eprintln!("[clawd/service] Patched gateway.controlUi.allowInsecureAuth to true");
           patched = true;
         }
 
@@ -4030,6 +4056,9 @@ pub async fn set_service_enabled(
             "mode": "local",
             "auth": {
               "token": tokens.gateway_token.clone()
+            },
+            "controlUi": {
+              "allowInsecureAuth": true
             }
           },
           "browser": {
@@ -4089,6 +4118,25 @@ pub async fn set_service_enabled(
               cfg.pointer_mut("/gateway/auth").unwrap().as_object_mut().unwrap()
                 .insert("token".to_string(), serde_json::json!(tokens.gateway_token.trim()));
               eprintln!("[clawd/service] Synced gateway.auth.token in config to match tokens.json");
+              patched = true;
+            }
+
+            // Ensure gateway.controlUi.allowInsecureAuth = true
+            let control_ui_allow_insecure = cfg
+              .pointer("/gateway/controlUi/allowInsecureAuth")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !control_ui_allow_insecure {
+              if cfg.get("gateway").is_none() {
+                cfg.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+              }
+              let gw = cfg.pointer_mut("/gateway").unwrap().as_object_mut().unwrap();
+              if !gw.contains_key("controlUi") {
+                gw.insert("controlUi".to_string(), serde_json::json!({}));
+              }
+              cfg.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+                .insert("allowInsecureAuth".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched gateway.controlUi.allowInsecureAuth to true");
               patched = true;
             }
 

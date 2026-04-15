@@ -744,7 +744,7 @@ async fn apply_runtime_browser_config(token: &str) {
     min_protocol: PROTOCOL_VERSION,
     max_protocol: PROTOCOL_VERSION,
     client: ClientInfo {
-      id: "gateway-client-patch",
+      id: "openclaw-control-ui",
       display_name: "Knapsack Desktop (config patch)",
       version: env!("CARGO_PKG_VERSION"),
       platform: std::env::consts::OS,
@@ -1004,7 +1004,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     min_protocol: PROTOCOL_VERSION,
     max_protocol: PROTOCOL_VERSION,
     client: ClientInfo {
-      id: "gateway-client",
+      id: "openclaw-control-ui",
       display_name: "Knapsack Desktop",
       version: env!("CARGO_PKG_VERSION"),
       platform: std::env::consts::OS,
