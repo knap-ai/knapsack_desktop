@@ -15,6 +15,12 @@ use crate::clawd::sidecar::SharedClawdbotConfig;
 #[cfg(target_os = "windows")]
 static GATEWAY_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
+/// Stores the last successful ServiceSetup so the background restart task can
+/// re-spawn the gateway on Windows without needing the full enable flow.
+#[cfg(target_os = "windows")]
+static LAST_GATEWAY_SETUP: once_cell::sync::Lazy<std::sync::Mutex<Option<ServiceSetup>>> =
+  once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
 #[cfg(target_os = "windows")]
 fn windows_log_path(stream: &str) -> PathBuf {
   let temp = std::env::temp_dir();
@@ -1259,6 +1265,57 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
               }
             }
           }
+        }
+
+        // On Windows, `kickstart_launch_agent` cannot start a new process.
+        // Re-spawn directly using the saved ServiceSetup from the last enable call.
+        #[cfg(target_os = "windows")]
+        {
+          let saved_setup = LAST_GATEWAY_SETUP.lock().unwrap().clone();
+          if let Some(setup) = saved_setup {
+            eprintln!("[clawd/service] Windows background restart: re-spawning gateway");
+            kill_process_on_port(18789);
+            // Clean up stale lock files
+            {
+              let lock_dir = std::env::temp_dir().join("openclaw");
+              if lock_dir.is_dir() {
+                if let Ok(entries) = fs::read_dir(&lock_dir) {
+                  for entry in entries.flatten() {
+                    let name = entry.file_name();
+                    let s = name.to_string_lossy();
+                    if s.starts_with("gateway.") && s.ends_with(".lock") {
+                      let _ = fs::remove_file(entry.path());
+                    }
+                  }
+                }
+              }
+            }
+            let stdout_log = windows_log_path("stdout");
+            let stderr_log = windows_log_path("stderr");
+            if let (Ok(out_f), Ok(err_f)) = (fs::File::create(&stdout_log), fs::File::create(&stderr_log)) {
+              use std::os::windows::process::CommandExt;
+              const CREATE_NO_WINDOW: u32 = 0x08000000;
+              match std::process::Command::new(&setup.program_args[0])
+                .args(&setup.program_args[1..])
+                .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+                .current_dir(&setup.working_dir)
+                .stdout(out_f)
+                .stderr(err_f)
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+              {
+                Ok(child) => {
+                  let pid = child.id();
+                  GATEWAY_PID.store(pid, Ordering::Relaxed);
+                  eprintln!("[clawd/service] Windows background restart: spawned gateway pid {}", pid);
+                }
+                Err(e) => eprintln!("[clawd/service] Windows background restart: spawn failed: {}", e),
+              }
+            }
+            GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+            return;
+          }
+          eprintln!("[clawd/service] Windows background restart: no saved setup — use Enable in UI");
         }
 
         use crate::clawd::gateway_supervisor;
@@ -2889,6 +2946,7 @@ pub async fn set_llm_keys(
 
 // ── Shared gateway config setup (used by both macOS and Windows) ────────
 
+#[derive(Clone)]
 struct ServiceSetup {
   node_path: PathBuf,
   is_bundled_node: bool,
@@ -3028,7 +3086,8 @@ async fn prepare_gateway_config(
           "token": tokens.gateway_token.clone()
         },
         "controlUi": {
-          "allowInsecureAuth": true
+          "allowInsecureAuth": true,
+          "allowedOrigins": ["tauri://localhost", "http://localhost:1420"]
         }
       },
       "browser": {
@@ -3364,6 +3423,36 @@ async fn prepare_gateway_config(
             .insert("allowInsecureAuth".to_string(), serde_json::json!(true));
           eprintln!("[clawd/service] Patched gateway.controlUi.allowInsecureAuth to true");
           patched = true;
+        }
+
+        // Ensure the Tauri app origins are in gateway.controlUi.allowedOrigins
+        // so the frontend WebSocket connects without CONTROL_UI_ORIGIN_NOT_ALLOWED.
+        {
+          const REQUIRED_ORIGINS: &[&str] = &["tauri://localhost", "http://localhost:1420"];
+          let existing: Vec<String> = cfg_val
+            .pointer("/gateway/controlUi/allowedOrigins")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_default();
+          let missing: Vec<&str> = REQUIRED_ORIGINS.iter()
+            .filter(|&&o| !existing.iter().any(|e| e == o))
+            .copied()
+            .collect();
+          if !missing.is_empty() {
+            if cfg_val.get("gateway").is_none() {
+              cfg_val.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+            }
+            let gw = cfg_val.pointer_mut("/gateway").unwrap().as_object_mut().unwrap();
+            if !gw.contains_key("controlUi") {
+              gw.insert("controlUi".to_string(), serde_json::json!({}));
+            }
+            let mut merged = existing;
+            merged.extend(missing.iter().map(|s| s.to_string()));
+            cfg_val.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+              .insert("allowedOrigins".to_string(), serde_json::json!(merged));
+            eprintln!("[clawd/service] Patched gateway.controlUi.allowedOrigins to include Tauri origins");
+            patched = true;
+          }
         }
 
         // ── Auto-heal allowlist channels ──────────────────────────────
@@ -3835,6 +3924,9 @@ pub async fn set_service_enabled(
           GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           eprintln!("[clawd/service] Spawned gateway process (pid {})", pid);
 
+          // Save the setup for background restart (Windows-only restart path).
+          *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup.clone());
+
           // Workaround for OpenClaw #23006: patch paired.json periodically
           // during startup to ensure devices get operator.admin scope.  The
           // gateway may rewrite paired.json during auto-pairing, so we retry
@@ -4058,7 +4150,8 @@ pub async fn set_service_enabled(
               "token": tokens.gateway_token.clone()
             },
             "controlUi": {
-              "allowInsecureAuth": true
+              "allowInsecureAuth": true,
+              "allowedOrigins": ["tauri://localhost", "http://localhost:1420"]
             }
           },
           "browser": {
@@ -4138,6 +4231,35 @@ pub async fn set_service_enabled(
                 .insert("allowInsecureAuth".to_string(), serde_json::json!(true));
               eprintln!("[clawd/service] Patched gateway.controlUi.allowInsecureAuth to true");
               patched = true;
+            }
+
+            // Ensure the Tauri app origins are in gateway.controlUi.allowedOrigins.
+            {
+              const REQUIRED_ORIGINS: &[&str] = &["tauri://localhost", "http://localhost:1420"];
+              let existing: Vec<String> = cfg
+                .pointer("/gateway/controlUi/allowedOrigins")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .unwrap_or_default();
+              let missing: Vec<&str> = REQUIRED_ORIGINS.iter()
+                .filter(|&&o| !existing.iter().any(|e| e == o))
+                .copied()
+                .collect();
+              if !missing.is_empty() {
+                if cfg.get("gateway").is_none() {
+                  cfg.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+                }
+                let gw = cfg.pointer_mut("/gateway").unwrap().as_object_mut().unwrap();
+                if !gw.contains_key("controlUi") {
+                  gw.insert("controlUi".to_string(), serde_json::json!({}));
+                }
+                let mut merged = existing;
+                merged.extend(missing.iter().map(|s| s.to_string()));
+                cfg.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+                  .insert("allowedOrigins".to_string(), serde_json::json!(merged));
+                eprintln!("[clawd/service] Patched gateway.controlUi.allowedOrigins to include Tauri origins");
+                patched = true;
+              }
             }
 
             // Ensure plugins.slots.memory is set to "none".

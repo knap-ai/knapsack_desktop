@@ -988,7 +988,11 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
     match challenge_msg {
       Message::Text(t) => break t,
-      Message::Close(_) => return Err("Connection closed during challenge".to_string()),
+      Message::Close(frame) => return Err(format!(
+        "Connection closed during challenge (code={}, reason={})",
+        frame.as_ref().map(|f| u16::from(f.code)).unwrap_or(0),
+        frame.as_ref().map(|f| f.reason.as_ref()).unwrap_or("n/a")
+      )),
       _ => continue, // Skip ping/pong control frames
     }
   };
@@ -1039,7 +1043,11 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
     match connect_resp_msg {
       Message::Text(t) => break t,
-      Message::Close(_) => return Err("Connection closed during connect".to_string()),
+      Message::Close(frame) => return Err(format!(
+        "Connection closed during connect (code={}, reason={})",
+        frame.as_ref().map(|f| u16::from(f.code)).unwrap_or(0),
+        frame.as_ref().map(|f| f.reason.as_ref()).unwrap_or("n/a")
+      )),
       _ => continue, // Skip ping/pong control frames
     }
   };
