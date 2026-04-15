@@ -11,6 +11,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+# Allow the committed chalk shim (gateway externalizes chalk at runtime; this
+# passthrough shim prevents ERR_MODULE_NOT_FOUND without requiring npm install).
+!src-tauri/resources/clawdbot/node_modules/
+!src-tauri/resources/clawdbot/node_modules/chalk/
+!src-tauri/resources/clawdbot/node_modules/chalk/**
 # Unused extensions — desktop only ships discord, slack, telegram, signal, whatsapp, imessage, irc, googlechat
 src-tauri/resources/clawdbot/extensions/bluebubbles/
 src-tauri/resources/clawdbot/extensions/copilot-proxy/
