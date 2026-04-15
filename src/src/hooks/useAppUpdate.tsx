@@ -50,9 +50,6 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
         KNAnalytics.trackEvent('update_' + status.toLowerCase(), {
           timestamp: new Date().toISOString(),
         })
-        if (status === 'DONE') {
-          setState({ status: 'ready' })
-        }
       }
     }).then(fn => {
       unlisten = fn
@@ -63,7 +60,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const checkForUpdates = useCallback(async (autoInstall = false) => {
+  const checkForUpdates = useCallback(async () => {
     setState({ status: 'checking' })
     setDismissed(false)
     try {
@@ -73,18 +70,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
           version: manifest.version,
           timestamp: new Date().toISOString(),
         })
-        if (autoInstall) {
-          // Download silently — banner only appears when ready
-          setState({ status: 'downloading' })
-          try {
-            await installUpdate()
-            // onUpdaterEvent will fire with DONE and set state to 'ready'
-          } catch (err) {
-            setState({ status: 'error', message: String(err) })
-          }
-        } else {
-          setState({ status: 'available', version: manifest.version })
-        }
+        setState({ status: 'available', version: manifest.version })
       } else {
         setState({ status: 'up-to-date' })
       }
@@ -93,27 +79,39 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // startInstall is kept for explicit user-initiated installs (without relaunch)
   const startInstall = useCallback(async () => {
     setState({ status: 'downloading' })
     try {
       await installUpdate()
-      // onUpdaterEvent will fire with DONE and set state to 'ready'
+      setState({ status: 'ready' })
     } catch (err) {
       setState({ status: 'error', message: String(err) })
     }
   }, [])
 
+  // restartApp installs (if not already done) and immediately relaunches.
+  // installUpdate() replaces the binary on disk — calling relaunch() after any
+  // delay causes "No such file or directory" on macOS because the old binary
+  // path is gone.  Doing both in one atomic sequence avoids that race.
   const restartApp = useCallback(async () => {
-    await relaunch()
+    setState({ status: 'downloading' })
+    try {
+      await installUpdate()
+      await relaunch()
+    } catch (err) {
+      setState({ status: 'error', message: String(err) })
+    }
   }, [])
 
   const dismiss = useCallback(() => {
     setDismissed(true)
   }, [])
 
-  // Auto-check on mount — download silently, banner only shows when ready
+  // Auto-check on mount — only checks, does NOT install.
+  // Installing and relaunching must happen together (see restartApp).
   useEffect(() => {
-    checkForUpdates(true)
+    checkForUpdates()
   }, [])
 
   return (

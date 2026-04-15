@@ -3,18 +3,27 @@ import { useAppUpdate } from 'src/hooks/useAppUpdate'
 export function UpdateBanner() {
   const { updateState: state, restartApp, dismiss, dismissed } = useAppUpdate()
 
-  // Only show the banner when the update is fully downloaded and ready to install,
-  // or on error. Everything else (checking, downloading) happens silently.
-  if (dismissed || state.status !== 'ready' && state.status !== 'error') {
-    return null
-  }
+  // Show when an update is available (to install+restart) or on error.
+  // 'downloading' shows a transient "Installing…" state while restartApp runs.
+  const visible =
+    !dismissed &&
+    (state.status === 'available' ||
+      state.status === 'ready' ||
+      state.status === 'downloading' ||
+      state.status === 'error')
+
+  if (!visible) return null
 
   return (
     <div className="flex items-center justify-between px-4 py-2 text-sm bg-red-600 text-white z-50">
       <div className="flex items-center gap-2">
-        {state.status === 'ready' && (
+        {(state.status === 'available' || state.status === 'ready') && (
           <>
-            <span>A new version has been downloaded. Restart to apply.</span>
+            <span>
+              {state.status === 'available' && 'version' in state
+                ? `Update available (v${state.version}). Restart to install.`
+                : 'A new version is ready. Restart to apply.'}
+            </span>
             <button
               onClick={restartApp}
               className="px-3 py-1 rounded bg-white text-red-600 font-medium hover:bg-red-50 transition-colors"
@@ -28,6 +37,10 @@ export function UpdateBanner() {
               Later
             </button>
           </>
+        )}
+
+        {state.status === 'downloading' && (
+          <span>Installing update…</span>
         )}
 
         {state.status === 'error' && (
