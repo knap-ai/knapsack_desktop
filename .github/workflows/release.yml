@@ -80,6 +80,10 @@ jobs:
         working-directory: src/src-tauri/resources/clawdbot
         run: npm ci --ignore-scripts
 
+      - name: Install bundled plugin runtime deps
+        working-directory: src
+        run: node scripts/install-bundled-plugin-deps.cjs
+
       - name: Run prebuild scripts
         working-directory: src
         env:
@@ -197,6 +201,10 @@ jobs:
       - name: Install clawdbot dependencies
         working-directory: src/src-tauri/resources/clawdbot
         run: npm ci --ignore-scripts
+
+      - name: Install bundled plugin runtime deps
+        working-directory: src
+        run: node scripts/install-bundled-plugin-deps.cjs
 
       - name: Run prebuild scripts
         working-directory: src
