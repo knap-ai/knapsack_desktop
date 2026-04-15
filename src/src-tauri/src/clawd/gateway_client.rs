@@ -588,6 +588,37 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     }
   }
 
+  // ── Ensure Tauri app origins are in gateway.controlUi.allowedOrigins ──────
+  // Without this, the gateway refuses WebSocket connections from the Tauri
+  // webview with CONTROL_UI_ORIGIN_NOT_ALLOWED.
+  {
+    const REQUIRED_ORIGINS: &[&str] = &["tauri://localhost", "http://localhost:1420"];
+    let existing: Vec<String> = cfg
+      .pointer("/gateway/controlUi/allowedOrigins")
+      .and_then(|v| v.as_array())
+      .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+      .unwrap_or_default();
+    let missing: Vec<&str> = REQUIRED_ORIGINS.iter()
+      .filter(|&&o| !existing.iter().any(|e| e == o))
+      .copied()
+      .collect();
+    if !missing.is_empty() {
+      if cfg.get("gateway").is_none() {
+        cfg.as_object_mut().unwrap().insert("gateway".into(), serde_json::json!({}));
+      }
+      if cfg.pointer("/gateway/controlUi").is_none() {
+        cfg.pointer_mut("/gateway").unwrap().as_object_mut().unwrap()
+          .insert("controlUi".into(), serde_json::json!({}));
+      }
+      let mut merged = existing;
+      merged.extend(missing.iter().map(|s| s.to_string()));
+      cfg.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+        .insert("allowedOrigins".into(), serde_json::json!(merged));
+      eprintln!("[gateway_client] Patched gateway.controlUi.allowedOrigins to include Tauri origins");
+      patched = true;
+    }
+  }
+
   if patched {
     if let Ok(json) = serde_json::to_string_pretty(&cfg) {
       let _ = std::fs::write(config_path, json);
@@ -744,7 +775,7 @@ async fn apply_runtime_browser_config(token: &str) {
     min_protocol: PROTOCOL_VERSION,
     max_protocol: PROTOCOL_VERSION,
     client: ClientInfo {
-      id: "gateway-client-patch",
+      id: "openclaw-control-ui",
       display_name: "Knapsack Desktop (config patch)",
       version: env!("CARGO_PKG_VERSION"),
       platform: std::env::consts::OS,
@@ -988,7 +1019,11 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
     match challenge_msg {
       Message::Text(t) => break t,
-      Message::Close(_) => return Err("Connection closed during challenge".to_string()),
+      Message::Close(frame) => return Err(format!(
+        "Connection closed during challenge (code={}, reason={})",
+        frame.as_ref().map(|f| u16::from(f.code)).unwrap_or(0),
+        frame.as_ref().map(|f| f.reason.as_ref()).unwrap_or("n/a")
+      )),
       _ => continue, // Skip ping/pong control frames
     }
   };
@@ -1004,7 +1039,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     min_protocol: PROTOCOL_VERSION,
     max_protocol: PROTOCOL_VERSION,
     client: ClientInfo {
-      id: "gateway-client",
+      id: "openclaw-control-ui",
       display_name: "Knapsack Desktop",
       version: env!("CARGO_PKG_VERSION"),
       platform: std::env::consts::OS,
@@ -1039,7 +1074,11 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
     match connect_resp_msg {
       Message::Text(t) => break t,
-      Message::Close(_) => return Err("Connection closed during connect".to_string()),
+      Message::Close(frame) => return Err(format!(
+        "Connection closed during connect (code={}, reason={})",
+        frame.as_ref().map(|f| u16::from(f.code)).unwrap_or(0),
+        frame.as_ref().map(|f| f.reason.as_ref()).unwrap_or("n/a")
+      )),
       _ => continue, // Skip ping/pong control frames
     }
   };
@@ -1594,7 +1633,10 @@ pub async fn browser_request(
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
 
-  let backoffs: &[u64] = &[500, 1000, 2000];
+  // Extra retries help on Windows where Chrome CDP startup is slower and
+  // more variable — the additional attempts catch the browser becoming
+  // ready 1-3s after the first attempt failed.
+  let backoffs: &[u64] = &[300, 600, 1200, 2000, 3000];
   let mut last_err = String::new();
 
   for attempt in 0..=backoffs.len() {

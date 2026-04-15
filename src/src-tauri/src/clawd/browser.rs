@@ -2598,9 +2598,17 @@ pub async fn chat(
       // Build the claude command: use --yes for non-interactive mode that can still make changes.
       // --print only outputs text without making file changes; --yes auto-accepts tool use
       // so Claude Code can actually read/write files and run commands.
-      // Escape single quotes in the prompt for safe shell embedding
-      let escaped_prompt = prompt.replace('\'', "'\\''");
-      let claude_cmd = format!("claude --yes '{}'", escaped_prompt);
+      // Windows cmd uses double-quotes; Unix shells use single-quotes for safe embedding.
+      #[cfg(target_os = "windows")]
+      let claude_cmd = {
+        let escaped = prompt.replace('"', "\\\"");
+        format!("claude --yes \"{}\"", escaped)
+      };
+      #[cfg(not(target_os = "windows"))]
+      let claude_cmd = {
+        let escaped_prompt = prompt.replace('\'', "'\\''");
+        format!("claude --yes '{}'", escaped_prompt)
+      };
 
       let wd_clone = wd.clone();
       let app1 = app_handle.clone();
@@ -2621,6 +2629,23 @@ pub async fn chat(
         let mut cmd = if cfg!(target_os = "windows") {
           let mut c = Command::new("cmd");
           c.args(["/C", &claude_cmd]);
+          // Augment PATH with common npm global bin dirs so `claude.cmd` is found
+          // even when Knapsack's process doesn't inherit the full user PATH.
+          if let Ok(existing_path) = std::env::var("PATH") {
+            let user_profile = std::env::var("USERPROFILE").unwrap_or_default();
+            let appdata = std::env::var("APPDATA").unwrap_or_default();
+            let extra = [
+              format!(r"{}\AppData\Roaming\npm", user_profile),
+              format!(r"{}\npm", appdata),
+              r"C:\Program Files\nodejs".to_string(),
+              r"C:\Program Files (x86)\nodejs".to_string(),
+            ];
+            let mut paths: Vec<&str> = existing_path.split(';').collect();
+            for e in &extra {
+              if !paths.contains(&e.as_str()) { paths.push(e); }
+            }
+            c.env("PATH", paths.join(";"));
+          }
           c
         } else {
           let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());

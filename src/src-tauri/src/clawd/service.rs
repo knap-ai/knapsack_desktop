@@ -15,6 +15,12 @@ use crate::clawd::sidecar::SharedClawdbotConfig;
 #[cfg(target_os = "windows")]
 static GATEWAY_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
+/// Stores the last successful ServiceSetup so the background restart task can
+/// re-spawn the gateway on Windows without needing the full enable flow.
+#[cfg(target_os = "windows")]
+static LAST_GATEWAY_SETUP: once_cell::sync::Lazy<std::sync::Mutex<Option<ServiceSetup>>> =
+  once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
 #[cfg(target_os = "windows")]
 fn windows_log_path(stream: &str) -> PathBuf {
   let temp = std::env::temp_dir();
@@ -297,6 +303,116 @@ fn kill_stale_clawdbot_chromes() {
 #[cfg(not(target_os = "macos"))]
 fn remove_stale_standalone_gateway() {
   // No-op on other platforms
+}
+
+/// Install runtime dependencies for bundled plugins that declare
+/// `openclaw.bundle.stageRuntimeDependencies: true` (e.g. telegram needs grammy).
+///
+/// This mirrors `ensure-clawdbot-deps.cjs` but runs inside the Tauri process,
+/// AFTER Tauri has already copied resources to their runtime location.  That
+/// eliminates the race condition where `beforeDevCommand` runs the script before
+/// Tauri's own resource copy, leaving the target dir without node_modules.
+fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_dir: &std::path::Path) {
+  if !extensions_dir.is_dir() {
+    return;
+  }
+
+  // Locate npm: prefer sibling of the node binary, fall back to PATH.
+  let npm: PathBuf = if let Some(node_dir) = node_path.parent() {
+    let candidate = if cfg!(target_os = "windows") {
+      node_dir.join("npm.cmd")
+    } else {
+      node_dir.join("npm")
+    };
+    if candidate.exists() { candidate } else { PathBuf::from("npm") }
+  } else {
+    PathBuf::from("npm")
+  };
+
+  let entries = match fs::read_dir(extensions_dir) {
+    Ok(e) => e,
+    Err(_) => return,
+  };
+
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let plugin_dir = entry.path();
+    let pkg_path = plugin_dir.join("package.json");
+    if !pkg_path.exists() {
+      continue;
+    }
+
+    let pkg: serde_json::Value = match fs::read_to_string(&pkg_path)
+      .ok()
+      .and_then(|s| serde_json::from_str(&s).ok())
+    {
+      Some(v) => v,
+      None => continue,
+    };
+
+    let needs_stage = pkg
+      .pointer("/openclaw/bundle/stageRuntimeDependencies")
+      .and_then(|v| v.as_bool())
+      .unwrap_or(false);
+    if !needs_stage {
+      continue;
+    }
+
+    let deps: Vec<String> = pkg
+      .get("dependencies")
+      .and_then(|v| v.as_object())
+      .map(|m| m.keys().cloned().collect())
+      .unwrap_or_default();
+
+    let nm_dir = plugin_dir.join("node_modules");
+    let all_present = !deps.is_empty() && deps.iter().all(|dep| nm_dir.join(dep).exists());
+    if all_present {
+      eprintln!(
+        "[clawd/service] Plugin {} runtime deps already present",
+        entry.file_name().to_string_lossy()
+      );
+      continue;
+    }
+
+    let plugin_name = entry.file_name().to_string_lossy().to_string();
+    eprintln!(
+      "[clawd/service] Installing runtime deps for plugin {}...",
+      plugin_name
+    );
+
+    #[cfg(target_os = "windows")]
+    let result = {
+      use std::os::windows::process::CommandExt;
+      const CREATE_NO_WINDOW: u32 = 0x08000000;
+      std::process::Command::new(&npm)
+        .args(["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"])
+        .current_dir(&plugin_dir)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+    };
+    #[cfg(not(target_os = "windows"))]
+    let result = std::process::Command::new(&npm)
+      .args(["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"])
+      .current_dir(&plugin_dir)
+      .status();
+
+    match result {
+      Ok(s) if s.success() => eprintln!(
+        "[clawd/service] Plugin {} runtime deps installed",
+        plugin_name
+      ),
+      Ok(s) => eprintln!(
+        "[clawd/service] WARNING: npm install for plugin {} exited {}",
+        plugin_name, s
+      ),
+      Err(e) => eprintln!(
+        "[clawd/service] WARNING: npm install for plugin {} failed: {}",
+        plugin_name, e
+      ),
+    }
+  }
 }
 
 /// Check if the gateway Node.js binary or the bundled clawdbot directory is
@@ -1261,6 +1377,57 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           }
         }
 
+        // On Windows, `kickstart_launch_agent` cannot start a new process.
+        // Re-spawn directly using the saved ServiceSetup from the last enable call.
+        #[cfg(target_os = "windows")]
+        {
+          let saved_setup = LAST_GATEWAY_SETUP.lock().unwrap().clone();
+          if let Some(setup) = saved_setup {
+            eprintln!("[clawd/service] Windows background restart: re-spawning gateway");
+            kill_process_on_port(18789);
+            // Clean up stale lock files
+            {
+              let lock_dir = std::env::temp_dir().join("openclaw");
+              if lock_dir.is_dir() {
+                if let Ok(entries) = fs::read_dir(&lock_dir) {
+                  for entry in entries.flatten() {
+                    let name = entry.file_name();
+                    let s = name.to_string_lossy();
+                    if s.starts_with("gateway.") && s.ends_with(".lock") {
+                      let _ = fs::remove_file(entry.path());
+                    }
+                  }
+                }
+              }
+            }
+            let stdout_log = windows_log_path("stdout");
+            let stderr_log = windows_log_path("stderr");
+            if let (Ok(out_f), Ok(err_f)) = (fs::File::create(&stdout_log), fs::File::create(&stderr_log)) {
+              use std::os::windows::process::CommandExt;
+              const CREATE_NO_WINDOW: u32 = 0x08000000;
+              match std::process::Command::new(&setup.program_args[0])
+                .args(&setup.program_args[1..])
+                .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+                .current_dir(&setup.working_dir)
+                .stdout(out_f)
+                .stderr(err_f)
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+              {
+                Ok(child) => {
+                  let pid = child.id();
+                  GATEWAY_PID.store(pid, Ordering::Relaxed);
+                  eprintln!("[clawd/service] Windows background restart: spawned gateway pid {}", pid);
+                }
+                Err(e) => eprintln!("[clawd/service] Windows background restart: spawn failed: {}", e),
+              }
+            }
+            GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+            return;
+          }
+          eprintln!("[clawd/service] Windows background restart: no saved setup — use Enable in UI");
+        }
+
         use crate::clawd::gateway_supervisor;
         let result = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, &token).await;
         eprintln!("[clawd/service] gateway restart attempt: {} ({})", result.message,
@@ -1273,11 +1440,18 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // method.  Send a lightweight request to verify it's responsive.
     // Use a 5-second timeout to avoid blocking the health endpoint when the
     // browser RPC is slow (the default pooled request timeout is 30s).
+    // Windows Chrome startup is slower (antivirus, disk I/O) so we use
+    // longer timeouts there to avoid false browser_ok=false reports.
+    #[cfg(target_os = "windows")]
+    let (stage1_secs, stage2_secs) = (10u64, 6u64);
+    #[cfg(not(target_os = "windows"))]
+    let (stage1_secs, stage2_secs) = (5u64, 3u64);
+
     let browser_ok = if gateway_ok {
       // Try with "openclaw" profile (the managed, isolated browser profile
       // created by the gateway).  Fall back to no-profile if it fails.
       let check = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(stage1_secs),
         gateway_client::browser_request(
           "GET", "/tabs", Some(serde_json::json!({"profile": "openclaw"})), None, None,
         ),
@@ -1288,7 +1462,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           eprintln!("[clawd/service] browser health check failed (profile=openclaw): {}", e);
           // Fallback: try without profile restriction
           match tokio::time::timeout(
-            std::time::Duration::from_secs(3),
+            std::time::Duration::from_secs(stage2_secs),
             gateway_client::browser_request("GET", "/tabs", None, None, None),
           ).await {
             Ok(Ok(_)) => {
@@ -1300,13 +1474,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
               false
             }
             Err(_) => {
-              eprintln!("[clawd/service] browser health check timed out (no profile, 3s)");
+              eprintln!("[clawd/service] browser health check timed out (no profile, {}s)", stage2_secs);
               false
             }
           }
         }
         Err(_) => {
-          eprintln!("[clawd/service] browser health check timed out (5s)");
+          eprintln!("[clawd/service] browser health check timed out ({}s)", stage1_secs);
           false
         }
       }
@@ -1479,8 +1653,14 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   // If gateway is up, also wait for the browser CDP to become reachable.
   // Chrome takes a few seconds to start after the gateway launches it.
+  // Windows Chrome startup is slower so we give it more time there.
+  #[cfg(target_os = "windows")]
+  let browser_wait_secs = 25u64;
+  #[cfg(not(target_os = "windows"))]
+  let browser_wait_secs = 15u64;
+
   let browser_ok = if ready {
-    gateway_client::wait_for_browser_ready(None, 15).await
+    gateway_client::wait_for_browser_ready(None, browser_wait_secs).await
   } else {
     false
   };
@@ -2876,6 +3056,7 @@ pub async fn set_llm_keys(
 
 // ── Shared gateway config setup (used by both macOS and Windows) ────────
 
+#[derive(Clone)]
 struct ServiceSetup {
   node_path: PathBuf,
   is_bundled_node: bool,
@@ -3013,6 +3194,10 @@ async fn prepare_gateway_config(
         "mode": "local",
         "auth": {
           "token": tokens.gateway_token.clone()
+        },
+        "controlUi": {
+          "allowInsecureAuth": true,
+          "allowedOrigins": ["tauri://localhost", "http://localhost:1420"]
         }
       },
       "browser": {
@@ -3327,6 +3512,59 @@ async fn prepare_gateway_config(
           patched = true;
         }
 
+        // Ensure gateway.controlUi.allowInsecureAuth = true so the desktop
+        // backend (which uses the "openclaw-control-ui" client ID) can connect
+        // with operator scopes using the shared token without device-pairing.
+        // The gateway only applies this to loopback connections so it does not
+        // weaken remote access.
+        let control_ui_allow_insecure = cfg_val
+          .pointer("/gateway/controlUi/allowInsecureAuth")
+          .and_then(|v| v.as_bool())
+          .unwrap_or(false);
+        if !control_ui_allow_insecure {
+          if cfg_val.get("gateway").is_none() {
+            cfg_val.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+          }
+          let gw = cfg_val.pointer_mut("/gateway").unwrap().as_object_mut().unwrap();
+          if !gw.contains_key("controlUi") {
+            gw.insert("controlUi".to_string(), serde_json::json!({}));
+          }
+          cfg_val.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+            .insert("allowInsecureAuth".to_string(), serde_json::json!(true));
+          eprintln!("[clawd/service] Patched gateway.controlUi.allowInsecureAuth to true");
+          patched = true;
+        }
+
+        // Ensure the Tauri app origins are in gateway.controlUi.allowedOrigins
+        // so the frontend WebSocket connects without CONTROL_UI_ORIGIN_NOT_ALLOWED.
+        {
+          const REQUIRED_ORIGINS: &[&str] = &["tauri://localhost", "http://localhost:1420"];
+          let existing: Vec<String> = cfg_val
+            .pointer("/gateway/controlUi/allowedOrigins")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_default();
+          let missing: Vec<&str> = REQUIRED_ORIGINS.iter()
+            .filter(|&&o| !existing.iter().any(|e| e == o))
+            .copied()
+            .collect();
+          if !missing.is_empty() {
+            if cfg_val.get("gateway").is_none() {
+              cfg_val.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+            }
+            let gw = cfg_val.pointer_mut("/gateway").unwrap().as_object_mut().unwrap();
+            if !gw.contains_key("controlUi") {
+              gw.insert("controlUi".to_string(), serde_json::json!({}));
+            }
+            let mut merged = existing;
+            merged.extend(missing.iter().map(|s| s.to_string()));
+            cfg_val.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+              .insert("allowedOrigins".to_string(), serde_json::json!(merged));
+            eprintln!("[clawd/service] Patched gateway.controlUi.allowedOrigins to include Tauri origins");
+            patched = true;
+          }
+        }
+
         // ── Auto-heal allowlist channels ──────────────────────────────
         // Must run AFTER other patches so that the in-memory cfg_val is
         // already up-to-date before we persist it.
@@ -3622,6 +3860,10 @@ async fn prepare_gateway_config(
   let app_version = app_handle.package_info().version.to_string();
   let os_info = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
 
+  // Install runtime deps for bundled plugins (e.g. grammy for telegram).
+  // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
+  install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
+
   eprintln!(
     "[clawd/service] Knapsack v{} on {} — starting service ({})",
     app_version, os_info, LAUNCH_AGENT_LABEL
@@ -3795,6 +4037,9 @@ pub async fn set_service_enabled(
           GATEWAY_PID.store(pid, Ordering::Relaxed);
           GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           eprintln!("[clawd/service] Spawned gateway process (pid {})", pid);
+
+          // Save the setup for background restart (Windows-only restart path).
+          *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup.clone());
 
           // Workaround for OpenClaw #23006: patch paired.json periodically
           // during startup to ensure devices get operator.admin scope.  The
@@ -3994,6 +4239,9 @@ pub async fn set_service_enabled(
       // plugins.load.paths entries from older configs.
       let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/dist/extensions");
 
+      // Install runtime deps for bundled plugins (e.g. grammy for telegram).
+      install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
+
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
       // Without this, OpenClaw refuses to start on a fresh machine.
       // NOTE: plugins.slots.memory must be set to "none" explicitly — if omitted,
@@ -4017,6 +4265,10 @@ pub async fn set_service_enabled(
             "mode": "local",
             "auth": {
               "token": tokens.gateway_token.clone()
+            },
+            "controlUi": {
+              "allowInsecureAuth": true,
+              "allowedOrigins": ["tauri://localhost", "http://localhost:1420"]
             }
           },
           "browser": {
@@ -4077,6 +4329,54 @@ pub async fn set_service_enabled(
                 .insert("token".to_string(), serde_json::json!(tokens.gateway_token.trim()));
               eprintln!("[clawd/service] Synced gateway.auth.token in config to match tokens.json");
               patched = true;
+            }
+
+            // Ensure gateway.controlUi.allowInsecureAuth = true
+            let control_ui_allow_insecure = cfg
+              .pointer("/gateway/controlUi/allowInsecureAuth")
+              .and_then(|v| v.as_bool())
+              .unwrap_or(false);
+            if !control_ui_allow_insecure {
+              if cfg.get("gateway").is_none() {
+                cfg.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+              }
+              let gw = cfg.pointer_mut("/gateway").unwrap().as_object_mut().unwrap();
+              if !gw.contains_key("controlUi") {
+                gw.insert("controlUi".to_string(), serde_json::json!({}));
+              }
+              cfg.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+                .insert("allowInsecureAuth".to_string(), serde_json::json!(true));
+              eprintln!("[clawd/service] Patched gateway.controlUi.allowInsecureAuth to true");
+              patched = true;
+            }
+
+            // Ensure the Tauri app origins are in gateway.controlUi.allowedOrigins.
+            {
+              const REQUIRED_ORIGINS: &[&str] = &["tauri://localhost", "http://localhost:1420"];
+              let existing: Vec<String> = cfg
+                .pointer("/gateway/controlUi/allowedOrigins")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                .unwrap_or_default();
+              let missing: Vec<&str> = REQUIRED_ORIGINS.iter()
+                .filter(|&&o| !existing.iter().any(|e| e == o))
+                .copied()
+                .collect();
+              if !missing.is_empty() {
+                if cfg.get("gateway").is_none() {
+                  cfg.as_object_mut().unwrap().insert("gateway".to_string(), serde_json::json!({}));
+                }
+                let gw = cfg.pointer_mut("/gateway").unwrap().as_object_mut().unwrap();
+                if !gw.contains_key("controlUi") {
+                  gw.insert("controlUi".to_string(), serde_json::json!({}));
+                }
+                let mut merged = existing;
+                merged.extend(missing.iter().map(|s| s.to_string()));
+                cfg.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
+                  .insert("allowedOrigins".to_string(), serde_json::json!(merged));
+                eprintln!("[clawd/service] Patched gateway.controlUi.allowedOrigins to include Tauri origins");
+                patched = true;
+              }
             }
 
             // Ensure plugins.slots.memory is set to "none".
