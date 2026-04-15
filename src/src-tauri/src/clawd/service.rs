@@ -305,6 +305,116 @@ fn remove_stale_standalone_gateway() {
   // No-op on other platforms
 }
 
+/// Install runtime dependencies for bundled plugins that declare
+/// `openclaw.bundle.stageRuntimeDependencies: true` (e.g. telegram needs grammy).
+///
+/// This mirrors `ensure-clawdbot-deps.cjs` but runs inside the Tauri process,
+/// AFTER Tauri has already copied resources to their runtime location.  That
+/// eliminates the race condition where `beforeDevCommand` runs the script before
+/// Tauri's own resource copy, leaving the target dir without node_modules.
+fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_dir: &std::path::Path) {
+  if !extensions_dir.is_dir() {
+    return;
+  }
+
+  // Locate npm: prefer sibling of the node binary, fall back to PATH.
+  let npm: PathBuf = if let Some(node_dir) = node_path.parent() {
+    let candidate = if cfg!(target_os = "windows") {
+      node_dir.join("npm.cmd")
+    } else {
+      node_dir.join("npm")
+    };
+    if candidate.exists() { candidate } else { PathBuf::from("npm") }
+  } else {
+    PathBuf::from("npm")
+  };
+
+  let entries = match fs::read_dir(extensions_dir) {
+    Ok(e) => e,
+    Err(_) => return,
+  };
+
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let plugin_dir = entry.path();
+    let pkg_path = plugin_dir.join("package.json");
+    if !pkg_path.exists() {
+      continue;
+    }
+
+    let pkg: serde_json::Value = match fs::read_to_string(&pkg_path)
+      .ok()
+      .and_then(|s| serde_json::from_str(&s).ok())
+    {
+      Some(v) => v,
+      None => continue,
+    };
+
+    let needs_stage = pkg
+      .pointer("/openclaw/bundle/stageRuntimeDependencies")
+      .and_then(|v| v.as_bool())
+      .unwrap_or(false);
+    if !needs_stage {
+      continue;
+    }
+
+    let deps: Vec<String> = pkg
+      .get("dependencies")
+      .and_then(|v| v.as_object())
+      .map(|m| m.keys().cloned().collect())
+      .unwrap_or_default();
+
+    let nm_dir = plugin_dir.join("node_modules");
+    let all_present = !deps.is_empty() && deps.iter().all(|dep| nm_dir.join(dep).exists());
+    if all_present {
+      eprintln!(
+        "[clawd/service] Plugin {} runtime deps already present",
+        entry.file_name().to_string_lossy()
+      );
+      continue;
+    }
+
+    let plugin_name = entry.file_name().to_string_lossy().to_string();
+    eprintln!(
+      "[clawd/service] Installing runtime deps for plugin {}...",
+      plugin_name
+    );
+
+    #[cfg(target_os = "windows")]
+    let result = {
+      use std::os::windows::process::CommandExt;
+      const CREATE_NO_WINDOW: u32 = 0x08000000;
+      std::process::Command::new(&npm)
+        .args(["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"])
+        .current_dir(&plugin_dir)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+    };
+    #[cfg(not(target_os = "windows"))]
+    let result = std::process::Command::new(&npm)
+      .args(["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"])
+      .current_dir(&plugin_dir)
+      .status();
+
+    match result {
+      Ok(s) if s.success() => eprintln!(
+        "[clawd/service] Plugin {} runtime deps installed",
+        plugin_name
+      ),
+      Ok(s) => eprintln!(
+        "[clawd/service] WARNING: npm install for plugin {} exited {}",
+        plugin_name, s
+      ),
+      Err(e) => eprintln!(
+        "[clawd/service] WARNING: npm install for plugin {} failed: {}",
+        plugin_name, e
+      ),
+    }
+  }
+}
+
 /// Check if the gateway Node.js binary or the bundled clawdbot directory is
 /// quarantined by macOS Gatekeeper.  When a DMG-installed app is not properly
 /// code-signed and notarized, macOS adds a `com.apple.quarantine` xattr to the
@@ -3750,6 +3860,10 @@ async fn prepare_gateway_config(
   let app_version = app_handle.package_info().version.to_string();
   let os_info = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
 
+  // Install runtime deps for bundled plugins (e.g. grammy for telegram).
+  // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
+  install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
+
   eprintln!(
     "[clawd/service] Knapsack v{} on {} — starting service ({})",
     app_version, os_info, LAUNCH_AGENT_LABEL
@@ -4124,6 +4238,9 @@ pub async fn set_service_enabled(
       // OPENCLAW_BUNDLED_PLUGINS_DIR env var and for cleaning up stale
       // plugins.load.paths entries from older configs.
       let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/dist/extensions");
+
+      // Install runtime deps for bundled plugins (e.g. grammy for telegram).
+      install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
 
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
       // Without this, OpenClaw refuses to start on a fresh machine.
