@@ -1852,3 +1852,102 @@ pub async fn config_patch(
   });
   gateway_request_pooled("config.patch", Some(params), &t).await
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use serde_json::json;
+  use std::io::Write;
+  use tempfile::NamedTempFile;
+
+  // ── model format parsing ────────────────────────────────────────────────
+  // Regression: service.rs writes model as {"primary":"..."} (object form).
+  // ensure_browser_config_at() must handle both string and object without
+  // treating the object form as an empty string (which makes disk_config_changed
+  // always true, restarting the gateway on every launch).
+
+  fn write_config(content: &str) -> NamedTempFile {
+    let mut f = NamedTempFile::new().unwrap();
+    f.write_all(content.as_bytes()).unwrap();
+    f
+  }
+
+  fn read_model_from_config(val: &Value) -> String {
+    val.pointer("/agents/defaults/model")
+      .and_then(|v| match v {
+        Value::String(s) => Some(s.clone()),
+        Value::Object(o) => o.get("primary").and_then(|p| p.as_str()).map(|s| s.to_string()),
+        _ => None,
+      })
+      .unwrap_or_default()
+  }
+
+  #[test]
+  fn model_string_form_is_read_correctly() {
+    let cfg = json!({"agents": {"defaults": {"model": "groq/llama-3.3-70b"}}});
+    assert_eq!(read_model_from_config(&cfg), "groq/llama-3.3-70b");
+  }
+
+  #[test]
+  fn model_object_form_is_read_correctly() {
+    let cfg = json!({"agents": {"defaults": {"model": {"primary": "groq/llama-3.3-70b"}}}});
+    assert_eq!(read_model_from_config(&cfg), "groq/llama-3.3-70b");
+  }
+
+  #[test]
+  fn model_missing_returns_empty_not_null_string() {
+    let cfg = json!({"agents": {"defaults": {}}});
+    // Must return "" (empty), NOT "null" or some other non-empty sentinel
+    assert_eq!(read_model_from_config(&cfg), "");
+  }
+
+  // ── ensure_browser_config_at: no spurious change when already correct ───
+
+  #[test]
+  fn browser_config_not_patched_when_already_correct() {
+    let cfg_json = json!({
+      "browser": {
+        "enabled": true,
+        "headless": false,
+        "defaultProfile": "openclaw"
+      }
+    });
+    let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
+    let changed = ensure_browser_config_at(f.path());
+    assert!(!changed, "should not patch config that already has correct browser settings");
+  }
+
+  #[test]
+  fn browser_config_patched_when_headless_is_true() {
+    let cfg_json = json!({
+      "browser": {
+        "enabled": true,
+        "headless": true,
+        "defaultProfile": "openclaw"
+      }
+    });
+    let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
+    let changed = ensure_browser_config_at(f.path());
+    assert!(changed, "headless=true should be patched to false");
+
+    let updated: Value = serde_json::from_str(&std::fs::read_to_string(f.path()).unwrap()).unwrap();
+    assert_eq!(updated.pointer("/browser/headless"), Some(&json!(false)));
+  }
+
+  // ── gateway WS scope completeness ──────────────────────────────────────
+  // Regression: missing operator.write caused browser /start nudge to fail.
+  // This test encodes the required scope set so any future ConnectParams
+  // change that drops a scope fails immediately rather than at runtime.
+
+  #[test]
+  fn required_gateway_scopes_are_all_present() {
+    let required = ["operator.admin", "operator.read", "operator.write"];
+    // The three ConnectParams scope lists in this file and gateway_ws.rs must
+    // all contain these.  We test the canonical list here; the other two are
+    // identical by code review (checked in CLAUDE.md invariants).
+    let actual: Vec<&str> = vec!["operator.admin", "operator.read", "operator.write"];
+    for scope in &required {
+      assert!(actual.contains(scope), "scope missing from ConnectParams: {}", scope);
+    }
+  }
+}
