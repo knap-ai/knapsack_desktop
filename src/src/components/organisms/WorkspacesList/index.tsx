@@ -512,8 +512,6 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
         </div>
       )}
 
-      {renderSection('People', peopleWorkspaces, { auto: true })}
-      {renderSection('Projects', projectWorkspaces, { auto: true })}
       {renderSection(
         'Your Collections',
         manualWorkspaces,
@@ -530,6 +528,8 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
           </div>
         </div>,
       )}
+      {renderSection('People', peopleWorkspaces, { auto: true })}
+      {renderSection('Projects', projectWorkspaces, { auto: true })}
 
       {/* Create Modal */}
       {showCreateModal && (
