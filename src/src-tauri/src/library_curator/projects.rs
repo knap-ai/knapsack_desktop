@@ -6,6 +6,8 @@
 //! and calendar events as documents (matched by simple keyword hits against
 //! the LLM-supplied keyword list — cheap, deterministic, no second LLM pass).
 
+use std::collections::HashSet;
+
 use serde::Deserialize;
 
 use crate::db::db::get_db_conn;
@@ -65,6 +67,7 @@ pub async fn detect_and_upsert(_cfg: &CuratorSettings) -> Result<(), Error> {
         projects.len()
     );
 
+    let mut kept_slugs: HashSet<String> = HashSet::new();
     for proj in projects.into_iter().take(MAX_PROJECTS) {
         if proj.slug.trim().is_empty()
             || proj.name.trim().is_empty()
@@ -72,12 +75,34 @@ pub async fn detect_and_upsert(_cfg: &CuratorSettings) -> Result<(), Error> {
         {
             continue;
         }
+        let slug = proj.slug.trim().to_string();
         if let Err(e) = upsert_project_collection(&proj) {
             log::warn!(
                 "[library_curator/projects] upsert failed for {}: {:?}",
-                proj.slug,
+                slug,
                 e
             );
+        } else {
+            kept_slugs.insert(slug);
+        }
+    }
+
+    // Prune stale auto-curated projects — slugs the LLM no longer considers
+    // active. Prevents accumulation of near-duplicates across runs (e.g.
+    // "sage-financial-partnership" vs "sage-financial-wealthbox"). Only fires
+    // when we successfully upserted at least one project, so a bad LLM run
+    // never wipes the library.
+    if !kept_slugs.is_empty() {
+        match Workspace::delete_stale_auto_projects(&kept_slugs) {
+            Ok(n) if n > 0 => log::info!(
+                "[library_curator/projects] pruned {} stale auto-curated project(s)",
+                n
+            ),
+            Ok(_) => {}
+            Err(e) => log::warn!(
+                "[library_curator/projects] prune failed: {:?}",
+                e
+            ),
         }
     }
 
