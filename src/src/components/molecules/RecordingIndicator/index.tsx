@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
-import { listen } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
 import { appWindow } from '@tauri-apps/api/window'
 
 function RecordingIndicator() {
@@ -44,11 +44,15 @@ function RecordingIndicator() {
 
   const handleClick = useCallback(() => {
     if (!isDragging) {
-      // Click on the pill to bring main window to focus
       invoke('kn_show_app')
     }
     setIsDragging(false)
   }, [isDragging])
+
+  const handleStop = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    emit('stop-recording-from-indicator')
+  }, [])
 
   return (
     <div
@@ -118,6 +122,35 @@ function RecordingIndicator() {
         >
           {formatElapsed(elapsed)}
         </span>
+
+        {/* Stop button */}
+        <button
+          onClick={handleStop}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            border: 'none',
+            background: '#ef4444',
+            cursor: 'pointer',
+            flexShrink: 0,
+            padding: 0,
+          }}
+          title="Stop recording"
+        >
+          <span
+            style={{
+              display: 'block',
+              width: 8,
+              height: 8,
+              borderRadius: 1,
+              background: '#ffffff',
+            }}
+          />
+        </button>
       </div>
 
       <style>{`

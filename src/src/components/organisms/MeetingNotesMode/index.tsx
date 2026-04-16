@@ -559,6 +559,16 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }
 
+  useEffect(() => {
+    const unlisten = listen('stop-recording-from-indicator', () => {
+      if (recordingHandlers.isRecording(thread.id)) {
+        handleStopRecording('Indicator')
+      }
+    })
+    return () => { unlisten.then(fn => fn()) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread.id])
+
   const isSynthesizing = useCallback(() => {
     return recordingHandlers.isLoadingNotes(thread.id) || isLLMLoading
   }, [recordingHandlers, thread.id, isLLMLoading])
