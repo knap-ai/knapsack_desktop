@@ -30,7 +30,6 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   const [editName, setEditName] = useState(workspace.name)
   const [editDescription, setEditDescription] = useState(workspace.description ?? '')
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null)
-  const [expandedSummary, setExpandedSummary] = useState<number | null>(null)
   const dropRef = useRef<HTMLDivElement>(null)
 
   // Load AI-generated card summary from localStorage (written by WorkspacesList).
@@ -445,8 +444,6 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
             {filteredDocuments.map(doc => {
               const autoTags = parseTags(doc.autoTags)
               const userTags = parseTags(doc.tags)
-              const hasSummary = !!doc.summary
-              const isExpanded = expandedSummary === doc.id
 
               return (
                 <div
@@ -467,15 +464,6 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
                     </div>
 
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      {hasSummary && (
-                        <button
-                          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                          onClick={() => setExpandedSummary(isExpanded ? null : doc.id)}
-                          title={isExpanded ? 'Hide summary' : 'Show summary'}
-                        >
-                          {isExpanded ? 'Hide' : 'Summary'}
-                        </button>
-                      )}
                       {doc.createdAt && (
                         <span className="text-xs text-gray-400">
                           {formatDate(doc.createdAt)}
@@ -514,9 +502,9 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
                     </div>
                   )}
 
-                  {/* Expandable summary */}
-                  {isExpanded && doc.summary && (
-                    <div className="mt-2 ml-8 text-xs text-gray-500 bg-gray-50 rounded-md p-2">
+                  {/* Summary — shown inline when available */}
+                  {doc.summary && (
+                    <div className="mt-2 ml-8 text-xs text-gray-600">
                       {doc.summary}
                     </div>
                   )}
