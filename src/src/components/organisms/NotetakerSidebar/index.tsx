@@ -18,7 +18,6 @@ interface NotetakerSidebarProps {
   currentTab: TabChoices
   onTabChange: (tab: TabChoices, subView?: 'meetings' | 'chat') => void
   onQuickNote: () => void
-  onSettingsClick: () => void
   onConnectCalendar: () => void
   onMeetingSelect?: () => void
   activeView?: 'home' | 'chat'
@@ -30,7 +29,6 @@ function NotetakerSidebar({
   currentTab,
   onTabChange,
   onQuickNote,
-  onSettingsClick,
   onConnectCalendar,
   onMeetingSelect,
   activeView = 'home',
@@ -172,7 +170,6 @@ function NotetakerSidebar({
     [searchQuery],
   )
 
-  const isMeetingsActive = currentTab === TabChoices.Meeting && activeView === 'home'
   const isChatActive =
     currentTab === TabChoices.Openclaw ||
     (currentTab === TabChoices.Meeting && activeView === 'chat')
@@ -244,22 +241,6 @@ function NotetakerSidebar({
     </svg>
   )
 
-  const settingsIcon = (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-
   const noteIcon = (
     <svg
       width="16"
@@ -299,16 +280,9 @@ function NotetakerSidebar({
             <line x1="4" y1="18" x2="20" y2="18" />
           </svg>
         </button>
-        <div className="notetaker-sidebar__icon-nav">
-          <button
-            className={`notetaker-sidebar__icon-btn ${isMeetingsActive ? 'notetaker-sidebar__icon-btn--active' : ''}`}
-            onClick={() => {
-              setIsCollapsed(false)
-              onTabChange(TabChoices.Meeting, 'meetings')
-            }}
-            title="Meetings"
-          >
-            {calendarIcon}
+        <div className="notetaker-sidebar__icon-bottom">
+          <button className="notetaker-sidebar__icon-btn" onClick={onQuickNote} title="New note">
+            {noteIcon}
           </button>
           <button
             className={`notetaker-sidebar__icon-btn ${isChatActive ? 'notetaker-sidebar__icon-btn--active' : ''}`}
@@ -324,24 +298,12 @@ function NotetakerSidebar({
           >
             {emailIcon}
           </button>
-        </div>
-        <div className="notetaker-sidebar__icon-bottom">
-          <button className="notetaker-sidebar__icon-btn" onClick={onQuickNote} title="New note">
-            {noteIcon}
-          </button>
           <button
             className={`notetaker-sidebar__icon-btn ${isLibraryActive ? 'notetaker-sidebar__icon-btn--active' : ''}`}
             onClick={() => onTabChange(TabChoices.Library)}
             title="Library"
           >
             {libraryIcon}
-          </button>
-          <button
-            className="notetaker-sidebar__icon-btn"
-            onClick={onSettingsClick}
-            title="Settings"
-          >
-            {settingsIcon}
           </button>
         </div>
       </div>
@@ -420,34 +382,6 @@ function NotetakerSidebar({
           )}
         </div>
       </div>
-
-      {/* Navigation */}
-      <nav className="notetaker-sidebar__nav">
-        <button
-          className={`notetaker-sidebar__nav-item ${isMeetingsActive ? 'notetaker-sidebar__nav-item--active' : ''}`}
-          onClick={() => {
-            onTabChange(TabChoices.Meeting, 'meetings')
-            onMeetingSelect?.()
-          }}
-        >
-          {calendarIcon}
-          Meetings
-        </button>
-        <button
-          className={`notetaker-sidebar__nav-item ${isChatActive ? 'notetaker-sidebar__nav-item--active' : ''}`}
-          onClick={() => onTabChange(TabChoices.Openclaw)}
-        >
-          {chatIcon}
-          Chat
-        </button>
-        <button
-          className={`notetaker-sidebar__nav-item ${isEmailActive ? 'notetaker-sidebar__nav-item--active' : ''}`}
-          onClick={() => onTabChange(TabChoices.Email)}
-        >
-          {emailIcon}
-          Email Autopilot
-        </button>
-      </nav>
 
       {/* Scrollable content */}
       <div className="notetaker-sidebar__content">
@@ -758,6 +692,14 @@ function NotetakerSidebar({
             <span>New Note</span>
           </button>
           <button
+            className={`notetaker-sidebar__bottom-action ${isChatActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
+            onClick={() => onTabChange(TabChoices.Openclaw)}
+            title="Chat"
+          >
+            {chatIcon}
+            <span>Chat</span>
+          </button>
+          <button
             className={`notetaker-sidebar__bottom-action ${isEmailActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
             onClick={() => onTabChange(TabChoices.Email)}
             title="Email Autopilot"
@@ -772,14 +714,6 @@ function NotetakerSidebar({
           >
             {libraryIcon}
             <span>Library</span>
-          </button>
-          <button
-            className="notetaker-sidebar__bottom-action"
-            onClick={onSettingsClick}
-            title="Settings"
-          >
-            {settingsIcon}
-            <span>Settings</span>
           </button>
         </div>
         {appVersion && (

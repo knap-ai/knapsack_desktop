@@ -488,7 +488,6 @@ function Home({
               setMeetingSubView('meetings')
               feed.createNewMeeting()
             }}
-            onSettingsClick={() => setIsSettingsDialogOpened(true)}
             onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
             onMeetingSelect={() => {
               setCurrentTab(TabChoices.Meeting)
