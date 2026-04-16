@@ -594,27 +594,35 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
 async function generateCardSummary(workspace: Workspace, topTags: string[], userEmail: string): Promise<CardSummary | null> {
   const docs = workspace.documents ?? []
   const docTitles = docs
-    .slice(0, 8)
+    .slice(0, 12)
     .map(d => d.documentName)
     .join(', ')
 
+  const isPerson = workspace.entityType === 'person'
+
   const contextLines = [
     `Name: ${workspace.name}`,
-    workspace.entityType === 'person' ? 'Type: Person (contact)' : 'Type: Project',
-    workspace.description ? `Stats: ${workspace.description}` : '',
-    topTags.length > 0 ? `Topics: ${topTags.join(', ')}` : '',
-    docTitles ? `Recent items: ${docTitles}` : '',
+    isPerson ? 'Type: Person (contact)' : 'Type: Project',
+    topTags.length > 0 ? `Key topics: ${topTags.join(', ')}` : '',
+    docTitles ? `Recent document titles: ${docTitles}` : '',
   ]
     .filter(Boolean)
     .join('\n')
 
-  const prompt =
-    `Based on the following contact/project from my knowledge base, give me:\n` +
-    `1. A brief 1-2 sentence description of who this is or what this project is about\n` +
-    `2. One specific next action I should take\n\n` +
-    `${contextLines}\n\n` +
-    `Reply ONLY with a JSON object in this exact format, no other text:\n` +
-    `{"summary": "your description here", "nextAction": "your suggested action here"}`
+  const prompt = isPerson
+    ? `You are a personal CRM assistant. Based on the document titles and topics below, infer:\n` +
+      `1. Who this person likely is (role, company, or relationship — e.g. "Your accountant at Sage Financial", "Engineering lead at Acme", "Investor contact"). Do NOT restate email/meeting counts.\n` +
+      `2. What you're actively working on together right now, based on the most recent document titles.\n` +
+      `3. One specific, actionable next step.\n\n` +
+      `${contextLines}\n\n` +
+      `Reply ONLY with JSON, no other text:\n` +
+      `{"summary": "1-2 sentences about who they are and what you're working on together", "nextAction": "one concrete next step"}`
+    : `Based on this project from my knowledge base, give me:\n` +
+      `1. A 1-2 sentence description of what this project is about (infer from document titles and topics, not stats)\n` +
+      `2. One specific next action I should take\n\n` +
+      `${contextLines}\n\n` +
+      `Reply ONLY with JSON, no other text:\n` +
+      `{"summary": "your description here", "nextAction": "your suggested action here"}`
 
   try {
     const response = await fetch(KN_API_STREAM_LLM_COMPLETE, {
