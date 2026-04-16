@@ -22,12 +22,14 @@ cd src && cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-appl
 
 ```sh
 cd src
-npm run tauri build -- --target aarch64-apple-darwin
+TAURI_PRIVATE_KEY="" npm run tauri build -- --target aarch64-apple-darwin
 
 pkill -x Knapsack; sleep 1
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/ai.knap.knapsack.clawdbot.plist 2>/dev/null
 rm -f ~/Library/LaunchAgents/ai.knap.knapsack.clawdbot.plist   # force first-launch auto-enable
-cp -R src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Knapsack.app /Applications/
+# Use absolute path — avoids "No such file" if cwd is wrong
+APP=$(pwd)/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Knapsack.app
+cp -R "$APP" /Applications/
 open /Applications/Knapsack.app
 ```
 
