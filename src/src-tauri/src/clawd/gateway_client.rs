@@ -1303,7 +1303,24 @@ fn spawn_reconnect_task(token: String) {
         continue;
       }
 
-      match connect_and_handshake(&token).await {
+      // Acquire CONNECT_LOCK so this reconnect attempt doesn't race with
+      // concurrent get_or_connect callers — without the lock, both open a
+      // WS connection simultaneously and one gets dropped (→ code=1006).
+      let result = {
+        let _lock = CONNECT_LOCK.lock().await;
+        // Double-check: an incoming request may have reconnected while we
+        // waited for the lock.
+        {
+          let guard = CLIENT.read().unwrap();
+          if guard.is_some() {
+            eprintln!("[gateway_client] reconnect task: connection established by concurrent request (attempt {})", attempt + 1);
+            RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+            return;
+          }
+        }
+        connect_and_handshake(&token).await
+      };
+      match result {
         Ok(client) => {
           let mut guard = CLIENT.write().unwrap();
           *guard = Some(client);
