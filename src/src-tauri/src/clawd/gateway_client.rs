@@ -986,24 +986,79 @@ async fn apply_runtime_browser_config(token: &str) {
 
   let raw_patch = patch_obj.to_string();
 
+  let patch_id = next_request_id();
   let patch_frame = RequestFrame {
     frame_type: "req",
     method: "config.patch".to_string(),
-    id: next_request_id(),
+    id: patch_id.clone(),
     params: Some(serde_json::json!({
       "raw": raw_patch,
       "baseHash": base_hash
     })),
   };
-  let _ = tmp_write
+  if tmp_write
     .send(Message::Text(serde_json::to_string(&patch_frame).unwrap()))
-    .await;
-  eprintln!("[gateway_client] Sent config.patch for browser settings on tmp WS — gateway will restart");
+    .await
+    .is_err()
+  {
+    eprintln!("[gateway_client] Failed to send config.patch — connection closed");
+    return;
+  }
 
-  // Close the temporary connection (it'll die when the gateway restarts anyway).
+  // Read the config.patch response to detect rate-limiting or other rejection.
+  // If ok=true  → the gateway accepted the patch and will restart; wait for it.
+  // If ok=false → rejected (e.g. rate-limited, stale hash); do NOT wait 9 s for
+  //               a restart that will never happen.  The disk config is already
+  //               correct; the gateway will pick it up on its next natural restart
+  //               (periodic 5-min reload or crash recovery).
+  // closed/timeout → assume the gateway already restarted before sending a reply.
+  let patch_accepted = match tokio::time::timeout(Duration::from_secs(5), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => {
+          if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
+            if resp.id == patch_id {
+              break Some(resp.ok);
+            }
+          }
+        }
+        Some(Ok(Message::Close(_))) | None => break None, // closed = gateway restarting
+        _ => continue,
+      }
+    }
+  }).await {
+    Ok(Some(true)) => {
+      eprintln!("[gateway_client] config.patch accepted — gateway will restart");
+      true
+    }
+    Ok(Some(false)) => {
+      eprintln!("[gateway_client] config.patch rejected (ok=false, likely rate-limited) — \
+        skipping restart wait; disk config is correct and will take effect on next gateway restart");
+      false
+    }
+    Ok(None) => {
+      // Connection closed before response — gateway is already restarting.
+      eprintln!("[gateway_client] config.patch: connection closed before response — gateway is restarting");
+      true
+    }
+    Err(_) => {
+      // 5-second timeout reading response — assume accepted (gateway may have
+      // restarted before it could send a reply).
+      eprintln!("[gateway_client] config.patch: timeout reading response — assuming gateway is restarting");
+      true
+    }
+  };
+
+  // Close the temporary connection.
   let _ = tmp_write.send(Message::Close(None)).await;
   drop(tmp_write);
   drop(tmp_read);
+
+  if !patch_accepted {
+    // Patch was rejected — gateway is NOT restarting.  No further action needed;
+    // the already-correct disk config will be picked up on the next gateway restart.
+    return;
+  }
 
   // Wait for the gateway to restart.  Poll until the port is listening again
   // (up to 8 seconds with exponential backoff).
