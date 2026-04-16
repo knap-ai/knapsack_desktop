@@ -148,6 +148,9 @@ const MeetingsTabView = ({
     if (tasksState.isOpen) {
       setTasksState(prev => ({ ...prev, isOpen: false }))
     }
+    if (insightsState.isOpen) {
+      setInsightsState(prev => ({ ...prev, isOpen: false }))
+    }
     setTranscriptState(prev => ({
       isOpen: !prev.isOpen || prev.threadId !== threadId,
       threadId: threadId,
@@ -221,10 +224,6 @@ const MeetingsTabView = ({
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
             </button>
           </div>
           <div className="MeetingsTabView__topbar-center">
@@ -291,7 +290,7 @@ const MeetingsTabView = ({
       {/* Main content area */}
       <div className="MeetingsTabView__content MeetingsTabView__content--full flex-1">
         <div className="flex flex-row h-full">
-          <div className="flex-grow overflow-y-auto overflow-x-hidden relative">
+          <div className="flex-grow overflow-y-auto overflow-x-hidden relative [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {showPermissionsOverlay && (
               <AudioPermissionChecker
                 onBothPermissionsGranted={() => {
