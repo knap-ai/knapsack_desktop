@@ -3568,7 +3568,8 @@ pub async fn telegram_managed_bot_deeplink(
 
 #[derive(Deserialize)]
 struct TelegramManagedBotGetTokenRequest {
-    agent_id: String,
+    #[allow(dead_code)]
+    agent_id: Option<String>,
     manager_token: String,
     bot_username: String,
 }
@@ -3604,17 +3605,18 @@ pub async fn telegram_managed_bot_get_token(
             let token = v.get("token").and_then(|t| t.as_str()).map(|s| s.to_string());
             let username = v.get("username").and_then(|u| u.as_str()).map(|s| s.to_string());
             let bot_id = v.get("botId").and_then(|id| id.as_i64());
-
+            let success = token.is_some();
+            let message = if success {
+                None
+            } else {
+                Some("Could not retrieve managed bot token — ensure the bot was created via the deeplink and the manager bot has can_manage_bots enabled.".to_string())
+            };
             HttpResponse::Ok().json(TelegramManagedBotTokenResponse {
-                success: token.is_some(),
+                success,
                 token,
                 username,
                 bot_id,
-                message: if token.is_none() {
-                    Some("Could not retrieve managed bot token — ensure the bot was created via the deeplink and the manager bot has can_manage_bots enabled.".to_string())
-                } else {
-                    None
-                },
+                message,
             })
         }
         Err(e) => HttpResponse::Ok().json(TelegramManagedBotTokenResponse {
