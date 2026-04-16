@@ -21,6 +21,7 @@ interface NotetakerSidebarProps {
   onConnectCalendar: () => void
   onMeetingSelect?: () => void
   activeView?: 'home' | 'chat'
+  onLibraryWorkspaceOpen?: (ws: Workspace) => void
 }
 
 function NotetakerSidebar({
@@ -32,6 +33,7 @@ function NotetakerSidebar({
   onConnectCalendar,
   onMeetingSelect,
   activeView = 'home',
+  onLibraryWorkspaceOpen,
 }: NotetakerSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -519,7 +521,10 @@ function NotetakerSidebar({
               <div
                 key={ws.uuid}
                 className="notetaker-sidebar__note-card"
-                onClick={() => onTabChange(TabChoices.Library)}
+                onClick={() => {
+                  onTabChange(TabChoices.Library)
+                  onLibraryWorkspaceOpen?.(ws)
+                }}
               >
                 <div className="notetaker-sidebar__note-avatar notetaker-sidebar__note-avatar--library">
                   {libraryIcon}
