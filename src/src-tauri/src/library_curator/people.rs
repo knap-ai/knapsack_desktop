@@ -253,7 +253,7 @@ fn upsert_person_collection(email_addr: &str, stats: &ContactStats) -> Result<()
         .clone()
         .unwrap_or_else(|| email_addr.to_string());
     let description = format!(
-        "{} email{} · {} meeting{}",
+        "{} email{} · {} meeting{} (last 90 days)",
         stats.email_count,
         if stats.email_count == 1 { "" } else { "s" },
         stats.meeting_count,

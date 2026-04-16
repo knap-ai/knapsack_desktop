@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CurationStatus,
   Workspace,
@@ -12,8 +12,15 @@ import {
   updateCurationSettings,
   wipeLibrary,
 } from '../../../api/workspaces'
+import { KN_API_STREAM_LLM_COMPLETE } from '../../../utils/constants'
 
 const LOCAL_FILES_PROMPT_KEY = 'knap.library.localFilesPromptShown'
+const SUMMARY_CACHE_PREFIX = 'knap.library.summary.'
+
+interface CardSummary {
+  summary: string
+  nextAction: string
+}
 
 interface WorkspacesListProps {
   onWorkspaceOpen: (workspace: Workspace) => void
@@ -29,6 +36,8 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
   const [refreshing, setRefreshing] = useState(false)
   const [showLocalFilesPrompt, setShowLocalFilesPrompt] = useState(false)
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true)
+  const [cardSummaries, setCardSummaries] = useState<Map<string, CardSummary>>(new Map())
+  const summaryGeneratingRef = useRef(new Set<string>())
 
   const fetchWorkspaces = async () => {
     try {
@@ -48,22 +57,91 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     try {
       const status = await getCurationStatus()
       setCurationStatus(status)
+      return status
     } catch (err) {
       console.error('Failed to fetch curation status:', err)
+      return null
     }
   }
 
   useEffect(() => {
-    fetchWorkspaces()
-    fetchStatus()
-    // First-visit local files prompt — show only once per device.
-    try {
-      const shown = localStorage.getItem(LOCAL_FILES_PROMPT_KEY)
-      if (!shown) setShowLocalFilesPrompt(true)
-    } catch {
-      // no-op
+    const init = async () => {
+      // First-visit local files prompt — show only once per device.
+      try {
+        const shown = localStorage.getItem(LOCAL_FILES_PROMPT_KEY)
+        if (!shown) setShowLocalFilesPrompt(true)
+      } catch {
+        // no-op
+      }
+
+      const status = await fetchStatus()
+
+      // Auto-trigger curation on first open if it's never run before.
+      if (status && status.enabled && !status.lastRunAt) {
+        try {
+          await curateLibraryNow()
+        } catch {
+          // non-fatal
+        }
+      }
+
+      await fetchWorkspaces()
     }
+    init()
   }, [])
+
+  /** Load cached summaries and generate missing ones for auto-curated workspaces. */
+  useEffect(() => {
+    if (workspaces.length === 0) return
+
+    // Load what's already cached.
+    const cached = new Map<string, CardSummary>()
+    for (const ws of workspaces) {
+      try {
+        const raw = localStorage.getItem(SUMMARY_CACHE_PREFIX + ws.uuid)
+        if (raw) cached.set(ws.uuid, JSON.parse(raw))
+      } catch {
+        // no-op
+      }
+    }
+    if (cached.size > 0) setCardSummaries(cached)
+
+    // Queue generation for auto-curated workspaces without a cached summary.
+    const toGenerate = workspaces.filter(
+      ws => ws.autoCurated && !cached.has(ws.uuid) && !summaryGeneratingRef.current.has(ws.uuid),
+    )
+    if (toGenerate.length === 0) return
+
+    toGenerate.forEach(ws => summaryGeneratingRef.current.add(ws.uuid))
+
+    let cancelled = false
+    ;(async () => {
+      for (const ws of toGenerate) {
+        if (cancelled) break
+        try {
+          const result = await generateCardSummary(ws, getTopTags(ws, 6))
+          if (result) {
+            setCardSummaries(prev => {
+              const next = new Map(prev)
+              next.set(ws.uuid, result)
+              return next
+            })
+            try {
+              localStorage.setItem(SUMMARY_CACHE_PREFIX + ws.uuid, JSON.stringify(result))
+            } catch {
+              // no-op
+            }
+          }
+        } catch {
+          // skip failed generation silently
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [workspaces])
 
   const dismissLocalFilesPrompt = (enable: boolean) => {
     try {
@@ -219,10 +297,12 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     const topTags = getTopTags(workspace)
     const savedAnswers = chatOutputCount(workspace)
     const mixLabel = opts.auto ? sourceMixLabel(workspace) : ''
+    const aiSummary = cardSummaries.get(workspace.uuid)
+
     return (
       <div
         key={workspace.uuid}
-        className="border border-gray-200 rounded-lg h-52 w-64 flex flex-col justify-between p-4 cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
+        className="border border-gray-200 rounded-lg min-h-52 w-64 flex flex-col justify-between p-4 cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
         onClick={() => onWorkspaceOpen(workspace)}
       >
         <div className="flex flex-col gap-1">
@@ -233,9 +313,18 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
               <span title="Auto-curated by Knapsack" className="text-xs">✨</span>
             )}
           </div>
-          {workspace.description && (
+          {aiSummary ? (
+            <div className="text-sm text-gray-600 line-clamp-2 mt-0.5">
+              {aiSummary.summary}
+            </div>
+          ) : workspace.description && (
             <div className="text-sm text-gray-500 line-clamp-2">
               {workspace.description}
+            </div>
+          )}
+          {aiSummary?.nextAction && (
+            <div className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1 mt-1 line-clamp-1">
+              → {aiSummary.nextAction}
             </div>
           )}
           {topTags.length > 0 && (
@@ -252,7 +341,7 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
           )}
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-3">
           <div className="text-xs text-gray-400 truncate">
             {opts.auto && mixLabel ? mixLabel : `${workspace.documents?.length ?? 0} doc${(workspace.documents?.length ?? 0) !== 1 ? 's' : ''}`}
             {savedAnswers > 0 && ` · ${savedAnswers} saved`}
@@ -451,6 +540,73 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
       )}
     </div>
   )
+}
+
+/** Generate an AI summary + suggested next action for a workspace card.
+ *  Called once per workspace; result is cached in localStorage. */
+async function generateCardSummary(workspace: Workspace, topTags: string[]): Promise<CardSummary | null> {
+  const docs = workspace.documents ?? []
+  const docTitles = docs
+    .slice(0, 8)
+    .map(d => d.documentName)
+    .join(', ')
+
+  const contextLines = [
+    `Name: ${workspace.name}`,
+    workspace.entityType === 'person' ? 'Type: Person (contact)' : 'Type: Project',
+    workspace.description ? `Stats: ${workspace.description}` : '',
+    topTags.length > 0 ? `Topics: ${topTags.join(', ')}` : '',
+    docTitles ? `Recent items: ${docTitles}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const prompt =
+    `You are a personal knowledge assistant. Based on this contact/project summary from my personal knowledge base, write a brief 1-2 sentence human-readable description. ` +
+    `Then suggest one specific, concrete next action I should take.\n\nContext:\n${contextLines}\n\n` +
+    `Respond with JSON only, no markdown: {"summary": "...", "nextAction": "..."}`
+
+  try {
+    const response = await fetch(KN_API_STREAM_LLM_COMPLETE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_email: '',
+        user_name: '',
+        prompt,
+        semantic_search_query: null,
+        documents: [],
+        is_local: false,
+      }),
+    })
+
+    if (!response.ok || !response.body) return null
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let text = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue
+        if (line.trim() === 'data: [DONE]') break
+        try {
+          text += JSON.parse(line.slice(6)).choices[0].text
+        } catch {
+          // malformed chunk — skip
+        }
+      }
+    }
+
+    const match = text.match(/\{[\s\S]*?"summary"[\s\S]*?"nextAction"[\s\S]*?\}/)
+    if (!match) return null
+    return JSON.parse(match[0]) as CardSummary
+  } catch {
+    return null
+  }
 }
 
 export default WorkspacesList
