@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   CurationStatus,
   Workspace,
@@ -37,7 +37,6 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
   const [showLocalFilesPrompt, setShowLocalFilesPrompt] = useState(false)
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true)
   const [cardSummaries, setCardSummaries] = useState<Map<string, CardSummary>>(new Map())
-  const summaryGeneratingRef = useRef(new Set<string>())
 
   const fetchWorkspaces = async () => {
     try {
@@ -107,12 +106,12 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     if (cached.size > 0) setCardSummaries(cached)
 
     // Queue generation for auto-curated workspaces without a cached summary.
+    // We rely on localStorage (not an in-flight ref) so that a cancelled effect
+    // doesn't permanently prevent retry on the next mount.
     const toGenerate = workspaces.filter(
-      ws => ws.autoCurated && !cached.has(ws.uuid) && !summaryGeneratingRef.current.has(ws.uuid),
+      ws => ws.autoCurated && !cached.has(ws.uuid),
     )
     if (toGenerate.length === 0) return
-
-    toGenerate.forEach(ws => summaryGeneratingRef.current.add(ws.uuid))
 
     let cancelled = false
     ;(async () => {
@@ -128,8 +127,12 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
 
       for (const ws of toGenerate) {
         if (cancelled) break
+        // Re-check cache — another concurrent loop may have written it.
+        const existing = localStorage.getItem(SUMMARY_CACHE_PREFIX + ws.uuid)
+        if (existing) continue
         try {
           const result = await generateCardSummary(ws, getTopTags(ws, 6), userEmail)
+          if (cancelled) break
           if (result) {
             setCardSummaries(prev => {
               const next = new Map(prev)
@@ -220,6 +223,17 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     } catch (err) {
       console.error('Failed to create workspace:', err)
     }
+  }
+
+  const handleNextActionClick = (e: React.MouseEvent, action: string, workspace: Workspace) => {
+    e.stopPropagation()
+    // Build a richer prompt so the chat has context about who/what this is about.
+    const subject = workspace.entityType === 'person' ? workspace.name : `the ${workspace.name} project`
+    const prompt = `Regarding ${subject}: ${action}`
+    window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: prompt }))
+    }, 100)
   }
 
   const handleDelete = async (e: React.MouseEvent, uuid: string) => {
@@ -324,18 +338,22 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
             )}
           </div>
           {aiSummary ? (
-            <div className="text-sm text-gray-600 line-clamp-2 mt-0.5">
+            <div className="text-sm text-gray-600 mt-0.5">
               {aiSummary.summary}
             </div>
           ) : workspace.description && (
-            <div className="text-sm text-gray-500 line-clamp-2">
+            <div className="text-sm text-gray-500">
               {workspace.description}
             </div>
           )}
           {aiSummary?.nextAction && (
-            <div className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1 mt-1 line-clamp-1">
+            <button
+              className="text-xs text-left text-blue-600 bg-blue-50 hover:bg-blue-100 rounded px-2 py-1 mt-1 transition-colors"
+              onClick={e => handleNextActionClick(e, aiSummary.nextAction, workspace)}
+              title="Send to Chat"
+            >
               → {aiSummary.nextAction}
-            </div>
+            </button>
           )}
           {topTags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
