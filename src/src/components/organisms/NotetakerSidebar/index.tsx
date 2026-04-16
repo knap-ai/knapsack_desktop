@@ -91,7 +91,7 @@ function NotetakerSidebar({
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
-        if (item.calendarEvent || (item.timestamp && item.timestamp.getTime() > now - 3600000)) {
+        if (item.calendarEvent) {
           events.push({ item, key })
         }
       })
