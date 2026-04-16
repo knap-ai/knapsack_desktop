@@ -483,6 +483,10 @@ function Home({
                 setMeetingSubView('meetings')
               }
             }}
+            onLibraryWorkspaceOpen={(ws) => {
+              setCurrentTab(TabChoices.Library)
+              setSelectedWorkspace(ws)
+            }}
             onQuickNote={() => {
               setCurrentTab(TabChoices.Meeting)
               setMeetingSubView('meetings')
