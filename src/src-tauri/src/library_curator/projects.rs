@@ -6,6 +6,8 @@
 //! and calendar events as documents (matched by simple keyword hits against
 //! the LLM-supplied keyword list — cheap, deterministic, no second LLM pass).
 
+use std::collections::HashSet;
+
 use serde::Deserialize;
 
 use crate::db::db::get_db_conn;
@@ -16,7 +18,6 @@ use crate::library_curator::settings::CuratorSettings;
 use crate::llm::types::{Message as LlmMessage, MessageSender};
 use crate::llm::use_cases::complete::multi_provider_completion;
 
-const LOOKBACK_DAYS: i64 = 90;
 const MAX_EMAILS_FOR_CORPUS: usize = 500;
 const MAX_TITLES_FOR_CORPUS: usize = 500;
 const MAX_PROJECTS: usize = 10;
@@ -45,14 +46,8 @@ struct DetectedProjectsResponse {
 /// Run the project detector end-to-end. Safe to call repeatedly — upserts
 /// are idempotent and document attachments dedupe via the unique source index.
 pub async fn detect_and_upsert(_cfg: &CuratorSettings) -> Result<(), Error> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-    let cutoff = now - LOOKBACK_DAYS * 86_400;
-
-    let email_subjects = collect_email_subjects(cutoff);
-    let meeting_titles = collect_meeting_titles(cutoff);
+    let email_subjects = collect_email_subjects();
+    let meeting_titles = collect_meeting_titles();
 
     if email_subjects.is_empty() && meeting_titles.is_empty() {
         log::info!("[library_curator/projects] no signal corpus; skipping");
@@ -72,6 +67,7 @@ pub async fn detect_and_upsert(_cfg: &CuratorSettings) -> Result<(), Error> {
         projects.len()
     );
 
+    let mut kept_slugs: HashSet<String> = HashSet::new();
     for proj in projects.into_iter().take(MAX_PROJECTS) {
         if proj.slug.trim().is_empty()
             || proj.name.trim().is_empty()
@@ -79,20 +75,42 @@ pub async fn detect_and_upsert(_cfg: &CuratorSettings) -> Result<(), Error> {
         {
             continue;
         }
-        if let Err(e) = upsert_project_collection(&proj, cutoff) {
+        let slug = proj.slug.trim().to_string();
+        if let Err(e) = upsert_project_collection(&proj) {
             log::warn!(
                 "[library_curator/projects] upsert failed for {}: {:?}",
-                proj.slug,
+                slug,
                 e
             );
+        } else {
+            kept_slugs.insert(slug);
+        }
+    }
+
+    // Prune stale auto-curated projects — slugs the LLM no longer considers
+    // active. Prevents accumulation of near-duplicates across runs (e.g.
+    // "sage-financial-partnership" vs "sage-financial-wealthbox"). Only fires
+    // when we successfully upserted at least one project, so a bad LLM run
+    // never wipes the library.
+    if !kept_slugs.is_empty() {
+        match Workspace::delete_stale_auto_projects(&kept_slugs) {
+            Ok(n) if n > 0 => log::info!(
+                "[library_curator/projects] pruned {} stale auto-curated project(s)",
+                n
+            ),
+            Ok(_) => {}
+            Err(e) => log::warn!(
+                "[library_curator/projects] prune failed: {:?}",
+                e
+            ),
         }
     }
 
     Ok(())
 }
 
-fn collect_email_subjects(cutoff: i64) -> Vec<String> {
-    let emails = Email::filter_emails(MAX_EMAILS_FOR_CORPUS, None, Some(cutoff), None);
+fn collect_email_subjects() -> Vec<String> {
+    let emails = Email::filter_emails(MAX_EMAILS_FOR_CORPUS, None, None, None);
     emails
         .into_iter()
         .filter_map(|e| {
@@ -106,15 +124,15 @@ fn collect_email_subjects(cutoff: i64) -> Vec<String> {
         .collect()
 }
 
-fn collect_meeting_titles(cutoff: i64) -> Vec<String> {
+fn collect_meeting_titles() -> Vec<String> {
     let connection = get_db_conn();
     let mut titles = Vec::new();
     let Ok(mut stmt) = connection.prepare(
-        "SELECT title FROM calendar_events WHERE start >= ?1 AND title IS NOT NULL ORDER BY start DESC LIMIT ?2",
+        "SELECT title FROM calendar_events WHERE title IS NOT NULL ORDER BY start DESC LIMIT ?1",
     ) else {
         return titles;
     };
-    let rows = stmt.query_map(rusqlite::params![cutoff, MAX_TITLES_FOR_CORPUS as i64], |row| {
+    let rows = stmt.query_map(rusqlite::params![MAX_TITLES_FOR_CORPUS as i64], |row| {
         row.get::<_, Option<String>>(0)
     });
     if let Ok(rows) = rows {
@@ -196,7 +214,7 @@ fn strip_json_fence(raw: &str) -> &str {
     no_md
 }
 
-fn upsert_project_collection(proj: &DetectedProject, cutoff: i64) -> Result<(), Error> {
+fn upsert_project_collection(proj: &DetectedProject) -> Result<(), Error> {
     let workspace = Workspace::upsert_auto_collection(
         "project",
         proj.slug.trim(),
@@ -226,7 +244,7 @@ fn upsert_project_collection(proj: &DetectedProject, cutoff: i64) -> Result<(), 
 
     // Attach matching emails by subject/body keyword hit.
     let mut email_attached = 0_usize;
-    let emails = Email::filter_emails(EMAIL_SCAN_LIMIT, None, Some(cutoff), None);
+    let emails = Email::filter_emails(EMAIL_SCAN_LIMIT, None, None, None);
     for email in emails {
         if email_attached >= MAX_DOCS_PER_PROJECT {
             break;
@@ -259,9 +277,9 @@ fn upsert_project_collection(proj: &DetectedProject, cutoff: i64) -> Result<(), 
     let mut event_attached = 0_usize;
     let connection = get_db_conn();
     if let Ok(mut stmt) = connection.prepare(
-        "SELECT id, title, description FROM calendar_events WHERE start >= ?1 AND title IS NOT NULL ORDER BY start DESC LIMIT ?2",
+        "SELECT id, title, description FROM calendar_events WHERE title IS NOT NULL ORDER BY start DESC LIMIT ?1",
     ) {
-        if let Ok(rows) = stmt.query_map(rusqlite::params![cutoff, EVENT_SCAN_LIMIT], |row| {
+        if let Ok(rows) = stmt.query_map(rusqlite::params![EVENT_SCAN_LIMIT], |row| {
             Ok((
                 row.get::<_, u64>(0)?,
                 row.get::<_, Option<String>>(1)?,

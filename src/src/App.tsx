@@ -1217,6 +1217,7 @@ function App() {
     morning_briefing_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
+      window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
       // Trigger LLM briefing generation; result includes fullAnalysis text
       const { fullAnalysis } = await triggerBriefingFeedItemRef.current()
       if (fullAnalysis) {
@@ -1226,6 +1227,7 @@ function App() {
     heartbeat_view_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
+      window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
       const message = lastHeartbeatMessageRef.current
       if (message) {
         // Show the notification message as an assistant message in chat
@@ -1241,6 +1243,7 @@ function App() {
     background_insight_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
+      window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
       // Show the pending insight directly in the ClawdChat window
       const text = getPendingInsightTextRef.current()
       if (text) {
@@ -1252,6 +1255,7 @@ function App() {
     post_meeting_followup_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
+      window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
       // Show the pending follow-up directly in the ClawdChat window
       const text = getPendingFollowupTextRef.current()
       if (text) {
@@ -1263,6 +1267,7 @@ function App() {
     suggested_action_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
+      window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
       // Show the pending insight in chat, then auto-execute the suggested action
       const text = getPendingInsightTextRef.current()
       if (text) {
@@ -1280,6 +1285,7 @@ function App() {
     suggested_followup_action_notification_handler: async (_meetingId: string | null) => {
       await invoke('activate_main_window')
       await invoke('close_notification_window')
+      window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
       // Show the pending follow-up in chat, then auto-execute the suggested action
       const text = getPendingFollowupTextRef.current()
       if (text) {

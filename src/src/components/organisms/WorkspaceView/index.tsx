@@ -12,6 +12,8 @@ import {
   parseTags,
 } from '../../../api/workspaces'
 
+const SUMMARY_CACHE_PREFIX = 'knap.library.summary.'
+
 interface WorkspaceViewProps {
   workspace: Workspace
   onBack: () => void
@@ -28,8 +30,16 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   const [editName, setEditName] = useState(workspace.name)
   const [editDescription, setEditDescription] = useState(workspace.description ?? '')
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null)
-  const [expandedSummary, setExpandedSummary] = useState<number | null>(null)
   const dropRef = useRef<HTMLDivElement>(null)
+
+  // Load AI-generated card summary from localStorage (written by WorkspacesList).
+  const aiSummary = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(SUMMARY_CACHE_PREFIX + workspace.uuid)
+      if (raw) return JSON.parse(raw) as { summary: string; nextAction: string }
+    } catch { /* no-op */ }
+    return null
+  }, [workspace.uuid])
 
   const refreshWorkspace = useCallback(async () => {
     try {
@@ -283,6 +293,30 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
               {currentWorkspace.description}
             </p>
           )}
+          {aiSummary && (
+            <div className="ml-10 mt-2">
+              <p className="text-sm text-gray-700">{aiSummary.summary}</p>
+              {aiSummary.nextAction && (
+                <button
+                  className="text-xs text-left text-blue-600 bg-blue-50 hover:bg-blue-100 rounded px-2 py-1 mt-1.5 transition-colors"
+                  onClick={() => {
+                    const subject = currentWorkspace.entityType === 'person'
+                      ? currentWorkspace.name
+                      : `the ${currentWorkspace.name} project`
+                    window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('clawd-send-user', {
+                        detail: `Regarding ${subject}: ${aiSummary.nextAction}`,
+                      }))
+                    }, 100)
+                  }}
+                  title="Send to Chat"
+                >
+                  → {aiSummary.nextAction}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -410,8 +444,6 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
             {filteredDocuments.map(doc => {
               const autoTags = parseTags(doc.autoTags)
               const userTags = parseTags(doc.tags)
-              const hasSummary = !!doc.summary
-              const isExpanded = expandedSummary === doc.id
 
               return (
                 <div
@@ -432,15 +464,6 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
                     </div>
 
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      {hasSummary && (
-                        <button
-                          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                          onClick={() => setExpandedSummary(isExpanded ? null : doc.id)}
-                          title={isExpanded ? 'Hide summary' : 'Show summary'}
-                        >
-                          {isExpanded ? 'Hide' : 'Summary'}
-                        </button>
-                      )}
                       {doc.createdAt && (
                         <span className="text-xs text-gray-400">
                           {formatDate(doc.createdAt)}
@@ -479,9 +502,9 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
                     </div>
                   )}
 
-                  {/* Expandable summary */}
-                  {isExpanded && doc.summary && (
-                    <div className="mt-2 ml-8 text-xs text-gray-500 bg-gray-50 rounded-md p-2">
+                  {/* Summary — shown inline when available */}
+                  {doc.summary && (
+                    <div className="mt-2 ml-8 text-xs text-gray-600">
                       {doc.summary}
                     </div>
                   )}
