@@ -6,35 +6,44 @@ import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
 import KNDateUtils from 'src/utils/KNDateUtils'
 import { ThreadType } from 'src/api/threads'
 import { getAppVersion } from 'src/utils/app'
+import { Connection, ConnectionKeys } from 'src/api/connections'
+import { TabChoices } from 'src/components/TabBar'
+import { listWorkspaces, Workspace } from 'src/api/workspaces'
 
 import './style.scss'
 
-export type NotetakerView = 'home' | 'chat'
-
 interface NotetakerSidebarProps {
   feed: IFeed
+  connections: Record<string, Connection>
+  currentTab: TabChoices
+  onTabChange: (tab: TabChoices, subView?: 'meetings' | 'chat') => void
   onQuickNote: () => void
-  onSettingsClick: () => void
-  onChatClick?: () => void
+  onConnectCalendar: () => void
   onMeetingSelect?: () => void
-  onHomeClick?: () => void
-  onExitMeetingView?: () => void
-  activeView?: NotetakerView
+  activeView?: 'home' | 'chat'
 }
 
-function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onHomeClick, onMeetingSelect, onExitMeetingView, activeView: controlledView }: NotetakerSidebarProps) {
-  const [internalView, setInternalView] = useState<NotetakerView>('home')
-  const activeView = controlledView ?? internalView
+function NotetakerSidebar({
+  feed,
+  connections,
+  currentTab,
+  onTabChange,
+  onQuickNote,
+  onConnectCalendar,
+  onMeetingSelect,
+  activeView = 'home',
+}: NotetakerSidebarProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
+  const [libraryResults, setLibraryResults] = useState<Workspace[]>([])
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     getAppVersion().then(v => setAppVersion(v))
   }, [])
 
-  // Ctrl+K / Cmd+K shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -46,13 +55,36 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  const hasCalendarConnected = useMemo(
+    () => !!(connections[ConnectionKeys.GOOGLE_CALENDAR] || connections[ConnectionKeys.MICROSOFT_CALENDAR]),
+    [connections],
+  )
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setLibraryResults([])
+      return
+    }
+    const q = searchQuery.toLowerCase()
+    listWorkspaces()
+      .then(res => {
+        if (res.success) {
+          setLibraryResults(
+            res.data.filter(
+              (ws: Workspace) =>
+                ws.name?.toLowerCase().includes(q) || ws.description?.toLowerCase().includes(q),
+            ),
+          )
+        }
+      })
+      .catch(() => {})
+  }, [searchQuery])
+
   const currentFeedItem = feed.currentFeedItem()
 
-  // Build the "Coming up" events for the calendar widget
   const upcomingEvents = useMemo(() => {
-    if (!feed.feedContent) return []
+    if (!feed.feedContent) return {}
     const now = Date.now()
-
     const events: { item: FeedItem; key: string }[] = []
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
@@ -62,55 +94,43 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
         }
       })
     })
-
     events.sort((a, b) => a.item.timestamp.getTime() - b.item.timestamp.getTime())
-
-    // Group by date
     const grouped: Record<string, { item: FeedItem; key: string }[]> = {}
     events.forEach(ev => {
       const dateKey = dayjs(ev.item.timestamp).format('YYYY-MM-DD')
       if (!grouped[dateKey]) grouped[dateKey] = []
       grouped[dateKey].push(ev)
     })
-
     return grouped
   }, [feed.feedContent])
 
-  // Build past notes list grouped by date
   const pastNotes = useMemo(() => {
     if (!feed.feedContent) return {}
-
     const now = Date.now()
     const groups: Record<string, { item: FeedItem; key: string }[]> = {}
-
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
         const hasMeetingNotes = item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
         if (hasMeetingNotes && item.timestamp.getTime() < now) {
-          const dateKey = key
-          if (!groups[dateKey]) groups[dateKey] = []
-          groups[dateKey].push({ item, key })
+          if (!groups[key]) groups[key] = []
+          groups[key].push({ item, key })
         }
       })
     })
-
-    // Sort within each group
     Object.keys(groups).forEach(key => {
       groups[key].sort((a, b) => b.item.timestamp.getTime() - a.item.timestamp.getTime())
     })
-
     return groups
   }, [feed.feedContent])
 
   const orderedPastKeys = useMemo(() => {
     const keys = Object.entries(pastNotes)
-      .filter(([_, items]: [string, { item: FeedItem; key: string }[]]) => items.length > 0)
-      .map(([key, items]: [string, { item: FeedItem; key: string }[]]) => ({
+      .filter(([_, items]) => (items as { item: FeedItem; key: string }[]).length > 0)
+      .map(([key, items]) => ({
         key,
-        timestamp: items[0].item.timestamp,
+        timestamp: (items as { item: FeedItem; key: string }[])[0].item.timestamp,
       }))
-
     return KNDateUtils.sortByTimestamp(keys, false).map(k => k.key)
   }, [pastNotes])
 
@@ -118,7 +138,9 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
     const now = Date.now()
     const start = item.timestamp.getTime()
     const end = item.calendarEvent?.end
-      ? (item.calendarEvent.end < start / 100 ? item.calendarEvent.end * 1000 : item.calendarEvent.end)
+      ? item.calendarEvent.end < start / 100
+        ? item.calendarEvent.end * 1000
+        : item.calendarEvent.end
       : start + 30 * 60 * 1000
     return start <= now && now <= end
   }, [])
@@ -126,172 +148,407 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
   const formatTimeRange = useCallback((item: FeedItem) => {
     const start = dayjs(item.timestamp).format('h:mm A')
     if (item.calendarEvent?.end) {
-      const endTs = item.calendarEvent.end < item.timestamp.getTime() / 100
-        ? item.calendarEvent.end * 1000
-        : item.calendarEvent.end
-      const end = dayjs(endTs).format('h:mm A')
-      return `${start} \u2013 ${end}`
+      const endTs =
+        item.calendarEvent.end < item.timestamp.getTime() / 100
+          ? item.calendarEvent.end * 1000
+          : item.calendarEvent.end
+      return `${start} \u2013 ${dayjs(endTs).format('h:mm A')}`
     }
     return start
   }, [])
 
-  // Filter items by search
-  const filterBySearch = useCallback((items: { item: FeedItem; key: string }[]) => {
-    if (!searchQuery.trim()) return items
-    const q = searchQuery.toLowerCase()
-    return items.filter(({ item }) => {
-      const title = (typeof item.getTitle === 'function' ? item.getTitle() : item.title) || ''
-      const subtitle = item.getSubtitle?.() || ''
-      return title.toLowerCase().includes(q) || subtitle.toLowerCase().includes(q)
-    })
-  }, [searchQuery])
+  const filterBySearch = useCallback(
+    (items: { item: FeedItem; key: string }[]) => {
+      if (!searchQuery.trim()) return items
+      const q = searchQuery.toLowerCase()
+      return items.filter(({ item }) => {
+        const title = (typeof item.getTitle === 'function' ? item.getTitle() : item.title) || ''
+        const subtitle = item.getSubtitle?.() || ''
+        return title.toLowerCase().includes(q) || subtitle.toLowerCase().includes(q)
+      })
+    },
+    [searchQuery],
+  )
+
+  const isChatActive =
+    currentTab === TabChoices.Openclaw ||
+    (currentTab === TabChoices.Meeting && activeView === 'chat')
+  const isEmailActive = currentTab === TabChoices.Email
+  const isLibraryActive = currentTab === TabChoices.Library
+
+  const chatIcon = (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+
+  const emailIcon = (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </svg>
+  )
+
+  const libraryIcon = (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  )
+
+  const noteIcon = (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  )
+
+  if (isCollapsed) {
+    return (
+      <div className="notetaker-sidebar notetaker-sidebar--collapsed">
+        <button
+          className="notetaker-sidebar__icon-btn"
+          onClick={() => setIsCollapsed(false)}
+          title="Expand sidebar"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+          </svg>
+        </button>
+        <div className="notetaker-sidebar__icon-bottom">
+          <button className="notetaker-sidebar__icon-btn" onClick={onQuickNote} title="New note">
+            {noteIcon}
+          </button>
+          <button
+            className={`notetaker-sidebar__icon-btn ${isChatActive ? 'notetaker-sidebar__icon-btn--active' : ''}`}
+            onClick={() => onTabChange(TabChoices.Openclaw)}
+            title="Chat"
+          >
+            {chatIcon}
+          </button>
+          <button
+            className={`notetaker-sidebar__icon-btn ${isEmailActive ? 'notetaker-sidebar__icon-btn--active' : ''}`}
+            onClick={() => onTabChange(TabChoices.Email)}
+            title="Email Autopilot"
+          >
+            {emailIcon}
+          </button>
+          <button
+            className={`notetaker-sidebar__icon-btn ${isLibraryActive ? 'notetaker-sidebar__icon-btn--active' : ''}`}
+            onClick={() => onTabChange(TabChoices.Library)}
+            title="Library"
+          >
+            {libraryIcon}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="notetaker-sidebar">
+      <button
+        className="notetaker-sidebar__collapse-btn"
+        onClick={() => setIsCollapsed(true)}
+        title="Collapse sidebar"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+
       {/* Search */}
       <div className="notetaker-sidebar__search">
-        <div className={`notetaker-sidebar__search-box ${searchFocused ? 'notetaker-sidebar__search-box--focused' : ''}`}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="notetaker-sidebar__search-icon">
+        <div
+          className={`notetaker-sidebar__search-box ${searchFocused ? 'notetaker-sidebar__search-box--focused' : ''}`}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="notetaker-sidebar__search-icon"
+          >
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search"
+            placeholder="Search meetings & library"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
             className="notetaker-sidebar__search-input"
           />
-          <kbd className="notetaker-sidebar__search-shortcut">
-            {navigator.platform?.includes('Mac') ? '\u2318' : 'Ctrl+'}K
-          </kbd>
+          {searchQuery ? (
+            <button onClick={() => setSearchQuery('')} className="notetaker-sidebar__search-clear">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          ) : (
+            <kbd className="notetaker-sidebar__search-shortcut">
+              {navigator.platform?.includes('Mac') ? '\u2318' : 'Ctrl+'}K
+            </kbd>
+          )}
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="notetaker-sidebar__nav">
-        <button
-          className={`notetaker-sidebar__nav-item ${activeView === 'home' ? 'notetaker-sidebar__nav-item--active' : ''}`}
-          onClick={() => { setInternalView('home'); onHomeClick?.() }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-          Home
-        </button>
-        <button
-          className={`notetaker-sidebar__nav-item ${activeView === 'chat' ? 'notetaker-sidebar__nav-item--active' : ''}`}
-          onClick={() => { setInternalView('chat'); onChatClick?.() }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          Chat
-        </button>
-      </nav>
-
       {/* Scrollable content */}
       <div className="notetaker-sidebar__content">
+        {/* Connect calendar prompt */}
+        {!hasCalendarConnected && (
+          <div className="notetaker-sidebar__connect-prompt">
+            <div className="notetaker-sidebar__connect-prompt-icon">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+                <line x1="12" y1="14" x2="12" y2="18" />
+                <line x1="10" y1="16" x2="14" y2="16" />
+              </svg>
+            </div>
+            <div className="notetaker-sidebar__connect-prompt-title">Connect your calendar</div>
+            <div className="notetaker-sidebar__connect-prompt-desc">
+              See upcoming meetings and take notes automatically
+            </div>
+            <button
+              className="notetaker-sidebar__connect-prompt-btn"
+              onClick={onConnectCalendar}
+            >
+              Connect calendar
+            </button>
+          </div>
+        )}
+
         {/* Coming Up calendar widget */}
-        {Object.keys(upcomingEvents).length > 0 && (
+        {hasCalendarConnected && Object.keys(upcomingEvents).length > 0 && (
           <div className="notetaker-sidebar__coming-up">
             <h2 className="notetaker-sidebar__section-title">Coming up</h2>
             <div className="notetaker-sidebar__calendar-card">
-              {Object.entries(upcomingEvents).slice(0, 5).map(([dateStr, events]) => {
-                const date = dayjs(dateStr)
-                const isToday = date.isSame(dayjs(), 'day')
-                const filteredEvents = filterBySearch(events).slice(0, 4)
-                if (filteredEvents.length === 0) return null
-
-                return (
-                  <div key={dateStr} className="notetaker-sidebar__calendar-day">
-                    <div className="notetaker-sidebar__calendar-date">
-                      <span className="notetaker-sidebar__calendar-date-num">{date.format('D')}</span>
-                      <div className="notetaker-sidebar__calendar-date-meta">
-                        <span className="notetaker-sidebar__calendar-month">{date.format('MMMM')}</span>
-                        {isToday && <span className="notetaker-sidebar__calendar-today-dot" />}
-                        <span className="notetaker-sidebar__calendar-day-name">{date.format('ddd')}</span>
+              {Object.entries(upcomingEvents)
+                .slice(0, 5)
+                .map(([dateStr, events]) => {
+                  const date = dayjs(dateStr)
+                  const isToday = date.isSame(dayjs(), 'day')
+                  const filteredEvents = filterBySearch(events).slice(0, 4)
+                  if (filteredEvents.length === 0) return null
+                  return (
+                    <div key={dateStr} className="notetaker-sidebar__calendar-day">
+                      <div className="notetaker-sidebar__calendar-date">
+                        <span className="notetaker-sidebar__calendar-date-num">
+                          {date.format('D')}
+                        </span>
+                        <div className="notetaker-sidebar__calendar-date-meta">
+                          <span className="notetaker-sidebar__calendar-month">
+                            {date.format('MMMM')}
+                          </span>
+                          {isToday && <span className="notetaker-sidebar__calendar-today-dot" />}
+                          <span className="notetaker-sidebar__calendar-day-name">
+                            {date.format('ddd')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="notetaker-sidebar__calendar-events">
+                        {filteredEvents.map(({ item, key }) => {
+                          const isNow = isNowMeeting(item)
+                          const title =
+                            typeof item.getTitle === 'function'
+                              ? item.getTitle()
+                              : item.title || ''
+                          return (
+                            <div
+                              key={item.id ?? `cal-${item.calendarEvent?.id ?? title}`}
+                              className={`notetaker-sidebar__calendar-event ${isNow ? 'notetaker-sidebar__calendar-event--now' : ''}`}
+                              onClick={() => {
+                                if (item.id != null) {
+                                  feed.selectFeedItem(key, item.id)
+                                } else if (item.calendarEvent) {
+                                  feed.openCalendarEvent(item.calendarEvent)
+                                }
+                                onMeetingSelect?.()
+                                onTabChange(TabChoices.Meeting, 'meetings')
+                              }}
+                            >
+                              <div className="notetaker-sidebar__calendar-event-bar" />
+                              <div className="notetaker-sidebar__calendar-event-content">
+                                <div className="notetaker-sidebar__calendar-event-title">
+                                  {title}
+                                </div>
+                                <div className="notetaker-sidebar__calendar-event-time">
+                                  {isNow && (
+                                    <span className="notetaker-sidebar__now-label">
+                                      Now &middot;{' '}
+                                    </span>
+                                  )}
+                                  {formatTimeRange(item)}
+                                </div>
+                              </div>
+                              {item.threads?.some(
+                                t => t.threadType === ThreadType.MEETING_NOTES && t.recorded,
+                              ) && (
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="#6474AC"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="notetaker-sidebar__note-has-notes"
+                                  aria-label="Has meeting notes"
+                                >
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                  <line x1="16" y1="13" x2="8" y2="13" />
+                                  <line x1="16" y1="17" x2="8" y2="17" />
+                                </svg>
+                              )}
+                              {isNow && (
+                                <button
+                                  className="notetaker-sidebar__start-now-btn"
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    if (item.id != null) feed.selectFeedItem(key, item.id)
+                                    feed.createNewMeeting()
+                                    onMeetingSelect?.()
+                                    onTabChange(TabChoices.Meeting, 'meetings')
+                                  }}
+                                >
+                                  Start now
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
-                    <div className="notetaker-sidebar__calendar-events">
-                      {filteredEvents.map(({ item, key }) => {
-                        const isNow = isNowMeeting(item)
-                        const title = typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
-                        return (
-                          <div
-                            key={item.id ?? `cal-${item.calendarEvent?.id ?? title}`}
-                            className={`notetaker-sidebar__calendar-event ${isNow ? 'notetaker-sidebar__calendar-event--now' : ''}`}
-                            onClick={() => {
-                              if (item.id != null) {
-                                feed.selectFeedItem(key, item.id)
-                                onMeetingSelect?.()
-                              } else if (item.calendarEvent) {
-                                feed.openCalendarEvent(item.calendarEvent)
-                                onMeetingSelect?.()
-                              }
-                            }}
-                          >
-                            <div className="notetaker-sidebar__calendar-event-bar" />
-                            <div className="notetaker-sidebar__calendar-event-content">
-                              <div className="notetaker-sidebar__calendar-event-title">{title}</div>
-                              <div className="notetaker-sidebar__calendar-event-time">
-                                {isNow && <span className="notetaker-sidebar__now-label">Now &middot; </span>}
-                                {formatTimeRange(item)}
-                              </div>
-                            </div>
-                            {item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES && t.recorded) && (
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6474AC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="notetaker-sidebar__note-has-notes" aria-label="Has meeting notes">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                                <line x1="16" y1="13" x2="8" y2="13" />
-                                <line x1="16" y1="17" x2="8" y2="17" />
-                              </svg>
-                            )}
-                            {isNow && (
-                              <button
-                                className="notetaker-sidebar__start-now-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  if (item.id != null) {
-                                    feed.selectFeedItem(key, item.id)
-                                  }
-                                  feed.createNewMeeting()
-                                  onMeetingSelect?.()
-                                }}
-                              >
-                                Start now
-                              </button>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
             </div>
           </div>
         )}
 
-        {/* Past notes list */}
+        {/* Library search results */}
+        {searchQuery.trim() && libraryResults.length > 0 && (
+          <div className="notetaker-sidebar__notes-group">
+            <div className="notetaker-sidebar__notes-date">Library</div>
+            {libraryResults.map(ws => (
+              <div
+                key={ws.uuid}
+                className="notetaker-sidebar__note-card"
+                onClick={() => onTabChange(TabChoices.Library)}
+              >
+                <div className="notetaker-sidebar__note-avatar notetaker-sidebar__note-avatar--library">
+                  {libraryIcon}
+                </div>
+                <div className="notetaker-sidebar__note-info">
+                  <div className="notetaker-sidebar__note-title">{ws.name}</div>
+                  {ws.description && (
+                    <div className="notetaker-sidebar__note-subtitle">{ws.description}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Past notes */}
         {orderedPastKeys.map(dateKey => {
           const items = filterBySearch(pastNotes[dateKey])
           if (!items || items.length === 0) return null
           if (!feed.isRecentDate(dateKey, true, false)) return null
-
           return (
             <div key={dateKey} className="notetaker-sidebar__notes-group">
               <div className="notetaker-sidebar__notes-date">{dateKey}</div>
               {items.map(({ item, key }) => {
                 const isSelected = currentFeedItem?.id === item.id
-                const title = typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
+                const title =
+                  typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
                 const subtitle = item.getSubtitle?.() || ''
                 const time = dayjs(item.timestamp).format('h:mm A')
-
                 return (
                   <div
                     key={item.id ?? `note-${title}`}
@@ -300,6 +557,7 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
                       if (item.id != null) {
                         feed.selectFeedItem(key, item.id)
                         onMeetingSelect?.()
+                        onTabChange(TabChoices.Meeting, 'meetings')
                       }
                     }}
                   >
@@ -313,15 +571,38 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
                       )}
                     </div>
                     <div className="notetaker-sidebar__note-meta">
-                      {item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES && t.recorded) && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6474AC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="notetaker-sidebar__note-has-notes" aria-label="Has meeting notes">
+                      {item.threads?.some(
+                        t => t.threadType === ThreadType.MEETING_NOTES && t.recorded,
+                      ) && (
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#6474AC"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="notetaker-sidebar__note-has-notes"
+                          aria-label="Has meeting notes"
+                        >
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                           <polyline points="14 2 14 8 20 8" />
                           <line x1="16" y1="13" x2="8" y2="13" />
                           <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
                       )}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="notetaker-sidebar__note-lock">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="notetaker-sidebar__note-lock"
+                      >
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                       </svg>
@@ -334,26 +615,24 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
           )
         })}
 
-        {/* Today section for notes without meeting threads */}
+        {/* Today's notes without meeting threads */}
         {(() => {
           const todayKey = Object.keys(feed.feedContent || {}).find(k => k.includes('Today'))
           if (!todayKey || !feed.feedContent[todayKey]) return null
-
           const todayItems = filterBySearch(
             feed.feedContent[todayKey]
               .filter(item => !item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES))
-              .map(item => ({ item, key: todayKey }))
+              .map(item => ({ item, key: todayKey })),
           )
           if (todayItems.length === 0) return null
-
           return (
             <div className="notetaker-sidebar__notes-group">
               <div className="notetaker-sidebar__notes-date">Today</div>
               {todayItems.map(({ item }) => {
                 const isSelected = currentFeedItem?.id === item.id
-                const title = typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
+                const title =
+                  typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
                 const time = dayjs(item.timestamp).format('h:mm A')
-
                 return (
                   <div
                     key={item.id}
@@ -362,6 +641,7 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
                       if (item.id != null) {
                         feed.selectFeedItem(todayKey, item.id)
                         onMeetingSelect?.()
+                        onTabChange(TabChoices.Meeting, 'meetings')
                       }
                     }}
                   >
@@ -382,43 +662,40 @@ function NotetakerSidebar({ feed, onQuickNote, onSettingsClick, onChatClick, onH
         })()}
       </div>
 
-      {/* Bottom bar */}
+      {/* Bottom action bar */}
       <div className="notetaker-sidebar__bottom">
         <div className="notetaker-sidebar__bottom-actions">
-          {onExitMeetingView && (
-            <button
-              className="notetaker-sidebar__bottom-btn"
-              onClick={onExitMeetingView}
-              title="Back to menu"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
-          )}
           <button
-            className="notetaker-sidebar__bottom-btn"
+            className="notetaker-sidebar__bottom-action"
             onClick={onQuickNote}
-            title="Quick note"
+            title="New note"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
+            {noteIcon}
+            <span>New Note</span>
           </button>
           <button
-            className="notetaker-sidebar__bottom-btn"
-            onClick={onSettingsClick}
-            title="Settings"
+            className={`notetaker-sidebar__bottom-action ${isChatActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
+            onClick={() => onTabChange(TabChoices.Openclaw)}
+            title="Chat"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-            </svg>
+            {chatIcon}
+            <span>Chat</span>
+          </button>
+          <button
+            className={`notetaker-sidebar__bottom-action ${isEmailActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
+            onClick={() => onTabChange(TabChoices.Email)}
+            title="Email Autopilot"
+          >
+            {emailIcon}
+            <span>Email</span>
+          </button>
+          <button
+            className={`notetaker-sidebar__bottom-action ${isLibraryActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
+            onClick={() => onTabChange(TabChoices.Library)}
+            title="Library"
+          >
+            {libraryIcon}
+            <span>Library</span>
           </button>
         </div>
         {appVersion && (
