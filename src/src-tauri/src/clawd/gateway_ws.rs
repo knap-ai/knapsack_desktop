@@ -7,7 +7,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{connect_async, tungstenite::{client::IntoClientRequest, http::HeaderValue, Message}};
 
 use crate::clawd::gateway_supervisor;
 
@@ -117,7 +117,13 @@ pub async fn gateway_request(
     ensure_gateway_best_effort(token).await;
 
     // Connect to WebSocket
-    let (ws_stream, _) = connect_async(GATEWAY_WS_URL)
+    let ws_req = {
+        let mut r = GATEWAY_WS_URL.into_client_request()
+            .map_err(|e| format!("Invalid gateway URL: {}", e))?;
+        r.headers_mut().insert("Origin", HeaderValue::from_static("http://localhost:1420"));
+        r
+    };
+    let (ws_stream, _) = connect_async(ws_req)
         .await
         .map_err(|e| format!("Failed to connect to gateway: {}", e))?;
 

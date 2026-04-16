@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Semaphore, oneshot};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{connect_async, tungstenite::{client::IntoClientRequest, http::HeaderValue, Message}};
 
 use crate::clawd::gateway_supervisor;
 
@@ -782,9 +782,14 @@ pub fn resolve_default_model() -> String {
 /// we use a throwaway connection and wait for the gateway to come back.
 async fn apply_runtime_browser_config(token: &str) {
   // Open a temporary WebSocket just for the config.patch exchange.
+  let tmp_req = {
+    let mut r = GATEWAY_WS_URL.into_client_request().expect("valid URL");
+    r.headers_mut().insert("Origin", HeaderValue::from_static("http://localhost:1420"));
+    r
+  };
   let tmp_ws = match tokio::time::timeout(
     Duration::from_secs(3),
-    connect_async(GATEWAY_WS_URL),
+    connect_async(tmp_req),
   ).await {
     Ok(Ok((ws, _))) => ws,
     _ => {
@@ -1048,9 +1053,15 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
   // Wrap the TCP/WebSocket connection in a short timeout so we don't hang
   // for 10-30 seconds when the gateway is down (system TCP timeout defaults).
+  let ws_req = {
+    let mut r = GATEWAY_WS_URL.into_client_request()
+      .map_err(|e| format!("Invalid gateway URL: {}", e))?;
+    r.headers_mut().insert("Origin", HeaderValue::from_static("http://localhost:1420"));
+    r
+  };
   let (ws_stream, _) = tokio::time::timeout(
     Duration::from_secs(3),
-    connect_async(GATEWAY_WS_URL),
+    connect_async(ws_req),
   )
     .await
     .map_err(|_| "Timeout connecting to gateway (3s)".to_string())?
