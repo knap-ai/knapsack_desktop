@@ -102,8 +102,8 @@ const EXTRA_PROVIDER_CONFIGS: ExtraProviderConfig[] = [
     name: 'ZAI (GLM)',
     description: 'GLM-5 (745B, SOTA open-source), GLM-4.7',
     envVar: 'ZAI_API_KEY',
-    helpUrl: 'https://open.bigmodel.cn',
-    helpLabel: 'open.bigmodel.cn',
+    helpUrl: 'https://z.ai/subscribe',
+    helpLabel: 'z.ai/subscribe',
   },
   {
     id: 'huggingface',
