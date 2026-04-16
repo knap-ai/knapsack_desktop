@@ -17,7 +17,6 @@ use crate::db::models::workspace::{Workspace, WorkspaceDocument};
 use crate::error::Error;
 use crate::library_curator::settings::CuratorSettings;
 
-const LOOKBACK_DAYS: i64 = 90;
 const TOP_N_PEOPLE: usize = 20;
 const MAX_EMAILS_PER_PERSON: usize = 50;
 
@@ -65,22 +64,16 @@ impl ContactStats {
 
 /// Detect top people across email + calendar and upsert auto-collections.
 pub fn detect_and_upsert(cfg: &CuratorSettings) -> Result<(), Error> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-    let cutoff = now - LOOKBACK_DAYS * 86_400;
-
     let own_addresses = load_own_addresses();
     log::info!("[library_curator/people] own addresses: {:?}", own_addresses);
 
     let mut contacts: HashMap<String, ContactStats> = HashMap::new();
 
     if cfg.sources_email {
-        ingest_emails(&mut contacts, cutoff, &own_addresses)?;
+        ingest_emails(&mut contacts, &own_addresses)?;
     }
     if cfg.sources_calendar {
-        ingest_calendar(&mut contacts, cutoff, &own_addresses)?;
+        ingest_calendar(&mut contacts, &own_addresses)?;
     }
 
     if contacts.is_empty() {
@@ -129,12 +122,11 @@ fn load_own_addresses() -> Vec<String> {
 
 fn ingest_emails(
     contacts: &mut HashMap<String, ContactStats>,
-    cutoff: i64,
     own_addresses: &[String],
 ) -> Result<(), Error> {
     // Pull a generous slab — filter_emails sorts by date DESC, so we still get
     // the most recent emails when we cap below.
-    let emails = Email::filter_emails(5_000, None, Some(cutoff), None);
+    let emails = Email::filter_emails(5_000, None, None, None);
     log::info!("[library_curator/people] scanning {} emails", emails.len());
 
     for email in emails {
@@ -161,14 +153,13 @@ fn ingest_emails(
 
 fn ingest_calendar(
     contacts: &mut HashMap<String, ContactStats>,
-    cutoff: i64,
     own_addresses: &[String],
 ) -> Result<(), Error> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare(
-        "SELECT id, attendees_json FROM calendar_events WHERE start >= ?1 AND attendees_json IS NOT NULL",
+        "SELECT id, attendees_json FROM calendar_events WHERE attendees_json IS NOT NULL",
     )?;
-    let rows = stmt.query_map([cutoff], |row| {
+    let rows = stmt.query_map([], |row| {
         Ok((row.get::<_, u64>(0)?, row.get::<_, Option<String>>(1)?))
     })?;
 
@@ -253,7 +244,7 @@ fn upsert_person_collection(email_addr: &str, stats: &ContactStats) -> Result<()
         .clone()
         .unwrap_or_else(|| email_addr.to_string());
     let description = format!(
-        "{} email{} · {} meeting{} (last 90 days)",
+        "{} email{} · {} meeting{}",
         stats.email_count,
         if stats.email_count == 1 { "" } else { "s" },
         stats.meeting_count,
