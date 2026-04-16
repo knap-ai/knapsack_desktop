@@ -15,6 +15,7 @@ import {
 import { KN_API_GET_USER_EMAIL, KN_API_STREAM_LLM_COMPLETE } from '../../../utils/constants'
 
 const LOCAL_FILES_PROMPT_KEY = 'knap.library.localFilesPromptShown'
+const GDRIVE_PROMPT_KEY = 'knap.library.gdrivePromptShown'
 const SUMMARY_CACHE_PREFIX = 'knap.library.summary.'
 
 interface CardSummary {
@@ -35,6 +36,7 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
   const [curationStatus, setCurationStatus] = useState<CurationStatus | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [showLocalFilesPrompt, setShowLocalFilesPrompt] = useState(false)
+  const [showGDrivePrompt, setShowGDrivePrompt] = useState(false)
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true)
   const [cardSummaries, setCardSummaries] = useState<Map<string, CardSummary>>(new Map())
 
@@ -65,6 +67,8 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
 
   useEffect(() => {
     const init = async () => {
+      const status = await fetchStatus()
+
       // First-visit local files prompt — show only once per device.
       try {
         const shown = localStorage.getItem(LOCAL_FILES_PROMPT_KEY)
@@ -73,7 +77,13 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
         // no-op
       }
 
-      const status = await fetchStatus()
+      // GDrive encouragement — show once if Drive curation isn't yet enabled.
+      try {
+        const shown = localStorage.getItem(GDRIVE_PROMPT_KEY)
+        if (!shown && status && !status.sourcesDrive) setShowGDrivePrompt(true)
+      } catch {
+        // no-op
+      }
 
       // Auto-trigger curation on first open if it's never run before.
       if (status && status.enabled && !status.lastRunAt) {
@@ -167,6 +177,20 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
       setGeneratingSummaries(false)
     }
   }, [workspaces])
+
+  const dismissGDrivePrompt = (enable: boolean) => {
+    try {
+      localStorage.setItem(GDRIVE_PROMPT_KEY, '1')
+    } catch {
+      // no-op
+    }
+    setShowGDrivePrompt(false)
+    if (enable) {
+      updateCurationSettings({ sourcesDrive: true })
+        .then(s => setCurationStatus(s))
+        .catch(err => console.error('Failed to enable GDrive:', err))
+    }
+  }
 
   const dismissLocalFilesPrompt = (enable: boolean) => {
     try {
@@ -493,6 +517,31 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
             <button
               className="px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100 rounded-md"
               onClick={() => dismissLocalFilesPrompt(false)}
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showGDrivePrompt && (
+        <div className="flex items-center justify-between text-sm bg-green-50 border border-green-200 rounded-md px-4 py-3 mb-6">
+          <div>
+            <div className="font-semibold text-green-900">Enrich your library with Google Drive</div>
+            <div className="text-green-700 mt-0.5">
+              Connect your Google account in Settings → Connections, then enable Drive below to automatically import your docs and files into collections.
+            </div>
+          </div>
+          <div className="flex gap-2 ml-4 flex-shrink-0">
+            <button
+              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
+              onClick={() => dismissGDrivePrompt(true)}
+            >
+              Enable
+            </button>
+            <button
+              className="px-3 py-1.5 text-sm text-green-700 hover:bg-green-100 rounded-md"
+              onClick={() => dismissGDrivePrompt(false)}
             >
               Not now
             </button>
