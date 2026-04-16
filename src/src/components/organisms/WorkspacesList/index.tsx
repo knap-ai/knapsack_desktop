@@ -90,6 +90,8 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
   }, [])
 
   /** Load cached summaries and generate missing ones for auto-curated workspaces. */
+  const [generatingSummaries, setGeneratingSummaries] = useState(false)
+
   useEffect(() => {
     if (workspaces.length === 0) return
 
@@ -106,28 +108,36 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     if (cached.size > 0) setCardSummaries(cached)
 
     // Queue generation for auto-curated workspaces without a cached summary.
-    // We rely on localStorage (not an in-flight ref) so that a cancelled effect
-    // doesn't permanently prevent retry on the next mount.
     const toGenerate = workspaces.filter(
       ws => ws.autoCurated && !cached.has(ws.uuid),
     )
     if (toGenerate.length === 0) return
 
+    // Prioritize people first — they have the thinnest descriptions and benefit
+    // most from an AI summary. Projects already have an LLM-generated description.
+    toGenerate.sort((a, b) => {
+      if (a.entityType === 'person' && b.entityType !== 'person') return -1
+      if (a.entityType !== 'person' && b.entityType === 'person') return 1
+      return 0
+    })
+
     let cancelled = false
+    setGeneratingSummaries(true)
     ;(async () => {
-      // Fetch user email once for all LLM calls.
+      // Fetch user email once for all LLM calls (may 404, that's fine).
       let userEmail = ''
       try {
         const res = await fetch(KN_API_GET_USER_EMAIL)
-        const data = await res.json()
-        if (data.email) userEmail = data.email
+        if (res.ok) {
+          const data = await res.json()
+          if (data.email) userEmail = data.email
+        }
       } catch {
         // proceed with empty email
       }
 
       for (const ws of toGenerate) {
         if (cancelled) break
-        // Re-check cache — another concurrent loop may have written it.
         const existing = localStorage.getItem(SUMMARY_CACHE_PREFIX + ws.uuid)
         if (existing) continue
         try {
@@ -149,10 +159,12 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
           console.error(`[Library] summary generation failed for ${ws.name}:`, err)
         }
       }
+      if (!cancelled) setGeneratingSummaries(false)
     })()
 
     return () => {
       cancelled = true
+      setGeneratingSummaries(false)
     }
   }, [workspaces])
 
@@ -338,22 +350,31 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
             )}
           </div>
           {aiSummary ? (
-            <div className="text-sm text-gray-600 mt-0.5">
-              {aiSummary.summary}
-            </div>
-          ) : workspace.description && (
-            <div className="text-sm text-gray-500">
-              {workspace.description}
-            </div>
-          )}
-          {aiSummary?.nextAction && (
-            <button
-              className="text-xs text-left text-blue-600 bg-blue-50 hover:bg-blue-100 rounded px-2 py-1 mt-1 transition-colors"
-              onClick={e => handleNextActionClick(e, aiSummary.nextAction, workspace)}
-              title="Send to Chat"
-            >
-              → {aiSummary.nextAction}
-            </button>
+            <>
+              <div className="text-sm text-gray-600 mt-0.5">
+                {aiSummary.summary}
+              </div>
+              {aiSummary.nextAction && (
+                <button
+                  className="text-xs text-left text-blue-600 bg-blue-50 hover:bg-blue-100 rounded px-2 py-1 mt-1 transition-colors"
+                  onClick={e => handleNextActionClick(e, aiSummary.nextAction, workspace)}
+                  title="Send to Chat"
+                >
+                  → {aiSummary.nextAction}
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {workspace.description && (
+                <div className="text-sm text-gray-500">
+                  {workspace.description}
+                </div>
+              )}
+              {opts.auto && generatingSummaries && (
+                <div className="text-xs text-gray-400 italic mt-1">Generating summary…</div>
+              )}
+            </>
           )}
           {topTags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
