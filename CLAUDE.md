@@ -112,7 +112,7 @@ await relaunch()        // must follow immediately — no await between them
 
 ### 6. Connection thundering herd
 
-`get_or_connect()` serializes concurrent callers via `CONNECT_LOCK` (tokio Mutex). Without it, N concurrent requests all seeing `CLIENT = None` each open a WS connection; N-1 get dropped → N-1 `code=1006` entries per burst. Do not remove the lock.
+`get_or_connect()` and `spawn_reconnect_task()` both serialize through `CONNECT_LOCK` (tokio Mutex). Without it, N concurrent requests all seeing `CLIENT = None` each open a WS connection; N-1 get dropped → N-1 `code=1006` entries per burst. The reconnect task must also hold `CONNECT_LOCK` when calling `connect_and_handshake` — otherwise it races with `get_or_connect` after a gateway restart and produces the same burst. Do not remove either lock acquisition.
 
 ### 7. LaunchAgent auto-enable on first launch
 
