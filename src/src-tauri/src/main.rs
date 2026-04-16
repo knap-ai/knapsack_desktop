@@ -176,6 +176,15 @@ fn setup_handler(
   // starts, so that llm_complete (meeting notes) and transcribe can use them.
   clawd::service::propagate_llm_keys_to_env(&app_handle);
 
+  // Auto-register the LaunchAgent on first launch so the user never sees
+  // "LaunchAgent plist not found — try toggling Enable in Settings."
+  let auto_enable_handle = app.handle();
+  std::thread::spawn(move || {
+    tokio::runtime::Runtime::new()
+      .unwrap()
+      .block_on(clawd::service::auto_enable_if_needed(&auto_enable_handle));
+  });
+
   let actix_app_handle = app.handle();
 
   // Clone is_chatting for the heartbeat loop (before it's moved into the server thread)
