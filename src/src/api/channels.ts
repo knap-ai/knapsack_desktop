@@ -242,6 +242,103 @@ export const updateChannelAllowlist = (
   update: { dmPolicy?: string; allowFrom?: string[] },
 ) => post<GenericResponse>(`/api/clawd/channels/${channel}/allowlist`, update)
 
+// ── Telegram User Accounts (MTProto, non-bot) ────────────────
+
+export interface TelegramUserCodeResponse {
+  success: boolean
+  message?: string
+  /** Opaque hash required for the verify step. */
+  phone_code_hash?: string
+  /** Whether this phone number is already registered on Telegram. */
+  is_registered?: boolean
+}
+
+export interface TelegramUserVerifyResponse {
+  success: boolean
+  message?: string
+  /** Session string saved for this agent (opaque). */
+  session?: string
+  /** Whether the account was newly created (vs. existing login). */
+  is_new?: boolean
+  /** Telegram display name after sign-in. */
+  display_name?: string
+  /** Telegram username (without @) after sign-in, if set. */
+  username?: string
+}
+
+export interface TelegramUserStatusResponse {
+  success: boolean
+  configured: boolean
+  /** Telegram user ID, if session exists. */
+  user_id?: number
+  display_name?: string
+  username?: string
+  phone?: string
+  message?: string
+}
+
+export interface TelegramChiefOfStaffStatusResponse {
+  success: boolean
+  configured: boolean
+  display_name?: string
+  username?: string
+  phone?: string
+  message?: string
+}
+
+/** Request a Telegram OTP for a phone number to create/link a user account. */
+export const requestTelegramUserCode = (phoneNumber: string, agentId?: string) =>
+  post<TelegramUserCodeResponse>('/api/clawd/telegram/user/request-code', {
+    phone_number: phoneNumber,
+    agent_id: agentId,
+  })
+
+/** Verify the OTP and sign in (or sign up) to the Telegram user account. */
+export const verifyTelegramUserCode = (
+  phoneNumber: string,
+  code: string,
+  phoneCodeHash: string,
+  agentId?: string,
+) =>
+  post<TelegramUserVerifyResponse>('/api/clawd/telegram/user/verify-code', {
+    phone_number: phoneNumber,
+    code,
+    phone_code_hash: phoneCodeHash,
+    agent_id: agentId,
+  })
+
+/** Complete registration for a brand-new Telegram account (called when is_registered was false). */
+export const signUpTelegramUser = (
+  phoneNumber: string,
+  phoneCodeHash: string,
+  firstName: string,
+  lastName: string,
+  agentId?: string,
+) =>
+  post<TelegramUserVerifyResponse>('/api/clawd/telegram/user/sign-up', {
+    phone_number: phoneNumber,
+    phone_code_hash: phoneCodeHash,
+    first_name: firstName,
+    last_name: lastName,
+    agent_id: agentId,
+  })
+
+/** Get the Telegram user account status for an agent (or the default account). */
+export const getTelegramUserStatus = (agentId?: string) =>
+  get<TelegramUserStatusResponse>(
+    agentId
+      ? `/api/clawd/telegram/user/status?agent_id=${encodeURIComponent(agentId)}`
+      : '/api/clawd/telegram/user/status',
+  )
+
+/** Get the status of the Knapsack Chief-of-Staff Telegram user account. */
+export const getTelegramChiefOfStaffStatus = () =>
+  get<TelegramChiefOfStaffStatusResponse>('/api/clawd/telegram/chief-of-staff/status')
+
+/** Trigger automatic creation of the Knapsack Chief-of-Staff Telegram user account. */
+export const setupTelegramChiefOfStaff = (phoneNumber: string) =>
+  post<TelegramUserCodeResponse>('/api/clawd/telegram/chief-of-staff/setup', { phone_number: phoneNumber })
+
 // ── Diagnostics ─────────────────────────────────────────────
 
 export interface ChannelDiagnostics {

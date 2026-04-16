@@ -15,6 +15,7 @@ import {
 import { open } from '@tauri-apps/api/shell'
 
 import AgentPickerScreen, { AgentSelection } from './AgentPickerScreen'
+import { TelegramAccountsScreen, AgentTelegramEntry } from './TelegramAccountsScreen'
 import styles from './styles.module.scss'
 import KnapsackLogoMedium from '/assets/images/knap-logo-medium.png'
 // import NotificationDefault from '/assets/images/notification-default.png'
@@ -402,6 +403,9 @@ type OnboardingTemplateProps = {
   connectedProvider: 'google' | 'microsoft' | null
   onAgentPickerActivate: (selections: AgentSelection[]) => void
   onAgentPickerSkip: (index: number) => void
+  activatedAgents: AgentTelegramEntry[]
+  onTelegramAccountsComplete: (index: number) => void
+  onTelegramAccountsSkip: (index: number) => void
   // onAudioGrantClick: (index: number) => void
 }
 
@@ -425,6 +429,9 @@ export const OnboardingTemplate = ({
   connectedProvider,
   onAgentPickerActivate,
   onAgentPickerSkip,
+  activatedAgents,
+  onTelegramAccountsComplete,
+  onTelegramAccountsSkip,
   // onAudioGrantClick,
 }: OnboardingTemplateProps) => {
   return (
@@ -477,6 +484,14 @@ export const OnboardingTemplate = ({
           connectedProvider={connectedProvider}
           onActivate={onAgentPickerActivate}
           onSkip={onAgentPickerSkip}
+        />
+        <TelegramAccountsScreen
+          currentSlideInScreen={currentSlideInScreen}
+          currentSlideOutScreen={currentSlideOutScreen}
+          index={5}
+          agents={activatedAgents}
+          onComplete={onTelegramAccountsComplete}
+          onSkip={onTelegramAccountsSkip}
         />
         {/*<AudioPermissionsScreen
           currentSlideInScreen={currentSlideInScreen}

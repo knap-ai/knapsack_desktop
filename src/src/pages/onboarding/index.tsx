@@ -32,6 +32,7 @@ import { open } from '@tauri-apps/api/shell'
 import { getAppVersion } from 'src/utils/app'
 
 import { AgentSelection } from './AgentPickerScreen'
+import { AgentTelegramEntry } from './TelegramAccountsScreen'
 import { OnboardingTemplate } from './template'
 
 export const KN_ONBOARDING_URL_PARAM = 'onboarding'
@@ -74,6 +75,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
   const { syncConnections } = useGoogleConnections()
   const { syncLocalFiles } = useLocalConnections()
   const { syncConnections: syncMicrosoftConnections } = useMicrosoftConnections()
+  const [activatedAgents, setActivatedAgents] = useState<AgentTelegramEntry[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string>('')
   const [googlePermissions, setGooglePermissions] = useState<Record<string, boolean>>({
@@ -394,17 +396,37 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     }
 
     // Save activated agents so the first chat session can introduce them
-    const activatedAgents = enabledSelections.map(s => ({
+    const activatedAgentsForChat = enabledSelections.map(s => ({
       name: s.identity.displayName,
       emoji: s.identity.emoji,
       personality: s.identity.personality,
     }))
-    localStorage.setItem('kn_onboarding_agents', JSON.stringify(activatedAgents))
+    localStorage.setItem('kn_onboarding_agents', JSON.stringify(activatedAgentsForChat))
+
+    // Build the list for the Telegram setup step
+    const telegramEntries: AgentTelegramEntry[] = enabledSelections.map(s => ({
+      agentId: s.identity.displayName.toLowerCase().replace(/\s+/g, '-'),
+      name: s.identity.displayName,
+      emoji: s.identity.emoji,
+    }))
+    setActivatedAgents(telegramEntries)
 
     KNAnalytics.trackEvent('Onboarding - Agents Activated', {
       count: enabledSelections.length,
       agents: enabledSelections.map(s => s.identity.displayName),
     })
+
+    // Transition to the Telegram accounts setup step
+    transitionToNextScreen(4)
+  }
+
+  const handleTelegramAccountsComplete = (_index: number) => {
+    KNAnalytics.trackEvent('Onboarding - Telegram Accounts Completed', {})
+    navigateToNextScreen()
+  }
+
+  const handleTelegramAccountsSkip = (_index: number) => {
+    KNAnalytics.trackEvent('Onboarding - Skipped Telegram Accounts', {})
     navigateToNextScreen()
   }
 
@@ -446,6 +468,9 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       connectedProvider={connectedProvider}
       onAgentPickerActivate={handleAgentPickerActivate}
       onAgentPickerSkip={handleAgentPickerSkip}
+      activatedAgents={activatedAgents}
+      onTelegramAccountsComplete={handleTelegramAccountsComplete}
+      onTelegramAccountsSkip={handleTelegramAccountsSkip}
       //onAudioGrantClick={onClickGrantAudioPermission}
     />
   )
