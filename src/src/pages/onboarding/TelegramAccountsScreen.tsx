@@ -3,10 +3,12 @@ import { useEffect, useRef, useState } from 'react'
 import cn from 'classnames'
 
 import {
+  configureTelegram,
+  getTelegramStatus,
   requestTelegramUserCode,
-  setupTelegramChiefOfStaff,
   verifyTelegramUserCode,
   signUpTelegramUser,
+  provisionChiefOfStaffBot,
   TelegramUserCodeResponse,
 } from 'src/api/channels'
 
@@ -14,6 +16,17 @@ import styles from './styles.module.scss'
 
 // ── Types ────────────────────────────────────────────────────
 
+// Chief of Staff is a bot — only needs a token.
+type BotPhase = 'idle' | 'entering_token' | 'provisioning' | 'connecting' | 'done' | 'error'
+
+interface BotState {
+  phase: BotPhase
+  token: string
+  username: string
+  errorMessage: string
+}
+
+// Digital employees are MTProto user accounts.
 type AccountPhase =
   | 'idle'
   | 'entering_phone'
@@ -22,7 +35,6 @@ type AccountPhase =
   | 'verifying'
   | 'signing_up'
   | 'done'
-  | 'error'
   | 'skipped'
 
 interface AccountState {
@@ -35,6 +47,10 @@ interface AccountState {
   lastName: string
   displayName: string
   errorMessage: string
+}
+
+function defaultBotState(): BotState {
+  return { phase: 'idle', token: '', username: '', errorMessage: '' }
 }
 
 function defaultAccountState(): AccountState {
@@ -153,7 +169,9 @@ function SignUpFields({
 }) {
   return (
     <div className="mt-3 space-y-2">
-      <p className="text-xs text-gray-500">This number isn't on Telegram yet — let's create a new account.</p>
+      <p className="text-xs text-gray-500 font-InterTight">
+        This number isn't on Telegram yet — create an account for this agent.
+      </p>
       <div className="flex gap-2">
         <input
           type="text"
@@ -183,35 +201,168 @@ function SignUpFields({
   )
 }
 
-// ── Account Card ─────────────────────────────────────────────
+// ── Chief of Staff Bot Card ──────────────────────────────────
 
-function AccountCard({
+function ChiefOfStaffCard({
+  state,
+  onChange,
+}: {
+  state: BotState
+  onChange: (patch: Partial<BotState>) => void
+}) {
+  const handleProvision = async () => {
+    onChange({ phase: 'provisioning', errorMessage: '' })
+    try {
+      const resp = await provisionChiefOfStaffBot()
+      if (resp.success && resp.bot_token) {
+        // Auto-configure with the provisioned token
+        onChange({ phase: 'connecting', token: resp.bot_token })
+        const configResp = await configureTelegram(resp.bot_token)
+        if (configResp.success) {
+          onChange({ phase: 'done', username: resp.bot_username ?? 'KnapsackBot' })
+        } else {
+          onChange({ phase: 'entering_token', errorMessage: configResp.message ?? 'Failed to connect bot.' })
+        }
+      } else {
+        // Provision not available yet — fall back to manual
+        onChange({ phase: 'entering_token', errorMessage: resp.message ?? 'Auto-provision unavailable. Enter a bot token manually.' })
+      }
+    } catch (e: any) {
+      onChange({ phase: 'entering_token', errorMessage: 'Auto-provision failed. Enter a bot token manually.' })
+    }
+  }
+
+  const handleManualConnect = async () => {
+    if (!state.token.trim()) return
+    onChange({ phase: 'connecting', errorMessage: '' })
+    try {
+      const resp = await configureTelegram(state.token.trim())
+      if (resp.success) {
+        // Fetch the bot username to confirm
+        const status = await getTelegramStatus()
+        onChange({ phase: 'done', username: status.account ?? 'KnapsackBot' })
+      } else {
+        onChange({ phase: 'entering_token', errorMessage: resp.message ?? 'Invalid token. Check it and try again.' })
+      }
+    } catch (e: any) {
+      onChange({ phase: 'entering_token', errorMessage: e.message ?? 'Network error.' })
+    }
+  }
+
+  const isDone = state.phase === 'done'
+  const isSpinning = state.phase === 'provisioning' || state.phase === 'connecting'
+
+  return (
+    <div className={cn(
+      'rounded-2xl border p-4 transition-all',
+      isDone ? 'border-green-400 bg-green-50' : 'border-[#913631]/40 bg-[#913631]/5',
+    )}>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🎩</span>
+          <div>
+            <p className="text-sm font-semibold text-gray-900 font-InterTight">
+              Knapsack Chief of Staff
+            </p>
+            <p className="text-xs text-gray-500 font-InterTight">
+              Shared Telegram bot — routes inbound messages to the right agent
+            </p>
+          </div>
+        </div>
+        {isDone && (
+          <span className="text-green-600 text-xs font-medium font-InterTight flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            @{state.username}
+          </span>
+        )}
+      </div>
+
+      {/* Body */}
+      {state.phase === 'idle' && (
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={handleProvision}
+            className="flex-1 px-4 py-2 rounded-lg bg-[#913631] text-white text-sm font-medium hover:bg-[#7a2d29] transition-colors font-InterTight"
+          >
+            Auto-create bot
+          </button>
+          <button
+            onClick={() => onChange({ phase: 'entering_token' })}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors font-InterTight"
+          >
+            Use existing bot
+          </button>
+        </div>
+      )}
+
+      {(state.phase === 'entering_token') && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-gray-500 font-InterTight">
+            Paste a bot token from{' '}
+            <span className="font-medium">@BotFather</span>, or{' '}
+            <button
+              className="text-[#913631] underline"
+              onClick={handleProvision}
+            >
+              auto-create one
+            </button>
+            .
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="123456:ABC-..."
+              value={state.token}
+              onChange={e => onChange({ token: e.target.value })}
+              onKeyDown={e => e.key === 'Enter' && handleManualConnect()}
+              className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#913631] font-mono"
+            />
+            <button
+              onClick={handleManualConnect}
+              disabled={!state.token.trim()}
+              className="px-4 py-2 rounded-lg bg-[#913631] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#7a2d29] transition-colors"
+            >
+              Connect
+            </button>
+          </div>
+          {state.errorMessage && (
+            <p className="text-xs text-red-500 font-InterTight">{state.errorMessage}</p>
+          )}
+        </div>
+      )}
+
+      {isSpinning && (
+        <p className="text-xs text-gray-400 mt-3 font-InterTight">
+          {state.phase === 'provisioning' ? 'Creating bot…' : 'Connecting…'}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ── Digital Employee Account Card ────────────────────────────
+
+function AgentAccountCard({
   emoji,
   name,
-  subtitle,
   agentId,
-  isChiefOfStaff,
   state,
   onChange,
 }: {
   emoji: string
   name: string
-  subtitle: string
-  agentId?: string
-  isChiefOfStaff?: boolean
+  agentId: string
   state: AccountState
-  onChange: (next: Partial<AccountState>) => void
+  onChange: (patch: Partial<AccountState>) => void
 }) {
   const handleRequestCode = async () => {
     if (!state.phone.trim()) return
     onChange({ phase: 'requesting_code', errorMessage: '' })
     try {
-      let resp: TelegramUserCodeResponse
-      if (isChiefOfStaff) {
-        resp = await setupTelegramChiefOfStaff(state.phone.trim())
-      } else {
-        resp = await requestTelegramUserCode(state.phone.trim(), agentId)
-      }
+      const resp: TelegramUserCodeResponse = await requestTelegramUserCode(state.phone.trim(), agentId)
       if (resp.success && resp.phone_code_hash) {
         onChange({
           phase: 'entering_code',
@@ -219,7 +370,7 @@ function AccountCard({
           isRegistered: resp.is_registered !== false,
         })
       } else {
-        onChange({ phase: 'entering_phone', errorMessage: resp.message ?? 'Failed to send code. Check the number and try again.' })
+        onChange({ phase: 'entering_phone', errorMessage: resp.message ?? 'Failed to send code.' })
       }
     } catch (e: any) {
       onChange({ phase: 'entering_phone', errorMessage: e.message ?? 'Network error.' })
@@ -230,20 +381,15 @@ function AccountCard({
     if (!state.code.trim()) return
     onChange({ phase: 'verifying', errorMessage: '' })
     try {
-      const resp = await verifyTelegramUserCode(
-        state.phone,
-        state.code,
-        state.phoneCodeHash,
-        isChiefOfStaff ? 'chief-of-staff' : agentId,
-      )
+      const resp = await verifyTelegramUserCode(state.phone, state.code, state.phoneCodeHash, agentId)
       if (resp.success) {
         if (resp.is_new && !state.isRegistered) {
-          onChange({ phase: 'signing_up', errorMessage: '' })
+          onChange({ phase: 'signing_up' })
         } else {
           onChange({ phase: 'done', displayName: resp.display_name ?? name })
         }
       } else {
-        onChange({ phase: 'entering_code', errorMessage: resp.message ?? 'Invalid code. Please try again.' })
+        onChange({ phase: 'entering_code', errorMessage: resp.message ?? 'Invalid code.' })
       }
     } catch (e: any) {
       onChange({ phase: 'entering_code', errorMessage: e.message ?? 'Network error.' })
@@ -259,12 +405,12 @@ function AccountCard({
         state.phoneCodeHash,
         state.firstName,
         state.lastName,
-        isChiefOfStaff ? 'chief-of-staff' : agentId,
+        agentId,
       )
       if (resp.success) {
         onChange({ phase: 'done', displayName: resp.display_name ?? state.firstName })
       } else {
-        onChange({ phase: 'signing_up', errorMessage: resp.message ?? 'Sign-up failed. Please try again.' })
+        onChange({ phase: 'signing_up', errorMessage: resp.message ?? 'Sign-up failed.' })
       }
     } catch (e: any) {
       onChange({ phase: 'signing_up', errorMessage: e.message ?? 'Network error.' })
@@ -276,34 +422,33 @@ function AccountCard({
   const isSkipped = state.phase === 'skipped'
 
   return (
-    <div
-      className={cn(
-        'rounded-2xl border p-4 transition-all',
-        isChiefOfStaff ? 'border-[#913631]/40 bg-[#913631]/5' : 'border-gray-200 bg-white',
-        isDone && 'border-green-400 bg-green-50',
-        isSkipped && 'opacity-50',
-      )}
-    >
-      {/* Header */}
+    <div className={cn(
+      'rounded-2xl border p-4 transition-all',
+      isDone && 'border-green-400 bg-green-50',
+      !isDone && !isSkipped && 'border-gray-200 bg-white',
+      isSkipped && 'opacity-50 border-gray-200 bg-white',
+    )}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">{emoji}</span>
           <div>
             <p className="text-sm font-semibold text-gray-900 font-InterTight">{name}</p>
-            <p className="text-xs text-gray-500 font-InterTight">{subtitle}</p>
+            <p className="text-xs text-gray-500 font-InterTight">Personal Telegram user account</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {isDone && (
             <span className="text-green-600 text-xs font-medium font-InterTight flex items-center gap-1">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-              Connected as {state.displayName}
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              {state.displayName}
             </span>
           )}
           {!isDone && !isSkipped && state.phase !== 'idle' && (
             <button
               className="text-xs text-gray-400 hover:text-gray-600 underline font-InterTight"
-              onClick={() => onChange({ phase: 'skipped', errorMessage: '' })}
+              onClick={() => onChange({ phase: 'skipped' })}
             >
               Skip
             </button>
@@ -327,11 +472,10 @@ function AccountCard({
         </div>
       </div>
 
-      {/* Body */}
       {(state.phase === 'entering_phone' || state.phase === 'requesting_code') && (
         <div className="mt-3">
           <p className="text-xs text-gray-500 font-InterTight">
-            Enter the phone number for this Telegram account.
+            Enter a phone number for this agent's Telegram account.
           </p>
           <PhoneInput
             value={state.phone}
@@ -339,19 +483,15 @@ function AccountCard({
             onSubmit={handleRequestCode}
             disabled={isSpinning}
           />
-          {isSpinning && (
-            <p className="text-xs text-gray-400 mt-2 font-InterTight">Sending code…</p>
-          )}
-          {state.errorMessage && (
-            <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>
-          )}
+          {isSpinning && <p className="text-xs text-gray-400 mt-2 font-InterTight">Sending code…</p>}
+          {state.errorMessage && <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>}
         </div>
       )}
 
       {(state.phase === 'entering_code' || state.phase === 'verifying') && (
         <div className="mt-3">
           <p className="text-xs text-gray-500 font-InterTight">
-            A code was sent to <strong>{state.phone}</strong> via Telegram or SMS.
+            Enter the code sent to <strong>{state.phone}</strong>.
           </p>
           <CodeInput
             value={state.code}
@@ -359,12 +499,8 @@ function AccountCard({
             onSubmit={handleVerifyCode}
             disabled={state.phase === 'verifying'}
           />
-          {state.phase === 'verifying' && (
-            <p className="text-xs text-gray-400 mt-2 font-InterTight">Verifying…</p>
-          )}
-          {state.errorMessage && (
-            <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>
-          )}
+          {state.phase === 'verifying' && <p className="text-xs text-gray-400 mt-2 font-InterTight">Verifying…</p>}
+          {state.errorMessage && <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>}
           <button
             className="text-xs text-gray-400 mt-2 hover:text-gray-600 underline font-InterTight"
             onClick={() => onChange({ phase: 'entering_phone', code: '' })}
@@ -374,20 +510,17 @@ function AccountCard({
         </div>
       )}
 
-      {(state.phase === 'signing_up') && (
-        <div className="mt-3">
-          <SignUpFields
-            firstName={state.firstName}
-            lastName={state.lastName}
-            onFirstNameChange={v => onChange({ firstName: v })}
-            onLastNameChange={v => onChange({ lastName: v })}
-            onSubmit={handleSignUp}
-            disabled={false}
-          />
-          {state.errorMessage && (
-            <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>
-          )}
-        </div>
+      {state.phase === 'signing_up' && (
+        <SignUpFields
+          firstName={state.firstName}
+          lastName={state.lastName}
+          onFirstNameChange={v => onChange({ firstName: v })}
+          onLastNameChange={v => onChange({ lastName: v })}
+          onSubmit={handleSignUp}
+        />
+      )}
+      {state.phase === 'signing_up' && state.errorMessage && (
+        <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>
       )}
     </div>
   )
@@ -403,38 +536,68 @@ export function TelegramAccountsScreen({
   onComplete,
   onSkip,
 }: TelegramAccountsScreenProps) {
-  const [chiefState, setChiefState] = useState<AccountState>(() => ({
-    ...defaultAccountState(),
-    phase: 'entering_phone',
-  }))
+  const [chiefState, setChiefState] = useState<BotState>(defaultBotState)
   const [agentStates, setAgentStates] = useState<AccountState[]>(() =>
     agents.map(() => defaultAccountState()),
   )
 
-  const agentsRef = useRef(agents)
-  agentsRef.current = agents
+  // Kick off auto-provisioning when the screen becomes visible
+  const provisioned = useRef(false)
+  useEffect(() => {
+    if (currentSlideInScreen === index && !provisioned.current) {
+      provisioned.current = true
+      setChiefState(prev => ({ ...prev, phase: 'provisioning' }))
+      provisionChiefOfStaffBot()
+        .then(async resp => {
+          if (resp.success && resp.bot_token) {
+            setChiefState(prev => ({ ...prev, phase: 'connecting', token: resp.bot_token! }))
+            const configResp = await configureTelegram(resp.bot_token)
+            if (configResp.success) {
+              const status = await getTelegramStatus()
+              setChiefState(prev => ({
+                ...prev,
+                phase: 'done',
+                username: status.account ?? 'KnapsackBot',
+              }))
+            } else {
+              setChiefState(prev => ({
+                ...prev,
+                phase: 'entering_token',
+                errorMessage: 'Auto-connect failed — enter a bot token manually.',
+              }))
+            }
+          } else {
+            setChiefState(prev => ({
+              ...prev,
+              phase: 'idle',
+              errorMessage: resp.message ?? '',
+            }))
+          }
+        })
+        .catch(() => {
+          setChiefState(prev => ({ ...prev, phase: 'idle' }))
+        })
+    }
+  }, [currentSlideInScreen, index])
 
-  // Re-initialise agent states when the agents list grows (screen mounted after activation)
+  // Keep agent state array in sync with the agents list
   useEffect(() => {
     setAgentStates(prev => {
       if (prev.length === agents.length) return prev
       const next = [...prev]
       while (next.length < agents.length) next.push(defaultAccountState())
-      return next
+      return next.slice(0, agents.length)
     })
   }, [agents.length])
 
-  const updateAgentState = (i: number, patch: Partial<AccountState>) => {
+  const updateAgent = (i: number, patch: Partial<AccountState>) =>
     setAgentStates(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
-  }
 
   const doneCount =
     (chiefState.phase === 'done' ? 1 : 0) +
     agentStates.filter(s => s.phase === 'done').length
 
-  const isVisible =
-    currentSlideInScreen === index || currentSlideOutScreen === index
-
+  const isVisible = currentSlideInScreen === index || currentSlideOutScreen === index
   if (!isVisible) return null
 
   return (
@@ -447,51 +610,42 @@ export function TelegramAccountsScreen({
         },
       )}
     >
-      {/* Heading */}
       <div className="w-full mb-6 text-center">
         <h2 className="text-black text-4xl font-semibold font-Lora leading-10">
           Give your team a voice
         </h2>
         <p className="mt-3 text-gray-500 text-base font-InterTight leading-relaxed">
-          Connect each digital employee to Telegram so they can send and receive messages directly — no bots required.
+          The Chief of Staff bot handles all inbound messages and routes them to the right agent.
+          Optionally give each agent their own Telegram identity for outbound outreach.
         </p>
       </div>
 
-      {/* Cards */}
       <div className="w-full space-y-3 max-h-[55vh] overflow-y-auto pr-1">
-        {/* Chief of Staff */}
-        <AccountCard
-          emoji="🎩"
-          name="Knapsack Chief of Staff"
-          subtitle="Your team's shared Telegram identity — routes messages to the right agent"
-          isChiefOfStaff
+        <ChiefOfStaffCard
           state={chiefState}
           onChange={patch => setChiefState(prev => ({ ...prev, ...patch }))}
         />
 
-        {/* Per-agent accounts */}
         {agents.map((agent, i) => (
-          <AccountCard
+          <AgentAccountCard
             key={agent.agentId}
             emoji={agent.emoji}
             name={agent.name}
-            subtitle="Personal Telegram account for proactive outreach"
             agentId={agent.agentId}
             state={agentStates[i] ?? defaultAccountState()}
-            onChange={patch => updateAgentState(i, patch)}
+            onChange={patch => updateAgent(i, patch)}
           />
         ))}
       </div>
 
-      {/* Footer */}
       <div className="mt-6 flex flex-col items-center gap-3 w-full">
         <button
           onClick={() => onComplete(index)}
           className={cn(
-            'w-80 h-14 px-6 py-3 rounded-[40px] shadow-sm justify-center items-center inline-flex text-white text-lg font-semibold font-InterTight leading-[28px] transition-colors',
+            'w-80 h-14 px-6 py-3 rounded-[40px] shadow-sm justify-center items-center inline-flex text-lg font-semibold font-InterTight leading-[28px] transition-colors',
             doneCount > 0
-              ? 'bg-[#913631] hover:bg-[#7a2d29]'
-              : 'bg-gray-300 hover:bg-gray-400 text-gray-600',
+              ? 'bg-[#913631] text-white hover:bg-[#7a2d29]'
+              : 'bg-gray-200 text-gray-500 hover:bg-gray-300',
           )}
         >
           {doneCount > 0 ? `Continue (${doneCount} connected)` : 'Continue'}

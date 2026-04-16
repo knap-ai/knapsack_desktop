@@ -339,6 +339,23 @@ export const getTelegramChiefOfStaffStatus = () =>
 export const setupTelegramChiefOfStaff = (phoneNumber: string) =>
   post<TelegramUserCodeResponse>('/api/clawd/telegram/chief-of-staff/setup', { phone_number: phoneNumber })
 
+export interface TelegramProvisionBotResponse {
+  success: boolean
+  message?: string
+  /** Bot API token for the provisioned Chief-of-Staff bot. */
+  bot_token?: string
+  /** Bot username (without @), if available. */
+  bot_username?: string
+}
+
+/**
+ * Auto-provision the Chief-of-Staff bot token.
+ * Returns `success: false` when no pre-configured token exists,
+ * in which case the UI should fall back to manual token entry.
+ */
+export const provisionChiefOfStaffBot = () =>
+  post<TelegramProvisionBotResponse>('/api/clawd/telegram/chief-of-staff/provision-bot', {})
+
 // ── Diagnostics ─────────────────────────────────────────────
 
 export interface ChannelDiagnostics {

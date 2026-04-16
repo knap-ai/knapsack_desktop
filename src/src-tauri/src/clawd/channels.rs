@@ -3468,3 +3468,40 @@ pub async fn telegram_chief_of_staff_status() -> impl Responder {
         }),
     }
 }
+
+#[derive(Serialize)]
+struct TelegramProvisionBotResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bot_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bot_username: Option<String>,
+}
+
+/// Auto-provision the Chief-of-Staff bot token.
+///
+/// Checks the `KNAPSACK_TG_CHIEF_OF_STAFF_BOT_TOKEN` environment variable for a
+/// pre-configured token supplied by the Knapsack backend or deployment config.
+/// Returns `success: false` when no token is found so the UI can fall back to
+/// manual entry.
+#[post("/api/clawd/telegram/chief-of-staff/provision-bot")]
+pub async fn telegram_provision_chief_of_staff_bot() -> impl Responder {
+    match std::env::var("KNAPSACK_TG_CHIEF_OF_STAFF_BOT_TOKEN") {
+        Ok(token) if !token.trim().is_empty() => {
+            HttpResponse::Ok().json(TelegramProvisionBotResponse {
+                success: true,
+                message: None,
+                bot_token: Some(token.trim().to_string()),
+                bot_username: None,
+            })
+        }
+        _ => HttpResponse::Ok().json(TelegramProvisionBotResponse {
+            success: false,
+            message: Some("No pre-configured bot token found. Please enter a bot token manually.".to_string()),
+            bot_token: None,
+            bot_username: None,
+        }),
+    }
+}

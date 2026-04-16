@@ -322,6 +322,7 @@ pub async fn start_server<'a>(
       .service(clawd::channels::telegram_user_status)
       .service(clawd::channels::telegram_chief_of_staff_setup)
       .service(clawd::channels::telegram_chief_of_staff_status)
+      .service(clawd::channels::telegram_provision_chief_of_staff_bot)
       .service(clawd::channels::voice_status)
       .service(clawd::channels::voice_enable)
       .service(clawd::channels::open_full_disk_access)
