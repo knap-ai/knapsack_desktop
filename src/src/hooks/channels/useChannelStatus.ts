@@ -148,6 +148,9 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
           const hData = await hRes.json()
           gwOk = !!hData.gateway_ok
           setGatewayHealthy(gwOk)
+        } else {
+          // Backend returned an error — gateway is not reachable
+          setGatewayHealthy(false)
         }
       } catch {
         // Rust backend itself is unreachable — gateway definitely not ok
