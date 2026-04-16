@@ -5148,6 +5148,19 @@ pub async fn set_service_enabled(
         .args(["kickstart", "-k", &service])
         .status();
 
+      // Workaround for OpenClaw #23006: patch paired.json after the gateway
+      // starts to ensure devices get operator.admin scope.  The gateway may
+      // rewrite paired.json during auto-pairing, so we retry several times.
+      {
+        let ah: tauri::AppHandle = app_handle.get_ref().clone();
+        tokio::spawn(async move {
+          for delay_s in [2u64, 5, 10, 20, 40] {
+            tokio::time::sleep(std::time::Duration::from_secs(delay_s)).await;
+            patch_paired_json_scopes(&ah);
+          }
+        });
+      }
+
       // Best-effort: auto-configure browser control URL for Knapsack (in-memory)
       {
         let mut cfg_guard = cfg.write().await;
@@ -5472,6 +5485,17 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
         .args(["kickstart", "-k", &service])
         .status();
       eprintln!("[clawd/service] auto_enable: LaunchAgent registered and started");
+
+      // Workaround for OpenClaw #23006: patch paired.json after the gateway
+      // starts to ensure devices get operator.admin scope.  The gateway may
+      // rewrite paired.json during auto-pairing, so we retry several times.
+      let ah = app_handle.clone();
+      tokio::spawn(async move {
+        for delay_s in [2u64, 5, 10, 20, 40] {
+          tokio::time::sleep(std::time::Duration::from_secs(delay_s)).await;
+          patch_paired_json_scopes(&ah);
+        }
+      });
     }
     Ok(s) => eprintln!("[clawd/service] auto_enable: launchctl bootstrap exited {}", s),
     Err(e) => eprintln!("[clawd/service] auto_enable: launchctl bootstrap failed: {}", e),
