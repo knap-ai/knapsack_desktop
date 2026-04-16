@@ -12,7 +12,7 @@ import {
   updateCurationSettings,
   wipeLibrary,
 } from '../../../api/workspaces'
-import { KN_API_STREAM_LLM_COMPLETE } from '../../../utils/constants'
+import { KN_API_GET_USER_EMAIL, KN_API_STREAM_LLM_COMPLETE } from '../../../utils/constants'
 
 const LOCAL_FILES_PROMPT_KEY = 'knap.library.localFilesPromptShown'
 const SUMMARY_CACHE_PREFIX = 'knap.library.summary.'
@@ -116,10 +116,20 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
 
     let cancelled = false
     ;(async () => {
+      // Fetch user email once for all LLM calls.
+      let userEmail = ''
+      try {
+        const res = await fetch(KN_API_GET_USER_EMAIL)
+        const data = await res.json()
+        if (data.email) userEmail = data.email
+      } catch {
+        // proceed with empty email
+      }
+
       for (const ws of toGenerate) {
         if (cancelled) break
         try {
-          const result = await generateCardSummary(ws, getTopTags(ws, 6))
+          const result = await generateCardSummary(ws, getTopTags(ws, 6), userEmail)
           if (result) {
             setCardSummaries(prev => {
               const next = new Map(prev)
@@ -132,8 +142,8 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
               // no-op
             }
           }
-        } catch {
-          // skip failed generation silently
+        } catch (err) {
+          console.error(`[Library] summary generation failed for ${ws.name}:`, err)
         }
       }
     })()
@@ -542,9 +552,7 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
   )
 }
 
-/** Generate an AI summary + suggested next action for a workspace card.
- *  Called once per workspace; result is cached in localStorage. */
-async function generateCardSummary(workspace: Workspace, topTags: string[]): Promise<CardSummary | null> {
+async function generateCardSummary(workspace: Workspace, topTags: string[], userEmail: string): Promise<CardSummary | null> {
   const docs = workspace.documents ?? []
   const docTitles = docs
     .slice(0, 8)
@@ -562,16 +570,19 @@ async function generateCardSummary(workspace: Workspace, topTags: string[]): Pro
     .join('\n')
 
   const prompt =
-    `You are a personal knowledge assistant. Based on this contact/project summary from my personal knowledge base, write a brief 1-2 sentence human-readable description. ` +
-    `Then suggest one specific, concrete next action I should take.\n\nContext:\n${contextLines}\n\n` +
-    `Respond with JSON only, no markdown: {"summary": "...", "nextAction": "..."}`
+    `Based on the following contact/project from my knowledge base, give me:\n` +
+    `1. A brief 1-2 sentence description of who this is or what this project is about\n` +
+    `2. One specific next action I should take\n\n` +
+    `${contextLines}\n\n` +
+    `Reply ONLY with a JSON object in this exact format, no other text:\n` +
+    `{"summary": "your description here", "nextAction": "your suggested action here"}`
 
   try {
     const response = await fetch(KN_API_STREAM_LLM_COMPLETE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        user_email: '',
+        user_email: userEmail,
         user_name: '',
         prompt,
         semantic_search_query: null,
@@ -580,7 +591,14 @@ async function generateCardSummary(workspace: Workspace, topTags: string[]): Pro
       }),
     })
 
-    if (!response.ok || !response.body) return null
+    if (!response.ok) {
+      console.error(`[Library] LLM returned ${response.status} for ${workspace.name}`)
+      return null
+    }
+    if (!response.body) {
+      console.error(`[Library] LLM returned no body for ${workspace.name}`)
+      return null
+    }
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
@@ -596,15 +614,34 @@ async function generateCardSummary(workspace: Workspace, topTags: string[]): Pro
         try {
           text += JSON.parse(line.slice(6)).choices[0].text
         } catch {
-          // malformed chunk — skip
+          // malformed chunk
         }
       }
     }
 
-    const match = text.match(/\{[\s\S]*?"summary"[\s\S]*?"nextAction"[\s\S]*?\}/)
-    if (!match) return null
-    return JSON.parse(match[0]) as CardSummary
-  } catch {
+    console.log(`[Library] LLM raw for ${workspace.name}:`, text.slice(0, 300))
+
+    // Extract JSON — handle markdown fences and extra text.
+    const cleaned = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim()
+
+    const jsonStart = cleaned.indexOf('{')
+    const jsonEnd = cleaned.lastIndexOf('}')
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+      console.error(`[Library] no JSON found in LLM response for ${workspace.name}`)
+      return null
+    }
+
+    const parsed = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1))
+    if (parsed.summary && parsed.nextAction) {
+      return { summary: parsed.summary, nextAction: parsed.nextAction }
+    }
+    console.error(`[Library] JSON missing expected fields for ${workspace.name}:`, parsed)
+    return null
+  } catch (err) {
+    console.error(`[Library] generateCardSummary error for ${workspace.name}:`, err)
     return null
   }
 }
