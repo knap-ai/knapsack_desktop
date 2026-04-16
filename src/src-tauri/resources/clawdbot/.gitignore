@@ -1,0 +1,3 @@
+# Ignore installed node_modules — only intentionally committed shims (e.g. node_modules/chalk/) are tracked.
+node_modules/
+!node_modules/chalk/

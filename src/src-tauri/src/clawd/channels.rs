@@ -3108,3 +3108,400 @@ pub async fn channel_diagnostics() -> impl Responder {
         repairs,
     })
 }
+
+// ── Telegram User Accounts (MTProto, non-bot) ────────────────────────────────
+//
+// These endpoints enable the onboarding flow that creates real Telegram *user*
+// accounts for digital employees and the Knapsack Chief-of-Staff.  Unlike the
+// existing bot-token flow (BotFather), user accounts can initiate conversations
+// and are not constrained by bot API limitations.
+//
+// The actual MTProto session management is delegated to the OpenClaw gateway
+// (Node.js) via the `telegram.user.*` method namespace over the WebSocket RPC.
+
+/// Request body for requesting a Telegram OTP code.
+#[derive(Deserialize)]
+struct TelegramUserCodeRequest {
+    phone_number: String,
+    #[serde(default)]
+    agent_id: Option<String>,
+}
+
+/// Request body for verifying a Telegram OTP code.
+#[derive(Deserialize)]
+struct TelegramUserVerifyRequest {
+    phone_number: String,
+    code: String,
+    phone_code_hash: String,
+    #[serde(default)]
+    agent_id: Option<String>,
+}
+
+/// Request body for signing up a brand-new Telegram user account.
+#[derive(Deserialize)]
+struct TelegramUserSignUpRequest {
+    phone_number: String,
+    phone_code_hash: String,
+    first_name: String,
+    #[serde(default)]
+    last_name: Option<String>,
+    #[serde(default)]
+    agent_id: Option<String>,
+}
+
+/// Response for OTP code request / Chief-of-Staff setup initiation.
+#[derive(Serialize)]
+struct TelegramUserCodeResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    /// Opaque hash passed back to the verify step.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    phone_code_hash: Option<String>,
+    /// Whether this phone number already has a Telegram account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    is_registered: Option<bool>,
+}
+
+/// Response for OTP verify / sign-up.
+#[derive(Serialize)]
+struct TelegramUserVerifyResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    is_new: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+}
+
+/// Response for user / chief-of-staff status queries.
+#[derive(Serialize)]
+struct TelegramUserStatusResponse {
+    success: bool,
+    configured: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    user_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    phone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// Helper: proxy a call to the gateway's `telegram.user.*` namespace.
+async fn telegram_user_call(method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !gateway_client::is_gateway_port_open().await {
+        gateway_client::ensure_gateway_and_wait().await;
+        if !gateway_client::is_gateway_port_open().await {
+            return Err("Gateway not reachable — the background service may need to be restarted.".to_string());
+        }
+    }
+    gateway_client::call_channel_method(method, Some(params), None).await
+}
+
+/// Request an OTP for a Telegram user account.
+///
+/// The gateway calls `auth.sendCode` via MTProto and returns a `phoneCodeHash`
+/// that must be passed back during verification.
+#[post("/api/clawd/telegram/user/request-code")]
+pub async fn telegram_user_request_code(
+    body: web::Json<TelegramUserCodeRequest>,
+) -> impl Responder {
+    let phone = body.phone_number.trim().to_string();
+    if phone.is_empty() {
+        return HttpResponse::BadRequest().json(TelegramUserCodeResponse {
+            success: false,
+            message: Some("Phone number is required".to_string()),
+            phone_code_hash: None,
+            is_registered: None,
+        });
+    }
+
+    let params = serde_json::json!({
+        "phoneNumber": phone,
+        "agentId": body.agent_id.as_deref().unwrap_or("default"),
+    });
+
+    match telegram_user_call("telegram.user.requestCode", params).await {
+        Ok(result) => {
+            let success = result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+            let phone_code_hash = result.get("phoneCodeHash").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let is_registered = result.get("isRegistered").and_then(|v| v.as_bool());
+            let message = result.get("message").and_then(|v| v.as_str()).map(|s| s.to_string());
+            HttpResponse::Ok().json(TelegramUserCodeResponse {
+                success,
+                message,
+                phone_code_hash,
+                is_registered,
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramUserCodeResponse {
+            success: false,
+            message: Some(format!("Failed to request code: {}", e)),
+            phone_code_hash: None,
+            is_registered: None,
+        }),
+    }
+}
+
+/// Verify a Telegram OTP and sign in to the user account.
+///
+/// Calls `auth.signIn` via MTProto.  If the phone is not yet registered,
+/// returns `is_new: true` so the client can proceed to the sign-up step.
+#[post("/api/clawd/telegram/user/verify-code")]
+pub async fn telegram_user_verify_code(
+    body: web::Json<TelegramUserVerifyRequest>,
+) -> impl Responder {
+    let phone = body.phone_number.trim().to_string();
+    let code = body.code.trim().to_string();
+    let hash = body.phone_code_hash.trim().to_string();
+
+    if phone.is_empty() || code.is_empty() || hash.is_empty() {
+        return HttpResponse::BadRequest().json(TelegramUserVerifyResponse {
+            success: false,
+            message: Some("phone_number, code, and phone_code_hash are required".to_string()),
+            session: None,
+            is_new: None,
+            display_name: None,
+            username: None,
+        });
+    }
+
+    let params = serde_json::json!({
+        "phoneNumber": phone,
+        "code": code,
+        "phoneCodeHash": hash,
+        "agentId": body.agent_id.as_deref().unwrap_or("default"),
+    });
+
+    match telegram_user_call("telegram.user.verifyCode", params).await {
+        Ok(result) => {
+            let success = result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+            HttpResponse::Ok().json(TelegramUserVerifyResponse {
+                success,
+                message: result.get("message").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                session: result.get("session").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                is_new: result.get("isNew").and_then(|v| v.as_bool()),
+                display_name: result.get("displayName").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                username: result.get("username").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramUserVerifyResponse {
+            success: false,
+            message: Some(format!("Verification failed: {}", e)),
+            session: None,
+            is_new: None,
+            display_name: None,
+            username: None,
+        }),
+    }
+}
+
+/// Complete sign-up for a brand-new Telegram account.
+///
+/// Called when `verifyCode` indicates the phone number is not yet registered.
+/// Calls `auth.signUp` via MTProto and returns the new session.
+#[post("/api/clawd/telegram/user/sign-up")]
+pub async fn telegram_user_sign_up(
+    body: web::Json<TelegramUserSignUpRequest>,
+) -> impl Responder {
+    let phone = body.phone_number.trim().to_string();
+    let hash = body.phone_code_hash.trim().to_string();
+    let first = body.first_name.trim().to_string();
+
+    if phone.is_empty() || hash.is_empty() || first.is_empty() {
+        return HttpResponse::BadRequest().json(TelegramUserVerifyResponse {
+            success: false,
+            message: Some("phone_number, phone_code_hash, and first_name are required".to_string()),
+            session: None,
+            is_new: None,
+            display_name: None,
+            username: None,
+        });
+    }
+
+    let params = serde_json::json!({
+        "phoneNumber": phone,
+        "phoneCodeHash": hash,
+        "firstName": first,
+        "lastName": body.last_name.as_deref().unwrap_or(""),
+        "agentId": body.agent_id.as_deref().unwrap_or("default"),
+    });
+
+    match telegram_user_call("telegram.user.signUp", params).await {
+        Ok(result) => {
+            let success = result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+            HttpResponse::Ok().json(TelegramUserVerifyResponse {
+                success,
+                message: result.get("message").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                session: result.get("session").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                is_new: Some(true),
+                display_name: result.get("displayName").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                username: result.get("username").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramUserVerifyResponse {
+            success: false,
+            message: Some(format!("Sign-up failed: {}", e)),
+            session: None,
+            is_new: None,
+            display_name: None,
+            username: None,
+        }),
+    }
+}
+
+/// Get the Telegram user account status for a given agent (or default).
+#[get("/api/clawd/telegram/user/status")]
+pub async fn telegram_user_status(
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> impl Responder {
+    let agent_id = query.get("agent_id").cloned().unwrap_or_else(|| "default".to_string());
+
+    let params = serde_json::json!({ "agentId": agent_id });
+
+    match telegram_user_call("telegram.user.status", params).await {
+        Ok(result) => {
+            let configured = result.get("configured").and_then(|v| v.as_bool()).unwrap_or(false);
+            HttpResponse::Ok().json(TelegramUserStatusResponse {
+                success: true,
+                configured,
+                user_id: result.get("userId").and_then(|v| v.as_i64()),
+                display_name: result.get("displayName").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                username: result.get("username").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                phone: result.get("phone").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                message: None,
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramUserStatusResponse {
+            success: false,
+            configured: false,
+            user_id: None,
+            display_name: None,
+            username: None,
+            phone: None,
+            message: Some(format!("Could not fetch status: {}", e)),
+        }),
+    }
+}
+
+/// Initiate the Knapsack Chief-of-Staff user account setup.
+///
+/// Requests an OTP for the provided phone number so the user can complete
+/// verification in the onboarding UI.  The Chief-of-Staff account acts as
+/// the shared Telegram identity for the Knapsack workspace, routing inbound
+/// messages to the appropriate digital employee.
+#[post("/api/clawd/telegram/chief-of-staff/setup")]
+pub async fn telegram_chief_of_staff_setup(
+    body: web::Json<TelegramUserCodeRequest>,
+) -> impl Responder {
+    let phone = body.phone_number.trim().to_string();
+    if phone.is_empty() {
+        return HttpResponse::BadRequest().json(TelegramUserCodeResponse {
+            success: false,
+            message: Some("Phone number is required for Chief-of-Staff setup".to_string()),
+            phone_code_hash: None,
+            is_registered: None,
+        });
+    }
+
+    let params = serde_json::json!({
+        "phoneNumber": phone,
+        "agentId": "chief-of-staff",
+        "role": "chief-of-staff",
+        "displayName": "Knapsack",
+    });
+
+    match telegram_user_call("telegram.user.requestCode", params).await {
+        Ok(result) => {
+            let success = result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+            HttpResponse::Ok().json(TelegramUserCodeResponse {
+                success,
+                message: result.get("message").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                phone_code_hash: result.get("phoneCodeHash").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                is_registered: result.get("isRegistered").and_then(|v| v.as_bool()),
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramUserCodeResponse {
+            success: false,
+            message: Some(format!("Chief-of-Staff setup failed: {}", e)),
+            phone_code_hash: None,
+            is_registered: None,
+        }),
+    }
+}
+
+/// Get the status of the Knapsack Chief-of-Staff Telegram user account.
+#[get("/api/clawd/telegram/chief-of-staff/status")]
+pub async fn telegram_chief_of_staff_status() -> impl Responder {
+    let params = serde_json::json!({ "agentId": "chief-of-staff" });
+
+    match telegram_user_call("telegram.user.status", params).await {
+        Ok(result) => {
+            let configured = result.get("configured").and_then(|v| v.as_bool()).unwrap_or(false);
+            HttpResponse::Ok().json(TelegramUserStatusResponse {
+                success: true,
+                configured,
+                user_id: result.get("userId").and_then(|v| v.as_i64()),
+                display_name: result.get("displayName").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                username: result.get("username").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                phone: result.get("phone").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                message: None,
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramUserStatusResponse {
+            success: false,
+            configured: false,
+            user_id: None,
+            display_name: None,
+            username: None,
+            phone: None,
+            message: Some(format!("Could not fetch Chief-of-Staff status: {}", e)),
+        }),
+    }
+}
+
+#[derive(Serialize)]
+struct TelegramProvisionBotResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bot_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bot_username: Option<String>,
+}
+
+/// Auto-provision the Chief-of-Staff bot token.
+///
+/// Checks the `KNAPSACK_TG_CHIEF_OF_STAFF_BOT_TOKEN` environment variable for a
+/// pre-configured token supplied by the Knapsack backend or deployment config.
+/// Returns `success: false` when no token is found so the UI can fall back to
+/// manual entry.
+#[post("/api/clawd/telegram/chief-of-staff/provision-bot")]
+pub async fn telegram_provision_chief_of_staff_bot() -> impl Responder {
+    match std::env::var("KNAPSACK_TG_CHIEF_OF_STAFF_BOT_TOKEN") {
+        Ok(token) if !token.trim().is_empty() => {
+            HttpResponse::Ok().json(TelegramProvisionBotResponse {
+                success: true,
+                message: None,
+                bot_token: Some(token.trim().to_string()),
+                bot_username: None,
+            })
+        }
+        _ => HttpResponse::Ok().json(TelegramProvisionBotResponse {
+            success: false,
+            message: Some("No pre-configured bot token found. Please enter a bot token manually.".to_string()),
+            bot_token: None,
+            bot_username: None,
+        }),
+    }
+}
