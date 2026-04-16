@@ -1557,7 +1557,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         match launch_agent_plist_path() {
           Ok(plist) => {
             if !plist.exists() {
-              message.push_str("\n[diagnostic] LaunchAgent plist not found — service may not be enabled. Try toggling Enable in Settings.");
+              message.push_str("\n[diagnostic] LaunchAgent plist not found — service is registering, please wait a moment and retry.");
               eprintln!("[clawd/service] gateway down: plist not found at {}", plist.display());
             } else {
               let uid = unsafe { libc::getuid() };

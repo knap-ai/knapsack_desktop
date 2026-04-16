@@ -175,6 +175,14 @@ struct GatewayClient {
 static CLIENT: once_cell::sync::Lazy<std::sync::RwLock<Option<Arc<GatewayClient>>>> =
   once_cell::sync::Lazy::new(|| std::sync::RwLock::new(None));
 
+/// Serializes concurrent connection attempts so only one WS handshake runs
+/// at a time (thundering-herd prevention).  Without this, N concurrent
+/// callers that each see CLIENT=None all call connect_and_handshake
+/// simultaneously, open N WebSocket connections, then drop N-1 of them —
+/// each drop is logged as code=1006 "closed before connect" by the gateway.
+static CONNECT_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
+  once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
+
 async fn ensure_gateway_best_effort(token: &str) {
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
 }
@@ -1203,7 +1211,17 @@ async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
     }
   }
 
-  // Slow path: establish a new connection.
+  // Slow path: serialize concurrent callers so only one WS handshake runs.
+  // The double-check after acquiring the lock handles the common case where
+  // a concurrent caller already established the connection while we waited.
+  let _lock = CONNECT_LOCK.lock().await;
+  {
+    let guard = CLIENT.read().unwrap();
+    if let Some(ref c) = *guard {
+      return Ok(c.clone());
+    }
+  }
+
   match connect_and_handshake(token).await {
     Ok(client) => {
       let mut guard = CLIENT.write().unwrap();
