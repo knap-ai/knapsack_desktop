@@ -356,6 +356,68 @@ export interface TelegramProvisionBotResponse {
 export const provisionChiefOfStaffBot = () =>
   post<TelegramProvisionBotResponse>('/api/clawd/telegram/chief-of-staff/provision-bot', {})
 
+// ── Managed Bots (Bot API 9.6) ──────────────────────────────
+
+export interface TelegramManagedBotDeeplinkResponse {
+  success: boolean
+  deeplink?: string
+  message?: string
+}
+
+export interface TelegramManagedBotTokenResponse {
+  success: boolean
+  token?: string
+  username?: string
+  bot_id?: number
+  message?: string
+}
+
+export interface TelegramManagedBotStatusResponse {
+  success: boolean
+  configured: boolean
+  username?: string
+  display_name?: string
+  message?: string
+}
+
+/**
+ * Generate a Managed Bot creation deeplink (Bot API 9.6).
+ * Opens `https://t.me/newbot/{manager}/{suggested}` in Telegram so the user
+ * can create a child bot under the manager bot.
+ */
+export const getTelegramManagedBotDeeplink = (
+  managerUsername: string,
+  suggestedUsername: string,
+  suggestedName?: string,
+) =>
+  post<TelegramManagedBotDeeplinkResponse>('/api/clawd/telegram/managed-bot/deeplink', {
+    manager_username: managerUsername,
+    suggested_username: suggestedUsername,
+    suggested_name: suggestedName,
+  })
+
+/**
+ * Retrieve a managed bot's token via the manager bot.
+ * Resolves @botUsername → user_id → calls getManagedBotToken.
+ * The manager bot must have `can_manage_bots: true`.
+ */
+export const fetchTelegramManagedBotToken = (
+  agentId: string,
+  managerToken: string,
+  botUsername: string,
+) =>
+  post<TelegramManagedBotTokenResponse>('/api/clawd/telegram/managed-bot/get-token', {
+    agent_id: agentId,
+    manager_token: managerToken,
+    bot_username: botUsername,
+  })
+
+/** Get the per-agent managed bot status from the OpenClaw gateway. */
+export const getTelegramManagedBotStatus = (agentId: string) =>
+  get<TelegramManagedBotStatusResponse>(
+    `/api/clawd/telegram/managed-bot/status?agent_id=${encodeURIComponent(agentId)}`,
+  )
+
 // ── Diagnostics ─────────────────────────────────────────────
 
 export interface ChannelDiagnostics {
