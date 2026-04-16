@@ -5401,3 +5401,84 @@ pub async fn skills_update(
     }
   }
 }
+
+/// On macOS, automatically register the LaunchAgent on first launch so the
+/// user never sees "LaunchAgent plist not found — try toggling Enable in Settings."
+///
+/// This is intentionally best-effort: any failure is logged but never surfaced
+/// to the user.  The toggle in Settings remains the authoritative control.
+#[cfg(target_os = "macos")]
+pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
+  let plist_path = match launch_agent_plist_path() {
+    Ok(p) => p,
+    Err(e) => {
+      eprintln!("[clawd/service] auto_enable: cannot resolve plist path: {}", e);
+      return;
+    }
+  };
+
+  if plist_path.exists() {
+    return; // Already registered — nothing to do.
+  }
+
+  eprintln!("[clawd/service] auto_enable: plist not found, registering LaunchAgent for first launch");
+
+  // Build a default config (base_url is set inside prepare_gateway_config's
+  // return value; we only need the Arc wrapper to satisfy the signature).
+  let cfg: crate::clawd::sidecar::SharedClawdbotConfig =
+    std::sync::Arc::new(tokio::sync::RwLock::new(
+      crate::clawd::sidecar::ClawdbotConfig::default(),
+    ));
+
+  let setup = match prepare_gateway_config(app_handle, &cfg).await {
+    Ok(s) => s,
+    Err(e) => {
+      eprintln!("[clawd/service] auto_enable: prepare_gateway_config failed: {}", e);
+      return;
+    }
+  };
+
+  // Ensure the LaunchAgents directory exists.
+  if let Some(parent) = plist_path.parent() {
+    if let Err(e) = fs::create_dir_all(parent) {
+      eprintln!("[clawd/service] auto_enable: failed to create LaunchAgents dir: {}", e);
+      return;
+    }
+  }
+
+  let plist_content = generate_plist(&setup.program_args, &setup.env);
+  if let Err(e) = fs::write(&plist_path, &plist_content) {
+    eprintln!("[clawd/service] auto_enable: failed to write plist: {}", e);
+    return;
+  }
+  eprintln!("[clawd/service] auto_enable: wrote plist to {}", plist_path.display());
+
+  let uid = unsafe { libc::getuid() };
+  let domain = format!("gui/{}", uid);
+
+  // Unload any stale registration (ignore errors — may not exist).
+  let _ = std::process::Command::new("launchctl")
+    .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+    .status();
+
+  let boot = std::process::Command::new("launchctl")
+    .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+    .status();
+
+  match boot {
+    Ok(s) if s.success() => {
+      let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+      let _ = std::process::Command::new("launchctl")
+        .args(["kickstart", "-k", &service])
+        .status();
+      eprintln!("[clawd/service] auto_enable: LaunchAgent registered and started");
+    }
+    Ok(s) => eprintln!("[clawd/service] auto_enable: launchctl bootstrap exited {}", s),
+    Err(e) => eprintln!("[clawd/service] auto_enable: launchctl bootstrap failed: {}", e),
+  }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub async fn auto_enable_if_needed(_app_handle: &tauri::AppHandle) {
+  // No-op on non-macOS platforms.
+}
