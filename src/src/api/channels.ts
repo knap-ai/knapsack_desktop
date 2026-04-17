@@ -418,6 +418,56 @@ export const getTelegramManagedBotStatus = (agentId: string) =>
     `/api/clawd/telegram/managed-bot/status?agent_id=${encodeURIComponent(agentId)}`,
   )
 
+// ── Per-Agent Child Bot Provisioning ────────────────────────
+
+export interface AgentBotDeepLinkResponse {
+  success: boolean
+  deeplink?: string
+  message?: string
+}
+
+export interface AgentBotProvisionResponse {
+  success: boolean
+  username?: string
+  bot_id?: number
+  message?: string
+}
+
+export interface AgentBotStatusEntry {
+  agent_id: string
+  username: string
+  configured: boolean
+}
+
+/** Build the t.me/newbot/… deep link for creating a child bot. */
+export const getAgentBotDeepLink = (suggestedUsername: string, agentName: string) =>
+  post<AgentBotDeepLinkResponse>('/api/clawd/telegram/agent-bot/deep-link', {
+    suggested_username: suggestedUsername,
+    agent_name: agentName,
+  })
+
+/**
+ * Single-attempt provision: tries getManagedBotToken once.
+ * Returns success:false immediately if the child bot hasn't been created yet.
+ * The frontend polls this every ~3 s after opening the deep link.
+ */
+export const provisionAgentBot = (agentId: string, agentName: string, suggestedUsername: string) =>
+  post<AgentBotProvisionResponse>('/api/clawd/telegram/agent-bot/provision', {
+    agent_id: agentId,
+    agent_name: agentName,
+    suggested_username: suggestedUsername,
+  }, 15_000)
+
+/** Rotate a provisioned bot's token silently (no user action required). */
+export const rotateAgentBotToken = (agentId: string) =>
+  post<{ success: boolean; message?: string }>('/api/clawd/telegram/agent-bot/rotate', {
+    agent_id: agentId,
+  })
+
+/** Return provisioning status for all agent bots from openclaw.json. */
+export const getAgentBotStatuses = () =>
+  get<AgentBotStatusEntry[]>('/api/clawd/telegram/agent-bot/statuses')
+
 // ── Diagnostics ─────────────────────────────────────────────
 
 export interface ChannelDiagnostics {
