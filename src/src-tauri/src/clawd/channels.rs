@@ -3778,10 +3778,15 @@ pub async fn telegram_get_agent_bot_deep_link(
     }
     let m = manager.trim();
     let suggested = body.suggested_username.trim().trim_start_matches('@').to_string();
-    // tg:// opens the native Telegram app (macOS, Windows, Linux).
-    // https://t.me/ opens in the browser; used as a fallback when the app is not installed.
-    let deeplink = format!("tg://resolve?domain={}&start=newbot_{}", m, suggested);
-    let web_deeplink = format!("https://t.me/{}?start=newbot_{}", m, suggested);
+    let name_enc: String = body.agent_name.chars().map(|c| {
+        if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }
+    }).collect();
+    // tg:// opens the native Telegram app on macOS/Windows/Linux.
+    // The tg://newbot scheme mirrors the official t.me/newbot deeplink (Bot API 9.6).
+    // https://t.me/newbot/{manager}/{suggested} is the documented managed-bot creation URL;
+    // used as fallback when Telegram is not installed (opens browser / Telegram Web).
+    let deeplink = format!("tg://newbot?manager={}&username={}&name={}", m, suggested, name_enc);
+    let web_deeplink = format!("https://t.me/newbot/{}/{}?name={}", m, suggested, name_enc);
     HttpResponse::Ok().json(TelegramAgentBotDeepLinkResponse {
         success: true,
         deeplink: Some(deeplink),

@@ -95,7 +95,7 @@ Callback data format: `action:<verb>:<target_id>` (max 64 bytes).
 ## Provisioning flow (UI)
 
 1. User clicks "Set up →" for each agent on the Telegram onboarding screen
-2. App opens `https://t.me/newbot/{manager}/{suggested}` via Tauri shell.open()
+2. App opens `tg://newbot?manager={manager}&username={suggested}&name={name}` (native Telegram app); falls back to `https://t.me/newbot/{manager}/{suggested}?name={name}` if app not installed
 3. User creates the child bot in Telegram (~10 seconds)
 4. App polls every 3 s until `getManagedBotToken` succeeds
 5. Token written to `openclaw.json` and pushed to running gateway
