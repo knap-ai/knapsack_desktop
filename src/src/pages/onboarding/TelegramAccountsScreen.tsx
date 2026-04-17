@@ -4,21 +4,19 @@ import { open as openUrl } from '@tauri-apps/api/shell'
 import cn from 'classnames'
 
 import {
-  getAgentBotDeepLink,
+  configureAgentBot,
   getAgentBotStatuses,
-  provisionAgentBot,
 } from 'src/api/channels'
 
 import styles from './styles.module.scss'
 
 // ── Types ────────────────────────────────────────────────────
 
-/** idle → awaiting_telegram (deeplink opened, polling) → done | error */
-type BotPhase = 'idle' | 'awaiting_telegram' | 'done' | 'skipped' | 'error'
+type BotPhase = 'idle' | 'entering_token' | 'connecting' | 'done' | 'skipped' | 'error'
 
 interface BotState {
   phase: BotPhase
-  username: string   // filled on success
+  username: string
   errorMessage: string
 }
 
@@ -62,9 +60,6 @@ function agentUsername(userSlug: string, agentId: string) {
 
 // ── Single card component ─────────────────────────────────────
 
-const POLL_INTERVAL_MS = 3_000
-const POLL_TIMEOUT_MS = 120_000
-
 function AgentBotCard({
   emoji,
   name,
@@ -80,61 +75,38 @@ function AgentBotCard({
   state: BotState
   onChange: (patch: Partial<BotState>) => void
 }) {
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const pollStartRef = useRef<number>(0)
-
-  const stopPolling = useCallback(() => {
-    if (pollRef.current !== null) {
-      clearInterval(pollRef.current)
-      pollRef.current = null
-    }
-  }, [])
-
-  // Clean up on unmount
-  useEffect(() => () => stopPolling(), [stopPolling])
-
-  const startPolling = useCallback(() => {
-    stopPolling()
-    pollStartRef.current = Date.now()
-    pollRef.current = setInterval(async () => {
-      if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
-        stopPolling()
-        onChange({
-          phase: 'error',
-          errorMessage: 'Timed out waiting — make sure you completed bot creation in Telegram.',
-        })
-        return
-      }
-      try {
-        const resp = await provisionAgentBot(agentId, name, suggestedUsername)
-        if (resp.success && resp.username) {
-          stopPolling()
-          onChange({ phase: 'done', username: resp.username })
-        }
-        // Not ready yet — keep polling silently
-      } catch {
-        // Network hiccup — keep polling
-      }
-    }, POLL_INTERVAL_MS)
-  }, [agentId, name, suggestedUsername, onChange, stopPolling])
+  const [tokenInput, setTokenInput] = useState('')
 
   const handleSetUp = async () => {
-    onChange({ phase: 'awaiting_telegram', errorMessage: '' })
+    onChange({ phase: 'entering_token', errorMessage: '' })
     try {
-      const resp = await getAgentBotDeepLink(suggestedUsername, `${name} (Knapsack)`)
-      // Use the https://t.me/newbot/{manager}/{suggested} URL — this opens the browser which
-      // shows an "Open in Telegram" button that correctly triggers the managed bot creation flow.
-      // tg://newbot is not a registered Telegram URL scheme and only opens BotFather without context.
-      const url = resp.web_deeplink ?? `https://t.me/BotFather`
-      await openUrl(url)
+      await openUrl('https://t.me/BotFather?start=newbot')
     } catch {
-      // If the API call fails, keep polling — user may open Telegram manually
+      // Telegram not installed — browser will open instead
+      try { await openUrl('https://t.me/BotFather') } catch { /* ignore */ }
     }
-    startPolling()
+  }
+
+  const handleConnect = async () => {
+    const token = tokenInput.trim()
+    if (!token) return
+    onChange({ phase: 'connecting', errorMessage: '' })
+    try {
+      const resp = await configureAgentBot(agentId, name, token)
+      if (resp.success && resp.username) {
+        onChange({ phase: 'done', username: resp.username })
+        setTokenInput('')
+      } else {
+        onChange({ phase: 'entering_token', errorMessage: resp.message ?? 'Invalid token — try again.' })
+      }
+    } catch {
+      onChange({ phase: 'entering_token', errorMessage: 'Connection failed — check your token and try again.' })
+    }
   }
 
   const isDone = state.phase === 'done'
-  const isWaiting = state.phase === 'awaiting_telegram'
+  const isEntering = state.phase === 'entering_token'
+  const isConnecting = state.phase === 'connecting'
   const isSkipped = state.phase === 'skipped'
 
   return (
@@ -174,16 +146,10 @@ function AgentBotCard({
             </button>
           )}
 
-          {isWaiting && (
-            <span className="text-xs text-gray-400 font-InterTight animate-pulse">
-              Waiting for Telegram…
-            </span>
-          )}
-
-          {(isWaiting || state.phase === 'error') && !isSkipped && (
+          {(isEntering || isConnecting) && (
             <button
-              className="text-xs text-gray-400 hover:text-gray-600 underline font-InterTight ml-2"
-              onClick={() => { stopPolling(); onChange({ phase: 'skipped' }) }}
+              className="text-xs text-gray-400 hover:text-gray-600 underline font-InterTight"
+              onClick={() => onChange({ phase: 'skipped', errorMessage: '' })}
             >
               Skip
             </button>
@@ -200,22 +166,33 @@ function AgentBotCard({
         </div>
       </div>
 
-      {state.phase === 'error' && (
-        <div className="mt-2 flex items-center gap-3">
-          <p className="text-xs text-red-500 font-InterTight flex-1">{state.errorMessage}</p>
-          <button
-            className="text-xs text-[#913631] underline font-InterTight whitespace-nowrap"
-            onClick={handleSetUp}
-          >
-            Retry →
-          </button>
+      {(isEntering || isConnecting) && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-gray-500 font-InterTight">
+            In BotFather, type <span className="font-mono text-gray-700">/newbot</span> and follow the steps. Then paste your token here:
+          </p>
+          {state.errorMessage && (
+            <p className="text-xs text-red-500 font-InterTight">{state.errorMessage}</p>
+          )}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="123456:ABC-DEF1234…"
+              value={tokenInput}
+              onChange={e => setTokenInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleConnect()}
+              disabled={isConnecting}
+              className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 font-mono font-InterTight focus:outline-none focus:border-[#913631] disabled:opacity-50"
+            />
+            <button
+              onClick={handleConnect}
+              disabled={isConnecting || !tokenInput.trim()}
+              className="text-xs font-medium font-InterTight px-3 py-2 rounded-lg bg-[#913631] text-white hover:bg-[#7a2d29] disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {isConnecting ? 'Connecting…' : 'Connect'}
+            </button>
+          </div>
         </div>
-      )}
-
-      {isWaiting && (
-        <p className="mt-2 text-xs text-gray-400 font-InterTight">
-          Complete bot creation in Telegram — this will update automatically.
-        </p>
       )}
     </div>
   )
@@ -305,7 +282,7 @@ export function TelegramAccountsScreen({
         <p className="mt-3 text-gray-500 text-base font-InterTight leading-relaxed">
           Each agent gets their own Telegram bot. Click{' '}
           <span className="font-medium text-gray-700">Set up →</span> to open
-          Telegram and create it — takes about 10 seconds per bot.
+          BotFather, create a bot with <span className="font-mono text-sm">/newbot</span>, then paste the token — takes about 30 seconds per bot.
         </p>
       </div>
 

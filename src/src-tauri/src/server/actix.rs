@@ -328,6 +328,7 @@ pub async fn start_server<'a>(
       .service(clawd::channels::telegram_managed_bot_status)
       .service(clawd::channels::telegram_get_agent_bot_deep_link)
       .service(clawd::channels::telegram_provision_agent_bot)
+      .service(clawd::channels::telegram_configure_agent_bot)
       .service(clawd::channels::telegram_rotate_agent_bot_token)
       .service(clawd::channels::telegram_get_agent_bot_statuses)
       .service(clawd::channels::voice_status)
