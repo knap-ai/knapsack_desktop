@@ -5,18 +5,15 @@ import cn from 'classnames'
 import {
   configureTelegram,
   getTelegramStatus,
-  requestTelegramUserCode,
-  verifyTelegramUserCode,
-  signUpTelegramUser,
   provisionChiefOfStaffBot,
-  TelegramUserCodeResponse,
+  getTelegramManagedBotDeeplink,
+  fetchTelegramManagedBotToken,
 } from 'src/api/channels'
 
 import styles from './styles.module.scss'
 
 // ── Types ────────────────────────────────────────────────────
 
-// Chief of Staff is a bot — only needs a token.
 type BotPhase = 'idle' | 'entering_token' | 'provisioning' | 'connecting' | 'done' | 'error'
 
 interface BotState {
@@ -26,26 +23,21 @@ interface BotState {
   errorMessage: string
 }
 
-// Digital employees are MTProto user accounts.
-type AccountPhase =
+type AgentBotPhase =
   | 'idle'
-  | 'entering_phone'
-  | 'requesting_code'
-  | 'entering_code'
-  | 'verifying'
-  | 'signing_up'
+  | 'awaiting_creation'
+  | 'confirming_username'
+  | 'fetching_token'
   | 'done'
   | 'skipped'
+  | 'error'
 
-interface AccountState {
-  phase: AccountPhase
-  phone: string
-  code: string
-  phoneCodeHash: string
-  isRegistered: boolean
-  firstName: string
-  lastName: string
-  displayName: string
+interface AgentBotState {
+  phase: AgentBotPhase
+  suggestedUsername: string
+  confirmedUsername: string
+  username: string
+  botId: number | null
   errorMessage: string
 }
 
@@ -53,16 +45,15 @@ function defaultBotState(): BotState {
   return { phase: 'idle', token: '', username: '', errorMessage: '' }
 }
 
-function defaultAccountState(): AccountState {
+function defaultAgentBotState(agentId: string): AgentBotState {
+  const slug = agentId.toLowerCase().replace(/[^a-z0-9]/g, '_')
+  const suggested = `knapsack_${slug}_bot`.slice(0, 32)
   return {
     phase: 'idle',
-    phone: '',
-    code: '',
-    phoneCodeHash: '',
-    isRegistered: true,
-    firstName: '',
-    lastName: '',
-    displayName: '',
+    suggestedUsername: suggested,
+    confirmedUsername: suggested,
+    username: '',
+    botId: null,
     errorMessage: '',
   }
 }
@@ -82,125 +73,6 @@ type TelegramAccountsScreenProps = {
   onSkip: (index: number) => void
 }
 
-// ── Sub-components ───────────────────────────────────────────
-
-function PhoneInput({
-  value,
-  onChange,
-  onSubmit,
-  disabled,
-}: {
-  value: string
-  onChange: (v: string) => void
-  onSubmit: () => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="flex gap-2 mt-3">
-      <input
-        type="tel"
-        placeholder="+1 555 000 0000"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && !disabled && onSubmit()}
-        disabled={disabled}
-        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#913631] disabled:bg-gray-50 disabled:text-gray-400"
-      />
-      <button
-        onClick={onSubmit}
-        disabled={disabled || !value.trim()}
-        className="px-4 py-2 rounded-lg bg-[#913631] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#7a2d29] transition-colors"
-      >
-        Send code
-      </button>
-    </div>
-  )
-}
-
-function CodeInput({
-  value,
-  onChange,
-  onSubmit,
-  disabled,
-}: {
-  value: string
-  onChange: (v: string) => void
-  onSubmit: () => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="flex gap-2 mt-3">
-      <input
-        type="text"
-        inputMode="numeric"
-        placeholder="12345"
-        maxLength={6}
-        value={value}
-        onChange={e => onChange(e.target.value.replace(/\D/g, ''))}
-        onKeyDown={e => e.key === 'Enter' && !disabled && onSubmit()}
-        disabled={disabled}
-        className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm text-center tracking-widest focus:outline-none focus:border-[#913631] disabled:bg-gray-50"
-      />
-      <button
-        onClick={onSubmit}
-        disabled={disabled || !value.trim()}
-        className="px-4 py-2 rounded-lg bg-[#913631] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#7a2d29] transition-colors"
-      >
-        Verify
-      </button>
-    </div>
-  )
-}
-
-function SignUpFields({
-  firstName,
-  lastName,
-  onFirstNameChange,
-  onLastNameChange,
-  onSubmit,
-  disabled,
-}: {
-  firstName: string
-  lastName: string
-  onFirstNameChange: (v: string) => void
-  onLastNameChange: (v: string) => void
-  onSubmit: () => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="mt-3 space-y-2">
-      <p className="text-xs text-gray-500 font-InterTight">
-        This number isn't on Telegram yet — create an account for this agent.
-      </p>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          placeholder="First name"
-          value={firstName}
-          onChange={e => onFirstNameChange(e.target.value)}
-          disabled={disabled}
-          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#913631] disabled:bg-gray-50"
-        />
-        <input
-          type="text"
-          placeholder="Last name"
-          value={lastName}
-          onChange={e => onLastNameChange(e.target.value)}
-          disabled={disabled}
-          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#913631] disabled:bg-gray-50"
-        />
-      </div>
-      <button
-        onClick={onSubmit}
-        disabled={disabled || !firstName.trim()}
-        className="w-full px-4 py-2 rounded-lg bg-[#913631] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#7a2d29] transition-colors"
-      >
-        Create Telegram account
-      </button>
-    </div>
-  )
-}
-
 // ── Chief of Staff Bot Card ──────────────────────────────────
 
 function ChiefOfStaffCard({
@@ -215,7 +87,6 @@ function ChiefOfStaffCard({
     try {
       const resp = await provisionChiefOfStaffBot()
       if (resp.success && resp.bot_token) {
-        // Auto-configure with the provisioned token
         onChange({ phase: 'connecting', token: resp.bot_token })
         const configResp = await configureTelegram(resp.bot_token)
         if (configResp.success) {
@@ -224,10 +95,9 @@ function ChiefOfStaffCard({
           onChange({ phase: 'entering_token', errorMessage: configResp.message ?? 'Failed to connect bot.' })
         }
       } else {
-        // Provision not available yet — fall back to manual
         onChange({ phase: 'entering_token', errorMessage: resp.message ?? 'Auto-provision unavailable. Enter a bot token manually.' })
       }
-    } catch (e: any) {
+    } catch {
       onChange({ phase: 'entering_token', errorMessage: 'Auto-provision failed. Enter a bot token manually.' })
     }
   }
@@ -238,14 +108,13 @@ function ChiefOfStaffCard({
     try {
       const resp = await configureTelegram(state.token.trim())
       if (resp.success) {
-        // Fetch the bot username to confirm
         const status = await getTelegramStatus()
         onChange({ phase: 'done', username: status.account ?? 'KnapsackBot' })
       } else {
         onChange({ phase: 'entering_token', errorMessage: resp.message ?? 'Invalid token. Check it and try again.' })
       }
-    } catch (e: any) {
-      onChange({ phase: 'entering_token', errorMessage: e.message ?? 'Network error.' })
+    } catch (e: unknown) {
+      onChange({ phase: 'entering_token', errorMessage: e instanceof Error ? e.message : 'Network error.' })
     }
   }
 
@@ -257,7 +126,6 @@ function ChiefOfStaffCard({
       'rounded-2xl border p-4 transition-all',
       isDone ? 'border-green-400 bg-green-50' : 'border-[#913631]/40 bg-[#913631]/5',
     )}>
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🎩</span>
@@ -266,7 +134,7 @@ function ChiefOfStaffCard({
               Knapsack Chief of Staff
             </p>
             <p className="text-xs text-gray-500 font-InterTight">
-              Shared Telegram bot — routes inbound messages to the right agent
+              Manager bot — provisions and routes inbound messages to the right agent
             </p>
           </div>
         </div>
@@ -280,7 +148,6 @@ function ChiefOfStaffCard({
         )}
       </div>
 
-      {/* Body */}
       {state.phase === 'idle' && (
         <div className="mt-3 flex gap-2">
           <button
@@ -298,18 +165,13 @@ function ChiefOfStaffCard({
         </div>
       )}
 
-      {(state.phase === 'entering_token') && (
+      {state.phase === 'entering_token' && (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-gray-500 font-InterTight">
             Paste a bot token from{' '}
-            <span className="font-medium">@BotFather</span>, or{' '}
-            <button
-              className="text-[#913631] underline"
-              onClick={handleProvision}
-            >
-              auto-create one
-            </button>
-            .
+            <span className="font-medium">@BotFather</span>. This bot needs{' '}
+            <span className="font-medium">can_manage_bots</span> enabled so it can
+            auto-provision per-agent bots.
           </p>
           <div className="flex gap-2">
             <input
@@ -343,83 +205,76 @@ function ChiefOfStaffCard({
   )
 }
 
-// ── Digital Employee Account Card ────────────────────────────
+// ── Agent Managed Bot Card ────────────────────────────────────
 
-function AgentAccountCard({
+function AgentBotCard({
   emoji,
   name,
   agentId,
+  chiefBotUsername,
+  chiefBotToken,
   state,
   onChange,
 }: {
   emoji: string
   name: string
   agentId: string
-  state: AccountState
-  onChange: (patch: Partial<AccountState>) => void
+  chiefBotUsername: string
+  chiefBotToken: string
+  state: AgentBotState
+  onChange: (patch: Partial<AgentBotState>) => void
 }) {
-  const handleRequestCode = async () => {
-    if (!state.phone.trim()) return
-    onChange({ phase: 'requesting_code', errorMessage: '' })
+  const handleOpenDeeplink = async () => {
+    onChange({ phase: 'awaiting_creation', errorMessage: '' })
     try {
-      const resp: TelegramUserCodeResponse = await requestTelegramUserCode(state.phone.trim(), agentId)
-      if (resp.success && resp.phone_code_hash) {
-        onChange({
-          phase: 'entering_code',
-          phoneCodeHash: resp.phone_code_hash,
-          isRegistered: resp.is_registered !== false,
-        })
-      } else {
-        onChange({ phase: 'entering_phone', errorMessage: resp.message ?? 'Failed to send code.' })
-      }
-    } catch (e: any) {
-      onChange({ phase: 'entering_phone', errorMessage: e.message ?? 'Network error.' })
-    }
-  }
-
-  const handleVerifyCode = async () => {
-    if (!state.code.trim()) return
-    onChange({ phase: 'verifying', errorMessage: '' })
-    try {
-      const resp = await verifyTelegramUserCode(state.phone, state.code, state.phoneCodeHash, agentId)
-      if (resp.success) {
-        if (resp.is_new && !state.isRegistered) {
-          onChange({ phase: 'signing_up' })
-        } else {
-          onChange({ phase: 'done', displayName: resp.display_name ?? name })
-        }
-      } else {
-        onChange({ phase: 'entering_code', errorMessage: resp.message ?? 'Invalid code.' })
-      }
-    } catch (e: any) {
-      onChange({ phase: 'entering_code', errorMessage: e.message ?? 'Network error.' })
-    }
-  }
-
-  const handleSignUp = async () => {
-    if (!state.firstName.trim()) return
-    onChange({ phase: 'signing_up', errorMessage: '' })
-    try {
-      const resp = await signUpTelegramUser(
-        state.phone,
-        state.phoneCodeHash,
-        state.firstName,
-        state.lastName,
-        agentId,
+      const resp = await getTelegramManagedBotDeeplink(
+        chiefBotUsername,
+        state.suggestedUsername,
+        `${name} (Knapsack)`,
       )
-      if (resp.success) {
-        onChange({ phase: 'done', displayName: resp.display_name ?? state.firstName })
+      if (resp.success && resp.deeplink) {
+        // Open in the user's default browser / Telegram app
+        window.open(resp.deeplink, '_blank', 'noopener,noreferrer')
       } else {
-        onChange({ phase: 'signing_up', errorMessage: resp.message ?? 'Sign-up failed.' })
+        // Fall back to building the URL client-side
+        const url = `https://t.me/newbot/${chiefBotUsername}/${state.suggestedUsername}`
+        window.open(url, '_blank', 'noopener,noreferrer')
       }
-    } catch (e: any) {
-      onChange({ phase: 'signing_up', errorMessage: e.message ?? 'Network error.' })
+    } catch {
+      const url = `https://t.me/newbot/${chiefBotUsername}/${state.suggestedUsername}`
+      window.open(url, '_blank', 'noopener,noreferrer')
     }
   }
 
-  const isSpinning = state.phase === 'requesting_code' || state.phase === 'verifying'
+  const handleFetchToken = async () => {
+    const username = state.confirmedUsername.trim().replace(/^@/, '')
+    if (!username) return
+    if (!chiefBotToken) {
+      onChange({ phase: 'error', errorMessage: 'Connect the Chief of Staff bot first — its token is needed to retrieve managed bot tokens.' })
+      return
+    }
+    onChange({ phase: 'fetching_token', errorMessage: '' })
+    try {
+      const resp = await fetchTelegramManagedBotToken(agentId, chiefBotToken, username)
+      if (resp.success && resp.username) {
+        onChange({ phase: 'done', username: resp.username, botId: resp.bot_id ?? null })
+      } else {
+        onChange({
+          phase: 'confirming_username',
+          errorMessage: resp.message ?? 'Could not retrieve token. Make sure you completed bot creation in Telegram.',
+        })
+      }
+    } catch (e: unknown) {
+      onChange({
+        phase: 'confirming_username',
+        errorMessage: e instanceof Error ? e.message : 'Network error.',
+      })
+    }
+  }
+
   const isDone = state.phase === 'done'
   const isSkipped = state.phase === 'skipped'
+  const isSpinning = state.phase === 'fetching_token'
 
   return (
     <div className={cn(
@@ -433,7 +288,7 @@ function AgentAccountCard({
           <span className="text-2xl">{emoji}</span>
           <div>
             <p className="text-sm font-semibold text-gray-900 font-InterTight">{name}</p>
-            <p className="text-xs text-gray-500 font-InterTight">Personal Telegram user account</p>
+            <p className="text-xs text-gray-500 font-InterTight">Dedicated Telegram bot</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -442,8 +297,16 @@ function AgentAccountCard({
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              {state.displayName}
+              @{state.username}
             </span>
+          )}
+          {!isDone && !isSkipped && state.phase === 'idle' && (
+            <button
+              className="text-xs text-[#913631] font-medium hover:underline font-InterTight"
+              onClick={() => onChange({ phase: 'confirming_username' })}
+            >
+              Set up →
+            </button>
           )}
           {!isDone && !isSkipped && state.phase !== 'idle' && (
             <button
@@ -451,14 +314,6 @@ function AgentAccountCard({
               onClick={() => onChange({ phase: 'skipped' })}
             >
               Skip
-            </button>
-          )}
-          {state.phase === 'idle' && (
-            <button
-              className="text-xs text-[#913631] font-medium hover:underline font-InterTight"
-              onClick={() => onChange({ phase: 'entering_phone' })}
-            >
-              Set up →
             </button>
           )}
           {isSkipped && (
@@ -472,55 +327,78 @@ function AgentAccountCard({
         </div>
       </div>
 
-      {(state.phase === 'entering_phone' || state.phase === 'requesting_code') && (
-        <div className="mt-3">
-          <p className="text-xs text-gray-500 font-InterTight">
-            Enter a phone number for this agent's Telegram account.
-          </p>
-          <PhoneInput
-            value={state.phone}
-            onChange={v => onChange({ phone: v })}
-            onSubmit={handleRequestCode}
-            disabled={isSpinning}
-          />
-          {isSpinning && <p className="text-xs text-gray-400 mt-2 font-InterTight">Sending code…</p>}
-          {state.errorMessage && <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>}
+      {(state.phase === 'confirming_username' || state.phase === 'awaiting_creation') && !isSpinning && (
+        <div className="mt-3 space-y-3">
+          {state.phase === 'confirming_username' && (
+            <>
+              <p className="text-xs text-gray-500 font-InterTight">
+                Click below to open Telegram and create a managed bot for{' '}
+                <strong>{name}</strong>. Once created, confirm the bot's username.
+              </p>
+              <button
+                onClick={handleOpenDeeplink}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#2AABEE] text-white text-sm font-medium hover:bg-[#1a98db] transition-colors font-InterTight"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.88 13.4l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.835.94z" />
+                </svg>
+                Create {name}'s bot in Telegram
+              </button>
+            </>
+          )}
+
+          {state.phase === 'awaiting_creation' && (
+            <p className="text-xs text-gray-500 font-InterTight">
+              Complete bot creation in Telegram, then confirm the username below.
+            </p>
+          )}
+
+          <div>
+            <label className="text-xs text-gray-500 font-InterTight mb-1 block">
+              Bot username (confirm after creating in Telegram)
+            </label>
+            <div className="flex gap-2">
+              <div className="flex-1 flex items-center rounded-lg border border-gray-300 px-3 focus-within:border-[#913631]">
+                <span className="text-gray-400 text-sm mr-1">@</span>
+                <input
+                  type="text"
+                  value={state.confirmedUsername}
+                  onChange={e => onChange({ confirmedUsername: e.target.value.replace(/^@/, '') })}
+                  onKeyDown={e => e.key === 'Enter' && handleFetchToken()}
+                  placeholder={state.suggestedUsername}
+                  className="flex-1 py-2 text-sm focus:outline-none bg-transparent font-mono"
+                />
+              </div>
+              <button
+                onClick={handleFetchToken}
+                disabled={!state.confirmedUsername.trim()}
+                className="px-4 py-2 rounded-lg bg-[#913631] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#7a2d29] transition-colors"
+              >
+                Get token
+              </button>
+            </div>
+          </div>
+
+          {state.errorMessage && (
+            <p className="text-xs text-red-500 font-InterTight">{state.errorMessage}</p>
+          )}
         </div>
       )}
 
-      {(state.phase === 'entering_code' || state.phase === 'verifying') && (
-        <div className="mt-3">
-          <p className="text-xs text-gray-500 font-InterTight">
-            Enter the code sent to <strong>{state.phone}</strong>.
-          </p>
-          <CodeInput
-            value={state.code}
-            onChange={v => onChange({ code: v })}
-            onSubmit={handleVerifyCode}
-            disabled={state.phase === 'verifying'}
-          />
-          {state.phase === 'verifying' && <p className="text-xs text-gray-400 mt-2 font-InterTight">Verifying…</p>}
-          {state.errorMessage && <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>}
+      {isSpinning && (
+        <p className="text-xs text-gray-400 mt-3 font-InterTight">Retrieving bot token…</p>
+      )}
+
+      {state.phase === 'error' && (
+        <div className="mt-3 space-y-1">
+          <p className="text-xs text-red-500 font-InterTight">{state.errorMessage}</p>
           <button
-            className="text-xs text-gray-400 mt-2 hover:text-gray-600 underline font-InterTight"
-            onClick={() => onChange({ phase: 'entering_phone', code: '' })}
+            className="text-xs text-[#913631] underline font-InterTight"
+            onClick={() => onChange({ phase: 'confirming_username', errorMessage: '' })}
           >
-            Use a different number
+            Try again
           </button>
         </div>
-      )}
-
-      {state.phase === 'signing_up' && (
-        <SignUpFields
-          firstName={state.firstName}
-          lastName={state.lastName}
-          onFirstNameChange={v => onChange({ firstName: v })}
-          onLastNameChange={v => onChange({ lastName: v })}
-          onSubmit={handleSignUp}
-        />
-      )}
-      {state.phase === 'signing_up' && state.errorMessage && (
-        <p className="text-xs text-red-500 mt-2 font-InterTight">{state.errorMessage}</p>
       )}
     </div>
   )
@@ -537,8 +415,8 @@ export function TelegramAccountsScreen({
   onSkip,
 }: TelegramAccountsScreenProps) {
   const [chiefState, setChiefState] = useState<BotState>(defaultBotState)
-  const [agentStates, setAgentStates] = useState<AccountState[]>(() =>
-    agents.map(() => defaultAccountState()),
+  const [agentStates, setAgentStates] = useState<AgentBotState[]>(() =>
+    agents.map(a => defaultAgentBotState(a.agentId)),
   )
 
   // Kick off auto-provisioning when the screen becomes visible
@@ -562,7 +440,7 @@ export function TelegramAccountsScreen({
             } else {
               setChiefState(prev => ({
                 ...prev,
-                phase: 'entering_token',
+                phase: 'idle',
                 errorMessage: 'Auto-connect failed — enter a bot token manually.',
               }))
             }
@@ -580,17 +458,16 @@ export function TelegramAccountsScreen({
     }
   }, [currentSlideInScreen, index])
 
-  // Keep agent state array in sync with the agents list
+  // Sync agent state array length when the agents list changes
   useEffect(() => {
     setAgentStates(prev => {
       if (prev.length === agents.length) return prev
-      const next = [...prev]
-      while (next.length < agents.length) next.push(defaultAccountState())
-      return next.slice(0, agents.length)
+      const next = agents.map((a, i) => prev[i] ?? defaultAgentBotState(a.agentId))
+      return next
     })
-  }, [agents.length])
+  }, [agents])
 
-  const updateAgent = (i: number, patch: Partial<AccountState>) =>
+  const updateAgent = (i: number, patch: Partial<AgentBotState>) =>
     setAgentStates(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
 
   const doneCount =
@@ -615,8 +492,8 @@ export function TelegramAccountsScreen({
           Give your team a voice
         </h2>
         <p className="mt-3 text-gray-500 text-base font-InterTight leading-relaxed">
-          The Chief of Staff bot handles all inbound messages and routes them to the right agent.
-          Optionally give each agent their own Telegram identity for outbound outreach.
+          The Chief of Staff bot manages your team on Telegram. Each agent gets their
+          own dedicated bot — no phone numbers, no OTPs.
         </p>
       </div>
 
@@ -626,16 +503,26 @@ export function TelegramAccountsScreen({
           onChange={patch => setChiefState(prev => ({ ...prev, ...patch }))}
         />
 
-        {agents.map((agent, i) => (
-          <AgentAccountCard
+        {chiefState.phase === 'done' && agents.map((agent, i) => (
+          <AgentBotCard
             key={agent.agentId}
             emoji={agent.emoji}
             name={agent.name}
             agentId={agent.agentId}
-            state={agentStates[i] ?? defaultAccountState()}
+            chiefBotUsername={chiefState.username}
+            chiefBotToken={chiefState.token}
+            state={agentStates[i] ?? defaultAgentBotState(agent.agentId)}
             onChange={patch => updateAgent(i, patch)}
           />
         ))}
+
+        {chiefState.phase !== 'done' && agents.length > 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+            <p className="text-xs text-gray-400 text-center font-InterTight">
+              Connect the Chief of Staff bot above to unlock per-agent bot creation.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 flex flex-col items-center gap-3 w-full">

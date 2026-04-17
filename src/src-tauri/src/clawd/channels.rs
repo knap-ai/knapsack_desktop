@@ -3505,3 +3505,170 @@ pub async fn telegram_provision_chief_of_staff_bot() -> impl Responder {
         }),
     }
 }
+
+// ── Managed Bots (Bot API 9.6) ──────────────────────────────
+
+/// Helper: proxy a call to the gateway's `telegram.bot.*` / `telegram.managedbot.*` namespace.
+async fn telegram_bot_call(method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !gateway_client::is_gateway_port_open().await {
+        gateway_client::ensure_gateway_and_wait().await;
+        if !gateway_client::is_gateway_port_open().await {
+            return Err("Gateway not reachable — the background service may need to be restarted.".to_string());
+        }
+    }
+    gateway_client::call_channel_method(method, Some(params), None).await
+}
+
+#[derive(Deserialize)]
+struct TelegramManagedBotDeeplinkRequest {
+    manager_username: String,
+    suggested_username: String,
+    #[serde(default)]
+    suggested_name: Option<String>,
+}
+
+#[derive(Serialize)]
+struct TelegramManagedBotDeeplinkResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    deeplink: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// Generate a Managed Bot creation deeplink (Bot API 9.6).
+///
+/// Returns a `https://t.me/newbot/{manager}/{suggested}` URL that the user can
+/// open in Telegram to create a managed bot under the manager bot.
+#[post("/api/clawd/telegram/managed-bot/deeplink")]
+pub async fn telegram_managed_bot_deeplink(
+    body: web::Json<TelegramManagedBotDeeplinkRequest>,
+) -> impl Responder {
+    let params = serde_json::json!({
+        "managerUsername": body.manager_username.trim(),
+        "suggestedUsername": body.suggested_username.trim(),
+        "suggestedName": body.suggested_name,
+    });
+    match telegram_bot_call("telegram.managedbot.deeplink", params).await {
+        Ok(v) => {
+            let deeplink = v.get("deeplink").and_then(|d| d.as_str()).map(|s| s.to_string());
+            HttpResponse::Ok().json(TelegramManagedBotDeeplinkResponse {
+                success: deeplink.is_some(),
+                deeplink,
+                message: None,
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramManagedBotDeeplinkResponse {
+            success: false,
+            deeplink: None,
+            message: Some(e),
+        }),
+    }
+}
+
+#[derive(Deserialize)]
+struct TelegramManagedBotGetTokenRequest {
+    #[allow(dead_code)]
+    agent_id: Option<String>,
+    manager_token: String,
+    bot_username: String,
+}
+
+#[derive(Serialize)]
+struct TelegramManagedBotTokenResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bot_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// Retrieve a managed bot's token via the manager bot (Bot API 9.6).
+///
+/// Resolves @bot_username → user_id via getChat, then calls getManagedBotToken.
+/// The OpenClaw gateway's built-in Telegram channel integration owns polling;
+/// this endpoint only retrieves the token so the provision script can persist it.
+#[post("/api/clawd/telegram/managed-bot/get-token")]
+pub async fn telegram_managed_bot_get_token(
+    body: web::Json<TelegramManagedBotGetTokenRequest>,
+) -> impl Responder {
+    let params = serde_json::json!({
+        "managerToken": body.manager_token.trim(),
+        "botUsername": body.bot_username.trim().trim_start_matches('@'),
+    });
+    match telegram_bot_call("telegram.managedbot.getToken", params).await {
+        Ok(v) => {
+            let token = v.get("token").and_then(|t| t.as_str()).map(|s| s.to_string());
+            let username = v.get("username").and_then(|u| u.as_str()).map(|s| s.to_string());
+            let bot_id = v.get("botId").and_then(|id| id.as_i64());
+            let success = token.is_some();
+            let message = if success {
+                None
+            } else {
+                Some("Could not retrieve managed bot token — ensure the bot was created via the deeplink and the manager bot has can_manage_bots enabled.".to_string())
+            };
+            HttpResponse::Ok().json(TelegramManagedBotTokenResponse {
+                success,
+                token,
+                username,
+                bot_id,
+                message,
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramManagedBotTokenResponse {
+            success: false,
+            token: None,
+            username: None,
+            bot_id: None,
+            message: Some(e),
+        }),
+    }
+}
+
+#[derive(Deserialize)]
+struct TelegramBotStatusQuery {
+    agent_id: String,
+}
+
+#[derive(Serialize)]
+struct TelegramBotStatusResponse {
+    success: bool,
+    configured: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// Check whether the OpenClaw channel is active for a given agent's bot.
+#[get("/api/clawd/telegram/managed-bot/status")]
+pub async fn telegram_managed_bot_status(
+    query: web::Query<TelegramBotStatusQuery>,
+) -> impl Responder {
+    let params = serde_json::json!({ "agentId": query.agent_id.trim() });
+    match telegram_bot_call("telegram.bot.status", params).await {
+        Ok(v) => {
+            let configured = v.get("configured").and_then(|c| c.as_bool()).unwrap_or(false);
+            HttpResponse::Ok().json(TelegramBotStatusResponse {
+                success: true,
+                configured,
+                username: v.get("username").and_then(|u| u.as_str()).map(|s| s.to_string()),
+                display_name: v.get("displayName").and_then(|d| d.as_str()).map(|s| s.to_string()),
+                message: None,
+            })
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramBotStatusResponse {
+            success: false,
+            configured: false,
+            username: None,
+            display_name: None,
+            message: Some(e),
+        }),
+    }
+}
