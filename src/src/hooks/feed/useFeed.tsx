@@ -1164,6 +1164,14 @@ export function useFeed(
             if (runParams?.event_id && meetings) {
               item.calendarEvent = Object.values(meetings).find(m => m.event_id === runParams.event_id)
             }
+            // Fallback: match by title + start-minute so feed items without an
+            // event_id (e.g. manually created sessions) still surface in Coming Up.
+            if (!item.calendarEvent && item.title && item.timestamp && meetings) {
+              const startMin = Math.floor(item.timestamp.getTime() / 60000)
+              item.calendarEvent = Object.values(meetings).find(
+                m => m.title === item.title && Math.floor(m.start / 60) === startMin,
+              )
+            }
 
             const timelineKey = KNDateUtils.timelineKeyFromTimestamp(item.timestamp)
             acc[timelineKey] = acc[timelineKey] || []
