@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { open as openUrl } from '@tauri-apps/api/shell'
 import cn from 'classnames'
 
 import {
   configureTelegram,
+  fetchTelegramManagedBotToken,
+  getTelegramManagedBotDeeplink,
   getTelegramStatus,
   provisionChiefOfStaffBot,
-  getTelegramManagedBotDeeplink,
-  fetchTelegramManagedBotToken,
 } from 'src/api/channels'
 
 import styles from './styles.module.scss'
@@ -23,11 +24,13 @@ interface BotState {
   errorMessage: string
 }
 
+/** idle → auto-provisioning → done (happy path, no user action)
+ *  idle → auto-provisioning → needs_creation → awaiting_telegram → done */
 type AgentBotPhase =
   | 'idle'
-  | 'awaiting_creation'
-  | 'confirming_username'
-  | 'fetching_token'
+  | 'auto_provisioning'
+  | 'needs_creation'
+  | 'awaiting_telegram'
   | 'done'
   | 'skipped'
   | 'error'
@@ -35,9 +38,7 @@ type AgentBotPhase =
 interface AgentBotState {
   phase: AgentBotPhase
   suggestedUsername: string
-  confirmedUsername: string
   username: string
-  botId: number | null
   errorMessage: string
 }
 
@@ -45,15 +46,19 @@ function defaultBotState(): BotState {
   return { phase: 'idle', token: '', username: '', errorMessage: '' }
 }
 
+function toSlug(agentId: string) {
+  return agentId.toLowerCase().replace(/[^a-z0-9]/g, '_')
+}
+
+function suggestedBotUsername(agentId: string) {
+  return `knapsack_${toSlug(agentId)}_bot`.slice(0, 32)
+}
+
 function defaultAgentBotState(agentId: string): AgentBotState {
-  const slug = agentId.toLowerCase().replace(/[^a-z0-9]/g, '_')
-  const suggested = `knapsack_${slug}_bot`.slice(0, 32)
   return {
     phase: 'idle',
-    suggestedUsername: suggested,
-    confirmedUsername: suggested,
+    suggestedUsername: suggestedBotUsername(agentId),
     username: '',
-    botId: null,
     errorMessage: '',
   }
 }
@@ -197,7 +202,7 @@ function ChiefOfStaffCard({
       )}
 
       {isSpinning && (
-        <p className="text-xs text-gray-400 mt-3 font-InterTight">
+        <p className="text-xs text-gray-400 mt-3 font-InterTight animate-pulse">
           {state.phase === 'provisioning' ? 'Creating bot…' : 'Connecting…'}
         </p>
       )}
@@ -206,6 +211,9 @@ function ChiefOfStaffCard({
 }
 
 // ── Agent Managed Bot Card ────────────────────────────────────
+
+const POLL_INTERVAL_MS = 3_000
+const POLL_TIMEOUT_MS = 120_000
 
 function AgentBotCard({
   emoji,
@@ -224,57 +232,61 @@ function AgentBotCard({
   state: AgentBotState
   onChange: (patch: Partial<AgentBotState>) => void
 }) {
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollStartRef = useRef<number>(0)
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current !== null) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }, [])
+
+  const startPolling = useCallback(() => {
+    stopPolling()
+    pollStartRef.current = Date.now()
+    pollRef.current = setInterval(async () => {
+      if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
+        stopPolling()
+        onChange({ phase: 'needs_creation', errorMessage: 'Timed out waiting for bot creation. Try clicking the button again.' })
+        return
+      }
+      try {
+        const resp = await fetchTelegramManagedBotToken(agentId, chiefBotToken, state.suggestedUsername)
+        if (resp.success && resp.username) {
+          stopPolling()
+          onChange({ phase: 'done', username: resp.username })
+        }
+      } catch {
+        // keep polling
+      }
+    }, POLL_INTERVAL_MS)
+  }, [agentId, chiefBotToken, state.suggestedUsername, onChange, stopPolling])
+
+  // Stop polling on unmount
+  useEffect(() => () => stopPolling(), [stopPolling])
+
   const handleOpenDeeplink = async () => {
-    onChange({ phase: 'awaiting_creation', errorMessage: '' })
+    onChange({ phase: 'awaiting_telegram', errorMessage: '' })
     try {
       const resp = await getTelegramManagedBotDeeplink(
         chiefBotUsername,
         state.suggestedUsername,
         `${name} (Knapsack)`,
       )
-      if (resp.success && resp.deeplink) {
-        // Open in the user's default browser / Telegram app
-        window.open(resp.deeplink, '_blank', 'noopener,noreferrer')
-      } else {
-        // Fall back to building the URL client-side
-        const url = `https://t.me/newbot/${chiefBotUsername}/${state.suggestedUsername}`
-        window.open(url, '_blank', 'noopener,noreferrer')
-      }
+      const url = (resp.success && resp.deeplink)
+        ? resp.deeplink
+        : `https://t.me/newbot/${chiefBotUsername}/${state.suggestedUsername}`
+      await openUrl(url)
     } catch {
       const url = `https://t.me/newbot/${chiefBotUsername}/${state.suggestedUsername}`
-      window.open(url, '_blank', 'noopener,noreferrer')
+      await openUrl(url).catch(() => {})
     }
-  }
-
-  const handleFetchToken = async () => {
-    const username = state.confirmedUsername.trim().replace(/^@/, '')
-    if (!username) return
-    if (!chiefBotToken) {
-      onChange({ phase: 'error', errorMessage: 'Connect the Chief of Staff bot first — its token is needed to retrieve managed bot tokens.' })
-      return
-    }
-    onChange({ phase: 'fetching_token', errorMessage: '' })
-    try {
-      const resp = await fetchTelegramManagedBotToken(agentId, chiefBotToken, username)
-      if (resp.success && resp.username) {
-        onChange({ phase: 'done', username: resp.username, botId: resp.bot_id ?? null })
-      } else {
-        onChange({
-          phase: 'confirming_username',
-          errorMessage: resp.message ?? 'Could not retrieve token. Make sure you completed bot creation in Telegram.',
-        })
-      }
-    } catch (e: unknown) {
-      onChange({
-        phase: 'confirming_username',
-        errorMessage: e instanceof Error ? e.message : 'Network error.',
-      })
-    }
+    startPolling()
   }
 
   const isDone = state.phase === 'done'
   const isSkipped = state.phase === 'skipped'
-  const isSpinning = state.phase === 'fetching_token'
 
   return (
     <div className={cn(
@@ -288,7 +300,7 @@ function AgentBotCard({
           <span className="text-2xl">{emoji}</span>
           <div>
             <p className="text-sm font-semibold text-gray-900 font-InterTight">{name}</p>
-            <p className="text-xs text-gray-500 font-InterTight">Dedicated Telegram bot</p>
+            <p className="text-xs text-gray-500 font-InterTight">@{state.suggestedUsername}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -300,18 +312,13 @@ function AgentBotCard({
               @{state.username}
             </span>
           )}
-          {!isDone && !isSkipped && state.phase === 'idle' && (
-            <button
-              className="text-xs text-[#913631] font-medium hover:underline font-InterTight"
-              onClick={() => onChange({ phase: 'confirming_username' })}
-            >
-              Set up →
-            </button>
+          {state.phase === 'auto_provisioning' && (
+            <span className="text-xs text-gray-400 font-InterTight animate-pulse">Provisioning…</span>
           )}
-          {!isDone && !isSkipped && state.phase !== 'idle' && (
+          {(state.phase === 'needs_creation' || state.phase === 'awaiting_telegram' || state.phase === 'error') && !isSkipped && (
             <button
               className="text-xs text-gray-400 hover:text-gray-600 underline font-InterTight"
-              onClick={() => onChange({ phase: 'skipped' })}
+              onClick={() => { stopPolling(); onChange({ phase: 'skipped' }) }}
             >
               Skip
             </button>
@@ -319,7 +326,7 @@ function AgentBotCard({
           {isSkipped && (
             <button
               className="text-xs text-gray-400 hover:text-gray-600 underline font-InterTight"
-              onClick={() => onChange({ phase: 'idle' })}
+              onClick={() => onChange({ phase: 'needs_creation', errorMessage: '' })}
             >
               Undo
             </button>
@@ -327,66 +334,35 @@ function AgentBotCard({
         </div>
       </div>
 
-      {(state.phase === 'confirming_username' || state.phase === 'awaiting_creation') && !isSpinning && (
-        <div className="mt-3 space-y-3">
-          {state.phase === 'confirming_username' && (
-            <>
-              <p className="text-xs text-gray-500 font-InterTight">
-                Click below to open Telegram and create a managed bot for{' '}
-                <strong>{name}</strong>. Once created, confirm the bot's username.
-              </p>
-              <button
-                onClick={handleOpenDeeplink}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#2AABEE] text-white text-sm font-medium hover:bg-[#1a98db] transition-colors font-InterTight"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.88 13.4l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.835.94z" />
-                </svg>
-                Create {name}'s bot in Telegram
-              </button>
-            </>
-          )}
-
-          {state.phase === 'awaiting_creation' && (
-            <p className="text-xs text-gray-500 font-InterTight">
-              Complete bot creation in Telegram, then confirm the username below.
-            </p>
-          )}
-
-          <div>
-            <label className="text-xs text-gray-500 font-InterTight mb-1 block">
-              Bot username (confirm after creating in Telegram)
-            </label>
-            <div className="flex gap-2">
-              <div className="flex-1 flex items-center rounded-lg border border-gray-300 px-3 focus-within:border-[#913631]">
-                <span className="text-gray-400 text-sm mr-1">@</span>
-                <input
-                  type="text"
-                  value={state.confirmedUsername}
-                  onChange={e => onChange({ confirmedUsername: e.target.value.replace(/^@/, '') })}
-                  onKeyDown={e => e.key === 'Enter' && handleFetchToken()}
-                  placeholder={state.suggestedUsername}
-                  className="flex-1 py-2 text-sm focus:outline-none bg-transparent font-mono"
-                />
-              </div>
-              <button
-                onClick={handleFetchToken}
-                disabled={!state.confirmedUsername.trim()}
-                className="px-4 py-2 rounded-lg bg-[#913631] text-white text-sm font-medium disabled:opacity-40 hover:bg-[#7a2d29] transition-colors"
-              >
-                Get token
-              </button>
-            </div>
-          </div>
-
+      {state.phase === 'needs_creation' && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-gray-500 font-InterTight">
+            This bot doesn't exist yet. Click below to create it in Telegram — we'll detect it automatically.
+          </p>
+          <button
+            onClick={handleOpenDeeplink}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#2AABEE] text-white text-sm font-medium hover:bg-[#1a98db] transition-colors font-InterTight"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.88 13.4l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.835.94z" />
+            </svg>
+            Create @{state.suggestedUsername} in Telegram
+          </button>
           {state.errorMessage && (
             <p className="text-xs text-red-500 font-InterTight">{state.errorMessage}</p>
           )}
         </div>
       )}
 
-      {isSpinning && (
-        <p className="text-xs text-gray-400 mt-3 font-InterTight">Retrieving bot token…</p>
+      {state.phase === 'awaiting_telegram' && (
+        <div className="mt-3 space-y-1">
+          <p className="text-xs text-gray-400 font-InterTight animate-pulse">
+            Waiting for bot creation in Telegram…
+          </p>
+          <p className="text-xs text-gray-400 font-InterTight">
+            Complete the steps in BotFather, then come back — this will update automatically.
+          </p>
+        </div>
       )}
 
       {state.phase === 'error' && (
@@ -394,7 +370,7 @@ function AgentBotCard({
           <p className="text-xs text-red-500 font-InterTight">{state.errorMessage}</p>
           <button
             className="text-xs text-[#913631] underline font-InterTight"
-            onClick={() => onChange({ phase: 'confirming_username', errorMessage: '' })}
+            onClick={() => onChange({ phase: 'needs_creation', errorMessage: '' })}
           >
             Try again
           </button>
@@ -419,7 +395,33 @@ export function TelegramAccountsScreen({
     agents.map(a => defaultAgentBotState(a.agentId)),
   )
 
-  // Kick off auto-provisioning when the screen becomes visible
+  const updateAgent = useCallback((i: number, patch: Partial<AgentBotState>) =>
+    setAgentStates(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s))),
+    [],
+  )
+
+  // Auto-provision all agents immediately when chief bot connects
+  const prevChiefPhase = useRef<BotPhase>('idle')
+  useEffect(() => {
+    const justDone = prevChiefPhase.current !== 'done' && chiefState.phase === 'done'
+    prevChiefPhase.current = chiefState.phase
+    if (!justDone) return
+
+    agents.forEach((agent, i) => {
+      updateAgent(i, { phase: 'auto_provisioning' })
+      fetchTelegramManagedBotToken(agent.agentId, chiefState.token, suggestedBotUsername(agent.agentId))
+        .then(resp => {
+          if (resp.success && resp.username) {
+            updateAgent(i, { phase: 'done', username: resp.username })
+          } else {
+            updateAgent(i, { phase: 'needs_creation', errorMessage: '' })
+          }
+        })
+        .catch(() => updateAgent(i, { phase: 'needs_creation', errorMessage: '' }))
+    })
+  }, [chiefState.phase, chiefState.token, agents, updateAgent])
+
+  // Kick off auto-provisioning of the Chief bot when screen becomes visible
   const provisioned = useRef(false)
   useEffect(() => {
     if (currentSlideInScreen === index && !provisioned.current) {
@@ -438,37 +440,23 @@ export function TelegramAccountsScreen({
                 username: status.account ?? 'KnapsackBot',
               }))
             } else {
-              setChiefState(prev => ({
-                ...prev,
-                phase: 'idle',
-                errorMessage: 'Auto-connect failed — enter a bot token manually.',
-              }))
+              setChiefState(prev => ({ ...prev, phase: 'idle', errorMessage: 'Auto-connect failed — enter a bot token manually.' }))
             }
           } else {
-            setChiefState(prev => ({
-              ...prev,
-              phase: 'idle',
-              errorMessage: resp.message ?? '',
-            }))
+            setChiefState(prev => ({ ...prev, phase: 'idle', errorMessage: resp.message ?? '' }))
           }
         })
-        .catch(() => {
-          setChiefState(prev => ({ ...prev, phase: 'idle' }))
-        })
+        .catch(() => setChiefState(prev => ({ ...prev, phase: 'idle' })))
     }
   }, [currentSlideInScreen, index])
 
-  // Sync agent state array length when the agents list changes
+  // Sync agent state array when agents list changes
   useEffect(() => {
     setAgentStates(prev => {
       if (prev.length === agents.length) return prev
-      const next = agents.map((a, i) => prev[i] ?? defaultAgentBotState(a.agentId))
-      return next
+      return agents.map((a, i) => prev[i] ?? defaultAgentBotState(a.agentId))
     })
   }, [agents])
-
-  const updateAgent = (i: number, patch: Partial<AgentBotState>) =>
-    setAgentStates(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
 
   const doneCount =
     (chiefState.phase === 'done' ? 1 : 0) +
@@ -518,8 +506,10 @@ export function TelegramAccountsScreen({
 
         {chiefState.phase !== 'done' && agents.length > 0 && (
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-            <p className="text-xs text-gray-400 text-center font-InterTight">
-              Connect the Chief of Staff bot above to unlock per-agent bot creation.
+            <p className="text-xs text-gray-400 text-center font-InterTight animate-pulse">
+              {chiefState.phase === 'provisioning' || chiefState.phase === 'connecting'
+                ? 'Setting up Chief of Staff bot…'
+                : 'Connect the Chief of Staff bot above to unlock per-agent bots.'}
             </p>
           </div>
         )}
