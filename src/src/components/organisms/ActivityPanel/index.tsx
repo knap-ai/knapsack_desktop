@@ -12,9 +12,13 @@ import {
 
 /** Render a line of PTY output into plain text by interpreting ANSI/CSI cursor
  *  positioning sequences into a virtual line buffer.  This preserves the spatial
- *  layout that TUI apps (e.g. Claude Code) produce via cursor-column moves. */
+ *  layout that TUI apps (e.g. Claude Code) produce via cursor-column moves.
+ *
+ *  Each logical line gets its own character buffer so that \r (column-reset for
+ *  in-place progress bar rewrites) cannot corrupt a different line's content. */
 function stripAnsi(text: string): string {
-  const buf: string[] = []
+  // One character array per logical line; we join them with \n at the end.
+  const lines: string[][] = [[]]
   let col = 0
   let i = 0
 
@@ -44,7 +48,7 @@ function stripAnsi(text: string): string {
           } else if (code === 'K') {
             // Erase in line — clear from cursor to end
             const mode = parseInt(params, 10) || 0
-            if (mode === 0 || mode === 2) buf.length = col
+            if (mode === 0 || mode === 2) lines[lines.length - 1].length = col
           }
           // All other CSI sequences (colors, etc.) are silently consumed
           continue
@@ -74,28 +78,32 @@ function stripAnsi(text: string): string {
       if (m) { i += m[0].length; continue }
     }
 
-    // Carriage return — move cursor to column 0
+    // Carriage return — move cursor to column 0 of the current line
     if (ch === '\r') { col = 0; i++; continue }
 
-    // Newline / tab — keep as-is
-    if (ch === '\n') { buf.push('\n'); col = 0; i++; continue }
+    // Newline — commit current line and start a fresh buffer
+    if (ch === '\n') { lines.push([]); col = 0; i++; continue }
+
+    // Tab
     if (ch === '\t') {
       const tabStop = ((col >> 3) + 1) << 3
-      while (col < tabStop) { while (buf.length <= col) buf.push(' '); col++ }
+      const line = lines[lines.length - 1]
+      while (col < tabStop) { while (line.length <= col) line.push(' '); col++ }
       i++; continue
     }
 
     // Strip other control characters
     if (ch.charCodeAt(0) < 0x20 || ch === '\x7F') { i++; continue }
 
-    // Printable character — place into buffer at current column
-    while (buf.length < col) buf.push(' ')
-    buf[col] = ch
+    // Printable character — place into the current line's buffer at col
+    const line = lines[lines.length - 1]
+    while (line.length < col) line.push(' ')
+    line[col] = ch
     col++
     i++
   }
 
-  return buf.join('')
+  return lines.map(l => l.join('')).join('\n')
 }
 
 // ── Module-level cache for active Claude Code session ──
@@ -1094,6 +1102,23 @@ const TerminalView: React.FC = () => {
         return
       }
 
+      if (trimmed === 'help') {
+        addLine(sessionId, 'system', [
+          'Built-in commands:',
+          '  clear              Clear terminal output',
+          '  status             Show gateway / browser health',
+          '  logs               Toggle live log streaming',
+          '  doctor             Run openclaw doctor (check for issues)',
+          '  doctor --fix       Run openclaw doctor --fix (auto-repair)',
+          '  skills list        List skill status',
+          '  skills install <n> Install a skill',
+          '  skills enable <n>  Enable a skill',
+          '  skills disable <n> Disable a skill',
+          '  claude [args]      Run Claude Code CLI',
+        ].join('\n'))
+        return
+      }
+
       // Live logs toggle command
       if (trimmed === 'live logs' || trimmed === 'logs' || trimmed === 'live' || trimmed === 'tail') {
         if (liveLogsSession === sessionId) {
@@ -1278,6 +1303,31 @@ const TerminalView: React.FC = () => {
         } catch (err) {
           addLine(sessionId, 'stderr', `cd: ${err}`)
         } finally {
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
+        return
+      }
+
+      // openclaw doctor — run as a streaming process for real-time self-heal output
+      if (
+        trimmed === 'doctor' ||
+        trimmed === 'doctor --fix' ||
+        trimmed === 'openclaw doctor' ||
+        trimmed === 'openclaw doctor --fix'
+      ) {
+        const isFixMode = trimmed.includes('--fix')
+        const cmd = isFixMode ? 'openclaw doctor --fix' : 'openclaw doctor'
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        try {
+          addLine(sessionId, 'system', isFixMode ? 'Running openclaw doctor --fix...' : 'Running openclaw doctor...')
+          const processId: string = await invoke('kn_spawn_streaming_command', {
+            command: cmd,
+            cwd: session.cwd || undefined,
+            sessionId,
+          })
+          updateSession(sessionId, s => ({ ...s, streamingProcessId: processId }))
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed to run doctor: ${err}`)
           updateSession(sessionId, s => ({ ...s, isExecuting: false }))
         }
         return
