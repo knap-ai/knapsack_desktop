@@ -3750,14 +3750,19 @@ struct TelegramAgentBotDeepLinkRequest {
 #[derive(Serialize)]
 struct TelegramAgentBotDeepLinkResponse {
     success: bool,
+    /// tg:// URL — opens the Telegram desktop/mobile app directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     deeplink: Option<String>,
+    /// https://t.me/ URL — fallback for users without the native Telegram app.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    web_deeplink: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
 }
 
-/// Return a `https://t.me/newbot/{manager}/{suggested}` deep link for a child
-/// bot.  Reads `TELEGRAM_MANAGER_BOT_USERNAME` from the process environment.
+/// Return deeplinks for creating a managed child bot.
+/// Reads `TELEGRAM_MANAGER_BOT_USERNAME` from the process environment.
+/// Returns both a tg:// URL (native app) and an https://t.me/ URL (web fallback).
 #[post("/api/clawd/telegram/agent-bot/deep-link")]
 pub async fn telegram_get_agent_bot_deep_link(
     body: web::Json<TelegramAgentBotDeepLinkRequest>,
@@ -3767,22 +3772,25 @@ pub async fn telegram_get_agent_bot_deep_link(
         return HttpResponse::Ok().json(TelegramAgentBotDeepLinkResponse {
             success: false,
             deeplink: None,
+            web_deeplink: None,
             message: Some("TELEGRAM_MANAGER_BOT_USERNAME is not configured.".to_string()),
         });
     }
+    let m = manager.trim();
     let suggested = body.suggested_username.trim().trim_start_matches('@').to_string();
     let name_enc: String = body.agent_name.chars().map(|c| {
         if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }
     }).collect();
-    let deeplink = format!(
-        "https://t.me/newbot/{}/{}?name={}",
-        manager.trim(),
-        suggested,
-        name_enc,
-    );
+    // tg:// opens the native Telegram app on macOS/Windows/Linux.
+    // The tg://newbot scheme mirrors the official t.me/newbot deeplink (Bot API 9.6).
+    // https://t.me/newbot/{manager}/{suggested} is the documented managed-bot creation URL;
+    // used as fallback when Telegram is not installed (opens browser / Telegram Web).
+    let deeplink = format!("tg://newbot?manager={}&username={}&name={}", m, suggested, name_enc);
+    let web_deeplink = format!("https://t.me/newbot/{}/{}?name={}", m, suggested, name_enc);
     HttpResponse::Ok().json(TelegramAgentBotDeepLinkResponse {
         success: true,
         deeplink: Some(deeplink),
+        web_deeplink: Some(web_deeplink),
         message: None,
     })
 }

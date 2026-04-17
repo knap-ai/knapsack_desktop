@@ -422,7 +422,8 @@ export const getTelegramManagedBotStatus = (agentId: string) =>
 
 export interface AgentBotDeepLinkResponse {
   success: boolean
-  deeplink?: string
+  deeplink?: string      // tg:// URL — opens native Telegram app
+  web_deeplink?: string  // https://t.me/ URL — fallback when app not installed
   message?: string
 }
 
