@@ -86,11 +86,12 @@ function NotetakerSidebar({
 
   const upcomingEvents = useMemo(() => {
     if (!feed.feedContent) return {}
+    const startOfToday = dayjs().startOf('day').valueOf()
     const events: { item: FeedItem; key: string }[] = []
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
-        if (item.calendarEvent) {
+        if (item.calendarEvent && item.timestamp.getTime() >= startOfToday) {
           events.push({ item, key })
         }
       })
