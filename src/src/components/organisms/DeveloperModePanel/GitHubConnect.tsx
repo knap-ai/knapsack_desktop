@@ -27,11 +27,7 @@ export default function GitHubConnect({ activeRepo }: GitHubConnectProps) {
   // Check GitHub skill status
   const checkStatus = useCallback(async () => {
     try {
-      const resp = await fetch(`${API_BASE}/api/clawd/skills/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
+      const resp = await fetch(`${API_BASE}/api/clawd/skills/status`)
       const data = await resp.json()
       const skills: SkillStatus[] = data?.skills || []
       const gh = skills.find((s: SkillStatus) => s.name === 'github')
