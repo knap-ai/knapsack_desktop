@@ -41,7 +41,7 @@ const ThreadPreviewCard = ({
   const tooltipRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const formattedTime = showFullDate
     ? KNDateUtils.formatDayWithCleanTime(executedTime)

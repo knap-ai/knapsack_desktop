@@ -3003,6 +3003,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             // HTTP backend itself is unreachable — back off exponentially (1s→15s)
             // so we don't hammer it while it's starting up or restarting.
             consecutiveDownPolls++
+            // After 2 consecutive backend-unreachable errors, clear the stale health
+            // state so the status bar doesn't show "Gateway: OK" from the last poll.
+            if (consecutiveDownPolls >= 2) {
+              const downHealth: ServiceHealth = { success: false, gateway_ok: false, browser_ok: false, message: 'Service unreachable' }
+              const downJson = JSON.stringify(downHealth)
+              if (downJson !== lastHealthJson) {
+                lastHealthJson = downJson
+                setHealth(downHealth)
+              }
+            }
             setTimeout(pollGateway, catchBackoffMs)
             catchBackoffMs = Math.min(catchBackoffMs * 2, 15000)
           }

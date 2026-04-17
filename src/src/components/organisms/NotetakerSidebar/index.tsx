@@ -86,7 +86,6 @@ function NotetakerSidebar({
 
   const upcomingEvents = useMemo(() => {
     if (!feed.feedContent) return {}
-    const now = Date.now()
     const events: { item: FeedItem; key: string }[] = []
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
