@@ -91,7 +91,13 @@ function NotetakerSidebar({
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
-        if (item.calendarEvent) {
+        if (!item.timestamp || item.timestamp.getTime() <= now - 3600000) return
+        // Exclude cadence/scheduled agent runs: they have a run but no meeting event_id
+        const runParams = item.run
+          ? (typeof item.run.runParams === 'string' ? JSON.parse(item.run.runParams) : item.run.runParams)
+          : null
+        const isCadenceRun = !!item.run && !runParams?.event_id && !item.calendarEvent
+        if (!isCadenceRun) {
           events.push({ item, key })
         }
       })

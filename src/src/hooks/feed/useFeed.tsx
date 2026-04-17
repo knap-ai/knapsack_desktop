@@ -1205,11 +1205,10 @@ export function useFeed(
         })
 
         const nowSeconds = Date.now() / 1000
-        // Only show meetings through end of tomorrow
-        const endOfTomorrow = new Date()
-        endOfTomorrow.setDate(endOfTomorrow.getDate() + 2)
-        endOfTomorrow.setHours(0, 0, 0, 0)
-        const endOfTomorrowSeconds = endOfTomorrow.getTime() / 1000
+        const endOfWindow = new Date()
+        endOfWindow.setDate(endOfWindow.getDate() + 7)
+        endOfWindow.setHours(23, 59, 59, 999)
+        const endOfTomorrowSeconds = endOfWindow.getTime() / 1000
 
         const seenMeetingKeys = new Set<string>()
         Object.entries(meetings).forEach(([_id, meeting]) => {
