@@ -638,16 +638,17 @@ function App() {
       'provider-fallback',
       (event: Event<{ from: string; to: string; reason: string }>) => {
         const { from, to, reason } = event.payload
+        const lowerReason = reason.toLowerCase()
+        const isSpendingCap = lowerReason.includes('spending cap') || lowerReason.includes('monthly')
+        const causeLabel = isSpendingCap ? `${from} hit its monthly spending cap` : `${from} is rate-limited`
         setToastrState({
           message: (
             <>
-              <strong>Provider fallback:</strong> Switched from {from} to {to} due to rate
-              limiting. You may incur unexpected charges. Disable this in Settings &gt; API
-              &gt; &quot;Allow paid provider fallback&quot;.
+              <strong>⚠️ Auto-switched AI provider:</strong> {causeLabel}, so your request was automatically retried with <strong>{to}</strong>. To change this behaviour, go to Settings → Provider.
             </>
           ) as ReactElement,
           alertType: 'warning',
-          autoHideDuration: 10000,
+          autoHideDuration: 12000,
           icon: false,
         })
         console.warn(`[provider-fallback] ${from} → ${to}: ${reason}`)
