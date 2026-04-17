@@ -742,10 +742,27 @@ fn is_empty_allow_from(value: Option<&serde_json::Value>) -> bool {
 /// Strategy: downgrade `dmPolicy` from "allowlist" to "pairing" so the
 /// gateway can start. The user retains their other channel settings intact.
 ///
+/// `openclaw doctor --fix` (v2026.4+) migrates `streaming: "partial"` → `streaming: {mode: "partial"}`.
+/// The bundled gateway still validates `streaming` as a scalar.  Extract `mode` and restore the scalar.
+fn downgrade_streaming_if_object(val: &serde_json::Value) -> Option<serde_json::Value> {
+  let obj = val.as_object()?;
+  let mode = obj.get("mode")?;
+  match mode {
+    serde_json::Value::Bool(_) => Some(mode.clone()),
+    serde_json::Value::String(s)
+      if matches!(s.as_str(), "off" | "partial" | "block" | "progress") =>
+    {
+      Some(mode.clone())
+    }
+    _ => None,
+  }
+}
+
 /// Handles:
 ///   - Top-level per-channel `dmPolicy` / `allowFrom`
 ///   - Per-account `dmPolicy` / `allowFrom` inside `channels.*.accounts.*`
 ///   - Google Chat's `dm.policy` / `dm.allowFrom` sub-object
+///   - `streaming` object → scalar downgrade (doctor --fix version mismatch)
 ///
 /// Returns `true` if any fields were modified (caller should persist config).
 fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
@@ -808,6 +825,29 @@ fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
       }
     }
 
+    // ── Streaming object → scalar downgrade (channel-level) ──────────
+    // `openclaw doctor --fix` converts `streaming: "partial"` to `streaming: {mode: "partial"}`.
+    // The bundled gateway only accepts a scalar; extract `.mode` and restore it.
+    let streaming_is_obj = cfg
+      .pointer(&format!("{}/streaming", channel_ptr))
+      .map(|v| v.is_object())
+      .unwrap_or(false);
+    if streaming_is_obj {
+      let scalar_opt = cfg
+        .pointer(&format!("{}/streaming", channel_ptr))
+        .and_then(downgrade_streaming_if_object);
+      if let Some(scalar) = scalar_opt {
+        if let Some(ch) = cfg.pointer_mut(&channel_ptr).and_then(|v| v.as_object_mut()) {
+          ch.insert("streaming".to_string(), scalar);
+          eprintln!(
+            "[clawd/service] Auto-fixed channels.{}.streaming: object → scalar",
+            channel_name
+          );
+          patched = true;
+        }
+      }
+    }
+
     // ── Per-account dmPolicy / allowFrom ────────────────────────────
     // Multi-account channels (telegram, discord, slack, irc, …) can have
     // per-account overrides under `channels.<channel>.accounts.<id>`.
@@ -845,6 +885,30 @@ fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
               "[clawd/service] Auto-fixed invalid OpenClaw config: \
                channels.{}.accounts.{}.dmPolicy=\"allowlist\" but allowFrom is \
                missing/empty (and no parent allowFrom) — downgraded to \"pairing\"",
+              channel_name, account_name
+            );
+            patched = true;
+          }
+        }
+      }
+
+      // ── Streaming object → scalar downgrade (per-account) ──────────
+      let acct_streaming_is_obj = cfg
+        .pointer(&format!("{}/streaming", acct_ptr))
+        .map(|v| v.is_object())
+        .unwrap_or(false);
+      if acct_streaming_is_obj {
+        let scalar_opt = cfg
+          .pointer(&format!("{}/streaming", acct_ptr))
+          .and_then(downgrade_streaming_if_object);
+        if let Some(scalar) = scalar_opt {
+          if let Some(acct) = cfg
+            .pointer_mut(&acct_ptr)
+            .and_then(|v| v.as_object_mut())
+          {
+            acct.insert("streaming".to_string(), scalar);
+            eprintln!(
+              "[clawd/service] Auto-fixed channels.{}.accounts.{}.streaming: object → scalar",
               channel_name, account_name
             );
             patched = true;
