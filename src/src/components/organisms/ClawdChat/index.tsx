@@ -189,9 +189,13 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('anthropic') && (lower.includes('credit') || lower.includes('billing') || lower.includes('exceeded'))) {
     return `⚠️ **Anthropic credit limit reached** (active: \`${activeModel}\`). Add another provider's API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).`
   }
+  // Gemini monthly spending cap (429 with budget exhausted — different from a per-minute rate limit)
+  if (lower.includes('spending cap') || lower.includes('monthly spending') || (lower.includes('exceeded') && lower.includes('ai studio'))) {
+    return `⚠️ **Gemini monthly spending cap reached** (active: \`${activeModel}\`). Your Google AI Studio project has hit its monthly budget limit. [Manage your spending cap at ai.studio/spend](https://ai.studio/spend), or switch to a different provider in Settings → Provider.`
+  }
   // Rate limit (but not quota)
-  if (lower.includes('rate_limit') || (lower.includes('429') && !lower.includes('insufficient_quota'))) {
-    return `⏳ **Rate limited** (active: \`${activeModel}\`). Too many requests — please wait a moment and try again.`
+  if (lower.includes('rate_limit') || lower.includes('rate limit') || (lower.includes('429') && !lower.includes('insufficient_quota'))) {
+    return `⏳ **Rate limited** (active: \`${activeModel}\`). Too many requests — please wait a moment and try again, or switch to a different model in Settings → Provider.`
   }
   // Invalid API key
   if (lower.includes('invalid_api_key') || lower.includes('incorrect api key')) {
@@ -3957,9 +3961,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 useDirectChat = true
               } else {
                 console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
+                let displayText = agentOut.reply!
+                // When the gateway surfaces a rate-limit or spending cap error, enrich the message
+                if (agentOut.gateway) {
+                  const lowerReply = displayText.toLowerCase()
+                  if (lowerReply.includes('rate limit') || lowerReply.includes('rate_limit') || lowerReply.includes('spending cap')) {
+                    displayText = friendlyError(displayText, getActiveModelLabel())
+                  }
+                }
                 setMsgs(prev => [
                   ...prev,
-                  { id: crypto.randomUUID(), role: 'assistant', text: agentOut.reply!, ts: Date.now(), model: agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct' },
+                  { id: crypto.randomUUID(), role: 'assistant', text: displayText, ts: Date.now(), model: agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct' },
                 ])
               }
             } else {
