@@ -506,7 +506,7 @@ function Home({
             }
           />
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
-            <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main">
+            <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main relative">
               {currentTab === TabChoices.Work && (
                 <div className="overflow-hidden w-full h-full flex flex-row">
                   <FeedSidebar feed={feed} isAnyRecording={isAnyRecording} />
@@ -601,14 +601,6 @@ function Home({
                       </div>
                     </>
                   )}
-                  {feed.loggedEmailAutopilot && feed.composedEmailDraft && (
-                    <EmailComposeDrawer
-                      draft={feed.composedEmailDraft}
-                      userEmail={userEmail}
-                      userName={userName}
-                      onDismiss={() => feed.setComposedEmailDraft(null)}
-                    />
-                  )}
                   {(feed.loggedEmailAutopilot || autopilotForceOpen) && (
                     <EmailNotificationDrawer
                       feed={feed}
@@ -649,13 +641,18 @@ function Home({
                     // Back from note view returns to sidebar
                   }}
                   onChatClick={() => setMeetingSubView('chat')}
-                  onEmailClick={(notesMarkdown) => {
-                    setMeetingSubView('chat')
-                    setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent('clawd-send-user', {
-                        detail: `Write a professional follow-up email based on these meeting notes:\n\n${notesMarkdown}`,
-                      }))
-                    }, 300)
+                  onEmailClick={(notesMarkdown, meeting) => {
+                    const participants = meeting?.participants ?? []
+                    const toEmails = participants
+                      .filter(p => p.email && p.email !== userEmail)
+                      .map(p => p.email)
+                      .join(', ')
+                    const subject = meeting?.title ? `Follow up: ${meeting.title}` : 'Meeting Follow Up'
+                    const escapedNotes = notesMarkdown
+                      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                      .replace(/\n/g, '<br>')
+                    const body = `<p>Hi,</p><p>Thank you for our meeting${meeting?.title ? ` — ${meeting.title}` : ''}. Here's a summary of what we discussed:</p><p>${escapedNotes}</p><p>Please let me know if you have any questions!</p><p>Best,<br>${userName || ''}</p>`
+                    feed.setComposedEmailDraft({ to: toEmails, subject, body })
                   }}
                 />
               )}
@@ -727,6 +724,15 @@ function Home({
                 <div className="overflow-auto w-full h-full p-6">
                   <MCPMarketplace />
                 </div>
+              )}
+
+              {feed.loggedEmailAutopilot && feed.composedEmailDraft && (
+                <EmailComposeDrawer
+                  draft={feed.composedEmailDraft}
+                  userEmail={userEmail}
+                  userName={userName}
+                  onDismiss={() => feed.setComposedEmailDraft(null)}
+                />
               )}
 
             </div>
