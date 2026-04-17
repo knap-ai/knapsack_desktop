@@ -137,7 +137,7 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
 
   // Check connections finished syncing
   useEffect(() => {
-    let interval: NodeJS.Timeout | undefined = undefined
+    let interval: ReturnType<typeof setTimeout> | undefined = undefined
     const syncingConnections = Object.entries(connections)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       .filter(([_key, connection]) => connection.state === ConnectionStates.SYNCING)

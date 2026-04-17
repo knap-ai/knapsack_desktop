@@ -19,7 +19,7 @@ const CopyButton: React.FC<CopyButtonProps> = ({
   const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (isCopied) {
       timer = setTimeout(() => {
         setIsCopied(false);
