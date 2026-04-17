@@ -98,7 +98,7 @@ interface MeetingNotesModeProps {
   handleOpenTasks?: (threadId: number | undefined, tasks: TaskItem[]) => void
   handleOpenInsights?: (threadId: number | undefined) => void
   onChatClick?: () => void
-  onEmailClick?: (notesMarkdown: string) => void
+  onEmailClick?: (notesMarkdown: string, meeting: Meeting | undefined) => void
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
 }
 
@@ -1088,7 +1088,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
             {thread.recorded && (
               <button
                 className="notetaker-note__bottom-action"
-                onClick={() => onEmailClick?.(notesMarkdown)}
+                onClick={() => onEmailClick?.(notesMarkdown, meeting)}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />

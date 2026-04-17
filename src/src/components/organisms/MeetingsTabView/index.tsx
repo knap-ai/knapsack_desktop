@@ -5,6 +5,7 @@ import { IThread, ThreadType } from 'src/api/threads'
 import { Connection, ConnectionKeys } from 'src/api/connections'
 import { LLMParams } from 'src/App'
 import { IFeed } from 'src/hooks/feed/useFeed'
+import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { MeetingTemplatePrompt } from 'src/utils/template_prompts'
 
 import { Button, ButtonVariant } from 'src/components/atoms/button'
@@ -52,7 +53,7 @@ interface MeetingsTabViewProps {
   onConnectCalendar?: () => void
   onBack?: () => void
   onChatClick?: () => void
-  onEmailClick?: (notesMarkdown: string) => void
+  onEmailClick?: (notesMarkdown: string, meeting?: Meeting) => void
 }
 
 const MeetingsTabView = ({
