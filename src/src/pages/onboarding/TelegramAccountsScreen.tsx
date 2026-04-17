@@ -122,17 +122,13 @@ function AgentBotCard({
     onChange({ phase: 'awaiting_telegram', errorMessage: '' })
     try {
       const resp = await getAgentBotDeepLink(suggestedUsername, `${name} (Knapsack)`)
-      const tgUrl = resp.deeplink ?? `tg://resolve?domain=BotFather`
-      const webUrl = resp.web_deeplink ?? `https://t.me/BotFather`
-      try {
-        // tg:// opens the native Telegram app (macOS, Windows, Linux).
-        // Falls back to the https://t.me/ web version if Telegram isn't installed.
-        await openUrl(tgUrl)
-      } catch {
-        await openUrl(webUrl)
-      }
+      // Use the https://t.me/newbot/{manager}/{suggested} URL — this opens the browser which
+      // shows an "Open in Telegram" button that correctly triggers the managed bot creation flow.
+      // tg://newbot is not a registered Telegram URL scheme and only opens BotFather without context.
+      const url = resp.web_deeplink ?? `https://t.me/BotFather`
+      await openUrl(url)
     } catch {
-      // If the deeplink API call itself fails, keep polling — user may open Telegram manually
+      // If the API call fails, keep polling — user may open Telegram manually
     }
     startPolling()
   }
