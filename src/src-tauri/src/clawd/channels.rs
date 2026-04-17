@@ -3690,6 +3690,7 @@ fn upsert_telegram_channel_entry(
     agent_name: &str,
     token: &str,
     username: &str,
+    bot_id: Option<i64>,
 ) -> Result<(), String> {
     let raw = std::fs::read_to_string(config_path)
         .map_err(|e| format!("read openclaw.json: {e}"))?;
@@ -3707,15 +3708,18 @@ fn upsert_telegram_channel_entry(
         .or_insert_with(|| serde_json::json!([]));
 
     let arr = telegram.as_array_mut().ok_or("channels.telegram not an array")?;
-    // Remove any existing entry for this agent.
     arr.retain(|e| e.get("agentId").and_then(|v| v.as_str()) != Some(agent_id));
-    arr.push(serde_json::json!({
+    let mut entry = serde_json::json!({
         "id": format!("{}-bot", agent_id),
         "agentId": agent_id,
         "token": token,
         "username": username,
         "description": format!("{} — Dedicated Telegram bot", agent_name),
-    }));
+    });
+    if let Some(id) = bot_id {
+        entry["botId"] = serde_json::json!(id);
+    }
+    arr.push(entry);
 
     let json = serde_json::to_string_pretty(&cfg).map_err(|e| format!("serialize: {e}"))?;
     std::fs::write(config_path, &json).map_err(|e| format!("write openclaw.json: {e}"))?;
@@ -3858,6 +3862,7 @@ pub async fn telegram_provision_agent_bot(
                         body.agent_name.trim(),
                         tok,
                         uname,
+                        bot_id,
                     ) {
                         eprintln!("[channels] telegram provision: failed to write openclaw.json: {e}");
                     }
@@ -3994,9 +3999,10 @@ pub async fn telegram_configure_agent_bot(
             message: Some("Bot has no username — set one in BotFather first.".to_string()),
         }),
     };
+    let bot_id = body_json.pointer("/result/id").and_then(|v| v.as_i64());
 
     if let Some(config_path) = agent_bot_config_path() {
-        if let Err(e) = upsert_telegram_channel_entry(&config_path, &agent_id, &agent_name, &token, &username) {
+        if let Err(e) = upsert_telegram_channel_entry(&config_path, &agent_id, &agent_name, &token, &username, bot_id) {
             eprintln!("[channels] configure_agent_bot: failed to write openclaw.json: {e}");
         }
         if let Ok(raw) = std::fs::read_to_string(&config_path) {
@@ -4081,7 +4087,7 @@ pub async fn telegram_rotate_agent_bot_token(
                                 .unwrap_or(&agent_id)
                                 .to_string();
                             let _ = upsert_telegram_channel_entry(
-                                &config_path, &agent_id, &agent_name, tok, uname,
+                                &config_path, &agent_id, &agent_name, tok, uname, None,
                             );
                         }
                     }

@@ -58,6 +58,25 @@ function agentUsername(userSlug: string, agentId: string) {
   return `knapsack_${toSlug(userSlug)}_${toSlug(agentId)}_bot`.slice(0, 32)
 }
 
+// ── Copy helper ──────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      className="text-xs text-gray-400 hover:text-[#913631] font-InterTight transition-colors whitespace-nowrap"
+    >
+      {copied ? '✓ Copied' : 'Copy'}
+    </button>
+  )
+}
+
 // ── Single card component ─────────────────────────────────────
 
 function AgentBotCard({
@@ -76,13 +95,13 @@ function AgentBotCard({
   onChange: (patch: Partial<BotState>) => void
 }) {
   const [tokenInput, setTokenInput] = useState('')
+  const botDisplayName = `${name} (Knapsack)`
 
   const handleSetUp = async () => {
     onChange({ phase: 'entering_token', errorMessage: '' })
     try {
       await openUrl('https://t.me/BotFather?start=newbot')
     } catch {
-      // Telegram not installed — browser will open instead
       try { await openUrl('https://t.me/BotFather') } catch { /* ignore */ }
     }
   }
@@ -118,6 +137,7 @@ function AgentBotCard({
         !isDone && !isSkipped && 'border-gray-200 bg-white',
       )}
     >
+      {/* Header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">{emoji}</span>
@@ -149,7 +169,7 @@ function AgentBotCard({
           {(isEntering || isConnecting) && (
             <button
               className="text-xs text-gray-400 hover:text-gray-600 underline font-InterTight"
-              onClick={() => onChange({ phase: 'skipped', errorMessage: '' })}
+              onClick={() => { setTokenInput(''); onChange({ phase: 'skipped', errorMessage: '' }) }}
             >
               Skip
             </button>
@@ -166,31 +186,60 @@ function AgentBotCard({
         </div>
       </div>
 
+      {/* BotFather instructions + token entry */}
       {(isEntering || isConnecting) && (
-        <div className="mt-3 space-y-2">
-          <p className="text-xs text-gray-500 font-InterTight">
-            In BotFather, type <span className="font-mono text-gray-700">/newbot</span> and follow the steps. Then paste your token here:
-          </p>
-          {state.errorMessage && (
-            <p className="text-xs text-red-500 font-InterTight">{state.errorMessage}</p>
-          )}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="123456:ABC-DEF1234…"
-              value={tokenInput}
-              onChange={e => setTokenInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleConnect()}
-              disabled={isConnecting}
-              className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 font-mono font-InterTight focus:outline-none focus:border-[#913631] disabled:opacity-50"
-            />
-            <button
-              onClick={handleConnect}
-              disabled={isConnecting || !tokenInput.trim()}
-              className="text-xs font-medium font-InterTight px-3 py-2 rounded-lg bg-[#913631] text-white hover:bg-[#7a2d29] disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {isConnecting ? 'Connecting…' : 'Connect'}
-            </button>
+        <div className="mt-3 space-y-3">
+          {/* Step-by-step guidance */}
+          <div className="bg-gray-50 rounded-xl p-3 space-y-2.5">
+            <p className="text-xs font-medium text-gray-600 font-InterTight">
+              In BotFather, send{' '}
+              <span className="font-mono bg-gray-200 px-1 rounded">/newbot</span>{' '}
+              and use these when prompted:
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-xs text-gray-400 font-InterTight">Name → </span>
+                  <span className="text-xs font-semibold text-gray-800 font-InterTight">{botDisplayName}</span>
+                </div>
+                <CopyButton text={botDisplayName} />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-xs text-gray-400 font-InterTight">Username → </span>
+                  <span className="text-xs font-semibold text-gray-800 font-mono">@{suggestedUsername}</span>
+                </div>
+                <CopyButton text={suggestedUsername} />
+              </div>
+            </div>
+          </div>
+
+          {/* Token entry */}
+          <div>
+            <p className="text-xs text-gray-500 font-InterTight mb-1.5">
+              Paste the token BotFather gives you:
+            </p>
+            {state.errorMessage && (
+              <p className="text-xs text-red-500 font-InterTight mb-1.5">{state.errorMessage}</p>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="123456789:ABC-DEFghijk…"
+                value={tokenInput}
+                onChange={e => setTokenInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleConnect()}
+                disabled={isConnecting}
+                className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 font-mono font-InterTight focus:outline-none focus:border-[#913631] disabled:opacity-50"
+              />
+              <button
+                onClick={handleConnect}
+                disabled={isConnecting || !tokenInput.trim()}
+                className="text-xs font-medium font-InterTight px-3 py-2 rounded-lg bg-[#913631] text-white hover:bg-[#7a2d29] disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {isConnecting ? 'Connecting…' : 'Connect'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -280,9 +329,9 @@ export function TelegramAccountsScreen({
           Give your team a voice
         </h2>
         <p className="mt-3 text-gray-500 text-base font-InterTight leading-relaxed">
-          Each agent gets their own Telegram bot. Click{' '}
-          <span className="font-medium text-gray-700">Set up →</span> to open
-          BotFather, create a bot with <span className="font-mono text-sm">/newbot</span>, then paste the token — takes about 30 seconds per bot.
+          Each agent gets its own Telegram bot. Click{' '}
+          <span className="font-medium text-gray-700">Set up →</span> — we'll
+          open BotFather and show you exactly what to type. Takes about 30 seconds per bot.
         </p>
       </div>
 
