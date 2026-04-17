@@ -3750,14 +3750,19 @@ struct TelegramAgentBotDeepLinkRequest {
 #[derive(Serialize)]
 struct TelegramAgentBotDeepLinkResponse {
     success: bool,
+    /// tg:// URL — opens the Telegram desktop/mobile app directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     deeplink: Option<String>,
+    /// https://t.me/ URL — fallback for users without the native Telegram app.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    web_deeplink: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
 }
 
-/// Return a `https://t.me/newbot/{manager}/{suggested}` deep link for a child
-/// bot.  Reads `TELEGRAM_MANAGER_BOT_USERNAME` from the process environment.
+/// Return deeplinks for creating a managed child bot.
+/// Reads `TELEGRAM_MANAGER_BOT_USERNAME` from the process environment.
+/// Returns both a tg:// URL (native app) and an https://t.me/ URL (web fallback).
 #[post("/api/clawd/telegram/agent-bot/deep-link")]
 pub async fn telegram_get_agent_bot_deep_link(
     body: web::Json<TelegramAgentBotDeepLinkRequest>,
@@ -3767,24 +3772,20 @@ pub async fn telegram_get_agent_bot_deep_link(
         return HttpResponse::Ok().json(TelegramAgentBotDeepLinkResponse {
             success: false,
             deeplink: None,
+            web_deeplink: None,
             message: Some("TELEGRAM_MANAGER_BOT_USERNAME is not configured.".to_string()),
         });
     }
+    let m = manager.trim();
     let suggested = body.suggested_username.trim().trim_start_matches('@').to_string();
-    let name_enc: String = body.agent_name.chars().map(|c| {
-        if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }
-    }).collect();
-    // tg:// scheme opens the Telegram app directly on macOS/Windows/Linux.
-    // https://t.me/ always opens in the browser because Telegram doesn't register
-    // as a universal-link handler on desktop OS — only tg:// is intercepted.
-    let deeplink = format!(
-        "tg://resolve?domain={}&start=newbot_{}",
-        manager.trim(),
-        suggested,
-    );
+    // tg:// opens the native Telegram app (macOS, Windows, Linux).
+    // https://t.me/ opens in the browser; used as a fallback when the app is not installed.
+    let deeplink = format!("tg://resolve?domain={}&start=newbot_{}", m, suggested);
+    let web_deeplink = format!("https://t.me/{}?start=newbot_{}", m, suggested);
     HttpResponse::Ok().json(TelegramAgentBotDeepLinkResponse {
         success: true,
         deeplink: Some(deeplink),
+        web_deeplink: Some(web_deeplink),
         message: None,
     })
 }
