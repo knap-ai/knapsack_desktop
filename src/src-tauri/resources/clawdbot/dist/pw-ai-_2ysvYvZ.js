@@ -864,14 +864,7 @@ async function saveDownloadPayload(download, outPath) {
 	const requestedPath = outPath?.trim();
 	const resolvedOutPath = path.resolve(requestedPath || buildTempDownloadPath(suggested));
 	await fs.mkdir(path.dirname(resolvedOutPath), { recursive: true });
-	if (!requestedPath) await download.saveAs?.(resolvedOutPath);
-	else await writeViaSiblingTempPath({
-		rootDir: path.dirname(resolvedOutPath),
-		targetPath: resolvedOutPath,
-		writeTemp: async (tempPath) => {
-			await download.saveAs?.(tempPath);
-		}
-	});
+	await download.saveAs?.(resolvedOutPath);
 	return {
 		url: download.url?.() || "",
 		suggestedFilename: suggested,
