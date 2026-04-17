@@ -100,10 +100,8 @@ function AgentBotCard({
   const handleSetUp = async () => {
     onChange({ phase: 'entering_token', errorMessage: '' })
     try {
-      await openUrl('https://t.me/BotFather?start=newbot')
-    } catch {
-      try { await openUrl('https://t.me/BotFather') } catch { /* ignore */ }
-    }
+      await openUrl('https://t.me/BotFather')
+    } catch { /* ignore */ }
   }
 
   const handleConnect = async () => {
