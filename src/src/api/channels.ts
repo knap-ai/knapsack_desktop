@@ -459,6 +459,23 @@ export const provisionAgentBot = (agentId: string, agentName: string, suggestedU
     suggested_username: suggestedUsername,
   }, 15_000)
 
+export interface AgentBotConfigureResponse {
+  success: boolean
+  username?: string
+  message?: string
+}
+
+/**
+ * Manually configure an agent bot by supplying a token obtained from BotFather.
+ * Validates via getMe, saves to openclaw.json, and pushes to the running gateway.
+ */
+export const configureAgentBot = (agentId: string, agentName: string, botToken: string) =>
+  post<AgentBotConfigureResponse>('/api/clawd/telegram/agent-bot/configure', {
+    agent_id: agentId,
+    agent_name: agentName,
+    bot_token: botToken,
+  })
+
 /** Rotate a provisioned bot's token silently (no user action required). */
 export const rotateAgentBotToken = (agentId: string) =>
   post<{ success: boolean; message?: string }>('/api/clawd/telegram/agent-bot/rotate', {

@@ -3690,6 +3690,7 @@ fn upsert_telegram_channel_entry(
     agent_name: &str,
     token: &str,
     username: &str,
+    bot_id: Option<i64>,
 ) -> Result<(), String> {
     let raw = std::fs::read_to_string(config_path)
         .map_err(|e| format!("read openclaw.json: {e}"))?;
@@ -3707,15 +3708,18 @@ fn upsert_telegram_channel_entry(
         .or_insert_with(|| serde_json::json!([]));
 
     let arr = telegram.as_array_mut().ok_or("channels.telegram not an array")?;
-    // Remove any existing entry for this agent.
     arr.retain(|e| e.get("agentId").and_then(|v| v.as_str()) != Some(agent_id));
-    arr.push(serde_json::json!({
+    let mut entry = serde_json::json!({
         "id": format!("{}-bot", agent_id),
         "agentId": agent_id,
         "token": token,
         "username": username,
         "description": format!("{} — Dedicated Telegram bot", agent_name),
-    }));
+    });
+    if let Some(id) = bot_id {
+        entry["botId"] = serde_json::json!(id);
+    }
+    arr.push(entry);
 
     let json = serde_json::to_string_pretty(&cfg).map_err(|e| format!("serialize: {e}"))?;
     std::fs::write(config_path, &json).map_err(|e| format!("write openclaw.json: {e}"))?;
@@ -3858,6 +3862,7 @@ pub async fn telegram_provision_agent_bot(
                         body.agent_name.trim(),
                         tok,
                         uname,
+                        bot_id,
                     ) {
                         eprintln!("[channels] telegram provision: failed to write openclaw.json: {e}");
                     }
@@ -3909,6 +3914,120 @@ pub async fn telegram_provision_agent_bot(
             message: Some(e),
         }),
     }
+}
+
+// ── Manual token entry ────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct TelegramConfigureAgentBotRequest {
+    agent_id: String,
+    agent_name: String,
+    bot_token: String,
+}
+
+#[derive(Serialize)]
+struct TelegramConfigureAgentBotResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// Manually configure an agent bot from a user-supplied token.
+/// Validates via Telegram getMe, saves to openclaw.json, and pushes to the running gateway.
+#[post("/api/clawd/telegram/agent-bot/configure")]
+pub async fn telegram_configure_agent_bot(
+    body: web::Json<TelegramConfigureAgentBotRequest>,
+) -> impl Responder {
+    let token = body.bot_token.trim().to_string();
+    let agent_id = body.agent_id.trim().to_string();
+    let agent_name = body.agent_name.trim().to_string();
+
+    if token.is_empty() {
+        return HttpResponse::Ok().json(TelegramConfigureAgentBotResponse {
+            success: false,
+            username: None,
+            message: Some("Bot token is required.".to_string()),
+        });
+    }
+
+    let url = format!("https://api.telegram.org/bot{}/getMe", token);
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build() {
+        Ok(c) => c,
+        Err(e) => return HttpResponse::Ok().json(TelegramConfigureAgentBotResponse {
+            success: false,
+            username: None,
+            message: Some(format!("Failed to build HTTP client: {e}")),
+        }),
+    };
+
+    let resp = match client.get(&url).send().await {
+        Ok(r) => r,
+        Err(e) => return HttpResponse::Ok().json(TelegramConfigureAgentBotResponse {
+            success: false,
+            username: None,
+            message: Some(format!("Telegram API unreachable: {e}")),
+        }),
+    };
+
+    let body_json = match resp.json::<serde_json::Value>().await {
+        Ok(j) => j,
+        Err(e) => return HttpResponse::Ok().json(TelegramConfigureAgentBotResponse {
+            success: false,
+            username: None,
+            message: Some(format!("Invalid response from Telegram: {e}")),
+        }),
+    };
+
+    let ok = body_json.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+    if !ok {
+        let desc = body_json.get("description").and_then(|v| v.as_str())
+            .unwrap_or("Invalid bot token").to_string();
+        return HttpResponse::Ok().json(TelegramConfigureAgentBotResponse {
+            success: false,
+            username: None,
+            message: Some(desc),
+        });
+    }
+
+    let username = match body_json.pointer("/result/username").and_then(|v| v.as_str()) {
+        Some(u) => u.to_string(),
+        None => return HttpResponse::Ok().json(TelegramConfigureAgentBotResponse {
+            success: false,
+            username: None,
+            message: Some("Bot has no username — set one in BotFather first.".to_string()),
+        }),
+    };
+    let bot_id = body_json.pointer("/result/id").and_then(|v| v.as_i64());
+
+    if let Some(config_path) = agent_bot_config_path() {
+        if let Err(e) = upsert_telegram_channel_entry(&config_path, &agent_id, &agent_name, &token, &username, bot_id) {
+            eprintln!("[channels] configure_agent_bot: failed to write openclaw.json: {e}");
+        }
+        if let Ok(raw) = std::fs::read_to_string(&config_path) {
+            if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(tg) = cfg.pointer("/channels/telegram") {
+                    let patch = serde_json::json!({ "channels": { "telegram": tg.clone() } });
+                    tokio::spawn(async move {
+                        if let Ok(cur) = crate::clawd::gateway_client::config_get(None).await {
+                            if let Some(hash) = cur.get("hash").and_then(|h| h.as_str()) {
+                                if !hash.is_empty() {
+                                    let _ = crate::clawd::gateway_client::config_patch(&patch.to_string(), hash, None).await;
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    HttpResponse::Ok().json(TelegramConfigureAgentBotResponse {
+        success: true,
+        username: Some(username),
+        message: None,
+    })
 }
 
 // ── Token rotation ────────────────────────────────────────────────────────
@@ -3968,7 +4087,7 @@ pub async fn telegram_rotate_agent_bot_token(
                                 .unwrap_or(&agent_id)
                                 .to_string();
                             let _ = upsert_telegram_channel_entry(
-                                &config_path, &agent_id, &agent_name, tok, uname,
+                                &config_path, &agent_id, &agent_name, tok, uname, None,
                             );
                         }
                     }

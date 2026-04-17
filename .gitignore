@@ -1,2 +1,3 @@
 
 src/src-tauri/resources/clawdbot/dist/extensions/*/package-lock.json
+.claude/settings.local.json
