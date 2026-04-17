@@ -553,8 +553,7 @@ function Home({
                 />
               )}
 
-              {currentTab === TabChoices.Openclaw && (
-                <div className="overflow-hidden w-full h-full flex flex-row relative">
+              <div className={`overflow-hidden w-full h-full flex flex-row relative${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}>
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat
                       showActivityPanel={showActivityPanel}
@@ -622,7 +621,6 @@ function Home({
                     />
                   )}
                 </div>
-              )}
 
               {currentTab === TabChoices.Email && (
                 <EmailTabView
