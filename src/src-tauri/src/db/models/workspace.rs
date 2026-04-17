@@ -192,6 +192,69 @@ impl Workspace {
 
     /// Wipe all auto-curated workspaces and their documents. Returns the number of
     /// workspaces deleted.
+    /// Delete auto-curated project workspaces whose entity_key (slug) is NOT in
+    /// the provided keep set. Used by the project detector to prune stale
+    /// duplicates that arise when the LLM generates a slightly different slug
+    /// for semantically-equivalent projects across runs.
+    /// Only affects `auto_curated = 1` projects — pinned/manual ones are left alone.
+    pub fn delete_stale_auto_projects(keep_slugs: &std::collections::HashSet<String>) -> Result<usize, Error> {
+        let connection = get_db_conn();
+
+        // Gather all auto-curated project workspaces first.
+        let mut existing: Vec<(String, Option<String>)> = Vec::new();
+        {
+            let mut stmt = connection.prepare(
+                "SELECT uuid, entity_key FROM workspaces \
+                 WHERE auto_curated = 1 AND entity_type = 'project'",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+            })?;
+            for r in rows.flatten() {
+                existing.push(r);
+            }
+        }
+
+        let stale_uuids: Vec<String> = existing
+            .into_iter()
+            .filter(|(_, key)| match key {
+                Some(k) => !keep_slugs.contains(k),
+                None => true,
+            })
+            .map(|(uuid, _)| uuid)
+            .collect();
+
+        if stale_uuids.is_empty() {
+            return Ok(0);
+        }
+
+        connection.execute_batch("BEGIN")?;
+        let result = (|| -> Result<usize, rusqlite::Error> {
+            let mut n = 0;
+            for uuid in &stale_uuids {
+                connection.execute(
+                    "DELETE FROM workspace_documents WHERE workspace_uuid = ?1",
+                    [uuid],
+                )?;
+                n += connection.execute(
+                    "DELETE FROM workspaces WHERE uuid = ?1 AND auto_curated = 1 AND entity_type = 'project'",
+                    [uuid],
+                )?;
+            }
+            Ok(n)
+        })();
+        match result {
+            Ok(n) => {
+                connection.execute_batch("COMMIT")?;
+                Ok(n)
+            }
+            Err(e) => {
+                let _ = connection.execute_batch("ROLLBACK");
+                Err(e.into())
+            }
+        }
+    }
+
     pub fn wipe_auto_curated() -> Result<usize, Error> {
         let connection = get_db_conn();
         connection.execute_batch("BEGIN")?;

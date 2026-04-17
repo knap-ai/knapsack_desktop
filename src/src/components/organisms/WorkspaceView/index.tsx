@@ -3,14 +3,14 @@ import { open } from '@tauri-apps/api/dialog'
 import {
   Workspace,
   WorkspaceDocument,
-  SearchResultItem,
   getWorkspace,
   updateWorkspace,
   addDocumentToWorkspace,
   removeDocumentFromWorkspace,
-  searchWorkspace,
   parseTags,
 } from '../../../api/workspaces'
+
+const SUMMARY_CACHE_PREFIX = 'knap.library.summary.'
 
 interface WorkspaceViewProps {
   workspace: Workspace
@@ -21,15 +21,22 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace>(workspace)
   const [documents, setDocuments] = useState<WorkspaceDocument[]>(workspace.documents ?? [])
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([])
-  const [isSearching, setIsSearching] = useState(false)
+  const [activeSearchQuery, setActiveSearchQuery] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState(workspace.name)
   const [editDescription, setEditDescription] = useState(workspace.description ?? '')
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null)
-  const [expandedSummary, setExpandedSummary] = useState<number | null>(null)
   const dropRef = useRef<HTMLDivElement>(null)
+
+  // Load AI-generated card summary from localStorage (written by WorkspacesList).
+  const aiSummary = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(SUMMARY_CACHE_PREFIX + workspace.uuid)
+      if (raw) return JSON.parse(raw) as { summary: string; nextAction: string }
+    } catch { /* no-op */ }
+    return null
+  }, [workspace.uuid])
 
   const refreshWorkspace = useCallback(async () => {
     try {
@@ -57,14 +64,26 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
     return [...tagSet].sort()
   }, [documents])
 
-  /** Filter documents by active tag. */
+  /** Filter documents by active tag and/or search query. */
   const filteredDocuments = useMemo(() => {
-    if (!activeTagFilter) return documents
-    return documents.filter(doc => {
-      const docTags = [...parseTags(doc.autoTags), ...parseTags(doc.tags)]
-      return docTags.includes(activeTagFilter)
-    })
-  }, [documents, activeTagFilter])
+    let result = documents
+    if (activeTagFilter) {
+      result = result.filter(doc => {
+        const docTags = [...parseTags(doc.autoTags), ...parseTags(doc.tags)]
+        return docTags.includes(activeTagFilter)
+      })
+    }
+    if (activeSearchQuery.trim()) {
+      const q = activeSearchQuery.toLowerCase()
+      result = result.filter(doc =>
+        doc.documentName.toLowerCase().includes(q) ||
+        (doc.summary?.toLowerCase().includes(q)) ||
+        parseTags(doc.autoTags).some(t => t.toLowerCase().includes(q)) ||
+        parseTags(doc.tags).some(t => t.toLowerCase().includes(q)),
+      )
+    }
+    return result
+  }, [documents, activeTagFilter, activeSearchQuery])
 
   const handleAddFiles = async () => {
     try {
@@ -125,23 +144,13 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
     }
   }
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([])
-      return
-    }
+  const handleSearch = () => {
+    setActiveSearchQuery(searchQuery)
+  }
 
-    try {
-      setIsSearching(true)
-      const res = await searchWorkspace(currentWorkspace.uuid, searchQuery.trim())
-      if (res.success) {
-        setSearchResults(res.results)
-      }
-    } catch (err) {
-      console.error('Search failed:', err)
-    } finally {
-      setIsSearching(false)
-    }
+  const handleClearSearch = () => {
+    setSearchQuery('')
+    setActiveSearchQuery('')
   }
 
   const handleSaveEdit = async () => {
@@ -283,6 +292,30 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
               {currentWorkspace.description}
             </p>
           )}
+          {aiSummary && (
+            <div className="ml-10 mt-2">
+              <p className="text-sm text-gray-700">{aiSummary.summary}</p>
+              {aiSummary.nextAction && (
+                <button
+                  className="text-xs text-left text-blue-600 bg-blue-50 hover:bg-blue-100 rounded px-2 py-1 mt-1.5 transition-colors"
+                  onClick={() => {
+                    const subject = currentWorkspace.entityType === 'person'
+                      ? currentWorkspace.name
+                      : `the ${currentWorkspace.name} project`
+                    window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('clawd-send-user', {
+                        detail: `Regarding ${subject}: ${aiSummary.nextAction}`,
+                      }))
+                    }, 100)
+                  }}
+                  title="Send to Chat"
+                >
+                  → {aiSummary.nextAction}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -323,33 +356,29 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
             className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Search within this collection..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e => {
+              setSearchQuery(e.target.value)
+              if (!e.target.value.trim()) setActiveSearchQuery('')
+            }}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
-          <button
-            className="px-4 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 transition-colors"
-            onClick={handleSearch}
-            disabled={isSearching || !searchQuery.trim()}
-          >
-            {isSearching ? 'Searching...' : 'Search'}
-          </button>
+          {activeSearchQuery ? (
+            <button
+              className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              onClick={handleClearSearch}
+            >
+              Clear
+            </button>
+          ) : (
+            <button
+              className="px-4 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              onClick={handleSearch}
+              disabled={!searchQuery.trim()}
+            >
+              Search
+            </button>
+          )}
         </div>
-
-        {/* Search results */}
-        {searchResults.length > 0 && (
-          <div className="mt-3 border border-gray-200 rounded-md divide-y divide-gray-100">
-            {searchResults.map((result, idx) => (
-              <div key={result.id || idx} className="p-3">
-                <div className="text-sm font-medium">
-                  Score: {result.score.toFixed(3)}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {JSON.stringify(result.payload, null, 2)}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Actions */}
@@ -381,19 +410,23 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
         onDrop={handleDrop}
       >
         <div className="text-sm font-medium text-gray-700 mb-3">
-          Documents ({filteredDocuments.length}{activeTagFilter ? ` of ${documents.length}` : ''})
+          Documents ({filteredDocuments.length}{(activeTagFilter || activeSearchQuery) ? ` of ${documents.length}` : ''})
         </div>
 
         {filteredDocuments.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-            {activeTagFilter ? (
+            {activeTagFilter || activeSearchQuery ? (
               <>
-                <div className="text-sm">No documents matching tag &quot;{activeTagFilter}&quot;</div>
+                <div className="text-sm">
+                  {activeSearchQuery
+                    ? `No documents matching "${activeSearchQuery}"`
+                    : `No documents matching tag "${activeTagFilter}"`}
+                </div>
                 <button
                   className="text-xs text-blue-500 hover:text-blue-600 mt-2"
-                  onClick={() => setActiveTagFilter(null)}
+                  onClick={() => { setActiveTagFilter(null); handleClearSearch() }}
                 >
-                  Clear filter
+                  Clear filters
                 </button>
               </>
             ) : (
@@ -410,8 +443,6 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
             {filteredDocuments.map(doc => {
               const autoTags = parseTags(doc.autoTags)
               const userTags = parseTags(doc.tags)
-              const hasSummary = !!doc.summary
-              const isExpanded = expandedSummary === doc.id
 
               return (
                 <div
@@ -432,23 +463,15 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
                     </div>
 
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      {hasSummary && (
-                        <button
-                          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                          onClick={() => setExpandedSummary(isExpanded ? null : doc.id)}
-                          title={isExpanded ? 'Hide summary' : 'Show summary'}
-                        >
-                          {isExpanded ? 'Hide' : 'Summary'}
-                        </button>
-                      )}
                       {doc.createdAt && (
                         <span className="text-xs text-gray-400">
                           {formatDate(doc.createdAt)}
                         </span>
                       )}
                       <button
-                        className="text-xs text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 rounded hover:bg-red-50"
+                        className="text-xs text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 rounded hover:bg-red-50 focus:outline-none"
                         onClick={() => doc.id && handleRemoveDocument(doc.id)}
+                        tabIndex={-1}
                       >
                         Remove
                       </button>
@@ -479,9 +502,9 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
                     </div>
                   )}
 
-                  {/* Expandable summary */}
-                  {isExpanded && doc.summary && (
-                    <div className="mt-2 ml-8 text-xs text-gray-500 bg-gray-50 rounded-md p-2">
+                  {/* Summary — shown inline when available */}
+                  {doc.summary && (
+                    <div className="mt-2 ml-8 text-xs text-gray-600">
                       {doc.summary}
                     </div>
                   )}

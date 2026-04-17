@@ -559,6 +559,16 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }
 
+  useEffect(() => {
+    const unlisten = listen('stop-recording-from-indicator', () => {
+      if (recordingHandlers.isRecording(thread.id)) {
+        handleStopRecording('Indicator')
+      }
+    })
+    return () => { unlisten.then(fn => fn()) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread.id])
+
   const isSynthesizing = useCallback(() => {
     return recordingHandlers.isLoadingNotes(thread.id) || isLLMLoading
   }, [recordingHandlers, thread.id, isLLMLoading])
@@ -939,6 +949,60 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
             }}
           />
         )}
+
+        {/* Meeting prep: shown when notes are empty and not recording */}
+        {!notesMarkdown.trim() &&
+          !recordingHandlers.isRecording(thread.id) &&
+          !isSynthesizing() &&
+          meeting &&
+          (getEventUrl(meeting) || (meeting.participants && meeting.participants.length > 0) || meeting.description) && (
+            <div className="notetaker-note__prep">
+              <div className="notetaker-note__prep-header">Meeting Prep</div>
+              {getEventUrl(meeting) && (
+                <div className="notetaker-note__prep-row">
+                  <span className="notetaker-note__prep-label">Video</span>
+                  <a
+                    href={getEventUrl(meeting)}
+                    className="notetaker-note__prep-link"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {meeting.meeting_platform === 'zoom'
+                      ? 'Zoom'
+                      : meeting.meeting_platform === 'teams'
+                        ? 'Microsoft Teams'
+                        : 'Google Meet'}
+                  </a>
+                </div>
+              )}
+              {!getEventUrl(meeting) && meeting.location && (
+                <div className="notetaker-note__prep-row">
+                  <span className="notetaker-note__prep-label">Location</span>
+                  <span className="notetaker-note__prep-value">{meeting.location}</span>
+                </div>
+              )}
+              {meeting.participants && meeting.participants.length > 0 && (
+                <div className="notetaker-note__prep-row">
+                  <span className="notetaker-note__prep-label">Attendees</span>
+                  <div className="notetaker-note__prep-chips">
+                    {meeting.participants.map((p, i) => (
+                      <span key={i} className="notetaker-note__prep-chip">
+                        {p.name || p.email.split('@')[0]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {meeting.description && (
+                <div className="notetaker-note__prep-row">
+                  <span className="notetaker-note__prep-label">Agenda</span>
+                  <span className="notetaker-note__prep-value notetaker-note__prep-value--description">
+                    {meeting.description}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
       </div>
 

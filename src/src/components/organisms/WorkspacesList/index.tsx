@@ -12,8 +12,16 @@ import {
   updateCurationSettings,
   wipeLibrary,
 } from '../../../api/workspaces'
+import { KN_API_GET_USER_EMAIL, KN_API_STREAM_LLM_COMPLETE } from '../../../utils/constants'
 
 const LOCAL_FILES_PROMPT_KEY = 'knap.library.localFilesPromptShown'
+const GDRIVE_PROMPT_KEY = 'knap.library.gdrivePromptShown'
+const SUMMARY_CACHE_PREFIX = 'knap.library.summary.'
+
+interface CardSummary {
+  summary: string
+  nextAction: string
+}
 
 interface WorkspacesListProps {
   onWorkspaceOpen: (workspace: Workspace) => void
@@ -28,7 +36,9 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
   const [curationStatus, setCurationStatus] = useState<CurationStatus | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [showLocalFilesPrompt, setShowLocalFilesPrompt] = useState(false)
+  const [showGDrivePrompt, setShowGDrivePrompt] = useState(false)
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true)
+  const [cardSummaries, setCardSummaries] = useState<Map<string, CardSummary>>(new Map())
 
   const fetchWorkspaces = async () => {
     try {
@@ -48,22 +58,139 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     try {
       const status = await getCurationStatus()
       setCurationStatus(status)
+      return status
     } catch (err) {
       console.error('Failed to fetch curation status:', err)
+      return null
     }
   }
 
   useEffect(() => {
-    fetchWorkspaces()
-    fetchStatus()
-    // First-visit local files prompt — show only once per device.
+    const init = async () => {
+      const status = await fetchStatus()
+
+      // First-visit local files prompt — show only once per device.
+      try {
+        const shown = localStorage.getItem(LOCAL_FILES_PROMPT_KEY)
+        if (!shown) setShowLocalFilesPrompt(true)
+      } catch {
+        // no-op
+      }
+
+      // GDrive encouragement — show once if Drive curation isn't yet enabled.
+      try {
+        const shown = localStorage.getItem(GDRIVE_PROMPT_KEY)
+        if (!shown && status && !status.sourcesDrive) setShowGDrivePrompt(true)
+      } catch {
+        // no-op
+      }
+
+      // Auto-trigger curation on first open if it's never run before.
+      if (status && status.enabled && !status.lastRunAt) {
+        try {
+          await curateLibraryNow()
+        } catch {
+          // non-fatal
+        }
+      }
+
+      await fetchWorkspaces()
+    }
+    init()
+  }, [])
+
+  /** Load cached summaries and generate missing ones for auto-curated workspaces. */
+  const [generatingSummaries, setGeneratingSummaries] = useState(false)
+
+  useEffect(() => {
+    if (workspaces.length === 0) return
+
+    // Load what's already cached.
+    const cached = new Map<string, CardSummary>()
+    for (const ws of workspaces) {
+      try {
+        const raw = localStorage.getItem(SUMMARY_CACHE_PREFIX + ws.uuid)
+        if (raw) cached.set(ws.uuid, JSON.parse(raw))
+      } catch {
+        // no-op
+      }
+    }
+    if (cached.size > 0) setCardSummaries(cached)
+
+    // Queue generation for auto-curated workspaces without a cached summary.
+    const toGenerate = workspaces.filter(
+      ws => ws.autoCurated && !cached.has(ws.uuid),
+    )
+    if (toGenerate.length === 0) return
+
+    // Prioritize people first — they have the thinnest descriptions and benefit
+    // most from an AI summary. Projects already have an LLM-generated description.
+    toGenerate.sort((a, b) => {
+      if (a.entityType === 'person' && b.entityType !== 'person') return -1
+      if (a.entityType !== 'person' && b.entityType === 'person') return 1
+      return 0
+    })
+
+    let cancelled = false
+    setGeneratingSummaries(true)
+    ;(async () => {
+      // Fetch user email once for all LLM calls (may 404, that's fine).
+      let userEmail = ''
+      try {
+        const res = await fetch(KN_API_GET_USER_EMAIL)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.email) userEmail = data.email
+        }
+      } catch {
+        // proceed with empty email
+      }
+
+      for (const ws of toGenerate) {
+        if (cancelled) break
+        const existing = localStorage.getItem(SUMMARY_CACHE_PREFIX + ws.uuid)
+        if (existing) continue
+        try {
+          const result = await generateCardSummary(ws, getTopTags(ws, 6), userEmail)
+          if (cancelled) break
+          if (result) {
+            setCardSummaries(prev => {
+              const next = new Map(prev)
+              next.set(ws.uuid, result)
+              return next
+            })
+            try {
+              localStorage.setItem(SUMMARY_CACHE_PREFIX + ws.uuid, JSON.stringify(result))
+            } catch {
+              // no-op
+            }
+          }
+        } catch (err) {
+          console.error(`[Library] summary generation failed for ${ws.name}:`, err)
+        }
+      }
+      if (!cancelled) setGeneratingSummaries(false)
+    })()
+
+    return () => {
+      cancelled = true
+      setGeneratingSummaries(false)
+    }
+  }, [workspaces])
+
+  const dismissGDrivePrompt = (enable: boolean) => {
     try {
-      const shown = localStorage.getItem(LOCAL_FILES_PROMPT_KEY)
-      if (!shown) setShowLocalFilesPrompt(true)
+      localStorage.setItem(GDRIVE_PROMPT_KEY, '1')
     } catch {
       // no-op
     }
-  }, [])
+    setShowGDrivePrompt(false)
+    if (enable) {
+      updateCurationSettings({ sourcesDrive: true })
+        .then(s => setCurationStatus(s))
+        .catch(err => console.error('Failed to enable GDrive:', err))
+    }
+  }
 
   const dismissLocalFilesPrompt = (enable: boolean) => {
     try {
@@ -132,6 +259,17 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     } catch (err) {
       console.error('Failed to create workspace:', err)
     }
+  }
+
+  const handleNextActionClick = (e: React.MouseEvent, action: string, workspace: Workspace) => {
+    e.stopPropagation()
+    // Build a richer prompt so the chat has context about who/what this is about.
+    const subject = workspace.entityType === 'person' ? workspace.name : `the ${workspace.name} project`
+    const prompt = `Regarding ${subject}: ${action}`
+    window.dispatchEvent(new CustomEvent('clawd-focus-chat'))
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: prompt }))
+    }, 100)
   }
 
   const handleDelete = async (e: React.MouseEvent, uuid: string) => {
@@ -219,10 +357,12 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
     const topTags = getTopTags(workspace)
     const savedAnswers = chatOutputCount(workspace)
     const mixLabel = opts.auto ? sourceMixLabel(workspace) : ''
+    const aiSummary = cardSummaries.get(workspace.uuid)
+
     return (
       <div
         key={workspace.uuid}
-        className="border border-gray-200 rounded-lg h-52 w-64 flex flex-col justify-between p-4 cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
+        className="border border-gray-200 rounded-lg min-h-52 w-64 flex flex-col justify-between p-4 cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
         onClick={() => onWorkspaceOpen(workspace)}
       >
         <div className="flex flex-col gap-1">
@@ -233,10 +373,32 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
               <span title="Auto-curated by Knapsack" className="text-xs">✨</span>
             )}
           </div>
-          {workspace.description && (
-            <div className="text-sm text-gray-500 line-clamp-2">
-              {workspace.description}
-            </div>
+          {aiSummary ? (
+            <>
+              <div className="text-sm text-gray-600 mt-0.5">
+                {aiSummary.summary}
+              </div>
+              {aiSummary.nextAction && (
+                <button
+                  className="text-xs text-left text-blue-600 bg-blue-50 hover:bg-blue-100 rounded px-2 py-1 mt-1 transition-colors"
+                  onClick={e => handleNextActionClick(e, aiSummary.nextAction, workspace)}
+                  title="Send to Chat"
+                >
+                  → {aiSummary.nextAction}
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {workspace.description && (
+                <div className="text-sm text-gray-500">
+                  {workspace.description}
+                </div>
+              )}
+              {opts.auto && generatingSummaries && (
+                <div className="text-xs text-gray-400 italic mt-1">Generating summary…</div>
+              )}
+            </>
           )}
           {topTags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
@@ -252,7 +414,7 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
           )}
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-3">
           <div className="text-xs text-gray-400 truncate">
             {opts.auto && mixLabel ? mixLabel : `${workspace.documents?.length ?? 0} doc${(workspace.documents?.length ?? 0) !== 1 ? 's' : ''}`}
             {savedAnswers > 0 && ` · ${savedAnswers} saved`}
@@ -362,6 +524,31 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
         </div>
       )}
 
+      {showGDrivePrompt && (
+        <div className="flex items-center justify-between text-sm bg-green-50 border border-green-200 rounded-md px-4 py-3 mb-6">
+          <div>
+            <div className="font-semibold text-green-900">Enrich your library with Google Drive</div>
+            <div className="text-green-700 mt-0.5">
+              Connect your Google account in Settings → Connections, then enable Drive below to automatically import your docs and files into collections.
+            </div>
+          </div>
+          <div className="flex gap-2 ml-4 flex-shrink-0">
+            <button
+              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
+              onClick={() => dismissGDrivePrompt(true)}
+            >
+              Enable
+            </button>
+            <button
+              className="px-3 py-1.5 text-sm text-green-700 hover:bg-green-100 rounded-md"
+              onClick={() => dismissGDrivePrompt(false)}
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
+
       {isBuilding && (
         <div className="text-gray-400 text-sm mb-6">
           Building your library… this may take a minute on first launch.
@@ -374,8 +561,6 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
         </div>
       )}
 
-      {renderSection('People', peopleWorkspaces, { auto: true })}
-      {renderSection('Projects', projectWorkspaces, { auto: true })}
       {renderSection(
         'Your Collections',
         manualWorkspaces,
@@ -392,6 +577,8 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
           </div>
         </div>,
       )}
+      {renderSection('People', peopleWorkspaces, { auto: true })}
+      {renderSection('Projects', projectWorkspaces, { auto: true })}
 
       {/* Create Modal */}
       {showCreateModal && (
@@ -451,6 +638,108 @@ function WorkspacesList({ onWorkspaceOpen }: WorkspacesListProps) {
       )}
     </div>
   )
+}
+
+async function generateCardSummary(workspace: Workspace, topTags: string[], userEmail: string): Promise<CardSummary | null> {
+  const docs = workspace.documents ?? []
+  const docTitles = docs
+    .slice(0, 12)
+    .map(d => d.documentName)
+    .join(', ')
+
+  const isPerson = workspace.entityType === 'person'
+
+  const contextLines = [
+    `Name: ${workspace.name}`,
+    isPerson ? 'Type: Person (contact)' : 'Type: Project',
+    topTags.length > 0 ? `Key topics: ${topTags.join(', ')}` : '',
+    docTitles ? `Recent document titles: ${docTitles}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const prompt = isPerson
+    ? `You are a personal CRM assistant. Based on the document titles and topics below, infer:\n` +
+      `1. Who this person likely is (role, company, or relationship — e.g. "Your accountant at Sage Financial", "Engineering lead at Acme", "Investor contact"). Do NOT restate email/meeting counts.\n` +
+      `2. What you're actively working on together right now, based on the most recent document titles.\n` +
+      `3. One specific, actionable next step.\n\n` +
+      `${contextLines}\n\n` +
+      `Reply ONLY with JSON, no other text:\n` +
+      `{"summary": "1-2 sentences about who they are and what you're working on together", "nextAction": "one concrete next step"}`
+    : `Based on this project from my knowledge base, give me:\n` +
+      `1. A 1-2 sentence description of what this project is about (infer from document titles and topics, not stats)\n` +
+      `2. One specific next action I should take\n\n` +
+      `${contextLines}\n\n` +
+      `Reply ONLY with JSON, no other text:\n` +
+      `{"summary": "your description here", "nextAction": "your suggested action here"}`
+
+  try {
+    const response = await fetch(KN_API_STREAM_LLM_COMPLETE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_email: userEmail,
+        user_name: '',
+        prompt,
+        semantic_search_query: null,
+        documents: [],
+        is_local: false,
+      }),
+    })
+
+    if (!response.ok) {
+      console.error(`[Library] LLM returned ${response.status} for ${workspace.name}`)
+      return null
+    }
+    if (!response.body) {
+      console.error(`[Library] LLM returned no body for ${workspace.name}`)
+      return null
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let text = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue
+        if (line.trim() === 'data: [DONE]') break
+        try {
+          text += JSON.parse(line.slice(6)).choices[0].text
+        } catch {
+          // malformed chunk
+        }
+      }
+    }
+
+    console.log(`[Library] LLM raw for ${workspace.name}:`, text.slice(0, 300))
+
+    // Extract JSON — handle markdown fences and extra text.
+    const cleaned = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim()
+
+    const jsonStart = cleaned.indexOf('{')
+    const jsonEnd = cleaned.lastIndexOf('}')
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+      console.error(`[Library] no JSON found in LLM response for ${workspace.name}`)
+      return null
+    }
+
+    const parsed = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1))
+    if (parsed.summary && parsed.nextAction) {
+      return { summary: parsed.summary, nextAction: parsed.nextAction }
+    }
+    console.error(`[Library] JSON missing expected fields for ${workspace.name}:`, parsed)
+    return null
+  } catch (err) {
+    console.error(`[Library] generateCardSummary error for ${workspace.name}:`, err)
+    return null
+  }
 }
 
 export default WorkspacesList

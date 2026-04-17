@@ -117,14 +117,14 @@ type OllamaModel = {
 // ── Update section ───────────────────────────────────────────────────────────
 
 const UpdateSection = () => {
-  const { updateState, checkForUpdates, startInstall, restartApp } = useAppUpdate()
+  const { updateState, checkForUpdates, restartApp } = useAppUpdate()
 
   const statusText = (() => {
     switch (updateState.status) {
       case 'checking': return 'Checking for updates...'
       case 'up-to-date': return 'You\'re up to date'
-      case 'available': return `Version ${updateState.version} available`
-      case 'downloading': return 'Downloading update...'
+      case 'available': return `Version ${'version' in updateState ? updateState.version : ''} available`
+      case 'downloading': return 'Installing update…'
       case 'ready': return 'Update ready — restart to apply'
       case 'error': return `Error: ${updateState.message}`
       default: return null
@@ -149,21 +149,16 @@ const UpdateSection = () => {
         {updateState.status === 'checking' && (
           <span className="text-sm text-gray-400 animate-pulse">Checking...</span>
         )}
-        {updateState.status === 'available' && (
-          <button
-            onClick={startInstall}
-            className="text-sm text-red-600 hover:text-red-700 font-medium"
-          >
-            Install Update
-          </button>
-        )}
-        {updateState.status === 'ready' && (
+        {(updateState.status === 'available' || updateState.status === 'ready') && (
           <button
             onClick={restartApp}
             className="text-sm text-red-600 hover:text-red-700 font-medium"
           >
-            Restart Now
+            Install &amp; Restart
           </button>
+        )}
+        {updateState.status === 'downloading' && (
+          <span className="text-sm text-gray-400 animate-pulse">Installing…</span>
         )}
       </div>
     </div>

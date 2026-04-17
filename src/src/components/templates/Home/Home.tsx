@@ -37,7 +37,6 @@ import { getReleaseType } from 'src/api/app_info'
 import { safeInvoke } from 'src/utils/tauriIpcBridge'
 
 import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
-import { IThread, ThreadType } from 'src/api/threads'
 import { getFeedbacks } from '../../../api/threads'
 import { setHasOnboarded } from '../../../pages/onboarding'
 import { openGoogleAuthScreen } from '../../../utils/permissions/google'
@@ -45,7 +44,7 @@ import { requestNotificationOSPermissions } from '../../../utils/permissions/not
 import NewAutomation from '../NewAutomation'
 import { ConnectionsDropdown } from './../../ConnectionsDropdown'
 import { SigninButton } from './../../SigninButton'
-import TabBar, { TabChoices } from './../../TabBar'
+import { TabChoices } from './../../TabBar'
 import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
@@ -101,13 +100,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
-
-  // Check if a meeting note is currently selected (for hiding sidebar in full-width note view)
-  const currentItem = feed.currentFeedItem()
-  const hasMeetingNoteSelected = currentTab === TabChoices.Meeting && meetingSubView === 'meetings' &&
-    !!currentItem?.threads?.some((t: IThread) => t.threadType === ThreadType.MEETING_NOTES)
   const isResizingRef = useRef(false)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -477,38 +470,41 @@ function Home({
       />
       <div className="overflow-hidden flex-1 bg-ks-bg-main rounded-b-[10px]">
         <div data-tauri-drag-region className="overflow-hidden flex flex-row h-full bg-ks-bg-main">
-          {/* Notetaker sidebar - hidden when viewing a meeting note */}
-          {currentTab === TabChoices.Meeting && !hasMeetingNoteSelected && (
-            <NotetakerSidebar
-              feed={feed}
-              onQuickNote={() => feed.createNewMeeting()}
-              onSettingsClick={() => setIsSettingsDialogOpened(true)}
-              onChatClick={() => setMeetingSubView('chat')}
-              onHomeClick={() => setMeetingSubView('meetings')}
-              onMeetingSelect={() => setMeetingSubView('meetings')}
-              onExitMeetingView={() => {
-                setIsCalendarOpen(false)
-                setCurrentTab(TabChoices.Openclaw)
-              }}
-              activeView={meetingSubView === 'chat' ? 'chat' : 'home'}
-            />
-          )}
-          {/* Legacy TabBar for non-meeting tabs */}
-          {currentTab !== TabChoices.Meeting && (
-            <TabBar
-              currentTab={currentTab}
-              setCurrentTab={setCurrentTab}
-              fullRelease={fullRelease}
-              onCalendarToggle={() => {
-                setIsCalendarOpen(!isCalendarOpen)
-                if (!isCalendarOpen) {
-                  setCurrentTab(TabChoices.Meeting)
-                  setMeetingSubView('meetings')
-                }
-              }}
-              isCalendarOpen={isCalendarOpen}
-            />
-          )}
+          {/* Unified sidebar — always visible */}
+          <NotetakerSidebar
+            feed={feed}
+            connections={connections}
+            currentTab={currentTab}
+            onTabChange={(tab, subView) => {
+              setCurrentTab(tab)
+              if (subView) {
+                setMeetingSubView(subView)
+              } else if (tab === TabChoices.Meeting) {
+                setMeetingSubView('meetings')
+              }
+            }}
+            onLibraryWorkspaceOpen={(ws) => {
+              setCurrentTab(TabChoices.Library)
+              setSelectedWorkspace(ws)
+            }}
+            onQuickNote={() => {
+              setCurrentTab(TabChoices.Meeting)
+              setMeetingSubView('meetings')
+              feed.createNewMeeting()
+            }}
+            onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
+            onMeetingSelect={() => {
+              setCurrentTab(TabChoices.Meeting)
+              setMeetingSubView('meetings')
+            }}
+            activeView={
+              currentTab === TabChoices.Meeting
+                ? meetingSubView === 'chat'
+                  ? 'chat'
+                  : 'home'
+                : 'home'
+            }
+          />
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
             <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main">
               {currentTab === TabChoices.Work && (

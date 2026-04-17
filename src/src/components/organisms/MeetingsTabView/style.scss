@@ -244,6 +244,12 @@ $ks-accent: #6474AC;
     height: 100%;
     overflow-y: auto;
     background: $ks-bg;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   // Notetaker top bar

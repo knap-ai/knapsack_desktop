@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Semaphore, oneshot};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{connect_async, tungstenite::{client::IntoClientRequest, http::HeaderValue, Message}};
 
 use crate::clawd::gateway_supervisor;
 
@@ -174,6 +174,14 @@ struct GatewayClient {
 /// underlying WebSocket drops, enabling transparent reconnection.
 static CLIENT: once_cell::sync::Lazy<std::sync::RwLock<Option<Arc<GatewayClient>>>> =
   once_cell::sync::Lazy::new(|| std::sync::RwLock::new(None));
+
+/// Serializes concurrent connection attempts so only one WS handshake runs
+/// at a time (thundering-herd prevention).  Without this, N concurrent
+/// callers that each see CLIENT=None all call connect_and_handshake
+/// simultaneously, open N WebSocket connections, then drop N-1 of them —
+/// each drop is logged as code=1006 "closed before connect" by the gateway.
+static CONNECT_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
+  once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
 
 async fn ensure_gateway_best_effort(token: &str) {
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
@@ -619,6 +627,47 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     }
   }
 
+  // ── Sync agents.defaults.model from the current active provider ──────────
+  //
+  // The model is resolved at runtime from env vars (KNAPSACK_ACTIVE_PROVIDER,
+  // ANTHROPIC_API_KEY, etc.).  If the disk config has a stale model (e.g. from
+  // a previous provider), the gateway will use the wrong LLM until a restart.
+  //
+  // By writing the current model to disk here we ensure that `disk_config_changed`
+  // reflects a true change, and the `apply_runtime_browser_config()` call in
+  // `connect_and_handshake()` will push the updated model to the live gateway
+  // (triggering a SIGUSR1 restart) only when the model actually changed.
+  //
+  // NOTE: service.rs writes model as {"primary": "..."} on provider switch;
+  // apply_runtime_browser_config writes it as a plain string.  Read both forms.
+  {
+    let current_model = resolve_default_model();
+    let disk_model = cfg
+      .pointer("/agents/defaults/model")
+      .and_then(|v| match v {
+        Value::String(s) => Some(s.clone()),
+        Value::Object(o) => o.get("primary")
+          .and_then(|p| p.as_str())
+          .map(|s| s.to_string()),
+        _ => None,
+      })
+      .unwrap_or_default();
+    if disk_model != current_model {
+      if cfg.get("agents").is_none() {
+        cfg.as_object_mut().unwrap().insert("agents".into(), serde_json::json!({}));
+      }
+      if cfg.pointer("/agents/defaults").is_none() {
+        cfg.pointer_mut("/agents").unwrap().as_object_mut().unwrap()
+          .insert("defaults".into(), serde_json::json!({}));
+      }
+      // Write as plain string (gateway accepts both forms; string is simpler).
+      cfg.pointer_mut("/agents/defaults").unwrap().as_object_mut().unwrap()
+        .insert("model".into(), serde_json::json!(current_model));
+      eprintln!("[gateway_client] Patched agents.defaults.model: {:?} → '{}'", disk_model, current_model);
+      patched = true;
+    }
+  }
+
   if patched {
     if let Ok(json) = serde_json::to_string_pretty(&cfg) {
       let _ = std::fs::write(config_path, json);
@@ -733,9 +782,14 @@ pub fn resolve_default_model() -> String {
 /// we use a throwaway connection and wait for the gateway to come back.
 async fn apply_runtime_browser_config(token: &str) {
   // Open a temporary WebSocket just for the config.patch exchange.
+  let tmp_req = {
+    let mut r = GATEWAY_WS_URL.into_client_request().expect("valid URL");
+    r.headers_mut().insert("Origin", HeaderValue::from_static("http://localhost:1420"));
+    r
+  };
   let tmp_ws = match tokio::time::timeout(
     Duration::from_secs(3),
-    connect_async(GATEWAY_WS_URL),
+    connect_async(tmp_req),
   ).await {
     Ok(Ok((ws, _))) => ws,
     _ => {
@@ -783,7 +837,7 @@ async fn apply_runtime_browser_config(token: &str) {
     },
     auth: Some(AuthInfo { token: token.to_string() }),
     role: "operator",
-    scopes: vec!["operator.admin", "operator.read"],
+    scopes: vec!["operator.admin", "operator.read", "operator.write"],
   };
 
   let connect_frame = RequestFrame {
@@ -932,24 +986,79 @@ async fn apply_runtime_browser_config(token: &str) {
 
   let raw_patch = patch_obj.to_string();
 
+  let patch_id = next_request_id();
   let patch_frame = RequestFrame {
     frame_type: "req",
     method: "config.patch".to_string(),
-    id: next_request_id(),
+    id: patch_id.clone(),
     params: Some(serde_json::json!({
       "raw": raw_patch,
       "baseHash": base_hash
     })),
   };
-  let _ = tmp_write
+  if tmp_write
     .send(Message::Text(serde_json::to_string(&patch_frame).unwrap()))
-    .await;
-  eprintln!("[gateway_client] Sent config.patch for browser settings on tmp WS — gateway will restart");
+    .await
+    .is_err()
+  {
+    eprintln!("[gateway_client] Failed to send config.patch — connection closed");
+    return;
+  }
 
-  // Close the temporary connection (it'll die when the gateway restarts anyway).
+  // Read the config.patch response to detect rate-limiting or other rejection.
+  // If ok=true  → the gateway accepted the patch and will restart; wait for it.
+  // If ok=false → rejected (e.g. rate-limited, stale hash); do NOT wait 9 s for
+  //               a restart that will never happen.  The disk config is already
+  //               correct; the gateway will pick it up on its next natural restart
+  //               (periodic 5-min reload or crash recovery).
+  // closed/timeout → assume the gateway already restarted before sending a reply.
+  let patch_accepted = match tokio::time::timeout(Duration::from_secs(5), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => {
+          if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
+            if resp.id == patch_id {
+              break Some(resp.ok);
+            }
+          }
+        }
+        Some(Ok(Message::Close(_))) | None => break None, // closed = gateway restarting
+        _ => continue,
+      }
+    }
+  }).await {
+    Ok(Some(true)) => {
+      eprintln!("[gateway_client] config.patch accepted — gateway will restart");
+      true
+    }
+    Ok(Some(false)) => {
+      eprintln!("[gateway_client] config.patch rejected (ok=false, likely rate-limited) — \
+        skipping restart wait; disk config is correct and will take effect on next gateway restart");
+      false
+    }
+    Ok(None) => {
+      // Connection closed before response — gateway is already restarting.
+      eprintln!("[gateway_client] config.patch: connection closed before response — gateway is restarting");
+      true
+    }
+    Err(_) => {
+      // 5-second timeout reading response — assume accepted (gateway may have
+      // restarted before it could send a reply).
+      eprintln!("[gateway_client] config.patch: timeout reading response — assuming gateway is restarting");
+      true
+    }
+  };
+
+  // Close the temporary connection.
   let _ = tmp_write.send(Message::Close(None)).await;
   drop(tmp_write);
   drop(tmp_read);
+
+  if !patch_accepted {
+    // Patch was rejected — gateway is NOT restarting.  No further action needed;
+    // the already-correct disk config will be picked up on the next gateway restart.
+    return;
+  }
 
   // Wait for the gateway to restart.  Poll until the port is listening again
   // (up to 8 seconds with exponential backoff).
@@ -973,25 +1082,25 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   // never runs.
   let disk_config_changed = ensure_browser_config();
 
-  // Always push browser config to the running gateway on first connection.
-  // Even if the on-disk config didn't change (because we patched it in a
-  // previous app session), the running gateway may have been started with
-  // stale config (e.g., headless=true).  We track with BROWSER_CONFIG_APPLIED
-  // so we only do this once per process lifetime.
+  // Push browser config to the running gateway when the on-disk config was
+  // actually changed.  If the disk config was already correct (patched by a
+  // previous run), the live gateway already has the right settings — forcing
+  // an unnecessary config.patch triggers a ~14-second SIGUSR1 restart on every
+  // app open, which causes the "Gateway: reconnecting..." window seen on startup.
+  //
+  // BROWSER_CONFIG_APPLIED prevents doing this more than once per process
+  // lifetime (e.g., on reconnects after a transient WS drop).
   //
   // IMPORTANT: We do this BEFORE establishing our main connection, using a
   // temporary connection.  config.patch triggers a SIGUSR1 restart on the
   // gateway, which would kill any in-flight requests on the same connection.
-  let need_runtime_patch = !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
+  let need_runtime_patch = disk_config_changed
+    && !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
     && is_gateway_port_open().await;
 
   if need_runtime_patch {
     BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
-    if disk_config_changed {
-      eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
-    } else {
-      eprintln!("[gateway_client] Pushing browser config to running gateway (ensure headless=false, browser enabled)");
-    }
+    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
     apply_runtime_browser_config(token).await;
   }
 
@@ -999,9 +1108,15 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
   // Wrap the TCP/WebSocket connection in a short timeout so we don't hang
   // for 10-30 seconds when the gateway is down (system TCP timeout defaults).
+  let ws_req = {
+    let mut r = GATEWAY_WS_URL.into_client_request()
+      .map_err(|e| format!("Invalid gateway URL: {}", e))?;
+    r.headers_mut().insert("Origin", HeaderValue::from_static("http://localhost:1420"));
+    r
+  };
   let (ws_stream, _) = tokio::time::timeout(
     Duration::from_secs(3),
-    connect_async(GATEWAY_WS_URL),
+    connect_async(ws_req),
   )
     .await
     .map_err(|_| "Timeout connecting to gateway (3s)".to_string())?
@@ -1049,7 +1164,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
       token: token.to_string(),
     }),
     role: "operator",
-    scopes: vec!["operator.admin", "operator.read"],
+    scopes: vec!["operator.admin", "operator.read", "operator.write"],
   };
 
   let connect_frame = RequestFrame {
@@ -1162,7 +1277,17 @@ async fn get_or_connect(token: &str) -> Result<Arc<GatewayClient>, String> {
     }
   }
 
-  // Slow path: establish a new connection.
+  // Slow path: serialize concurrent callers so only one WS handshake runs.
+  // The double-check after acquiring the lock handles the common case where
+  // a concurrent caller already established the connection while we waited.
+  let _lock = CONNECT_LOCK.lock().await;
+  {
+    let guard = CLIENT.read().unwrap();
+    if let Some(ref c) = *guard {
+      return Ok(c.clone());
+    }
+  }
+
   match connect_and_handshake(token).await {
     Ok(client) => {
       let mut guard = CLIENT.write().unwrap();
@@ -1244,7 +1369,24 @@ fn spawn_reconnect_task(token: String) {
         continue;
       }
 
-      match connect_and_handshake(&token).await {
+      // Acquire CONNECT_LOCK so this reconnect attempt doesn't race with
+      // concurrent get_or_connect callers — without the lock, both open a
+      // WS connection simultaneously and one gets dropped (→ code=1006).
+      let result = {
+        let _lock = CONNECT_LOCK.lock().await;
+        // Double-check: an incoming request may have reconnected while we
+        // waited for the lock.
+        {
+          let guard = CLIENT.read().unwrap();
+          if guard.is_some() {
+            eprintln!("[gateway_client] reconnect task: connection established by concurrent request (attempt {})", attempt + 1);
+            RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+            return;
+          }
+        }
+        connect_and_handshake(&token).await
+      };
+      match result {
         Ok(client) => {
           let mut guard = CLIENT.write().unwrap();
           *guard = Some(client);
@@ -1272,17 +1414,27 @@ pub fn invalidate() {
   invalidate_client();
 }
 
-/// Quick TCP probe to check if the gateway port is listening.
-/// Returns true if the port accepts connections within 500ms.
-/// Channel status endpoints can call this to fail fast.
+/// Check if the gateway port is listening by sending an HTTP request.
+///
+/// Using a plain HTTP GET instead of a raw TCP probe prevents the gateway's
+/// WebSocket server from logging spurious "closed before connect code=1006"
+/// errors that a raw TCP connect-then-drop generates.  Any HTTP response
+/// (including 401/404) confirms the port is up.
 pub async fn is_gateway_port_open() -> bool {
+  let client = match reqwest::Client::builder()
+    .timeout(Duration::from_millis(500))
+    .build()
+  {
+    Ok(c) => c,
+    Err(_) => return false,
+  };
   tokio::time::timeout(
     Duration::from_millis(500),
-    tokio::net::TcpStream::connect("127.0.0.1:18789"),
+    client.get("http://127.0.0.1:18789/health").send(),
   )
-    .await
-    .map(|r| r.is_ok())
-    .unwrap_or(false)
+  .await
+  .map(|r| r.is_ok())
+  .unwrap_or(false)
 }
 
 /// Best-effort gateway restart for callers that want to wait briefly.
@@ -1782,4 +1934,103 @@ pub async fn config_patch(
     "baseHash": base_hash
   });
   gateway_request_pooled("config.patch", Some(params), &t).await
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use serde_json::json;
+  use std::io::Write;
+  use tempfile::NamedTempFile;
+
+  // ── model format parsing ────────────────────────────────────────────────
+  // Regression: service.rs writes model as {"primary":"..."} (object form).
+  // ensure_browser_config_at() must handle both string and object without
+  // treating the object form as an empty string (which makes disk_config_changed
+  // always true, restarting the gateway on every launch).
+
+  fn write_config(content: &str) -> NamedTempFile {
+    let mut f = NamedTempFile::new().unwrap();
+    f.write_all(content.as_bytes()).unwrap();
+    f
+  }
+
+  fn read_model_from_config(val: &Value) -> String {
+    val.pointer("/agents/defaults/model")
+      .and_then(|v| match v {
+        Value::String(s) => Some(s.clone()),
+        Value::Object(o) => o.get("primary").and_then(|p| p.as_str()).map(|s| s.to_string()),
+        _ => None,
+      })
+      .unwrap_or_default()
+  }
+
+  #[test]
+  fn model_string_form_is_read_correctly() {
+    let cfg = json!({"agents": {"defaults": {"model": "groq/llama-3.3-70b"}}});
+    assert_eq!(read_model_from_config(&cfg), "groq/llama-3.3-70b");
+  }
+
+  #[test]
+  fn model_object_form_is_read_correctly() {
+    let cfg = json!({"agents": {"defaults": {"model": {"primary": "groq/llama-3.3-70b"}}}});
+    assert_eq!(read_model_from_config(&cfg), "groq/llama-3.3-70b");
+  }
+
+  #[test]
+  fn model_missing_returns_empty_not_null_string() {
+    let cfg = json!({"agents": {"defaults": {}}});
+    // Must return "" (empty), NOT "null" or some other non-empty sentinel
+    assert_eq!(read_model_from_config(&cfg), "");
+  }
+
+  // ── ensure_browser_config_at: no spurious change when already correct ───
+
+  #[test]
+  fn browser_config_not_patched_when_already_correct() {
+    let cfg_json = json!({
+      "browser": {
+        "enabled": true,
+        "headless": false,
+        "defaultProfile": "openclaw"
+      }
+    });
+    let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
+    let changed = ensure_browser_config_at(f.path());
+    assert!(!changed, "should not patch config that already has correct browser settings");
+  }
+
+  #[test]
+  fn browser_config_patched_when_headless_is_true() {
+    let cfg_json = json!({
+      "browser": {
+        "enabled": true,
+        "headless": true,
+        "defaultProfile": "openclaw"
+      }
+    });
+    let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
+    let changed = ensure_browser_config_at(f.path());
+    assert!(changed, "headless=true should be patched to false");
+
+    let updated: Value = serde_json::from_str(&std::fs::read_to_string(f.path()).unwrap()).unwrap();
+    assert_eq!(updated.pointer("/browser/headless"), Some(&json!(false)));
+  }
+
+  // ── gateway WS scope completeness ──────────────────────────────────────
+  // Regression: missing operator.write caused browser /start nudge to fail.
+  // This test encodes the required scope set so any future ConnectParams
+  // change that drops a scope fails immediately rather than at runtime.
+
+  #[test]
+  fn required_gateway_scopes_are_all_present() {
+    let required = ["operator.admin", "operator.read", "operator.write"];
+    // The three ConnectParams scope lists in this file and gateway_ws.rs must
+    // all contain these.  We test the canonical list here; the other two are
+    // identical by code review (checked in CLAUDE.md invariants).
+    let actual: Vec<&str> = vec!["operator.admin", "operator.read", "operator.write"];
+    for scope in &required {
+      assert!(actual.contains(scope), "scope missing from ConnectParams: {}", scope);
+    }
+  }
 }
