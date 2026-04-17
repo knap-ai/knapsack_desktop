@@ -404,6 +404,7 @@ type OnboardingTemplateProps = {
   onAgentPickerActivate: (selections: AgentSelection[]) => void
   onAgentPickerSkip: (index: number) => void
   activatedAgents: AgentTelegramEntry[]
+  userSlug: string
   onTelegramAccountsComplete: (index: number) => void
   onTelegramAccountsSkip: (index: number) => void
   // onAudioGrantClick: (index: number) => void
@@ -430,6 +431,7 @@ export const OnboardingTemplate = ({
   onAgentPickerActivate,
   onAgentPickerSkip,
   activatedAgents,
+  userSlug,
   onTelegramAccountsComplete,
   onTelegramAccountsSkip,
   // onAudioGrantClick,
@@ -490,6 +492,7 @@ export const OnboardingTemplate = ({
           currentSlideOutScreen={currentSlideOutScreen}
           index={5}
           agents={activatedAgents}
+          userSlug={userSlug}
           onComplete={onTelegramAccountsComplete}
           onSkip={onTelegramAccountsSkip}
         />

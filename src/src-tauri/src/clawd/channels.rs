@@ -3672,3 +3672,342 @@ pub async fn telegram_managed_bot_status(
         }),
     }
 }
+
+// ── Per-Agent Child Bot Provisioning (Bot API 9.6) ─────────────────────────
+
+/// Read the openclaw.json config path from the process environment.
+/// `OPENCLAW_STATE_DIR` is set by service.rs before the HTTP server starts.
+fn agent_bot_config_path() -> Option<std::path::PathBuf> {
+    std::env::var("OPENCLAW_STATE_DIR")
+        .ok()
+        .map(|s| std::path::PathBuf::from(s).join("openclaw.json"))
+}
+
+/// Upsert one telegram channel entry (keyed by agent_id) in openclaw.json.
+fn upsert_telegram_channel_entry(
+    config_path: &std::path::Path,
+    agent_id: &str,
+    agent_name: &str,
+    token: &str,
+    username: &str,
+) -> Result<(), String> {
+    let raw = std::fs::read_to_string(config_path)
+        .map_err(|e| format!("read openclaw.json: {e}"))?;
+    let mut cfg: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|e| format!("parse openclaw.json: {e}"))?;
+
+    let telegram = cfg
+        .as_object_mut()
+        .ok_or("config not an object")?
+        .entry("channels")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .ok_or("channels not an object")?
+        .entry("telegram")
+        .or_insert_with(|| serde_json::json!([]));
+
+    let arr = telegram.as_array_mut().ok_or("channels.telegram not an array")?;
+    // Remove any existing entry for this agent.
+    arr.retain(|e| e.get("agentId").and_then(|v| v.as_str()) != Some(agent_id));
+    arr.push(serde_json::json!({
+        "id": format!("{}-bot", agent_id),
+        "agentId": agent_id,
+        "token": token,
+        "username": username,
+        "description": format!("{} — Dedicated Telegram bot", agent_name),
+    }));
+
+    let json = serde_json::to_string_pretty(&cfg).map_err(|e| format!("serialize: {e}"))?;
+    std::fs::write(config_path, &json).map_err(|e| format!("write openclaw.json: {e}"))?;
+    Ok(())
+}
+
+/// Remove a telegram channel entry for an agent from openclaw.json.
+#[allow(dead_code)]
+fn remove_telegram_channel_entry(config_path: &std::path::Path, agent_id: &str) -> Result<(), String> {
+    let raw = std::fs::read_to_string(config_path)
+        .map_err(|e| format!("read openclaw.json: {e}"))?;
+    let mut cfg: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|e| format!("parse openclaw.json: {e}"))?;
+
+    if let Some(arr) = cfg.pointer_mut("/channels/telegram").and_then(|v| v.as_array_mut()) {
+        arr.retain(|e| e.get("agentId").and_then(|v| v.as_str()) != Some(agent_id));
+    }
+
+    let json = serde_json::to_string_pretty(&cfg).map_err(|e| format!("serialize: {e}"))?;
+    std::fs::write(config_path, &json).map_err(|e| format!("write openclaw.json: {e}"))?;
+    Ok(())
+}
+
+// ── Deep link ─────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct TelegramAgentBotDeepLinkRequest {
+    suggested_username: String,
+    agent_name: String,
+}
+
+#[derive(Serialize)]
+struct TelegramAgentBotDeepLinkResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    deeplink: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// Return a `https://t.me/newbot/{manager}/{suggested}` deep link for a child
+/// bot.  Reads `TELEGRAM_MANAGER_BOT_USERNAME` from the process environment.
+#[post("/api/clawd/telegram/agent-bot/deep-link")]
+pub async fn telegram_get_agent_bot_deep_link(
+    body: web::Json<TelegramAgentBotDeepLinkRequest>,
+) -> impl Responder {
+    let manager = std::env::var("TELEGRAM_MANAGER_BOT_USERNAME").unwrap_or_default();
+    if manager.trim().is_empty() {
+        return HttpResponse::Ok().json(TelegramAgentBotDeepLinkResponse {
+            success: false,
+            deeplink: None,
+            message: Some("TELEGRAM_MANAGER_BOT_USERNAME is not configured.".to_string()),
+        });
+    }
+    let suggested = body.suggested_username.trim().trim_start_matches('@').to_string();
+    let name_enc: String = body.agent_name.chars().map(|c| {
+        if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }
+    }).collect();
+    let deeplink = format!(
+        "https://t.me/newbot/{}/{}?name={}",
+        manager.trim(),
+        suggested,
+        name_enc,
+    );
+    HttpResponse::Ok().json(TelegramAgentBotDeepLinkResponse {
+        success: true,
+        deeplink: Some(deeplink),
+        message: None,
+    })
+}
+
+// ── Provision (single attempt — frontend polls every ~3 s) ────────────────
+
+#[derive(Deserialize)]
+struct TelegramProvisionAgentBotRequest {
+    agent_id: String,
+    agent_name: String,
+    suggested_username: String,
+}
+
+#[derive(Serialize)]
+struct TelegramAgentBotProvisionResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bot_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+/// Single-attempt provision: tries `getManagedBotToken` once.  Returns
+/// `success: false` immediately if the child bot hasn't been created yet
+/// (frontend polls every 3 s after opening the deep link).
+///
+/// On success, writes the token + channel entry to openclaw.json and pushes
+/// the change to the running gateway via `config.patch`.
+#[post("/api/clawd/telegram/agent-bot/provision")]
+pub async fn telegram_provision_agent_bot(
+    body: web::Json<TelegramProvisionAgentBotRequest>,
+) -> impl Responder {
+    let manager_token = std::env::var("TELEGRAM_MANAGER_TOKEN").unwrap_or_default();
+    if manager_token.trim().is_empty() {
+        return HttpResponse::Ok().json(TelegramAgentBotProvisionResponse {
+            success: false,
+            username: None,
+            bot_id: None,
+            message: Some("TELEGRAM_MANAGER_TOKEN is not configured.".to_string()),
+        });
+    }
+
+    let suggested = body.suggested_username.trim().trim_start_matches('@').to_string();
+    let params = serde_json::json!({
+        "managerToken": manager_token.trim(),
+        "botUsername": suggested,
+    });
+
+    let result = telegram_bot_call("telegram.managedbot.getToken", params).await;
+
+    match result {
+        Ok(v) => {
+            let token = v.get("token").and_then(|t| t.as_str()).map(|s| s.to_string());
+            let username = v.get("username").and_then(|u| u.as_str()).map(|s| s.to_string());
+            let bot_id = v.get("botId").and_then(|id| id.as_i64());
+
+            if let (Some(tok), Some(uname)) = (token.as_deref(), username.as_deref()) {
+                // Persist to openclaw.json on disk.
+                if let Some(config_path) = agent_bot_config_path() {
+                    if let Err(e) = upsert_telegram_channel_entry(
+                        &config_path,
+                        body.agent_id.trim(),
+                        body.agent_name.trim(),
+                        tok,
+                        uname,
+                    ) {
+                        eprintln!("[channels] telegram provision: failed to write openclaw.json: {e}");
+                    }
+                }
+
+                // Push the updated channels.telegram array to the running gateway.
+                if let Some(config_path) = agent_bot_config_path() {
+                    if let Ok(raw) = std::fs::read_to_string(&config_path) {
+                        if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&raw) {
+                            if let Some(tg) = cfg.pointer("/channels/telegram") {
+                                let patch = serde_json::json!({
+                                    "channels": { "telegram": tg.clone() }
+                                });
+                                tokio::spawn(async move {
+                                    if let Ok(cur) = crate::clawd::gateway_client::config_get(None).await {
+                                        if let Some(hash) = cur.get("hash").and_then(|h| h.as_str()) {
+                                            if !hash.is_empty() {
+                                                let _ = crate::clawd::gateway_client::config_patch(
+                                                    &patch.to_string(), hash, None,
+                                                ).await;
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+
+                HttpResponse::Ok().json(TelegramAgentBotProvisionResponse {
+                    success: true,
+                    username,
+                    bot_id,
+                    message: None,
+                })
+            } else {
+                HttpResponse::Ok().json(TelegramAgentBotProvisionResponse {
+                    success: false,
+                    username: None,
+                    bot_id: None,
+                    message: Some("Child bot not created yet — complete the deep link flow in Telegram.".to_string()),
+                })
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(TelegramAgentBotProvisionResponse {
+            success: false,
+            username: None,
+            bot_id: None,
+            message: Some(e),
+        }),
+    }
+}
+
+// ── Token rotation ────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct TelegramRotateAgentBotRequest {
+    agent_id: String,
+}
+
+/// Rotate a provisioned agent bot's token via `replaceManagedBotToken` and
+/// update openclaw.json + the running gateway config.
+#[post("/api/clawd/telegram/agent-bot/rotate")]
+pub async fn telegram_rotate_agent_bot_token(
+    body: web::Json<TelegramRotateAgentBotRequest>,
+) -> impl Responder {
+    let agent_id = body.agent_id.trim().to_string();
+
+    // Find the current token from openclaw.json.
+    let current_token: Option<String> = agent_bot_config_path().and_then(|p| {
+        let raw = std::fs::read_to_string(&p).ok()?;
+        let cfg: serde_json::Value = serde_json::from_str(&raw).ok()?;
+        cfg.pointer("/channels/telegram")?
+            .as_array()?
+            .iter()
+            .find(|e| e.get("agentId").and_then(|v| v.as_str()) == Some(agent_id.as_str()))
+            .and_then(|e| e.get("token"))
+            .and_then(|t| t.as_str())
+            .map(|s| s.to_string())
+    });
+
+    let Some(current_tok) = current_token else {
+        return HttpResponse::Ok().json(serde_json::json!({
+            "success": false,
+            "message": format!("No token found for agent '{}'", agent_id)
+        }));
+    };
+
+    let params = serde_json::json!({ "botToken": current_tok });
+    match telegram_bot_call("telegram.managedbot.replaceToken", params).await {
+        Ok(v) => {
+            let new_token = v.get("token").and_then(|t| t.as_str()).map(|s| s.to_string());
+            let username = v.get("username").and_then(|u| u.as_str())
+                .or_else(|| v.get("botUsername").and_then(|u| u.as_str()))
+                .map(|s| s.to_string());
+
+            if let (Some(tok), Some(uname)) = (new_token.as_deref(), username.as_deref()) {
+                if let Some(config_path) = agent_bot_config_path() {
+                    if let Ok(raw) = std::fs::read_to_string(&config_path) {
+                        if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&raw) {
+                            let agent_name = cfg.pointer("/channels/telegram")
+                                .and_then(|a| a.as_array())
+                                .and_then(|arr| arr.iter().find(|e| {
+                                    e.get("agentId").and_then(|v| v.as_str()) == Some(agent_id.as_str())
+                                }))
+                                .and_then(|e| e.get("description"))
+                                .and_then(|d| d.as_str())
+                                .unwrap_or(&agent_id)
+                                .to_string();
+                            let _ = upsert_telegram_channel_entry(
+                                &config_path, &agent_id, &agent_name, tok, uname,
+                            );
+                        }
+                    }
+                }
+                HttpResponse::Ok().json(serde_json::json!({ "success": true }))
+            } else {
+                HttpResponse::Ok().json(serde_json::json!({
+                    "success": false,
+                    "message": "replaceManagedBotToken succeeded but returned no token"
+                }))
+            }
+        }
+        Err(e) => HttpResponse::Ok().json(serde_json::json!({ "success": false, "message": e })),
+    }
+}
+
+// ── Statuses ──────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct TelegramAgentBotStatusEntry {
+    agent_id: String,
+    username: String,
+    configured: bool,
+}
+
+/// Return provisioning status for all agent bots by reading openclaw.json.
+#[get("/api/clawd/telegram/agent-bot/statuses")]
+pub async fn telegram_get_agent_bot_statuses() -> impl Responder {
+    let entries: Vec<TelegramAgentBotStatusEntry> = agent_bot_config_path()
+        .and_then(|p| {
+            let raw = std::fs::read_to_string(&p).ok()?;
+            let cfg: serde_json::Value = serde_json::from_str(&raw).ok()?;
+            let arr = cfg.pointer("/channels/telegram")?.as_array()?;
+            Some(arr.iter().filter_map(|e| {
+                let agent_id = e.get("agentId")?.as_str()?.to_string();
+                let username = e.get("username")
+                    .and_then(|u| u.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let configured = e.get("token")
+                    .and_then(|t| t.as_str())
+                    .map(|t| !t.is_empty())
+                    .unwrap_or(false);
+                Some(TelegramAgentBotStatusEntry { agent_id, username, configured })
+            }).collect())
+        })
+        .unwrap_or_default();
+
+    HttpResponse::Ok().json(entries)
+}
