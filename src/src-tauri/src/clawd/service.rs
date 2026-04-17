@@ -5606,6 +5606,14 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
     }
   }
 
+  // If the user previously installed standalone OpenClaw, its
+  // `ai.openclaw.gateway` LaunchAgent holds port 18789 and causes every
+  // start attempt of our `ai.knap.knapsack.clawdbot` to fail with
+  // "Port 18789 is already in use.  Gateway service appears loaded."
+  // Remove it before we write our own plist.  (enable_service already
+  // does this when the user toggles Enable manually.)
+  remove_stale_standalone_gateway();
+
   let plist_content = generate_plist(&setup.program_args, &setup.env);
   if let Err(e) = fs::write(&plist_path, &plist_content) {
     eprintln!("[clawd/service] auto_enable: failed to write plist: {}", e);
@@ -5620,6 +5628,24 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   let _ = std::process::Command::new("launchctl")
     .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
     .status();
+
+  // Clean up stale gateway lock files left by a previous standalone gateway
+  // or a crashed instance.  Without this, the new gateway may wait up to 30s
+  // for the lock to go stale and then fail with GatewayLockError.
+  {
+    let lock_dir = std::path::PathBuf::from(format!("/tmp/openclaw-{}", uid));
+    if lock_dir.is_dir() {
+      if let Ok(entries) = fs::read_dir(&lock_dir) {
+        for entry in entries.flatten() {
+          let name = entry.file_name();
+          let name_str = name.to_string_lossy();
+          if name_str.starts_with("gateway.") && name_str.ends_with(".lock") {
+            let _ = fs::remove_file(entry.path());
+          }
+        }
+      }
+    }
+  }
 
   let boot = std::process::Command::new("launchctl")
     .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
