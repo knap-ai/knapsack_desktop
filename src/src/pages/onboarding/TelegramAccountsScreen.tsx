@@ -122,10 +122,11 @@ function AgentBotCard({
     onChange({ phase: 'awaiting_telegram', errorMessage: '' })
     try {
       const resp = await getAgentBotDeepLink(suggestedUsername, `${name} (Knapsack)`)
+      // tg:// opens Telegram app; https://t.me/ opens the browser on desktop
       const url =
         resp.success && resp.deeplink
           ? resp.deeplink
-          : `https://t.me/newbot/${suggestedUsername}`
+          : `tg://resolve?domain=BotFather`
       await openUrl(url)
     } catch {
       // If deep-link call fails, still start polling — user may have opened Telegram manually

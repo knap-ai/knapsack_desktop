@@ -3774,11 +3774,13 @@ pub async fn telegram_get_agent_bot_deep_link(
     let name_enc: String = body.agent_name.chars().map(|c| {
         if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' }
     }).collect();
+    // tg:// scheme opens the Telegram app directly on macOS/Windows/Linux.
+    // https://t.me/ always opens in the browser because Telegram doesn't register
+    // as a universal-link handler on desktop OS — only tg:// is intercepted.
     let deeplink = format!(
-        "https://t.me/newbot/{}/{}?name={}",
+        "tg://resolve?domain={}&start=newbot_{}",
         manager.trim(),
         suggested,
-        name_enc,
     );
     HttpResponse::Ok().json(TelegramAgentBotDeepLinkResponse {
         success: true,
