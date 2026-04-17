@@ -413,6 +413,89 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
       ),
     }
   }
+
+  // Pass 2: Shared bundler chunks (e.g. sticker-cache.js) sit in the root dist/ and
+  // resolve require() from the ROOT clawdbot node_modules — not from the per-plugin
+  // node_modules installed above.  Collect all plugin runtime deps that are missing
+  // from root node_modules and install them there with a targeted npm install.
+  let clawdbot_root = match extensions_dir.parent().and_then(|p| p.parent()) {
+    Some(r) => r.to_path_buf(),
+    None => return,
+  };
+  let root_nm = clawdbot_root.join("node_modules");
+
+  let mut missing_root: Vec<String> = Vec::new();
+  if let Ok(root_entries) = fs::read_dir(extensions_dir) {
+    for entry in root_entries.flatten() {
+      if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+        continue;
+      }
+      let pkg: serde_json::Value = match fs::read_to_string(entry.path().join("package.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+      {
+        Some(v) => v,
+        None => continue,
+      };
+      if !pkg
+        .pointer("/openclaw/bundle/stageRuntimeDependencies")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+      {
+        continue;
+      }
+      if let Some(deps) = pkg.get("dependencies").and_then(|v| v.as_object()) {
+        for dep in deps.keys() {
+          if !root_nm.join(dep).exists() && !missing_root.contains(dep) {
+            missing_root.push(dep.clone());
+          }
+        }
+      }
+    }
+  }
+
+  if missing_root.is_empty() {
+    return;
+  }
+
+  eprintln!(
+    "[clawd/service] Installing {} plugin runtime dep(s) into root node_modules: {}",
+    missing_root.len(),
+    missing_root.join(", ")
+  );
+
+  let mut root_args: Vec<&str> = vec!["install"];
+  let missing_refs: Vec<&str> = missing_root.iter().map(|s| s.as_str()).collect();
+  root_args.extend(missing_refs.iter().copied());
+  root_args.extend(["--no-save", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"]);
+
+  #[cfg(target_os = "windows")]
+  let root_result = {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    std::process::Command::new(&npm)
+      .args(&root_args)
+      .current_dir(&clawdbot_root)
+      .creation_flags(CREATE_NO_WINDOW)
+      .status()
+  };
+  #[cfg(not(target_os = "windows"))]
+  let root_result = std::process::Command::new(&npm)
+    .args(&root_args)
+    .current_dir(&clawdbot_root)
+    .status();
+
+  match root_result {
+    Ok(s) if s.success() => eprintln!("[clawd/service] Root plugin runtime deps installed"),
+    Ok(s) => eprintln!(
+      "[clawd/service] WARNING: root npm install for plugin runtime deps exited {}",
+      s
+    ),
+    Err(e) => eprintln!(
+      "[clawd/service] WARNING: root npm install for plugin runtime deps failed: {}",
+      e
+    ),
+  }
 }
 
 /// Check if the gateway Node.js binary or the bundled clawdbot directory is
