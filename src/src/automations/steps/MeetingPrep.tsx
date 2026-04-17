@@ -91,39 +91,37 @@ Using any of the above information, help me prepare for this meeting:
     ${meeting.description}
     the meeting is ${isRecurrent ? 'recurring' : 'not recurring'}
 
-Speak to me in the second person (e.g., Your last interaction with this person was…”).  Do not use any information about people who are not participants in this meeting unless they work at the same company as people in this meeting.
+You are my chief of staff. Speak to me in the second person and write a thorough briefing that ensures I walk into this meeting completely prepared. Do not use any information about people who are not participants in this meeting unless they work at the same company as people in this meeting. My email is ${userEmail}.
 
-Output the meeting preparation in this format (without printing the <format> and </format> tags:
+Output the meeting preparation in this format (without printing the <format> and </format> tags):
 
 <format>
 
 ## Location/Video Call link
 ${meeting.location === undefined ? meeting.google_meet_url : ''}
+<If the meeting has additional location, arrival, or call info beyond the above, include it here. Never list more than two phone numbers.>
 
-<If the meeting has additional data about location, arrival, or video / audio call information beyond anything listed above, you can tell me more here. Never list more than two phone numbers.>
+## Briefing
 
-## Background
-<Use bullets separated by line breaks and be concise.>
-<In this section, comment on my relationship and previous interactions with each of the participants, and any recent previous meetings. Do not include information on colleagues who share my email domain.  If it is a recurring meeting, mention that, and look for details on what was discussed in previous instances of the meeting.  If the context includes any insight on the purpose of the meeting, include it here. If not, make your best guess on what may be discussed in the meeting based on any information provided about the companies involved. Include in markdown link format any relevant links to documents or web pages - i.e. [Product Spreadsheet](https://sheets.google.com/id/sheet) or [Presentation video](https://youtube.com/our_video) - that were shared in the context that may be relevant to the meeting.  The max length of this should be 100 words, with a few punchy bullets.>
+Write two full paragraphs as a seasoned chief of staff briefing an executive:
 
-## Summary
-<Use bullets and be concise.>
-<If there are people with emails domains different than mine (${userEmail}), include relevant insights about them from the web pages above, including recent news or social media posts.>
-<In this section, write out important details or context for how each of the participants is coming into the meeting and what they are likely to want to discuss, including any ongoing issues or challenges that have been discussed previously.>
-<Include information from the web pages, if it's relevant to where the invitees work, their roles, or our agenda.  The max length of this should be 100 words, with a few punchy bullets.>
+**Paragraph 1 — Context & Relationships:** Who are these people and what is your history with them? Cover your relationship with each external participant, any recent interactions or meetings, what they care about, and what has been discussed or agreed previously. If it is a recurring meeting, surface what was covered last time. Include any relevant links in markdown format — e.g. [Deck](https://drive.google.com/...) — for documents shared in context. Do not include internal colleagues who share your email domain unless relevant.
 
-## Action items & proposed questions
-<Use bullets and be concise.>
-<If any action items or next steps were discussed in the context, please list them out here, including the current status.  Include proposed questions that you recommend I should ask of the participants based on the context provided. The max length of this should be 100 words, with a few punchy bullets.>
+**Paragraph 2 — Situation & Stakes:** What is each participant likely to want from this meeting and why does it matter? Draw on web research, recent news, or social media about their company or role if available. Describe the dynamics walking in — any tensions, open items, or opportunities — and your recommended approach or posture for the conversation.
+
+## Your game plan
+
+Provide a short bulleted list (4–6 bullets) of:
+- Any open action items or outstanding commitments from previous interactions, with status
+- The 2–3 most important things you want to accomplish or get agreement on in this meeting
+- Sharp, specific questions you should ask — tailored to what you know about each participant
 
 ## Icebreaker
-<Include one interesting fact, insight, or joke that you think the participants in the meeting who are not on your domain would not already know and find funny or interesting.>
+One genuinely interesting or funny observation about one of the external participants or their company that would make for a natural opener.
 
 </format>
 
-For all of the above meeting preparation, keep in mind that my email is ${userEmail}. Pay particular attention to emails from people who have a different domain than me. Try not to include names if they're not in the meeting invite, but you can mention other names if the information is relevant to our agenda for the upcoming meeting.
-
-Be informative, and keep responses for each section short. Provide as much info as the user needs. Give your response in Markdown, so that it can be rendered nicely. Talk to me warmly and encouragingly as if you're my assistant.`
+Give your response in Markdown so it renders well. Be thorough — this is a full chief-of-staff briefing, not a summary.`
 
     const identifiers = [...emails.map(email => email.emailUid), ...driveDocumentIds.map(id => id)]
     const types = [

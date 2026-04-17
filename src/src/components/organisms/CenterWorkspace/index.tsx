@@ -1,5 +1,6 @@
 import React, { Fragment, useState, useEffect, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
+import { Workspace } from 'src/api/workspaces'
 
 import './style.scss'
 
@@ -57,6 +58,7 @@ interface CenterWorkspaceProps {
   profileProvider?: string
   handleErrorContact: (message: string) => void
   recordingHandlers: RecordingContextProps
+  onLibraryWorkspaceOpen?: (ws: Workspace) => void
 }
 
 export enum SubTabChoices {
@@ -103,6 +105,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
   profileProvider,
   handleErrorContact,
   recordingHandlers,
+  onLibraryWorkspaceOpen,
 }) => {
   const [synthesisState, setSynthesisState] = useState(false)
   const [transcriptState, setTranscriptState] = useState<TranscriptState>({ isOpen: false })
@@ -351,6 +354,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                       handleErrorContact={handleErrorContact}
                       recordingHandlers={recordingHandlers}
                       handleOpenTasks={handleOpenTasks}
+                      onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
                     />
                   </div>
                   )

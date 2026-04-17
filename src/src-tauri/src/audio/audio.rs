@@ -573,8 +573,10 @@ pub async fn stop_recording(
 
   if let Some(handle) = output_handle {
     if let Err(e) = handle.await {
-      let err_msg = format!("Audio output recording task failed to complete: {:?}", e);
-      return HttpResponse::InternalServerError().body(err_msg);
+      // System audio recording is optional (started only when permission is
+      // granted). A panic here must not abort stop_recording — the mic track
+      // and transcript are still valid and must be processed.
+      log::error!("Audio output recording task failed (non-fatal): {:?}", e);
     }
   }
 

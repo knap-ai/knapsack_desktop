@@ -515,6 +515,10 @@ function Home({
                     feed={feed}
                     llmBar={llmBar}
                     userImg={userImage}
+                    onLibraryWorkspaceOpen={(ws) => {
+                      setCurrentTab(TabChoices.Library)
+                      setSelectedWorkspace(ws)
+                    }}
                     updateAutomation={updateAutomation}
                     handleVote={handleVote}
                     votes={votes}
@@ -646,8 +650,12 @@ function Home({
                   }}
                   onChatClick={() => setMeetingSubView('chat')}
                   onEmailClick={(notesMarkdown) => {
-                    if (copyToClipboard) copyToClipboard(notesMarkdown)
-                    setCurrentTab(TabChoices.Email)
+                    setMeetingSubView('chat')
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('clawd-send-user', {
+                        detail: `Write a professional follow-up email based on these meeting notes:\n\n${notesMarkdown}`,
+                      }))
+                    }, 300)
                   }}
                 />
               )}

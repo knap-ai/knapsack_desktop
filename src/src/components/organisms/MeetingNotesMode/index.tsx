@@ -40,6 +40,7 @@ import { invoke } from '@tauri-apps/api/tauri'
 import MeetingChatNotice from 'src/components/molecules/MeetingChatNotice'
 import { TaskItem } from '../CenterWorkspace'
 import { RecordingContextProps } from './RecordingContext'
+import { listWorkspaces, Workspace } from 'src/api/workspaces'
 
 interface MenuButtonProps<T = any> {
   isActive: boolean
@@ -98,6 +99,7 @@ interface MeetingNotesModeProps {
   handleOpenInsights?: (threadId: number | undefined) => void
   onChatClick?: () => void
   onEmailClick?: (notesMarkdown: string) => void
+  onLibraryWorkspaceOpen?: (ws: Workspace) => void
 }
 
 const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
@@ -123,11 +125,26 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   handleOpenInsights,
   onChatClick,
   onEmailClick,
+  onLibraryWorkspaceOpen,
 }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
+  const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
+
+  useEffect(() => {
+    listWorkspaces().then(res => {
+      if (!res.success) return
+      const map: Record<string, Workspace> = {}
+      res.data.forEach(ws => {
+        if (ws.entityType === 'person' && ws.entityKey) {
+          map[ws.entityKey.toLowerCase()] = ws
+        }
+      })
+      setPersonWorkspaces(map)
+    }).catch(() => {})
+  }, [])
   const [isTitleSet, setIsTitleSet] = useState(thread.subtitle !== 'Untitled Meeting')
   const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
   const transcribingTexts = [
@@ -985,11 +1002,27 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
                 <div className="notetaker-note__prep-row">
                   <span className="notetaker-note__prep-label">Attendees</span>
                   <div className="notetaker-note__prep-chips">
-                    {meeting.participants.map((p, i) => (
-                      <span key={i} className="notetaker-note__prep-chip">
-                        {p.name || p.email.split('@')[0]}
-                      </span>
-                    ))}
+                    {meeting.participants.map((p, i) => {
+                      const ws = personWorkspaces[p.email?.toLowerCase()]
+                      const label = p.name || p.email.split('@')[0]
+                      if (ws && onLibraryWorkspaceOpen) {
+                        return (
+                          <button
+                            key={i}
+                            className="notetaker-note__prep-chip notetaker-note__prep-chip--linked"
+                            onClick={() => onLibraryWorkspaceOpen(ws)}
+                            title={`Open ${label}'s library record`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      }
+                      return (
+                        <span key={i} className="notetaker-note__prep-chip">
+                          {label}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
               )}

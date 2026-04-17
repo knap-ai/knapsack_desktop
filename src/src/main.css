@@ -591,4 +591,16 @@ html, body {
   background: #EBEBEB;
   padding: 3px 8px;
   border-radius: 12px;
+  border: none;
+  cursor: default;
+}
+
+.notetaker-note__prep-chip--linked {
+  color: #4A6FA5;
+  background: #EAF0FB;
+  cursor: pointer;
+}
+
+.notetaker-note__prep-chip--linked:hover {
+  background: #D5E3F7;
 }
