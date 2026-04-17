@@ -1447,8 +1447,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [editingQueuedIndex, setEditingQueuedIndex] = useState<number | null>(null)
   const [editingQueuedText, setEditingQueuedText] = useState('')
 
-  // Abort controller for stopping generation
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
+  // Abort controller for stopping generation — stored in a ref for synchronous access.
+  // Using state here would cause stopGeneration to see a stale null value during the
+  // brief window between setAbortController(controller) being called and React committing
+  // the state update, leaving busy=true stuck forever if the user clicks Stop too fast.
+  const abortControllerRef = useRef<AbortController | null>(null)
   const [status, setStatus] = useState<ServiceStatus | null>(null)
   const [health, setHealth] = useState<ServiceHealth | null>(null)
   const [currentTargetId, setCurrentTargetId] = useState<string | null>(null)
@@ -3221,18 +3224,22 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Stop current generation
   const stopGeneration = useCallback(() => {
-    if (abortController) {
-      abortController.abort()
-      setAbortController(null)
-      if (thinkingIntervalRef.current) {
-        clearInterval(thinkingIntervalRef.current)
-        thinkingIntervalRef.current = null
-      }
+    const hadController = !!abortControllerRef.current
+    const hadInterval = !!thinkingIntervalRef.current
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    if (thinkingIntervalRef.current) {
+      clearInterval(thinkingIntervalRef.current)
+      thinkingIntervalRef.current = null
+    }
+    if (hadController || hadInterval) {
       setBusy(false)
       setThinkingMessage(null)
       pushAssistant('⏹️ Generation stopped.')
     }
-  }, [abortController, pushAssistant])
+  }, [pushAssistant])
 
   // Clear chat history and start fresh
   const clearHistory = useCallback(() => {
@@ -3823,7 +3830,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       // Create abort controller for this request
       const controller = new AbortController()
-      setAbortController(controller)
+      abortControllerRef.current = controller
 
       try {
         // Get the current tone's system prompt addition
@@ -4071,7 +4078,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           thinkingIntervalRef.current = null
         }
         setThinkingMessage(null)
-        setAbortController(null)
+        abortControllerRef.current = null
       }
     } catch (e: any) {
       pushAssistant(friendlyError(e?.message || String(e), activeModelAtSend))
