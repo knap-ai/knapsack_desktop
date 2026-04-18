@@ -98,8 +98,23 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     KNAnalytics.trackEvent('Onboarding Screen - Loaded', {})
   }, [])
 
+  const ONBOARDING_SCREEN_NAMES: Record<number, string> = {
+    0: 'welcome',
+    1: 'sign_in',
+    2: 'chrome_extension',
+    3: 'agent_picker',
+    4: 'telegram_accounts',
+  }
+
   const transitionToNextScreen = useCallback(
     (index: number) => {
+      KNAnalytics.trackEvent('onboarding_step_completed', {
+        from_step: index,
+        from_screen: ONBOARDING_SCREEN_NAMES[index] ?? `screen_${index}`,
+        to_step: index + 1,
+        to_screen: ONBOARDING_SCREEN_NAMES[index + 1] ?? `screen_${index + 1}`,
+        app_version: KNAnalytics.APP_VERSION,
+      })
       setCurrentSlideOutScreen(index)
 
       setTimeout(() => {

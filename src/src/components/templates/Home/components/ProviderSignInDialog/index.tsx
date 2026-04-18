@@ -5,6 +5,7 @@ import {
   TypographyWeight,
 } from 'src/components/atoms/typography'
 import { Dialog } from 'src/components/molecules/Dialog'
+import KNAnalytics from 'src/utils/KNAnalytics'
 
 import styles from './styles.module.scss'
 
@@ -341,15 +342,18 @@ export const ProviderSignInDialog = ({
       const data = await res.json()
 
       if (data.success) {
+        KNAnalytics.trackEvent('api_key_saved', { provider: selectedProvider, model: selectedModel, app_version: KNAnalytics.APP_VERSION })
         setSuccess(`${providerConfig.name} connected successfully!`)
         setApiKey('')
         await fetchKeyStatus()
         // Auto-close after short delay
         setTimeout(() => handleClose(), 1200)
       } else {
+        KNAnalytics.trackEvent('api_key_save_failed', { provider: selectedProvider, error: data.message, app_version: KNAnalytics.APP_VERSION })
         setError(data.message || 'Failed to save API key.')
       }
     } catch (e: any) {
+      KNAnalytics.trackEvent('api_key_save_failed', { provider: selectedProvider, error: e?.message, app_version: KNAnalytics.APP_VERSION })
       setError(e?.message || 'Failed to connect. Please try again.')
     } finally {
       setSaving(false)
@@ -427,15 +431,18 @@ export const ProviderSignInDialog = ({
       const data = await res.json()
 
       if (data.success) {
+        KNAnalytics.trackEvent('api_key_saved', { provider: config.id, extra: true, app_version: KNAnalytics.APP_VERSION })
         setExtraSuccess(`${config.name} connected!`)
         setExtraKey('')
         setEditingExtraId(null)
         await fetchKeyStatus()
         setTimeout(() => setExtraSuccess(''), 3000)
       } else {
+        KNAnalytics.trackEvent('api_key_save_failed', { provider: config.id, extra: true, error: data.message, app_version: KNAnalytics.APP_VERSION })
         setExtraError(data.message || 'Failed to save.')
       }
     } catch (e: any) {
+      KNAnalytics.trackEvent('api_key_save_failed', { provider: config.id, extra: true, error: e?.message, app_version: KNAnalytics.APP_VERSION })
       setExtraError(e?.message || 'Failed to connect.')
     } finally {
       setExtraSaving(false)

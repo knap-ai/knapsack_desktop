@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Workspace, listWorkspaces, saveChatToWorkspace } from '../../../api/workspaces'
+import KNAnalytics from 'src/utils/KNAnalytics'
 
 interface WorkspacePickerProps {
   /** The chat message text to save. */
@@ -47,6 +48,7 @@ function WorkspacePicker({ text, onClose, onSaved }: WorkspacePickerProps) {
     try {
       const res = await saveChatToWorkspace(workspace.uuid, text, title.trim() || 'Saved answer')
       if (res.success) {
+        KNAnalytics.trackEvent('chat_saved_to_library', { workspace_name: workspace.name, content_length: text.length, app_version: KNAnalytics.APP_VERSION })
         onSaved?.(workspace.name)
         onClose()
       }
