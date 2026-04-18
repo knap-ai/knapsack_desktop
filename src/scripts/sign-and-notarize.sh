@@ -180,15 +180,29 @@ done < <(find "$APP_PATH" \( -name "*.dylib" -o -name "*.so" \) -print0 2>/dev/n
 echo "[sign]   Signed $DYLIB_COUNT .dylib/.so file(s)"
 
 # ---------------------------------------------------------------------------
-# 5. Sign standalone executables in node_modules
+# 5. Sign all Mach-O executables (replaces the brittle filename whitelist).
+#
+# Strategy: find every regular file in Resources, check if it is a Mach-O
+# binary via `file`, skip already-handled .node/.dylib/.so files, and sign
+# with NODE_ENTITLEMENTS so spawned child processes (exec tool, cron, etc.)
+# inherit the JIT + network entitlements rather than running under the most
+# restrictive hardened-runtime defaults.  Without this, macOS SIGKILLs any
+# child process spawned by the gateway that tries to execute dynamic code.
 # ---------------------------------------------------------------------------
-echo "[sign] Signing standalone executables..."
+echo "[sign] Signing Mach-O executables (all, with JIT entitlements)..."
 EXEC_COUNT=0
 while IFS= read -r -d '' f; do
-  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$f"
-  EXEC_COUNT=$((EXEC_COUNT + 1))
-done < <(find "$APP_PATH" -type f \( -name "esbuild" -o -name "spawn-helper" -o -name "tsgolint" -o -name "ggml-metal" -o -name "llama-*" \) -print0 2>/dev/null || true)
-echo "[sign]   Signed $EXEC_COUNT executable(s)"
+  # Skip files already handled in steps 3 and 4
+  case "$f" in *.node|*.dylib|*.so) continue ;; esac
+  # Only sign actual Mach-O binaries (skip scripts, JSON, etc.)
+  if file "$f" 2>/dev/null | grep -qE "Mach-O|executable|binary"; then
+    codesign --force --options runtime --timestamp \
+      --entitlements "$NODE_ENTITLEMENTS" \
+      --sign "$SIGN_IDENTITY" "$f" 2>/dev/null || true
+    EXEC_COUNT=$((EXEC_COUNT + 1))
+  fi
+done < <(find "$APP_PATH/Contents/Resources" -type f -print0 2>/dev/null || true)
+echo "[sign]   Signed $EXEC_COUNT Mach-O executable(s)"
 
 # ---------------------------------------------------------------------------
 # 6. Sign the bundled Node.js binary WITH JIT entitlements

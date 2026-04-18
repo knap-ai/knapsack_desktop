@@ -110,6 +110,8 @@ jobs:
           MICROSOFT_CLIENT_ID: unused
           VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
           VITE_GOOGLE_DEVELOPER_KEY: ""
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Import signing certificate
         env:
@@ -294,6 +296,8 @@ jobs:
           MICROSOFT_CLIENT_ID: unused
           VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
           VITE_GOOGLE_DEVELOPER_KEY: ""
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Build web installer stub
         shell: pwsh
