@@ -1214,6 +1214,12 @@ async fn main() {
     None => None,
   };
 
+  // Tag every Rust Sentry event as coming from the desktop app.
+  sentry::configure_scope(|scope| {
+    scope.set_tag("platform", "desktop");
+    scope.set_tag("app", "knapsack_desktop");
+  });
+
   // log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
   // setup_tracing();
 
