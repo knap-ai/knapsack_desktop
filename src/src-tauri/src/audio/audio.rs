@@ -567,6 +567,7 @@ pub async fn stop_recording(
   if let Some(handle) = mic_handle {
     if let Err(e) = handle.await {
       let err_msg = format!("Mic recording task failed to complete: {:?}", e);
+      knap_log_error(format!("[recording_stop_mic_thread_failed] {}", err_msg), None, Some(true));
       return HttpResponse::InternalServerError().body(err_msg);
     }
   }
@@ -612,6 +613,7 @@ pub async fn stop_recording(
     Ok(Ok(permit)) => Some(permit),
     _ => {
       log::warn!("[recording] Timed out waiting for input semaphore — proceeding anyway");
+      knap_log_error("[recording_stop_semaphore_timeout] Timed out waiting for input semaphore in stop_recording".to_string(), None, Some(false));
       None
     }
   };
@@ -619,6 +621,7 @@ pub async fn stop_recording(
     Ok(Ok(permit)) => Some(permit),
     _ => {
       log::warn!("[recording] Timed out waiting for output semaphore — proceeding anyway");
+      knap_log_error("[recording_stop_semaphore_timeout] Timed out waiting for output semaphore in stop_recording".to_string(), None, Some(false));
       None
     }
   };
@@ -641,9 +644,11 @@ pub async fn stop_recording(
       }
     }
     Err(e) => {
+      let err_msg = format!("Failed to combine input/output txt file and generate transcript: {:?}", e);
       log::error!("Application error: {:?}", e);
+      knap_log_error(format!("[recording_stop_unify_transcript_failed] {}", err_msg), None, Some(true));
       return HttpResponse::InternalServerError().json(json!({
-        "error": format!("Failed to combine input/output txt file and generate transcript: {:?}", e),
+        "error": err_msg,
         "status": "error"
       }));
     }

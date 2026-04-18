@@ -3426,8 +3426,14 @@ async fn prepare_gateway_config(
           "allowedOrigins": ["tauri://localhost", "http://localhost:1420"]
         }
       },
+      // Include all browser + tools fields that gateway_client::ensure_browser_config_at()
+      // would otherwise add AFTER the gateway starts.  A complete initial config means
+      // the post-start file write is a no-op (patched=false) → no "missing-meta-before-write"
+      // anomaly and no cascading SIGUSR1 restart on first launch.
       "browser": {
-        "enabled": true
+        "enabled": true,
+        "headless": false,           // user needs visible Chrome for logins
+        "defaultProfile": "openclaw" // managed, isolated profile
       },
       "plugins": {
         "slots": {
@@ -3435,14 +3441,15 @@ async fn prepare_gateway_config(
         }
       },
       "tools": {
-        "allow": ["browser", "group:web", "exec", "process", "read", "write", "edit", "apply_patch"],
+        "allow": ["browser", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
+        "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}},
         "sandbox": {
           "tools": {
             "deny": ["canvas", "nodes", "cron", "gateway"],
             "allow": [
-              "exec", "process", "read", "write", "edit", "apply_patch",
+              "exec", "process", "group:fs",
               "image", "sessions_list", "sessions_history",
               "sessions_send", "sessions_spawn", "session_status",
               "browser", "group:web"
@@ -4502,6 +4509,9 @@ pub async fn set_service_enabled(
       if !config_path.exists() {
         let _ = ensure_dir(&clawdbot_home);
         harden_dir_permissions(&clawdbot_home);
+        // Include all browser + tools fields that ensure_browser_config_at() would
+        // add post-start.  Complete initial config → no post-start file write → no
+        // "missing-meta-before-write" anomaly and no cascade restart on first launch.
         let default_config = serde_json::json!({
           "gateway": {
             "mode": "local",
@@ -4514,7 +4524,9 @@ pub async fn set_service_enabled(
             }
           },
           "browser": {
-            "enabled": true
+            "enabled": true,
+            "headless": false,
+            "defaultProfile": "openclaw"
           },
           "plugins": {
             "slots": {
