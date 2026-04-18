@@ -159,6 +159,11 @@ static BROWSER_WAS_HEALTHY: AtomicBool = AtomicBool::new(false);
 /// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
 static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
+/// One-shot guard: fire a Sentry alert only on the first health check that
+/// finds the gateway down.  Reset when the gateway comes back up so the next
+/// outage can trigger a new alert.
+static GATEWAY_DOWN_SENTRY_ALERTED: AtomicBool = AtomicBool::new(false);
+
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
 /// Resolve the directory for gateway service logs.
@@ -1402,6 +1407,35 @@ pub struct ServiceHealthResponse {
   pub gateway_ok: bool,
   pub browser_ok: bool,
   pub message: String,
+  /// Structured crash classification for Amplitude/Sentry.
+  /// Values: "mdns_crash", "port_conflict", "crash_loop", "gatekeeper_blocked",
+  ///         "first_install", "service_not_loaded", "unknown"
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub diagnostic_type: Option<String>,
+}
+
+/// Tracks whether auto_enable_if_needed has started, so the health endpoint
+/// can show a friendlier "first-time setup in progress" message instead of
+/// "plist not found — service is registering" while auto-enable is running.
+static AUTO_ENABLE_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// Parse the last N lines of the gateway stderr log and return a structured
+/// crash classification for Sentry/Amplitude tagging.
+fn classify_gateway_crash(log_tail: &str) -> &'static str {
+  let lower = log_tail.to_lowercase();
+  if lower.contains("assertionerror") && (lower.contains("ipv4") || lower.contains("mdns") || lower.contains("address changed")) {
+    "mdns_crash"
+  } else if lower.contains("eaddrinuse") || lower.contains("address already in use") {
+    "port_conflict"
+  } else if lower.contains("assertionerror") || lower.contains("[err_assertion]") {
+    "crash_loop"
+  } else if lower.contains("gatekeeper") || lower.contains("sigkill") || lower.contains("exit code = 9") {
+    "gatekeeper_blocked"
+  } else if lower.contains("missing-meta-before-write") || lower.contains("config write anomaly") {
+    "config_anomaly"
+  } else {
+    "unknown"
+  }
 }
 
 #[get("/api/clawd/service/health")]
@@ -1428,6 +1462,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       gateway_ok,
       browser_ok: false,
       message,
+      diagnostic_type: None,
     });
   }
 
@@ -1441,6 +1476,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           gateway_ok: false,
           browser_ok: false,
           message: e,
+          diagnostic_type: None,
         })
       }
     };
@@ -1476,6 +1512,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       if !was_healthy {
         eprintln!("[clawd/service] gateway recovered — resetting browser nudge flag");
         BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+        // Allow a fresh Sentry alert if the gateway goes down again.
+        GATEWAY_DOWN_SENTRY_ALERTED.store(false, Ordering::Relaxed);
         // Kill stale managed Chrome processes from the previous gateway
         // session.  They may still hold the CDP port (18800), preventing
         // the new gateway from launching its own browser.
@@ -1697,6 +1735,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       "Clawdbot not reachable — the background service may not be running".to_string()
     };
 
+    let mut diagnostic_type: Option<String> = None;
+
     if !gateway_ok {
       // macOS-specific diagnostics: check LaunchAgent plist and launchctl status
       #[cfg(target_os = "macos")]
@@ -1704,7 +1744,15 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         match launch_agent_plist_path() {
           Ok(plist) => {
             if !plist.exists() {
-              message.push_str("\n[diagnostic] LaunchAgent plist not found — service is registering, please wait a moment and retry.");
+              // Differentiate: auto-enable already started means first-install race,
+              // otherwise the service truly hasn't been set up.
+              if AUTO_ENABLE_STARTED.load(Ordering::Relaxed) {
+                message.push_str("\n[diagnostic] Service is starting for the first time — please wait a moment and retry.");
+                diagnostic_type = Some("first_install".to_string());
+              } else {
+                message.push_str("\n[diagnostic] LaunchAgent plist not found — service is registering, please wait a moment and retry.");
+                diagnostic_type = Some("service_not_installed".to_string());
+              }
               eprintln!("[clawd/service] gateway down: plist not found at {}", plist.display());
             } else {
               let uid = unsafe { libc::getuid() };
@@ -1716,6 +1764,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
                 .unwrap_or(false);
               if !loaded {
                 message.push_str("\n[diagnostic] LaunchAgent plist exists but service is not loaded. Try disabling and re-enabling in Settings.");
+                diagnostic_type = Some("service_not_loaded".to_string());
                 eprintln!("[clawd/service] gateway down: plist exists but service not loaded (label={})", LAUNCH_AGENT_LABEL);
               } else {
                 eprintln!("[clawd/service] gateway down: service is loaded but not responding on port 18789");
@@ -1760,11 +1809,38 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         if !tail.is_empty() {
           let mut tail_lines: Vec<&str> = tail.into_iter().collect();
           tail_lines.reverse();
+          let tail_text = tail_lines.join("\n");
+
+          // Classify crash from log tail — overrides plist-based type when log evidence is stronger.
+          let crash_class = classify_gateway_crash(&tail_text);
+          if diagnostic_type.is_none() || crash_class != "unknown" {
+            diagnostic_type = Some(crash_class.to_string());
+          }
+
           message.push_str("\n--- last stderr ---\n");
-          message.push_str(&tail_lines.join("\n"));
+          message.push_str(&tail_text);
+
+          // Sentry early alert: fired once per outage (GATEWAY_DOWN_SENTRY_ALERTED
+          // is reset when the gateway recovers so the next outage triggers a new alert).
+          if !GATEWAY_DOWN_SENTRY_ALERTED.swap(true, Ordering::Relaxed) {
+            sentry::with_scope(
+              |scope| {
+                scope.set_tag("gateway_crash_type", crash_class);
+                scope.set_tag("component", "gateway");
+              },
+              || sentry::capture_message(
+                &format!("[gateway] down — type={} tail_snippet={}", crash_class, tail_text.lines().last().unwrap_or("").trim()),
+                sentry::Level::Error,
+              ),
+            );
+            eprintln!("[clawd/service] Sentry alert sent: crash_type={}", crash_class);
+          }
         }
       } else {
         message.push_str(&format!("\n[diagnostic] No stderr log found at {} — gateway may have never started.", err_path.display()));
+        if diagnostic_type.is_none() {
+          diagnostic_type = Some("no_log".to_string());
+        }
       }
     }
 
@@ -1773,6 +1849,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       gateway_ok,
       browser_ok,
       message,
+      diagnostic_type,
     })
   }
 }
@@ -1792,6 +1869,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
         gateway_ok: false,
         browser_ok: false,
         message: format!("Could not load tokens: {}", e),
+        diagnostic_type: None,
       })
     }
   };
@@ -1823,6 +1901,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     } else {
       "Gateway did not become ready within 30s".to_string()
     },
+    diagnostic_type: None,
   })
 }
 
@@ -5581,6 +5660,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
     return; // Already registered — nothing to do.
   }
 
+  // Signal to the health endpoint that first-time setup is in progress so it
+  // can show a cleaner "starting for the first time" message rather than
+  // "service is registering — please retry".
+  AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
   eprintln!("[clawd/service] auto_enable: plist not found, registering LaunchAgent for first launch");
 
   // Build a default config (base_url is set inside prepare_gateway_config's

@@ -221,6 +221,7 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
   // why the process is failing to start.
   let err_log = super::service::gateway_stderr_log();
   let mut detail = String::new();
+  let mut crash_type = "unknown";
   if let Ok(content) = std::fs::read_to_string(&err_log) {
     let tail: Vec<&str> = content.lines().rev().take(25).collect();
     if !tail.is_empty() {
@@ -230,9 +231,32 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
       for line in &lines {
         eprintln!("[gateway_supervisor]   {}", line);
       }
-      detail = format!("\nLast stderr:\n{}", lines.join("\n"));
+      let tail_text = lines.join("\n");
+      let lower = tail_text.to_lowercase();
+      crash_type = if lower.contains("assertionerror") && (lower.contains("ipv4") || lower.contains("mdns") || lower.contains("address changed")) {
+        "mdns_crash"
+      } else if lower.contains("eaddrinuse") || lower.contains("address already in use") {
+        "port_conflict"
+      } else if lower.contains("assertionerror") || lower.contains("[err_assertion]") {
+        "crash_loop"
+      } else if lower.contains("gatekeeper") || lower.contains("sigkill") {
+        "gatekeeper_blocked"
+      } else {
+        "unknown"
+      };
+      detail = format!("\nLast stderr:\n{}", tail_text);
     }
   }
+
+  // Sentry alert: gateway failed to recover after retries — this is a real incident.
+  sentry::with_scope(
+    |scope| scope.set_tag("gateway_crash_type", crash_type),
+    || sentry::capture_message(
+      &format!("[gateway_supervisor] Gateway unreachable after {} retry attempts. type={}", backoff_ms.len(), crash_type),
+      sentry::Level::Error,
+    ),
+  );
+  eprintln!("[gateway_supervisor] Sentry alert sent: crash_type={}", crash_type);
 
   // On macOS, check if the process is being killed by Gatekeeper (exit code 9 = SIGKILL).
   #[cfg(target_os = "macos")]
