@@ -177,37 +177,41 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (!raw) return 'Something went wrong. Please try again.'
   const lower = raw.toLowerCase()
   if (!activeModel) activeModel = getActiveModelLabel()
+  const switchProviderAction = `[Switch to a different model](knapsack://prompt/__open_provider_settings__)`
+  const addApiKeyAction = `[Add a backup provider](knapsack://prompt/__open_provider_settings__)`
+  const fixApiKeyAction = `[Fix API key in Settings](knapsack://prompt/__open_provider_settings__)`
+
   // All providers failed (fallback exhausted)
   if (lower.includes('all fallback providers also failed')) {
-    return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.`
+    return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.\n\n${addApiKeyAction}`
   }
   // OpenAI quota / billing errors
   if (lower.includes('insufficient_quota') || lower.includes('exceeded your current quota')) {
-    return `⚠️ **API quota exceeded** (active: \`${activeModel}\`). Your OpenAI account has run out of credits or hit its spending limit. Add another provider's API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).`
+    return `⚠️ **API quota exceeded** (active: \`${activeModel}\`). Your OpenAI account has run out of credits or hit its spending limit. Add another provider's API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).\n\n${addApiKeyAction}`
   }
   // Anthropic credit errors
   if (lower.includes('anthropic') && (lower.includes('credit') || lower.includes('billing') || lower.includes('exceeded'))) {
-    return `⚠️ **Anthropic credit limit reached** (active: \`${activeModel}\`). Add another provider's API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).`
+    return `⚠️ **Anthropic credit limit reached** (active: \`${activeModel}\`). Add another provider's API key in Settings for automatic failover, or check your Anthropic billing at [console.anthropic.com](https://console.anthropic.com).\n\n${addApiKeyAction}`
   }
   // Gemini monthly spending cap (429 with budget exhausted — different from a per-minute rate limit)
   if (lower.includes('spending cap') || lower.includes('monthly spending') || (lower.includes('exceeded') && lower.includes('ai studio'))) {
-    return `⚠️ **Gemini monthly spending cap reached** (active: \`${activeModel}\`). Your Google AI Studio project has hit its monthly budget limit. [Manage your spending cap at ai.studio/spend](https://ai.studio/spend), or switch to a different provider in Settings → Provider.`
+    return `⚠️ **Gemini monthly spending cap reached** (active: \`${activeModel}\`). Your Google AI Studio project has hit its monthly budget limit. [Manage your spending cap at ai.studio/spend](https://ai.studio/spend), or switch to a different provider in Settings → Provider.\n\n${switchProviderAction}`
   }
   // Rate limit (but not quota)
   if (lower.includes('rate_limit') || lower.includes('rate limit') || (lower.includes('429') && !lower.includes('insufficient_quota'))) {
-    return `⏳ **Rate limited** (active: \`${activeModel}\`). Too many requests — please wait a moment and try again, or switch to a different model in Settings → Provider.`
+    return `⏳ **Rate limited** (active: \`${activeModel}\`). Too many requests — please wait a moment and try again, or switch to a different model in Settings → Provider.\n\n${switchProviderAction}`
   }
   // Invalid API key
   if (lower.includes('invalid_api_key') || lower.includes('incorrect api key')) {
-    return `🔑 **Invalid API key** (active: \`${activeModel}\`). Please check your key in Settings and try again.`
+    return `🔑 **Invalid API key** (active: \`${activeModel}\`). Please check your key in Settings and try again.\n\n${fixApiKeyAction}`
   }
   // Auth error
   if (lower.includes('401') || lower.includes('unauthorized')) {
-    return `🔒 **Authentication failed** (active: \`${activeModel}\`). Your API key may be invalid or expired. Update it in Settings.`
+    return `🔒 **Authentication failed** (active: \`${activeModel}\`). Your API key may be invalid or expired. Update it in Settings.\n\n${fixApiKeyAction}`
   }
   // Model not found / access
   if (lower.includes('model_not_found') || lower.includes('does not exist') || lower.includes('no access')) {
-    return `⚠️ **Model not available** (active: \`${activeModel}\`). Your API key may not have access to this model. Try switching to a different model in Settings.`
+    return `⚠️ **Model not available** (active: \`${activeModel}\`). Your API key may not have access to this model. Try switching to a different model in Settings.\n\n${switchProviderAction}`
   }
   // Browser automation errors
   if (lower.includes('browser control server') || lower.includes('browser not running') || lower.includes('clawdbot base_url is not configured')) {
@@ -3299,6 +3303,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // If the chat is busy (mid-inference), queue the message to send after completion.
   const handleSendWithText = useCallback(async (text: string) => {
     if (!text.trim()) return
+
+    // Handle "open provider settings" action — opens the AI provider sidebar directly
+    if (text === '__open_provider_settings__') {
+      setShowKeyPrompt(true)
+      setShowChannelsPanel(false)
+      setShowSkillsPanel(false)
+      return
+    }
 
     // Handle special "enable advanced and resend" action
     const advPrefix = '__enable_advanced_and_resend__'
