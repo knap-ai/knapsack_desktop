@@ -125,15 +125,25 @@ pub fn read_pdf_contents(path: PathBuf) -> Result<Vec<String>, Box<dyn std::erro
       output.stdout
     }
     Err(_) => {
-      let output = std::process::Command::new(PDF_TO_TEXT_BINARY_NAME)
+      match std::process::Command::new(PDF_TO_TEXT_BINARY_NAME)
         .args(["-layout", &path_str, "-"])
         .output()
-        .map_err(|e| format!("pdftotext failed to run: {}", e))?;
-      if !output.status.success() {
-        error!("pdftotext ERROR: command error {:?}", path_str);
+      {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+          // pdftotext not installed — PDF indexing skipped silently.
+          // Install poppler (`brew install poppler`) to enable PDF indexing.
+          debug!("pdftotext not available, skipping PDF: {:?}", path_str);
+          return Ok(vec![]);
+        }
+        Err(e) => return Err(format!("pdftotext failed to run: {}", e).into()),
+        Ok(output) => {
+          if !output.status.success() {
+            error!("pdftotext ERROR: command error {:?}", path_str);
+          }
+          debug!("Content len: {}", output.stdout.len());
+          String::from_utf8_lossy(&output.stdout).into_owned()
+        }
       }
-      debug!("Content len: {}", output.stdout.len());
-      String::from_utf8_lossy(&output.stdout).into_owned()
     }
   };
 

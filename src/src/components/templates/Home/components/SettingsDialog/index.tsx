@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 
 import { Connection, ConnectionKeys, connectionsMap } from 'src/api/connections'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
+import KNAnalytics from 'src/utils/KNAnalytics'
 import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
 import { setIsFilesEnabled } from 'src/utils/permissions/files'
@@ -749,8 +750,10 @@ export const SettingsDialog = ({
                   try {
                     if (channels.whatsapp?.linked || (channels.whatsapp?.enabled && !channels.whatsappLinking && !channels.whatsappQrUrl)) {
                       await channels.disconnectWhatsApp()
+                      KNAnalytics.trackEvent('channel_disconnected', { channel: 'whatsapp', app_version: KNAnalytics.APP_VERSION })
                     } else {
                       await channels.connectWhatsApp()
+                      KNAnalytics.trackEvent('channel_connected', { channel: 'whatsapp', app_version: KNAnalytics.APP_VERSION })
                     }
                   } finally {
                     setChannelBusy(null)
@@ -799,8 +802,10 @@ export const SettingsDialog = ({
                   try {
                     if (channels.imessage?.configured) {
                       await channels.disconnectIMessage()
+                      KNAnalytics.trackEvent('channel_disconnected', { channel: 'imessage', app_version: KNAnalytics.APP_VERSION })
                     } else {
                       await channels.connectIMessage()
+                      KNAnalytics.trackEvent('channel_connected', { channel: 'imessage', app_version: KNAnalytics.APP_VERSION })
                     }
                   } finally {
                     setChannelBusy(null)
@@ -859,6 +864,7 @@ export const SettingsDialog = ({
                       setChannelBusy('telegram')
                       try {
                         await channels.disconnectTelegram()
+                        KNAnalytics.trackEvent('channel_disconnected', { channel: 'telegram', app_version: KNAnalytics.APP_VERSION })
                       } finally {
                         setChannelBusy(null)
                       }
@@ -903,6 +909,7 @@ export const SettingsDialog = ({
                       setChannelBusy('telegram')
                       try {
                         await channels.connectTelegram(telegramBotToken.trim())
+                        KNAnalytics.trackEvent('channel_connected', { channel: 'telegram', app_version: KNAnalytics.APP_VERSION })
                         setShowTelegramInput(false)
                         setTelegramBotToken('')
                       } catch {

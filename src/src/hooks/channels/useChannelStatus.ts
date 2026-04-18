@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ChannelStatus,
@@ -22,6 +23,7 @@ import {
   openFullDiskAccess,
   runChannelDiagnostics,
 } from 'src/api/channels'
+import KNAnalytics from 'src/utils/KNAnalytics'
 
 /** Channel names supported via the generic endpoint. */
 export const GENERIC_CHANNELS = ['slack', 'discord', 'signal', 'irc', 'googlechat'] as const
@@ -108,6 +110,11 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   // Track consecutive gateway-down polls for reconnect detection (Fix 5)
   const gwDownCountRef = useRef(0)
 
+  // Track the previous gateway-up state to detect transitions for Amplitude events.
+  const gwWasUpRef = useRef<boolean | null>(null)
+  // Avoid sending duplicate Sentry alerts for the same outage within a session.
+  const sentryCrashAlertedRef = useRef(false)
+
   // Track whether we've run diagnostics since gateway came up.
   // This ensures sandbox tools + model are repaired after a config reset
   // even if the user doesn't manually reconnect a channel.
@@ -167,12 +174,65 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
         if (gwDownCountRef.current >= 2) {
           setGatewayStarting(false)
         }
+
+        // Detect gateway-down transition for Amplitude + Sentry.
+        const wasUp = gwWasUpRef.current
+        gwWasUpRef.current = false
+        if (wasUp === true) {
+          // Gateway just went from up → down (crash or disconnect).
+          KNAnalytics.trackEvent('gateway_status_changed', { status: 'down', cause: 'transition_up_to_down' })
+          sentryCrashAlertedRef.current = false // allow a new alert for this outage
+        }
+
+        // After 3 consecutive down polls (~45s), fire a Sentry alert with
+        // diagnostic details so on-call can investigate early.
+        if (gwDownCountRef.current === 3 && !sentryCrashAlertedRef.current) {
+          sentryCrashAlertedRef.current = true
+          fetch('http://127.0.0.1:8897/api/clawd/service/health')
+            .then(r => r.json())
+            .then((data: { message?: string; diagnostic_type?: string }) => {
+              const diagType = data.diagnostic_type ?? 'unknown'
+              const snippet = (data.message ?? '').slice(0, 500)
+              Sentry.withScope(scope => {
+                scope.setTag('gateway_crash_type', diagType)
+                scope.setTag('component', 'gateway')
+                scope.setExtra('health_message', snippet)
+                scope.setExtra('polls_down', gwDownCountRef.current)
+                Sentry.captureException(
+                  new Error(`Gateway unreachable after 3 polls — type=${diagType}`)
+                )
+              })
+              KNAnalytics.trackEvent('gateway_startup_failed', {
+                diagnostic_type: diagType,
+                polls_down: gwDownCountRef.current,
+                is_first_load: isFirstLoad,
+              })
+            })
+            .catch(() => {
+              // Backend itself unreachable — fire a generic alert
+              Sentry.captureException(new Error('Gateway unreachable — Tauri backend also not responding'))
+              KNAnalytics.trackEvent('gateway_startup_failed', {
+                diagnostic_type: 'backend_unreachable',
+                polls_down: gwDownCountRef.current,
+                is_first_load: isFirstLoad,
+              })
+            })
+        }
+
         return
       }
 
       // Gateway is up — reset down counter and clear starting state
+      const prevGwState = gwWasUpRef.current
       gwDownCountRef.current = 0
+      gwWasUpRef.current = true
+      sentryCrashAlertedRef.current = false
       setGatewayStarting(false)
+
+      if (prevGwState === false) {
+        // Gateway recovered after being down — track the recovery.
+        KNAnalytics.trackEvent('gateway_status_changed', { status: 'up', cause: 'recovered' })
+      }
 
       // Read current state from refs (not closure) to avoid dependency churn
       const curWhatsapp = whatsappRef.current

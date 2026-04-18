@@ -159,7 +159,9 @@ function extractPromptActions(md: string): { cleaned: string; actions: PromptAct
 
 // Convert raw API/JSON error messages into user-friendly text
 function getActiveModelLabel(): string {
-  const provider = localStorage.getItem('moltbot_active_provider') || 'openai'
+  // Default to 'anthropic' — it is the primary onboarding provider.
+  // 'openai' as fallback caused Anthropic-only users to see "openai/gpt-5.4 rate limited".
+  const provider = localStorage.getItem('moltbot_active_provider') || 'anthropic'
   const modelKeys: Record<string, string> = {
     openai: 'moltbot_openai_model',
     anthropic: 'moltbot_anthropic_model',

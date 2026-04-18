@@ -103,6 +103,8 @@ jobs:
           VITE_GOOGLE_DEVELOPER_KEY: ""
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Build web installer stub
         shell: pwsh

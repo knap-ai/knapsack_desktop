@@ -1077,30 +1077,44 @@ async fn apply_runtime_browser_config(token: &str) {
 }
 
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
-  // Patch browser config on disk before the gateway reads it.  This covers
-  // cold-start in dev mode (`npm run tauri dev`) where set_service_enabled
-  // never runs.
-  let disk_config_changed = ensure_browser_config();
+  // Check whether the gateway process is already running BEFORE touching the
+  // config file.  Writing to the config while the gateway watches it triggers
+  // "Config overwrite / missing-meta-before-write" anomalies and unnecessary
+  // SIGUSR1 restarts (→ the cascade seen on fresh install).
+  let gateway_already_running = is_gateway_port_open().await;
 
-  // Push browser config to the running gateway when the on-disk config was
-  // actually changed.  If the disk config was already correct (patched by a
-  // previous run), the live gateway already has the right settings — forcing
-  // an unnecessary config.patch triggers a ~14-second SIGUSR1 restart on every
-  // app open, which causes the "Gateway: reconnecting..." window seen on startup.
+  // Only write the config file when the gateway is NOT running.
+  // When it IS running, config.patch RPC (below) handles runtime updates
+  // without touching the file and without triggering meta-anomaly warnings.
+  let disk_config_changed = if !gateway_already_running {
+    ensure_browser_config()
+  } else {
+    false
+  };
+
+  // Run config.patch RPC exactly once per process lifetime to:
+  //   1. Push browser/tools settings the initial config may not include.
+  //   2. Sync agents.defaults.model from the current active provider env vars.
+  //   3. Update gateway.auth.token / allowedOrigins if they changed.
   //
-  // BROWSER_CONFIG_APPLIED prevents doing this more than once per process
-  // lifetime (e.g., on reconnects after a transient WS drop).
+  // Fire whenever the gateway is already running (covers both cold-start where
+  // we just wrote the file AND hot reconnects where disk was unchanged).
+  // The gateway only restarts if the patch contains actual changes; if all
+  // values already match it accepts the patch without restarting.
   //
-  // IMPORTANT: We do this BEFORE establishing our main connection, using a
-  // temporary connection.  config.patch triggers a SIGUSR1 restart on the
-  // gateway, which would kill any in-flight requests on the same connection.
-  let need_runtime_patch = disk_config_changed
-    && !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
-    && is_gateway_port_open().await;
+  // BROWSER_CONFIG_APPLIED prevents firing on every reconnect after a transient
+  // WS drop.
+  let need_runtime_patch = !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
+    && (gateway_already_running || disk_config_changed);
 
   if need_runtime_patch {
     BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
-    eprintln!("[gateway_client] Disk config was patched while gateway was running — applying via config.patch RPC");
+    // Wait briefly for the gateway to be reachable if we just wrote the disk config.
+    if disk_config_changed && !gateway_already_running {
+      eprintln!("[gateway_client] Disk config changed, waiting for gateway before applying config.patch");
+    } else {
+      eprintln!("[gateway_client] Applying config.patch RPC (gateway running, skipped disk write)");
+    }
     apply_runtime_browser_config(token).await;
   }
 

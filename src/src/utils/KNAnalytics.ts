@@ -44,6 +44,8 @@ export default class KNAnalytics {
       }
 
       const amplitudeIdentify = new amplitude.Identify()
+      amplitudeIdentify.set('platform', 'desktop')
+      amplitudeIdentify.set('app', 'knapsack_desktop')
       if (email !== '') {
         const domain = extractDomain(email)
         amplitudeIdentify.set('email', email)
@@ -69,7 +71,7 @@ export default class KNAnalytics {
     // This feels rather brittle to me, so I'm opting for this solution
     // instead.
     if (ampli !== undefined && ampli.amplitude! !== undefined) {
-      ampli.amplitude!.logEvent(event, properties)
+      ampli.amplitude!.logEvent(event, { platform: 'desktop', app: 'knapsack_desktop', ...properties })
     }
   }
 }

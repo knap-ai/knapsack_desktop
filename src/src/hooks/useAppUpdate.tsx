@@ -67,7 +67,8 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
       const { shouldUpdate, manifest } = await checkUpdate()
       if (shouldUpdate && manifest) {
         KNAnalytics.trackEvent('update_available', {
-          version: manifest.version,
+          from_version: KNAnalytics.APP_VERSION,
+          to_version: manifest.version,
           timestamp: new Date().toISOString(),
         })
         setState({ status: 'available', version: manifest.version })
@@ -95,6 +96,12 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   // delay causes "No such file or directory" on macOS because the old binary
   // path is gone.  Doing both in one atomic sequence avoids that race.
   const restartApp = useCallback(async () => {
+    const targetVersion = state.status === 'available' ? state.version : undefined
+    KNAnalytics.trackEvent('update_install_initiated', {
+      from_version: KNAnalytics.APP_VERSION,
+      to_version: targetVersion,
+      timestamp: new Date().toISOString(),
+    })
     setState({ status: 'downloading' })
     try {
       await installUpdate()
@@ -102,7 +109,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       setState({ status: 'error', message: String(err) })
     }
-  }, [])
+  }, [state])
 
   const dismiss = useCallback(() => {
     setDismissed(true)

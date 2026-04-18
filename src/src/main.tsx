@@ -17,6 +17,9 @@ import { ErrorPage } from './pages/error'
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+  initialScope: {
+    tags: { platform: 'desktop', app: 'knapsack_desktop' },
+  },
   // Tracing
   tracesSampleRate: 1.0, //  Capture 100% of the transactions
   // Set 'tracePropagationTargets' to control for which URLs distributed tracing should be enabled

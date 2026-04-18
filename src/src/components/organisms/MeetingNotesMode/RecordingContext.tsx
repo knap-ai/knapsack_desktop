@@ -180,6 +180,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       console.info(`[Recording] calling startRecord endpoint for threadId=${threadId}`)
       await startRecord(threadId, feedItemId, eventId, saveTranscript)
       console.info(`[Recording] startRecord succeeded for threadId=${threadId}`)
+      KNAnalytics.trackEvent('recording_started', { thread_id: threadId, save_transcript: saveTranscript })
       setFeedIsRecording(true)
       setIsRecording(threadId, true)
       if (eventUrl && isStart) {
@@ -197,6 +198,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         },
         true,
       )
+      KNAnalytics.trackEvent('recording_start_failed', { thread_id: threadId, error: err.message })
       throw new Error(err.message || 'Error start recording')
     } finally {
       isStartingRef.current = false
@@ -258,6 +260,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     try {
       await stopRecord(threadId, saveTranscript, eventId)
       console.info(`[Recording] stopRecord succeeded for threadId=${threadId}`)
+      KNAnalytics.trackEvent('recording_stopped', { thread_id: threadId, save_transcript: saveTranscript })
       stopSucceeded = true
     } catch (err: any) {
       // If backend says "no recording in progress", that's OK — state was out of sync
@@ -274,6 +277,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
           },
           true,
         )
+        KNAnalytics.trackEvent('recording_stop_failed', { thread_id: threadId, error: err.message })
         setLoadingState(threadId, false)
         throw new Error(err.message || 'Error stop recording')
       }
