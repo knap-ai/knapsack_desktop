@@ -71,6 +71,9 @@ const UNUSED_PACKAGES = [
   'sharp', '@larksuiteoapi', 'typescript', '@cloudflare',
   'web-streams-polyfill', 'bun-types', '@lydell/node-pty',
   '@mozilla/readability', 'linkedom', 'signal-utils', 'sqlite-vec',
+  // jimp is new in openclaw 2026.4.15 and adds ~10k files (including test image
+  // snapshots). Not needed for the Knapsack-bundled gateway use case.
+  'jimp', '@jimp',
 ];
 
 let saved = 0;
@@ -123,7 +126,7 @@ function walkAndRemove(dir, predicate) {
   } catch { /* skip */ }
 }
 
-const REMOVE_DIRS = new Set(['.cache', 'docs', 'example', 'examples', 'test', 'tests', '__tests__']);
+const REMOVE_DIRS = new Set(['.cache', 'docs', 'example', 'examples', 'test', 'tests', '__tests__', '__image_snapshots__']);
 walkAndRemove(nodeModules, (name, isDir) => {
   if (isDir) return REMOVE_DIRS.has(name);
   return name.endsWith('.map');
