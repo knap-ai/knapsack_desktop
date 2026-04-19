@@ -74,6 +74,10 @@ const UNUSED_PACKAGES = [
   // jimp is new in openclaw 2026.4.15 and adds ~10k files (including test image
   // snapshots). Not needed for the Knapsack-bundled gateway use case.
   'jimp', '@jimp',
+  // @lancedb is new in openclaw 2026.4.15 (cloud storage for memory-lancedb)
+  // and ships 239MB of cross-platform native binaries. Prune it to keep the
+  // Windows installer within size limits.
+  '@lancedb',
 ];
 
 let saved = 0;
