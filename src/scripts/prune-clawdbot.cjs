@@ -78,6 +78,14 @@ const UNUSED_PACKAGES = [
   // and ships 239MB of cross-platform native binaries. Prune it to keep the
   // Windows installer within size limits.
   '@lancedb',
+  // devDependencies — build tools and linters not needed at runtime
+  'vite', 'unrun', '@rolldown', 'rolldown', 'rolldown-plugin-dts', 'tsdown',
+  '@esbuild',
+  '@oxlint', '@oxlint-tsgolint', '@oxfmt',
+  '@typescript', // @typescript/native-preview — TS compiler preview, dev only
+  'vitest', '@vitest', '@jscpd',
+  'madge', 'precinct', 'filing-cabinet', 'dependency-tree',
+  '@lit', '@lit-labs', 'lit',
 ];
 
 let saved = 0;
