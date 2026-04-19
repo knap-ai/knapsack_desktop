@@ -10,8 +10,6 @@
  * @see https://github.com/openclaw/openclaw/issues/31884
  * @see https://github.com/openclaw/openclaw/issues/18558
  */
-/** Returns `true` when the channel cannot render raw HTML. */
-export declare function isPlainTextSurface(channelId: string): boolean;
 /**
  * Convert common HTML tags to their plain-text/lightweight-markup equivalents
  * and strip anything that remains.

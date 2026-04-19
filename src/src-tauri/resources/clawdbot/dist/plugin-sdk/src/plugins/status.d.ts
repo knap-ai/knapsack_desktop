@@ -1,10 +1,11 @@
-import { loadConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginDiagnostic } from "./manifest-types.js";
 import type { PluginRegistry } from "./registry.js";
-import type { PluginDiagnostic, PluginHookName } from "./types.js";
+import type { PluginHookName } from "./types.js";
 export type PluginStatusReport = PluginRegistry & {
     workspaceDir?: string;
 };
-export type PluginCapabilityKind = "cli-backend" | "text-inference" | "speech" | "media-understanding" | "image-generation" | "web-search" | "channel";
+export type PluginCapabilityKind = "cli-backend" | "text-inference" | "speech" | "realtime-transcription" | "realtime-voice" | "media-understanding" | "image-generation" | "web-search" | "agent-harness" | "context-engine" | "channel";
 export type PluginInspectShape = "hook-only" | "plain-capability" | "hybrid-capability" | "non-capability";
 export type PluginCompatibilityNotice = {
     pluginId: string;
@@ -63,7 +64,7 @@ export type PluginInspectReport = {
     compatibility: PluginCompatibilityNotice[];
 };
 type PluginReportParams = {
-    config?: ReturnType<typeof loadConfig>;
+    config?: OpenClawConfig;
     workspaceDir?: string;
     /** Use an explicit env when plugin roots should resolve independently from process.env. */
     env?: NodeJS.ProcessEnv;
@@ -72,25 +73,25 @@ export declare function buildPluginSnapshotReport(params?: PluginReportParams): 
 export declare function buildPluginDiagnosticsReport(params?: PluginReportParams): PluginStatusReport;
 export declare function buildPluginInspectReport(params: {
     id: string;
-    config?: ReturnType<typeof loadConfig>;
+    config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     report?: PluginStatusReport;
 }): PluginInspectReport | null;
 export declare function buildAllPluginInspectReports(params?: {
-    config?: ReturnType<typeof loadConfig>;
+    config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     report?: PluginStatusReport;
 }): PluginInspectReport[];
 export declare function buildPluginCompatibilityWarnings(params?: {
-    config?: ReturnType<typeof loadConfig>;
+    config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     report?: PluginStatusReport;
 }): string[];
 export declare function buildPluginCompatibilityNotices(params?: {
-    config?: ReturnType<typeof loadConfig>;
+    config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     report?: PluginStatusReport;

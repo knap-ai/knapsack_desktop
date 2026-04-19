@@ -1,13 +1,23 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-BF3kHzmf.js";
-import "../../provider-auth-api-key-g0GKEM-Y.js";
-import { c as buildKimiCodingProvider } from "../../provider-catalog-DaVGVWoZ.js";
-import { r as applyKimiCodeConfig, t as KIMI_CODING_MODEL_REF } from "../../onboard-DiQrdnes.js";
+import { s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
+import { l as isRecord } from "../../utils-D5DtWkEu.js";
+import { r as normalizeProviderId } from "../../provider-id-KaStHhRz.js";
+import "../../provider-model-shared-DyDnBaDe.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-nkL4zxbI.js";
+import "../../provider-auth-api-key-F-AGqwyB.js";
+import { c as buildKimiCodingProvider } from "../../provider-catalog-CaSQZfIN.js";
+import { r as applyKimiCodeConfig, t as KIMI_CODING_MODEL_REF } from "../../onboard-BaSVGAVm.js";
+import { t as KIMI_REPLAY_POLICY } from "../../replay-policy-CQPCxqyz.js";
+import { n as wrapKimiProviderStream } from "../../stream-DR31mZrI.js";
 //#region extensions/kimi-coding/index.ts
 const PLUGIN_ID = "kimi";
 const PROVIDER_ID = "kimi";
-function isRecord(value) {
-	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+function findExplicitProviderConfig(providers, providerId) {
+	if (!providers) return;
+	const normalizedProviderId = normalizeProviderId(providerId);
+	const match = Object.entries(providers).find(([configuredProviderId]) => normalizeProviderId(configuredProviderId) === normalizedProviderId);
+	return isRecord(match?.[1]) ? match[1] : void 0;
 }
 var kimi_coding_default = definePluginEntry({
 	id: PLUGIN_ID,
@@ -51,9 +61,9 @@ var kimi_coding_default = definePluginEntry({
 				run: async (ctx) => {
 					const apiKey = ctx.resolveProviderApiKey(PROVIDER_ID).apiKey;
 					if (!apiKey) return null;
-					const explicitProvider = ctx.config.models?.providers?.[PROVIDER_ID];
+					const explicitProvider = findExplicitProviderConfig(ctx.config.models?.providers, PROVIDER_ID);
 					const builtInProvider = buildKimiCodingProvider();
-					const explicitBaseUrl = typeof explicitProvider?.baseUrl === "string" ? explicitProvider.baseUrl.trim() : "";
+					const explicitBaseUrl = normalizeOptionalString(explicitProvider?.baseUrl) ?? "";
 					const explicitHeaders = isRecord(explicitProvider?.headers) ? explicitProvider.headers : void 0;
 					return { provider: {
 						...builtInProvider,
@@ -66,12 +76,8 @@ var kimi_coding_default = definePluginEntry({
 					} };
 				}
 			},
-			capabilities: {
-				anthropicToolSchemaMode: "openai-functions",
-				anthropicToolChoiceMode: "openai-string-modes",
-				openAiPayloadNormalizationMode: "moonshot-thinking",
-				preserveAnthropicThinkingSignatures: false
-			}
+			buildReplayPolicy: () => KIMI_REPLAY_POLICY,
+			wrapStreamFn: wrapKimiProviderStream
 		});
 	}
 });

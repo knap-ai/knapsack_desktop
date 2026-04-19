@@ -1,6 +1,6 @@
-import type { ChannelOutboundTargetMode } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { ChannelOutboundTargetMode } from "../../channels/plugins/types.public.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { type GatewayMessageChannel } from "../../utils/message-channel.js";
 import type { OutboundTargetResolution } from "./targets.js";
 import { type SessionDeliveryTarget } from "./targets.js";

@@ -1,6 +1,4 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["feishu-conversation"];
-type FacadeModule = FacadeEntry["module"];
+type FacadeModule = typeof import("@openclaw/feishu/contract-api.js");
 export declare const buildFeishuConversationId: FacadeModule["buildFeishuConversationId"];
 export declare const createFeishuThreadBindingManager: FacadeModule["createFeishuThreadBindingManager"];
 export declare const feishuSessionBindingAdapterChannels: FacadeModule["feishuSessionBindingAdapterChannels"];

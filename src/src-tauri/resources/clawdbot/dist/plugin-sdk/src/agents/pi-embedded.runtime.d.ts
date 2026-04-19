@@ -1,1 +1,1 @@
-export { abortEmbeddedPiRun, isEmbeddedPiRunActive, isEmbeddedPiRunStreaming, runEmbeddedPiAgent, resolveEmbeddedSessionLane, } from "./pi-embedded.js";
+export { abortEmbeddedPiRun, isEmbeddedPiRunActive, isEmbeddedPiRunStreaming, resolveActiveEmbeddedRunSessionId, runEmbeddedPiAgent, resolveEmbeddedSessionLane, waitForEmbeddedPiRunEnd, } from "./pi-embedded.js";

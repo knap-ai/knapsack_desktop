@@ -1,5 +1,6 @@
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { OutboundMirror } from "./mirror.js";
+import type { OutboundSessionContext } from "./session-context.js";
 import type { OutboundChannel } from "./targets.js";
 export type QueuedDeliveryPayload = {
     channel: Exclude<OutboundChannel, "none">;
@@ -18,6 +19,8 @@ export type QueuedDeliveryPayload = {
     forceDocument?: boolean;
     silent?: boolean;
     mirror?: OutboundMirror;
+    /** Session context needed to preserve outbound media policy on recovery. */
+    session?: OutboundSessionContext;
     /** Gateway caller scopes at enqueue time, preserved for recovery replay. */
     gatewayClientScopes?: readonly string[];
 };
@@ -28,6 +31,7 @@ export interface QueuedDelivery extends QueuedDeliveryPayload {
     lastAttemptAt?: number;
     lastError?: string;
 }
+export declare function resolveQueueDir(stateDir?: string): string;
 /** Ensure the queue directory (and failed/ subdirectory) exist. */
 export declare function ensureQueueDir(stateDir?: string): Promise<string>;
 /** Persist a delivery entry to disk before attempting send. Returns the entry ID. */
@@ -44,6 +48,8 @@ export declare function enqueueDelivery(params: QueuedDeliveryPayload, stateDir?
 export declare function ackDelivery(id: string, stateDir?: string): Promise<void>;
 /** Update a queue entry after a failed delivery attempt. */
 export declare function failDelivery(id: string, error: string, stateDir?: string): Promise<void>;
+/** Load a single pending delivery entry by ID from the queue directory. */
+export declare function loadPendingDelivery(id: string, stateDir?: string): Promise<QueuedDelivery | null>;
 /** Load all pending delivery entries from the queue directory. */
 export declare function loadPendingDeliveries(stateDir?: string): Promise<QueuedDelivery[]>;
 /** Move a queue entry to the failed/ subdirectory. */

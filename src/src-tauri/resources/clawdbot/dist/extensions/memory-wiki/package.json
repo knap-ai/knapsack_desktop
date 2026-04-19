@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/memory-wiki",
+  "version": "2026.4.15-beta.1",
+  "private": true,
+  "description": "OpenClaw persistent wiki plugin",
+  "type": "module",
+  "dependencies": {
+    "yaml": "^2.8.3"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

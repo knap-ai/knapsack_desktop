@@ -1,3 +1,2 @@
-import type { OpenClawConfig } from "../../../config/config.js";
-export declare function resolveConfiguredAcpBackendId(cfg: OpenClawConfig): string;
+import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 export declare function resolveAcpInstallCommandHint(cfg: OpenClawConfig): string;

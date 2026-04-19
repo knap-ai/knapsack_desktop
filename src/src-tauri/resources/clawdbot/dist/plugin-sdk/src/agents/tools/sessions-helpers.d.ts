@@ -2,7 +2,8 @@ export type { AgentToAgentPolicy, SessionAccessAction, SessionAccessResult, Sess
 export { createAgentToAgentPolicy, createSessionVisibilityGuard, resolveEffectiveSessionToolsVisibility, resolveSandboxSessionToolsVisibility, resolveSandboxedSessionToolContext, resolveSessionToolsVisibility, } from "./sessions-access.js";
 export type { SessionReferenceResolution } from "./sessions-resolution.js";
 export { isRequesterSpawnedSessionVisible, isResolvedSessionVisibleToRequester, listSpawnedSessionKeys, looksLikeSessionId, looksLikeSessionKey, resolveDisplaySessionKey, resolveInternalSessionKey, resolveMainSessionAlias, resolveSessionReference, resolveVisibleSessionReference, shouldResolveSessionIdInput, shouldVerifyRequesterSpawnedSessionVisibility, } from "./sessions-resolution.js";
-import { type OpenClawConfig } from "../../config/config.js";
+export { extractAssistantText, sanitizeTextContent, stripToolMessages, } from "./chat-history-text.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export type SessionKind = "main" | "group" | "cron" | "hook" | "node" | "other";
 export type SessionListDeliveryContext = {
     channel?: string;
@@ -47,6 +48,7 @@ export type SessionListRow = {
     lastChannel?: string;
     lastTo?: string;
     lastAccountId?: string;
+    lastThreadId?: string | number;
     transcriptPath?: string;
     messages?: unknown[];
 };
@@ -75,10 +77,3 @@ export declare function deriveChannel(params: {
     channel?: string | null;
     lastChannel?: string | null;
 }): string;
-export declare function stripToolMessages(messages: unknown[]): unknown[];
-/**
- * Sanitize text content to strip tool call markers and thinking tags.
- * This ensures user-facing text doesn't leak internal tool representations.
- */
-export declare function sanitizeTextContent(text: string): string;
-export declare function extractAssistantText(message: unknown): string | undefined;

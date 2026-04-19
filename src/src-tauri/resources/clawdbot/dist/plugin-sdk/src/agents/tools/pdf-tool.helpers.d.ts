@@ -1,15 +1,10 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export type PdfModelConfig = {
     primary?: string;
     fallbacks?: string[];
 };
-/**
- * Providers known to support native PDF document input.
- * When the model's provider is in this set, the tool sends raw PDF bytes
- * via provider-specific API calls instead of extracting text/images first.
- */
-export declare const NATIVE_PDF_PROVIDERS: Set<string>;
+export declare function resolvePdfInputs(record: Record<string, unknown>): string[];
 /**
  * Check whether a provider supports native PDF document input.
  */

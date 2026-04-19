@@ -1,2 +1,2 @@
-import { i as buildChutesProvider } from "../../onboard-CcQc7q1I.js";
+import { t as buildChutesProvider } from "../../provider-catalog-DZRdGyiQ.js";
 export { buildChutesProvider };

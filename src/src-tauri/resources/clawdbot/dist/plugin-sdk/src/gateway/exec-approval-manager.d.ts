@@ -37,6 +37,7 @@ export declare class ExecApprovalManager<TPayload = ExecApprovalRequestPayload> 
     resolve(recordId: string, decision: ExecApprovalDecision, resolvedBy?: string | null): boolean;
     expire(recordId: string, resolvedBy?: string | null): boolean;
     getSnapshot(recordId: string): ExecApprovalRecord<TPayload> | null;
+    listPendingRecords(): ExecApprovalRecord<TPayload>[];
     consumeAllowOnce(recordId: string): boolean;
     /**
      * Wait for decision on an already-registered approval.

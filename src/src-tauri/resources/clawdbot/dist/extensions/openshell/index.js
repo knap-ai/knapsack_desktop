@@ -1,16 +1,18 @@
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-Day5KPIY.js";
-import { t as buildPluginConfigSchema } from "../../config-schema-dIP9qvIK.js";
-import { _ as runSshSandboxCommand, b as createRemoteShellSandboxFsBridge, d as buildExecRemoteCommand, g as disposeSshSandboxSession, l as registerSandboxBackend, m as createSshSandboxSessionFromConfigText, v as shellEscape, x as createWritableRenameTargetResolver } from "../../sandbox-DD2udaMP.js";
-import { t as sanitizeEnvVars } from "../../sanitize-env-vars-BvpMkDN5.js";
-import "../../core-BghMcc08.js";
-import { t as runPluginCommandWithTimeout } from "../../run-command-ByGgkdeW.js";
-import "../../sandbox-CxQpLeou.js";
-import { t as zod_exports } from "../../zod-DCTDn17d.js";
+import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-eyAoWbVe.js";
+import { t as sanitizeEnvVars } from "../../sanitize-env-vars-Og3CRoPL.js";
+import { _ as runSshSandboxCommand, b as createRemoteShellSandboxFsBridge, d as buildExecRemoteCommand, g as disposeSshSandboxSession, l as registerSandboxBackend, m as createSshSandboxSessionFromConfigText, v as shellEscape, x as createWritableRenameTargetResolver } from "../../sandbox-BBeXIB2_.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as buildPluginConfigSchema } from "../../config-schema-BJSXw2hl.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import "../../core-Dh0sB0kj.js";
+import { t as runPluginCommandWithTimeout } from "../../run-command-Bn39d2ZV.js";
+import "../../sandbox-DtVcRu90.js";
+import { t as zod_exports } from "../../zod-BUbl8seT.js";
 import { createRequire } from "node:module";
-import fsSync from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
-import fs from "node:fs/promises";
+import fs$1 from "node:fs/promises";
 //#region extensions/openshell/src/cli.ts
 const require = createRequire(import.meta.url);
 let cachedBundledOpenShellCommand;
@@ -18,7 +20,7 @@ function resolveBundledOpenShellCommand() {
 	if (cachedBundledOpenShellCommand !== void 0) return cachedBundledOpenShellCommand;
 	try {
 		const packageJsonPath = require.resolve("openshell/package.json");
-		const packageJson = JSON.parse(fsSync.readFileSync(packageJsonPath, "utf8"));
+		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 		const relativeBin = typeof packageJson.bin === "string" ? packageJson.bin : packageJson.bin?.openshell;
 		cachedBundledOpenShellCommand = relativeBin ? path.resolve(path.dirname(packageJsonPath), relativeBin) : null;
 	} catch {
@@ -178,8 +180,8 @@ const DEFAULT_OPEN_SHELL_MIRROR_EXCLUDE_DIRS = [
 ];
 const COPY_TREE_FS_CONCURRENCY = 16;
 function createExcludeMatcher(excludeDirs) {
-	const excluded = new Set((excludeDirs ?? []).map((d) => d.toLowerCase()));
-	return (name) => excluded.has(name.toLowerCase());
+	const excluded = new Set((excludeDirs ?? []).map((d) => normalizeLowercaseStringOrEmpty(d)));
+	return (name) => excluded.has(normalizeLowercaseStringOrEmpty(name));
 }
 function createConcurrencyLimiter(limit) {
 	let active = 0;
@@ -202,16 +204,16 @@ function createConcurrencyLimiter(limit) {
 }
 const runLimitedFs = createConcurrencyLimiter(COPY_TREE_FS_CONCURRENCY);
 async function lstatIfExists(targetPath) {
-	return await runLimitedFs(async () => await fs.lstat(targetPath)).catch(() => null);
+	return await runLimitedFs(async () => await fs$1.lstat(targetPath)).catch(() => null);
 }
 async function copyTreeWithoutSymlinks(params) {
-	const stats = await runLimitedFs(async () => await fs.lstat(params.sourcePath));
+	const stats = await runLimitedFs(async () => await fs$1.lstat(params.sourcePath));
 	if (stats.isSymbolicLink()) return;
 	const targetStats = await lstatIfExists(params.targetPath);
 	if (params.preserveTargetSymlinks && targetStats?.isSymbolicLink()) return;
 	if (stats.isDirectory()) {
-		await runLimitedFs(async () => await fs.mkdir(params.targetPath, { recursive: true }));
-		const entries = await runLimitedFs(async () => await fs.readdir(params.sourcePath));
+		await runLimitedFs(async () => await fs$1.mkdir(params.targetPath, { recursive: true }));
+		const entries = await runLimitedFs(async () => await fs$1.readdir(params.sourcePath));
 		await Promise.all(entries.map(async (entry) => {
 			await copyTreeWithoutSymlinks({
 				sourcePath: path.join(params.sourcePath, entry),
@@ -222,23 +224,23 @@ async function copyTreeWithoutSymlinks(params) {
 		return;
 	}
 	if (stats.isFile()) {
-		await runLimitedFs(async () => await fs.mkdir(path.dirname(params.targetPath), { recursive: true }));
-		await runLimitedFs(async () => await fs.copyFile(params.sourcePath, params.targetPath));
+		await runLimitedFs(async () => await fs$1.mkdir(path.dirname(params.targetPath), { recursive: true }));
+		await runLimitedFs(async () => await fs$1.copyFile(params.sourcePath, params.targetPath));
 	}
 }
 async function replaceDirectoryContents(params) {
 	const isExcluded = createExcludeMatcher(params.excludeDirs);
-	await fs.mkdir(params.targetDir, { recursive: true });
-	const existing = await fs.readdir(params.targetDir);
+	await fs$1.mkdir(params.targetDir, { recursive: true });
+	const existing = await fs$1.readdir(params.targetDir);
 	await Promise.all(existing.filter((entry) => !isExcluded(entry)).map(async (entry) => {
 		const targetPath = path.join(params.targetDir, entry);
 		if ((await lstatIfExists(targetPath))?.isSymbolicLink()) return;
-		await runLimitedFs(async () => await fs.rm(targetPath, {
+		await runLimitedFs(async () => await fs$1.rm(targetPath, {
 			recursive: true,
 			force: true
 		}));
 	}));
-	const sourceEntries = await fs.readdir(params.sourceDir);
+	const sourceEntries = await fs$1.readdir(params.sourceDir);
 	for (const entry of sourceEntries) {
 		if (isExcluded(entry)) continue;
 		await copyTreeWithoutSymlinks({
@@ -250,8 +252,8 @@ async function replaceDirectoryContents(params) {
 }
 async function stageDirectoryContents(params) {
 	const isExcluded = createExcludeMatcher(params.excludeDirs);
-	await fs.mkdir(params.targetDir, { recursive: true });
-	const sourceEntries = await fs.readdir(params.sourceDir);
+	await fs$1.mkdir(params.targetDir, { recursive: true });
+	const sourceEntries = await fs$1.readdir(params.sourceDir);
 	for (const entry of sourceEntries) {
 		if (isExcluded(entry)) continue;
 		await copyTreeWithoutSymlinks({
@@ -262,17 +264,17 @@ async function stageDirectoryContents(params) {
 }
 async function movePathWithCopyFallback(params) {
 	try {
-		await fs.rename(params.from, params.to);
+		await fs$1.rename(params.from, params.to);
 		return;
 	} catch (error) {
 		if (error?.code !== "EXDEV") throw error;
 	}
-	await fs.cp(params.from, params.to, {
+	await fs$1.cp(params.from, params.to, {
 		recursive: true,
 		force: true,
 		dereference: false
 	});
-	await fs.rm(params.from, {
+	await fs$1.rm(params.from, {
 		recursive: true,
 		force: true
 	});
@@ -305,7 +307,7 @@ var OpenShellFsBridge = class {
 			allowMissingLeaf: false,
 			allowFinalSymlinkForUnlink: false
 		});
-		return await fs.readFile(hostPath);
+		return await fs$1.readFile(hostPath);
 	}
 	async writeFile(params) {
 		const target = this.resolveTarget(params);
@@ -319,10 +321,10 @@ var OpenShellFsBridge = class {
 		});
 		const buffer = Buffer.isBuffer(params.data) ? params.data : Buffer.from(params.data, params.encoding ?? "utf8");
 		const parentDir = path.dirname(hostPath);
-		if (params.mkdir !== false) await fs.mkdir(parentDir, { recursive: true });
+		if (params.mkdir !== false) await fs$1.mkdir(parentDir, { recursive: true });
 		const tempPath = path.join(parentDir, `.openclaw-openshell-write-${path.basename(hostPath)}-${process.pid}-${Date.now()}`);
-		await fs.writeFile(tempPath, buffer);
-		await fs.rename(tempPath, hostPath);
+		await fs$1.writeFile(tempPath, buffer);
+		await fs$1.rename(tempPath, hostPath);
 		await this.backend.syncLocalPathToRemote(hostPath, target.containerPath);
 	}
 	async mkdirp(params) {
@@ -335,7 +337,7 @@ var OpenShellFsBridge = class {
 			allowMissingLeaf: true,
 			allowFinalSymlinkForUnlink: false
 		});
-		await fs.mkdir(hostPath, { recursive: true });
+		await fs$1.mkdir(hostPath, { recursive: true });
 		await this.backend.runRemoteShellScript({
 			script: "mkdir -p -- \"$1\"",
 			args: [target.containerPath],
@@ -352,7 +354,7 @@ var OpenShellFsBridge = class {
 			allowMissingLeaf: params.force !== false,
 			allowFinalSymlinkForUnlink: true
 		});
-		await fs.rm(hostPath, {
+		await fs$1.rm(hostPath, {
 			recursive: params.recursive ?? false,
 			force: params.force !== false
 		});
@@ -379,7 +381,7 @@ var OpenShellFsBridge = class {
 			allowMissingLeaf: true,
 			allowFinalSymlinkForUnlink: false
 		});
-		await fs.mkdir(path.dirname(toHostPath), { recursive: true });
+		await fs$1.mkdir(path.dirname(toHostPath), { recursive: true });
 		await movePathWithCopyFallback({
 			from: fromHostPath,
 			to: toHostPath
@@ -393,7 +395,7 @@ var OpenShellFsBridge = class {
 	async stat(params) {
 		const target = this.resolveTarget(params);
 		const hostPath = this.requireHostPath(target);
-		const stats = await fs.lstat(hostPath).catch(() => null);
+		const stats = await fs$1.lstat(hostPath).catch(() => null);
 		if (!stats) return null;
 		await assertLocalPathSafety({
 			target,
@@ -476,13 +478,13 @@ function isPathInside(root, target) {
 }
 async function assertLocalPathSafety(params) {
 	if (!params.target.hostPath) throw new Error(`Missing local host path for ${params.target.containerPath}`);
-	if (!isPathInside(await fs.realpath(params.root).catch(() => path.resolve(params.root)), await resolveCanonicalCandidate(params.target.hostPath))) throw new Error(`Sandbox path escapes allowed mounts; cannot access: ${params.target.containerPath}`);
+	if (!isPathInside(await fs$1.realpath(params.root).catch(() => path.resolve(params.root)), await resolveCanonicalCandidate(params.target.hostPath))) throw new Error(`Sandbox path escapes allowed mounts; cannot access: ${params.target.containerPath}`);
 	const relative = path.relative(params.root, params.target.hostPath);
 	const segments = relative.split(path.sep).filter(Boolean).slice(0, Math.max(0, relative.split(path.sep).filter(Boolean).length));
 	let cursor = params.root;
 	for (let index = 0; index < segments.length; index += 1) {
 		cursor = path.join(cursor, segments[index]);
-		const stats = await fs.lstat(cursor).catch(() => null);
+		const stats = await fs$1.lstat(cursor).catch(() => null);
 		if (!stats) {
 			if (index === segments.length - 1 && params.allowMissingLeaf) return;
 			continue;
@@ -495,8 +497,8 @@ async function resolveCanonicalCandidate(targetPath) {
 	const missing = [];
 	let cursor = path.resolve(targetPath);
 	while (true) {
-		if (await fs.lstat(cursor).then(() => true).catch(() => false)) {
-			const canonical = await fs.realpath(cursor).catch(() => cursor);
+		if (await fs$1.lstat(cursor).then(() => true).catch(() => false)) {
+			const canonical = await fs$1.realpath(cursor).catch(() => cursor);
 			return path.resolve(canonical, ...missing);
 		}
 		const parent = path.dirname(cursor);
@@ -613,7 +615,6 @@ var OpenShellSandboxBackendImpl = class {
 		this.remoteSeedPending = false;
 	}
 	asHandle() {
-		const self = this;
 		return {
 			id: "openshell",
 			runtimeId: this.params.execContext.sandboxName,
@@ -626,7 +627,7 @@ var OpenShellSandboxBackendImpl = class {
 			remoteWorkspaceDir: this.params.remoteWorkspaceDir,
 			remoteAgentWorkspaceDir: this.params.remoteAgentWorkspaceDir,
 			buildExecSpec: async ({ command, workdir, env, usePty }) => {
-				const pending = await self.prepareExec({
+				const pending = await this.prepareExec({
 					command,
 					workdir,
 					env,
@@ -640,18 +641,18 @@ var OpenShellSandboxBackendImpl = class {
 				};
 			},
 			finalizeExec: async ({ token }) => {
-				await self.finalizeExec(token);
+				await this.finalizeExec(token);
 			},
-			runShellCommand: async (command) => await self.runRemoteShellScript(command),
+			runShellCommand: async (command) => await this.runRemoteShellScript(command),
 			createFsBridge: ({ sandbox }) => this.params.execContext.config.mode === "remote" ? createRemoteShellSandboxFsBridge({
 				sandbox,
-				runtime: self.asHandle()
+				runtime: this.asHandle()
 			}) : createOpenShellFsBridge({
 				sandbox,
-				backend: self.asHandle()
+				backend: this.asHandle()
 			}),
-			runRemoteShellScript: async (command) => await self.runRemoteShellScript(command),
-			syncLocalPathToRemote: async (localPath, remotePath) => await self.syncLocalPathToRemote(localPath, remotePath)
+			runRemoteShellScript: async (command) => await this.runRemoteShellScript(command),
+			syncLocalPathToRemote: async (localPath, remotePath) => await this.syncLocalPathToRemote(localPath, remotePath)
 		};
 	}
 	async prepareExec(params) {
@@ -721,7 +722,7 @@ var OpenShellSandboxBackendImpl = class {
 	async syncLocalPathToRemote(localPath, remotePath) {
 		await this.ensureSandboxExists();
 		await this.maybeSeedRemoteWorkspace();
-		const stats = await fs.lstat(localPath).catch(() => null);
+		const stats = await fs$1.lstat(localPath).catch(() => null);
 		if (!stats) {
 			await this.runRemoteShellScript({
 				script: "rm -rf -- \"$1\"",
@@ -821,7 +822,7 @@ var OpenShellSandboxBackendImpl = class {
 		}
 	}
 	async syncWorkspaceFromRemote() {
-		const tmpDir = await fs.mkdtemp(path.join(resolveOpenShellTmpRoot(), "openclaw-openshell-sync-"));
+		const tmpDir = await fs$1.mkdtemp(path.join(resolveOpenShellTmpRoot(), "openclaw-openshell-sync-"));
 		try {
 			const result = await runOpenShellCli({
 				context: this.params.execContext,
@@ -841,14 +842,14 @@ var OpenShellSandboxBackendImpl = class {
 				excludeDirs: DEFAULT_OPEN_SHELL_MIRROR_EXCLUDE_DIRS
 			});
 		} finally {
-			await fs.rm(tmpDir, {
+			await fs$1.rm(tmpDir, {
 				recursive: true,
 				force: true
 			});
 		}
 	}
 	async uploadPathToRemote(localPath, remotePath) {
-		const tmpDir = await fs.mkdtemp(path.join(resolveOpenShellTmpRoot(), "openclaw-openshell-upload-"));
+		const tmpDir = await fs$1.mkdtemp(path.join(resolveOpenShellTmpRoot(), "openclaw-openshell-upload-"));
 		try {
 			await stageDirectoryContents({
 				sourceDir: localPath,
@@ -868,7 +869,7 @@ var OpenShellSandboxBackendImpl = class {
 			});
 			if (result.code !== 0) throw new Error(result.stderr.trim() || "openshell sandbox upload failed");
 		} finally {
-			await fs.rm(tmpDir, {
+			await fs$1.rm(tmpDir, {
 				recursive: true,
 				force: true
 			});
@@ -892,16 +893,16 @@ function resolveOpenShellPluginConfigFromConfig(config, fallback) {
 }
 function buildOpenShellSandboxName(scopeKey) {
 	const trimmed = scopeKey.trim() || "session";
-	const safe = trimmed.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32);
+	const safe = normalizeLowercaseStringOrEmpty(trimmed).replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32);
 	const hash = Array.from(trimmed).reduce((acc, char) => (acc * 33 ^ char.charCodeAt(0)) >>> 0, 5381);
 	return `openclaw-${safe || "session"}-${hash.toString(16).slice(0, 8)}`;
 }
 function resolveOpenShellTmpRoot() {
-	return path.resolve(resolvePreferredOpenClawTmpDir() ?? os.tmpdir());
+	return path.resolve(resolvePreferredOpenClawTmpDir());
 }
 //#endregion
 //#region extensions/openshell/index.ts
-const plugin = {
+var openshell_default = definePluginEntry({
 	id: "openshell",
 	name: "OpenShell Sandbox",
 	description: "OpenShell-backed sandbox runtime for agent exec and file tools.",
@@ -914,6 +915,6 @@ const plugin = {
 			manager: createOpenShellSandboxBackendManager({ pluginConfig })
 		});
 	}
-};
+});
 //#endregion
-export { plugin as default };
+export { openshell_default as default };

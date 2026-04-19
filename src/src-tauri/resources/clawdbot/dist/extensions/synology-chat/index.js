@@ -1,12 +1,18 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { n as setSynologyRuntime, t as synologyChatPlugin } from "../../channel-CEHqw1zN.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/synology-chat/index.ts
-var synology_chat_default = defineChannelPluginEntry({
+var synology_chat_default = defineBundledChannelEntry({
 	id: "synology-chat",
 	name: "Synology Chat",
 	description: "Native Synology Chat channel plugin for OpenClaw",
-	plugin: synologyChatPlugin,
-	setRuntime: setSynologyRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "synologyChatPlugin"
+	},
+	runtime: {
+		specifier: "./api.js",
+		exportName: "setSynologyRuntime"
+	}
 });
 //#endregion
-export { synology_chat_default as default, setSynologyRuntime, synologyChatPlugin };
+export { synology_chat_default as default };

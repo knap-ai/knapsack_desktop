@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export { drainFormattedSystemEvents } from "./session-system-events.js";
 export declare function ensureSkillSnapshot(params: {
     sessionEntry?: SessionEntry;
@@ -22,6 +22,7 @@ export declare function incrementCompactionCount(params: {
     sessionStore?: Record<string, SessionEntry>;
     sessionKey?: string;
     storePath?: string;
+    cfg?: OpenClawConfig;
     now?: number;
     amount?: number;
     /** Token count after compaction - if provided, updates session token counts */

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ProviderAuthMethod, ProviderPluginWizardSetup } from "./types.js";
 type ProviderApiKeyAuthMethodOptions = {
     providerId: string;

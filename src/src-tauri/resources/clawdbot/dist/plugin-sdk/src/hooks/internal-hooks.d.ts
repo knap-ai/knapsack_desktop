@@ -5,11 +5,12 @@
  * like command processing, session lifecycle, etc.
  */
 import type { WorkspaceBootstrapFile } from "../agents/workspace.js";
-import type { CliDeps } from "../cli/deps.js";
-import type { OpenClawConfig } from "../config/config.js";
-import type { SessionEntry } from "../config/sessions.js";
-import type { SessionsPatchParams } from "../gateway/protocol/index.js";
-export type InternalHookEventType = "command" | "session" | "agent" | "gateway" | "message";
+import type { CliDeps } from "../cli/outbound-send-deps.js";
+import type { SessionEntry } from "../config/sessions/types.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { SessionsPatchParams } from "../gateway/protocol/schema/types.js";
+import type { InternalHookEvent, InternalHookEventType, InternalHookHandler } from "./internal-hook-types.js";
+export type { InternalHookEvent, InternalHookEventType, InternalHookHandler };
 export type AgentBootstrapHookContext = {
     workspaceDir: string;
     bootstrapFiles: WorkspaceBootstrapFile[];
@@ -147,21 +148,6 @@ export type SessionPatchHookEvent = InternalHookEvent & {
     action: "patch";
     context: SessionPatchHookContext;
 };
-export interface InternalHookEvent {
-    /** The type of event (command, session, agent, gateway, etc.) */
-    type: InternalHookEventType;
-    /** The specific action within the type (e.g., 'new', 'reset', 'stop') */
-    action: string;
-    /** The session key this event relates to */
-    sessionKey: string;
-    /** Additional context specific to the event */
-    context: Record<string, unknown>;
-    /** Timestamp when the event occurred */
-    timestamp: Date;
-    /** Messages to send back to the user (hooks can push to this array) */
-    messages: string[];
-}
-export type InternalHookHandler = (event: InternalHookEvent) => Promise<void> | void;
 /**
  * Register a hook handler for a specific event type or event:action combination
  *
@@ -193,6 +179,7 @@ export declare function unregisterInternalHook(eventKey: string, handler: Intern
  * Clear all registered hooks (useful for testing)
  */
 export declare function clearInternalHooks(): void;
+export declare function setInternalHooksEnabled(enabled: boolean): void;
 /**
  * Get all registered event keys (useful for debugging)
  */
@@ -227,4 +214,3 @@ export declare function isMessageSentEvent(event: InternalHookEvent): event is M
 export declare function isMessageTranscribedEvent(event: InternalHookEvent): event is MessageTranscribedHookEvent;
 export declare function isMessagePreprocessedEvent(event: InternalHookEvent): event is MessagePreprocessedHookEvent;
 export declare function isSessionPatchEvent(event: InternalHookEvent): event is SessionPatchHookEvent;
-export {};

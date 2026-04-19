@@ -1,12 +1,22 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { n as setNextcloudTalkRuntime, t as nextcloudTalkPlugin } from "../../channel-W1Ul32NW.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/nextcloud-talk/index.ts
-var nextcloud_talk_default = defineChannelPluginEntry({
+var nextcloud_talk_default = defineBundledChannelEntry({
 	id: "nextcloud-talk",
 	name: "Nextcloud Talk",
 	description: "Nextcloud Talk channel plugin",
-	plugin: nextcloudTalkPlugin,
-	setRuntime: setNextcloudTalkRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "nextcloudTalkPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setNextcloudTalkRuntime"
+	}
 });
 //#endregion
-export { nextcloud_talk_default as default, nextcloudTalkPlugin, setNextcloudTalkRuntime };
+export { nextcloud_talk_default as default };

@@ -1,5 +1,5 @@
 import type { AcpSessionUpdateTag } from "../../acp/runtime/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export declare const ACP_TAG_VISIBILITY_DEFAULTS: Record<AcpSessionUpdateTag, boolean>;
 export type AcpDeliveryMode = "live" | "final_only";
 export type AcpHiddenBoundarySeparator = "none" | "space" | "newline" | "paragraph";

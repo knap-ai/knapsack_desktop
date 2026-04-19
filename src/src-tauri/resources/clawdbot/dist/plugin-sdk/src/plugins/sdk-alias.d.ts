@@ -7,6 +7,7 @@ export type LoaderModuleResolveParams = {
     moduleUrl?: string;
     pluginSdkResolution?: PluginSdkResolutionPreference;
 };
+export declare function normalizeJitiAliasTargetPath(targetPath: string): string;
 export declare function resolveLoaderPackageRoot(params: LoaderModuleResolveParams & {
     modulePath: string;
 }): string | null;
@@ -55,4 +56,26 @@ export declare function buildPluginLoaderJitiOptions(aliasMap: Record<string, st
     extensions: string[];
 };
 export declare function shouldPreferNativeJiti(modulePath: string): boolean;
+export declare function resolvePluginLoaderJitiTryNative(modulePath: string, options?: {
+    preferBuiltDist?: boolean;
+}): boolean;
+export declare function createPluginLoaderJitiCacheKey(params: {
+    tryNative: boolean;
+    aliasMap: Record<string, string>;
+}): string;
+export declare function resolvePluginLoaderJitiConfig(params: {
+    modulePath: string;
+    argv1?: string;
+    moduleUrl: string;
+    preferBuiltDist?: boolean;
+}): {
+    tryNative: boolean;
+    aliasMap: Record<string, string>;
+    cacheKey: string;
+};
+export declare function isBundledPluginExtensionPath(params: {
+    modulePath: string;
+    openClawPackageRoot: string;
+    bundledPluginsDir?: string;
+}): boolean;
 export {};

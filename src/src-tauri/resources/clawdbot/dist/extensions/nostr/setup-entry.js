@@ -1,6 +1,11 @@
-import { a as defineSetupPluginEntry } from "../../core-BghMcc08.js";
-import { n as nostrPlugin } from "../../channel-CSDG9q3b.js";
+import { defineBundledChannelSetupEntry } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/nostr/setup-entry.ts
-var setup_entry_default = defineSetupPluginEntry(nostrPlugin);
+var setup_entry_default = defineBundledChannelSetupEntry({
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "nostrPlugin"
+	}
+});
 //#endregion
 export { setup_entry_default as default };

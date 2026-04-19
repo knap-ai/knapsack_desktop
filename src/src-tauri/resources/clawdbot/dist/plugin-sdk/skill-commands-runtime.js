@@ -1,3 +1,2 @@
-import { n as listSkillCommandsForWorkspace, t as listSkillCommandsForAgents } from "../skill-commands-nVTmVENA.js";
-import "../skill-commands-runtime-BX-7wihc.js";
+import { n as listSkillCommandsForWorkspace, t as listSkillCommandsForAgents } from "../skill-commands-B4VgKCRw.js";
 export { listSkillCommandsForAgents, listSkillCommandsForWorkspace };

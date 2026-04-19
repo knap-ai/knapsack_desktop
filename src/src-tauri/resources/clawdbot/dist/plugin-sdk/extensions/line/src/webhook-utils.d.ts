@@ -1,3 +1,3 @@
-import type { WebhookRequestBody } from "@line/bot-sdk";
+import type { webhook } from "@line/bot-sdk";
 export { validateLineSignature } from "./signature.js";
-export declare function parseLineWebhookBody(rawBody: string): WebhookRequestBody | null;
+export declare function parseLineWebhookBody(rawBody: string): webhook.CallbackRequest | null;

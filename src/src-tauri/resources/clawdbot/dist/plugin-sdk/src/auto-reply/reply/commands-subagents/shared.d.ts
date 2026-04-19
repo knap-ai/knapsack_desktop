@@ -1,13 +1,16 @@
 import type { ResolvedSubagentController } from "../../../agents/subagent-control.js";
-import { type SubagentRunRecord } from "../../../agents/subagent-registry.js";
+import type { SubagentRunRecord } from "../../../agents/subagent-registry.types.js";
 import { extractAssistantText, stripToolMessages } from "../../../agents/tools/sessions-helpers.js";
-import type { SessionEntry, loadSessionStore as loadSessionStoreFn, resolveStorePath as resolveStorePathFn } from "../../../config/sessions.js";
-import { isDiscordSurface, isMatrixSurface, isTelegramSurface, resolveCommandSurfaceChannel, resolveDiscordAccountId, resolveChannelAccountId } from "../channel-context.js";
+import type { resolveStorePath as resolveStorePathFn } from "../../../config/sessions/paths.js";
+import type { loadSessionStore as loadSessionStoreFn } from "../../../config/sessions/store-load.js";
+import type { SessionEntry } from "../../../config/sessions/types.js";
+import { resolveCommandSurfaceChannel, resolveChannelAccountId } from "../channel-context.js";
+import { type ChatMessage } from "../commands-subagents-text.js";
 import type { CommandHandler, CommandHandlerResult } from "../commands-types.js";
 import { type SubagentTargetResolution } from "../subagents-utils.js";
-import { resolveTelegramConversationId } from "../telegram-context.js";
 export { extractAssistantText, stripToolMessages };
-export { isDiscordSurface, isMatrixSurface, isTelegramSurface, resolveCommandSurfaceChannel, resolveDiscordAccountId, resolveChannelAccountId, resolveTelegramConversationId, };
+export { resolveCommandSurfaceChannel, resolveChannelAccountId };
+export type { ChatMessage } from "../commands-subagents-text.js";
 export declare const COMMAND = "/subagents";
 export declare const COMMAND_KILL = "/kill";
 export declare const COMMAND_STEER = "/steer";
@@ -61,20 +64,11 @@ export type FocusTargetResolution = {
     agentId: string;
     label?: string;
 };
-export declare function resolveDiscordChannelIdForFocus(params: SubagentsCommandParams): string | undefined;
 export declare function resolveFocusTargetSession(params: {
     runs: SubagentRunRecord[];
     token: string;
 }): Promise<FocusTargetResolution | null>;
 export declare function buildSubagentsHelp(): string;
-export type ChatMessage = {
-    role?: unknown;
-    content?: unknown;
-};
-export declare function extractMessageText(message: ChatMessage): {
-    role: string;
-    text: string;
-} | null;
 export declare function formatLogLines(messages: ChatMessage[]): string[];
 export type SessionStoreCache = Map<string, Record<string, SessionEntry>>;
 export declare function loadSubagentSessionEntry(params: SubagentsCommandParams, childKey: string, loaders: {

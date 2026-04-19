@@ -1,2 +1,2 @@
-import { t as __testing } from "../../brave-web-search-provider-CMPeY1_v.js";
+import { t as __testing } from "../../brave-web-search-provider-DrLBIpIG.js";
 export { __testing };

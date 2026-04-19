@@ -59,6 +59,7 @@ export declare class GatewayClient {
     private tickTimer;
     private readonly requestTimeoutMs;
     private pendingStop;
+    private socketOpened;
     constructor(opts: GatewayClientOptions);
     start(): void;
     stop(): void;
@@ -69,6 +70,8 @@ export declare class GatewayClient {
     private createPendingStop;
     private resolvePendingStop;
     private sendConnect;
+    private resolveConnectScopes;
+    private loadStoredDeviceAuth;
     private shouldPauseReconnectAfterAuthFailure;
     private shouldRetryWithStoredDeviceToken;
     private isTrustedDeviceRetryEndpoint;

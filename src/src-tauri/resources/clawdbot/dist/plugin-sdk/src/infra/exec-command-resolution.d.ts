@@ -1,4 +1,4 @@
-import type { ExecAllowlistEntry } from "./exec-approvals.js";
+import type { ExecAllowlistEntry } from "./exec-approvals.types.js";
 export type ExecutableResolution = {
     rawExecutable: string;
     resolvedPath?: string;

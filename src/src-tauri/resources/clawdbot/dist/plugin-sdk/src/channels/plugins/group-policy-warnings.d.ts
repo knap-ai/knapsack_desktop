@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
 import type { GroupPolicy } from "../../config/types.base.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 type GroupPolicyWarningCollector = (groupPolicy: GroupPolicy) => string[];
 type AccountGroupPolicyWarningCollector<ResolvedAccount> = (params: {
     account: ResolvedAccount;

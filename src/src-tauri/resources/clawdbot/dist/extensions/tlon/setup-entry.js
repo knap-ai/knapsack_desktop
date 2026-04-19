@@ -1,6 +1,11 @@
-import { a as defineSetupPluginEntry } from "../../core-BghMcc08.js";
-import { t as tlonPlugin } from "../../channel-BEJ0CFXD.js";
+import { n as defineBundledChannelSetupEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/tlon/setup-entry.ts
-var setup_entry_default = defineSetupPluginEntry(tlonPlugin);
+var setup_entry_default = defineBundledChannelSetupEntry({
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "tlonPlugin"
+	}
+});
 //#endregion
 export { setup_entry_default as default };

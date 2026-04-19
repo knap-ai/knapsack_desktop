@@ -1,4 +1,4 @@
-import type { TaskRegistryStoreSnapshot } from "./task-registry.store.js";
+import type { TaskRegistryStoreSnapshot } from "./task-registry.store.types.js";
 import type { TaskDeliveryState, TaskRecord } from "./task-registry.types.js";
 export declare function loadTaskRegistryStateFromSqlite(): TaskRegistryStoreSnapshot;
 export declare function saveTaskRegistryStateToSqlite(snapshot: TaskRegistryStoreSnapshot): void;

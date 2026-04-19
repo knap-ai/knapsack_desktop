@@ -6,6 +6,7 @@ export type DeviceBootstrapTokenRecord = {
     deviceId?: string;
     publicKey?: string;
     profile?: DeviceBootstrapProfile;
+    redeemedProfile?: DeviceBootstrapProfile;
     roles?: string[];
     scopes?: string[];
     issuedAtMs: number;
@@ -30,6 +31,24 @@ export declare function revokeDeviceBootstrapToken(params: {
     baseDir?: string;
 }): Promise<{
     removed: boolean;
+    record?: DeviceBootstrapTokenRecord;
+}>;
+export declare function restoreDeviceBootstrapToken(params: {
+    record: DeviceBootstrapTokenRecord;
+    baseDir?: string;
+}): Promise<void>;
+export declare function getDeviceBootstrapTokenProfile(params: {
+    token: string;
+    baseDir?: string;
+}): Promise<DeviceBootstrapProfile | null>;
+export declare function redeemDeviceBootstrapTokenProfile(params: {
+    token: string;
+    role: string;
+    scopes: readonly string[];
+    baseDir?: string;
+}): Promise<{
+    recorded: boolean;
+    fullyRedeemed: boolean;
 }>;
 export declare function verifyDeviceBootstrapToken(params: {
     token: string;
@@ -44,3 +63,15 @@ export declare function verifyDeviceBootstrapToken(params: {
     ok: false;
     reason: string;
 }>;
+/**
+ * Reads the already-bound bootstrap profile for a verified device identity.
+ *
+ * Call this only after `verifyDeviceBootstrapToken()` has returned `{ ok: true }`
+ * for the same `token` / `deviceId` / `publicKey` tuple in the current handshake.
+ */
+export declare function getBoundDeviceBootstrapProfile(params: {
+    token: string;
+    deviceId: string;
+    publicKey: string;
+    baseDir?: string;
+}): Promise<DeviceBootstrapProfile | null>;

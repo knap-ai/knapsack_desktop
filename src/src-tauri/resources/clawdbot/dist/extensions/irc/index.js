@@ -1,12 +1,22 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { n as setIrcRuntime, t as ircPlugin } from "../../channel-DnBaTJM0.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/irc/index.ts
-var irc_default = defineChannelPluginEntry({
+var irc_default = defineBundledChannelEntry({
 	id: "irc",
 	name: "IRC",
 	description: "IRC channel plugin",
-	plugin: ircPlugin,
-	setRuntime: setIrcRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./channel-plugin-api.js",
+		exportName: "ircPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setIrcRuntime"
+	}
 });
 //#endregion
-export { irc_default as default, ircPlugin, setIrcRuntime };
+export { irc_default as default };

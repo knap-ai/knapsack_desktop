@@ -1,3 +1,33 @@
+export declare const SessionCompactionCheckpointReasonSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+export declare const SessionCompactionTranscriptReferenceSchema: import("@sinclair/typebox").TObject<{
+    sessionId: import("@sinclair/typebox").TString;
+    sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+}>;
+export declare const SessionCompactionCheckpointSchema: import("@sinclair/typebox").TObject<{
+    checkpointId: import("@sinclair/typebox").TString;
+    sessionKey: import("@sinclair/typebox").TString;
+    sessionId: import("@sinclair/typebox").TString;
+    createdAt: import("@sinclair/typebox").TInteger;
+    reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+    tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    preCompaction: import("@sinclair/typebox").TObject<{
+        sessionId: import("@sinclair/typebox").TString;
+        sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    }>;
+    postCompaction: import("@sinclair/typebox").TObject<{
+        sessionId: import("@sinclair/typebox").TString;
+        sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    }>;
+}>;
 export declare const SessionsListParamsSchema: import("@sinclair/typebox").TObject<{
     limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
     activeMinutes: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
@@ -65,6 +95,7 @@ export declare const SessionsPatchParamsSchema: import("@sinclair/typebox").TObj
     thinkingLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
     fastMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TBoolean, import("@sinclair/typebox").TNull]>>;
     verboseLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+    traceLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
     reasoningLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
     responseUsage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"off">, import("@sinclair/typebox").TLiteral<"tokens">, import("@sinclair/typebox").TLiteral<"full">, import("@sinclair/typebox").TLiteral<"on">, import("@sinclair/typebox").TNull]>>;
     elevatedLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
@@ -93,6 +124,140 @@ export declare const SessionsDeleteParamsSchema: import("@sinclair/typebox").TOb
 export declare const SessionsCompactParamsSchema: import("@sinclair/typebox").TObject<{
     key: import("@sinclair/typebox").TString;
     maxLines: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+}>;
+export declare const SessionsCompactionListParamsSchema: import("@sinclair/typebox").TObject<{
+    key: import("@sinclair/typebox").TString;
+}>;
+export declare const SessionsCompactionGetParamsSchema: import("@sinclair/typebox").TObject<{
+    key: import("@sinclair/typebox").TString;
+    checkpointId: import("@sinclair/typebox").TString;
+}>;
+export declare const SessionsCompactionBranchParamsSchema: import("@sinclair/typebox").TObject<{
+    key: import("@sinclair/typebox").TString;
+    checkpointId: import("@sinclair/typebox").TString;
+}>;
+export declare const SessionsCompactionRestoreParamsSchema: import("@sinclair/typebox").TObject<{
+    key: import("@sinclair/typebox").TString;
+    checkpointId: import("@sinclair/typebox").TString;
+}>;
+export declare const SessionsCompactionListResultSchema: import("@sinclair/typebox").TObject<{
+    ok: import("@sinclair/typebox").TLiteral<true>;
+    key: import("@sinclair/typebox").TString;
+    checkpoints: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+        checkpointId: import("@sinclair/typebox").TString;
+        sessionKey: import("@sinclair/typebox").TString;
+        sessionId: import("@sinclair/typebox").TString;
+        createdAt: import("@sinclair/typebox").TInteger;
+        reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+        tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        preCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+        postCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+    }>>;
+}>;
+export declare const SessionsCompactionGetResultSchema: import("@sinclair/typebox").TObject<{
+    ok: import("@sinclair/typebox").TLiteral<true>;
+    key: import("@sinclair/typebox").TString;
+    checkpoint: import("@sinclair/typebox").TObject<{
+        checkpointId: import("@sinclair/typebox").TString;
+        sessionKey: import("@sinclair/typebox").TString;
+        sessionId: import("@sinclair/typebox").TString;
+        createdAt: import("@sinclair/typebox").TInteger;
+        reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+        tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        preCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+        postCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+    }>;
+}>;
+export declare const SessionsCompactionBranchResultSchema: import("@sinclair/typebox").TObject<{
+    ok: import("@sinclair/typebox").TLiteral<true>;
+    sourceKey: import("@sinclair/typebox").TString;
+    key: import("@sinclair/typebox").TString;
+    sessionId: import("@sinclair/typebox").TString;
+    checkpoint: import("@sinclair/typebox").TObject<{
+        checkpointId: import("@sinclair/typebox").TString;
+        sessionKey: import("@sinclair/typebox").TString;
+        sessionId: import("@sinclair/typebox").TString;
+        createdAt: import("@sinclair/typebox").TInteger;
+        reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+        tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        preCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+        postCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+    }>;
+    entry: import("@sinclair/typebox").TObject<{
+        sessionId: import("@sinclair/typebox").TString;
+        updatedAt: import("@sinclair/typebox").TInteger;
+    }>;
+}>;
+export declare const SessionsCompactionRestoreResultSchema: import("@sinclair/typebox").TObject<{
+    ok: import("@sinclair/typebox").TLiteral<true>;
+    key: import("@sinclair/typebox").TString;
+    sessionId: import("@sinclair/typebox").TString;
+    checkpoint: import("@sinclair/typebox").TObject<{
+        checkpointId: import("@sinclair/typebox").TString;
+        sessionKey: import("@sinclair/typebox").TString;
+        sessionId: import("@sinclair/typebox").TString;
+        createdAt: import("@sinclair/typebox").TInteger;
+        reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+        tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        preCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+        postCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+    }>;
+    entry: import("@sinclair/typebox").TObject<{
+        sessionId: import("@sinclair/typebox").TString;
+        updatedAt: import("@sinclair/typebox").TInteger;
+    }>;
 }>;
 export declare const SessionsUsageParamsSchema: import("@sinclair/typebox").TObject<{
     /** Specific session key to analyze; if omitted returns all sessions. */

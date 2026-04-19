@@ -4,6 +4,11 @@ export type CacheTtlEntryData = {
     provider?: string;
     modelId?: string;
 };
-export declare function isCacheTtlEligibleProvider(provider: string, modelId: string): boolean;
-export declare function readLastCacheTtlTimestamp(sessionManager: unknown): number | null;
+type CacheTtlContext = {
+    provider?: string;
+    modelId?: string;
+};
+export declare function isCacheTtlEligibleProvider(provider: string, modelId: string, modelApi?: string): boolean;
+export declare function readLastCacheTtlTimestamp(sessionManager: unknown, context?: CacheTtlContext): number | null;
 export declare function appendCacheTtlTimestamp(sessionManager: unknown, data: CacheTtlEntryData): void;
+export {};

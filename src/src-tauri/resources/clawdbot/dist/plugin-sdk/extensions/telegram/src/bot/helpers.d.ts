@@ -2,10 +2,10 @@ import type { Chat, Message } from "@grammyjs/types";
 import type { TelegramDirectConfig, TelegramGroupConfig, TelegramTopicConfig } from "openclaw/plugin-sdk/config-runtime";
 import { readChannelAllowFromStore } from "openclaw/plugin-sdk/conversation-runtime";
 import { type NormalizedAllowFrom } from "../bot-access.js";
-import { buildSenderLabel, buildSenderName, expandTextLinks, extractTelegramLocation, getTelegramTextParts, hasBotMention, normalizeForwardedContext, resolveTelegramMediaPlaceholder, type TelegramForwardedContext } from "./body-helpers.js";
+import { buildSenderLabel, buildSenderName, expandTextLinks, extractTelegramLocation, getTelegramTextParts, hasBotMention, isBinaryContent, normalizeForwardedContext, resolveTelegramMediaPlaceholder, type TelegramForwardedContext } from "./body-helpers.js";
 import type { TelegramGetChat, TelegramStreamMode } from "./types.js";
-export { buildSenderLabel, buildSenderName, expandTextLinks, extractTelegramLocation, getTelegramTextParts, hasBotMention, normalizeForwardedContext, resolveTelegramMediaPlaceholder, };
 export type { TelegramForwardedContext, TelegramTextEntity } from "./body-helpers.js";
+export { buildSenderLabel, buildSenderName, expandTextLinks, extractTelegramLocation, getTelegramTextParts, hasBotMention, isBinaryContent, normalizeForwardedContext, resolveTelegramMediaPlaceholder, };
 export type TelegramThreadSpec = {
     id?: number;
     scope: "dm" | "forum" | "none";
@@ -127,7 +127,9 @@ export declare function resolveTelegramReplyId(raw?: string): number | undefined
 export type TelegramReplyTarget = {
     id?: string;
     sender: string;
-    body: string;
+    senderId?: string;
+    senderUsername?: string;
+    body?: string;
     kind: "reply" | "quote";
     /** Forward context if the reply target was itself a forwarded message (issue #9619). */
     forwardedFrom?: TelegramForwardedContext;

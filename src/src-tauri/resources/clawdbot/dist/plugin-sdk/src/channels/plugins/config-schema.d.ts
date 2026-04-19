@@ -1,5 +1,5 @@
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
-import type { ChannelConfigSchema, ChannelConfigUiHint } from "./types.plugin.js";
+import type { ChannelConfigSchema, ChannelConfigUiHint } from "./types.config.js";
 type ExtendableZodObject = ZodTypeAny & {
     extend: (shape: Record<string, ZodTypeAny>) => ZodTypeAny;
 };
@@ -20,4 +20,5 @@ type BuildChannelConfigSchemaOptions = {
     uiHints?: Record<string, ChannelConfigUiHint>;
 };
 export declare function buildChannelConfigSchema(schema: ZodTypeAny, options?: BuildChannelConfigSchemaOptions): ChannelConfigSchema;
+export declare function emptyChannelConfigSchema(): ChannelConfigSchema;
 export {};

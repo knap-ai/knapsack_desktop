@@ -1,8 +1,11 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-BnIQWKLx.js";
-import { t as buildDeepSeekProvider } from "../../api-BSQvLZ0A.js";
-import { n as applyDeepSeekConfig, t as DEEPSEEK_DEFAULT_MODEL_REF } from "../../onboard-BCFDBk9Q.js";
+import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-CQPCLokR.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
+import { t as buildDeepSeekProvider } from "../../provider-catalog-DLeaHNLa.js";
+import { n as applyDeepSeekConfig, t as DEEPSEEK_DEFAULT_MODEL_REF } from "../../onboard-CKqBpCXc.js";
+//#region extensions/deepseek/index.ts
+const PROVIDER_ID = "deepseek";
 var deepseek_default = defineSingleProviderPluginEntry({
-	id: "deepseek",
+	id: PROVIDER_ID,
 	name: "DeepSeek Provider",
 	description: "Bundled DeepSeek provider plugin",
 	provider: {
@@ -26,7 +29,12 @@ var deepseek_default = defineSingleProviderPluginEntry({
 				groupHint: "API key"
 			}
 		}],
-		catalog: { buildProvider: buildDeepSeekProvider }
+		catalog: { buildProvider: buildDeepSeekProvider },
+		augmentModelCatalog: ({ config }) => readConfiguredProviderCatalogEntries({
+			config,
+			providerId: PROVIDER_ID
+		}),
+		matchesContextOverflowError: ({ errorMessage }) => /\bdeepseek\b.*(?:input.*too long|context.*exceed)/i.test(errorMessage)
 	}
 });
 //#endregion

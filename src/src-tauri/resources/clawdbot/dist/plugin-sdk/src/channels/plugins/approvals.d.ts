@@ -1,3 +1,4 @@
-import type { ChannelApprovalAdapter, ChannelApprovalCapability, ChannelPlugin } from "./types.js";
-export declare function resolveChannelApprovalCapability(plugin?: Pick<ChannelPlugin, "approvalCapability" | "auth" | "approvals"> | null): ChannelApprovalCapability | undefined;
-export declare function resolveChannelApprovalAdapter(plugin?: Pick<ChannelPlugin, "approvalCapability" | "auth" | "approvals"> | null): ChannelApprovalAdapter | undefined;
+import type { ChannelApprovalAdapter, ChannelApprovalCapability } from "./types.adapters.js";
+import type { ChannelPlugin } from "./types.plugin.js";
+export declare function resolveChannelApprovalCapability(plugin?: Pick<ChannelPlugin, "approvalCapability"> | null): ChannelApprovalCapability | undefined;
+export declare function resolveChannelApprovalAdapter(plugin?: Pick<ChannelPlugin, "approvalCapability"> | null): ChannelApprovalAdapter | undefined;

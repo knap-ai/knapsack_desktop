@@ -7,9 +7,6 @@ export declare abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyn
     protected abstract batchFailureLastError?: string;
     protected abstract batchFailureLastProvider?: string;
     protected abstract batchFailureLock: Promise<void>;
-    private buildEmbeddingBatches;
-    private loadEmbeddingCache;
-    private upsertEmbeddingCache;
     protected pruneEmbeddingCacheIfNeeded(): void;
     private embedChunksInBatches;
     protected computeProviderKey(): string;
@@ -19,7 +16,6 @@ export declare abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyn
     protected embedBatchWithRetry(texts: string[]): Promise<number[][]>;
     protected embedBatchInputsWithRetry(inputs: EmbeddingInput[]): Promise<number[][]>;
     private waitForEmbeddingRetry;
-    private isRetryableEmbeddingError;
     private resolveEmbeddingTimeout;
     protected embedQueryWithTimeout(text: string): Promise<number[]>;
     protected withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T>;
@@ -33,7 +29,6 @@ export declare abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyn
     private clearIndexedFileData;
     private upsertFileRecord;
     private deleteFileRecord;
-    private isStructuredInputTooLargeError;
     /**
      * Write chunks (and optional embeddings) for a file into the index.
      * Handles both the chunks table, the vector table, and the FTS table.

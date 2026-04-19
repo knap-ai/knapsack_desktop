@@ -1,8 +1,9 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { TaskFlowRecord } from "./task-flow-registry.types.js";
 import type { TaskDeliveryState, TaskDeliveryStatus, TaskNotifyPolicy, TaskRecord, TaskRegistrySummary, TaskRuntime, TaskScopeKind, TaskStatus, TaskTerminalOutcome } from "./task-registry.types.js";
 export declare function createQueuedTaskRun(params: {
     runtime: TaskRuntime;
+    taskKind?: string;
     sourceId?: string;
     requesterSessionKey?: string;
     ownerKey?: string;
@@ -22,6 +23,7 @@ export declare function createQueuedTaskRun(params: {
 export declare function getFlowTaskSummary(flowId: string): TaskRegistrySummary;
 export declare function createRunningTaskRun(params: {
     runtime: TaskRuntime;
+    taskKind?: string;
     sourceId?: string;
     requesterSessionKey?: string;
     ownerKey?: string;

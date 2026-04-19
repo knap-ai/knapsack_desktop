@@ -1,12 +1,12 @@
+import type { GetReplyOptions } from "../auto-reply/get-reply-options.types.js";
 import { type DispatchFromConfigResult } from "../auto-reply/reply/dispatch-from-config.js";
-import type { ReplyDispatcher } from "../auto-reply/reply/reply-dispatcher.js";
+import type { DispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.types.js";
+import type { ReplyDispatcher } from "../auto-reply/reply/reply-dispatcher.types.js";
 import type { FinalizedMsgContext } from "../auto-reply/templating.js";
-import type { GetReplyOptions } from "../auto-reply/types.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type OutboundReplyPayload } from "./reply-payload.js";
 type ReplyOptionsWithoutModelSelected = Omit<Omit<GetReplyOptions, "onToolResult" | "onBlockReply">, "onModelSelected">;
 type RecordInboundSessionFn = typeof import("../channels/session.js").recordInboundSession;
-type DispatchReplyWithBufferedBlockDispatcherFn = typeof import("../auto-reply/reply/provider-dispatcher.js").dispatchReplyWithBufferedBlockDispatcher;
 type ReplyDispatchFromConfigOptions = Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
 /** Run `dispatchReplyFromConfig` with a dispatcher that always gets its settled callback. */
 export declare function dispatchReplyFromConfigWithSettledDispatcher(params: {
@@ -34,7 +34,7 @@ export declare function buildInboundReplyDispatchBase(params: {
                 recordInboundSession: RecordInboundSessionFn;
             };
             reply: {
-                dispatchReplyWithBufferedBlockDispatcher: DispatchReplyWithBufferedBlockDispatcherFn;
+                dispatchReplyWithBufferedBlockDispatcher: DispatchReplyWithBufferedBlockDispatcher;
             };
         };
     };
@@ -47,7 +47,7 @@ export declare function buildInboundReplyDispatchBase(params: {
     storePath: string;
     ctxPayload: FinalizedMsgContext;
     recordInboundSession: typeof import("../channels/session.js").recordInboundSession;
-    dispatchReplyWithBufferedBlockDispatcher: typeof import("../auto-reply/reply/provider-dispatcher.js").dispatchReplyWithBufferedBlockDispatcher;
+    dispatchReplyWithBufferedBlockDispatcher: DispatchReplyWithBufferedBlockDispatcher;
 };
 type BuildInboundReplyDispatchBaseParams = Parameters<typeof buildInboundReplyDispatchBase>[0];
 type RecordInboundSessionAndDispatchReplyParams = Parameters<typeof recordInboundSessionAndDispatchReply>[0];
@@ -63,7 +63,7 @@ export declare function recordInboundSessionAndDispatchReply(params: {
     storePath: string;
     ctxPayload: FinalizedMsgContext;
     recordInboundSession: RecordInboundSessionFn;
-    dispatchReplyWithBufferedBlockDispatcher: DispatchReplyWithBufferedBlockDispatcherFn;
+    dispatchReplyWithBufferedBlockDispatcher: DispatchReplyWithBufferedBlockDispatcher;
     deliver: (payload: OutboundReplyPayload) => Promise<void>;
     onRecordError: (err: unknown) => void;
     onDispatchError: (err: unknown, info: {

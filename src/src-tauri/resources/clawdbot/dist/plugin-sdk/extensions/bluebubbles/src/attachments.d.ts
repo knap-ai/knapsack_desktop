@@ -7,6 +7,20 @@ export type BlueBubblesAttachmentOpts = {
     timeoutMs?: number;
     cfg?: OpenClawConfig;
 };
+/**
+ * Fetch attachment metadata for a message from the BlueBubbles API.
+ *
+ * BlueBubbles sometimes fires the `new-message` webhook before attachment
+ * indexing is complete, so `attachments` arrives as `[]`. This function
+ * GETs the message by GUID and returns whatever attachments the server
+ * has indexed by now. (#65430, #67437)
+ */
+export declare function fetchBlueBubblesMessageAttachments(messageGuid: string, opts: {
+    baseUrl: string;
+    password: string;
+    timeoutMs?: number;
+    allowPrivateNetwork?: boolean;
+}): Promise<BlueBubblesAttachment[]>;
 export declare function downloadBlueBubblesAttachment(attachment: BlueBubblesAttachment, opts?: BlueBubblesAttachmentOpts & {
     maxBytes?: number;
 }): Promise<{

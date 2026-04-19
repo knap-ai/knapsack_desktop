@@ -1,5 +1,5 @@
 import { createProviderApiKeyAuthMethod } from "../plugins/provider-api-key-auth.js";
-import type { ProviderPlugin, ProviderPluginWizardSetup } from "../plugins/types.js";
+import type { ProviderPlugin, ProviderPluginCatalog, ProviderPluginWizardSetup } from "../plugins/types.js";
 import type { OpenClawPluginApi, OpenClawPluginConfigSchema, OpenClawPluginDefinition } from "./plugin-entry.js";
 import { buildSingleProviderApiKeyCatalog } from "./provider-catalog-shared.js";
 type ApiKeyAuthMethodOptions = Parameters<typeof createProviderApiKeyAuthMethod>[0];
@@ -10,6 +10,13 @@ export type SingleProviderPluginApiKeyAuthOptions = Omit<ApiKeyAuthMethodOptions
 export type SingleProviderPluginCatalogOptions = {
     buildProvider: Parameters<typeof buildSingleProviderApiKeyCatalog>[0]["buildProvider"];
     allowExplicitBaseUrl?: boolean;
+    run?: never;
+    order?: never;
+} | {
+    run: ProviderPluginCatalog["run"];
+    order?: ProviderPluginCatalog["order"];
+    buildProvider?: never;
+    allowExplicitBaseUrl?: never;
 };
 export type SingleProviderPluginOptions = {
     id: string;
@@ -34,5 +41,5 @@ export declare function defineSingleProviderPluginEntry(options: SingleProviderP
     description: string;
     configSchema: OpenClawPluginConfigSchema;
     register: NonNullable<OpenClawPluginDefinition["register"]>;
-} & Pick<OpenClawPluginDefinition, "kind">;
+} & Pick<OpenClawPluginDefinition, "kind" | "reload" | "nodeHostCommands" | "securityAuditCollectors">;
 export {};

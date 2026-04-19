@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../../config/types.js";
 import type { DirectoryConfigParams } from "./directory-types.js";
-import type { ChannelDirectoryEntry } from "./types.js";
+import type { ChannelDirectoryEntry } from "./types.public.js";
 export declare function applyDirectoryQueryAndLimit(ids: string[], params: {
     query?: string | null;
     limit?: number | null;

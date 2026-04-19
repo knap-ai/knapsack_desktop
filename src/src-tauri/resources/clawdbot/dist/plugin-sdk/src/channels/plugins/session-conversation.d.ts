@@ -15,11 +15,16 @@ export type ResolvedSessionConversationRef = {
     baseConversationId: string;
     parentConversationCandidates: string[];
 };
+type SessionConversationResolutionOptions = {
+    bundledFallback?: boolean;
+};
 export declare function resolveSessionConversation(params: {
     channel: string;
     kind: "group" | "channel";
     rawId: string;
+    bundledFallback?: boolean;
 }): ResolvedSessionConversation | null;
-export declare function resolveSessionConversationRef(sessionKey: string | undefined | null): ResolvedSessionConversationRef | null;
-export declare function resolveSessionThreadInfo(sessionKey: string | undefined | null): ParsedThreadSessionSuffix;
+export declare function resolveSessionConversationRef(sessionKey: string | undefined | null, opts?: SessionConversationResolutionOptions): ResolvedSessionConversationRef | null;
+export declare function resolveSessionThreadInfo(sessionKey: string | undefined | null, opts?: SessionConversationResolutionOptions): ParsedThreadSessionSuffix;
 export declare function resolveSessionParentSessionKey(sessionKey: string | undefined | null): string | null;
+export {};

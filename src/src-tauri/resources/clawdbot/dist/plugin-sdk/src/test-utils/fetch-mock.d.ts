@@ -7,6 +7,7 @@ type FetchPreconnectOptions = {
 };
 type FetchWithPreconnect = {
     preconnect: (url: string | URL, options?: FetchPreconnectOptions) => void;
+    __openclawAcceptsDispatcher: true;
 };
 export declare function withFetchPreconnect<T extends typeof fetch>(fn: T): T & FetchWithPreconnect;
 export declare function withFetchPreconnect<T extends object>(fn: T): T & FetchWithPreconnect & typeof fetch;

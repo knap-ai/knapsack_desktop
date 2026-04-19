@@ -1,5 +1,5 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { WorkspaceBootstrapFile } from "../workspace.js";
 import type { EmbeddedContextFile } from "./types.js";
 type ThoughtSignatureSanitizeOptions = {
@@ -13,8 +13,8 @@ type ThoughtSignatureSanitizeOptions = {
  * like "msg_abc123...". We only strip "msg_*" to preserve any provider-valid signatures.
  */
 export declare function stripThoughtSignatures<T>(content: T, options?: ThoughtSignatureSanitizeOptions): T;
-export declare const DEFAULT_BOOTSTRAP_MAX_CHARS = 20000;
-export declare const DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS = 150000;
+export declare const DEFAULT_BOOTSTRAP_MAX_CHARS = 12000;
+export declare const DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS = 60000;
 export declare const DEFAULT_BOOTSTRAP_PROMPT_TRUNCATION_WARNING_MODE = "once";
 export declare function resolveBootstrapMaxChars(cfg?: OpenClawConfig): number;
 export declare function resolveBootstrapTotalMaxChars(cfg?: OpenClawConfig): number;

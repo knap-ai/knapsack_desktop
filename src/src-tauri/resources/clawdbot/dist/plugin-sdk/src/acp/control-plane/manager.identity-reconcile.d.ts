@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { AcpRuntime, AcpRuntimeHandle, AcpRuntimeStatus } from "../runtime/types.js";
 import type { SessionAcpMeta, SessionEntry } from "./manager.types.js";
 export declare function reconcileManagerRuntimeSessionIdentifiers(params: {

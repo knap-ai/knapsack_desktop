@@ -7,6 +7,7 @@ export declare function isEmptyAssistantMessageContent(message: Extract<AgentMes
 export declare function sanitizeSessionMessagesImages(messages: AgentMessage[], label: string, options?: {
     sanitizeMode?: "full" | "images-only";
     sanitizeToolCallIds?: boolean;
+    preserveNativeAnthropicToolUseIds?: boolean;
     /**
      * Mode for tool call ID sanitization:
      * - "strict" (alphanumeric only)

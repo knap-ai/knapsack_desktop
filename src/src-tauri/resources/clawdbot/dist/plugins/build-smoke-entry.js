@@ -1,4 +1,4 @@
-import { n as loadOpenClawPlugins } from "../loader-BkOjign1.js";
-import { g as clearPluginCommands, v as getPluginCommandSpecs } from "../types-BKsOYeOd.js";
-import { i as matchPluginCommand, n as executePluginCommand } from "../commands-IPE8R0rg.js";
+import { r as loadOpenClawPlugins } from "../loader-DYW2PvbF.js";
+import { a as clearPluginCommands, s as getPluginCommandSpecs } from "../command-registration-BkSkbo2n.js";
+import { i as matchPluginCommand, n as executePluginCommand } from "../commands-7eF4g_YK.js";
 export { clearPluginCommands, executePluginCommand, getPluginCommandSpecs, loadOpenClawPlugins, matchPluginCommand };

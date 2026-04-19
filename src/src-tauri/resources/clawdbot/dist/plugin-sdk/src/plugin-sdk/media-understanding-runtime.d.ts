@@ -1,11 +1,1 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["media-understanding-runtime"];
-type FacadeModule = FacadeEntry["module"];
-export declare const describeImageFile: FacadeModule["describeImageFile"];
-export declare const describeImageFileWithModel: FacadeModule["describeImageFileWithModel"];
-export declare const describeVideoFile: FacadeModule["describeVideoFile"];
-export declare const runMediaUnderstandingFile: FacadeModule["runMediaUnderstandingFile"];
-export declare const transcribeAudioFile: FacadeModule["transcribeAudioFile"];
-export type RunMediaUnderstandingFileParams = FacadeEntry["types"]["RunMediaUnderstandingFileParams"];
-export type RunMediaUnderstandingFileResult = FacadeEntry["types"]["RunMediaUnderstandingFileResult"];
-export {};
+export { describeImageFile, describeImageFileWithModel, describeVideoFile, runMediaUnderstandingFile, transcribeAudioFile, type RunMediaUnderstandingFileParams, type RunMediaUnderstandingFileResult, } from "../media-understanding/runtime.js";

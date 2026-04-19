@@ -35,6 +35,7 @@ export declare function ensureAgentWorkspace(params?: {
     userPath?: string;
     heartbeatPath?: string;
     bootstrapPath?: string;
+    identityPathCreated?: boolean;
 }>;
 export declare function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]>;
 export declare function filterBootstrapFilesForSession(files: WorkspaceBootstrapFile[], sessionKey?: string): WorkspaceBootstrapFile[];

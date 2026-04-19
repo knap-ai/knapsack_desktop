@@ -28,6 +28,8 @@ export declare function truncateSessionAfterCompaction(params: {
     sessionFile: string;
     /** Optional path to archive the pre-truncation file. */
     archivePath?: string;
+    ackMaxChars?: number;
+    heartbeatPrompt?: string;
 }): Promise<TruncationResult>;
 export type TruncationResult = {
     truncated: boolean;

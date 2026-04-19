@@ -1,12 +1,18 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { n as setWhatsAppRuntime, t as whatsappPlugin } from "../../channel-COwvlrS2.js";
+import { defineBundledChannelEntry } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/whatsapp/index.ts
-var whatsapp_default = defineChannelPluginEntry({
+var whatsapp_default = defineBundledChannelEntry({
 	id: "whatsapp",
 	name: "WhatsApp",
 	description: "WhatsApp channel plugin",
-	plugin: whatsappPlugin,
-	setRuntime: setWhatsAppRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./channel-plugin-api.js",
+		exportName: "whatsappPlugin"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setWhatsAppRuntime"
+	}
 });
 //#endregion
-export { whatsapp_default as default, setWhatsAppRuntime, whatsappPlugin };
+export { whatsapp_default as default };

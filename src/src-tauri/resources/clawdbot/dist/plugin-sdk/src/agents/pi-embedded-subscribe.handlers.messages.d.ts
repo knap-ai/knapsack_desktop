@@ -1,4 +1,5 @@
 import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
+import { type AssistantPhase } from "../shared/chat-message-content.js";
 import type { BlockReplyPayload } from "./pi-embedded-payloads.js";
 import type { EmbeddedPiSubscribeContext, EmbeddedPiSubscribeState } from "./pi-embedded-subscribe.handlers.types.js";
 export declare function resolveSilentReplyFallbackText(params: {
@@ -19,11 +20,13 @@ export declare function buildAssistantStreamData(params: {
     replace?: boolean;
     mediaUrls?: string[];
     mediaUrl?: string;
+    phase?: AssistantPhase;
 }): {
     text: string;
     delta: string;
     replace?: true;
     mediaUrls?: string[];
+    phase?: AssistantPhase;
 };
 export declare function handleMessageStart(ctx: EmbeddedPiSubscribeContext, evt: AgentEvent & {
     message: AgentMessage;
@@ -34,4 +37,4 @@ export declare function handleMessageUpdate(ctx: EmbeddedPiSubscribeContext, evt
 }): void;
 export declare function handleMessageEnd(ctx: EmbeddedPiSubscribeContext, evt: AgentEvent & {
     message: AgentMessage;
-}): Promise<void> | undefined;
+}): void | Promise<void>;

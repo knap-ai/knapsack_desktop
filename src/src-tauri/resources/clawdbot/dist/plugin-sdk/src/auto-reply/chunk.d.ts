@@ -1,7 +1,6 @@
-import type { ChannelId } from "../channels/plugins/types.js";
-import type { OpenClawConfig } from "../config/config.js";
-import { INTERNAL_MESSAGE_CHANNEL } from "../utils/message-channel.js";
-export type TextChunkProvider = ChannelId | typeof INTERNAL_MESSAGE_CHANNEL;
+import type { ChannelId } from "../channels/plugins/types.core.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+export type TextChunkProvider = ChannelId;
 /**
  * Chunking mode for outbound messages:
  * - "length": Split only when exceeding textChunkLimit (default)

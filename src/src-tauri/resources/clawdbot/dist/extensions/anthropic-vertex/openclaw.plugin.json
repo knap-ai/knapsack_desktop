@@ -4,6 +4,7 @@
   "providers": [
     "anthropic-vertex"
   ],
+  "providerDiscoveryEntry": "./provider-discovery.ts",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

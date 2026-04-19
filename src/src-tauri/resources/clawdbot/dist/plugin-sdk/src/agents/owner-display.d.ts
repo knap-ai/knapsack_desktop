@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type OwnerDisplaySetting = {
     ownerDisplay?: "raw" | "hash";
     ownerDisplaySecret?: string;

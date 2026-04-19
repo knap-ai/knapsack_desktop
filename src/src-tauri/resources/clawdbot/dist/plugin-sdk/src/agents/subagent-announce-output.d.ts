@@ -1,8 +1,9 @@
-import { loadConfig } from "../config/config.js";
-import { callGateway } from "../gateway/call.js";
+import { callGateway, loadConfig } from "./subagent-announce.runtime.js";
+import { readLatestAssistantReply } from "./tools/agent-step.js";
 type SubagentAnnounceOutputDeps = {
     callGateway: typeof callGateway;
     loadConfig: typeof loadConfig;
+    readLatestAssistantReply: typeof readLatestAssistantReply;
 };
 export type AgentWaitResult = {
     status?: string;
@@ -31,7 +32,9 @@ export declare function applySubagentWaitOutcome(params: {
     startedAt: number | undefined;
     endedAt: number | undefined;
 };
-export declare function captureSubagentCompletionReply(sessionKey: string): Promise<string | undefined>;
+export declare function captureSubagentCompletionReply(sessionKey: string, options?: {
+    waitForReply?: boolean;
+}): Promise<string | undefined>;
 export declare function buildChildCompletionFindings(children: Array<{
     childSessionKey: string;
     task: string;

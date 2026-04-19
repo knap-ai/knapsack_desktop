@@ -9,9 +9,10 @@ export declare function clearAllCliSessions(entry: SessionEntry): void;
 export declare function resolveCliSessionReuse(params: {
     binding?: CliSessionBinding;
     authProfileId?: string;
+    authEpoch?: string;
     extraSystemPromptHash?: string;
     mcpConfigHash?: string;
 }): {
     sessionId?: string;
-    invalidatedReason?: "auth-profile" | "system-prompt" | "mcp";
+    invalidatedReason?: "auth-profile" | "auth-epoch" | "system-prompt" | "mcp";
 };

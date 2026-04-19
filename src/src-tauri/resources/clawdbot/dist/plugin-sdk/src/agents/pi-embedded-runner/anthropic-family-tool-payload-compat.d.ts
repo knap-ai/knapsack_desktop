@@ -1,7 +1,10 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
-import type { OpenClawConfig } from "../../config/config.js";
-export declare function createAnthropicToolPayloadCompatibilityWrapper(baseStreamFn: StreamFn | undefined, resolverOptions?: {
-    config?: OpenClawConfig;
-    workspaceDir?: string;
-    env?: NodeJS.ProcessEnv;
-}): StreamFn;
+type AnthropicToolSchemaMode = "openai-functions";
+type AnthropicToolChoiceMode = "openai-string-modes";
+type AnthropicToolPayloadCompatibilityOptions = {
+    toolSchemaMode?: AnthropicToolSchemaMode;
+    toolChoiceMode?: AnthropicToolChoiceMode;
+};
+export declare function createAnthropicToolPayloadCompatibilityWrapper(baseStreamFn: StreamFn | undefined, options?: AnthropicToolPayloadCompatibilityOptions): StreamFn;
+export declare function createOpenAIAnthropicToolPayloadCompatibilityWrapper(baseStreamFn: StreamFn | undefined): StreamFn;
+export {};

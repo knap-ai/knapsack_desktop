@@ -1,1 +1,1 @@
-export type { GeneratedImageAsset, ImageGenerationProvider, ImageGenerationResolution, ImageGenerationRequest, ImageGenerationResult, ImageGenerationSourceImage, } from "../image-generation/types.js";
+export type { GeneratedImageAsset, ImageGenerationProvider, ImageGenerationProviderConfiguredContext, ImageGenerationResolution, ImageGenerationRequest, ImageGenerationResult, ImageGenerationSourceImage, } from "../image-generation/types.js";

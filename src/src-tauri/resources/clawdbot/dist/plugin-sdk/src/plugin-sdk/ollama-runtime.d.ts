@@ -1,0 +1,18 @@
+type FacadeModule = typeof import("@openclaw/ollama/runtime-api.js");
+export type OllamaEmbeddingClient = import("@openclaw/ollama/runtime-api.js").OllamaEmbeddingClient;
+export declare const DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
+export declare const buildAssistantMessage: FacadeModule["buildAssistantMessage"];
+export declare const buildOllamaChatRequest: FacadeModule["buildOllamaChatRequest"];
+export declare const convertToOllamaMessages: FacadeModule["convertToOllamaMessages"];
+export declare const createConfiguredOllamaCompatNumCtxWrapper: FacadeModule["createConfiguredOllamaCompatNumCtxWrapper"];
+export declare const createConfiguredOllamaCompatStreamWrapper: FacadeModule["createConfiguredOllamaCompatStreamWrapper"];
+export declare const createConfiguredOllamaStreamFn: FacadeModule["createConfiguredOllamaStreamFn"];
+export declare const createOllamaStreamFn: FacadeModule["createOllamaStreamFn"];
+export declare const createOllamaEmbeddingProvider: FacadeModule["createOllamaEmbeddingProvider"];
+export declare const isOllamaCompatProvider: FacadeModule["isOllamaCompatProvider"];
+export declare const resolveOllamaCompatNumCtxEnabled: FacadeModule["resolveOllamaCompatNumCtxEnabled"];
+export declare const shouldInjectOllamaCompatNumCtx: FacadeModule["shouldInjectOllamaCompatNumCtx"];
+export declare const parseNdjsonStream: FacadeModule["parseNdjsonStream"];
+export declare const resolveOllamaBaseUrlForRun: FacadeModule["resolveOllamaBaseUrlForRun"];
+export declare const wrapOllamaCompatNumCtx: FacadeModule["wrapOllamaCompatNumCtx"];
+export {};

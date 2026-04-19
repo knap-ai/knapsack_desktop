@@ -1,3 +1,3 @@
-import { c as listChatCommands, d as listNativeCommandSpecsForConfig, g as resolveCommandArgMenu, h as resolveCommandArgChoices, m as parseCommandArgs, n as buildCommandTextFromArgs, r as findCommandByNativeName, v as serializeCommandArgs } from "../commands-registry-dA2_ExHR.js";
-import "../native-command-registry-BXAZNUtg.js";
+import { n as listChatCommands } from "../commands-registry-list-MHrd1pp9.js";
+import { c as parseCommandArgs, d as serializeCommandArgs, l as resolveCommandArgChoices, n as buildCommandTextFromArgs, r as findCommandByNativeName, s as listNativeCommandSpecsForConfig, u as resolveCommandArgMenu } from "../commands-registry-CxFYC-Xg.js";
 export { buildCommandTextFromArgs, findCommandByNativeName, listChatCommands, listNativeCommandSpecsForConfig, parseCommandArgs, resolveCommandArgChoices, resolveCommandArgMenu, serializeCommandArgs };

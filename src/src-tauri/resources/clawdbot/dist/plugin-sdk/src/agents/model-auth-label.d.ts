@@ -1,8 +1,8 @@
-import type { OpenClawConfig } from "../config/config.js";
 import type { SessionEntry } from "../config/sessions.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export declare function resolveModelAuthLabel(params: {
     provider?: string;
     cfg?: OpenClawConfig;
-    sessionEntry?: SessionEntry;
+    sessionEntry?: Partial<Pick<SessionEntry, "authProfileOverride">>;
     agentDir?: string;
 }): string | undefined;

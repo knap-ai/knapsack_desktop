@@ -5,35 +5,29 @@ export type RequiredParamGroup = {
     label?: string;
     validator?: (record: Record<string, unknown>) => boolean;
 };
-export declare const CLAUDE_PARAM_GROUPS: {
+declare function hasValidEditReplacements(record: Record<string, unknown>): boolean;
+export declare const REQUIRED_PARAM_GROUPS: {
     readonly read: readonly [{
-        readonly keys: readonly ["path", "file_path", "filePath", "file"];
-        readonly label: "path alias";
+        readonly keys: readonly ["path"];
+        readonly label: "path";
     }];
     readonly write: readonly [{
-        readonly keys: readonly ["path", "file_path", "filePath", "file"];
-        readonly label: "path alias";
+        readonly keys: readonly ["path"];
+        readonly label: "path";
     }, {
         readonly keys: readonly ["content"];
         readonly label: "content";
     }];
     readonly edit: readonly [{
-        readonly keys: readonly ["path", "file_path", "filePath", "file"];
-        readonly label: "path alias";
+        readonly keys: readonly ["path"];
+        readonly label: "path";
     }, {
-        readonly keys: readonly ["oldText", "old_string", "old_text", "oldString"];
-        readonly label: "oldText alias";
-        readonly validator: typeof hasValidEditReplacements;
-    }, {
-        readonly keys: readonly ["newText", "new_string", "new_text", "newString"];
-        readonly label: "newText alias";
-        readonly allowEmpty: true;
+        readonly keys: readonly ["edits"];
+        readonly label: "edits";
         readonly validator: typeof hasValidEditReplacements;
     }];
 };
-declare function hasValidEditReplacements(record: Record<string, unknown>): boolean;
-export declare function normalizeToolParams(params: unknown): Record<string, unknown> | undefined;
-export declare function patchToolSchemaForClaudeCompatibility(tool: AnyAgentTool): AnyAgentTool;
+export declare function getToolParamsRecord(params: unknown): Record<string, unknown> | undefined;
 export declare function assertRequiredParams(record: Record<string, unknown> | undefined, groups: readonly RequiredParamGroup[], toolName: string): void;
-export declare function wrapToolParamNormalization(tool: AnyAgentTool, requiredParamGroups?: readonly RequiredParamGroup[]): AnyAgentTool;
+export declare function wrapToolParamValidation(tool: AnyAgentTool, requiredParamGroups?: readonly RequiredParamGroup[]): AnyAgentTool;
 export {};

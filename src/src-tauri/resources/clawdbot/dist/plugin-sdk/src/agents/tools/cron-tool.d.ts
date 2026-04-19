@@ -2,7 +2,7 @@ import { type TSchema } from "@sinclair/typebox";
 import { type AnyAgentTool } from "./common.js";
 import { callGatewayTool } from "./gateway.js";
 export declare const CronToolSchema: import("@sinclair/typebox").TObject<{
-    action: import("@sinclair/typebox").TUnsafe<"run" | "status" | "update" | "list" | "remove" | "add" | "runs" | "wake">;
+    action: import("@sinclair/typebox").TUnsafe<"status" | "list" | "wake" | "add" | "update" | "run" | "remove" | "runs">;
     gatewayUrl: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     gatewayToken: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
@@ -33,7 +33,7 @@ export declare const CronToolSchema: import("@sinclair/typebox").TObject<{
             toolsAllow: TSchema;
         }>>;
         delivery: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"none" | "webhook" | "announce">>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"none" | "announce" | "webhook">>;
             channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
@@ -42,14 +42,14 @@ export declare const CronToolSchema: import("@sinclair/typebox").TObject<{
                 channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"webhook" | "announce">>;
+                mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"announce" | "webhook">>;
             }>>;
         }>>;
-        agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<string | null>>;
+        agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         description: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
         deleteAfterRun: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<string | null>>;
+        sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         failureAlert: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<false | Record<string, unknown>>>;
     }>>;
     jobId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -80,7 +80,7 @@ export declare const CronToolSchema: import("@sinclair/typebox").TObject<{
             toolsAllow: TSchema;
         }>>;
         delivery: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"none" | "webhook" | "announce">>;
+            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"none" | "announce" | "webhook">>;
             channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
@@ -89,14 +89,14 @@ export declare const CronToolSchema: import("@sinclair/typebox").TObject<{
                 channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"webhook" | "announce">>;
+                mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"announce" | "webhook">>;
             }>>;
         }>>;
         description: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
         deleteAfterRun: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<string | null>>;
-        sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<string | null>>;
+        agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         failureAlert: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<false | Record<string, unknown>>>;
     }>>;
     text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;

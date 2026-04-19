@@ -1,7 +1,7 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { RuntimeEnv } from "../../runtime.js";
-import { type ChannelId } from "./index.js";
-import type { ChannelPairingAdapter } from "./types.js";
+import type { ChannelId } from "./channel-id.types.js";
+import type { ChannelPairingAdapter } from "./pairing.types.js";
 export declare function listPairingChannels(): ChannelId[];
 export declare function getPairingAdapter(channelId: ChannelId): ChannelPairingAdapter | null;
 export declare function requirePairingAdapter(channelId: ChannelId): ChannelPairingAdapter;

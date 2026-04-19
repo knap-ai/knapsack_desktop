@@ -1,4 +1,4 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
 //#region extensions/copilot-proxy/index.ts
 const DEFAULT_BASE_URL = "http://localhost:3000/v1";
 const DEFAULT_API_KEY = "n/a";
@@ -29,11 +29,7 @@ function normalizeBaseUrl(value) {
 }
 function validateBaseUrl(value) {
 	const normalized = normalizeBaseUrl(value);
-	try {
-		new URL(normalized);
-	} catch {
-		return "Enter a valid URL";
-	}
+	return URL.canParse(normalized) ? void 0 : "Enter a valid URL";
 }
 function parseModelIds(input) {
 	const parsed = input.split(/[\n,]/).map((model) => model.trim()).filter(Boolean);

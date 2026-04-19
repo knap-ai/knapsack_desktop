@@ -1,36 +1,9 @@
+import { type ConfigWriteAuthorizationResultLike, type ConfigWriteScopeLike, type ConfigWriteTargetLike } from "../channels/plugins/config-write-policy-shared.js";
 import type { ChannelConfigAdapter } from "../channels/plugins/types.adapters.js";
-import type { OpenClawConfig } from "../config/config.js";
-export type ConfigWriteScope = {
-    channelId?: string | null;
-    accountId?: string | null;
-};
-export type ConfigWriteTarget = {
-    kind: "global";
-} | {
-    kind: "channel";
-    scope: {
-        channelId: string;
-    };
-} | {
-    kind: "account";
-    scope: {
-        channelId: string;
-        accountId: string;
-    };
-} | {
-    kind: "ambiguous";
-    scopes: ConfigWriteScope[];
-};
-export type ConfigWriteAuthorizationResult = {
-    allowed: true;
-} | {
-    allowed: false;
-    reason: "ambiguous-target" | "origin-disabled" | "target-disabled";
-    blockedScope?: {
-        kind: "origin" | "target";
-        scope: ConfigWriteScope;
-    };
-};
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+export type ConfigWriteScope = ConfigWriteScopeLike;
+export type ConfigWriteTarget = ConfigWriteTargetLike;
+export type ConfigWriteAuthorizationResult = ConfigWriteAuthorizationResultLike;
 type ChannelConfigAdapterWithAccessors<ResolvedAccount> = Pick<ChannelConfigAdapter<ResolvedAccount>, "listAccountIds" | "resolveAccount" | "inspectAccount" | "defaultAccountId" | "setAccountEnabled" | "deleteAccount" | "resolveAllowFrom" | "formatAllowFrom" | "resolveDefaultTo">;
 declare function buildAccountScopedDmSecurityPolicy(params: {
     cfg: OpenClawConfig;
@@ -193,25 +166,3 @@ export declare function createScopedDmSecurityResolver<ResolvedAccount extends {
     normalizeEntry: ((raw: string) => string) | undefined;
 };
 export { buildAccountScopedDmSecurityPolicy };
-/** Read the effective WhatsApp allowlist from merged root/account config without registry indirection. */
-export declare function resolveWhatsAppConfigAllowFrom(params: {
-    cfg: OpenClawConfig;
-    accountId?: string | null;
-}): string[];
-/** Format WhatsApp allowlist entries with the same normalization used by the channel plugin. */
-export declare function formatWhatsAppConfigAllowFromEntries(allowFrom: Array<string | number>): string[];
-/** Resolve the effective WhatsApp default recipient after account and root config fallback. */
-export declare function resolveWhatsAppConfigDefaultTo(params: {
-    cfg: OpenClawConfig;
-    accountId?: string | null;
-}): string | undefined;
-/** Read iMessage allowlist entries from merged root/account config without registry indirection. */
-export declare function resolveIMessageConfigAllowFrom(params: {
-    cfg: OpenClawConfig;
-    accountId?: string | null;
-}): string[];
-/** Resolve the effective iMessage default recipient from merged root/account config. */
-export declare function resolveIMessageConfigDefaultTo(params: {
-    cfg: OpenClawConfig;
-    accountId?: string | null;
-}): string | undefined;

@@ -1,20 +1,65 @@
-export declare function createLazyFacadeObjectValue<T extends object>(load: () => T): T;
-export declare function createLazyFacadeArrayValue<T extends readonly unknown[]>(load: () => T): T;
-export declare function loadBundledPluginPublicSurfaceModuleSync<T extends object>(params: {
+import type { PluginManifestRecord } from "../plugins/manifest-registry.js";
+import { type FacadeModuleLocation } from "./facade-loader.js";
+export { createLazyFacadeArrayValue, createLazyFacadeObjectValue, listImportedBundledPluginFacadeIds, } from "./facade-loader.js";
+declare function resolveRegistryPluginModuleLocationFromRegistry(params: {
+    registry: readonly Pick<PluginManifestRecord, "id" | "rootDir" | "channels">[];
     dirName: string;
     artifactBasename: string;
+}): {
+    modulePath: string;
+    boundaryRoot: string;
+} | null;
+declare function resolveFacadeModuleLocation(params: {
+    dirName: string;
+    artifactBasename: string;
+    env?: NodeJS.ProcessEnv;
+}): {
+    modulePath: string;
+    boundaryRoot: string;
+} | null;
+type BundledPluginPublicSurfaceParams = {
+    dirName: string;
+    artifactBasename: string;
+    env?: NodeJS.ProcessEnv;
+};
+type FacadeActivationCheckRuntimeModule = typeof import("./facade-activation-check.runtime.js");
+declare function loadFacadeModuleAtLocationSync<T extends object>(params: {
+    location: FacadeModuleLocation;
+    trackedPluginId: string | (() => string);
+    loadModule?: (modulePath: string) => T;
 }): T;
+export declare function loadBundledPluginPublicSurfaceModuleSync<T extends object>(params: BundledPluginPublicSurfaceParams): T;
 export declare function canLoadActivatedBundledPluginPublicSurface(params: {
     dirName: string;
     artifactBasename: string;
+    env?: NodeJS.ProcessEnv;
 }): boolean;
 export declare function loadActivatedBundledPluginPublicSurfaceModuleSync<T extends object>(params: {
     dirName: string;
     artifactBasename: string;
+    env?: NodeJS.ProcessEnv;
 }): T;
 export declare function tryLoadActivatedBundledPluginPublicSurfaceModuleSync<T extends object>(params: {
     dirName: string;
     artifactBasename: string;
+    env?: NodeJS.ProcessEnv;
 }): T | null;
-export declare function listImportedBundledPluginFacadeIds(): string[];
 export declare function resetFacadeRuntimeStateForTest(): void;
+export declare const __testing: {
+    loadFacadeModuleAtLocationSync: typeof loadFacadeModuleAtLocationSync;
+    resolveRegistryPluginModuleLocationFromRegistry: typeof resolveRegistryPluginModuleLocationFromRegistry;
+    resolveFacadeModuleLocation: typeof resolveFacadeModuleLocation;
+    evaluateBundledPluginPublicSurfaceAccess: FacadeActivationCheckRuntimeModule["evaluateBundledPluginPublicSurfaceAccess"];
+    throwForBundledPluginPublicSurfaceAccess: FacadeActivationCheckRuntimeModule["throwForBundledPluginPublicSurfaceAccess"];
+    resolveActivatedBundledPluginPublicSurfaceAccessOrThrow: (params: BundledPluginPublicSurfaceParams) => {
+        allowed: boolean;
+        pluginId?: string;
+        reason?: string;
+    };
+    resolveBundledPluginPublicSurfaceAccess: (params: BundledPluginPublicSurfaceParams) => {
+        allowed: boolean;
+        pluginId?: string;
+        reason?: string;
+    };
+    resolveTrackedFacadePluginId: (params: BundledPluginPublicSurfaceParams) => string;
+};

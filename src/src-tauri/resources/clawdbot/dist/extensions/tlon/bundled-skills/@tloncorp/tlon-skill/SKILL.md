@@ -143,13 +143,15 @@ tlon activity unreads               # Unread counts per channel
 
 ### Channels
 
-List and manage channels. DMs and group DMs show nicknames when available.
+List and manage channels. DMs show nicknames when available.
 
 ```bash
 tlon channels dms                                          # List DM contacts (with nicknames)
 tlon channels groups                                       # List subscribed groups
 tlon channels all                                          # List everything
 tlon channels info chat/~host/slug                         # Get channel details
+tlon channels create ~host/slug "Projects" --kind chat     # Create a group channel
+tlon channels rename chat/~host/slug "New Title"           # Rename a channel
 tlon channels update chat/~host/slug --title "New Title"   # Update metadata
 tlon channels delete chat/~host/slug                       # Delete a channel
 
@@ -160,6 +162,14 @@ tlon channels del-writers chat/~host/slug member           # Remove write access
 # Readers (who can view - requires group flag)
 tlon channels add-readers ~host/group chat/~host/slug admin    # Restrict viewing
 tlon channels del-readers ~host/group chat/~host/slug admin    # Open viewing
+```
+
+Help works for both the command and subcommands:
+
+```bash
+tlon channels --help
+tlon channels create --help
+tlon channels rename --help
 ```
 
 Notes on permissions:
@@ -230,6 +240,19 @@ Roles vs Admin:
 
 # Channels
 tlon groups add-channel ~host/slug "Name" [--kind chat|diary|heap]
+```
+
+`tlon groups add-channel` remains supported, but for agent/tool use prefer the more discoverable channel-centric form:
+
+```bash
+tlon channels create ~host/slug "Projects" --kind chat
+```
+
+Help works here too:
+
+```bash
+tlon groups --help
+tlon groups add-channel --help
 ```
 
 Group format: `~host-ship/group-slug`

@@ -24,6 +24,11 @@
       "cliDescription": "Together AI API key"
     }
   ],
+  "contracts": {
+    "videoGenerationProviders": [
+      "together"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

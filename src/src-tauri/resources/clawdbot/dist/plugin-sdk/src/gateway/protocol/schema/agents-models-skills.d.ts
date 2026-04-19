@@ -2,6 +2,7 @@ export declare const ModelChoiceSchema: import("@sinclair/typebox").TObject<{
     id: import("@sinclair/typebox").TString;
     name: import("@sinclair/typebox").TString;
     provider: import("@sinclair/typebox").TString;
+    alias: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     contextWindow: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
     reasoning: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
 }>;
@@ -46,6 +47,7 @@ export declare const AgentsListResultSchema: import("@sinclair/typebox").TObject
 export declare const AgentsCreateParamsSchema: import("@sinclair/typebox").TObject<{
     name: import("@sinclair/typebox").TString;
     workspace: import("@sinclair/typebox").TString;
+    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
@@ -54,12 +56,14 @@ export declare const AgentsCreateResultSchema: import("@sinclair/typebox").TObje
     agentId: import("@sinclair/typebox").TString;
     name: import("@sinclair/typebox").TString;
     workspace: import("@sinclair/typebox").TString;
+    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
 export declare const AgentsUpdateParamsSchema: import("@sinclair/typebox").TObject<{
     agentId: import("@sinclair/typebox").TString;
     name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     workspace: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
 export declare const AgentsUpdateResultSchema: import("@sinclair/typebox").TObject<{
@@ -138,6 +142,7 @@ export declare const ModelsListResultSchema: import("@sinclair/typebox").TObject
         id: import("@sinclair/typebox").TString;
         name: import("@sinclair/typebox").TString;
         provider: import("@sinclair/typebox").TString;
+        alias: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         contextWindow: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
         reasoning: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
     }>>;
@@ -171,6 +176,47 @@ export declare const SkillsUpdateParamsSchema: import("@sinclair/typebox").TUnio
     slug: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     all: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
 }>]>;
+export declare const SkillsSearchParamsSchema: import("@sinclair/typebox").TObject<{
+    query: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+}>;
+export declare const SkillsSearchResultSchema: import("@sinclair/typebox").TObject<{
+    results: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+        score: import("@sinclair/typebox").TNumber;
+        slug: import("@sinclair/typebox").TString;
+        displayName: import("@sinclair/typebox").TString;
+        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        version: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        updatedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>>;
+}>;
+export declare const SkillsDetailParamsSchema: import("@sinclair/typebox").TObject<{
+    slug: import("@sinclair/typebox").TString;
+}>;
+export declare const SkillsDetailResultSchema: import("@sinclair/typebox").TObject<{
+    skill: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        slug: import("@sinclair/typebox").TString;
+        displayName: import("@sinclair/typebox").TString;
+        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+        createdAt: import("@sinclair/typebox").TInteger;
+        updatedAt: import("@sinclair/typebox").TInteger;
+    }>, import("@sinclair/typebox").TNull]>;
+    latestVersion: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        version: import("@sinclair/typebox").TString;
+        createdAt: import("@sinclair/typebox").TInteger;
+        changelog: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    }>, import("@sinclair/typebox").TNull]>>;
+    metadata: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        os: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>, import("@sinclair/typebox").TNull]>>;
+        systems: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>, import("@sinclair/typebox").TNull]>>;
+    }>, import("@sinclair/typebox").TNull]>>;
+    owner: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+        handle: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+        displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+        image: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+    }>, import("@sinclair/typebox").TNull]>>;
+}>;
 export declare const ToolsCatalogParamsSchema: import("@sinclair/typebox").TObject<{
     agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     includePlugins: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;

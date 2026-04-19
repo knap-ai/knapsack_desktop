@@ -1,8 +1,12 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AgentContextInjection } from "../config/types.agent-defaults.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import { type WorkspaceBootstrapFile } from "./workspace.js";
 export type BootstrapContextMode = "full" | "lightweight";
 export type BootstrapContextRunKind = "default" | "heartbeat" | "cron";
+export declare const FULL_BOOTSTRAP_COMPLETED_CUSTOM_TYPE = "openclaw:bootstrap-context:full";
+export declare function resolveContextInjectionMode(config?: OpenClawConfig): AgentContextInjection;
+export declare function hasCompletedBootstrapTurn(sessionFile: string): Promise<boolean>;
 export declare function makeBootstrapWarn(params: {
     sessionLabel: string;
     warn?: (message: string) => void;

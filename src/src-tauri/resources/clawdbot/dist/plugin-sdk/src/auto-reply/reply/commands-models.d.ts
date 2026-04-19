@@ -1,7 +1,8 @@
-import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ReplyPayload } from "../types.js";
 import type { CommandHandler } from "./commands-types.js";
+type ModelsCommandSessionEntry = Partial<Pick<SessionEntry, "authProfileOverride" | "modelProvider" | "model">>;
 export type ModelsProviderData = {
     byProvider: Map<string, Set<string>>;
     providers: string[];
@@ -22,7 +23,7 @@ export declare function formatModelsAvailableHeader(params: {
     total: number;
     cfg: OpenClawConfig;
     agentDir?: string;
-    sessionEntry?: SessionEntry;
+    sessionEntry?: ModelsCommandSessionEntry;
 }): string;
 export declare function resolveModelsCommandReply(params: {
     cfg: OpenClawConfig;
@@ -31,6 +32,7 @@ export declare function resolveModelsCommandReply(params: {
     currentModel?: string;
     agentId?: string;
     agentDir?: string;
-    sessionEntry?: SessionEntry;
+    sessionEntry?: ModelsCommandSessionEntry;
 }): Promise<ReplyPayload | null>;
 export declare const handleModelsCommand: CommandHandler;
+export {};

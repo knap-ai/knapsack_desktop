@@ -1,5 +1,6 @@
+import type { PluginBundleFormat, PluginDiagnostic, PluginFormat } from "./manifest-types.js";
 import { type PluginManifest, type OpenClawPackageManifest } from "./manifest.js";
-import type { PluginBundleFormat, PluginDiagnostic, PluginFormat, PluginOrigin } from "./types.js";
+import type { PluginOrigin } from "./plugin-origin.types.js";
 export type PluginCandidate = {
     idHint: string;
     source: string;

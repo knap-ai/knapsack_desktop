@@ -1,5 +1,5 @@
 import { type OpenClawConfig } from "openclaw/plugin-sdk/memory-core-host-engine-foundation";
-import { type MemoryEmbeddingProbeResult, type MemoryProviderStatus, type MemorySearchManager, type MemorySearchResult, type MemorySyncProgressUpdate, type ResolvedMemoryBackendConfig } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
+import { type MemoryReadResult, type MemoryEmbeddingProbeResult, type MemoryProviderStatus, type MemorySearchManager, type MemorySearchRuntimeDebug, type MemorySearchResult, type MemorySyncProgressUpdate, type ResolvedMemoryBackendConfig } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
 type QmdManagerMode = "full" | "status";
 export declare class QmdMemoryManager implements MemorySearchManager {
     static create(params: {
@@ -67,6 +67,9 @@ export declare class QmdMemoryManager implements MemorySearchManager {
     private removeCollection;
     private parseListedCollections;
     private shouldRebindCollection;
+    private patternsMatchForManagedCollection;
+    private isEquivalentDefaultMemoryRootPattern;
+    private isDefaultMemoryRootPattern;
     private pathsMatch;
     private shouldRepairNullByteCollectionError;
     private shouldRepairDuplicateDocumentConstraint;
@@ -77,6 +80,8 @@ export declare class QmdMemoryManager implements MemorySearchManager {
         maxResults?: number;
         minScore?: number;
         sessionKey?: string;
+        qmdSearchModeOverride?: "query" | "search" | "vsearch";
+        onDebug?: (debug: MemorySearchRuntimeDebug) => void;
     }): Promise<MemorySearchResult[]>;
     sync(params?: {
         reason?: string;
@@ -88,10 +93,7 @@ export declare class QmdMemoryManager implements MemorySearchManager {
         relPath: string;
         from?: number;
         lines?: number;
-    }): Promise<{
-        text: string;
-        path: string;
-    }>;
+    }): Promise<MemoryReadResult>;
     status(): MemoryProviderStatus;
     probeEmbeddingAvailability(): Promise<MemoryEmbeddingProbeResult>;
     probeVectorAvailability(): Promise<boolean>;
@@ -171,6 +173,7 @@ export declare class QmdMemoryManager implements MemorySearchManager {
     private buildSearchPath;
     private isInsideWorkspace;
     private resolveReadPath;
+    private isIndexedWorkspaceReadPath;
     private isWithinWorkspace;
     private isWithinRoot;
     private clampResultsByInjectedChars;

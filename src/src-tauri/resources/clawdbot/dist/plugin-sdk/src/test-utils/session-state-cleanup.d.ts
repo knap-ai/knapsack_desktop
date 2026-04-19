@@ -1,5 +1,5 @@
 import { drainSessionWriteLockStateForTest } from "../agents/session-write-lock.js";
-import { drainSessionStoreLockQueuesForTest } from "../config/sessions/store.js";
+import { drainSessionStoreLockQueuesForTest } from "../config/sessions/store-lock-state.js";
 import { drainFileLockStateForTest } from "../infra/file-lock.js";
 export declare function setSessionStateCleanupRuntimeForTests(params: {
     drainFileLockStateForTest?: typeof drainFileLockStateForTest | null;

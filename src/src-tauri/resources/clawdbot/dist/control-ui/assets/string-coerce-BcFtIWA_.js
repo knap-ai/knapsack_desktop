@@ -1,0 +1,2 @@
+function e(e){return typeof e==`string`&&e.trim()||void 0}function t(t){return e(t)?.toLowerCase()}function n(e){return t(e)??``}export{t as n,e as r,n as t};
+//# sourceMappingURL=string-coerce-BcFtIWA_.js.map

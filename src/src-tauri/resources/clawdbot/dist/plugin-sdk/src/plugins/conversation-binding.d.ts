@@ -1,5 +1,5 @@
 import { type ConversationRef } from "../infra/outbound/session-binding-service.js";
-import type { PluginConversationBinding, PluginConversationBindingResolutionDecision, PluginConversationBindingRequestParams, PluginConversationBindingRequestResult } from "./types.js";
+import type { PluginConversationBinding, PluginConversationBindingResolutionDecision, PluginConversationBindingRequestParams, PluginConversationBindingRequestResult } from "./conversation-binding.types.js";
 type PluginBindingApprovalDecision = PluginConversationBindingResolutionDecision;
 type PluginBindingConversation = {
     channel: string;

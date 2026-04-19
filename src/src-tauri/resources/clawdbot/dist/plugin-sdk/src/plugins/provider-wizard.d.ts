@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import type { ProviderAuthMethod, ProviderPlugin, ProviderPluginWizardSetup } from "./types.js";
 export declare const PROVIDER_PLUGIN_CHOICE_PREFIX = "provider-plugin:";
@@ -10,6 +10,8 @@ export type ProviderWizardOption = {
     groupLabel: string;
     groupHint?: string;
     onboardingScopes?: Array<"text-inference" | "image-generation">;
+    assistantPriority?: number;
+    assistantVisibility?: "visible" | "manual-only";
 };
 export type ProviderModelPickerEntry = {
     value: string;

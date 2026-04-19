@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+export declare function isRedactedSessionsSpawnAttachment(item: unknown): boolean;
 declare function makeMissingToolResult(params: {
     toolCallId: string;
     toolName?: string;
@@ -13,6 +14,7 @@ export type ToolCallInputRepairReport = {
 };
 export type ToolCallInputRepairOptions = {
     allowedToolNames?: Iterable<string>;
+    allowProviderOwnedThinkingReplay?: boolean;
 };
 export type ErroredAssistantResultPolicy = "preserve" | "drop";
 export type ToolUseResultPairingOptions = {

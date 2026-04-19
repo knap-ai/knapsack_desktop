@@ -2,8 +2,8 @@ import { completeSimple } from "@mariozechner/pi-ai";
 import { getApiKeyForModel, requireApiKey } from "../agents/model-auth.js";
 import { resolveModelAsync } from "../agents/pi-embedded-runner/model.js";
 import { prepareModelForSimpleCompletion } from "../agents/simple-completion-transport.js";
-import type { OpenClawConfig } from "../config/config.js";
-import type { ResolvedTtsConfig } from "./tts.js";
+import type { OpenClawConfig } from "../config/types.js";
+import type { ResolvedTtsConfig } from "./tts-types.js";
 type SummarizeTextDeps = {
     completeSimple: typeof completeSimple;
     getApiKeyForModel: typeof getApiKeyForModel;

@@ -1,7 +1,8 @@
-import type { PluginRegistry } from "./registry.js";
+import type { PluginRegistry } from "./registry-types.js";
 export declare function recordImportedPluginId(pluginId: string): void;
-export declare function setActivePluginRegistry(registry: PluginRegistry, cacheKey?: string, runtimeSubagentMode?: "default" | "explicit" | "gateway-bindable"): void;
+export declare function setActivePluginRegistry(registry: PluginRegistry, cacheKey?: string, runtimeSubagentMode?: "default" | "explicit" | "gateway-bindable", workspaceDir?: string): void;
 export declare function getActivePluginRegistry(): PluginRegistry | null;
+export declare function getActivePluginRegistryWorkspaceDir(): string | undefined;
 export declare function requireActivePluginRegistry(): PluginRegistry;
 export declare function pinActivePluginHttpRouteRegistry(registry: PluginRegistry): void;
 export declare function releasePinnedPluginHttpRouteRegistry(registry?: PluginRegistry): void;

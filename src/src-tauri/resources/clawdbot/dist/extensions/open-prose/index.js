@@ -1,4 +1,4 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
 //#region extensions/open-prose/index.ts
 var open_prose_default = definePluginEntry({
 	id: "open-prose",

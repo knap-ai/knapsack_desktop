@@ -1,4 +1,4 @@
-import type { Skill } from "@mariozechner/pi-coding-agent";
+import type { Skill } from "./skill-contract.js";
 export type SkillInstallSpec = {
     id?: string;
     kind: "brew" | "node" | "go" | "uv" | "download";
@@ -59,11 +59,17 @@ export type SkillsInstallPreferences = {
     nodeManager: "npm" | "pnpm" | "yarn" | "bun";
 };
 export type ParsedSkillFrontmatter = Record<string, string>;
+export type SkillExposure = {
+    includeInRuntimeRegistry: boolean;
+    includeInAvailableSkillsPrompt: boolean;
+    userInvocable: boolean;
+};
 export type SkillEntry = {
     skill: Skill;
     frontmatter: ParsedSkillFrontmatter;
     metadata?: OpenClawSkillMetadata;
     invocation?: SkillInvocationPolicy;
+    exposure?: SkillExposure;
 };
 export type SkillEligibilityContext = {
     remote?: {

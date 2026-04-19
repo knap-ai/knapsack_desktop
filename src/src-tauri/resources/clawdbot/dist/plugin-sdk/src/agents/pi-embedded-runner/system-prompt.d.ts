@@ -3,7 +3,8 @@ import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import type { MemoryCitationsMode } from "../../config/types.memory.js";
 import type { ResolvedTimeFormat } from "../date-time.js";
 import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
-import { type PromptMode } from "../system-prompt.js";
+import type { ProviderSystemPromptContribution } from "../system-prompt-contribution.js";
+import type { PromptMode } from "../system-prompt.types.js";
 import type { EmbeddedSandboxInfo } from "./types.js";
 import type { ReasoningLevel, ThinkLevel } from "./utils.js";
 export declare function buildEmbeddedSystemPrompt(params: {
@@ -40,6 +41,7 @@ export declare function buildEmbeddedSystemPrompt(params: {
         channel?: string;
         /** Supported message actions for the current channel (e.g., react, edit, unsend) */
         channelActions?: string[];
+        canvasRootDir?: string;
     };
     messageToolHints?: string[];
     sandboxInfo?: EmbeddedSandboxInfo;
@@ -49,7 +51,9 @@ export declare function buildEmbeddedSystemPrompt(params: {
     userTime?: string;
     userTimeFormat?: ResolvedTimeFormat;
     contextFiles?: EmbeddedContextFile[];
+    includeMemorySection?: boolean;
     memoryCitationsMode?: MemoryCitationsMode;
+    promptContribution?: ProviderSystemPromptContribution;
 }): string;
 export declare function createSystemPromptOverride(systemPrompt: string): (defaultPrompt?: string) => string;
 export declare function applySystemPromptOverrideToSession(session: AgentSession, override: string | ((defaultPrompt?: string) => string)): void;

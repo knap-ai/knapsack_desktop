@@ -1,8 +1,8 @@
 import type { TSchema } from "@sinclair/typebox";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { getChannelPlugin } from "./index.js";
 import type { ChannelMessageCapability } from "./message-capabilities.js";
-import type { ChannelMessageActionDiscoveryContext, ChannelMessageActionName, ChannelMessageToolSchemaContribution } from "./types.js";
+import type { ChannelMessageActionDiscoveryContext, ChannelMessageActionName, ChannelMessageToolSchemaContribution } from "./types.public.js";
 export type ChannelMessageActionDiscoveryInput = {
     cfg?: OpenClawConfig;
     channel?: string | null;
@@ -15,6 +15,7 @@ export type ChannelMessageActionDiscoveryInput = {
     sessionId?: string | null;
     agentId?: string | null;
     requesterSenderId?: string | null;
+    senderIsOwner?: boolean;
 };
 type ChannelActions = NonNullable<NonNullable<ReturnType<typeof getChannelPlugin>>["actions"]>;
 export declare function resolveMessageActionDiscoveryChannelId(raw?: string | null): string | undefined;
@@ -23,11 +24,13 @@ type ResolvedChannelMessageActionDiscovery = {
     actions: ChannelMessageActionName[];
     capabilities: readonly ChannelMessageCapability[];
     schemaContributions: ChannelMessageToolSchemaContribution[];
+    mediaSourceParams: readonly string[];
 };
 export declare function resolveMessageActionDiscoveryForPlugin(params: {
     pluginId: string;
     actions?: ChannelActions;
     context: ChannelMessageActionDiscoveryContext;
+    action?: ChannelMessageActionName;
     includeActions?: boolean;
     includeCapabilities?: boolean;
     includeSchema?: boolean;
@@ -45,6 +48,7 @@ export declare function listChannelMessageCapabilitiesForChannel(params: {
     sessionId?: string | null;
     agentId?: string | null;
     requesterSenderId?: string | null;
+    senderIsOwner?: boolean;
 }): ChannelMessageCapability[];
 export declare function resolveChannelMessageToolSchemaProperties(params: {
     cfg: OpenClawConfig;
@@ -57,7 +61,22 @@ export declare function resolveChannelMessageToolSchemaProperties(params: {
     sessionId?: string | null;
     agentId?: string | null;
     requesterSenderId?: string | null;
+    senderIsOwner?: boolean;
 }): Record<string, TSchema>;
+export declare function resolveChannelMessageToolMediaSourceParamKeys(params: {
+    cfg: OpenClawConfig;
+    action?: ChannelMessageActionName;
+    channel?: string;
+    currentChannelId?: string | null;
+    currentThreadTs?: string | null;
+    currentMessageId?: string | number | null;
+    accountId?: string | null;
+    sessionKey?: string | null;
+    sessionId?: string | null;
+    agentId?: string | null;
+    requesterSenderId?: string | null;
+    senderIsOwner?: boolean;
+}): string[];
 export declare function channelSupportsMessageCapability(cfg: OpenClawConfig, capability: ChannelMessageCapability): boolean;
 export declare function channelSupportsMessageCapabilityForChannel(params: {
     cfg: OpenClawConfig;

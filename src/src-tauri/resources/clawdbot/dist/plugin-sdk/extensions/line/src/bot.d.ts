@@ -1,4 +1,4 @@
-import type { WebhookRequestBody } from "@line/bot-sdk";
+import type { webhook } from "@line/bot-sdk";
 import type { NextFunction, Request, Response } from "express";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import { type RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
@@ -14,7 +14,7 @@ export interface LineBotOptions {
     onMessage?: (ctx: LineInboundContext) => Promise<void>;
 }
 export interface LineBot {
-    handleWebhook: (body: WebhookRequestBody) => Promise<void>;
+    handleWebhook: (body: webhook.CallbackRequest) => Promise<void>;
     account: ResolvedLineAccount;
 }
 export declare function createLineBot(opts: LineBotOptions): LineBot;

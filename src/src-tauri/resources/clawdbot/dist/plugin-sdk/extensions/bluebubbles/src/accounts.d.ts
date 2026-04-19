@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import { type BlueBubblesAccountConfig } from "./types.js";
 export type ResolvedBlueBubblesAccount = {
     accountId: string;
@@ -14,4 +14,9 @@ export declare function resolveBlueBubblesAccount(params: {
     cfg: OpenClawConfig;
     accountId?: string | null;
 }): ResolvedBlueBubblesAccount;
+export declare function resolveBlueBubblesPrivateNetworkConfigValue(config: BlueBubblesAccountConfig | null | undefined): boolean | undefined;
+export declare function resolveBlueBubblesEffectiveAllowPrivateNetwork(params: {
+    baseUrl?: string;
+    config?: BlueBubblesAccountConfig | null;
+}): boolean;
 export declare function listEnabledBlueBubblesAccounts(cfg: OpenClawConfig): ResolvedBlueBubblesAccount[];

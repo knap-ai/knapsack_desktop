@@ -1,2 +1,2 @@
-import { t as createDuckDuckGoWebSearchProvider } from "../../ddg-search-provider-CBDdHzeh.js";
+import { t as createDuckDuckGoWebSearchProvider } from "../../ddg-search-provider-DOJerHkO.js";
 export { createDuckDuckGoWebSearchProvider };

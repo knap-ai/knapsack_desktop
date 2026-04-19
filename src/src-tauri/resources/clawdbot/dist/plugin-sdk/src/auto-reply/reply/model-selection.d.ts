@@ -1,7 +1,7 @@
 import type { ModelCatalogEntry } from "../../agents/model-catalog.js";
 import { type ModelAliasIndex } from "../../agents/model-selection.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ThinkLevel } from "./directives.js";
 export type ModelDirectiveSelection = {
     provider: string;
@@ -21,17 +21,11 @@ type ModelSelectionState = {
     resolveDefaultReasoningLevel: () => Promise<"on" | "off">;
     needsModelCatalog: boolean;
 };
-export type StoredModelOverride = {
-    provider?: string;
+export declare function createFastTestModelSelectionState(params: {
+    agentCfg: NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]> | undefined;
+    provider: string;
     model: string;
-    source: "session" | "parent";
-};
-export declare function resolveStoredModelOverride(params: {
-    sessionEntry?: SessionEntry;
-    sessionStore?: Record<string, SessionEntry>;
-    sessionKey?: string;
-    parentSessionKey?: string;
-}): StoredModelOverride | null;
+}): ModelSelectionState;
 export declare function createModelSelectionState(params: {
     cfg: OpenClawConfig;
     agentId?: string;

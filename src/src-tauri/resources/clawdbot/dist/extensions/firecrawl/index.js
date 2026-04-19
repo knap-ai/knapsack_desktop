@@ -1,69 +1,10 @@
-import { c as jsonResult, d as readNumberParam, h as readStringParam, p as readStringArrayParam } from "../../common-RGbDbB5n.js";
-import "../../provider-web-search-BvBfxXst.js";
-import { t as enablePluginInConfig } from "../../enable-CpDMTfhy.js";
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import "../../provider-web-fetch-kEPvX-ux.js";
-import { n as runFirecrawlSearch, t as runFirecrawlScrape } from "../../firecrawl-client-CaC60Tes.js";
-import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-B4JLEE7p.js";
+import { c as jsonResult, d as readNumberParam, h as readStringParam, p as readStringArrayParam } from "../../common-BWtun2If.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import "../../provider-web-search-B6Xg-MPv.js";
+import { n as runFirecrawlSearch, t as runFirecrawlScrape } from "../../firecrawl-client-CuqQXpTh.js";
+import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-ovZX_eBU.js";
+import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-iFCLFodR.js";
 import { Type } from "@sinclair/typebox";
-//#region extensions/firecrawl/src/firecrawl-fetch-provider.ts
-function createFirecrawlWebFetchProvider() {
-	return {
-		id: "firecrawl",
-		label: "Firecrawl",
-		hint: "Fetch pages with Firecrawl for JS-heavy or bot-protected sites.",
-		envVars: ["FIRECRAWL_API_KEY"],
-		placeholder: "fc-...",
-		signupUrl: "https://www.firecrawl.dev/",
-		docsUrl: "https://docs.firecrawl.dev",
-		autoDetectOrder: 50,
-		credentialPath: "plugins.entries.firecrawl.config.webFetch.apiKey",
-		inactiveSecretPaths: ["plugins.entries.firecrawl.config.webFetch.apiKey", "tools.web.fetch.firecrawl.apiKey"],
-		getCredentialValue: (fetchConfig) => {
-			if (!fetchConfig || typeof fetchConfig !== "object") return;
-			const legacy = fetchConfig.firecrawl;
-			if (!legacy || typeof legacy !== "object" || Array.isArray(legacy)) return;
-			if (legacy.enabled === false) return;
-			return legacy.apiKey;
-		},
-		setCredentialValue: (fetchConfigTarget, value) => {
-			const existing = fetchConfigTarget.firecrawl;
-			const firecrawl = existing && typeof existing === "object" && !Array.isArray(existing) ? existing : {};
-			firecrawl.apiKey = value;
-			fetchConfigTarget.firecrawl = firecrawl;
-		},
-		getConfiguredCredentialValue: (config) => (config?.plugins?.entries?.firecrawl?.config)?.webFetch?.apiKey,
-		setConfiguredCredentialValue: (configTarget, value) => {
-			const plugins = configTarget.plugins ??= {};
-			const entries = plugins.entries ??= {};
-			const firecrawlEntry = entries.firecrawl ??= {};
-			const pluginConfig = firecrawlEntry.config && typeof firecrawlEntry.config === "object" && !Array.isArray(firecrawlEntry.config) ? firecrawlEntry.config : (firecrawlEntry.config = {}, firecrawlEntry.config);
-			const webFetch = pluginConfig.webFetch && typeof pluginConfig.webFetch === "object" && !Array.isArray(pluginConfig.webFetch) ? pluginConfig.webFetch : (pluginConfig.webFetch = {}, pluginConfig.webFetch);
-			webFetch.apiKey = value;
-		},
-		applySelectionConfig: (config) => enablePluginInConfig(config, "firecrawl").config,
-		createTool: ({ config }) => ({
-			description: "Fetch a page using Firecrawl.",
-			parameters: {},
-			execute: async (args) => {
-				const url = typeof args.url === "string" ? args.url : "";
-				const extractMode = args.extractMode === "text" ? "text" : "markdown";
-				const maxChars = typeof args.maxChars === "number" && Number.isFinite(args.maxChars) ? Math.floor(args.maxChars) : void 0;
-				const proxy = args.proxy === "basic" || args.proxy === "stealth" || args.proxy === "auto" ? args.proxy : void 0;
-				const storeInCache = typeof args.storeInCache === "boolean" ? args.storeInCache : void 0;
-				return await runFirecrawlScrape({
-					cfg: config,
-					url,
-					extractMode,
-					maxChars,
-					...proxy ? { proxy } : {},
-					...storeInCache !== void 0 ? { storeInCache } : {}
-				});
-			}
-		})
-	};
-}
-//#endregion
 //#region extensions/firecrawl/src/firecrawl-scrape-tool.ts
 function optionalStringEnum(values, options = {}) {
 	return Type.Optional(Type.Unsafe({

@@ -2,8 +2,9 @@ import type { TypingCallbacks } from "../../channels/typing.js";
 import type { HumanDelayConfig } from "../../config/types.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { type NormalizeReplySkipReason } from "./normalize-reply.js";
+import type { ReplyDispatchKind, ReplyDispatcher } from "./reply-dispatcher.types.js";
 import type { ResponsePrefixContext } from "./response-prefix-template.js";
-export type ReplyDispatchKind = "tool" | "block" | "final";
+export type { ReplyDispatchKind, ReplyDispatcher } from "./reply-dispatcher.types.js";
 type ReplyDispatchErrorHandler = (err: unknown, info: {
     kind: ReplyDispatchKind;
 }) => void;
@@ -17,7 +18,7 @@ type ReplyDispatchDeliverer = (payload: ReplyPayload, info: {
 export type ReplyDispatcherOptions = {
     deliver: ReplyDispatchDeliverer;
     responsePrefix?: string;
-    enableSlackInteractiveReplies?: boolean;
+    transformReplyPayload?: (payload: ReplyPayload) => ReplyPayload | null;
     /** Static context for response prefix template interpolation. */
     responsePrefixContext?: ResponsePrefixContext;
     /** Dynamic context provider for response prefix template interpolation.
@@ -44,15 +45,5 @@ type ReplyDispatcherWithTypingResult = {
     /** Signal that the model run is complete so the typing controller can stop. */
     markRunComplete: () => void;
 };
-export type ReplyDispatcher = {
-    sendToolResult: (payload: ReplyPayload) => boolean;
-    sendBlockReply: (payload: ReplyPayload) => boolean;
-    sendFinalReply: (payload: ReplyPayload) => boolean;
-    waitForIdle: () => Promise<void>;
-    getQueuedCounts: () => Record<ReplyDispatchKind, number>;
-    getFailedCounts: () => Record<ReplyDispatchKind, number>;
-    markComplete: () => void;
-};
 export declare function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDispatcher;
 export declare function createReplyDispatcherWithTyping(options: ReplyDispatcherWithTypingOptions): ReplyDispatcherWithTypingResult;
-export {};

@@ -1,9 +1,9 @@
 /**
- * Provider-specific error patterns that improve failover classification accuracy.
+ * Provider-owned error-pattern dispatch plus legacy fallback patterns.
  *
- * Many providers return errors in non-standard formats. Without these patterns,
- * errors get misclassified (e.g., a context overflow classified as "format"),
- * causing the failover engine to choose wrong recovery strategies.
+ * Most provider-specific failover classification now lives on provider-plugin
+ * hooks. This module keeps only fallback patterns for providers that do not
+ * yet ship a dedicated provider plugin hook surface.
  */
 import type { FailoverReason } from "./types.js";
 type ProviderErrorPattern = {

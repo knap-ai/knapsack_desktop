@@ -1,9 +1,8 @@
-import type { InlineKeyboardMarkup } from "@grammyjs/types";
 import { Bot } from "grammy";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { type PollInput } from "openclaw/plugin-sdk/media-runtime";
 import { type RetryConfig } from "openclaw/plugin-sdk/retry-runtime";
 import type { TelegramInlineButtons } from "./button-types.js";
+import { loadConfig, type PollInput } from "./send.runtime.js";
+export { buildInlineKeyboard } from "./inline-keyboard.js";
 type TelegramApi = Bot["api"];
 export type TelegramApiOverride = Partial<TelegramApi>;
 type TelegramCreateForumTopicParams = NonNullable<Parameters<TelegramApi["createForumTopic"]>[2]>;
@@ -61,7 +60,6 @@ type TelegramTypingOpts = {
     messageThreadId?: number;
 };
 export declare function resetTelegramClientOptionsCacheForTests(): void;
-export declare function buildInlineKeyboard(buttons?: TelegramSendOpts["buttons"]): InlineKeyboardMarkup | undefined;
 export declare function sendMessageTelegram(to: string, text: string, opts?: TelegramSendOpts): Promise<TelegramSendResult>;
 export declare function sendTypingTelegram(to: string, opts?: TelegramTypingOpts): Promise<{
     ok: true;
@@ -218,4 +216,3 @@ export type TelegramCreateForumTopicResult = {
  * @param opts - Optional configuration
  */
 export declare function createForumTopicTelegram(chatId: string, name: string, opts?: TelegramCreateForumTopicOpts): Promise<TelegramCreateForumTopicResult>;
-export {};

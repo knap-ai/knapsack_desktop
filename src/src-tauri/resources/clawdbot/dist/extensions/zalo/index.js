@@ -1,13 +1,22 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { t as zaloPlugin } from "../../channel-CF1l0ThL.js";
-import { n as setZaloRuntime } from "../../runtime-0lCmSrOe.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/zalo/index.ts
-var zalo_default = defineChannelPluginEntry({
+var zalo_default = defineBundledChannelEntry({
 	id: "zalo",
 	name: "Zalo",
 	description: "Zalo channel plugin",
-	plugin: zaloPlugin,
-	setRuntime: setZaloRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "zaloPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setZaloRuntime"
+	}
 });
 //#endregion
-export { zalo_default as default, setZaloRuntime, zaloPlugin };
+export { zalo_default as default };

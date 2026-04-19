@@ -1,5 +1,5 @@
 import type { ChatType } from "../channels/chat-type.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 /** @deprecated Use ChatType from channels/chat-type.js */
 export type RoutePeerKind = ChatType;
 export type RoutePeer = {

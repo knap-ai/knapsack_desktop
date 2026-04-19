@@ -1,2 +1,2 @@
-import { i as buildTogetherProvider } from "../../onboard-BLy8COsB.js";
+import { t as buildTogetherProvider } from "../../provider-catalog-Dkh83AVJ.js";
 export { buildTogetherProvider };

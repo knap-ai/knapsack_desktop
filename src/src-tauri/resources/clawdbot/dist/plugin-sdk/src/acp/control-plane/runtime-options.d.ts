@@ -1,4 +1,5 @@
 import type { AcpSessionRuntimeOptions, SessionAcpMeta } from "../../config/sessions/types.js";
+export { normalizeText } from "../normalize-text.js";
 export declare function validateRuntimeModeInput(rawMode: unknown): string;
 export declare function validateRuntimeModelInput(rawModel: unknown): string;
 export declare function validateRuntimePermissionProfileInput(rawProfile: unknown): string;
@@ -10,7 +11,6 @@ export declare function validateRuntimeConfigOptionInput(rawKey: unknown, rawVal
     value: string;
 };
 export declare function validateRuntimeOptionPatch(patch: Partial<AcpSessionRuntimeOptions> | undefined): Partial<AcpSessionRuntimeOptions>;
-export declare function normalizeText(value: unknown): string | undefined;
 export declare function normalizeRuntimeOptions(options: AcpSessionRuntimeOptions | undefined): AcpSessionRuntimeOptions;
 export declare function mergeRuntimeOptions(params: {
     current?: AcpSessionRuntimeOptions;

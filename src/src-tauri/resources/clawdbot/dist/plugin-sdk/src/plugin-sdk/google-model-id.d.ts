@@ -1,2 +1,1 @@
-export declare function normalizeGoogleModelId(id: string): string;
-export declare function normalizeAntigravityModelId(id: string): string;
+export { normalizeAntigravityPreviewModelId as normalizeAntigravityModelId, normalizeGooglePreviewModelId as normalizeGoogleModelId, } from "./provider-model-shared.js";

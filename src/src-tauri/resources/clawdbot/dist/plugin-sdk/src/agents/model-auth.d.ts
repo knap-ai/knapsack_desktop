@@ -1,10 +1,11 @@
 import { type Api, type Model } from "@mariozechner/pi-ai";
-import { type OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type AuthProfileStore } from "./auth-profiles.js";
 import { type ResolvedProviderAuth } from "./model-auth-runtime-shared.js";
 export { ensureAuthProfileStore, resolveAuthProfileOrder } from "./auth-profiles.js";
 export { requireApiKey, resolveAwsSdkEnvVarName } from "./model-auth-runtime-shared.js";
 export type { ResolvedProviderAuth } from "./model-auth-runtime-shared.js";
+export type ProviderCredentialPrecedence = "profile-first" | "env-first";
 export declare function getCustomProviderApiKey(cfg: OpenClawConfig | undefined, provider: string): string | undefined;
 type ResolvedCustomProviderApiKey = {
     apiKey: string;
@@ -16,6 +17,7 @@ export declare function resolveUsableCustomProviderApiKey(params: {
     env?: NodeJS.ProcessEnv;
 }): ResolvedCustomProviderApiKey | null;
 export declare function hasUsableCustomProviderApiKey(cfg: OpenClawConfig | undefined, provider: string, env?: NodeJS.ProcessEnv): boolean;
+export declare function shouldPreferExplicitConfigApiKeyAuth(cfg: OpenClawConfig | undefined, provider: string): boolean;
 export declare function resolveApiKeyForProvider(params: {
     provider: string;
     cfg?: OpenClawConfig;
@@ -23,6 +25,10 @@ export declare function resolveApiKeyForProvider(params: {
     preferredProfile?: string;
     store?: AuthProfileStore;
     agentDir?: string;
+    /** When true, treat profileId as a user-locked selection that must not be
+     *  silently overridden by env/config credentials (e.g. ollama-local). */
+    lockedProfile?: boolean;
+    credentialPrecedence?: ProviderCredentialPrecedence;
 }): Promise<ResolvedProviderAuth>;
 export type ModelAuthMode = "api-key" | "oauth" | "token" | "mixed" | "aws-sdk" | "unknown";
 export { resolveEnvApiKey } from "./model-auth-env.js";
@@ -42,6 +48,8 @@ export declare function getApiKeyForModel(params: {
     preferredProfile?: string;
     store?: AuthProfileStore;
     agentDir?: string;
+    lockedProfile?: boolean;
+    credentialPrecedence?: ProviderCredentialPrecedence;
 }): Promise<ResolvedProviderAuth>;
 export declare function applyLocalNoAuthHeaderOverride<T extends Model<Api>>(model: T, auth: ResolvedProviderAuth | null | undefined): T;
 /**

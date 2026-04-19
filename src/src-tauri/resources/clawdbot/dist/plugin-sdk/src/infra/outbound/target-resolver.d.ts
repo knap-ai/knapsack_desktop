@@ -1,5 +1,5 @@
-import type { ChannelDirectoryEntry, ChannelDirectoryEntryKind, ChannelId } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { ChannelDirectoryEntry, ChannelDirectoryEntryKind, ChannelId } from "../../channels/plugins/types.public.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { type RuntimeEnv } from "../../runtime.js";
 export type TargetResolveKind = ChannelDirectoryEntryKind | "channel";
 export type ResolveAmbiguousMode = "error" | "best" | "first";
@@ -17,6 +17,7 @@ export type ResolveMessagingTargetResult = {
     error: Error;
     candidates?: ChannelDirectoryEntry[];
 };
+export { maybeResolveIdLikeTarget } from "./target-id-resolution.js";
 export declare function resolveChannelTarget(params: {
     cfg: OpenClawConfig;
     channel: ChannelId;
@@ -25,13 +26,6 @@ export declare function resolveChannelTarget(params: {
     preferredKind?: TargetResolveKind;
     runtime?: RuntimeEnv;
 }): Promise<ResolveMessagingTargetResult>;
-export declare function maybeResolveIdLikeTarget(params: {
-    cfg: OpenClawConfig;
-    channel: ChannelId;
-    input: string;
-    accountId?: string | null;
-    preferredKind?: TargetResolveKind;
-}): Promise<ResolvedMessagingTarget | undefined>;
 export declare function resetDirectoryCache(params?: {
     channel?: ChannelId;
     accountId?: string | null;

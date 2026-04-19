@@ -1,2 +1,2 @@
-import { t as buildOpenAIProvider } from "../../openai-provider-CeXGS3jM.js";
+import { t as buildOpenAIProvider } from "../../openai-provider-BOl0OfvL.js";
 export { buildOpenAIProvider };

@@ -1,4 +1,5 @@
-type DiscordSurfaceParams = {
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
+type CommandSurfaceParams = {
     ctx: {
         OriginatingChannel?: string;
         Surface?: string;
@@ -9,15 +10,18 @@ type DiscordSurfaceParams = {
         channel?: string;
     };
 };
-type DiscordAccountParams = {
+type ChannelAccountParams = {
+    cfg: OpenClawConfig;
     ctx: {
+        OriginatingChannel?: string;
+        Surface?: string;
+        Provider?: string;
         AccountId?: string;
     };
+    command: {
+        channel?: string;
+    };
 };
-export declare function isDiscordSurface(params: DiscordSurfaceParams): boolean;
-export declare function isTelegramSurface(params: DiscordSurfaceParams): boolean;
-export declare function isMatrixSurface(params: DiscordSurfaceParams): boolean;
-export declare function resolveCommandSurfaceChannel(params: DiscordSurfaceParams): string;
-export declare function resolveDiscordAccountId(params: DiscordAccountParams): string;
-export declare function resolveChannelAccountId(params: DiscordAccountParams): string;
+export declare function resolveCommandSurfaceChannel(params: CommandSurfaceParams): string;
+export declare function resolveChannelAccountId(params: ChannelAccountParams): string;
 export {};

@@ -1,12 +1,33 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { n as setSlackRuntime, t as slackPlugin } from "../../channel-ShVVfkP0.js";
+import { defineBundledChannelEntry, loadBundledEntryExportSync } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/slack/index.ts
-var slack_default = defineChannelPluginEntry({
+function registerSlackPluginHttpRoutes(api) {
+	loadBundledEntryExportSync(import.meta.url, {
+		specifier: "./runtime-api.js",
+		exportName: "registerSlackPluginHttpRoutes"
+	})(api);
+}
+var slack_default = defineBundledChannelEntry({
 	id: "slack",
 	name: "Slack",
 	description: "Slack channel plugin",
-	plugin: slackPlugin,
-	setRuntime: setSlackRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./channel-plugin-api.js",
+		exportName: "slackPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setSlackRuntime"
+	},
+	accountInspect: {
+		specifier: "./account-inspect-api.js",
+		exportName: "inspectSlackReadOnlyAccount"
+	},
+	registerFull: registerSlackPluginHttpRoutes
 });
 //#endregion
-export { slack_default as default, setSlackRuntime, slackPlugin };
+export { slack_default as default };

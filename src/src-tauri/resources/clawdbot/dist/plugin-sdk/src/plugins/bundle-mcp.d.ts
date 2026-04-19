@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
-import type { PluginBundleFormat } from "./types.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginBundleFormat } from "./manifest-types.js";
 export type BundleMcpServerConfig = Record<string, unknown>;
 export type BundleMcpConfig = {
     mcpServers: Record<string, BundleMcpServerConfig>;

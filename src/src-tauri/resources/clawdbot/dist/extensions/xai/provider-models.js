@@ -1,2 +1,2 @@
-import { c as resolveXaiForwardCompatModel, s as isModernXaiModel } from "../../api-BxiD-3Ux.js";
+import { n as resolveXaiForwardCompatModel, t as isModernXaiModel } from "../../provider-models-DBZIiLTe.js";
 export { isModernXaiModel, resolveXaiForwardCompatModel };

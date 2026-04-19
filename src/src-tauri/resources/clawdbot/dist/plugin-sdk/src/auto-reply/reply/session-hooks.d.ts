@@ -1,4 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { PluginHookSessionEndEvent, PluginHookSessionEndReason, PluginHookSessionStartEvent } from "../../plugins/hook-types.js";
 export type SessionHookContext = {
     sessionId: string;
     sessionKey: string;
@@ -10,11 +11,7 @@ export declare function buildSessionStartHookPayload(params: {
     cfg: OpenClawConfig;
     resumedFrom?: string;
 }): {
-    event: {
-        sessionId: string;
-        sessionKey: string;
-        resumedFrom?: string;
-    };
+    event: PluginHookSessionStartEvent;
     context: SessionHookContext;
 };
 export declare function buildSessionEndHookPayload(params: {
@@ -22,11 +19,13 @@ export declare function buildSessionEndHookPayload(params: {
     sessionKey: string;
     cfg: OpenClawConfig;
     messageCount?: number;
+    durationMs?: number;
+    reason?: PluginHookSessionEndReason;
+    sessionFile?: string;
+    transcriptArchived?: boolean;
+    nextSessionId?: string;
+    nextSessionKey?: string;
 }): {
-    event: {
-        sessionId: string;
-        sessionKey: string;
-        messageCount: number;
-    };
+    event: PluginHookSessionEndEvent;
     context: SessionHookContext;
 };

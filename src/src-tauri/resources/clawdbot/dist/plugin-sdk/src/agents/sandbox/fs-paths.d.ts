@@ -1,4 +1,4 @@
-import type { SandboxContext } from "./types.js";
+import type { SandboxFsBridgeContext } from "./backend-handle.types.js";
 export type SandboxFsMount = {
     hostRoot: string;
     containerRoot: string;
@@ -17,7 +17,7 @@ type ParsedBindMount = {
     writable: boolean;
 };
 export declare function parseSandboxBindMount(spec: string): ParsedBindMount | null;
-export declare function buildSandboxFsMounts(sandbox: SandboxContext): SandboxFsMount[];
+export declare function buildSandboxFsMounts(sandbox: SandboxFsBridgeContext): SandboxFsMount[];
 export declare function resolveSandboxFsPathWithMounts(params: {
     filePath: string;
     cwd: string;

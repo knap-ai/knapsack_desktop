@@ -1,2 +1,2 @@
-import { n as waitForWebLogin, t as startWebLoginWithQr } from "../../login-qr-api-qGlclKQA.js";
+import { startWebLoginWithQr, waitForWebLogin } from "./login-qr-runtime.js";
 export { startWebLoginWithQr, waitForWebLogin };

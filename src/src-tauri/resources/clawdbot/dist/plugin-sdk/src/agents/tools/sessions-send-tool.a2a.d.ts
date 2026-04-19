@@ -1,6 +1,6 @@
-import { callGateway } from "../../gateway/call.js";
+import type { CallGatewayOptions } from "../../gateway/call.js";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
-type GatewayCaller = typeof callGateway;
+type GatewayCaller = <T = unknown>(opts: CallGatewayOptions) => Promise<T>;
 export declare function runSessionsSendA2AFlow(params: {
     targetSessionKey: string;
     displayKey: string;

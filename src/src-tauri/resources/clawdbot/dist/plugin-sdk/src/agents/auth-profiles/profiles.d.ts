@@ -15,6 +15,10 @@ export declare function upsertAuthProfileWithLock(params: {
     credential: AuthProfileCredential;
     agentDir?: string;
 }): Promise<AuthProfileStore | null>;
+export declare function removeProviderAuthProfilesWithLock(params: {
+    provider: string;
+    agentDir?: string;
+}): Promise<AuthProfileStore | null>;
 export declare function listProfilesForProvider(store: AuthProfileStore, provider: string): string[];
 export declare function markAuthProfileGood(params: {
     store: AuthProfileStore;

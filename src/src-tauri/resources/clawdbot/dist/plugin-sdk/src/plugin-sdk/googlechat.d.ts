@@ -1,5 +1,6 @@
 export { createActionGate, jsonResult, readNumberParam, readReactionParams, readStringParam, } from "../agents/tools/common.js";
-export { resolveMentionGatingWithBypass } from "../channels/mention-gating.js";
+export { resolveMentionGating, resolveMentionGatingWithBypass, resolveInboundMentionDecision, } from "../channels/mention-gating.js";
+export { getChatChannelMeta } from "../channels/chat-meta.js";
 export { deleteAccountFromConfigSection, setAccountEnabledInConfigSection, } from "../channels/plugins/config-helpers.js";
 export { listDirectoryGroupEntriesFromMapKeys, listDirectoryUserEntriesFromAllowFrom, } from "../channels/plugins/directory-config-helpers.js";
 export { buildComputedAccountStatusSnapshot } from "./status-helpers.js";
@@ -15,9 +16,8 @@ export { addWildcardAllowFrom, mergeAllowFromEntries, splitSetupEntries, setTopL
 export { PAIRING_APPROVED_MESSAGE } from "../channels/plugins/pairing-message.js";
 export { applyAccountNameToChannelSection, applySetupAccountConfigPatch, migrateBaseNameToDefaultAccount, } from "../channels/plugins/setup-helpers.js";
 export { createAccountListHelpers } from "../channels/plugins/account-helpers.js";
-export type { ChannelAccountSnapshot, ChannelMessageActionAdapter, ChannelMessageActionName, ChannelStatusIssue, } from "../channels/plugins/types.js";
+export type { ChannelAccountSnapshot, ChannelMessageActionAdapter, ChannelMessageActionName, ChannelStatusIssue, } from "../channels/plugins/types.public.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
-export { getChatChannelMeta } from "../channels/registry.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
 export type { OpenClawConfig } from "../config/config.js";
 export { isDangerousNameMatchingEnabled } from "../config/dangerous-name-matching.js";

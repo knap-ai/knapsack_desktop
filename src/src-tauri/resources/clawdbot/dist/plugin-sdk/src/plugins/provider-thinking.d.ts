@@ -1,4 +1,4 @@
-import type { ProviderDefaultThinkingPolicyContext, ProviderThinkingPolicyContext } from "./types.js";
+import type { ProviderDefaultThinkingPolicyContext, ProviderThinkingPolicyContext } from "./provider-thinking.types.js";
 type ThinkingHookParams<TContext> = {
     provider: string;
     context: TContext;

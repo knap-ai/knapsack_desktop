@@ -56,6 +56,7 @@ export declare function searchKeyword(params: {
     };
     buildFtsQuery: (raw: string) => string | null;
     bm25RankToScore: (rank: number) => number;
+    boostFallbackRanking?: boolean;
 }): Promise<Array<SearchRowResult & {
     textScore: number;
 }>>;

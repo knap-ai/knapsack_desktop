@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../config/types.js";
 import { type LogLevel } from "./levels.js";
-export type ConsoleStyle = "pretty" | "compact" | "json";
+import type { ConsoleStyle } from "./types.js";
+export type { ConsoleStyle } from "./types.js";
 type ConsoleSettings = {
     level: LogLevel;
     style: ConsoleStyle;
@@ -20,4 +21,3 @@ export declare function formatConsoleTimestamp(style: ConsoleStyle): string;
  * This keeps user-facing output unchanged but guarantees every console call is captured in log files.
  */
 export declare function enableConsoleCapture(): void;
-export {};

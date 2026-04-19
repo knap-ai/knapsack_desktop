@@ -1,6 +1,15 @@
-import { a as defineSetupPluginEntry } from "../../core-BghMcc08.js";
-import { t as feishuPlugin } from "../../channel-CmHlWwef.js";
+import { defineBundledChannelSetupEntry } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/feishu/setup-entry.ts
-var setup_entry_default = defineSetupPluginEntry(feishuPlugin);
+var setup_entry_default = defineBundledChannelSetupEntry({
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "feishuPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	}
+});
 //#endregion
 export { setup_entry_default as default };

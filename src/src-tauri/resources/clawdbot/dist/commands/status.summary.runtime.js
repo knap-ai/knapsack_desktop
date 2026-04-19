@@ -1,43 +1,29 @@
-import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "../defaults-BwiMD7ye.js";
-import { r as normalizeProviderId } from "../provider-id-CTiEzT1T.js";
-import { n as resolveAgentModelPrimaryValue } from "../model-input-DR9jgad-.js";
-import { t as resolveConfiguredProviderFallback } from "../configured-provider-fallback-Dcx3exfu.js";
+import { i as normalizeLowercaseStringOrEmpty, o as normalizeOptionalLowercaseString, s as normalizeOptionalString } from "../string-coerce-BUSzWgUA.js";
+import { r as normalizeProviderId } from "../provider-id-KaStHhRz.js";
+import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "../defaults-CiQa3xnX.js";
+import { n as resolveAgentModelPrimaryValue } from "../model-input-DFbXtnkw.js";
+import { g as resolveConfiguredProviderFallback, m as parseModelRef } from "../model-selection-cli-_3Gn8Wcd.js";
+import { _ as resolvePersistedSelectedModelRef } from "../model-selection-CTdyYoio.js";
 //#region src/commands/status.summary.runtime.ts
-function parseStatusModelRef(raw, defaultProvider) {
-	const trimmed = raw.trim();
-	if (!trimmed) return null;
-	const slash = trimmed.indexOf("/");
-	if (slash === -1) return {
-		provider: defaultProvider,
-		model: trimmed
-	};
-	const provider = trimmed.slice(0, slash).trim();
-	const model = trimmed.slice(slash + 1).trim();
-	if (!provider || !model) return null;
-	return {
-		provider,
-		model
-	};
-}
 function resolveStatusModelRefFromRaw(params) {
 	const trimmed = params.rawModel.trim();
 	if (!trimmed) return null;
 	const configuredModels = params.cfg.agents?.defaults?.models ?? {};
 	if (!trimmed.includes("/")) {
-		const aliasKey = trimmed.toLowerCase();
+		const aliasKey = normalizeLowercaseStringOrEmpty(trimmed);
 		for (const [modelKey, entry] of Object.entries(configuredModels)) {
 			const aliasValue = entry?.alias;
-			const alias = typeof aliasValue === "string" ? aliasValue.trim() : "";
-			if (!alias || alias.toLowerCase() !== aliasKey) continue;
-			const parsed = parseStatusModelRef(modelKey, params.defaultProvider);
+			const alias = normalizeOptionalString(aliasValue) ?? "";
+			if (!alias || normalizeOptionalLowercaseString(alias) !== aliasKey) continue;
+			const parsed = parseModelRef(modelKey, params.defaultProvider, { allowPluginNormalization: false });
 			if (parsed) return parsed;
 		}
 		return {
-			provider: "anthropic",
+			provider: params.defaultProvider,
 			model: trimmed
 		};
 	}
-	return parseStatusModelRef(trimmed, params.defaultProvider);
+	return parseModelRef(trimmed, params.defaultProvider, { allowPluginNormalization: false });
 }
 function resolveConfiguredStatusModelRef(params) {
 	const agentRawModel = params.agentId ? resolveAgentModelPrimaryValue(params.cfg.agents?.list?.find((entry) => entry?.id === params.agentId)?.model) : void 0;
@@ -68,13 +54,16 @@ function resolveConfiguredStatusModelRef(params) {
 		model: params.defaultModel
 	};
 }
-function resolveConfiguredProviderContextWindow(cfg, provider, model) {
+function resolveConfiguredProviderContextTokens(cfg, provider, model) {
 	const providers = cfg?.models?.providers;
 	if (!providers || typeof providers !== "object") return;
 	const providerKey = normalizeProviderId(provider);
 	for (const [id, providerConfig] of Object.entries(providers)) {
 		if (normalizeProviderId(id) !== providerKey || !Array.isArray(providerConfig?.models)) continue;
-		for (const entry of providerConfig.models) if (typeof entry?.id === "string" && entry.id === model && typeof entry.contextWindow === "number" && entry.contextWindow > 0) return entry.contextWindow;
+		for (const entry of providerConfig.models) {
+			const contextTokens = typeof entry?.contextTokens === "number" ? entry.contextTokens : typeof entry?.contextWindow === "number" ? entry.contextWindow : void 0;
+			if (typeof entry?.id === "string" && entry.id === model && typeof contextTokens === "number" && contextTokens > 0) return contextTokens;
+		}
 	}
 }
 function classifySessionKey(key, entry) {
@@ -91,48 +80,20 @@ function resolveSessionModelRef(cfg, entry, agentId) {
 		defaultModel: DEFAULT_MODEL,
 		agentId
 	});
-	let provider = resolved.provider;
-	let model = resolved.model;
-	const runtimeModel = entry?.model?.trim();
-	const runtimeProvider = entry?.modelProvider?.trim();
-	if (runtimeModel) {
-		if (runtimeProvider) return {
-			provider: runtimeProvider,
-			model: runtimeModel
-		};
-		const parsedRuntime = parseStatusModelRef(runtimeModel, provider || "anthropic");
-		if (parsedRuntime) {
-			provider = parsedRuntime.provider;
-			model = parsedRuntime.model;
-		} else model = runtimeModel;
-		return {
-			provider,
-			model
-		};
-	}
-	const storedModelOverride = entry?.modelOverride?.trim();
-	if (storedModelOverride) {
-		const overrideProvider = entry?.providerOverride?.trim() || provider || "anthropic";
-		const parsedOverride = parseStatusModelRef(storedModelOverride, overrideProvider);
-		if (parsedOverride) {
-			provider = parsedOverride.provider;
-			model = parsedOverride.model;
-		} else {
-			provider = overrideProvider;
-			model = storedModelOverride;
-		}
-	}
-	return {
-		provider,
-		model
-	};
+	return resolvePersistedSelectedModelRef({
+		defaultProvider: resolved.provider || "openai",
+		runtimeProvider: entry?.modelProvider,
+		runtimeModel: entry?.model,
+		overrideProvider: entry?.providerOverride,
+		overrideModel: entry?.modelOverride
+	}) ?? resolved;
 }
 function resolveContextTokensForModel(params) {
 	params.allowAsyncLoad;
 	if (typeof params.contextTokensOverride === "number" && params.contextTokensOverride > 0) return params.contextTokensOverride;
 	if (params.provider && params.model) {
-		const configuredWindow = resolveConfiguredProviderContextWindow(params.cfg, params.provider, params.model);
-		if (configuredWindow !== void 0) return configuredWindow;
+		const configuredContextTokens = resolveConfiguredProviderContextTokens(params.cfg, params.provider, params.model);
+		if (configuredContextTokens !== void 0) return configuredContextTokens;
 	}
 	return params.fallbackContextTokens ?? 2e5;
 }

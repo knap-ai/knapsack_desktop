@@ -1,5 +1,5 @@
-import type { ChannelId } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { ChannelId } from "../../channels/plugins/types.public.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { type RoutePeer } from "../../routing/resolve-route.js";
 import type { ResolvedMessagingTarget } from "./target-resolver.js";
 export type OutboundSessionRoute = {
@@ -17,6 +17,7 @@ export type ResolveOutboundSessionRouteParams = {
     agentId: string;
     accountId?: string | null;
     target: string;
+    currentSessionKey?: string;
     resolvedTarget?: ResolvedMessagingTarget;
     replyToId?: string | null;
     threadId?: string | number | null;
@@ -24,7 +25,6 @@ export type ResolveOutboundSessionRouteParams = {
 export declare function resolveOutboundSessionRoute(params: ResolveOutboundSessionRouteParams): Promise<OutboundSessionRoute | null>;
 export declare function ensureOutboundSessionEntry(params: {
     cfg: OpenClawConfig;
-    agentId: string;
     channel: ChannelId;
     accountId?: string | null;
     route: OutboundSessionRoute;

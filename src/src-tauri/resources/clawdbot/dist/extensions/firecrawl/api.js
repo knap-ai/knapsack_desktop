@@ -1,4 +1,6 @@
-import { t as runFirecrawlScrape } from "../../firecrawl-client-CaC60Tes.js";
+import { d as readStringValue } from "../../string-coerce-BUSzWgUA.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as runFirecrawlScrape } from "../../firecrawl-client-CuqQXpTh.js";
 //#region extensions/firecrawl/api.ts
 async function fetchFirecrawlContent(params) {
 	const result = await runFirecrawlScrape({
@@ -23,10 +25,10 @@ async function fetchFirecrawlContent(params) {
 	});
 	return {
 		text: typeof result.text === "string" ? result.text : "",
-		title: typeof result.title === "string" ? result.title : void 0,
-		finalUrl: typeof result.finalUrl === "string" ? result.finalUrl : void 0,
+		title: readStringValue(result.title),
+		finalUrl: readStringValue(result.finalUrl),
 		status: typeof result.status === "number" ? result.status : void 0,
-		warning: typeof result.warning === "string" ? result.warning : void 0
+		warning: readStringValue(result.warning)
 	};
 }
 //#endregion

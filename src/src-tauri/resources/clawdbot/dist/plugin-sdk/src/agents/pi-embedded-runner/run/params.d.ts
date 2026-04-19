@@ -1,25 +1,18 @@
 import type { ImageContent } from "@mariozechner/pi-ai";
+import type { ReplyPayload } from "../../../auto-reply/reply-payload.js";
+import type { ReplyOperation } from "../../../auto-reply/reply/reply-run-registry.js";
 import type { ReasoningLevel, ThinkLevel, VerboseLevel } from "../../../auto-reply/thinking.js";
-import type { ReplyPayload } from "../../../auto-reply/types.js";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 import type { PromptImageOrderEntry } from "../../../media/prompt-image-order.js";
-import type { enqueueCommand } from "../../../process/command-queue.js";
+import type { CommandQueueEnqueueFn } from "../../../process/command-queue.types.js";
 import type { InputProvenance } from "../../../sessions/input-provenance.js";
-import type { ExecElevatedDefaults, ExecToolDefaults } from "../../bash-tools.js";
-import type { AgentStreamParams } from "../../command/types.js";
+import type { ExecElevatedDefaults, ExecToolDefaults } from "../../bash-tools.exec-types.js";
+import type { AgentStreamParams, ClientToolDefinition } from "../../command/shared-types.js";
+import type { AgentInternalEvent } from "../../internal-events.js";
 import type { BlockReplyPayload } from "../../pi-embedded-payloads.js";
-import type { BlockReplyChunking, ToolResultFormat } from "../../pi-embedded-subscribe.js";
+import type { BlockReplyChunking, ToolResultFormat } from "../../pi-embedded-subscribe.shared-types.js";
 import type { SkillSnapshot } from "../../skills.js";
-export type ClientToolDefinition = {
-    type: "function";
-    function: {
-        name: string;
-        description?: string;
-        parameters?: Record<string, unknown>;
-        /** Strict argument enforcement (Responses API). Propagated from the request. */
-        strict?: boolean;
-    };
-};
+export type { ClientToolDefinition } from "../../command/shared-types.js";
 export type EmbeddedRunTrigger = "cron" | "heartbeat" | "manual" | "memory" | "overflow" | "user";
 export type RunEmbeddedPiAgentParams = {
     sessionId: string;
@@ -57,7 +50,7 @@ export type RunEmbeddedPiAgentParams = {
     /** Current inbound message id for action fallbacks (e.g. Telegram react). */
     currentMessageId?: string | number;
     /** Reply-to mode for Slack auto-threading. */
-    replyToMode?: "off" | "first" | "all";
+    replyToMode?: "off" | "first" | "all" | "batched";
     /** Mutable ref to track if a reply was sent (for "first" mode). */
     hasRepliedRef?: {
         value: boolean;
@@ -106,6 +99,7 @@ export type RunEmbeddedPiAgentParams = {
     timeoutMs: number;
     runId: string;
     abortSignal?: AbortSignal;
+    replyOperation?: ReplyOperation;
     shouldEmitToolResult?: () => boolean;
     shouldEmitToolOutput?: () => boolean;
     onPartialReply?: (payload: {
@@ -128,8 +122,9 @@ export type RunEmbeddedPiAgentParams = {
         data: Record<string, unknown>;
     }) => void;
     lane?: string;
-    enqueue?: typeof enqueueCommand;
+    enqueue?: CommandQueueEnqueueFn;
     extraSystemPrompt?: string;
+    internalEvents?: AgentInternalEvent[];
     inputProvenance?: InputProvenance;
     streamParams?: AgentStreamParams;
     ownerNumbers?: string[];

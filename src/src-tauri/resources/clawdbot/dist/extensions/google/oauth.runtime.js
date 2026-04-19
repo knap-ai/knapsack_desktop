@@ -1,2 +1,2 @@
-import { t as loginGeminiCliOAuth } from "../../oauth-BILmCMU6.js";
+import { loginGeminiCliOAuth } from "./oauth.js";
 export { loginGeminiCliOAuth };

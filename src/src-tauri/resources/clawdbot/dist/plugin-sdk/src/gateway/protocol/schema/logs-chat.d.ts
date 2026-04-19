@@ -53,6 +53,7 @@ export declare const ChatEventSchema: import("@sinclair/typebox").TObject<{
     state: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delta">, import("@sinclair/typebox").TLiteral<"final">, import("@sinclair/typebox").TLiteral<"aborted">, import("@sinclair/typebox").TLiteral<"error">]>;
     message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
     errorMessage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    errorKind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"refusal">, import("@sinclair/typebox").TLiteral<"timeout">, import("@sinclair/typebox").TLiteral<"rate_limit">, import("@sinclair/typebox").TLiteral<"context_length">, import("@sinclair/typebox").TLiteral<"unknown">]>>;
     usage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
     stopReason: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;

@@ -1,9 +1,16 @@
-import type { ChannelId, ChannelThreadingToolContext } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { ChannelId, ChannelThreadingToolContext } from "../../channels/plugins/types.public.js";
+import { type OpenClawConfig } from "../../config/config.js";
 import type { TemplateContext } from "../templating.js";
 import { resolveProviderScopedAuthProfile, resolveRunAuthProfile } from "./agent-runner-auth-profile.js";
 export { resolveProviderScopedAuthProfile, resolveRunAuthProfile };
 import type { FollowupRun } from "./queue.js";
+export declare function resolveQueuedReplyRuntimeConfig(config: OpenClawConfig): OpenClawConfig;
+export declare function resolveQueuedReplyExecutionConfig(config: OpenClawConfig, params?: {
+    originatingChannel?: string;
+    messageProvider?: string;
+    originatingAccountId?: string;
+    agentAccountId?: string;
+}): Promise<OpenClawConfig>;
 /**
  * Build provider-specific threading context for tool auto-injection.
  */
@@ -16,7 +23,7 @@ export declare function buildThreadingToolContext(params: {
 }): ChannelThreadingToolContext;
 export declare const isBunFetchSocketError: (message?: string) => boolean;
 export declare const formatBunFetchSocketError: (message: string) => string;
-export declare const resolveEnforceFinalTag: (run: FollowupRun["run"], provider: string) => boolean;
+export declare const resolveEnforceFinalTag: (run: FollowupRun["run"], provider: string, model?: string) => boolean;
 export declare function resolveModelFallbackOptions(run: FollowupRun["run"]): {
     cfg: OpenClawConfig;
     provider: string;
@@ -35,7 +42,7 @@ export declare function buildEmbeddedRunBaseParams(params: {
     thinkLevel: import("./directives.ts").ThinkLevel | undefined;
     verboseLevel: import("./directives.ts").VerboseLevel | undefined;
     reasoningLevel: import("./directives.ts").ReasoningLevel | undefined;
-    execOverrides: Pick<import("../../agents/bash-tools.exec-types.ts").ExecToolDefaults, "node" | "security" | "ask" | "host"> | undefined;
+    execOverrides: Pick<import("../../agents/bash-tools.exec-types.ts").ExecToolDefaults, "node" | "ask" | "host" | "security"> | undefined;
     bashElevated: {
         enabled: boolean;
         allowed: boolean;
@@ -67,10 +74,11 @@ export declare function buildEmbeddedContextFromTemplate(params: {
     } | undefined;
 }): {
     currentChannelId?: string;
+    currentGraphChannelId?: string;
     currentChannelProvider?: ChannelId;
     currentThreadTs?: string;
     currentMessageId?: string | number;
-    replyToMode?: "off" | "first" | "all";
+    replyToMode?: "off" | "first" | "all" | "batched";
     hasRepliedRef?: {
         value: boolean;
     };
@@ -103,10 +111,11 @@ export declare function buildEmbeddedRunContexts(params: {
     };
     embeddedContext: {
         currentChannelId?: string;
+        currentGraphChannelId?: string;
         currentChannelProvider?: ChannelId;
         currentThreadTs?: string;
         currentMessageId?: string | number;
-        replyToMode?: "off" | "first" | "all";
+        replyToMode?: "off" | "first" | "all" | "batched";
         hasRepliedRef?: {
             value: boolean;
         };
@@ -139,10 +148,11 @@ export declare function buildEmbeddedRunExecutionParams(params: {
 }): {
     embeddedContext: {
         currentChannelId?: string;
+        currentGraphChannelId?: string;
         currentChannelProvider?: ChannelId;
         currentThreadTs?: string;
         currentMessageId?: string | number;
-        replyToMode?: "off" | "first" | "all";
+        replyToMode?: "off" | "first" | "all" | "batched";
         hasRepliedRef?: {
             value: boolean;
         };
@@ -165,7 +175,7 @@ export declare function buildEmbeddedRunExecutionParams(params: {
         thinkLevel: import("./directives.ts").ThinkLevel | undefined;
         verboseLevel: import("./directives.ts").VerboseLevel | undefined;
         reasoningLevel: import("./directives.ts").ReasoningLevel | undefined;
-        execOverrides: Pick<import("../../agents/bash-tools.exec-types.ts").ExecToolDefaults, "node" | "security" | "ask" | "host"> | undefined;
+        execOverrides: Pick<import("../../agents/bash-tools.exec-types.ts").ExecToolDefaults, "node" | "ask" | "host" | "security"> | undefined;
         bashElevated: {
             enabled: boolean;
             allowed: boolean;

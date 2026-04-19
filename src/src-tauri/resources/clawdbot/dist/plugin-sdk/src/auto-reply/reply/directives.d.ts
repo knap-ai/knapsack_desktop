@@ -1,4 +1,4 @@
-import type { NoticeLevel, ReasoningLevel } from "../thinking.js";
+import type { NoticeLevel, ReasoningLevel, TraceLevel } from "../thinking.js";
 import { type ElevatedLevel, type ThinkLevel, type VerboseLevel } from "../thinking.js";
 export declare function extractThinkDirective(body?: string): {
     cleaned: string;
@@ -9,6 +9,12 @@ export declare function extractThinkDirective(body?: string): {
 export declare function extractVerboseDirective(body?: string): {
     cleaned: string;
     verboseLevel?: VerboseLevel;
+    rawLevel?: string;
+    hasDirective: boolean;
+};
+export declare function extractTraceDirective(body?: string): {
+    cleaned: string;
+    traceLevel?: TraceLevel;
     rawLevel?: string;
     hasDirective: boolean;
 };
@@ -40,5 +46,5 @@ export declare function extractStatusDirective(body?: string): {
     cleaned: string;
     hasDirective: boolean;
 };
-export type { ElevatedLevel, NoticeLevel, ReasoningLevel, ThinkLevel, VerboseLevel };
+export type { ElevatedLevel, NoticeLevel, ReasoningLevel, ThinkLevel, TraceLevel, VerboseLevel };
 export { extractExecDirective } from "./exec/directive.js";

@@ -1,2 +1,2 @@
-import { i as discoverModels, n as PiModelRegistryClass, r as discoverAuthStorage, t as PiAuthStorageClass } from "../pi-model-discovery-BeVyC0Vk.js";
-export { PiAuthStorageClass as AuthStorage, PiModelRegistryClass as ModelRegistry, discoverAuthStorage, discoverModels };
+import { a as discoverModels, c as scrubLegacyStaticAuthJsonEntriesForDiscovery, i as discoverAuthStorage, n as PiModelRegistryClass, o as normalizeDiscoveredPiModel, r as addEnvBackedPiCredentials, s as resolvePiCredentialsForDiscovery, t as PiAuthStorageClass } from "../pi-model-discovery-BgqsAR8S.js";
+export { PiAuthStorageClass as AuthStorage, PiModelRegistryClass as ModelRegistry, addEnvBackedPiCredentials, discoverAuthStorage, discoverModels, normalizeDiscoveredPiModel, resolvePiCredentialsForDiscovery, scrubLegacyStaticAuthJsonEntriesForDiscovery };

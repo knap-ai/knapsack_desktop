@@ -1,7 +1,9 @@
-import { r as fetchGeminiUsage } from "../../provider-usage.fetch-M75Vjeyz.js";
-import { t as buildOauthProviderAuthResult } from "../../provider-auth-result-BhR-PQxr.js";
-import "../../provider-usage-CSda3T6F.js";
-import { n as resolveGoogle31ForwardCompatModel, t as isModernGoogleModel } from "../../provider-models-C7tSuQzh.js";
+import { formatGoogleOauthApiKey, parseGoogleUsageToken } from "./oauth-token-shared.js";
+import { GOOGLE_GEMINI_PROVIDER_HOOKS } from "./provider-hooks.js";
+import { isModernGoogleModel, resolveGoogleGeminiForwardCompatModel } from "./provider-models.js";
+import { buildOauthProviderAuthResult } from "openclaw/plugin-sdk/provider-auth-result";
+import { buildProviderToolCompatFamilyHooks } from "openclaw/plugin-sdk/provider-tools";
+import { fetchGeminiUsage } from "openclaw/plugin-sdk/provider-usage";
 //#region extensions/google/gemini-cli-provider.ts
 const PROVIDER_ID = "google-gemini-cli";
 const PROVIDER_LABEL = "Gemini CLI OAuth";
@@ -12,20 +14,10 @@ const ENV_VARS = [
 	"GEMINI_CLI_OAUTH_CLIENT_ID",
 	"GEMINI_CLI_OAUTH_CLIENT_SECRET"
 ];
-function parseGoogleUsageToken(apiKey) {
-	try {
-		const parsed = JSON.parse(apiKey);
-		if (typeof parsed?.token === "string") return parsed.token;
-	} catch {}
-	return apiKey;
-}
-function formatGoogleOauthApiKey(cred) {
-	if (cred.type !== "oauth" || typeof cred.access !== "string" || !cred.access.trim()) return "";
-	return JSON.stringify({
-		token: cred.access,
-		projectId: cred.projectId
-	});
-}
+const GOOGLE_GEMINI_CLI_PROVIDER_HOOKS = {
+	...GOOGLE_GEMINI_PROVIDER_HOOKS,
+	...buildProviderToolCompatFamilyHooks("gemini")
+};
 async function fetchGeminiCliUsage(ctx) {
 	return await fetchGeminiUsage(ctx.token, ctx.timeoutMs, ctx.fetchFn, PROVIDER_ID);
 }
@@ -35,7 +27,7 @@ function registerGoogleGeminiCliProvider(api) {
 		label: PROVIDER_LABEL,
 		docsPath: "/providers/models",
 		aliases: ["gemini-cli"],
-		envVars: ENV_VARS,
+		envVars: [...ENV_VARS],
 		auth: [{
 			id: "oauth",
 			label: "Google OAuth",
@@ -62,7 +54,7 @@ function registerGoogleGeminiCliProvider(api) {
 						openUrl: ctx.openUrl,
 						log: (msg) => ctx.runtime.log(msg),
 						note: ctx.prompter.note,
-						prompt: async (message) => String(await ctx.prompter.text({ message })),
+						prompt: async (message) => ctx.prompter.text({ message }),
 						progress: spin
 					});
 					spin.stop("Gemini CLI OAuth complete");
@@ -73,8 +65,8 @@ function registerGoogleGeminiCliProvider(api) {
 						refresh: result.refresh,
 						expires: result.expires,
 						email: result.email,
-						credentialExtra: { projectId: result.projectId },
-						notes: ["If requests fail, set GOOGLE_CLOUD_PROJECT or GOOGLE_CLOUD_PROJECT_ID."]
+						...result.projectId ? { credentialExtra: { projectId: result.projectId } } : {},
+						...result.projectId ? { notes: ["If requests fail, set GOOGLE_CLOUD_PROJECT or GOOGLE_CLOUD_PROJECT_ID."] } : {}
 					});
 				} catch (err) {
 					spin.stop("Gemini CLI OAuth failed");
@@ -89,10 +81,11 @@ function registerGoogleGeminiCliProvider(api) {
 			choiceHint: "Google OAuth with project-aware token payload",
 			methodId: "oauth"
 		} },
-		resolveDynamicModel: (ctx) => resolveGoogle31ForwardCompatModel({
+		resolveDynamicModel: (ctx) => resolveGoogleGeminiForwardCompatModel({
 			providerId: PROVIDER_ID,
 			ctx
 		}),
+		...GOOGLE_GEMINI_CLI_PROVIDER_HOOKS,
 		isModernModelRef: ({ modelId }) => isModernGoogleModel(modelId),
 		formatApiKey: (cred) => formatGoogleOauthApiKey(cred),
 		resolveUsageAuth: async (ctx) => {

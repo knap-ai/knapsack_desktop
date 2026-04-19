@@ -4,7 +4,7 @@ import type { MatrixAuth, MatrixResolvedConfig } from "./types.js";
 export declare function setMatrixAuthClientDepsForTest(deps?: {
     MatrixClient: typeof import("../sdk.js").MatrixClient;
     ensureMatrixSdkLoggingConfigured: typeof import("./logging.js").ensureMatrixSdkLoggingConfigured;
-} | undefined): void;
+}): void;
 type MatrixEnvConfig = {
     homeserver: string;
     userId: string;
@@ -13,6 +13,7 @@ type MatrixEnvConfig = {
     deviceId?: string;
     deviceName?: string;
 };
+export declare function resolveGlobalMatrixEnvConfig(env: NodeJS.ProcessEnv): MatrixEnvConfig;
 export { getMatrixScopedEnvVarNames } from "../../env-vars.js";
 export declare function resolveMatrixEnvAuthReadiness(accountId: string, env?: NodeJS.ProcessEnv): {
     ready: boolean;
@@ -32,12 +33,11 @@ export declare function validateMatrixHomeserverUrl(homeserver: string, opts?: {
     allowPrivateNetwork?: boolean;
 }): string;
 export declare function resolveValidatedMatrixHomeserverUrl(homeserver: string, opts?: {
+    dangerouslyAllowPrivateNetwork?: boolean;
     allowPrivateNetwork?: boolean;
     lookupFn?: LookupFn;
 }): Promise<string>;
-export declare function resolveMatrixConfig(cfg?: CoreConfig, env?: NodeJS.ProcessEnv): MatrixResolvedConfig;
 export declare function resolveMatrixConfigForAccount(cfg: CoreConfig, accountId: string, env?: NodeJS.ProcessEnv): MatrixResolvedConfig;
-export declare function resolveImplicitMatrixAccountId(cfg: CoreConfig, env?: NodeJS.ProcessEnv): string | null;
 export declare function resolveMatrixAuthContext(params?: {
     cfg?: CoreConfig;
     env?: NodeJS.ProcessEnv;
@@ -53,3 +53,8 @@ export declare function resolveMatrixAuth(params?: {
     env?: NodeJS.ProcessEnv;
     accountId?: string | null;
 }): Promise<MatrixAuth>;
+export declare function backfillMatrixAuthDeviceIdAfterStartup(params: {
+    auth: MatrixAuth;
+    env?: NodeJS.ProcessEnv;
+    abortSignal?: AbortSignal;
+}): Promise<string | undefined>;

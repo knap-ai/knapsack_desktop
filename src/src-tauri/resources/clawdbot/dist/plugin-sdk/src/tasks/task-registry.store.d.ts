@@ -1,8 +1,6 @@
+import type { TaskRegistryStoreSnapshot } from "./task-registry.store.types.js";
 import type { TaskDeliveryState, TaskRecord } from "./task-registry.types.js";
-export type TaskRegistryStoreSnapshot = {
-    tasks: Map<string, TaskRecord>;
-    deliveryStates: Map<string, TaskDeliveryState>;
-};
+export type { TaskRegistryStoreSnapshot } from "./task-registry.store.types.js";
 export type TaskRegistryStore = {
     loadSnapshot: () => TaskRegistryStoreSnapshot;
     saveSnapshot: (snapshot: TaskRegistryStoreSnapshot) => void;

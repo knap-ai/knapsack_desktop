@@ -4,8 +4,10 @@ import type { ReasoningLevel } from "../auto-reply/thinking.js";
 import type { InlineCodeState } from "../markdown/code-spans.js";
 import type { HookRunner } from "../plugins/hooks.js";
 import type { EmbeddedBlockChunker } from "./pi-embedded-block-chunker.js";
-import type { MessagingToolSend } from "./pi-embedded-messaging.js";
+import type { MessagingToolSend } from "./pi-embedded-messaging.types.js";
 import type { BlockReplyPayload } from "./pi-embedded-payloads.js";
+import type { EmbeddedRunReplayState } from "./pi-embedded-runner/replay-state.js";
+import type { EmbeddedRunLivenessState } from "./pi-embedded-runner/types.js";
 import type { BlockReplyChunking, SubscribeEmbeddedPiSessionParams } from "./pi-embedded-subscribe.types.js";
 import type { ToolErrorSummary } from "./tool-error-summary.js";
 import type { NormalizedUsage } from "./usage.js";
@@ -26,6 +28,9 @@ export type EmbeddedPiSubscribeState = {
     }>;
     toolMetaById: Map<string, ToolCallSummary>;
     toolSummaryById: Set<string>;
+    itemActiveIds: Set<string>;
+    itemStartedCount: number;
+    itemCompletedCount: number;
     lastToolError?: ToolErrorSummary;
     blockReplyBreak: "text_end" | "message_end";
     reasoningMode: ReasoningLevel;
@@ -51,6 +56,7 @@ export type EmbeddedPiSubscribeState = {
     lastBlockReplyText?: string;
     reasoningStreamOpen: boolean;
     assistantMessageIndex: number;
+    lastAssistantStreamItemId?: string;
     lastAssistantTextMessageIndex: number;
     lastAssistantTextNormalized?: string;
     lastAssistantTextTrimmed?: string;
@@ -63,6 +69,9 @@ export type EmbeddedPiSubscribeState = {
     compactionRetryReject?: (reason?: unknown) => void;
     compactionRetryPromise: Promise<void> | null;
     unsubscribed: boolean;
+    replayState: EmbeddedRunReplayState;
+    livenessState?: EmbeddedRunLivenessState;
+    hadDeterministicSideEffect?: boolean;
     messagingToolSentTexts: string[];
     messagingToolSentTextsNormalized: string[];
     messagingToolSentTargets: MessagingToolSend[];
@@ -73,6 +82,7 @@ export type EmbeddedPiSubscribeState = {
     pendingMessagingMediaUrls: Map<string, string[]>;
     pendingToolMediaUrls: string[];
     pendingToolAudioAsVoice: boolean;
+    deterministicApprovalPromptPending: boolean;
     deterministicApprovalPromptSent: boolean;
     lastAssistant?: AgentMessage;
 };
@@ -83,6 +93,7 @@ export type EmbeddedPiSubscribeContext = {
     blockChunking?: BlockReplyChunking;
     blockChunker: EmbeddedBlockChunker | null;
     hookRunner?: HookRunner;
+    builtinToolNames?: ReadonlySet<string>;
     noteLastAssistant: (msg: AgentMessage) => void;
     shouldEmitToolResult: () => boolean;
     shouldEmitToolOutput: () => boolean;
@@ -129,13 +140,14 @@ export type EmbeddedPiSubscribeContext = {
  * tests provide only the fields they exercise
  * without needing the full `EmbeddedPiSubscribeContext`.
  */
-export type ToolHandlerParams = Pick<SubscribeEmbeddedPiSessionParams, "runId" | "onBlockReplyFlush" | "onAgentEvent" | "onToolResult" | "sessionKey" | "sessionId" | "agentId">;
-export type ToolHandlerState = Pick<EmbeddedPiSubscribeState, "toolMetaById" | "toolMetas" | "toolSummaryById" | "lastToolError" | "pendingMessagingTargets" | "pendingMessagingTexts" | "pendingMessagingMediaUrls" | "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "messagingToolSentTexts" | "messagingToolSentTextsNormalized" | "messagingToolSentMediaUrls" | "messagingToolSentTargets" | "successfulCronAdds" | "deterministicApprovalPromptSent">;
+export type ToolHandlerParams = Pick<SubscribeEmbeddedPiSessionParams, "runId" | "onBlockReplyFlush" | "onAgentEvent" | "onToolResult" | "sessionKey" | "sessionId" | "agentId" | "toolResultFormat">;
+export type ToolHandlerState = Pick<EmbeddedPiSubscribeState, "toolMetaById" | "toolMetas" | "toolSummaryById" | "itemActiveIds" | "itemStartedCount" | "itemCompletedCount" | "lastToolError" | "pendingMessagingTargets" | "pendingMessagingTexts" | "pendingMessagingMediaUrls" | "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "deterministicApprovalPromptPending" | "replayState" | "messagingToolSentTexts" | "messagingToolSentTextsNormalized" | "messagingToolSentMediaUrls" | "messagingToolSentTargets" | "successfulCronAdds" | "deterministicApprovalPromptSent">;
 export type ToolHandlerContext = {
     params: ToolHandlerParams;
     state: ToolHandlerState;
     log: EmbeddedSubscribeLogger;
     hookRunner?: HookRunner;
+    builtinToolNames?: ReadonlySet<string>;
     flushBlockReplyBuffer: () => void | Promise<void>;
     shouldEmitToolResult: () => boolean;
     shouldEmitToolOutput: () => boolean;

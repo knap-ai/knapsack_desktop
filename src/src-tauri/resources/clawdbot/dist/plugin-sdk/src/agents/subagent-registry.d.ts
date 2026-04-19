@@ -1,10 +1,11 @@
+import { cleanupBrowserSessionsForLifecycleEnd } from "../browser-lifecycle-cleanup.js";
 import { loadConfig } from "../config/config.js";
-import { ensureContextEnginesInitialized } from "../context-engine/init.js";
-import { resolveContextEngine } from "../context-engine/registry.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { ContextEngine } from "../context-engine/types.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { type DeliveryContext } from "../utils/delivery-context.js";
-import { ensureRuntimePluginsLoaded } from "./runtime-plugins.js";
+import type { ensureRuntimePluginsLoaded as ensureRuntimePluginsLoadedFn } from "./runtime-plugins.js";
 import * as subagentAnnounceModule from "./subagent-announce.js";
 import { getSubagentRunsSnapshotForRead, persistSubagentRunsToDisk, restoreSubagentRunsFromDisk } from "./subagent-registry-state.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
@@ -14,17 +15,22 @@ export { getSubagentSessionRuntimeMs, getSubagentSessionStartedAt, resolveSubage
 type SubagentRegistryDeps = {
     callGateway: typeof callGateway;
     captureSubagentCompletionReply: typeof subagentAnnounceModule.captureSubagentCompletionReply;
-    ensureContextEnginesInitialized: typeof ensureContextEnginesInitialized;
-    ensureRuntimePluginsLoaded: typeof ensureRuntimePluginsLoaded;
+    cleanupBrowserSessionsForLifecycleEnd: typeof cleanupBrowserSessionsForLifecycleEnd;
     getSubagentRunsSnapshotForRead: typeof getSubagentRunsSnapshotForRead;
     loadConfig: typeof loadConfig;
     onAgentEvent: typeof onAgentEvent;
     persistSubagentRunsToDisk: typeof persistSubagentRunsToDisk;
     resolveAgentTimeoutMs: typeof resolveAgentTimeoutMs;
-    resolveContextEngine: typeof resolveContextEngine;
     restoreSubagentRunsFromDisk: typeof restoreSubagentRunsFromDisk;
     runSubagentAnnounceFlow: typeof subagentAnnounceModule.runSubagentAnnounceFlow;
+    ensureContextEnginesInitialized?: () => void;
+    ensureRuntimePluginsLoaded?: typeof ensureRuntimePluginsLoadedFn;
+    resolveContextEngine?: (cfg: OpenClawConfig) => Promise<ContextEngine>;
 };
+export declare function scheduleSubagentOrphanRecovery(params?: {
+    delayMs?: number;
+    maxRetries?: number;
+}): void;
 export declare function markSubagentRunForSteerRestart(runId: string): boolean;
 export declare function clearSubagentRunSteerRestart(runId: string): boolean;
 export declare function replaceSubagentRunAfterSteer(params: {

@@ -1,6 +1,6 @@
 import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
 import type { SessionState } from "../logging/diagnostic-session-state.js";
-export type LoopDetectorKind = "generic_repeat" | "known_poll_no_progress" | "global_circuit_breaker" | "ping_pong";
+export type LoopDetectorKind = "generic_repeat" | "unknown_tool_repeat" | "known_poll_no_progress" | "global_circuit_breaker" | "ping_pong";
 export type LoopDetectionResult = {
     stuck: false;
 } | {
@@ -14,6 +14,7 @@ export type LoopDetectionResult = {
 };
 export declare const TOOL_CALL_HISTORY_SIZE = 30;
 export declare const WARNING_THRESHOLD = 10;
+export declare const UNKNOWN_TOOL_THRESHOLD = 10;
 export declare const CRITICAL_THRESHOLD = 20;
 export declare const GLOBAL_CIRCUIT_BREAKER_THRESHOLD = 30;
 /**

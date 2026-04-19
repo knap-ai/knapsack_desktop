@@ -1,2 +1,2 @@
-import { n as nostrSetupWizard, t as nostrSetupAdapter } from "../../setup-surface-5RDIvp92.js";
+import { n as nostrSetupWizard, t as nostrSetupAdapter } from "./setup-surface-DBTsUXeT.js";
 export { nostrSetupAdapter, nostrSetupWizard };

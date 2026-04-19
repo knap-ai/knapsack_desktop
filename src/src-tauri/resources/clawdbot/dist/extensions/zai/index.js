@@ -1,24 +1,31 @@
-import { o as normalizeModelCompat } from "../../provider-model-shared-B0P3sbBu.js";
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CRNbANMO.js";
-import { a as upsertAuthProfile } from "../../profiles-RmR8EAZC.js";
-import { p as resolveLegacyPiAgentAccessToken, t as fetchZaiUsage } from "../../provider-usage.fetch-M75Vjeyz.js";
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-DN8kDr8X.js";
-import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-cJfyGWtW.js";
-import "../../provider-auth-api-key-g0GKEM-Y.js";
-import { i as createZaiToolStreamWrapper } from "../../provider-stream-D_iORY-e.js";
-import "../../provider-usage-CSda3T6F.js";
-import { t as detectZaiEndpoint } from "../../detect-CmwdfDSA.js";
-import { t as zaiMediaUnderstandingProvider } from "../../media-understanding-provider-ajYNn0qd.js";
-import { c as buildZaiModelDefinition } from "../../model-definitions-DSQNquZl.js";
-import { n as applyZaiConfig, r as applyZaiProviderConfig, t as ZAI_DEFAULT_MODEL_REF } from "../../onboard-G_7r-aBy.js";
+import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-DqcJmob1.js";
+import { i as normalizeModelCompat } from "../../provider-model-compat-Dsxuyzi4.js";
+import { o as upsertAuthProfile } from "../../profiles-CVErLX2C.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
+import { i as defaultToolStreamExtraParams } from "../../provider-stream-shared-DisAYlnl.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-fye6IC_1.js";
+import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-DKL5bJRR.js";
+import "../../provider-auth-api-key-F-AGqwyB.js";
+import { s as TOOL_STREAM_DEFAULT_ON_HOOKS } from "../../provider-stream-DMhSzU-H.js";
+import "../../provider-stream-family-CjEB-fh0.js";
+import { a as resolveLegacyPiAgentAccessToken } from "../../provider-usage.shared-B28ujaJI.js";
+import { t as fetchZaiUsage } from "../../provider-usage-G4no-csD.js";
+import { t as detectZaiEndpoint } from "../../detect-8-DoVrrA.js";
+import { t as zaiMediaUnderstandingProvider } from "../../media-understanding-provider-BKiPLuqy.js";
+import { c as buildZaiModelDefinition } from "../../model-definitions-CLSSKfOG.js";
+import { n as applyZaiConfig, r as applyZaiProviderConfig, t as ZAI_DEFAULT_MODEL_REF } from "../../onboard-B_M93OhR.js";
 //#region extensions/zai/index.ts
 const PROVIDER_ID = "zai";
 const GLM5_TEMPLATE_MODEL_ID = "glm-4.7";
 const PROFILE_ID = "zai:default";
 function resolveGlm5ForwardCompatModel(ctx) {
 	const trimmedModelId = ctx.modelId.trim();
-	if (!trimmedModelId.toLowerCase().startsWith("glm-5")) return;
+	if (!normalizeLowercaseStringOrEmpty(trimmedModelId).startsWith("glm-5")) return;
+	const existing = ctx.modelRegistry.find(PROVIDER_ID, trimmedModelId);
+	if (existing) return existing;
 	const def = buildZaiModelDefinition({ id: trimmedModelId });
 	return normalizeModelCompat({
 		...ctx.modelRegistry.find(PROVIDER_ID, GLM5_TEMPLATE_MODEL_ID),
@@ -207,17 +214,12 @@ var zai_default = definePluginEntry({
 				})
 			],
 			resolveDynamicModel: (ctx) => resolveGlm5ForwardCompatModel(ctx),
-			prepareExtraParams: (ctx) => {
-				if (ctx.extraParams?.tool_stream !== void 0) return ctx.extraParams;
-				return {
-					...ctx.extraParams,
-					tool_stream: true
-				};
-			},
-			wrapStreamFn: (ctx) => createZaiToolStreamWrapper(ctx.streamFn, ctx.extraParams?.tool_stream !== false),
+			...OPENAI_COMPATIBLE_REPLAY_HOOKS,
+			prepareExtraParams: (ctx) => defaultToolStreamExtraParams(ctx.extraParams),
+			...TOOL_STREAM_DEFAULT_ON_HOOKS,
 			isBinaryThinking: () => true,
 			isModernModelRef: ({ modelId }) => {
-				const lower = modelId.trim().toLowerCase();
+				const lower = normalizeLowercaseStringOrEmpty(modelId);
 				return lower.startsWith("glm-5") || lower.startsWith("glm-4.7") || lower.startsWith("glm-4.7-flash") || lower.startsWith("glm-4.7-flashx");
 			},
 			resolveUsageAuth: async (ctx) => {

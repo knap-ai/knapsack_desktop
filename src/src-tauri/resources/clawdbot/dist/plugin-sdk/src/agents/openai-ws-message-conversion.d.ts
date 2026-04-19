@@ -9,7 +9,9 @@ export type PlannedTurnInput = {
     previousResponseId?: string;
     mode: "incremental_tool_results" | "full_context_initial" | "full_context_restart";
 };
-export declare function convertTools(tools: Context["tools"]): FunctionToolDefinition[];
+export declare function convertTools(tools: Context["tools"], options?: {
+    strict?: boolean | null;
+}): FunctionToolDefinition[];
 export declare function planTurnInput(params: {
     context: Context;
     model: ReplayModelInfo;

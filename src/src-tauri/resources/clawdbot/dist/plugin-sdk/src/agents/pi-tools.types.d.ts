@@ -1,2 +1,1 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-export type AnyAgentTool = AgentTool<any, unknown>;
+export type { AnyAgentTool } from "./tools/common.js";

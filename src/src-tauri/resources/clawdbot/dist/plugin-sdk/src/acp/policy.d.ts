@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { AcpRuntimeError } from "./runtime/errors.js";
 export type AcpDispatchPolicyState = "enabled" | "acp_disabled" | "dispatch_disabled";
 export declare function isAcpEnabledByPolicy(cfg: OpenClawConfig): boolean;

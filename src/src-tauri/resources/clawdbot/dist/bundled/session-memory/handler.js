@@ -1,15 +1,24 @@
-import { t as createSubsystemLogger } from "../../subsystem-CJEvHE2o.js";
-import { _ as resolveStateDir } from "../../paths-CD8i0MSg.js";
-import { T as parseAgentSessionKey, h as toAgentStoreSessionKey, u as resolveAgentIdFromSessionKey } from "../../session-key-D7XpmyVq.js";
-import { c as resolveAgentIdByWorkspacePath, p as resolveAgentWorkspaceDir } from "../../agent-scope-CYXg_wTS.js";
-import { r as hasInterSessionUserProvenance } from "../../input-provenance-dFlyjP2J.js";
-import { m as writeFileWithinRoot } from "../../fs-safe-Dv_jH6UN.js";
-import { t as generateSlugViaLLM } from "../../llm-slug-generator-Bc2vaCWr.js";
-import { r as resolveHookConfig } from "../../config-D4gCdbz1.js";
+import { t as createSubsystemLogger } from "../../subsystem-Cgmckbux.js";
+import { _ as resolveStateDir } from "../../paths-Dvv9VRAc.js";
+import { h as toAgentStoreSessionKey, u as resolveAgentIdFromSessionKey, x as parseAgentSessionKey } from "../../session-key-Bh1lMwK5.js";
+import { a as resolveAgentIdByWorkspacePath, b as resolveAgentWorkspaceDir } from "../../agent-scope-KFH9bkHi.js";
+import { r as hasInterSessionUserProvenance } from "../../input-provenance-BIw3ISWS.js";
+import { g as writeFileWithinRoot } from "../../fs-safe-B7mHodgb.js";
+import { t as generateSlugViaLLM } from "../../llm-slug-generator-CoXuJeS5.js";
+import { r as resolveHookConfig } from "../../config-DiksYOxU.js";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
 //#region src/hooks/bundled/session-memory/transcript.ts
+function extractTextMessageContent(content) {
+	if (typeof content === "string") return content;
+	if (!Array.isArray(content)) return;
+	for (const block of content) {
+		if (!block || typeof block !== "object") continue;
+		const candidate = block;
+		if (candidate.type === "text" && typeof candidate.text === "string") return candidate.text;
+	}
+}
 async function getRecentSessionContent(sessionFilePath, messageCount = 15) {
 	try {
 		const lines = (await fs.readFile(sessionFilePath, "utf-8")).trim().split("\n");
@@ -19,9 +28,9 @@ async function getRecentSessionContent(sessionFilePath, messageCount = 15) {
 			if (entry.type === "message" && entry.message) {
 				const msg = entry.message;
 				const role = msg.role;
-				if ((role === "user" || role === "assistant") && msg.content) {
+				if ((role === "user" || role === "assistant") && "content" in msg && msg.content) {
 					if (role === "user" && hasInterSessionUserProvenance(msg)) continue;
-					const text = Array.isArray(msg.content) ? msg.content.find((c) => c.type === "text")?.text : msg.content;
+					const text = extractTextMessageContent(msg.content);
 					if (text && !text.startsWith("/")) allMessages.push(`${role}: ${text}`);
 				}
 			}

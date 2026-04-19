@@ -1,2 +1,2 @@
-import { t as buildVercelAiGatewayProvider } from "../../provider-catalog-LNB9iO5Q.js";
+import { t as buildVercelAiGatewayProvider } from "../../provider-catalog-Dy_7GoPv.js";
 export { buildVercelAiGatewayProvider };

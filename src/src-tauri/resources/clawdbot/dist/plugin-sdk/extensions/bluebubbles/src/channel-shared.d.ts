@@ -20,8 +20,8 @@ export declare const bluebubblesReload: {
 export declare const bluebubblesConfigSchema: import("openclaw/plugin-sdk").ChannelConfigSchema;
 export declare const bluebubblesConfigAdapter: {
     listAccountIds: (cfg: import("./runtime-api.js").OpenClawConfig) => string[];
-    resolveAccount: (cfg: import("./runtime-api.js").OpenClawConfig, accountId?: string | null) => ResolvedBlueBubblesAccount;
     inspectAccount?: ((cfg: import("./runtime-api.js").OpenClawConfig, accountId?: string | null) => unknown) | undefined;
+    resolveAccount: (cfg: import("./runtime-api.js").OpenClawConfig, accountId?: string | null) => ResolvedBlueBubblesAccount;
     defaultAccountId?: ((cfg: import("./runtime-api.js").OpenClawConfig) => string) | undefined;
     setAccountEnabled?: ((params: {
         cfg: import("./runtime-api.js").OpenClawConfig;

@@ -6,6 +6,10 @@ export declare function resolveOllamaBaseUrlForRun(params: {
     modelBaseUrl?: string;
     providerBaseUrl?: string;
 }): string;
+export declare function resolveConfiguredOllamaProviderConfig(params: {
+    config?: OpenClawConfig;
+    providerId?: string;
+}): import("openclaw/plugin-sdk/provider-model-shared").ModelProviderConfig | undefined;
 export declare function isOllamaCompatProvider(model: {
     provider?: string;
     baseUrl?: string;

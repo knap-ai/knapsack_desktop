@@ -36,6 +36,21 @@ type ClaudeCliWriteOptions = ClaudeCliFileOptions & {
     writeKeychain?: (credentials: OAuthCredentials) => boolean;
     writeFile?: (credentials: OAuthCredentials, options?: ClaudeCliFileOptions) => boolean;
 };
+type CodexCliFileOptions = {
+    codexHome?: string;
+};
+type CodexCliWriteOptions = CodexCliFileOptions & {
+    platform?: NodeJS.Platform;
+    execSync?: ExecSyncFn;
+    execFileSync?: ExecFileSyncFn;
+    writeKeychain?: (credentials: OAuthCredentials, options?: {
+        codexHome?: string;
+        platform?: NodeJS.Platform;
+        execSync?: ExecSyncFn;
+        execFileSync?: ExecFileSyncFn;
+    }) => boolean;
+    writeFile?: (credentials: OAuthCredentials, options?: CodexCliFileOptions) => boolean;
+};
 type ExecSyncFn = typeof execSync;
 type ExecFileSyncFn = typeof execFileSync;
 export declare function readClaudeCliCredentials(options?: {
@@ -56,11 +71,21 @@ export declare function writeClaudeCliKeychainCredentials(newCredentials: OAuthC
 }): boolean;
 export declare function writeClaudeCliFileCredentials(newCredentials: OAuthCredentials, options?: ClaudeCliFileOptions): boolean;
 export declare function writeClaudeCliCredentials(newCredentials: OAuthCredentials, options?: ClaudeCliWriteOptions): boolean;
+export declare function writeCodexCliKeychainCredentials(newCredentials: OAuthCredentials, options?: {
+    codexHome?: string;
+    platform?: NodeJS.Platform;
+    execSync?: ExecSyncFn;
+    execFileSync?: ExecFileSyncFn;
+}): boolean;
+export declare function writeCodexCliFileCredentials(newCredentials: OAuthCredentials, options?: CodexCliFileOptions): boolean;
+export declare function writeCodexCliCredentials(newCredentials: OAuthCredentials, options?: CodexCliWriteOptions): boolean;
 export declare function readCodexCliCredentials(options?: {
+    codexHome?: string;
     platform?: NodeJS.Platform;
     execSync?: ExecSyncFn;
 }): CodexCliCredential | null;
 export declare function readCodexCliCredentialsCached(options?: {
+    codexHome?: string;
     ttlMs?: number;
     platform?: NodeJS.Platform;
     execSync?: ExecSyncFn;

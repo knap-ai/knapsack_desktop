@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export declare const ACP_SPAWN_MODES: readonly ["run", "session"];
 export type SpawnAcpMode = (typeof ACP_SPAWN_MODES)[number];
 export declare const ACP_SPAWN_SANDBOX_MODES: readonly ["inherit", "require"];
@@ -26,15 +26,28 @@ export type SpawnAcpContext = {
     agentGroupId?: string;
     sandboxed?: boolean;
 };
-export type SpawnAcpResult = {
-    status: "accepted" | "forbidden" | "error";
+export declare const ACP_SPAWN_ERROR_CODES: readonly ["acp_disabled", "requester_session_required", "runtime_policy", "thread_required", "target_agent_required", "agent_forbidden", "cwd_resolution_failed", "thread_binding_invalid", "spawn_failed", "dispatch_failed"];
+export type SpawnAcpErrorCode = (typeof ACP_SPAWN_ERROR_CODES)[number];
+type SpawnAcpResultFields = {
     childSessionKey?: string;
     runId?: string;
     mode?: SpawnAcpMode;
     streamLogPath?: string;
     note?: string;
-    error?: string;
 };
+type SpawnAcpAcceptedResult = SpawnAcpResultFields & {
+    status: "accepted";
+    childSessionKey: string;
+    runId: string;
+    mode: SpawnAcpMode;
+};
+type SpawnAcpFailedResult = SpawnAcpResultFields & {
+    status: "forbidden" | "error";
+    error: string;
+    errorCode: SpawnAcpErrorCode;
+};
+export type SpawnAcpResult = SpawnAcpAcceptedResult | SpawnAcpFailedResult;
+export declare function isSpawnAcpAcceptedResult(result: SpawnAcpResult): result is SpawnAcpAcceptedResult;
 export declare const ACP_SPAWN_ACCEPTED_NOTE = "initial ACP task queued in isolated session; follow-ups continue in the bound thread.";
 export declare const ACP_SPAWN_SESSION_ACCEPTED_NOTE = "thread-bound ACP session stays active after this task; continue in-thread for follow-ups.";
 export declare function resolveAcpSpawnRuntimePolicyError(params: {
@@ -44,3 +57,4 @@ export declare function resolveAcpSpawnRuntimePolicyError(params: {
     sandbox?: SpawnAcpSandboxMode;
 }): string | undefined;
 export declare function spawnAcpDirect(params: SpawnAcpParams, ctx: SpawnAcpContext): Promise<SpawnAcpResult>;
+export {};

@@ -1,4 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type { DeliveryContext } from "../utils/delivery-context.js";
 export type ProcessStatus = "running" | "completed" | "failed" | "killed";
 export type SessionStdin = {
     write: (data: string, cb?: (err?: Error | null) => void) => void;
@@ -11,6 +12,7 @@ export interface ProcessSession {
     command: string;
     scopeKey?: string;
     sessionKey?: string;
+    notifyDeliveryContext?: DeliveryContext;
     notifyOnExit?: boolean;
     notifyOnExitEmptySuccess?: boolean;
     exitNotified?: boolean;

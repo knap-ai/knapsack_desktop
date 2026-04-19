@@ -1,4 +1,4 @@
-import type { InstallSafetyOverrides } from "./install-security-scan.js";
+import type { InstallSafetyOverrides } from "./install-security-scan.types.js";
 type InstallScanLogger = {
     warn?: (message: string) => void;
 };
@@ -29,6 +29,11 @@ export declare function scanPackageInstallSourceRuntime(params: InstallSafetyOve
     packageName?: string;
     manifestId?: string;
     version?: string;
+}): Promise<InstallSecurityScanResult | undefined>;
+export declare function scanInstalledPackageDependencyTreeRuntime(params: {
+    logger: InstallScanLogger;
+    packageDir: string;
+    pluginId: string;
 }): Promise<InstallSecurityScanResult | undefined>;
 export declare function scanFileInstallSourceRuntime(params: InstallSafetyOverrides & {
     filePath: string;

@@ -1,4 +1,5 @@
-import { type GroupPolicy, type SenderGroupAccessDecision } from "./runtime-api.js";
+import { type GroupPolicy } from "openclaw/plugin-sdk/config-runtime";
+import { type SenderGroupAccessDecision } from "openclaw/plugin-sdk/group-access";
 export declare function isZaloSenderAllowed(senderId: string, allowFrom: string[]): boolean;
 export declare function resolveZaloRuntimeGroupPolicy(params: {
     providerConfigPresent: boolean;

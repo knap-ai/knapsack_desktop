@@ -12,6 +12,24 @@ export declare const pluginSdkDocMetadata: {
     readonly core: {
         readonly category: "core";
     };
+    readonly "approval-runtime": {
+        readonly category: "runtime";
+    };
+    readonly "approval-auth-runtime": {
+        readonly category: "runtime";
+    };
+    readonly "approval-client-runtime": {
+        readonly category: "runtime";
+    };
+    readonly "approval-delivery-runtime": {
+        readonly category: "runtime";
+    };
+    readonly "approval-native-runtime": {
+        readonly category: "runtime";
+    };
+    readonly "approval-reply-runtime": {
+        readonly category: "runtime";
+    };
     readonly "plugin-entry": {
         readonly category: "core";
     };
@@ -36,6 +54,12 @@ export declare const pluginSdkDocMetadata: {
     readonly "command-auth": {
         readonly category: "channel";
     };
+    readonly "command-status": {
+        readonly category: "channel";
+    };
+    readonly "command-status-runtime": {
+        readonly category: "runtime";
+    };
     readonly "secret-input": {
         readonly category: "channel";
     };
@@ -43,6 +67,9 @@ export declare const pluginSdkDocMetadata: {
         readonly category: "channel";
     };
     readonly "provider-onboard": {
+        readonly category: "provider";
+    };
+    readonly opencode: {
         readonly category: "provider";
     };
     readonly "runtime-store": {

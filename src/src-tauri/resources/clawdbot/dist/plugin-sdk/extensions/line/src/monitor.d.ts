@@ -1,4 +1,4 @@
-import type { WebhookRequestBody } from "@line/bot-sdk";
+import type { webhook } from "@line/bot-sdk";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import { type RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import type { ResolvedLineAccount } from "./types.js";
@@ -14,7 +14,7 @@ export interface MonitorLineProviderOptions {
 }
 export interface LineProviderMonitor {
     account: ResolvedLineAccount;
-    handleWebhook: (body: WebhookRequestBody) => Promise<void>;
+    handleWebhook: (body: webhook.CallbackRequest) => Promise<void>;
     stop: () => void;
 }
 export declare function getLineRuntimeState(accountId: string): {
@@ -25,4 +25,5 @@ export declare function getLineRuntimeState(accountId: string): {
     lastInboundAt?: number | null;
     lastOutboundAt?: number | null;
 } | undefined;
+export declare function clearLineRuntimeStateForTests(): void;
 export declare function monitorLineProvider(opts: MonitorLineProviderOptions): Promise<LineProviderMonitor>;

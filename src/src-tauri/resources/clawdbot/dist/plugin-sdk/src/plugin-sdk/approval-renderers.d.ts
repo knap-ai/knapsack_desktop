@@ -1,11 +1,14 @@
-import type { ReplyPayload } from "../auto-reply/types.js";
+import type { ReplyPayload } from "../auto-reply/reply-payload.js";
 import { type ExecApprovalReplyDecision } from "../infra/exec-approval-reply.js";
 import { type PluginApprovalRequest, type PluginApprovalResolved } from "../infra/plugin-approvals.js";
 export declare function buildApprovalPendingReplyPayload(params: {
+    approvalKind?: "exec" | "plugin";
     approvalId: string;
     approvalSlug: string;
     text: string;
+    agentId?: string | null;
     allowedDecisions?: readonly ExecApprovalReplyDecision[];
+    sessionKey?: string | null;
     channelData?: Record<string, unknown>;
 }): ReplyPayload;
 export declare function buildApprovalResolvedReplyPayload(params: {

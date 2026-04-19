@@ -1,7 +1,7 @@
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 import type { OutboundSendDeps } from "../../../infra/outbound/deliver.js";
 import type { OutboundMediaAccess } from "../../../media/load-options.js";
-import type { ChannelOutboundAdapter } from "../types.js";
+import type { ChannelOutboundAdapter } from "../types.adapters.js";
 type DirectSendOptions = {
     cfg: OpenClawConfig;
     accountId?: string | null;
@@ -26,12 +26,12 @@ export declare function resolveScopedChannelMediaMaxBytes(params: {
         accountId: string;
     }) => number | undefined;
 }): number | undefined;
-export declare function createScopedChannelMediaMaxBytesResolver(channel: "imessage" | "signal"): (params: {
+export declare function createScopedChannelMediaMaxBytesResolver(channel: string): (params: {
     cfg: OpenClawConfig;
     accountId?: string | null;
 }) => number | undefined;
 export declare function createDirectTextMediaOutbound<TOpts extends Record<string, unknown>, TResult extends DirectSendResult>(params: {
-    channel: "imessage" | "signal";
+    channel: string;
     resolveSender: (deps: OutboundSendDeps | undefined) => DirectSendFn<TOpts, TResult>;
     resolveMaxBytes: (params: {
         cfg: OpenClawConfig;

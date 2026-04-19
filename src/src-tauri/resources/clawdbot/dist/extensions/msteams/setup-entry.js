@@ -1,6 +1,15 @@
-import { a as defineSetupPluginEntry } from "../../core-BghMcc08.js";
-import { t as msteamsPlugin } from "../../channel-BdILWSVn.js";
+import { n as defineBundledChannelSetupEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/msteams/setup-entry.ts
-var setup_entry_default = defineSetupPluginEntry(msteamsPlugin);
+var setup_entry_default = defineBundledChannelSetupEntry({
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "msteamsPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	}
+});
 //#endregion
 export { setup_entry_default as default };

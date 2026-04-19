@@ -1,0 +1,12 @@
+export declare function readStringValue(value: unknown): string | undefined;
+export declare function normalizeNullableString(value: unknown): string | null;
+export declare function normalizeOptionalString(value: unknown): string | undefined;
+export declare function normalizeStringifiedOptionalString(value: unknown): string | undefined;
+export declare function normalizeOptionalLowercaseString(value: unknown): string | undefined;
+export declare function normalizeLowercaseStringOrEmpty(value: unknown): string;
+export declare function lowercasePreservingWhitespace(value: string): string;
+export declare function localeLowercasePreservingWhitespace(value: string): string;
+export declare function resolvePrimaryStringValue(value: unknown): string | undefined;
+export declare function normalizeOptionalThreadValue(value: unknown): string | number | undefined;
+export declare function normalizeOptionalStringifiedId(value: unknown): string | undefined;
+export declare function hasNonEmptyString(value: unknown): value is string;

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type HookInstallUpdate } from "../hooks/installs.js";
 import { type PluginInstallUpdate } from "../plugins/installs.js";
 export declare function persistPluginInstall(params: {

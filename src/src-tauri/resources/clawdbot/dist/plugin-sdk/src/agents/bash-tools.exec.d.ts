@@ -1,6 +1,20 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import { execSchema } from "./bash-tools.exec-runtime.js";
 import type { ExecToolDefaults, ExecToolDetails } from "./bash-tools.exec-types.js";
+import { type AgentToolWithMeta } from "./tools/common.js";
 export type { BashSandboxConfig } from "./bash-tools.shared.js";
 export type { ExecElevatedDefaults, ExecToolDefaults, ExecToolDetails, } from "./bash-tools.exec-types.js";
-export declare function createExecTool(defaults?: ExecToolDefaults): AgentTool<any, ExecToolDetails>;
-export declare const execTool: AgentTool<any, ExecToolDetails>;
+export declare function createExecTool(defaults?: ExecToolDefaults): AgentToolWithMeta<typeof execSchema, ExecToolDetails>;
+export declare const execTool: AgentToolWithMeta<import("@sinclair/typebox").TObject<{
+    command: import("@sinclair/typebox").TString;
+    workdir: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    env: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+    yieldMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+    background: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    timeout: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+    pty: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    elevated: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    host: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    node: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+}>, ExecToolDetails>;

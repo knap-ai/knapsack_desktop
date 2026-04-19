@@ -1,6 +1,7 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { i as resolveAnthropicVertexConfigApiKey } from "../../region-BCAVTxn2.js";
-import { n as resolveImplicitAnthropicVertexProvider, t as mergeImplicitAnthropicVertexProvider } from "../../api-BHFFbiel.js";
+import { n as NATIVE_ANTHROPIC_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { i as resolveAnthropicVertexConfigApiKey } from "../../region-CanK2Bay.js";
+import { n as resolveImplicitAnthropicVertexProvider, t as mergeImplicitAnthropicVertexProvider } from "../../api-D6COr16I.js";
 //#region extensions/anthropic-vertex/index.ts
 const PROVIDER_ID = "anthropic-vertex";
 var anthropic_vertex_default = definePluginEntry({
@@ -16,7 +17,7 @@ var anthropic_vertex_default = definePluginEntry({
 			catalog: {
 				order: "simple",
 				run: async (ctx) => {
-					const implicit = await resolveImplicitAnthropicVertexProvider({ env: ctx.env });
+					const implicit = resolveImplicitAnthropicVertexProvider({ env: ctx.env });
 					if (!implicit) return null;
 					return { provider: mergeImplicitAnthropicVertexProvider({
 						existing: ctx.config.models?.providers?.[PROVIDER_ID],
@@ -25,10 +26,7 @@ var anthropic_vertex_default = definePluginEntry({
 				}
 			},
 			resolveConfigApiKey: ({ env }) => resolveAnthropicVertexConfigApiKey(env),
-			capabilities: {
-				providerFamily: "anthropic",
-				dropThinkingBlockModelHints: ["claude"]
-			}
+			...NATIVE_ANTHROPIC_REPLAY_HOOKS
 		});
 	}
 });

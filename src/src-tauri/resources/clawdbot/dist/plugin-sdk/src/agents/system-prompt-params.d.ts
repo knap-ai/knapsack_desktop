@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type ResolvedTimeFormat } from "./date-time.js";
 export type RuntimeInfoInput = {
     agentId?: string;
@@ -14,6 +14,7 @@ export type RuntimeInfoInput = {
     /** Supported message actions for the current channel (e.g., react, edit, unsend) */
     channelActions?: string[];
     repoRoot?: string;
+    canvasRootDir?: string;
 };
 export type SystemPromptRuntimeParams = {
     runtimeInfo: RuntimeInfoInput;

@@ -1,3 +1,4 @@
+import { r as resolveCopilotTransportApi } from "../../models-Bq8Uk4YG.js";
 //#region extensions/github-copilot/models-defaults.ts
 const DEFAULT_CONTEXT_WINDOW = 128e3;
 const DEFAULT_MAX_TOKENS = 8192;
@@ -21,7 +22,7 @@ function buildCopilotModelDefinition(modelId) {
 	return {
 		id,
 		name: id,
-		api: "openai-responses",
+		api: resolveCopilotTransportApi(id),
 		reasoning: false,
 		input: ["text", "image"],
 		cost: {

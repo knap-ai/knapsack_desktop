@@ -1,6 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
-import type { ExplicitGatewayAuth } from "./call.js";
-import type { GatewayCredentialMode, GatewayCredentialPrecedence, GatewayRemoteCredentialFallback, GatewayRemoteCredentialPrecedence } from "./credentials.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { ExplicitGatewayAuth, GatewayCredentialMode, GatewayCredentialPrecedence, GatewayRemoteCredentialFallback, GatewayRemoteCredentialPrecedence } from "./credentials.js";
 export type GatewayConnectionAuthOptions = {
     config: OpenClawConfig;
     env?: NodeJS.ProcessEnv;

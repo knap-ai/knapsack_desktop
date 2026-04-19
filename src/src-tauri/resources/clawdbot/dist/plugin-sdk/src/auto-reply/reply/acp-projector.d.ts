@@ -1,7 +1,7 @@
 import type { AcpRuntimeEvent, AcpSessionUpdateTag } from "../../acp/runtime/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ReplyPayload } from "../types.js";
-import type { ReplyDispatchKind } from "./reply-dispatcher.js";
+import type { ReplyDispatchKind } from "./reply-dispatcher.types.js";
 export type AcpProjectedDeliveryMeta = {
     tag?: AcpSessionUpdateTag;
     toolCallId?: string;

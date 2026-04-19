@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { callGateway } from "../gateway/call.js";
 import type { GatewayMessageChannel } from "../utils/message-channel.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
@@ -21,6 +21,7 @@ export declare function createOpenClawTools(options?: {
     agentThreadId?: string | number;
     agentDir?: string;
     sandboxRoot?: string;
+    sandboxContainerWorkdir?: string;
     sandboxFsBridge?: SandboxFsBridge;
     fsPolicy?: ToolFsPolicy;
     sandboxed?: boolean;
@@ -33,13 +34,17 @@ export declare function createOpenClawTools(options?: {
     /** Current inbound message id for action fallbacks (e.g. Telegram react). */
     currentMessageId?: string | number;
     /** Reply-to mode for Slack auto-threading. */
-    replyToMode?: "off" | "first" | "all";
+    replyToMode?: "off" | "first" | "all" | "batched";
     /** Mutable ref to track if a reply was sent (for "first" mode). */
     hasRepliedRef?: {
         value: boolean;
     };
     /** If true, the model has native vision capability */
     modelHasVision?: boolean;
+    /** Active model provider for provider-specific tool gating. */
+    modelProvider?: string;
+    /** Active model id for provider/model-specific tool gating. */
+    modelId?: string;
     /** If true, nodes action="invoke" can call media-returning commands directly. */
     allowMediaInvokeCommands?: boolean;
     /** Explicit agent ID override for cron/hook sessions. */
@@ -48,6 +53,8 @@ export declare function createOpenClawTools(options?: {
     requireExplicitMessageTarget?: boolean;
     /** If true, omit the message tool from the tool list. */
     disableMessageTool?: boolean;
+    /** If true, skip plugin tool resolution and return only shipped core tools. */
+    disablePluginTools?: boolean;
     /** Trusted sender id from inbound context (not tool args). */
     requesterSenderId?: string | null;
     /** Whether the requesting sender is an owner. */

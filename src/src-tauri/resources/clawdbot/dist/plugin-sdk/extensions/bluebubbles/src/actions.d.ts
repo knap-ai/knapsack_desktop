@@ -1,2 +1,2 @@
-import { type ChannelMessageActionAdapter } from "./runtime-api.js";
+import { type ChannelMessageActionAdapter } from "./actions-api.js";
 export declare const bluebubblesMessageActions: ChannelMessageActionAdapter;

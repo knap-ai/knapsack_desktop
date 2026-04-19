@@ -1,13 +1,22 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { t as bluebubblesPlugin } from "../../channel-CrR6sqWw.js";
-import { n as setBlueBubblesRuntime } from "../../runtime-DMBhcjo1.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/bluebubbles/index.ts
-var bluebubbles_default = defineChannelPluginEntry({
+var bluebubbles_default = defineBundledChannelEntry({
 	id: "bluebubbles",
 	name: "BlueBubbles",
 	description: "BlueBubbles channel plugin (macOS app)",
-	plugin: bluebubblesPlugin,
-	setRuntime: setBlueBubblesRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "bluebubblesPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setBlueBubblesRuntime"
+	}
 });
 //#endregion
-export { bluebubblesPlugin, bluebubbles_default as default, setBlueBubblesRuntime };
+export { bluebubbles_default as default };

@@ -6,6 +6,7 @@ export type ShellWrapperCommand = {
     command: string | null;
 };
 export declare function isShellWrapperExecutable(token: string): boolean;
+export declare function isShellWrapperInvocation(argv: string[]): boolean;
 export type ShellMultiplexerUnwrapResult = {
     kind: "not-wrapper";
 } | {
@@ -18,5 +19,6 @@ export type ShellMultiplexerUnwrapResult = {
 };
 export declare function unwrapKnownShellMultiplexerInvocation(argv: string[]): ShellMultiplexerUnwrapResult;
 export declare function hasEnvManipulationBeforeShellWrapper(argv: string[]): boolean;
+export declare function resolveShellWrapperTransportArgv(argv: string[]): string[] | null;
 export declare function extractShellWrapperInlineCommand(argv: string[]): string | null;
 export declare function extractShellWrapperCommand(argv: string[], rawCommand?: string | null): ShellWrapperCommand;

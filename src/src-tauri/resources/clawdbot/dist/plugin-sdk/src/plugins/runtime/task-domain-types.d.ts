@@ -1,6 +1,6 @@
 import type { JsonValue } from "../../tasks/task-flow-registry.types.js";
 import type { TaskDeliveryStatus, TaskNotifyPolicy, TaskRuntime, TaskScopeKind, TaskRuntimeCounts, TaskStatus, TaskStatusCounts, TaskTerminalOutcome } from "../../tasks/task-registry.types.js";
-import type { DeliveryContext } from "../../utils/delivery-context.js";
+import type { DeliveryContext } from "../../utils/delivery-context.types.js";
 export type TaskRunAggregateSummary = {
     total: number;
     active: number;

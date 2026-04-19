@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "./runtime-api.js";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import type { ResolvedZaloAccount } from "./types.js";
 export type { ResolvedZaloAccount };
 declare const listZaloAccountIds: (cfg: OpenClawConfig) => string[], resolveDefaultZaloAccountId: (cfg: OpenClawConfig) => string;

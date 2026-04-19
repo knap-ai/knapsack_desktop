@@ -1,5 +1,5 @@
 import { type ExecCommandAnalysis, type ExecCommandSegment, type ExecutableResolution } from "./exec-approvals-analysis.js";
-import type { ExecAllowlistEntry } from "./exec-approvals.js";
+import type { ExecAllowlistEntry } from "./exec-approvals.types.js";
 import { type SafeBinProfile } from "./exec-safe-bin-policy.js";
 import { isTrustedSafeBinPath } from "./exec-safe-bin-trust.js";
 export declare function normalizeSafeBins(entries?: readonly string[]): Set<string>;

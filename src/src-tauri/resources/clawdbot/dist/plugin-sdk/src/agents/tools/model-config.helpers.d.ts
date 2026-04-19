@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
 import type { AgentModelConfig } from "../../config/types.agents-shared.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export type ToolModelConfig = {
     primary?: string;
     fallbacks?: string[];
@@ -18,4 +18,5 @@ export declare function buildToolModelConfigFromCandidates(params: {
     explicit: ToolModelConfig;
     agentDir?: string;
     candidates: Array<string | null | undefined>;
+    isProviderConfigured?: (provider: string) => boolean;
 }): ToolModelConfig | null;

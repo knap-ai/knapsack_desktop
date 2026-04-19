@@ -11,11 +11,19 @@ export declare function installPackageDir(params: {
     hasDeps: boolean;
     depsLogMessage: string;
     afterCopy?: (installedDir: string) => void | Promise<void>;
+    afterInstall?: (installedDir: string) => Promise<{
+        ok: true;
+    } | {
+        ok: false;
+        error: string;
+        code?: string;
+    }>;
 }): Promise<{
     ok: true;
 } | {
     ok: false;
     error: string;
+    code?: string;
 }>;
 export declare function installPackageDirWithManifestDeps(params: {
     sourceDir: string;

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 type BlueBubblesConfigPatch = {
     serverUrl?: string;
     password?: unknown;

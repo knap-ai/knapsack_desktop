@@ -1,24 +1,27 @@
-import { g as resolveOAuthApiKeyMarker } from "../../model-auth-markers-BjPX15EF.js";
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import "../../provider-auth-rTeK2_Yu.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-BF3kHzmf.js";
-import { t as buildOauthProviderAuthResult } from "../../provider-auth-result-BhR-PQxr.js";
-import "../../provider-auth-api-key-g0GKEM-Y.js";
-import { n as loginChutes } from "../../provider-auth-login-CCR3cWWX.js";
-import { r as CHUTES_DEFAULT_MODEL_REF } from "../../models-BeIqgnq7.js";
-import { i as buildChutesProvider, r as applyChutesProviderConfig, t as applyChutesApiKeyConfig } from "../../onboard-CcQc7q1I.js";
+import { d as readStringValue, s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
+import { g as resolveOAuthApiKeyMarker } from "../../model-auth-markers-ve-OgG6R.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-nkL4zxbI.js";
+import { t as buildOauthProviderAuthResult } from "../../provider-auth-result-4Yd6Tgrg.js";
+import "../../provider-auth-DWLaZig-.js";
+import "../../provider-auth-api-key-F-AGqwyB.js";
+import { n as loginChutes } from "../../provider-auth-login-Bp_Z7B2H.js";
+import { r as CHUTES_DEFAULT_MODEL_REF } from "../../models-BjK9jMKY.js";
+import { r as applyChutesProviderConfig, t as applyChutesApiKeyConfig } from "../../onboard-DIDLC6fu.js";
+import { t as buildChutesProvider } from "../../provider-catalog-DZRdGyiQ.js";
 //#region extensions/chutes/index.ts
 const PROVIDER_ID = "chutes";
 async function runChutesOAuth(ctx) {
 	const isRemote = ctx.isRemote;
 	const redirectUri = process.env.CHUTES_OAUTH_REDIRECT_URI?.trim() || "http://127.0.0.1:1456/oauth-callback";
 	const scopes = process.env.CHUTES_OAUTH_SCOPES?.trim() || "openid profile chutes:invoke";
-	const clientId = process.env.CHUTES_CLIENT_ID?.trim() || String(await ctx.prompter.text({
+	const clientId = process.env.CHUTES_CLIENT_ID?.trim() || (await ctx.prompter.text({
 		message: "Enter Chutes OAuth client id",
 		placeholder: "cid_xxx",
 		validate: (value) => value?.trim() ? void 0 : "Required"
 	})).trim();
-	const clientSecret = process.env.CHUTES_CLIENT_SECRET?.trim() || void 0;
+	const clientSecret = normalizeOptionalString(process.env.CHUTES_CLIENT_SECRET);
 	await ctx.prompter.note(isRemote ? [
 		"You are running in a remote/VPS environment.",
 		"A URL will be shown for you to open in your LOCAL browser.",
@@ -60,7 +63,7 @@ async function runChutesOAuth(ctx) {
 			access: creds.access,
 			refresh: creds.refresh,
 			expires: creds.expires,
-			email: typeof creds.email === "string" ? creds.email : void 0,
+			email: readStringValue(creds.email),
 			credentialExtra: {
 				clientId,
 				..."accountId" in creds && typeof creds.accountId === "string" ? { accountId: creds.accountId } : {}

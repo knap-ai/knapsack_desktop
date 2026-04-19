@@ -1,6 +1,6 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type SessionRef, type SessionStateValue } from "./diagnostic-session-state.js";
-declare const diag: import("./subsystem.js").SubsystemLogger;
+export { diagnosticLogger, logLaneDequeue, logLaneEnqueue } from "./diagnostic-runtime.js";
 export declare function resolveStuckSessionWarnMs(config?: OpenClawConfig): number;
 export declare function logWebhookReceived(params: {
     channel: string;
@@ -44,8 +44,6 @@ export declare function logSessionStuck(params: SessionRef & {
     state: SessionStateValue;
     ageMs: number;
 }): void;
-export declare function logLaneEnqueue(lane: string, queueSize: number): void;
-export declare function logLaneDequeue(lane: string, waitMs: number, queueSize: number): void;
 export declare function logRunAttempt(params: SessionRef & {
     runId: string;
     attempt: number;
@@ -54,7 +52,7 @@ export declare function logToolLoopAction(params: SessionRef & {
     toolName: string;
     level: "warning" | "critical";
     action: "warn" | "block";
-    detector: "generic_repeat" | "known_poll_no_progress" | "global_circuit_breaker" | "ping_pong";
+    detector: "generic_repeat" | "unknown_tool_repeat" | "known_poll_no_progress" | "global_circuit_breaker" | "ping_pong";
     count: number;
     message: string;
     pairedToolName?: string;
@@ -66,4 +64,3 @@ export declare function startDiagnosticHeartbeat(config?: OpenClawConfig, opts?:
 export declare function stopDiagnosticHeartbeat(): void;
 export declare function getDiagnosticSessionStateCountForTest(): number;
 export declare function resetDiagnosticStateForTest(): void;
-export { diag as diagnosticLogger };

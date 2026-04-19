@@ -1,6 +1,6 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ChannelSecurityDmPolicy } from "./types.core.js";
-import type { ChannelPlugin } from "./types.js";
+import type { ChannelPlugin } from "./types.plugin.js";
 export declare function resolveChannelDefaultAccountId<ResolvedAccount>(params: {
     plugin: ChannelPlugin<ResolvedAccount>;
     cfg: OpenClawConfig;

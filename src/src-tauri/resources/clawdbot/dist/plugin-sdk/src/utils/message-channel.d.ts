@@ -1,7 +1,7 @@
-import type { ChannelId } from "../channels/plugins/types.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES, type GatewayClientMode, type GatewayClientName, normalizeGatewayClientMode, normalizeGatewayClientName } from "../gateway/protocol/client-info.js";
-export declare const INTERNAL_MESSAGE_CHANNEL: "webchat";
-export type InternalMessageChannel = typeof INTERNAL_MESSAGE_CHANNEL;
+export { isDeliverableMessageChannel, isGatewayMessageChannel, listDeliverableMessageChannels, listGatewayAgentChannelAliases, listGatewayAgentChannelValues, listGatewayMessageChannels, normalizeMessageChannel, resolveGatewayMessageChannel, resolveMessageChannel, type DeliverableMessageChannel, type GatewayAgentChannelHint, type GatewayMessageChannel, } from "./message-channel-normalize.js";
+export { INTERNAL_MESSAGE_CHANNEL, type InternalMessageChannel, } from "./message-channel-constants.js";
+import { type InternalMessageChannel } from "./message-channel-constants.js";
 export { GATEWAY_CLIENT_NAMES, GATEWAY_CLIENT_MODES };
 export type { GatewayClientName, GatewayClientMode };
 export { normalizeGatewayClientName, normalizeGatewayClientMode };
@@ -14,16 +14,4 @@ export declare function isOperatorUiClient(client?: GatewayClientInfoLike | null
 export declare function isBrowserOperatorUiClient(client?: GatewayClientInfoLike | null): boolean;
 export declare function isInternalMessageChannel(raw?: string | null): raw is InternalMessageChannel;
 export declare function isWebchatClient(client?: GatewayClientInfoLike | null): boolean;
-export declare function normalizeMessageChannel(raw?: string | null): string | undefined;
-export declare const listDeliverableMessageChannels: () => ChannelId[];
-export type DeliverableMessageChannel = ChannelId;
-export type GatewayMessageChannel = DeliverableMessageChannel | InternalMessageChannel;
-export declare const listGatewayMessageChannels: () => GatewayMessageChannel[];
-export declare const listGatewayAgentChannelAliases: () => string[];
-export type GatewayAgentChannelHint = GatewayMessageChannel | "last";
-export declare const listGatewayAgentChannelValues: () => string[];
-export declare function isGatewayMessageChannel(value: string): value is GatewayMessageChannel;
-export declare function isDeliverableMessageChannel(value: string): value is DeliverableMessageChannel;
-export declare function resolveGatewayMessageChannel(raw?: string | null): GatewayMessageChannel | undefined;
-export declare function resolveMessageChannel(primary?: string | null, fallback?: string | null): string | undefined;
 export declare function isMarkdownCapableMessageChannel(raw?: string | null): boolean;

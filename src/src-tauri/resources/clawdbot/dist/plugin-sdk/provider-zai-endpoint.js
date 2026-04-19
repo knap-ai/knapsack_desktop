@@ -1,2 +1,2 @@
-import { t as detectZaiEndpoint } from "../provider-zai-endpoint-Cwtdsxf0.js";
+import { t as detectZaiEndpoint } from "../provider-zai-endpoint-CqDsn5nS.js";
 export { detectZaiEndpoint };

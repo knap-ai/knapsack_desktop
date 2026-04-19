@@ -1,2 +1,2 @@
-import { a as VENICE_MODEL_CATALOG, i as VENICE_DEFAULT_MODEL_REF, n as VENICE_DEFAULT_COST, o as buildVeniceModelDefinition, r as VENICE_DEFAULT_MODEL_ID, s as discoverVeniceModels, t as VENICE_BASE_URL } from "../../models-D2L2Be-9.js";
+import { a as VENICE_MODEL_CATALOG, i as VENICE_DEFAULT_MODEL_REF, n as VENICE_DEFAULT_COST, o as buildVeniceModelDefinition, r as VENICE_DEFAULT_MODEL_ID, s as discoverVeniceModels, t as VENICE_BASE_URL } from "../../models-CjZsUNMw.js";
 export { VENICE_BASE_URL, VENICE_DEFAULT_COST, VENICE_DEFAULT_MODEL_ID, VENICE_DEFAULT_MODEL_REF, VENICE_MODEL_CATALOG, buildVeniceModelDefinition, discoverVeniceModels };

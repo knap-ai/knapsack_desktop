@@ -2,7 +2,7 @@ import type { MarkdownTableMode } from "openclaw/plugin-sdk/markdown-table-runti
 import type { PollInput } from "../runtime-api.js";
 import type { CoreConfig } from "../types.js";
 import type { MatrixClient } from "./sdk.js";
-import { type MatrixSendOpts, type MatrixSendResult } from "./send/types.js";
+import { type MatrixExtraContentFields, type MatrixSendOpts, type MatrixSendResult, type MatrixTextMsgType } from "./send/types.js";
 export type { MatrixSendOpts, MatrixSendResult } from "./send/types.js";
 export { resolveMatrixRoomId } from "./send/targets.js";
 export type MatrixPreparedSingleText = {
@@ -43,6 +43,11 @@ export declare function sendSingleTextMessageMatrix(roomId: string, text: string
     replyToId?: string;
     threadId?: string;
     accountId?: string;
+    msgtype?: MatrixTextMsgType;
+    includeMentions?: boolean;
+    extraContent?: MatrixExtraContentFields;
+    /** When true, marks the message as a live/streaming update (MSC4357). */
+    live?: boolean;
 }): Promise<MatrixSendResult>;
 export declare function editMessageMatrix(roomId: string, originalEventId: string, newText: string, opts?: {
     client?: MatrixClient;
@@ -50,5 +55,10 @@ export declare function editMessageMatrix(roomId: string, originalEventId: strin
     threadId?: string;
     accountId?: string;
     timeoutMs?: number;
+    msgtype?: MatrixTextMsgType;
+    includeMentions?: boolean;
+    extraContent?: MatrixExtraContentFields;
+    /** When true, marks the edit as a live/streaming update (MSC4357). */
+    live?: boolean;
 }): Promise<string>;
 export declare function reactMatrixMessage(roomId: string, messageId: string, emoji: string, opts?: MatrixClient | MatrixClientResolveOpts): Promise<void>;

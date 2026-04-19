@@ -1,3 +1,4 @@
+import type { DeliveryContext } from "../utils/delivery-context.types.js";
 export declare function resolveAcpSpawnStreamLogPath(params: {
     childSessionKey: string;
 }): string | undefined;
@@ -7,6 +8,7 @@ export declare function startAcpSpawnParentStreamRelay(params: {
     childSessionKey: string;
     agentId: string;
     logPath?: string;
+    deliveryContext?: DeliveryContext;
     surfaceUpdates?: boolean;
     streamFlushMs?: number;
     noOutputNoticeMs?: number;

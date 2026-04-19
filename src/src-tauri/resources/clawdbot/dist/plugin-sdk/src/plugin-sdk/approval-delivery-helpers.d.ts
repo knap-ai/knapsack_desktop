@@ -9,6 +9,7 @@ type NativeApprovalTarget = {
     to: string;
     threadId?: string | number | null;
 };
+type ChannelApprovalCapabilitySurfaces = Pick<ChannelApprovalCapability, "delivery" | "nativeRuntime" | "render" | "native">;
 type ApprovalAdapterParams = {
     cfg: OpenClawConfig;
     accountId?: string | null;
@@ -16,6 +17,7 @@ type ApprovalAdapterParams = {
 };
 type DeliverySuppressionParams = {
     cfg: OpenClawConfig;
+    approvalKind: ApprovalKind;
     target: {
         channel: string;
         accountId?: string | null;
@@ -57,29 +59,47 @@ type ApproverRestrictedNativeApprovalParams = {
         request: NativeApprovalRequest;
     }) => NativeApprovalTarget[] | Promise<NativeApprovalTarget[]>;
     notifyOriginWhenDmOnly?: boolean;
+    nativeRuntime?: ChannelApprovalCapability["nativeRuntime"];
+    describeExecApprovalSetup?: ChannelApprovalCapability["describeExecApprovalSetup"];
 };
 export declare function createApproverRestrictedNativeApprovalAdapter(params: ApproverRestrictedNativeApprovalParams): {
     auth: {
         authorizeActorAction?: ChannelApprovalCapability["authorizeActorAction"];
         getActionAvailabilityState?: ChannelApprovalCapability["getActionAvailabilityState"];
+        getExecInitiatingSurfaceState?: ChannelApprovalCapability["getExecInitiatingSurfaceState"];
+        resolveApproveCommandBehavior?: ChannelApprovalCapability["resolveApproveCommandBehavior"];
     };
     delivery: ChannelApprovalCapability["delivery"];
+    nativeRuntime: ChannelApprovalCapability["nativeRuntime"];
     render: ChannelApprovalCapability["render"];
     native: ChannelApprovalCapability["native"];
+    describeExecApprovalSetup: ChannelApprovalCapability["describeExecApprovalSetup"];
 };
 export declare function createChannelApprovalCapability(params: {
     authorizeActorAction?: ChannelApprovalCapability["authorizeActorAction"];
     getActionAvailabilityState?: ChannelApprovalCapability["getActionAvailabilityState"];
-    approvals?: Pick<ChannelApprovalCapability, "delivery" | "render" | "native">;
+    getExecInitiatingSurfaceState?: ChannelApprovalCapability["getExecInitiatingSurfaceState"];
+    resolveApproveCommandBehavior?: ChannelApprovalCapability["resolveApproveCommandBehavior"];
+    describeExecApprovalSetup?: ChannelApprovalCapability["describeExecApprovalSetup"];
+    delivery?: ChannelApprovalCapability["delivery"];
+    nativeRuntime?: ChannelApprovalCapability["nativeRuntime"];
+    render?: ChannelApprovalCapability["render"];
+    native?: ChannelApprovalCapability["native"];
+    /** @deprecated Pass delivery/nativeRuntime/render/native directly. */
+    approvals?: Partial<ChannelApprovalCapabilitySurfaces>;
 }): ChannelApprovalCapability;
 export declare function splitChannelApprovalCapability(capability: ChannelApprovalCapability): {
     auth: {
         authorizeActorAction?: ChannelApprovalCapability["authorizeActorAction"];
         getActionAvailabilityState?: ChannelApprovalCapability["getActionAvailabilityState"];
+        getExecInitiatingSurfaceState?: ChannelApprovalCapability["getExecInitiatingSurfaceState"];
+        resolveApproveCommandBehavior?: ChannelApprovalCapability["resolveApproveCommandBehavior"];
     };
     delivery: ChannelApprovalCapability["delivery"];
+    nativeRuntime: ChannelApprovalCapability["nativeRuntime"];
     render: ChannelApprovalCapability["render"];
     native: ChannelApprovalCapability["native"];
+    describeExecApprovalSetup: ChannelApprovalCapability["describeExecApprovalSetup"];
 };
 export declare function createApproverRestrictedNativeApprovalCapability(params: ApproverRestrictedNativeApprovalParams): ChannelApprovalCapability;
 export {};

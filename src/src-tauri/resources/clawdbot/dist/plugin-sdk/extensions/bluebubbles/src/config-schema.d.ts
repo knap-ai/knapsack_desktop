@@ -5,9 +5,9 @@ export declare const BlueBubblesConfigSchema: z.ZodObject<{
     markdown: z.ZodOptional<z.ZodObject<{
         tables: z.ZodOptional<z.ZodEnum<{
             off: "off";
+            block: "block";
             bullets: "bullets";
             code: "code";
-            block: "block";
         }>>;
     }, z.core.$strict>>;
     serverUrl: z.ZodOptional<z.ZodString>;
@@ -43,13 +43,22 @@ export declare const BlueBubblesConfigSchema: z.ZodObject<{
     dmHistoryLimit: z.ZodOptional<z.ZodNumber>;
     textChunkLimit: z.ZodOptional<z.ZodNumber>;
     chunkMode: z.ZodOptional<z.ZodEnum<{
-        length: "length";
         newline: "newline";
+        length: "length";
     }>>;
     mediaMaxMb: z.ZodOptional<z.ZodNumber>;
     mediaLocalRoots: z.ZodOptional<z.ZodArray<z.ZodString>>;
     sendReadReceipts: z.ZodOptional<z.ZodBoolean>;
-    allowPrivateNetwork: z.ZodOptional<z.ZodBoolean>;
+    network: z.ZodOptional<z.ZodObject<{
+        dangerouslyAllowPrivateNetwork: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+    catchup: z.ZodOptional<z.ZodObject<{
+        enabled: z.ZodOptional<z.ZodBoolean>;
+        maxAgeMinutes: z.ZodOptional<z.ZodNumber>;
+        perRunLimit: z.ZodOptional<z.ZodNumber>;
+        firstRunLookbackMinutes: z.ZodOptional<z.ZodNumber>;
+        maxFailureRetries: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
     blockStreaming: z.ZodOptional<z.ZodBoolean>;
     groups: z.ZodOptional<z.ZodObject<{}, z.core.$catchall<z.ZodObject<{
         requireMention: z.ZodOptional<z.ZodBoolean>;

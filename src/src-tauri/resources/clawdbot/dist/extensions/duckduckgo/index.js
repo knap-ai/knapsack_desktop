@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { t as createDuckDuckGoWebSearchProvider } from "../../ddg-search-provider-CBDdHzeh.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { t as createDuckDuckGoWebSearchProvider } from "../../ddg-search-provider-DOJerHkO.js";
 //#region extensions/duckduckgo/index.ts
 var duckduckgo_default = definePluginEntry({
 	id: "duckduckgo",

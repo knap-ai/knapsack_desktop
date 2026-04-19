@@ -1,2 +1,2 @@
-import { t as IMessageChannelConfigSchema } from "../../config-schema-DaHtPwuK.js";
+import { t as IMessageChannelConfigSchema } from "../../config-schema-DOBqqVKt.js";
 export { IMessageChannelConfigSchema };

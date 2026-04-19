@@ -1,8 +1,0 @@
-{
-  "id": "telegrambot",
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {}
-  }
-}

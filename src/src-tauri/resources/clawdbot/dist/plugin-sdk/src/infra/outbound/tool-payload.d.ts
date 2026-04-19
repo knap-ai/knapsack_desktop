@@ -1,2 +1,1 @@
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-export declare function extractToolPayload(result: AgentToolResult<unknown>): unknown;
+export { extractToolPayload } from "../../plugin-sdk/tool-payload.js";

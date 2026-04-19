@@ -1,30 +1,10 @@
-/**
- * OpenAI WebSocket StreamFn Integration
- *
- * Wraps `OpenAIWebSocketManager` in a `StreamFn` that can be plugged into the
- * pi-embedded-runner agent in place of the default `streamSimple` HTTP function.
- *
- * Key behaviours:
- *  - Per-session `OpenAIWebSocketManager` (keyed by sessionId)
- *  - Tracks `previous_response_id` to send only incremental tool-result inputs
- *  - Falls back to `streamSimple` (HTTP) if the WebSocket connection fails
- *  - Cleanup helpers for releasing sessions after the run completes
- *
- * Complexity budget & risk mitigation:
- *  - **Transport aware**: respects `transport` (`auto` | `websocket` | `sse`)
- *  - **Transparent fallback in `auto` mode**: connect/send failures fall back to
- *    the existing HTTP `streamSimple`; forced `websocket` mode surfaces WS errors
- *  - **Zero shared state**: per-session registry; session cleanup on dispose prevents leaks
- *  - **Full parity**: all generation options (temperature, top_p, max_output_tokens,
- *    tool_choice, reasoning) forwarded identically to the HTTP path
- *
- * @see src/agents/openai-ws-connection.ts for the connection manager
- */
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import * as piAi from "@mariozechner/pi-ai";
+import type { ProviderRuntimeModel } from "../plugins/provider-runtime-model.types.js";
 import { OpenAIWebSocketManager, type OpenAIWebSocketManagerOptions } from "./openai-ws-connection.js";
 type OpenAIWsStreamDeps = {
     createManager: (options?: OpenAIWebSocketManagerOptions) => OpenAIWebSocketManager;
+    createHttpFallbackStreamFn: (model: ProviderRuntimeModel) => StreamFn | undefined;
     streamSimple: typeof piAi.streamSimple;
 };
 /**
@@ -59,4 +39,5 @@ export interface OpenAIWebSocketStreamOptions {
 export declare function createOpenAIWebSocketStreamFn(apiKey: string, sessionId: string, opts?: OpenAIWebSocketStreamOptions): StreamFn;
 export declare const __testing: {
     setDepsForTest(overrides?: Partial<OpenAIWsStreamDeps>): void;
+    setWsDegradeCooldownMsForTest(nextMs?: number): void;
 };

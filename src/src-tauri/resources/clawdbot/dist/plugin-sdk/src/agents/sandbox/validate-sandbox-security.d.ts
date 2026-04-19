@@ -49,7 +49,7 @@ export declare function normalizeHostPath(raw: string): string;
  * - non-absolute source paths (relative / volume names) because they are hard to validate safely
  */
 export declare function getBlockedBindReason(bind: string): BlockedBindReason | null;
-export declare function getBlockedReasonForSourcePath(sourceNormalized: string): BlockedBindReason | null;
+export declare function getBlockedReasonForSourcePath(sourceNormalized: string, blockedHostPaths: string[]): BlockedBindReason | null;
 /**
  * Validate bind mounts — throws if any source path is dangerous.
  * Includes a symlink/realpath pass via existing ancestors so non-existent leaf

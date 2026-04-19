@@ -1,9 +1,10 @@
-import type { OpenClawConfig } from "../config/config.js";
 import type { ModelCompatConfig } from "../config/types.models.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
-import { type ExecToolDefaults, type ProcessToolDefaults } from "./bash-tools.js";
+import type { ExecToolDefaults } from "./bash-tools.exec-types.js";
+import type { ProcessToolDefaults } from "./bash-tools.process.js";
 import type { ModelAuthMode } from "./model-auth.js";
-import { assertRequiredParams, normalizeToolParams, patchToolSchemaForClaudeCompatibility, wrapToolParamNormalization } from "./pi-tools.read.js";
+import { assertRequiredParams, getToolParamsRecord, wrapToolParamValidation } from "./pi-tools.read.js";
 import { cleanToolSchemaForGemini } from "./pi-tools.schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
@@ -21,9 +22,8 @@ export declare function resolveToolLoopDetectionConfig(params: {
 }): ToolLoopDetectionConfig | undefined;
 export declare const __testing: {
     readonly cleanToolSchemaForGemini: typeof cleanToolSchemaForGemini;
-    readonly normalizeToolParams: typeof normalizeToolParams;
-    readonly patchToolSchemaForClaudeCompatibility: typeof patchToolSchemaForClaudeCompatibility;
-    readonly wrapToolParamNormalization: typeof wrapToolParamNormalization;
+    readonly getToolParamsRecord: typeof getToolParamsRecord;
+    readonly wrapToolParamValidation: typeof wrapToolParamValidation;
     readonly assertRequiredParams: typeof assertRequiredParams;
     readonly applyModelProviderToolPolicy: typeof applyModelProviderToolPolicy;
 };
@@ -92,7 +92,7 @@ export declare function createOpenClawCodingTools(options?: {
     senderUsername?: string | null;
     senderE164?: string | null;
     /** Reply-to mode for Slack auto-threading. */
-    replyToMode?: "off" | "first" | "all";
+    replyToMode?: "off" | "first" | "all" | "batched";
     /** Mutable ref to track if a reply was sent (for "first" mode). */
     hasRepliedRef?: {
         value: boolean;

@@ -1,56 +1,6 @@
-import type { SandboxContext } from "./types.js";
-export type SandboxResolvedPath = {
-    hostPath?: string;
-    relativePath: string;
-    containerPath: string;
-};
-export type SandboxFsStat = {
-    type: "file" | "directory" | "other";
-    size: number;
-    mtimeMs: number;
-};
-export type SandboxFsBridge = {
-    resolvePath(params: {
-        filePath: string;
-        cwd?: string;
-    }): SandboxResolvedPath;
-    readFile(params: {
-        filePath: string;
-        cwd?: string;
-        signal?: AbortSignal;
-    }): Promise<Buffer>;
-    writeFile(params: {
-        filePath: string;
-        cwd?: string;
-        data: Buffer | string;
-        encoding?: BufferEncoding;
-        mkdir?: boolean;
-        signal?: AbortSignal;
-    }): Promise<void>;
-    mkdirp(params: {
-        filePath: string;
-        cwd?: string;
-        signal?: AbortSignal;
-    }): Promise<void>;
-    remove(params: {
-        filePath: string;
-        cwd?: string;
-        recursive?: boolean;
-        force?: boolean;
-        signal?: AbortSignal;
-    }): Promise<void>;
-    rename(params: {
-        from: string;
-        to: string;
-        cwd?: string;
-        signal?: AbortSignal;
-    }): Promise<void>;
-    stat(params: {
-        filePath: string;
-        cwd?: string;
-        signal?: AbortSignal;
-    }): Promise<SandboxFsStat | null>;
-};
+import type { SandboxFsBridgeContext } from "./backend-handle.types.js";
+import type { SandboxFsBridge } from "./fs-bridge.types.js";
+export type { SandboxFsBridge, SandboxFsStat, SandboxResolvedPath } from "./fs-bridge.types.js";
 export declare function createSandboxFsBridge(params: {
-    sandbox: SandboxContext;
+    sandbox: SandboxFsBridgeContext;
 }): SandboxFsBridge;

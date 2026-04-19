@@ -1,5 +1,5 @@
 import { SettingsManager } from "@mariozechner/pi-coding-agent";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { BundleMcpServerConfig } from "../plugins/bundle-mcp.js";
 export declare const DEFAULT_EMBEDDED_PI_PROJECT_SETTINGS_POLICY = "sanitize";
 export declare const SANITIZED_PROJECT_PI_KEYS: readonly ["shellPath", "shellCommandPrefix"];
@@ -27,5 +27,7 @@ export declare function createPreparedEmbeddedPiSettingsManager(params: {
     cwd: string;
     agentDir: string;
     cfg?: OpenClawConfig;
+    /** Resolved context window budget so reserve-token floor can be capped for small models. */
+    contextTokenBudget?: number;
 }): SettingsManager;
 export {};

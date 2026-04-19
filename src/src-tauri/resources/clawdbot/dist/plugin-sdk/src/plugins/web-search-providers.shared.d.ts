@@ -1,4 +1,3 @@
-import { type NormalizedPluginsConfig } from "./config-state.js";
 import type { PluginLoadOptions } from "./loader.js";
 import type { PluginWebSearchProviderEntry } from "./types.js";
 export declare function sortWebSearchProviders(providers: PluginWebSearchProviderEntry[]): PluginWebSearchProviderEntry[];
@@ -10,7 +9,6 @@ export declare function resolveBundledWebSearchResolutionConfig(params: {
     bundledAllowlistCompat?: boolean;
 }): {
     config: PluginLoadOptions["config"];
-    normalized: NormalizedPluginsConfig;
     activationSourceConfig?: PluginLoadOptions["config"];
     autoEnabledReasons: Record<string, string[]>;
 };

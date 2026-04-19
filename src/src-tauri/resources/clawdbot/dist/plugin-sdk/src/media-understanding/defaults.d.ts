@@ -1,17 +1,29 @@
-import type { MediaUnderstandingCapability } from "./types.js";
+import type { OpenClawConfig } from "../config/types.js";
+import type { MediaUnderstandingCapability, MediaUnderstandingProvider } from "./types.js";
 export declare const DEFAULT_MAX_CHARS = 500;
 export declare const DEFAULT_MAX_CHARS_BY_CAPABILITY: Record<MediaUnderstandingCapability, number | undefined>;
 export declare const DEFAULT_MAX_BYTES: Record<MediaUnderstandingCapability, number>;
 export declare const DEFAULT_TIMEOUT_SECONDS: Record<MediaUnderstandingCapability, number>;
 export declare const DEFAULT_PROMPT: Record<MediaUnderstandingCapability, string>;
 export declare const DEFAULT_VIDEO_MAX_BASE64_BYTES: number;
-export declare const DEFAULT_AUDIO_MODELS: Record<string, string>;
-export declare const AUTO_AUDIO_KEY_PROVIDERS: readonly ["openai", "groq", "deepgram", "google", "mistral"];
-export declare const AUTO_IMAGE_KEY_PROVIDERS: readonly ["openai", "anthropic", "google", "minimax", "minimax-portal", "zai"];
-export declare const AUTO_VIDEO_KEY_PROVIDERS: readonly ["google", "moonshot"];
-export declare const DEFAULT_IMAGE_MODELS: Record<string, string>;
 export declare const CLI_OUTPUT_MAX_BUFFER: number;
 export declare const DEFAULT_MEDIA_CONCURRENCY = 2;
+export declare function resolveDefaultMediaModel(params: {
+    providerId: string;
+    capability: MediaUnderstandingCapability;
+    cfg?: OpenClawConfig;
+    providerRegistry?: Map<string, MediaUnderstandingProvider>;
+}): string | undefined;
+export declare function resolveAutoMediaKeyProviders(params: {
+    capability: MediaUnderstandingCapability;
+    cfg?: OpenClawConfig;
+    providerRegistry?: Map<string, MediaUnderstandingProvider>;
+}): string[];
+export declare function providerSupportsNativePdfDocument(params: {
+    providerId: string;
+    cfg?: OpenClawConfig;
+    providerRegistry?: Map<string, MediaUnderstandingProvider>;
+}): boolean;
 /**
  * Minimum audio file size in bytes below which transcription is skipped.
  * Files smaller than this threshold are almost certainly empty or corrupt

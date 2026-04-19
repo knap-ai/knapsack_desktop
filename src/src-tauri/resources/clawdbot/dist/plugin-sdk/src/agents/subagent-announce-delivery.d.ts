@@ -1,22 +1,21 @@
-import { loadConfig } from "../config/config.js";
-import { callGateway } from "../gateway/call.js";
-import { type DeliveryContext, deliveryContextFromSession } from "../utils/delivery-context.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { AgentInternalEvent } from "./internal-events.js";
+import { callGateway, loadConfig } from "./subagent-announce-delivery.runtime.js";
 import { type SubagentAnnounceDeliveryResult } from "./subagent-announce-dispatch.js";
-import type { SpawnSubagentMode } from "./subagent-spawn.js";
+import { type DeliveryContext } from "./subagent-announce-origin.js";
+import type { SpawnSubagentMode } from "./subagent-spawn.types.js";
+export { resolveAnnounceOrigin } from "./subagent-announce-origin.js";
 type SubagentAnnounceDeliveryDeps = {
     callGateway: typeof callGateway;
     loadConfig: typeof loadConfig;
 };
-type DeliveryContextSource = Parameters<typeof deliveryContextFromSession>[0];
-export declare function resolveSubagentAnnounceTimeoutMs(cfg: ReturnType<typeof loadConfig>): number;
+export declare function resolveSubagentAnnounceTimeoutMs(cfg: OpenClawConfig): number;
 export declare function isInternalAnnounceRequesterSession(sessionKey: string | undefined): boolean;
 export declare function runAnnounceDeliveryWithRetry<T>(params: {
     operation: string;
     signal?: AbortSignal;
     run: () => Promise<T>;
 }): Promise<T>;
-export declare function resolveAnnounceOrigin(entry?: DeliveryContextSource, requesterOrigin?: DeliveryContext): DeliveryContext | undefined;
 export declare function resolveSubagentCompletionOrigin(params: {
     childSessionKey: string;
     requesterSessionKey: string;
@@ -25,13 +24,12 @@ export declare function resolveSubagentCompletionOrigin(params: {
     spawnMode?: SpawnSubagentMode;
     expectsCompletionMessage: boolean;
 }): Promise<DeliveryContext | undefined>;
-export declare function resolveRequesterStoreKey(cfg: ReturnType<typeof loadConfig>, requesterSessionKey: string): string;
 export declare function loadRequesterSessionEntry(requesterSessionKey: string): {
-    cfg: import("../config/types.openclaw.ts").OpenClawConfig;
-    entry: import("../config/sessions.js").SessionEntry;
+    cfg: OpenClawConfig;
+    entry: import("../config/sessions.ts").SessionEntry;
     canonicalKey: string;
 };
-export declare function loadSessionEntryByKey(sessionKey: string): import("../config/sessions.js").SessionEntry;
+export declare function loadSessionEntryByKey(sessionKey: string): import("../config/sessions.ts").SessionEntry;
 export declare function deliverSubagentAnnouncement(params: {
     requesterSessionKey: string;
     announceId?: string;
@@ -56,4 +54,3 @@ export declare function deliverSubagentAnnouncement(params: {
 export declare const __testing: {
     setDepsForTest(overrides?: Partial<SubagentAnnounceDeliveryDeps>): void;
 };
-export {};

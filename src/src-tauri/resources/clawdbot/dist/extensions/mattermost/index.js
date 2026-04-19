@@ -1,15 +1,31 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { n as registerSlashCommandRoute, r as setMattermostRuntime, t as mattermostPlugin } from "../../channel-DjAoNe_R.js";
+import { r as loadBundledEntryExportSync, t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/mattermost/index.ts
-var mattermost_default = defineChannelPluginEntry({
+function registerSlashCommandRoute(api) {
+	loadBundledEntryExportSync(import.meta.url, {
+		specifier: "./slash-route-api.js",
+		exportName: "registerSlashCommandRoute"
+	})(api);
+}
+var mattermost_default = defineBundledChannelEntry({
 	id: "mattermost",
 	name: "Mattermost",
 	description: "Mattermost channel plugin",
-	plugin: mattermostPlugin,
-	setRuntime: setMattermostRuntime,
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./channel-plugin-api.js",
+		exportName: "mattermostPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setMattermostRuntime"
+	},
 	registerFull(api) {
 		registerSlashCommandRoute(api);
 	}
 });
 //#endregion
-export { mattermost_default as default, mattermostPlugin, setMattermostRuntime };
+export { mattermost_default as default };

@@ -9,6 +9,8 @@ export type FailoverDecisionLoggerInput = {
     profileFailureReason?: AuthProfileFailureReason | null;
     provider: string;
     model: string;
+    sourceProvider?: string;
+    sourceModel?: string;
     profileId?: string;
     fallbackConfigured: boolean;
     timedOut?: boolean;

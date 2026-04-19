@@ -1,19 +1,18 @@
-import type { ExecToolDefaults } from "../../agents/bash-tools.js";
 import type { ModelAliasIndex } from "../../agents/model-selection.js";
 import type { SkillCommandSpec } from "../../agents/skills.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { buildCommandContext } from "./commands-context.js";
 import { type InlineDirectives } from "./directive-handling.parse.js";
 import { applyInlineDirectiveOverrides } from "./get-reply-directives-apply.js";
+import { type ReplyExecOverrides } from "./get-reply-exec-overrides.js";
 import { defaultGroupActivation, resolveGroupRequireMention } from "./groups.js";
 import { createModelSelectionState } from "./model-selection.js";
 import type { TypingController } from "./typing.js";
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
-type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;
 export type ReplyDirectiveContinuation = {
     commandSource: string;
     command: ReturnType<typeof buildCommandContext>;
@@ -34,7 +33,7 @@ export type ReplyDirectiveContinuation = {
     resolvedVerboseLevel: VerboseLevel | undefined;
     resolvedReasoningLevel: ReasoningLevel;
     resolvedElevatedLevel: ElevatedLevel;
-    execOverrides?: ExecOverrides;
+    execOverrides?: ReplyExecOverrides;
     blockStreamingEnabled: boolean;
     blockReplyChunking?: {
         minChars: number;

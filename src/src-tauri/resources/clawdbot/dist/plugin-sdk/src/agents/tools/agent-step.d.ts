@@ -1,9 +1,6 @@
 import { callGateway } from "../../gateway/call.js";
+export { readLatestAssistantReply } from "../run-wait.js";
 type GatewayCaller = typeof callGateway;
-export declare function readLatestAssistantReply(params: {
-    sessionKey: string;
-    limit?: number;
-}): Promise<string | undefined>;
 export declare function runAgentStep(params: {
     sessionKey: string;
     message: string;
@@ -20,4 +17,3 @@ export declare const __testing: {
         callGateway: GatewayCaller;
     }>): void;
 };
-export {};

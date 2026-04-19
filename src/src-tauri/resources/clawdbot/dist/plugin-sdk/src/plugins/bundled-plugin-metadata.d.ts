@@ -19,22 +19,24 @@ export type BundledPluginMetadata = {
 export declare function clearBundledPluginMetadataCache(): void;
 export declare function listBundledPluginMetadata(params?: {
     rootDir?: string;
+    scanDir?: string;
     includeChannelConfigs?: boolean;
     includeSyntheticChannelConfigs?: boolean;
 }): readonly BundledPluginMetadata[];
 export declare function findBundledPluginMetadataById(pluginId: string, params?: {
     rootDir?: string;
+    scanDir?: string;
 }): BundledPluginMetadata | undefined;
 export declare function resolveBundledPluginWorkspaceSourcePath(params: {
     rootDir: string;
+    scanDir?: string;
     pluginId: string;
 }): string | null;
-export declare function resolveBundledPluginGeneratedPath(rootDir: string, entry: BundledPluginPathPair | undefined): string | null;
-export declare function resolveBundledPluginPublicSurfacePath(params: {
+export declare function resolveBundledPluginGeneratedPath(rootDir: string, entry: BundledPluginPathPair | undefined, pluginDirName?: string, scanDir?: string): string | null;
+export declare function resolveBundledPluginRepoEntryPath(params: {
     rootDir: string;
-    dirName: string;
-    artifactBasename: string;
-    env?: NodeJS.ProcessEnv;
-    bundledPluginsDir?: string;
+    pluginId: string;
+    preferBuilt?: boolean;
+    scanDir?: string;
 }): string | null;
 export {};

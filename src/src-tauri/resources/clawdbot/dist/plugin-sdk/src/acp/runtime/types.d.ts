@@ -107,6 +107,13 @@ export interface AcpRuntime {
         value: string;
     }): Promise<void>;
     doctor?(): Promise<AcpRuntimeDoctorReport>;
+    /**
+     * Prepare the next ensureSession for this session key to start fresh instead
+     * of reopening backend-owned persistent state.
+     */
+    prepareFreshSession?(input: {
+        sessionKey: string;
+    }): Promise<void>;
     cancel(input: {
         handle: AcpRuntimeHandle;
         reason?: string;
@@ -114,5 +121,10 @@ export interface AcpRuntime {
     close(input: {
         handle: AcpRuntimeHandle;
         reason: string;
+        /**
+         * Discard backend-owned persistent session state so the next ensureSession
+         * starts fresh instead of reopening the same conversation.
+         */
+        discardPersistentState?: boolean;
     }): Promise<void>;
 }

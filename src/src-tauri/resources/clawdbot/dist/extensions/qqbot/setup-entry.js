@@ -1,6 +1,11 @@
-import { a as defineSetupPluginEntry } from "../../core-BghMcc08.js";
-import { n as qqbotSetupPlugin } from "../../channel.setup-BuvKbE1E.js";
+import { defineBundledChannelSetupEntry } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/qqbot/setup-entry.ts
-var setup_entry_default = defineSetupPluginEntry(qqbotSetupPlugin);
+var setup_entry_default = defineBundledChannelSetupEntry({
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "qqbotSetupPlugin"
+	}
+});
 //#endregion
-export { setup_entry_default as default, qqbotSetupPlugin };
+export { setup_entry_default as default };

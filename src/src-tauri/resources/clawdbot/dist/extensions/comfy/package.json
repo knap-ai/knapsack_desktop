@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/comfy-provider",
+  "version": "2026.4.15-beta.1",
+  "private": true,
+  "description": "OpenClaw ComfyUI provider plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

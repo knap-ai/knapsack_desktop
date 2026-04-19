@@ -1,3 +1,3 @@
-import { n as isDangerousNameMatchingEnabled, r as resolveDangerousNameMatchingEnabled } from "../dangerous-name-matching-B1150NOt.js";
-import "../dangerous-name-runtime-BKwu_Zmr.js";
+import { n as isDangerousNameMatchingEnabled, r as resolveDangerousNameMatchingEnabled } from "../dangerous-name-matching-C88BNn_A.js";
+import "../dangerous-name-runtime-Yk56r9M9.js";
 export { isDangerousNameMatchingEnabled, resolveDangerousNameMatchingEnabled };

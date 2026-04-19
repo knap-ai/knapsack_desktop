@@ -1,9 +1,9 @@
-import { a as loadBundledPluginPublicSurfaceModuleSync } from "../facade-runtime-D_0VC8Qr.js";
+import { i as loadBundledPluginPublicSurfaceModuleSync } from "../facade-loader-CGu7k8Om.js";
 //#region src/plugin-sdk/mattermost-policy.ts
 function loadFacadeModule() {
 	return loadBundledPluginPublicSurfaceModuleSync({
 		dirName: "mattermost",
-		artifactBasename: "api.js"
+		artifactBasename: "policy-api.js"
 	});
 }
 const isMattermostSenderAllowed = ((...args) => loadFacadeModule()["isMattermostSenderAllowed"](...args));

@@ -1,14 +1,17 @@
-import { m as defaultRuntime, t as createSubsystemLogger } from "../../subsystem-CJEvHE2o.js";
-import { u as resolveAgentIdFromSessionKey } from "../../session-key-D7XpmyVq.js";
-import { p as resolveAgentWorkspaceDir, r as listAgentIds } from "../../agent-scope-CYXg_wTS.js";
-import { d as updateSessionStore, i as loadSessionStore } from "../../store-BGmy-Wot.js";
-import { i as resolveMainSessionKey, n as resolveAgentMainSessionKey } from "../../main-session-CFwamLE8.js";
-import { l as resolveStorePath } from "../../paths-DBIQqSpZ.js";
-import { o as isGatewayStartupEvent } from "../../internal-hooks-LWzilokd.js";
-import { n as SILENT_REPLY_TOKEN } from "../../tokens-Bot0VGKf.js";
-import { t as createDefaultDeps } from "../../deps-BFwksfYt.js";
-import { t as agentCommand } from "../../agent-command-BwUGaHZD.js";
-import "../../agent-KHj7-umf.js";
+import { i as formatErrorMessage } from "../../errors-D8p6rxH8.js";
+import { n as defaultRuntime } from "../../runtime-Dx7oeLYq.js";
+import { t as createSubsystemLogger } from "../../subsystem-Cgmckbux.js";
+import { u as resolveAgentIdFromSessionKey } from "../../session-key-Bh1lMwK5.js";
+import { b as resolveAgentWorkspaceDir, g as listAgentIds } from "../../agent-scope-KFH9bkHi.js";
+import { o as isGatewayStartupEvent } from "../../internal-hooks-4i4Rq3Qq.js";
+import { c as updateSessionStore } from "../../store-DFXcceZJ.js";
+import { i as resolveMainSessionKey, n as resolveAgentMainSessionKey } from "../../main-session-DtefsIzj.js";
+import { u as resolveStorePath } from "../../paths-CZMxg3hs.js";
+import { t as loadSessionStore } from "../../store-load-DjLNEIy9.js";
+import { n as SILENT_REPLY_TOKEN } from "../../tokens-CKM4Lddu.js";
+import { t as createDefaultDeps } from "../../deps-wxTK-yVM.js";
+import { n as agentCommand } from "../../agent-command-BExkctFj.js";
+import "../../agent-di24oUD8.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
@@ -88,7 +91,7 @@ async function restoreMainSessionMapping(snapshot) {
 		}, { activeSessionKey: snapshot.sessionKey });
 		return;
 	} catch (err) {
-		return err instanceof Error ? err.message : String(err);
+		return formatErrorMessage(err);
 	}
 }
 async function runBootOnce(params) {
@@ -101,7 +104,7 @@ async function runBootOnce(params) {
 	try {
 		result = await loadBootFile(params.workspaceDir);
 	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
+		const message = formatErrorMessage(err);
 		log$1.error(`boot: failed to read ${BOOT_FILENAME}: ${message}`);
 		return {
 			status: "failed",
@@ -132,7 +135,7 @@ async function runBootOnce(params) {
 			senderIsOwner: true
 		}, bootRuntime, params.deps);
 	} catch (err) {
-		agentFailure = err instanceof Error ? err.message : String(err);
+		agentFailure = formatErrorMessage(err);
 		log$1.error(`boot: agent run failed: ${agentFailure}`);
 	}
 	const mappingRestoreFailure = await restoreMainSessionMapping(mappingSnapshot);

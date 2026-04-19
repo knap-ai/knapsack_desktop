@@ -1,9 +1,12 @@
 {
   "name": "@openclaw/line",
-  "version": "2026.4.1-beta.1",
+  "version": "2026.4.15-beta.1",
   "private": true,
   "description": "OpenClaw LINE channel plugin",
   "type": "module",
+  "dependencies": {
+    "@line/bot-sdk": "^11.0.0"
+  },
   "openclaw": {
     "extensions": [
       "./index.js"
@@ -24,7 +27,7 @@
     "install": {
       "npmSpec": "@openclaw/line",
       "defaultChoice": "npm",
-      "minHostVersion": ">=2026.4.1"
+      "minHostVersion": ">=2026.4.10"
     }
   }
 }

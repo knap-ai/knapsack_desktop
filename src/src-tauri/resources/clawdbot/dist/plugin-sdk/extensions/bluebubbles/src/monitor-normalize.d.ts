@@ -1,4 +1,7 @@
+import { asNullableRecord } from "openclaw/plugin-sdk/text-runtime";
 import type { BlueBubblesAttachment } from "./types.js";
+export declare const asRecord: typeof asNullableRecord;
+export declare function extractAttachments(message: Record<string, unknown>): BlueBubblesAttachment[];
 export declare function buildMessagePlaceholder(message: NormalizedWebhookMessage): string;
 export declare function formatReplyTag(message: {
     replyToId?: string;
@@ -42,6 +45,8 @@ export type NormalizedWebhookMessage = {
     replyToId?: string;
     replyToBody?: string;
     replyToSender?: string;
+    /** Webhook event type preserved for dedup key differentiation. */
+    eventType?: string;
 };
 export type NormalizedWebhookReaction = {
     action: "added" | "removed";
@@ -73,5 +78,7 @@ export declare function parseTapbackText(params: {
     action: "added" | "removed";
     quotedText: string;
 } | null;
-export declare function normalizeWebhookMessage(payload: Record<string, unknown>): NormalizedWebhookMessage | null;
+export declare function normalizeWebhookMessage(payload: Record<string, unknown>, options?: {
+    eventType?: string;
+}): NormalizedWebhookMessage | null;
 export declare function normalizeWebhookReaction(payload: Record<string, unknown>): NormalizedWebhookReaction | null;

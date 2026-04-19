@@ -25,6 +25,17 @@ export declare function buildBackupArchiveRoot(nowMs?: number): string;
 export declare function buildBackupArchiveBasename(nowMs?: number): string;
 export declare function encodeAbsolutePathForBackupArchive(sourcePath: string): string;
 export declare function buildBackupArchivePath(archiveRoot: string, sourcePath: string): string;
+export declare function resolveBackupPlanFromPaths(params: {
+    stateDir: string;
+    configPath: string;
+    oauthDir: string;
+    workspaceDirs?: string[];
+    includeWorkspace?: boolean;
+    onlyConfig?: boolean;
+    configInsideState?: boolean;
+    oauthInsideState?: boolean;
+    nowMs?: number;
+}): Promise<BackupPlan>;
 export declare function resolveBackupPlanFromDisk(params?: {
     includeWorkspace?: boolean;
     onlyConfig?: boolean;

@@ -1,7 +1,8 @@
 import { type Api, type Model } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AgentModelConfig } from "../../config/types.agents-shared.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ImageModelConfig } from "./image-tool.helpers.js";
-import type { ToolModelConfig } from "./model-config.helpers.js";
+import { type ToolModelConfig } from "./model-config.helpers.js";
 type TextToolAttempt = {
     provider: string;
     model: string;
@@ -13,8 +14,80 @@ type TextToolResult = {
     model: string;
     attempts: TextToolAttempt[];
 };
+type GenerationModelRef = {
+    provider: string;
+    model: string;
+};
+type ParseGenerationModelRef = (raw: string | undefined) => GenerationModelRef | null;
+type MediaReferenceDetailEntry = {
+    rewrittenFrom?: string;
+};
+type TaskRunDetailHandle = {
+    taskId: string;
+    runId: string;
+};
 export declare function applyImageModelConfigDefaults(cfg: OpenClawConfig | undefined, imageModelConfig: ImageModelConfig): OpenClawConfig | undefined;
 export declare function applyImageGenerationModelConfigDefaults(cfg: OpenClawConfig | undefined, imageGenerationModelConfig: ToolModelConfig): OpenClawConfig | undefined;
+export declare function applyVideoGenerationModelConfigDefaults(cfg: OpenClawConfig | undefined, videoGenerationModelConfig: ToolModelConfig): OpenClawConfig | undefined;
+export declare function applyMusicGenerationModelConfigDefaults(cfg: OpenClawConfig | undefined, musicGenerationModelConfig: ToolModelConfig): OpenClawConfig | undefined;
+type CapabilityProvider = {
+    id: string;
+    aliases?: string[];
+    defaultModel?: string;
+    isConfigured?: (ctx: {
+        cfg?: OpenClawConfig;
+        agentDir?: string;
+    }) => boolean;
+};
+export declare function findCapabilityProviderById<T extends CapabilityProvider>(params: {
+    providers: T[];
+    providerId?: string;
+}): T | undefined;
+export declare function isCapabilityProviderConfigured<T extends CapabilityProvider>(params: {
+    providers: T[];
+    provider?: T;
+    providerId?: string;
+    cfg?: OpenClawConfig;
+    agentDir?: string;
+}): boolean;
+export declare function resolveSelectedCapabilityProvider<T extends CapabilityProvider>(params: {
+    providers: T[];
+    modelConfig: ToolModelConfig;
+    modelOverride?: string;
+    parseModelRef: ParseGenerationModelRef;
+}): T | undefined;
+export declare function resolveCapabilityModelCandidatesForTool<T extends CapabilityProvider>(params: {
+    cfg?: OpenClawConfig;
+    agentDir?: string;
+    providers: T[];
+}): string[];
+export declare function resolveCapabilityModelConfigForTool<T extends CapabilityProvider>(params: {
+    cfg?: OpenClawConfig;
+    agentDir?: string;
+    modelConfig?: AgentModelConfig;
+    providers: T[];
+}): ToolModelConfig | null;
+export declare function resolveGenerateAction<TAction extends string>(params: {
+    args: Record<string, unknown>;
+    allowed: readonly TAction[];
+    defaultAction: TAction;
+}): TAction;
+export declare function readBooleanToolParam(params: Record<string, unknown>, key: string): boolean | undefined;
+export declare function normalizeMediaReferenceInputs(params: {
+    args: Record<string, unknown>;
+    singularKey: string;
+    pluralKey: string;
+    maxCount: number;
+    label: string;
+}): string[];
+export declare function buildMediaReferenceDetails<T extends MediaReferenceDetailEntry>(params: {
+    entries: readonly T[];
+    singleKey: string;
+    pluralKey: string;
+    getResolvedInput: (entry: T) => string | undefined;
+    singleRewriteKey?: string;
+}): Record<string, unknown>;
+export declare function buildTaskRunDetails(handle: TaskRunDetailHandle | null | undefined): Record<string, unknown>;
 export declare function resolveMediaToolLocalRoots(workspaceDirRaw: string | undefined, options?: {
     workspaceOnly?: boolean;
 }, _mediaSources?: readonly string[]): string[];

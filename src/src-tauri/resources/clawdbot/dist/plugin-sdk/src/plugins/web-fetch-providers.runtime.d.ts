@@ -1,4 +1,5 @@
 import type { PluginLoadOptions } from "./loader.js";
+import { type PluginManifestRecord } from "./manifest-registry.js";
 import type { PluginWebFetchProviderEntry } from "./types.js";
 declare function resetWebFetchProviderSnapshotCacheForTests(): void;
 export declare const __testing: {
@@ -12,6 +13,8 @@ export declare function resolvePluginWebFetchProviders(params: {
     onlyPluginIds?: readonly string[];
     activate?: boolean;
     cache?: boolean;
+    mode?: "runtime" | "setup";
+    origin?: PluginManifestRecord["origin"];
 }): PluginWebFetchProviderEntry[];
 export declare function resolveRuntimeWebFetchProviders(params: {
     config?: PluginLoadOptions["config"];
@@ -19,5 +22,6 @@ export declare function resolveRuntimeWebFetchProviders(params: {
     env?: PluginLoadOptions["env"];
     bundledAllowlistCompat?: boolean;
     onlyPluginIds?: readonly string[];
+    origin?: PluginManifestRecord["origin"];
 }): PluginWebFetchProviderEntry[];
 export {};

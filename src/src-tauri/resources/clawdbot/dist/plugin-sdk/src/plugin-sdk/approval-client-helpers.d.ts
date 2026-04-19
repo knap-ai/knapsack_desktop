@@ -1,5 +1,7 @@
-import type { ReplyPayload } from "../auto-reply/types.js";
+import type { ReplyPayload } from "../auto-reply/reply-payload.js";
 import type { ExecApprovalForwardTarget } from "../config/types.approvals.js";
+import { matchesApprovalRequestFilters } from "../infra/approval-request-filters.js";
+import { getExecApprovalReplyMetadata } from "../infra/exec-approval-reply.js";
 import type { ExecApprovalRequest } from "../infra/exec-approvals.js";
 import type { PluginApprovalRequest } from "../infra/plugin-approvals.js";
 import type { OpenClawConfig } from "./config-runtime.js";
@@ -16,6 +18,7 @@ type ApprovalProfileParams = {
     cfg: OpenClawConfig;
     accountId?: string | null;
 };
+export { getExecApprovalReplyMetadata, matchesApprovalRequestFilters };
 export declare function isChannelExecApprovalClientEnabledFromConfig(params: {
     enabled?: ChannelExecApprovalEnableMode;
     approverCount: number;
@@ -60,4 +63,3 @@ export declare function createChannelExecApprovalProfile(params: {
         payload: ReplyPayload;
     }) => boolean;
 };
-export {};

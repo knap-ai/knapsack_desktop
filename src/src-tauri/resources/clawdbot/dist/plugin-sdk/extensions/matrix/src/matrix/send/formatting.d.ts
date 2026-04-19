@@ -1,11 +1,14 @@
 import { type MatrixMentions } from "../format.js";
 import type { MatrixClient } from "../sdk.js";
-import { type MatrixFormattedContent, type MatrixMediaMsgType, type MatrixRelation, type MatrixReplyRelation, type MatrixTextContent, type MatrixThreadRelation } from "./types.js";
-export declare function buildTextContent(body: string, relation?: MatrixRelation): MatrixTextContent;
+import { type MatrixFormattedContent, type MatrixMediaMsgType, type MatrixRelation, type MatrixReplyRelation, type MatrixTextContent, type MatrixTextMsgType, type MatrixThreadRelation } from "./types.js";
+export declare function buildTextContent(body: string, relation?: MatrixRelation, opts?: {
+    msgtype?: MatrixTextMsgType;
+}): MatrixTextContent;
 export declare function enrichMatrixFormattedContent(params: {
     client: MatrixClient;
     content: MatrixFormattedContent;
     markdown?: string | null;
+    includeMentions?: boolean;
 }): Promise<void>;
 export declare function resolveMatrixMentionsForBody(params: {
     client: MatrixClient;

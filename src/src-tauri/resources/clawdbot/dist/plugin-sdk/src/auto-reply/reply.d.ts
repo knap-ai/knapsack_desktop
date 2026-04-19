@@ -1,4 +1,4 @@
-export { extractElevatedDirective, extractReasoningDirective, extractThinkDirective, extractVerboseDirective, } from "./reply/directives.js";
+export { extractElevatedDirective, extractReasoningDirective, extractTraceDirective, extractThinkDirective, extractVerboseDirective, } from "./reply/directives.js";
 export { getReplyFromConfig } from "./reply/get-reply.js";
 export { extractExecDirective } from "./reply/exec.js";
 export { extractQueueDirective } from "./reply/queue.js";

@@ -103,8 +103,8 @@ export declare const FeishuAccountConfigSchema: z.ZodObject<{
     }, z.core.$strict>>>>;
     textChunkLimit: z.ZodOptional<z.ZodNumber>;
     chunkMode: z.ZodOptional<z.ZodEnum<{
-        length: "length";
         newline: "newline";
+        length: "length";
     }>>;
     blockStreamingCoalesce: z.ZodOptional<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodBoolean>;
@@ -115,14 +115,14 @@ export declare const FeishuAccountConfigSchema: z.ZodObject<{
     httpTimeoutMs: z.ZodOptional<z.ZodNumber>;
     heartbeat: z.ZodOptional<z.ZodObject<{
         visibility: z.ZodOptional<z.ZodEnum<{
-            hidden: "hidden";
             visible: "visible";
+            hidden: "hidden";
         }>>;
         intervalMs: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     renderMode: z.ZodOptional<z.ZodEnum<{
-        raw: "raw";
         auto: "auto";
+        raw: "raw";
         card: "card";
     }>>;
     streaming: z.ZodOptional<z.ZodBoolean>;
@@ -195,8 +195,8 @@ export declare const FeishuAccountConfigSchema: z.ZodObject<{
         lark: "lark";
     }>, z.ZodString]>>;
     connectionMode: z.ZodOptional<z.ZodEnum<{
-        websocket: "websocket";
         webhook: "webhook";
+        websocket: "websocket";
     }>>;
     webhookPath: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>;
@@ -309,8 +309,8 @@ export declare const FeishuConfigSchema: z.ZodObject<{
         }, z.core.$strict>>>>;
         textChunkLimit: z.ZodOptional<z.ZodNumber>;
         chunkMode: z.ZodOptional<z.ZodEnum<{
-            length: "length";
             newline: "newline";
+            length: "length";
         }>>;
         blockStreamingCoalesce: z.ZodOptional<z.ZodObject<{
             enabled: z.ZodOptional<z.ZodBoolean>;
@@ -321,14 +321,14 @@ export declare const FeishuConfigSchema: z.ZodObject<{
         httpTimeoutMs: z.ZodOptional<z.ZodNumber>;
         heartbeat: z.ZodOptional<z.ZodObject<{
             visibility: z.ZodOptional<z.ZodEnum<{
-                hidden: "hidden";
                 visible: "visible";
+                hidden: "hidden";
             }>>;
             intervalMs: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
         renderMode: z.ZodOptional<z.ZodEnum<{
-            raw: "raw";
             auto: "auto";
+            raw: "raw";
             card: "card";
         }>>;
         streaming: z.ZodOptional<z.ZodBoolean>;
@@ -401,8 +401,8 @@ export declare const FeishuConfigSchema: z.ZodObject<{
             lark: "lark";
         }>, z.ZodString]>>;
         connectionMode: z.ZodOptional<z.ZodEnum<{
-            websocket: "websocket";
             webhook: "webhook";
+            websocket: "websocket";
         }>>;
         webhookPath: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>>>;
@@ -458,8 +458,8 @@ export declare const FeishuConfigSchema: z.ZodObject<{
     }, z.core.$strict>>>>;
     textChunkLimit: z.ZodOptional<z.ZodNumber>;
     chunkMode: z.ZodOptional<z.ZodEnum<{
-        length: "length";
         newline: "newline";
+        length: "length";
     }>>;
     blockStreamingCoalesce: z.ZodOptional<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodBoolean>;
@@ -470,14 +470,14 @@ export declare const FeishuConfigSchema: z.ZodObject<{
     httpTimeoutMs: z.ZodOptional<z.ZodNumber>;
     heartbeat: z.ZodOptional<z.ZodObject<{
         visibility: z.ZodOptional<z.ZodEnum<{
-            hidden: "hidden";
             visible: "visible";
+            hidden: "hidden";
         }>>;
         intervalMs: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     renderMode: z.ZodOptional<z.ZodEnum<{
-        raw: "raw";
         auto: "auto";
+        raw: "raw";
         card: "card";
     }>>;
     streaming: z.ZodOptional<z.ZodBoolean>;
@@ -543,8 +543,8 @@ export declare const FeishuConfigSchema: z.ZodObject<{
         lark: "lark";
     }>, z.ZodString]>>>;
     connectionMode: z.ZodDefault<z.ZodOptional<z.ZodEnum<{
-        websocket: "websocket";
         webhook: "webhook";
+        websocket: "websocket";
     }>>>;
     webhookPath: z.ZodDefault<z.ZodOptional<z.ZodString>>;
 }, z.core.$strict>;

@@ -1,8 +1,9 @@
 import { loadConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { callGateway } from "../gateway/call.js";
 import { type DeliveryContext } from "../utils/delivery-context.js";
-import { ensureRuntimePluginsLoaded } from "./runtime-plugins.js";
-import type { SubagentRunOutcome } from "./subagent-announce.js";
+import type { ensureRuntimePluginsLoaded as ensureRuntimePluginsLoadedFn } from "./runtime-plugins.js";
+import type { SubagentRunOutcome } from "./subagent-announce-output.js";
 import { type SubagentLifecycleEndedReason } from "./subagent-lifecycle-events.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
 export declare function createSubagentRunManager(params: {
@@ -12,13 +13,17 @@ export declare function createSubagentRunManager(params: {
     persist(): void;
     callGateway: typeof callGateway;
     loadConfig: typeof loadConfig;
-    ensureRuntimePluginsLoaded: typeof ensureRuntimePluginsLoaded;
+    ensureRuntimePluginsLoaded: typeof ensureRuntimePluginsLoadedFn | ((args: {
+        config: OpenClawConfig;
+        workspaceDir?: string;
+        allowGatewaySubagentBinding?: boolean;
+    }) => void | Promise<void>);
     ensureListener(): void;
     startSweeper(): void;
     stopSweeper(): void;
     resumeSubagentRun(runId: string): void;
     clearPendingLifecycleError(runId: string): void;
-    resolveSubagentWaitTimeoutMs(cfg: ReturnType<typeof loadConfig>, runTimeoutSeconds?: number): number;
+    resolveSubagentWaitTimeoutMs(cfg: OpenClawConfig, runTimeoutSeconds?: number): number;
     notifyContextEngineSubagentEnded(args: {
         childSessionKey: string;
         reason: "completed" | "deleted" | "released";
@@ -74,5 +79,5 @@ export declare function createSubagentRunManager(params: {
         runTimeoutSeconds?: number;
         preserveFrozenResultFallback?: boolean;
     }) => boolean;
-    waitForSubagentCompletion: (runId: string, waitTimeoutMs: number) => Promise<void>;
+    waitForSubagentCompletion: (runId: string, waitTimeoutMs: number, expectedEntry?: SubagentRunRecord) => Promise<void>;
 };

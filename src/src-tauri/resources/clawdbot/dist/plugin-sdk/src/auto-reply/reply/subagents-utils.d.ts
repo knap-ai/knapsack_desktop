@@ -3,7 +3,7 @@ export declare function resolveSubagentLabel(entry: SubagentRunRecord, fallback?
 export declare function formatRunLabel(entry: SubagentRunRecord, options?: {
     maxLength?: number;
 }): string;
-export declare function formatRunStatus(entry: SubagentRunRecord): "timeout" | "error" | "unknown" | "done" | "running";
+export declare function formatRunStatus(entry: SubagentRunRecord): "done" | "error" | "timeout" | "unknown" | "running";
 export declare function sortSubagentRuns(runs: SubagentRunRecord[]): SubagentRunRecord[];
 export type SubagentTargetResolution = {
     entry?: SubagentRunRecord;

@@ -11,7 +11,3 @@ export declare function resolveExactLineGroupConfigKey(params: {
     accountId?: string | null;
     groupId?: string | null;
 }): string | undefined;
-export declare function resolveLineGroupHistoryKey(params: {
-    groupId?: string | null;
-    roomId?: string | null;
-}): string | undefined;

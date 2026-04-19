@@ -1,9 +1,8 @@
 type InstallScanLogger = {
     warn?: (message: string) => void;
 };
-export type InstallSafetyOverrides = {
-    dangerouslyForceUnsafeInstall?: boolean;
-};
+export type { InstallSafetyOverrides } from "./install-security-scan.types.js";
+import type { InstallSafetyOverrides } from "./install-security-scan.types.js";
 export type InstallSecurityScanResult = {
     blocked?: {
         code?: "security_scan_blocked" | "security_scan_failed";
@@ -47,6 +46,11 @@ export declare function scanPackageInstallSource(params: InstallSafetyOverrides 
     manifestId?: string;
     version?: string;
 }): Promise<InstallSecurityScanResult | undefined>;
+export declare function scanInstalledPackageDependencyTree(params: {
+    logger: InstallScanLogger;
+    packageDir: string;
+    pluginId: string;
+}): Promise<InstallSecurityScanResult | undefined>;
 export declare function scanFileInstallSource(params: InstallSafetyOverrides & {
     filePath: string;
     logger: InstallScanLogger;
@@ -63,4 +67,3 @@ export declare function scanSkillInstallSource(params: {
     skillName: string;
     sourceDir: string;
 }): Promise<InstallSecurityScanResult | undefined>;
-export {};

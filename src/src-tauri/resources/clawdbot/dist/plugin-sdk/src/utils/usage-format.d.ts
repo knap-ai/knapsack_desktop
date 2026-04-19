@@ -1,5 +1,5 @@
 import type { NormalizedUsage } from "../agents/usage.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type ModelCostConfig = {
     input: number;
     output: number;

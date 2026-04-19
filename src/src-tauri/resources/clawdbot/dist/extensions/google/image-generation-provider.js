@@ -1,8 +1,9 @@
-import { o as resolveProviderHttpRequestConfig, r as postJsonRequest, t as assertOkOrThrowHttpError } from "../../shared-bNb64sx7.js";
-import { t as resolveApiKeyForProvider } from "../../provider-auth-runtime-CDNd-efP.js";
-import "../../provider-http-CMHzFsgV.js";
-import { n as normalizeGoogleModelId } from "../../model-id-GSg7lJuG.js";
-import { a as normalizeGoogleApiBaseUrl, c as parseGeminiAuth, t as DEFAULT_GOOGLE_API_BASE_URL } from "../../api-tF_YSNoD.js";
+import { normalizeGoogleModelId } from "./model-id.js";
+import { resolveGoogleGenerativeAiHttpRequestConfig } from "./api.js";
+import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
+import { isProviderApiKeyConfigured } from "openclaw/plugin-sdk/provider-auth";
+import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
+import { assertOkOrThrowHttpError, postJsonRequest } from "openclaw/plugin-sdk/provider-http";
 //#region extensions/google/image-generation-provider.ts
 const DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
 const DEFAULT_OUTPUT_MIME = "image/png";
@@ -25,9 +26,6 @@ const GOOGLE_SUPPORTED_ASPECT_RATIOS = [
 	"16:9",
 	"21:9"
 ];
-function resolveGoogleBaseUrl(cfg) {
-	return normalizeGoogleApiBaseUrl(cfg?.models?.providers?.google?.baseUrl);
-}
 function normalizeGoogleImageModel(model) {
 	const trimmed = model?.trim();
 	return normalizeGoogleModelId(trimmed || DEFAULT_GOOGLE_IMAGE_MODEL);
@@ -35,7 +33,7 @@ function normalizeGoogleImageModel(model) {
 function mapSizeToImageConfig(size) {
 	const trimmed = size?.trim();
 	if (!trimmed) return;
-	const normalized = trimmed.toLowerCase();
+	const normalized = normalizeLowercaseStringOrEmpty(trimmed);
 	const aspectRatio = new Map([
 		["1024x1024", "1:1"],
 		["1024x1536", "2:3"],
@@ -58,6 +56,10 @@ function buildGoogleImageGenerationProvider() {
 		label: "Google",
 		defaultModel: DEFAULT_GOOGLE_IMAGE_MODEL,
 		models: [DEFAULT_GOOGLE_IMAGE_MODEL, "gemini-3-pro-image-preview"],
+		isConfigured: ({ agentDir }) => isProviderApiKeyConfigured({
+			provider: "google",
+			agentDir
+		}),
 		capabilities: {
 			generate: {
 				maxCount: 4,
@@ -92,13 +94,9 @@ function buildGoogleImageGenerationProvider() {
 			});
 			if (!auth.apiKey) throw new Error("Google API key missing");
 			const model = normalizeGoogleImageModel(req.model);
-			const { baseUrl, allowPrivateNetwork, headers, dispatcherPolicy } = resolveProviderHttpRequestConfig({
-				baseUrl: resolveGoogleBaseUrl(req.cfg),
-				defaultBaseUrl: DEFAULT_GOOGLE_API_BASE_URL,
-				allowPrivateNetwork: Boolean(req.cfg?.models?.providers?.google?.baseUrl?.trim()),
-				defaultHeaders: parseGeminiAuth(auth.apiKey).headers,
-				provider: "google",
-				api: "google-generative-ai",
+			const { baseUrl, allowPrivateNetwork, headers, dispatcherPolicy } = resolveGoogleGenerativeAiHttpRequestConfig({
+				apiKey: auth.apiKey,
+				baseUrl: req.cfg?.models?.providers?.google?.baseUrl,
 				capability: "image",
 				transport: "http"
 			});
@@ -127,6 +125,7 @@ function buildGoogleImageGenerationProvider() {
 				},
 				timeoutMs: 6e4,
 				fetchFn: fetch,
+				pinDns: false,
 				allowPrivateNetwork,
 				dispatcherPolicy
 			});

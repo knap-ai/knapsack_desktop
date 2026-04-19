@@ -1,6 +1,6 @@
 import type { MsgContext } from "../auto-reply/templating.js";
-import type { OpenClawConfig } from "../config/config.js";
-import { type ActiveMediaModel } from "./runner.js";
+import type { OpenClawConfig } from "../config/types.js";
+import type { ActiveMediaModel } from "./active-model.types.js";
 import type { MediaUnderstandingProvider } from "./types.js";
 /**
  * Transcribes the first audio attachment BEFORE mention checking.

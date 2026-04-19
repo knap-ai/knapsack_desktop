@@ -1,12 +1,9 @@
-import { t as getChatChannelMeta } from "../../chat-meta-Cdrnv7R-.js";
-import { a as splitChannelApprovalCapability } from "../../approval-runtime-8-_vGYcG.js";
-import { n as buildDmGroupAccountAllowlistAdapter } from "../../allowlist-config-edit-DcMKbV8C.js";
-import "../../telegram-core-D06a1-N4.js";
-import { s as resolveTelegramAccount } from "../../accounts-Dh_rfg3W.js";
-import { t as telegramApprovalCapability } from "../../approval-native-YG1Yh0R2.js";
-import { i as telegramConfigAdapter } from "../../shared-DoOcydyi.js";
+import { s as resolveTelegramAccount } from "./accounts-CoskdHdZ.js";
+import { i as telegramConfigAdapter } from "./shared-B0aXBwuj.js";
+import { t as telegramApprovalCapability } from "./approval-native-9xNAH8CY.js";
+import { buildDmGroupAccountAllowlistAdapter } from "openclaw/plugin-sdk/allowlist-config-edit";
+import { getChatChannelMeta } from "openclaw/plugin-sdk/channel-plugin-common";
 //#region extensions/telegram/test-support.ts
-const telegramNativeApprovalAdapter = splitChannelApprovalCapability(telegramApprovalCapability);
 const telegramCommandTestPlugin = {
 	id: "telegram",
 	meta: getChatChannelMeta("telegram"),
@@ -25,7 +22,6 @@ const telegramCommandTestPlugin = {
 		blockStreaming: true
 	},
 	config: telegramConfigAdapter,
-	auth: telegramNativeApprovalAdapter.auth,
 	approvalCapability: telegramApprovalCapability,
 	pairing: { idLabel: "telegramUserId" },
 	allowlist: buildDmGroupAccountAllowlistAdapter({

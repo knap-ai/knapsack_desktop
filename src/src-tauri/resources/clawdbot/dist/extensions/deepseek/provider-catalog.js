@@ -1,2 +1,2 @@
-import { t as buildDeepSeekProvider } from "../../api-BSQvLZ0A.js";
+import { t as buildDeepSeekProvider } from "../../provider-catalog-DLeaHNLa.js";
 export { buildDeepSeekProvider };

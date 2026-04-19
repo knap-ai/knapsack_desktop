@@ -1,6 +1,8 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { type ExecApprovalInitiatingSurfaceState } from "../infra/exec-approval-surface.js";
 import { resolveExecApprovals, type ExecAsk, type ExecApprovalDecision, type ExecSecurity } from "../infra/exec-approvals.js";
+import { logWarn } from "../logger.js";
+import { sendExecApprovalFollowup } from "./bash-tools.exec-approval-followup.js";
 import { type ExecApprovalRegistration } from "./bash-tools.exec-approval-request.js";
 import type { ExecToolDetails } from "./bash-tools.exec-types.js";
 type ResolvedExecApprovals = ReturnType<typeof resolveExecApprovals>;
@@ -37,6 +39,10 @@ export type ExecApprovalFollowupTarget = {
     turnSourceTo?: string;
     turnSourceAccountId?: string;
     turnSourceThreadId?: string | number;
+};
+export type ExecApprovalFollowupResultDeps = {
+    sendExecApprovalFollowup?: typeof sendExecApprovalFollowup;
+    logWarn?: typeof logWarn;
 };
 export type DefaultExecApprovalRequestArgs = {
     warnings: string[];
@@ -78,7 +84,6 @@ export declare function createDefaultExecApprovalRequestContext(params: {
 export declare function resolveBaseExecApprovalDecision(params: {
     decision: string | null;
     askFallback: ResolvedExecApprovals["agent"]["askFallback"];
-    obfuscationDetected: boolean;
 }): {
     approvedByAsk: boolean;
     deniedReason: string | null;
@@ -117,13 +122,23 @@ export declare function buildExecApprovalFollowupTarget(params: ExecApprovalFoll
 export declare function createExecApprovalDecisionState(params: {
     decision: string | null | undefined;
     askFallback: ResolvedExecApprovals["agent"]["askFallback"];
-    obfuscationDetected: boolean;
 }): {
     baseDecision: {
         approvedByAsk: boolean;
         deniedReason: string | null;
         timedOut: boolean;
     };
+    approvedByAsk: boolean;
+    deniedReason: string | null;
+};
+export declare function enforceStrictInlineEvalApprovalBoundary(params: {
+    baseDecision: {
+        timedOut: boolean;
+    };
+    approvedByAsk: boolean;
+    deniedReason: string | null;
+    requiresInlineEvalApproval: boolean;
+}): {
     approvedByAsk: boolean;
     deniedReason: string | null;
 };
@@ -139,7 +154,7 @@ export declare function buildHeadlessExecApprovalDeniedMessage(params: {
     ask: ExecAsk;
     askFallback: ResolvedExecApprovals["agent"]["askFallback"];
 }): string;
-export declare function sendExecApprovalFollowupResult(target: ExecApprovalFollowupTarget, resultText: string): Promise<void>;
+export declare function sendExecApprovalFollowupResult(target: ExecApprovalFollowupTarget, resultText: string, deps?: ExecApprovalFollowupResultDeps): Promise<void>;
 export declare function buildExecApprovalPendingToolResult(params: {
     host: "gateway" | "node";
     command: string;

@@ -1,5 +1,6 @@
 import type { Api } from "@mariozechner/pi-ai";
 import type { ModelDefinitionConfig } from "../config/types.js";
+import type { ConfiguredModelProviderRequest, ConfiguredProviderRequest } from "../config/types.provider-request.js";
 import type { PinnedDispatcherPolicy } from "../infra/net/ssrf.js";
 import type { ProviderRequestCapabilities, ProviderRequestCapability, ProviderRequestTransport } from "./provider-attribution.js";
 import { type ProviderRequestPolicyResolution } from "./provider-attribution.js";
@@ -36,6 +37,9 @@ export type ProviderRequestTransportOverrides = {
     auth?: ProviderRequestAuthOverride;
     proxy?: ProviderRequestProxyOverride;
     tls?: ProviderRequestTlsOverride;
+};
+export type ModelProviderRequestTransportOverrides = ProviderRequestTransportOverrides & {
+    allowPrivateNetwork?: boolean;
 };
 export type ResolvedProviderRequestAuthConfig = {
     configured: false;
@@ -112,11 +116,16 @@ type ResolveProviderRequestPolicyConfigParams = {
     authHeader?: boolean;
     compat?: {
         supportsStore?: boolean;
+        supportsPromptCacheKey?: boolean;
     } | null;
     modelId?: string | null;
     allowPrivateNetwork?: boolean;
-    request?: ProviderRequestTransportOverrides;
+    request?: ModelProviderRequestTransportOverrides;
 };
+export declare function sanitizeConfiguredProviderRequest(request: ConfiguredProviderRequest | undefined): ProviderRequestTransportOverrides | undefined;
+export declare function sanitizeConfiguredModelProviderRequest(request: ConfiguredModelProviderRequest | undefined): ModelProviderRequestTransportOverrides | undefined;
+export declare function mergeProviderRequestOverrides(...overrides: Array<ProviderRequestTransportOverrides | undefined>): ProviderRequestTransportOverrides | undefined;
+export declare function mergeModelProviderRequestOverrides(...overrides: Array<ModelProviderRequestTransportOverrides | undefined>): ModelProviderRequestTransportOverrides | undefined;
 export declare function normalizeBaseUrl(baseUrl: string | undefined, fallback: string): string;
 export declare function normalizeBaseUrl(baseUrl: string | undefined, fallback?: string): string | undefined;
 export declare function mergeProviderRequestHeaders(...headerSets: Array<Record<string, string> | undefined>): Record<string, string> | undefined;
@@ -147,4 +156,6 @@ export declare function resolveProviderRequestHeaders(params: {
     precedence?: ProviderRequestHeaderPrecedence;
     request?: ProviderRequestTransportOverrides;
 }): Record<string, string> | undefined;
+export declare function attachModelProviderRequestTransport<TModel extends object>(model: TModel, request: ModelProviderRequestTransportOverrides | undefined): TModel;
+export declare function getModelProviderRequestTransport(model: object): ModelProviderRequestTransportOverrides | undefined;
 export {};

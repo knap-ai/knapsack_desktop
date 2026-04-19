@@ -1,9 +1,4 @@
-import { type DiscordInteractiveDispatchContext, type SlackInteractiveDispatchContext, type TelegramInteractiveDispatchContext } from "./interactive-dispatch-adapters.js";
-import type { PluginInteractiveDiscordHandlerContext, PluginInteractiveButtons, PluginInteractiveHandlerRegistration, PluginInteractiveSlackHandlerContext } from "./types.js";
-type InteractiveRegistrationResult = {
-    ok: boolean;
-    error?: string;
-};
+import { type RegisteredInteractiveHandler } from "./interactive-state.js";
 type InteractiveDispatchResult = {
     matched: false;
     handled: false;
@@ -13,48 +8,25 @@ type InteractiveDispatchResult = {
     handled: boolean;
     duplicate: boolean;
 };
-export declare function registerPluginInteractiveHandler(pluginId: string, registration: PluginInteractiveHandlerRegistration, opts?: {
-    pluginName?: string;
-    pluginRoot?: string;
-}): InteractiveRegistrationResult;
-export declare function clearPluginInteractiveHandlers(): void;
-export declare function clearPluginInteractiveHandlersForPlugin(pluginId: string): void;
-export declare function dispatchPluginInteractiveHandler(params: {
-    channel: "telegram";
+type PluginInteractiveDispatchRegistration = {
+    channel: string;
+    namespace: string;
+};
+export type PluginInteractiveMatch<TRegistration extends PluginInteractiveDispatchRegistration> = {
+    registration: RegisteredInteractiveHandler & TRegistration;
+    namespace: string;
+    payload: string;
+};
+export { clearPluginInteractiveHandlers, clearPluginInteractiveHandlersForPlugin, registerPluginInteractiveHandler, } from "./interactive-registry.js";
+export type { InteractiveRegistrationResult } from "./interactive-registry.js";
+export declare function dispatchPluginInteractiveHandler<TRegistration extends PluginInteractiveDispatchRegistration>(params: {
+    channel: TRegistration["channel"];
     data: string;
-    callbackId: string;
-    ctx: TelegramInteractiveDispatchContext;
-    respond: {
-        reply: (params: {
-            text: string;
-            buttons?: PluginInteractiveButtons;
-        }) => Promise<void>;
-        editMessage: (params: {
-            text: string;
-            buttons?: PluginInteractiveButtons;
-        }) => Promise<void>;
-        editButtons: (params: {
-            buttons: PluginInteractiveButtons;
-        }) => Promise<void>;
-        clearButtons: () => Promise<void>;
-        deleteMessage: () => Promise<void>;
-    };
+    dedupeId?: string;
     onMatched?: () => Promise<void> | void;
+    invoke: (match: PluginInteractiveMatch<TRegistration>) => Promise<{
+        handled?: boolean;
+    } | void> | {
+        handled?: boolean;
+    } | void;
 }): Promise<InteractiveDispatchResult>;
-export declare function dispatchPluginInteractiveHandler(params: {
-    channel: "discord";
-    data: string;
-    interactionId: string;
-    ctx: DiscordInteractiveDispatchContext;
-    respond: PluginInteractiveDiscordHandlerContext["respond"];
-    onMatched?: () => Promise<void> | void;
-}): Promise<InteractiveDispatchResult>;
-export declare function dispatchPluginInteractiveHandler(params: {
-    channel: "slack";
-    data: string;
-    interactionId: string;
-    ctx: SlackInteractiveDispatchContext;
-    respond: PluginInteractiveSlackHandlerContext["respond"];
-    onMatched?: () => Promise<void> | void;
-}): Promise<InteractiveDispatchResult>;
-export {};

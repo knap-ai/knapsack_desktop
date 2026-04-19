@@ -5,6 +5,7 @@ export type LazyPluginServiceHandle = {
 export declare function startLazyPluginServiceModule(params: {
     skipEnvVar?: string;
     overrideEnvVar?: string;
+    validateOverrideSpecifier?: (specifier: string) => string;
     loadDefaultModule: () => Promise<LazyServiceModule>;
     loadOverrideModule?: (specifier: string) => Promise<LazyServiceModule>;
     startExportNames: string[];

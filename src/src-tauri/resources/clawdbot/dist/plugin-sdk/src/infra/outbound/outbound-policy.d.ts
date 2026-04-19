@@ -1,5 +1,5 @@
-import type { ChannelId, ChannelMessageActionName, ChannelThreadingToolContext } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { ChannelId, ChannelMessageActionName, ChannelThreadingToolContext } from "../../channels/plugins/types.public.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { type CrossContextComponentsBuilder } from "./channel-adapters.js";
 export type CrossContextDecoration = {
     prefix: string;

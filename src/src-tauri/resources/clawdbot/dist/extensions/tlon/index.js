@@ -1,6 +1,6 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { t as tlonPlugin } from "../../channel-BEJ0CFXD.js";
-import { n as setTlonRuntime } from "../../runtime-C5YkKD_Y.js";
+import { i as formatErrorMessage } from "../../errors-D8p6rxH8.js";
+import "../../error-runtime-CgBDklBz.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -95,12 +95,19 @@ function runTlonCommand(binary, args) {
 		});
 	});
 }
-var tlon_default = defineChannelPluginEntry({
+var tlon_default = defineBundledChannelEntry({
 	id: "tlon",
 	name: "Tlon",
 	description: "Tlon/Urbit channel plugin",
-	plugin: tlonPlugin,
-	setRuntime: setTlonRuntime,
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "tlonPlugin"
+	},
+	runtime: {
+		specifier: "./api.js",
+		exportName: "setTlonRuntime"
+	},
 	registerFull(api) {
 		api.logger.debug?.("[tlon] Registering tlon tool");
 		api.registerTool({
@@ -137,7 +144,7 @@ var tlon_default = defineChannelPluginEntry({
 					return {
 						content: [{
 							type: "text",
-							text: `Error: ${error.message}`
+							text: `Error: ${formatErrorMessage(error)}`
 						}],
 						details: { error: true }
 					};
@@ -147,4 +154,4 @@ var tlon_default = defineChannelPluginEntry({
 	}
 });
 //#endregion
-export { tlon_default as default, setTlonRuntime, tlonPlugin };
+export { tlon_default as default };

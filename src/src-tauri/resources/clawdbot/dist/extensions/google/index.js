@@ -1,43 +1,14 @@
-import { p as createGoogleThinkingPayloadWrapper } from "../../openai-stream-wrappers-D4CWCCrG.js";
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-BF3kHzmf.js";
-import "../../provider-auth-api-key-g0GKEM-Y.js";
-import "../../provider-stream-D_iORY-e.js";
-import { n as normalizeGoogleModelId } from "../../model-id-GSg7lJuG.js";
-import { n as GOOGLE_GEMINI_DEFAULT_MODEL, r as applyGoogleGeminiModelDefault, s as normalizeGoogleProviderConfig, u as resolveGoogleGenerativeAiTransport } from "../../api-tF_YSNoD.js";
-import { t as buildGoogleGeminiCliBackend } from "../../cli-backend-DRR_Jy3T.js";
-import { n as resolveGoogle31ForwardCompatModel, t as isModernGoogleModel } from "../../provider-models-C7tSuQzh.js";
-import { t as createGeminiWebSearchProvider } from "../../gemini-web-search-provider-BubvVaJY.js";
+import { buildGoogleGeminiCliBackend } from "./cli-backend.js";
+import { registerGoogleGeminiCliProvider } from "./gemini-cli-provider.js";
+import { buildGoogleMusicGenerationProvider } from "./music-generation-provider.js";
+import { registerGoogleProvider } from "./provider-registration.js";
+import { buildGoogleSpeechProvider } from "./speech-provider.js";
+import { t as createGeminiWebSearchProvider } from "./gemini-web-search-provider-D7-4VZrQ.js";
+import { buildGoogleVideoGenerationProvider } from "./video-generation-provider.js";
+import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 //#region extensions/google/index.ts
-const GOOGLE_GEMINI_CLI_PROVIDER_ID = "google-gemini-cli";
-const GOOGLE_GEMINI_CLI_PROVIDER_LABEL = "Gemini CLI OAuth";
-const GOOGLE_GEMINI_CLI_ENV_VARS = [
-	"OPENCLAW_GEMINI_OAUTH_CLIENT_ID",
-	"OPENCLAW_GEMINI_OAUTH_CLIENT_SECRET",
-	"GEMINI_CLI_OAUTH_CLIENT_ID",
-	"GEMINI_CLI_OAUTH_CLIENT_SECRET"
-];
-let googleGeminiCliProviderPromise = null;
 let googleImageGenerationProviderPromise = null;
 let googleMediaUnderstandingProviderPromise = null;
-function formatGoogleOauthApiKey(cred) {
-	if (cred.type !== "oauth" || typeof cred.access !== "string" || !cred.access.trim()) return "";
-	return JSON.stringify({
-		token: cred.access,
-		projectId: cred.projectId
-	});
-}
-async function loadGoogleGeminiCliProvider() {
-	if (!googleGeminiCliProviderPromise) googleGeminiCliProviderPromise = import("./gemini-cli-provider.js").then((mod) => {
-		let provider;
-		mod.registerGoogleGeminiCliProvider({ registerProvider(entry) {
-			provider = entry;
-		} });
-		if (!provider) throw new Error("google gemini cli provider missing provider registration");
-		return provider;
-	});
-	return await googleGeminiCliProviderPromise;
-}
 async function loadGoogleImageGenerationProvider() {
 	if (!googleImageGenerationProviderPromise) googleImageGenerationProviderPromise = import("./image-generation-provider.js").then((mod) => mod.buildGoogleImageGenerationProvider());
 	return await googleImageGenerationProviderPromise;
@@ -50,47 +21,6 @@ async function loadGoogleRequiredMediaUnderstandingProvider() {
 	const provider = await loadGoogleMediaUnderstandingProvider();
 	if (!provider.describeImage || !provider.describeImages || !provider.transcribeAudio || !provider.describeVideo) throw new Error("google media understanding provider missing required handlers");
 	return provider;
-}
-function createLazyGoogleGeminiCliProvider() {
-	return {
-		id: GOOGLE_GEMINI_CLI_PROVIDER_ID,
-		label: GOOGLE_GEMINI_CLI_PROVIDER_LABEL,
-		docsPath: "/providers/models",
-		aliases: ["gemini-cli"],
-		envVars: [...GOOGLE_GEMINI_CLI_ENV_VARS],
-		auth: [{
-			id: "oauth",
-			label: "Google OAuth",
-			hint: "PKCE + localhost callback",
-			kind: "oauth",
-			run: async (ctx) => {
-				const authMethod = (await loadGoogleGeminiCliProvider()).auth?.[0];
-				if (!authMethod || authMethod.kind !== "oauth") return { profiles: [] };
-				return await authMethod.run(ctx);
-			}
-		}],
-		wizard: { setup: {
-			choiceId: "google-gemini-cli",
-			choiceLabel: "Gemini CLI OAuth",
-			choiceHint: "Google OAuth with project-aware token payload",
-			methodId: "oauth"
-		} },
-		normalizeModelId: ({ modelId }) => normalizeGoogleModelId(modelId),
-		resolveDynamicModel: (ctx) => resolveGoogle31ForwardCompatModel({
-			providerId: GOOGLE_GEMINI_CLI_PROVIDER_ID,
-			ctx
-		}),
-		isModernModelRef: ({ modelId }) => isModernGoogleModel(modelId),
-		formatApiKey: (cred) => formatGoogleOauthApiKey(cred),
-		resolveUsageAuth: async (ctx) => {
-			return await (await loadGoogleGeminiCliProvider()).resolveUsageAuth?.(ctx);
-		},
-		fetchUsageSnapshot: async (ctx) => {
-			const provider = await loadGoogleGeminiCliProvider();
-			if (!provider.fetchUsageSnapshot) throw new Error("google gemini cli provider missing usage snapshot handler");
-			return await provider.fetchUsageSnapshot(ctx);
-		}
-	};
 }
 function createLazyGoogleImageGenerationProvider() {
 	return {
@@ -151,6 +81,17 @@ function createLazyGoogleMediaUnderstandingProvider() {
 			"audio",
 			"video"
 		],
+		defaultModels: {
+			image: "gemini-3-flash-preview",
+			audio: "gemini-3-flash-preview",
+			video: "gemini-3-flash-preview"
+		},
+		autoPriority: {
+			image: 30,
+			audio: 40,
+			video: 10
+		},
+		nativeDocumentInputs: ["pdf"],
 		describeImage: async (...args) => await (await loadGoogleRequiredMediaUnderstandingProvider()).describeImage(...args),
 		describeImages: async (...args) => await (await loadGoogleRequiredMediaUnderstandingProvider()).describeImages(...args),
 		transcribeAudio: async (...args) => await (await loadGoogleRequiredMediaUnderstandingProvider()).transcribeAudio(...args),
@@ -162,50 +103,14 @@ var google_default = definePluginEntry({
 	name: "Google Plugin",
 	description: "Bundled Google plugin",
 	register(api) {
-		api.registerProvider({
-			id: "google",
-			label: "Google AI Studio",
-			docsPath: "/providers/models",
-			hookAliases: ["google-antigravity", "google-vertex"],
-			envVars: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
-			auth: [createProviderApiKeyAuthMethod({
-				providerId: "google",
-				methodId: "api-key",
-				label: "Google Gemini API key",
-				hint: "AI Studio / Gemini API key",
-				optionKey: "geminiApiKey",
-				flagName: "--gemini-api-key",
-				envVar: "GEMINI_API_KEY",
-				promptMessage: "Enter Gemini API key",
-				defaultModel: GOOGLE_GEMINI_DEFAULT_MODEL,
-				expectedProviders: ["google"],
-				applyConfig: (cfg) => applyGoogleGeminiModelDefault(cfg).next,
-				wizard: {
-					choiceId: "gemini-api-key",
-					choiceLabel: "Google Gemini API key",
-					groupId: "google",
-					groupLabel: "Google",
-					groupHint: "Gemini API key + OAuth"
-				}
-			})],
-			normalizeTransport: ({ api, baseUrl }) => resolveGoogleGenerativeAiTransport({
-				api,
-				baseUrl
-			}),
-			normalizeConfig: ({ provider, providerConfig }) => normalizeGoogleProviderConfig(provider, providerConfig),
-			normalizeModelId: ({ modelId }) => normalizeGoogleModelId(modelId),
-			resolveDynamicModel: (ctx) => resolveGoogle31ForwardCompatModel({
-				providerId: ctx.provider,
-				templateProviderId: GOOGLE_GEMINI_CLI_PROVIDER_ID,
-				ctx
-			}),
-			wrapStreamFn: (ctx) => createGoogleThinkingPayloadWrapper(ctx.streamFn, ctx.thinkingLevel),
-			isModernModelRef: ({ modelId }) => isModernGoogleModel(modelId)
-		});
 		api.registerCliBackend(buildGoogleGeminiCliBackend());
-		api.registerProvider(createLazyGoogleGeminiCliProvider());
+		registerGoogleGeminiCliProvider(api);
+		registerGoogleProvider(api);
 		api.registerImageGenerationProvider(createLazyGoogleImageGenerationProvider());
 		api.registerMediaUnderstandingProvider(createLazyGoogleMediaUnderstandingProvider());
+		api.registerMusicGenerationProvider(buildGoogleMusicGenerationProvider());
+		api.registerSpeechProvider(buildGoogleSpeechProvider());
+		api.registerVideoGenerationProvider(buildGoogleVideoGenerationProvider());
 		api.registerWebSearchProvider(createGeminiWebSearchProvider());
 	}
 });

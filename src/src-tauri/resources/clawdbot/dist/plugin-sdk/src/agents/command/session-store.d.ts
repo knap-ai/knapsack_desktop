@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 type RunResult = Awaited<ReturnType<(typeof import("../pi-embedded.js"))["runEmbeddedPiAgent"]>>;
 export declare function updateSessionStoreAfterAgentRun(params: {
     cfg: OpenClawConfig;

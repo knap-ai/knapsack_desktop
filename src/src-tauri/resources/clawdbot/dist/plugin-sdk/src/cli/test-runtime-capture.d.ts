@@ -23,7 +23,7 @@ export declare function stringifyRuntimeJson(value: unknown, space?: number): st
 export declare function createCliRuntimeCapture(): CliRuntimeCapture;
 export declare function mockRuntimeModule<TModule extends {
     defaultRuntime: OutputRuntimeEnv;
-}>(importOriginal: () => Promise<TModule>, defaultRuntime: TModule["defaultRuntime"]): Promise<TModule>;
+}>(loadActual: () => Promise<TModule>, defaultRuntime: TModule["defaultRuntime"]): Promise<TModule>;
 export declare function spyRuntimeLogs(runtime: Pick<OutputRuntimeEnv, "log">): import("vitest").Mock<(...args: unknown[]) => void>;
 export declare function spyRuntimeErrors(runtime: Pick<OutputRuntimeEnv, "error">): import("vitest").Mock<(...args: unknown[]) => void>;
 export declare function spyRuntimeJson(runtime: Pick<OutputRuntimeEnv, "writeJson">): import("vitest").Mock<(value: unknown, space?: number) => void>;

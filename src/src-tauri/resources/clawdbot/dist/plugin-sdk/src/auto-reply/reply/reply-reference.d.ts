@@ -7,6 +7,7 @@ export type ReplyReferencePlanner = {
     /** Whether a reply has been sent in this flow. */
     hasReplied(): boolean;
 };
+export declare function isSingleUseReplyToMode(mode: ReplyToMode): boolean;
 export declare function createReplyReferencePlanner(options: {
     replyToMode: ReplyToMode;
     /** Existing thread/reference id (preferred when allowed by replyToMode). */

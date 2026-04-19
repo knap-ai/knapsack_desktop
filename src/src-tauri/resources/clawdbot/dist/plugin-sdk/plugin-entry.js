@@ -1,3 +1,3 @@
-import { n as emptyPluginConfigSchema } from "../config-schema-dIP9qvIK.js";
-import { t as definePluginEntry } from "../plugin-entry-DA7dUJNL.js";
-export { definePluginEntry, emptyPluginConfigSchema };
+import { n as emptyPluginConfigSchema, t as buildPluginConfigSchema } from "../config-schema-BJSXw2hl.js";
+import { t as definePluginEntry } from "../plugin-entry-Bkat4og3.js";
+export { buildPluginConfigSchema, definePluginEntry, emptyPluginConfigSchema };

@@ -1,11 +1,23 @@
-import { g as DEFAULT_ACCOUNT_ID } from "../../session-key-D7XpmyVq.js";
-import { i as IMessageConfigSchema } from "../../zod-schema.providers-core-BJorTsd7.js";
-import { r as buildChannelConfigSchema } from "../../config-schema-BoSEJoAt.js";
-import { t as getChatChannelMeta } from "../../chat-meta-Cdrnv7R-.js";
-import { t as PAIRING_APPROVED_MESSAGE } from "../../pairing-message-DoFheDS-.js";
-import { c as collectStatusIssuesFromLastError, r as buildComputedAccountStatusSnapshot } from "../../status-helpers-CtpWf3f1.js";
-import { m as formatTrimmedAllowFromEntries, v as resolveIMessageConfigAllowFrom, y as resolveIMessageConfigDefaultTo } from "../../channel-config-helpers-B0S2z66F.js";
-import { t as resolveChannelMediaMaxBytes } from "../../media-limits-GI9x4YgA.js";
-import { n as looksLikeIMessageTargetId, r as normalizeIMessageMessagingTarget, t as chunkTextForOutbound } from "../../runtime-api-qOKrP8fj.js";
-import { S as resolveIMessageGroupToolPolicy, h as probeIMessage, s as sendMessageIMessage, t as monitorIMessageProvider, x as resolveIMessageGroupRequireMention } from "../../monitor-provider-BaCJr_L0.js";
-export { DEFAULT_ACCOUNT_ID, IMessageConfigSchema, PAIRING_APPROVED_MESSAGE, buildChannelConfigSchema, buildComputedAccountStatusSnapshot, chunkTextForOutbound, collectStatusIssuesFromLastError, formatTrimmedAllowFromEntries, getChatChannelMeta, looksLikeIMessageTargetId, monitorIMessageProvider, normalizeIMessageMessagingTarget, probeIMessage, resolveChannelMediaMaxBytes, resolveIMessageConfigAllowFrom, resolveIMessageConfigDefaultTo, resolveIMessageGroupRequireMention, resolveIMessageGroupToolPolicy, sendMessageIMessage };
+import { r as buildChannelConfigSchema } from "../../config-schema-sgVTuroC.js";
+import { t as DEFAULT_ACCOUNT_ID } from "../../account-id-j7GeQlaZ.js";
+import { r as IMessageConfigSchema } from "../../zod-schema.providers-core-BxvvQH1c.js";
+import { m as formatTrimmedAllowFromEntries } from "../../channel-config-helpers-9F9ZxFrZ.js";
+import { o as getChatChannelMeta } from "../../core-Dh0sB0kj.js";
+import { t as createPluginRuntimeStore } from "../../runtime-store-Cvr8bl0h.js";
+import { t as resolveChannelMediaMaxBytes } from "../../media-limits-CdCXl04b.js";
+import { t as PAIRING_APPROVED_MESSAGE } from "../../pairing-message-DXbuAoem.js";
+import { c as collectStatusIssuesFromLastError, r as buildComputedAccountStatusSnapshot } from "../../status-helpers-BEDVo_4L.js";
+import "../../media-runtime-M1ED8IU3.js";
+import { t as chunkTextForOutbound } from "../../text-chunking-CtENq2zv.js";
+import "../../channel-status-CnINozhH.js";
+import { _ as resolveIMessageConfigAllowFrom, g as normalizeIMessageMessagingTarget, h as looksLikeIMessageTargetId, t as probeIMessage, v as resolveIMessageConfigDefaultTo } from "../../probe-DMJ26cNa.js";
+import { n as resolveIMessageGroupToolPolicy, t as resolveIMessageGroupRequireMention } from "../../group-policy-DMWywzQV.js";
+import "../../config-api-C35kSSd0.js";
+import { n as sendMessageIMessage, t as monitorIMessageProvider } from "../../monitor-D2Mv4hKV.js";
+//#region extensions/imessage/src/runtime.ts
+const { setRuntime: setIMessageRuntime, getRuntime: getIMessageRuntime } = createPluginRuntimeStore({
+	pluginId: "imessage",
+	errorMessage: "iMessage runtime not initialized"
+});
+//#endregion
+export { DEFAULT_ACCOUNT_ID, IMessageConfigSchema, PAIRING_APPROVED_MESSAGE, buildChannelConfigSchema, buildComputedAccountStatusSnapshot, chunkTextForOutbound, collectStatusIssuesFromLastError, formatTrimmedAllowFromEntries, getChatChannelMeta, looksLikeIMessageTargetId, monitorIMessageProvider, normalizeIMessageMessagingTarget, probeIMessage, resolveChannelMediaMaxBytes, resolveIMessageConfigAllowFrom, resolveIMessageConfigDefaultTo, resolveIMessageGroupRequireMention, resolveIMessageGroupToolPolicy, sendMessageIMessage, setIMessageRuntime };

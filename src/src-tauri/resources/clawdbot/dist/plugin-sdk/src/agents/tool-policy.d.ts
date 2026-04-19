@@ -16,7 +16,7 @@ export type PluginToolGroups = {
 export type AllowlistResolution = {
     policy: ToolPolicyLike | undefined;
     unknownAllowlist: string[];
-    strippedAllowlist: boolean;
+    pluginOnlyAllowlist: boolean;
 };
 export declare function collectExplicitAllowlist(policies: Array<ToolPolicyLike | undefined>): string[];
 export declare function buildPluginToolGroups<T extends {
@@ -29,7 +29,7 @@ export declare function buildPluginToolGroups<T extends {
 }): PluginToolGroups;
 export declare function expandPluginGroups(list: string[] | undefined, groups: PluginToolGroups): string[] | undefined;
 export declare function expandPolicyWithPluginGroups(policy: ToolPolicyLike | undefined, groups: PluginToolGroups): ToolPolicyLike | undefined;
-export declare function stripPluginOnlyAllowlist(policy: ToolPolicyLike | undefined, groups: PluginToolGroups, coreTools: Set<string>): AllowlistResolution;
+export declare function analyzeAllowlistByToolType(policy: ToolPolicyLike | undefined, groups: PluginToolGroups, coreTools: Set<string>): AllowlistResolution;
 export declare function mergeAlsoAllowPolicy<TPolicy extends {
     allow?: string[];
 }>(policy: TPolicy | undefined, alsoAllow?: string[]): TPolicy | undefined;

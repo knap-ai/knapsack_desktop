@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { type DeliverableMessageChannel } from "../../utils/message-channel.js";
 export type MessageChannelId = DeliverableMessageChannel;
 export type MessageChannelSelectionSource = "explicit" | "tool-context-fallback" | "single-configured";

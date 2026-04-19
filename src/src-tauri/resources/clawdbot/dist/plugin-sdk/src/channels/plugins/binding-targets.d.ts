@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ConfiguredBindingResolution } from "./binding-types.js";
 export declare function ensureConfiguredBindingTargetReady(params: {
     cfg: OpenClawConfig;
@@ -13,6 +13,7 @@ export declare function resetConfiguredBindingTargetInPlace(params: {
     cfg: OpenClawConfig;
     sessionKey: string;
     reason: "new" | "reset";
+    commandSource?: string;
 }): Promise<{
     ok: true;
 } | {

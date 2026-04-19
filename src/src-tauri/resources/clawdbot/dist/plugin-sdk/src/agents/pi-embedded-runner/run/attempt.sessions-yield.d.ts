@@ -56,7 +56,9 @@ export declare function persistSessionsYieldContextMessage(activeSession: {
 export declare function stripSessionsYieldArtifacts(activeSession: {
     messages: AgentMessage[];
     agent: {
-        replaceMessages: (messages: AgentMessage[]) => void;
+        state: {
+            messages: AgentMessage[];
+        };
     };
     sessionManager?: unknown;
 }): void;

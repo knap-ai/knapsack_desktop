@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http";
+import type { GatewayBindMode } from "../config/types.gateway.js";
 /**
  * Pick the primary non-internal IPv4 address (LAN IP).
  * Prefers common interface names (en0, eth0) then falls back to any external IPv4.
@@ -23,6 +24,9 @@ export declare function resolveClientIp(params: {
 }): string | undefined;
 export declare function resolveRequestClientIp(req?: IncomingMessage, trustedProxies?: string[], allowRealIpFallback?: boolean): string | undefined;
 export declare function isLocalGatewayAddress(ip: string | undefined): boolean;
+export declare function isContainerEnvironment(): boolean;
+/** @internal — test-only helper to reset the cached container detection result. */
+export declare function __resetContainerCacheForTest(): void;
 /**
  * Resolves gateway bind host with fallback strategy.
  *
@@ -30,12 +34,27 @@ export declare function isLocalGatewayAddress(ip: string | undefined): boolean;
  * - loopback: 127.0.0.1 (rarely fails, but handled gracefully)
  * - lan: always 0.0.0.0 (no fallback)
  * - tailnet: Tailnet IPv4 if available, else loopback
- * - auto: Loopback if available, else 0.0.0.0
+ * - auto: 0.0.0.0 inside containers (Docker/Podman/K8s); loopback otherwise
  * - custom: User-specified IP, fallback to 0.0.0.0 if unavailable
  *
  * @returns The bind address to use (never null)
  */
-export declare function resolveGatewayBindHost(bind: import("../config/config.js").GatewayBindMode | undefined, customHost?: string): Promise<string>;
+export declare function resolveGatewayBindHost(bind: GatewayBindMode | undefined, customHost?: string): Promise<string>;
+/**
+ * Returns the effective default bind mode when `gateway.bind` is not explicitly
+ * configured. Inside a detected container environment the default is `"auto"`
+ * (which resolves to `0.0.0.0` for port-forwarding compatibility); on bare-metal
+ * / VM hosts the default remains `"loopback"`.
+ *
+ * When {@link tailscaleMode} is `"serve"` or `"funnel"`, the function always
+ * returns `"loopback"` because Tailscale serve/funnel architecturally requires
+ * a loopback bind — container auto-detection must never override this.
+ *
+ * Use this only in gateway startup codepaths that execute in the same
+ * environment as the eventual bind decision. Host-side diagnostics should keep
+ * their own explicit defaults instead of inferring from the caller process.
+ */
+export declare function defaultGatewayBindMode(tailscaleMode?: string): GatewayBindMode;
 /**
  * Test if we can bind to a specific host address.
  * Creates a temporary server, attempts to bind, then closes it.

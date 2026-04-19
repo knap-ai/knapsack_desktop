@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionAcpMeta } from "../../config/sessions/types.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { AcpRuntimeError } from "../runtime/errors.js";
 import type { AcpSessionResolution } from "./manager.types.js";
 export declare function resolveAcpAgentFromSessionKey(sessionKey: string, fallback?: string): string;

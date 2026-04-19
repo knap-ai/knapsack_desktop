@@ -1,6 +1,4 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["litellm"];
-type FacadeModule = FacadeEntry["module"];
+type FacadeModule = typeof import("@openclaw/litellm/api.js");
 export declare const applyLitellmConfig: FacadeModule["applyLitellmConfig"];
 export declare const applyLitellmProviderConfig: FacadeModule["applyLitellmProviderConfig"];
 export declare const buildLitellmModelDefinition: FacadeModule["buildLitellmModelDefinition"];

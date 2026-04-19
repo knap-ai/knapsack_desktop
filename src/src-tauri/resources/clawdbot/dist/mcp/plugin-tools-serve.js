@@ -1,8 +1,10 @@
-import { c as routeLogsToStderr } from "../subsystem-CJEvHE2o.js";
-import { n as VERSION } from "../version-TiEvEN12.js";
-import { c as loadConfig } from "../io-DhtVmzAJ.js";
-import "../config-CJQx-9zo.js";
-import { r as resolvePluginTools } from "../tools-rapDi4Fi.js";
+import { i as formatErrorMessage } from "../errors-D8p6rxH8.js";
+import { c as routeLogsToStderr } from "../subsystem-Cgmckbux.js";
+import { n as VERSION } from "../version-Bk5OW-rN.js";
+import { a as loadConfig } from "../io-5pxHCi7V.js";
+import "../config-Q9XZc_2I.js";
+import { d as resolvePluginTools } from "../channel-tools-DdZyHuyK.js";
+import { a as wrapToolWithBeforeToolCallHook, r as isToolWrappedWithBeforeToolCallHook } from "../pi-tools.before-tool-call-C0me_HAs.js";
 import { pathToFileURL } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -32,7 +34,10 @@ function resolveTools(config) {
 }
 function createPluginToolsMcpServer(params = {}) {
 	const cfg = params.config ?? loadConfig();
-	const tools = params.tools ?? resolveTools(cfg);
+	const tools = (params.tools ?? resolveTools(cfg)).map((tool) => {
+		if (isToolWrappedWithBeforeToolCallHook(tool)) return tool;
+		return wrapToolWithBeforeToolCallHook(tool);
+	});
 	const toolMap = /* @__PURE__ */ new Map();
 	for (const tool of tools) toolMap.set(tool.name, tool);
 	const server = new Server({
@@ -63,7 +68,7 @@ function createPluginToolsMcpServer(params = {}) {
 			return {
 				content: [{
 					type: "text",
-					text: `Tool error: ${err instanceof Error ? err.message : String(err)}`
+					text: `Tool error: ${formatErrorMessage(err)}`
 				}],
 				isError: true
 			};
@@ -98,7 +103,7 @@ async function servePluginToolsMcp() {
 	await server.connect(transport);
 }
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) servePluginToolsMcp().catch((err) => {
-	process.stderr.write(`plugin-tools-serve: ${err instanceof Error ? err.message : String(err)}\n`);
+	process.stderr.write(`plugin-tools-serve: ${formatErrorMessage(err)}\n`);
 	process.exit(1);
 });
 //#endregion

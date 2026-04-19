@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { FallbackAttempt } from "./model-fallback.types.js";
 /**
  * Structured error thrown when all model fallback candidates have been

@@ -104,6 +104,13 @@ tlon --url https://bot.tlon.network --cookie "urbauth-~bot=0v..." contacts self
 # List your groups
 tlon channels groups
 
+# Create a group channel
+# (preferred alias; tlon groups add-channel still works)
+tlon channels create ~host/group-slug "Projects" --kind chat
+
+# Rename a channel
+tlon channels rename chat/~host/project-updates "Team Updates"
+
 # Get recent mentions
 tlon activity mentions --limit 10
 

@@ -17,3 +17,4 @@ export declare function parseFeishuConversationId(params: {
     senderOpenId?: string;
     scope: FeishuGroupSessionScope;
 } | null;
+export declare function buildFeishuModelOverrideParentCandidates(parentConversationId?: string | null): string[];

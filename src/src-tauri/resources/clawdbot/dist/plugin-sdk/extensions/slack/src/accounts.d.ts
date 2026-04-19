@@ -22,4 +22,4 @@ export declare function resolveSlackAccount(params: {
     accountId?: string | null;
 }): ResolvedSlackAccount;
 export declare function listEnabledSlackAccounts(cfg: OpenClawConfig): ResolvedSlackAccount[];
-export declare function resolveSlackReplyToMode(account: ResolvedSlackAccount, chatType?: string | null): "off" | "first" | "all";
+export declare function resolveSlackReplyToMode(account: ResolvedSlackAccount, chatType?: string | null): "off" | "first" | "all" | "batched";

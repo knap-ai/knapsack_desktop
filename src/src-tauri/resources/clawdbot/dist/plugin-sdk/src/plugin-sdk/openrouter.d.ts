@@ -1,6 +1,4 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["openrouter"];
-type FacadeModule = FacadeEntry["module"];
+type FacadeModule = typeof import("@openclaw/openrouter/api.js");
 export declare const applyOpenrouterConfig: FacadeModule["applyOpenrouterConfig"];
 export declare const applyOpenrouterProviderConfig: FacadeModule["applyOpenrouterProviderConfig"];
 export declare const buildOpenrouterProvider: FacadeModule["buildOpenrouterProvider"];

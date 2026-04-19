@@ -1,18 +1,19 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { OpenClawConfig } from "../../../config/types.openclaw.js";
+import type { EmbeddedRunTrigger } from "./params.js";
 /**
  * Default idle timeout for LLM streaming responses in milliseconds.
- * If no token is received within this time, the request is aborted.
- * Set to 0 to disable (never timeout).
- * Default: 60 seconds.
  */
-export declare const DEFAULT_LLM_IDLE_TIMEOUT_MS = 60000;
+export declare const DEFAULT_LLM_IDLE_TIMEOUT_MS: number;
 /**
  * Resolves the LLM idle timeout from configuration.
- * @param cfg - OpenClaw configuration
  * @returns Idle timeout in milliseconds, or 0 to disable
  */
-export declare function resolveLlmIdleTimeoutMs(cfg?: OpenClawConfig): number;
+export declare function resolveLlmIdleTimeoutMs(params?: {
+    cfg?: OpenClawConfig;
+    trigger?: EmbeddedRunTrigger;
+    runTimeoutMs?: number;
+}): number;
 /**
  * Wraps a stream function with idle timeout detection.
  * If no token is received within the specified timeout, the request is aborted.

@@ -1,13 +1,22 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { b as setMSTeamsRuntime } from "../../graph-users-F-Pl04ex.js";
-import { t as msteamsPlugin } from "../../channel-BdILWSVn.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/msteams/index.ts
-var msteams_default = defineChannelPluginEntry({
+var msteams_default = defineBundledChannelEntry({
 	id: "msteams",
 	name: "Microsoft Teams",
 	description: "Microsoft Teams channel plugin (Bot Framework)",
-	plugin: msteamsPlugin,
-	setRuntime: setMSTeamsRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "msteamsPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setMSTeamsRuntime"
+	}
 });
 //#endregion
-export { msteams_default as default, msteamsPlugin, setMSTeamsRuntime };
+export { msteams_default as default };

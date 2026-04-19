@@ -8,3 +8,7 @@ export declare function resolveMissingRequestedScope(params: {
     requestedScopes: readonly string[];
     allowedScopes: readonly string[];
 }): string | null;
+export declare function resolveScopeOutsideRequestedRoles(params: {
+    requestedRoles: readonly string[];
+    requestedScopes: readonly string[];
+}): string | null;

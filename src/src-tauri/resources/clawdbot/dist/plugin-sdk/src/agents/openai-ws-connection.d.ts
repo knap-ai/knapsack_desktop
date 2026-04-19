@@ -14,7 +14,8 @@
  */
 import { EventEmitter } from "node:events";
 import WebSocket, { type ClientOptions } from "ws";
-import { type ProviderRequestTransportOverrides } from "./provider-request-config.js";
+import type { ClientEvent, FunctionToolDefinition, OpenAIResponsesAssistantPhase } from "./openai-ws-types.js";
+import { type ModelProviderRequestTransportOverrides } from "./provider-request-config.js";
 export interface ResponseObject {
     id: string;
     object: "response";
@@ -27,13 +28,20 @@ export interface ResponseObject {
         code: string;
         message: string;
     };
+    incomplete_details?: {
+        reason?: string;
+    };
 }
 export interface UsageInfo {
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    input_tokens_details?: {
+        cached_tokens?: number;
+    };
 }
-export type OpenAIResponsesAssistantPhase = "commentary" | "final_answer";
 export type OutputItem = {
     type: "message";
     id: string;
@@ -142,98 +150,19 @@ export interface RateLimitUpdatedEvent {
 }
 export interface ErrorEvent {
     type: "error";
-    code: string;
-    message: string;
+    status?: number;
+    code?: string;
+    message?: string;
     param?: string;
+    error?: {
+        type?: string;
+        code?: string;
+        message?: string;
+        param?: string;
+    };
 }
 export type OpenAIWebSocketEvent = ResponseCreatedEvent | ResponseInProgressEvent | ResponseCompletedEvent | ResponseFailedEvent | OutputItemAddedEvent | OutputItemDoneEvent | ContentPartAddedEvent | ContentPartDoneEvent | OutputTextDeltaEvent | OutputTextDoneEvent | FunctionCallArgumentsDeltaEvent | FunctionCallArgumentsDoneEvent | RateLimitUpdatedEvent | ErrorEvent;
-export type ContentPart = {
-    type: "input_text";
-    text: string;
-} | {
-    type: "output_text";
-    text: string;
-} | {
-    type: "input_image";
-    source: {
-        type: "url";
-        url: string;
-    } | {
-        type: "base64";
-        media_type: string;
-        data: string;
-    };
-};
-export type InputItem = {
-    type: "message";
-    role: "system" | "developer" | "user" | "assistant";
-    content: string | ContentPart[];
-    phase?: OpenAIResponsesAssistantPhase;
-} | {
-    type: "function_call";
-    id?: string;
-    call_id?: string;
-    name: string;
-    arguments: string;
-} | {
-    type: "function_call_output";
-    call_id: string;
-    output: string;
-} | {
-    type: "reasoning";
-    id?: string;
-    content?: string;
-    encrypted_content?: string;
-    summary?: string;
-} | {
-    type: "item_reference";
-    id: string;
-};
-export type ToolChoice = "auto" | "none" | "required" | {
-    type: "function";
-    function: {
-        name: string;
-    };
-};
-export interface FunctionToolDefinition {
-    type: "function";
-    name: string;
-    description?: string;
-    parameters?: Record<string, unknown>;
-    strict?: boolean;
-}
-/** Standard response.create event payload (full turn) */
-export interface ResponseCreateEvent {
-    type: "response.create";
-    model: string;
-    store?: boolean;
-    stream?: boolean;
-    input?: string | InputItem[];
-    instructions?: string;
-    tools?: FunctionToolDefinition[];
-    tool_choice?: ToolChoice;
-    context_management?: unknown;
-    previous_response_id?: string;
-    max_output_tokens?: number;
-    temperature?: number;
-    top_p?: number;
-    metadata?: Record<string, string>;
-    reasoning?: {
-        effort?: "low" | "medium" | "high";
-        summary?: "auto" | "concise" | "detailed";
-    };
-    text?: {
-        verbosity?: "low" | "medium" | "high";
-        [key: string]: unknown;
-    };
-    truncation?: "auto" | "disabled";
-    [key: string]: unknown;
-}
-/** Warm-up payload: generate: false pre-loads connection without generating output */
-export interface WarmUpEvent extends ResponseCreateEvent {
-    generate: false;
-}
-export type ClientEvent = ResponseCreateEvent | WarmUpEvent;
+export type { ClientEvent, ContentPart, FunctionToolDefinition, InputItem, OpenAIResponsesAssistantPhase, ResponseCreateEvent, ToolChoice, WarmUpEvent, } from "./openai-ws-types.js";
 export interface OpenAIWebSocketManagerOptions {
     /** Override the default WebSocket URL (useful for testing) */
     url?: string;
@@ -243,8 +172,16 @@ export interface OpenAIWebSocketManagerOptions {
     backoffDelaysMs?: readonly number[];
     /** Custom socket factory for tests. */
     socketFactory?: (url: string, options: ClientOptions) => WebSocket;
+    /** Extra headers merged into the initial WebSocket handshake request. */
+    headers?: Record<string, string>;
     /** Optional transport overrides for provider-owned auth or TLS wiring. */
-    request?: ProviderRequestTransportOverrides;
+    request?: ModelProviderRequestTransportOverrides;
+}
+export type OpenAIWebSocketConnectionState = "idle" | "connecting" | "open" | "reconnecting" | "closed";
+export interface OpenAIWebSocketCloseInfo {
+    code: number;
+    reason: string;
+    retryable: boolean;
 }
 type InternalEvents = {
     message: [event: OpenAIWebSocketEvent];
@@ -266,7 +203,7 @@ type InternalEvents = {
  *   }
  * });
  *
- * manager.send({ type: "response.create", model: "gpt-5.2", input: [...] });
+ * manager.send({ type: "response.create", model: "gpt-5.4", input: [...] });
  * ```
  */
 export declare class OpenAIWebSocketManager extends EventEmitter<InternalEvents> {
@@ -277,17 +214,23 @@ export declare class OpenAIWebSocketManager extends EventEmitter<InternalEvents>
     private closed;
     /** The ID of the most recent completed response on this connection. */
     private _previousResponseId;
+    private _connectionState;
+    private _lastCloseInfo;
     private readonly wsUrl;
     private readonly maxRetries;
     private readonly backoffDelaysMs;
     private readonly socketFactory;
+    private readonly headers?;
     private readonly request?;
+    private readonly flowId;
     constructor(options?: OpenAIWebSocketManagerOptions);
     /**
      * Returns the previous_response_id from the last completed response,
      * for use in subsequent response.create events.
      */
     get previousResponseId(): string | null;
+    get connectionState(): OpenAIWebSocketConnectionState;
+    get lastCloseInfo(): OpenAIWebSocketCloseInfo | null;
     /**
      * Opens a WebSocket connection to the OpenAI Responses API.
      * Resolves when the connection is established (open event fires).
@@ -327,6 +270,13 @@ export declare class OpenAIWebSocketManager extends EventEmitter<InternalEvents>
         model: string;
         tools?: FunctionToolDefinition[];
         instructions?: string;
+        metadata?: Record<string, string>;
     }): void;
 }
-export {};
+export declare function getOpenAIWebSocketErrorDetails(event: ErrorEvent): {
+    status?: number;
+    type?: string;
+    code?: string;
+    message?: string;
+    param?: string;
+};

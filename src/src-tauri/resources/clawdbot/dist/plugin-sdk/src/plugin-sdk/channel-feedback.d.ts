@@ -1,3 +1,4 @@
+export { resolveAckReaction } from "../agents/identity.js";
 export { removeAckReactionAfterReply, shouldAckReaction, shouldAckReactionForWhatsApp, type AckReactionGateParams, type AckReactionScope, type WhatsAppAckReactionMode, } from "../channels/ack-reactions.js";
 export { logAckFailure, logTypingFailure, type LogFn } from "../channels/logging.js";
 export { missingTargetError } from "../infra/outbound/target-errors.js";

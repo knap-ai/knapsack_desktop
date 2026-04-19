@@ -1,5 +1,5 @@
 import { type SenderLabelParams } from "../channels/sender-label.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type AgentEnvelopeParams = {
     channel: string;
     from?: string;

@@ -118,7 +118,6 @@ Hooks can trigger actions on other agents:
       [%groups =action:g]       :: group actions (ban, kick, etc)
       [%activity =action:a]     :: activity actions
       [%dm =action:dm:ch]       :: DM actions
-      [%club =action:club:ch]   :: group DM actions
       [%contacts =action:co]    :: contact actions
       [%wait waiting-hook]      :: schedule delayed execution
   ==

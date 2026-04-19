@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export declare const SUBAGENT_SESSION_ROLES: readonly ["main", "orchestrator", "leaf"];
 export type SubagentSessionRole = (typeof SUBAGENT_SESSION_ROLES)[number];
 export declare const SUBAGENT_CONTROL_SCOPES: readonly ["children", "none"];
