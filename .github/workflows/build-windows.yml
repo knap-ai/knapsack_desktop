@@ -95,7 +95,7 @@ jobs:
 
       - name: Build Tauri app
         working-directory: src
-        run: npx tauri build
+        run: npx tauri build --bundle nsis
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
