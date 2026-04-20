@@ -1,11 +1,10 @@
-import type { OpenClawConfig } from "../../config/config.js";
-import type { DmPolicy, GroupPolicy } from "../../config/types.js";
+import type { DmPolicy, GroupPolicy } from "../../config/types.base.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { SecretInput } from "../../config/types.secrets.js";
 import type { WizardPrompter } from "../../wizard/prompts.js";
-import type { ChannelSetupDmPolicy, PromptAccountId } from "./setup-wizard-types.js";
-import type { ChannelSetupWizard, ChannelSetupWizardAllowFromEntry, ChannelSetupWizardStatus } from "./setup-wizard.js";
+import type { ChannelSetupDmPolicy, ChannelSetupWizard, ChannelSetupWizardAllowFromEntry, ChannelSetupWizardStatus, PromptAccountId } from "./setup-wizard-types.js";
 export declare const promptAccountId: PromptAccountId;
-export declare function addWildcardAllowFrom(allowFrom?: Array<string | number> | null): string[];
+export declare function addWildcardAllowFrom(allowFrom?: ReadonlyArray<string | number> | null): string[];
 export declare function mergeAllowFromEntries(current: Array<string | number> | null | undefined, additions: Array<string | number>): string[];
 export declare function splitSetupEntries(raw: string): string[];
 type ParsedSetupEntry = {
@@ -41,6 +40,7 @@ export declare function createStandardChannelSetupStatus(params: {
     resolveConfigured: ChannelSetupWizardStatus["resolveConfigured"];
     resolveExtraStatusLines?: (params: {
         cfg: OpenClawConfig;
+        accountId?: string;
         configured: boolean;
     }) => string[] | Promise<string[]>;
 }): ChannelSetupWizardStatus;
@@ -59,7 +59,7 @@ export declare function resolveAccountIdForConfigure(params: {
 }): Promise<string>;
 export declare function setAccountAllowFromForChannel(params: {
     cfg: OpenClawConfig;
-    channel: "imessage" | "signal";
+    channel: string;
     accountId: string;
     allowFrom: string[];
 }): OpenClawConfig;
@@ -156,34 +156,34 @@ export declare function createTopLevelChannelGroupPolicySetter(params: {
 }): (cfg: OpenClawConfig, groupPolicy: "open" | "allowlist" | "disabled") => OpenClawConfig;
 export declare function setChannelDmPolicyWithAllowFrom(params: {
     cfg: OpenClawConfig;
-    channel: "imessage" | "signal" | "telegram";
+    channel: string;
     dmPolicy: DmPolicy;
 }): OpenClawConfig;
-export declare function setLegacyChannelDmPolicyWithAllowFrom(params: {
+export declare function setCompatChannelDmPolicyWithAllowFrom(params: {
     cfg: OpenClawConfig;
-    channel: LegacyDmChannel;
+    channel: string;
     dmPolicy: DmPolicy;
 }): OpenClawConfig;
-export declare function setLegacyChannelAllowFrom(params: {
+export declare function setCompatChannelAllowFrom(params: {
     cfg: OpenClawConfig;
-    channel: LegacyDmChannel;
+    channel: string;
     allowFrom: string[];
 }): OpenClawConfig;
 export declare function setAccountGroupPolicyForChannel(params: {
     cfg: OpenClawConfig;
-    channel: "discord" | "slack";
+    channel: string;
     accountId: string;
     groupPolicy: GroupPolicy;
 }): OpenClawConfig;
 export declare function setAccountDmAllowFromForChannel(params: {
     cfg: OpenClawConfig;
-    channel: "discord" | "slack";
+    channel: string;
     accountId: string;
     allowFrom: string[];
 }): OpenClawConfig;
-export declare function createLegacyCompatChannelDmPolicy(params: {
+export declare function createCompatChannelDmPolicy(params: {
     label: string;
-    channel: LegacyDmChannel;
+    channel: string;
     promptAllowFrom?: ChannelSetupDmPolicy["promptAllowFrom"];
 }): ChannelSetupDmPolicy;
 export declare function resolveGroupAllowlistWithLookupNotes<TResolved>(params: {
@@ -194,7 +194,7 @@ export declare function resolveGroupAllowlistWithLookupNotes<TResolved>(params: 
     resolve: () => Promise<TResolved>;
 }): Promise<TResolved>;
 export declare function createAccountScopedAllowFromSection(params: {
-    channel: "discord" | "slack";
+    channel: string;
     credentialInputKey?: NonNullable<ChannelSetupWizard["allowFrom"]>["credentialInputKey"];
     helpTitle?: string;
     helpLines?: string[];
@@ -205,7 +205,7 @@ export declare function createAccountScopedAllowFromSection(params: {
     resolveEntries: NonNullable<NonNullable<ChannelSetupWizard["allowFrom"]>["resolveEntries"]>;
 }): NonNullable<ChannelSetupWizard["allowFrom"]>;
 export declare function createAccountScopedGroupAccessSection<TResolved>(params: {
-    channel: "discord" | "slack";
+    channel: string;
     label: string;
     placeholder: string;
     helpTitle?: string;
@@ -222,11 +222,11 @@ export declare function createAccountScopedGroupAccessSection<TResolved>(params:
         resolved: TResolved;
     }) => OpenClawConfig;
 }): NonNullable<ChannelSetupWizard["groupAccess"]>;
-type AccountScopedChannel = "bluebubbles" | "discord" | "imessage" | "line" | "signal" | "slack" | "telegram";
-type LegacyDmChannel = "discord" | "slack";
-export declare function patchLegacyDmChannelConfig(params: {
+type AccountScopedChannel = string;
+type CompatDmChannel = string;
+export declare function patchCompatDmChannelConfig(params: {
     cfg: OpenClawConfig;
-    channel: LegacyDmChannel;
+    channel: string;
     patch: Record<string, unknown>;
 }): OpenClawConfig;
 export declare function setSetupChannelEnabled(cfg: OpenClawConfig, channel: string, enabled: boolean): OpenClawConfig;
@@ -238,9 +238,9 @@ export declare function patchChannelConfigForAccount(params: {
 }): OpenClawConfig;
 export declare function applySingleTokenPromptResult(params: {
     cfg: OpenClawConfig;
-    channel: "discord" | "telegram";
+    channel: string;
     accountId: string;
-    tokenPatchKey: "token" | "botToken";
+    tokenPatchKey: string;
     tokenResult: {
         useEnv: boolean;
         token: SecretInput | null;
@@ -364,7 +364,7 @@ export declare function createPromptParsedAllowFromForAccount<TConfig extends Op
 }): NonNullable<ChannelSetupDmPolicy["promptAllowFrom"]>;
 export declare function promptParsedAllowFromForScopedChannel(params: {
     cfg: OpenClawConfig;
-    channel: "imessage" | "signal";
+    channel: string;
     accountId?: string;
     defaultAccountId: string;
     prompter: Pick<WizardPrompter, "note" | "text">;
@@ -380,7 +380,7 @@ export declare function promptParsedAllowFromForScopedChannel(params: {
 }): Promise<OpenClawConfig>;
 export declare function createTopLevelChannelParsedAllowFromPrompt(params: {
     channel: string;
-    defaultAccountId: string;
+    defaultAccountId: string | ((cfg: OpenClawConfig) => string);
     enabled?: boolean;
     noteTitle?: string;
     noteLines?: string[];
@@ -396,7 +396,7 @@ export declare function createTopLevelChannelParsedAllowFromPrompt(params: {
 export declare function createNestedChannelParsedAllowFromPrompt(params: {
     channel: string;
     section: string;
-    defaultAccountId: string;
+    defaultAccountId: string | ((cfg: OpenClawConfig) => string);
     enabled?: boolean;
     noteTitle?: string;
     noteLines?: string[];
@@ -470,7 +470,7 @@ export declare function promptResolvedAllowFrom(params: {
 }): Promise<string[]>;
 export declare function promptLegacyChannelAllowFrom(params: {
     cfg: OpenClawConfig;
-    channel: LegacyDmChannel;
+    channel: CompatDmChannel;
     prompter: WizardPrompter;
     existing: Array<string | number>;
     token?: string | null;
@@ -487,7 +487,7 @@ export declare function promptLegacyChannelAllowFrom(params: {
 }): Promise<OpenClawConfig>;
 export declare function promptLegacyChannelAllowFromForAccount<TAccount>(params: {
     cfg: OpenClawConfig;
-    channel: LegacyDmChannel;
+    channel: CompatDmChannel;
     prompter: WizardPrompter;
     accountId?: string;
     defaultAccountId: string;
@@ -505,4 +505,8 @@ export declare function promptLegacyChannelAllowFromForAccount<TAccount>(params:
         entries: string[];
     }) => Promise<AllowFromResolution[]>;
 }): Promise<OpenClawConfig>;
+export declare const patchLegacyDmChannelConfig: typeof patchCompatDmChannelConfig;
+export declare const setLegacyChannelDmPolicyWithAllowFrom: typeof setCompatChannelDmPolicyWithAllowFrom;
+export declare const setLegacyChannelAllowFrom: typeof setCompatChannelAllowFrom;
+export declare const createLegacyCompatChannelDmPolicy: typeof createCompatChannelDmPolicy;
 export {};

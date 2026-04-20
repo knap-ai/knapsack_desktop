@@ -1,7 +1,7 @@
 import type { ImageSanitizationLimits } from "./image-sanitization.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
-export { CLAUDE_PARAM_GROUPS, assertRequiredParams, normalizeToolParams, patchToolSchemaForClaudeCompatibility, wrapToolParamNormalization, } from "./pi-tools.params.js";
+export { REQUIRED_PARAM_GROUPS, assertRequiredParams, getToolParamsRecord, wrapToolParamValidation, } from "./pi-tools.params.js";
 type OpenClawReadToolOptions = {
     modelContextWindowTokens?: number;
     imageSanitization?: ImageSanitizationLimits;
@@ -24,6 +24,8 @@ type MemoryFlushAppendOnlyWriteOptions = {
 export declare function wrapToolMemoryFlushAppendOnlyWrite(tool: AnyAgentTool, options: MemoryFlushAppendOnlyWriteOptions): AnyAgentTool;
 export declare function wrapToolWorkspaceRootGuardWithOptions(tool: AnyAgentTool, root: string, options?: {
     containerWorkdir?: string;
+    pathParamKeys?: readonly string[];
+    normalizeGuardedPathParams?: boolean;
 }): AnyAgentTool;
 type SandboxToolParams = {
     root: string;

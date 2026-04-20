@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export type ModelAuthDetailMode = "compact" | "verbose";
 export declare const resolveAuthLabel: (provider: string, cfg: OpenClawConfig, modelsPath: string, agentDir?: string, mode?: ModelAuthDetailMode) => Promise<{
     label: string;

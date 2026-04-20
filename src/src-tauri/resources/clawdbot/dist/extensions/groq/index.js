@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { t as groqMediaUnderstandingProvider } from "../../media-understanding-provider-BosrsC1H.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { t as groqMediaUnderstandingProvider } from "../../media-understanding-provider-CJ4Kvhrx.js";
 //#region extensions/groq/index.ts
 var groq_default = definePluginEntry({
 	id: "groq",

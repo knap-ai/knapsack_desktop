@@ -9,5 +9,6 @@ declare const executeDeps: {
     requestHeartbeatNow: typeof requestHeartbeatNowImpl;
 };
 export declare function setCliRunnerExecuteTestDeps(overrides: Partial<typeof executeDeps>): void;
+export declare function buildCliEnvAuthLog(childEnv: Record<string, string>): string;
 export declare function executePreparedCliRun(context: PreparedCliRunContext, cliSessionIdToUse?: string): Promise<CliOutput>;
 export {};

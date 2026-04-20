@@ -1,6 +1,5 @@
+export { AUTH_PROFILE_FILENAME, AUTH_STATE_FILENAME, LEGACY_AUTH_FILENAME, } from "./path-constants.js";
 export declare const AUTH_STORE_VERSION = 1;
-export declare const AUTH_PROFILE_FILENAME = "auth-profiles.json";
-export declare const LEGACY_AUTH_FILENAME = "auth.json";
 export declare const CLAUDE_CLI_PROFILE_ID = "anthropic:claude-cli";
 export declare const CODEX_CLI_PROFILE_ID = "openai-codex:codex-cli";
 export declare const OPENAI_CODEX_DEFAULT_PROFILE_ID = "openai-codex:default";

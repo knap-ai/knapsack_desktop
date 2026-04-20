@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type AuthCredentialReasonCode, type AuthProfileStore } from "./auth-profiles.js";
 export type AuthProfileSource = "store";
 export type AuthProfileHealthStatus = "ok" | "expiring" | "expired" | "missing" | "static";

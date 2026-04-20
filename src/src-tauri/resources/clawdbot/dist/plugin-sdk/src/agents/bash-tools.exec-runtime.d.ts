@@ -6,6 +6,8 @@ import type { BashSandboxConfig } from "./bash-tools.shared.js";
 export { applyPathPrepend, findPathKey, normalizePathPrepend } from "../infra/path-prepend.js";
 export { normalizeExecAsk, normalizeExecHost, normalizeExecSecurity, normalizeExecTarget, } from "../infra/exec-approvals.js";
 import type { RunExit } from "../process/supervisor/types.js";
+import { type DeliveryContext } from "../utils/delivery-context.js";
+export { execSchema } from "./bash-tools.schemas.js";
 /**
  * Detect cursor key mode from PTY output chunk.
  * Uses lastIndexOf to find the *last* toggle in the chunk.
@@ -21,20 +23,6 @@ export declare const DEFAULT_PATH: string;
 export declare const DEFAULT_NOTIFY_TAIL_CHARS = 400;
 export declare const DEFAULT_APPROVAL_TIMEOUT_MS = 1800000;
 export declare const DEFAULT_APPROVAL_REQUEST_TIMEOUT_MS: number;
-export declare const execSchema: import("@sinclair/typebox").TObject<{
-    command: import("@sinclair/typebox").TString;
-    workdir: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    env: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-    yieldMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-    background: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    timeout: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-    pty: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    elevated: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    host: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    node: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-}>;
 export type ExecProcessFailureKind = "shell-command-not-found" | "shell-not-executable" | "overall-timeout" | "no-output-timeout" | "signal" | "aborted" | "runtime-error";
 type ExecExitFailureKind = Exclude<ExecProcessFailureKind, "runtime-error">;
 export type ExecProcessOutcome = {
@@ -60,12 +48,15 @@ export type ExecProcessHandle = {
     pid?: number;
     promise: Promise<ExecProcessOutcome>;
     kill: () => void;
+    /** Immediately suppress all future `onUpdate` calls for this handle. */
+    disableUpdates: () => void;
 };
-export declare function renderExecHostLabel(host: ExecHost): "node" | "sandbox" | "gateway";
-export declare function renderExecTargetLabel(target: ExecTarget): "auto" | "node" | "sandbox" | "gateway";
+export declare function renderExecHostLabel(host: ExecHost): "sandbox" | "gateway" | "node";
+export declare function renderExecTargetLabel(target: ExecTarget): "auto" | "sandbox" | "gateway" | "node";
 export declare function isRequestedExecTargetAllowed(params: {
     configuredTarget: ExecTarget;
     requestedTarget: ExecTarget;
+    sandboxAvailable?: boolean;
 }): boolean;
 export declare function resolveExecTarget(params: {
     configuredTarget?: ExecTarget;
@@ -95,6 +86,7 @@ export declare function resolveApprovalRunningNoticeMs(value?: number): number;
 export declare function emitExecSystemEvent(text: string, opts: {
     sessionKey?: string;
     contextKey?: string;
+    deliveryContext?: DeliveryContext;
 }): void;
 export declare function formatExecFailureReason(params: {
     failureKind: ExecExitFailureKind;
@@ -127,6 +119,7 @@ export declare function runExecProcess(opts: {
     notifyOnExitEmptySuccess?: boolean;
     scopeKey?: string;
     sessionKey?: string;
+    notifyDeliveryContext?: DeliveryContext;
     timeoutSec: number | null;
     onUpdate?: (partialResult: AgentToolResult<ExecToolDetails>) => void;
 }): Promise<ExecProcessHandle>;

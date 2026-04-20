@@ -1,6 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
-import type { HookInstallRecord } from "../config/types.hooks.js";
-import type { PluginInstallRecord } from "../config/types.plugins.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+export { extractInstalledNpmHookPackageName, extractInstalledNpmPackageName, } from "./plugins-install-records.js";
 export declare function resolveFileNpmSpecToLocalPath(raw: string): {
     ok: true;
     path: string;
@@ -21,8 +20,6 @@ export declare function createHookPackInstallLogger(): {
     warn: (msg: string) => void;
 };
 export declare function enableInternalHookEntries(config: OpenClawConfig, hookNames: string[]): OpenClawConfig;
-export declare function extractInstalledNpmPackageName(install: PluginInstallRecord): string | undefined;
-export declare function extractInstalledNpmHookPackageName(install: HookInstallRecord): string | undefined;
 export declare function formatPluginInstallWithHookFallbackError(pluginError: string, hookError: string): string;
 export declare function logHookPackRestartHint(): void;
 export declare function logSlotWarnings(warnings: string[]): void;

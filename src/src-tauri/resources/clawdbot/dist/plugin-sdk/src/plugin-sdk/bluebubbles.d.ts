@@ -1,4 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { ChannelStatusIssue } from "../channels/plugins/types.public.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type BlueBubblesConversationBindingManager = {
     stop: () => void;
 };
@@ -17,6 +18,7 @@ export declare function matchBlueBubblesAcpConversation(params: {
     matchPriority: number;
 } | null;
 export declare function resolveBlueBubblesConversationIdFromTarget(target: string): string | undefined;
+export declare function collectBlueBubblesStatusIssues(accounts: unknown[]): ChannelStatusIssue[];
 export { resolveAckReaction } from "../agents/identity.js";
 export { createActionGate, jsonResult, readNumberParam, readReactionParams, readStringParam, } from "../agents/tools/common.js";
 export type { HistoryEntry } from "../auto-reply/reply/history.js";
@@ -33,8 +35,7 @@ export { addWildcardAllowFrom, mergeAllowFromEntries, setTopLevelChannelDmPolicy
 export { PAIRING_APPROVED_MESSAGE } from "../channels/plugins/pairing-message.js";
 export { applyAccountNameToChannelSection, migrateBaseNameToDefaultAccount, patchScopedAccountConfig, } from "../channels/plugins/setup-helpers.js";
 export { createAccountListHelpers } from "../channels/plugins/account-helpers.js";
-export { collectBlueBubblesStatusIssues } from "../channels/plugins/status-issues/bluebubbles.js";
-export type { BaseProbeResult, ChannelAccountSnapshot, ChannelMessageActionAdapter, ChannelMessageActionName, } from "../channels/plugins/types.js";
+export type { BaseProbeResult, ChannelAccountSnapshot, ChannelMessageActionAdapter, ChannelMessageActionName, } from "../channels/plugins/types.public.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
 export type { OpenClawConfig } from "../config/config.js";

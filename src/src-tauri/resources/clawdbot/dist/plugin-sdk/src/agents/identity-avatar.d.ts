@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type AgentAvatarResolution = {
     kind: "none";
     reason: string;
@@ -12,4 +12,6 @@ export type AgentAvatarResolution = {
     kind: "data";
     url: string;
 };
-export declare function resolveAgentAvatar(cfg: OpenClawConfig, agentId: string): AgentAvatarResolution;
+export declare function resolveAgentAvatar(cfg: OpenClawConfig, agentId: string, opts?: {
+    includeUiOverride?: boolean;
+}): AgentAvatarResolution;

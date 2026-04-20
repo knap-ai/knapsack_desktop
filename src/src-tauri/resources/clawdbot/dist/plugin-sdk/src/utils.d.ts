@@ -23,28 +23,7 @@ export { formatTerminalLink, isPlainObject };
  * Accepts any non-null object that isn't an array.
  */
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
-export type WebChannel = "web";
-export declare function assertWebChannel(input: string): asserts input is WebChannel;
 export declare function normalizeE164(number: string): string;
-/**
- * "Self-chat mode" heuristic (single phone): the gateway is logged in as the owner's own WhatsApp account,
- * and `channels.whatsapp.allowFrom` includes that same number. Used to avoid side-effects that make no sense when the
- * "bot" and the human are the same WhatsApp identity (e.g. auto read receipts, @mention JID triggers).
- */
-export declare function isSelfChatMode(selfE164: string | null | undefined, allowFrom?: Array<string | number> | null): boolean;
-export declare function toWhatsappJid(number: string): string;
-export type JidToE164Options = {
-    authDir?: string;
-    lidMappingDirs?: string[];
-    logMissing?: boolean;
-};
-type LidLookup = {
-    getPNForLID?: (jid: string) => Promise<string | null>;
-};
-export declare function jidToE164(jid: string, opts?: JidToE164Options): string | null;
-export declare function resolveJidToE164(jid: string | null | undefined, opts?: JidToE164Options & {
-    lidLookup?: LidLookup;
-}): Promise<string | null>;
 export declare function sleep(ms: number): Promise<unknown>;
 export declare function sliceUtf16Safe(input: string, start: number, end?: number): string;
 export declare function truncateUtf16Safe(input: string, maxLen: number): string;

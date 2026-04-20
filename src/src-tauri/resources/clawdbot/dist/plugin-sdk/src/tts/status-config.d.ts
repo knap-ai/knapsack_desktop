@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.js";
 import type { TtsAutoMode, TtsProvider } from "../config/types.tts.js";
 type TtsStatusSnapshot = {
     autoMode: TtsAutoMode;

@@ -1,4 +1,4 @@
-import type { ChannelCapabilities, ChannelId, ChannelMessagingAdapter, ChannelOutboundAdapter, ChannelPlugin } from "../channels/plugins/types.js";
+import type { ChannelCapabilities, ChannelId, ChannelMessagingAdapter, ChannelOutboundAdapter, ChannelPlugin } from "../channels/plugins/types.public.js";
 import type { PluginRegistry } from "../plugins/registry.js";
 export type TestChannelRegistration = {
     pluginId: string;

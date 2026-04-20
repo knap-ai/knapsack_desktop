@@ -1,44 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import { type FSWatcher } from "chokidar";
 import { type OpenClawConfig, type ResolvedMemorySearchConfig } from "openclaw/plugin-sdk/memory-core-host-engine-foundation";
-import { type MemoryEmbeddingProbeResult, type MemoryProviderStatus, type MemorySearchManager, type MemorySearchResult, type MemorySource, type MemorySyncProgressUpdate } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
+import { type MemoryEmbeddingProbeResult, type MemoryProviderStatus, type MemorySearchManager, type MemorySearchRuntimeDebug, type MemorySearchResult, type MemorySource, type MemorySyncProgressUpdate } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
 import { type EmbeddingProvider, type EmbeddingProviderId, type EmbeddingProviderRuntime } from "./embeddings.js";
 import { MemoryManagerEmbeddingOps } from "./manager-embedding-ops.js";
-type MemoryReadonlyRecoveryState = {
-    closed: boolean;
-    db: DatabaseSync;
-    vectorReady: Promise<boolean> | null;
-    vector: {
-        enabled: boolean;
-        available: boolean | null;
-        extensionPath?: string;
-        loadError?: string;
-        dims?: number;
-    };
-    readonlyRecoveryAttempts: number;
-    readonlyRecoverySuccesses: number;
-    readonlyRecoveryFailures: number;
-    readonlyRecoveryLastError?: string;
-    runSync: (params?: {
-        reason?: string;
-        force?: boolean;
-        sessionFiles?: string[];
-        progress?: (update: MemorySyncProgressUpdate) => void;
-    }) => Promise<void>;
-    openDatabase: () => DatabaseSync;
-    ensureSchema: () => void;
-    readMeta: () => {
-        vectorDims?: number;
-    } | undefined;
-};
-export declare function isMemoryReadonlyDbError(err: unknown): boolean;
-export declare function extractMemoryErrorReason(err: unknown): string;
-export declare function runMemorySyncWithReadonlyRecovery(state: MemoryReadonlyRecoveryState, params?: {
-    reason?: string;
-    force?: boolean;
-    sessionFiles?: string[];
-    progress?: (update: MemorySyncProgressUpdate) => void;
-}): Promise<void>;
 export declare function closeAllMemoryIndexManagers(): Promise<void>;
 export declare class MemoryIndexManager extends MemoryManagerEmbeddingOps implements MemorySearchManager {
     private readonly cacheKey;
@@ -122,6 +87,8 @@ export declare class MemoryIndexManager extends MemoryManagerEmbeddingOps implem
         maxResults?: number;
         minScore?: number;
         sessionKey?: string;
+        qmdSearchModeOverride?: "query" | "search" | "vsearch";
+        onDebug?: (debug: MemorySearchRuntimeDebug) => void;
     }): Promise<MemorySearchResult[]>;
     private selectScoredResults;
     private hasIndexedContent;
@@ -152,4 +119,3 @@ export declare class MemoryIndexManager extends MemoryManagerEmbeddingOps implem
     probeEmbeddingAvailability(): Promise<MemoryEmbeddingProbeResult>;
     close(): Promise<void>;
 }
-export {};

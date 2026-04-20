@@ -1,9 +1,5 @@
-export declare const ADMIN_SCOPE: "operator.admin";
-export declare const READ_SCOPE: "operator.read";
-export declare const WRITE_SCOPE: "operator.write";
-export declare const APPROVALS_SCOPE: "operator.approvals";
-export declare const PAIRING_SCOPE: "operator.pairing";
-export type OperatorScope = typeof ADMIN_SCOPE | typeof READ_SCOPE | typeof WRITE_SCOPE | typeof APPROVALS_SCOPE | typeof PAIRING_SCOPE;
+import { ADMIN_SCOPE, APPROVALS_SCOPE, PAIRING_SCOPE, READ_SCOPE, TALK_SECRETS_SCOPE, WRITE_SCOPE, type OperatorScope } from "./operator-scopes.js";
+export { ADMIN_SCOPE, APPROVALS_SCOPE, PAIRING_SCOPE, READ_SCOPE, TALK_SECRETS_SCOPE, WRITE_SCOPE, type OperatorScope, };
 export declare const CLI_DEFAULT_OPERATOR_SCOPES: OperatorScope[];
 export declare function isApprovalMethod(method: string): boolean;
 export declare function isPairingMethod(method: string): boolean;

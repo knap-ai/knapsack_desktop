@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ConversationRef } from "../../infra/outbound/session-binding-service.js";
 import type { ConfiguredBindingRecordResolution, ConfiguredBindingResolution } from "./binding-types.js";
 export declare function primeConfiguredBindingRegistry(params: {

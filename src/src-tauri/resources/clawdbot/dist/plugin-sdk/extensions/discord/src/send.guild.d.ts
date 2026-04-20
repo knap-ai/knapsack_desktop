@@ -12,6 +12,9 @@ export declare function fetchChannelInfoDiscord(channelId: string, opts?: Discor
 export declare function listGuildChannelsDiscord(guildId: string, opts?: DiscordReactOpts): Promise<APIChannel[]>;
 export declare function fetchVoiceStatusDiscord(guildId: string, userId: string, opts?: DiscordReactOpts): Promise<APIVoiceState>;
 export declare function listScheduledEventsDiscord(guildId: string, opts?: DiscordReactOpts): Promise<APIGuildScheduledEvent[]>;
+export declare function resolveEventCoverImage(imageUrl: string, opts?: {
+    localRoots?: readonly string[];
+}): Promise<string>;
 export declare function createScheduledEventDiscord(guildId: string, payload: RESTPostAPIGuildScheduledEventJSONBody, opts?: DiscordReactOpts): Promise<APIGuildScheduledEvent>;
 export declare function timeoutMemberDiscord(payload: DiscordTimeoutTarget, opts?: DiscordReactOpts): Promise<APIGuildMember>;
 export declare function kickMemberDiscord(payload: DiscordModerationTarget, opts?: DiscordReactOpts): Promise<{

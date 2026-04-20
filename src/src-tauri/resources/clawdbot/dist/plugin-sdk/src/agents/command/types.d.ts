@@ -1,22 +1,16 @@
 import type { AgentInternalEvent } from "../../agents/internal-events.js";
-import type { ClientToolDefinition } from "../../agents/pi-embedded-runner/run/params.js";
 import type { SpawnedRunMetadata } from "../../agents/spawned-context.js";
-import type { ChannelOutboundTargetMode } from "../../channels/plugins/types.js";
+import type { ChannelOutboundTargetMode } from "../../channels/plugins/types.public.js";
 import type { PromptImageOrderEntry } from "../../media/prompt-image-order.js";
 import type { InputProvenance } from "../../sessions/input-provenance.js";
+import type { AgentStreamParams, ClientToolDefinition } from "./shared-types.js";
 /** Image content block for Claude API multimodal messages. */
 export type ImageContent = {
     type: "image";
     data: string;
     mimeType: string;
 };
-export type AgentStreamParams = {
-    /** Provider stream params override (best-effort). */
-    temperature?: number;
-    maxTokens?: number;
-    /** Provider fast-mode override (best-effort). */
-    fastMode?: boolean;
-};
+export type { AgentStreamParams } from "./shared-types.js";
 export type AgentRunContext = {
     messageChannel?: string;
     accountId?: string;
@@ -25,7 +19,7 @@ export type AgentRunContext = {
     groupSpace?: string | null;
     currentChannelId?: string;
     currentThreadTs?: string;
-    replyToMode?: "off" | "first" | "all";
+    replyToMode?: "off" | "first" | "all" | "batched";
     hasRepliedRef?: {
         value: boolean;
     };
@@ -83,6 +77,10 @@ export type AgentCommandOpts = {
     lane?: string;
     runId?: string;
     extraSystemPrompt?: string;
+    /** Bootstrap workspace context injection mode for this run. */
+    bootstrapContextMode?: "full" | "lightweight";
+    /** Run kind hint for bootstrap context behavior. */
+    bootstrapContextRunKind?: "default" | "heartbeat" | "cron";
     internalEvents?: AgentInternalEvent[];
     inputProvenance?: InputProvenance;
     /** Per-call stream param overrides (best-effort). */

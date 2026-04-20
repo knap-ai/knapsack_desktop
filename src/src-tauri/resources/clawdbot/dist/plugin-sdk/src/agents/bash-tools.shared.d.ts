@@ -1,4 +1,4 @@
-import type { SandboxBackendExecSpec } from "./sandbox/backend.js";
+import type { SandboxBackendExecSpec } from "./sandbox/backend-handle.types.js";
 export type BashSandboxConfig = {
     containerName: string;
     workspaceDir: string;

@@ -150,6 +150,9 @@ export declare const ExecApprovalsNodeSetParamsSchema: import("@sinclair/typebox
     }>;
     baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
 }>;
+export declare const ExecApprovalGetParamsSchema: import("@sinclair/typebox").TObject<{
+    id: import("@sinclair/typebox").TString;
+}>;
 export declare const ExecApprovalRequestParamsSchema: import("@sinclair/typebox").TObject<{
     id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     command: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;

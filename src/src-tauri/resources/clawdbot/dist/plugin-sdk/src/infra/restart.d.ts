@@ -1,10 +1,6 @@
 import { findGatewayPidsOnPortSync } from "./restart-stale-pids.js";
-export type RestartAttempt = {
-    ok: boolean;
-    method: "launchctl" | "systemd" | "schtasks" | "supervisor";
-    detail?: string;
-    tried?: string[];
-};
+import type { RestartAttempt } from "./restart.types.js";
+export type { RestartAttempt } from "./restart.types.js";
 export { findGatewayPidsOnPortSync };
 export type RestartAuditInfo = {
     actor?: string;

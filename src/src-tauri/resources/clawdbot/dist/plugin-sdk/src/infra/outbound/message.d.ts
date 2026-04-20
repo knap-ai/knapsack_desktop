@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { type GatewayClientMode, type GatewayClientName } from "../../utils/message-channel.js";
 import { type OutboundDeliveryResult, type OutboundSendDeps } from "./deliver.js";
 import type { OutboundMirror } from "./mirror.js";
@@ -15,6 +15,18 @@ type MessageSendParams = {
     content: string;
     /** Active agent id for per-agent outbound media root scoping. */
     agentId?: string;
+    /** Originating session key used for requester-scoped outbound media policy. */
+    requesterSessionKey?: string;
+    /** Originating account id used for requester-scoped outbound media policy. */
+    requesterAccountId?: string;
+    /** Originating sender id used for sender-scoped outbound media policy. */
+    requesterSenderId?: string;
+    /** Originating sender display name for name-keyed sender policy matching. */
+    requesterSenderName?: string;
+    /** Originating sender username for username-keyed sender policy matching. */
+    requesterSenderUsername?: string;
+    /** Originating sender E.164 phone number for e164-keyed sender policy matching. */
+    requesterSenderE164?: string;
     channel?: string;
     mediaUrl?: string;
     mediaUrls?: string[];

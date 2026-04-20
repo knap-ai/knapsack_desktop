@@ -4,11 +4,11 @@
  * Manages commands registered by plugins that bypass the LLM agent.
  * These commands are processed before built-in commands and before agent invocation.
  */
-import type { OpenClawConfig } from "../config/config.js";
-import { clearPluginCommands, clearPluginCommandsForPlugin, getPluginCommandSpecs, registerPluginCommand, validateCommandName, validatePluginCommandDefinition } from "./command-registration.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { clearPluginCommands, clearPluginCommandsForPlugin, getPluginCommandSpecs, listProviderPluginCommandSpecs, registerPluginCommand, validateCommandName, validatePluginCommandDefinition } from "./command-registration.js";
 import { type RegisteredPluginCommand } from "./command-registry-state.js";
 import type { PluginCommandContext, PluginCommandResult } from "./types.js";
-export { clearPluginCommands, clearPluginCommandsForPlugin, getPluginCommandSpecs, registerPluginCommand, validateCommandName, validatePluginCommandDefinition, };
+export { clearPluginCommands, clearPluginCommandsForPlugin, getPluginCommandSpecs, listProviderPluginCommandSpecs, registerPluginCommand, validateCommandName, validatePluginCommandDefinition, };
 /**
  * Check if a command body matches a registered plugin command.
  * Returns the command definition and parsed args if matched.
@@ -22,7 +22,9 @@ export declare function matchPluginCommand(commandBody: string): {
     args?: string;
 } | null;
 declare function resolveBindingConversationFromCommand(params: {
+    config?: OpenClawConfig;
     channel: string;
+    senderId?: string;
     from?: string;
     to?: string;
     accountId?: string;
@@ -51,6 +53,7 @@ export declare function executePluginCommand(params: {
     gatewayClientScopes?: PluginCommandContext["gatewayClientScopes"];
     sessionKey?: PluginCommandContext["sessionKey"];
     sessionId?: PluginCommandContext["sessionId"];
+    sessionFile?: PluginCommandContext["sessionFile"];
     commandBody: string;
     config: OpenClawConfig;
     from?: PluginCommandContext["from"];
@@ -67,6 +70,7 @@ export declare function listPluginCommands(): Array<{
     name: string;
     description: string;
     pluginId: string;
+    acceptsArgs: boolean;
 }>;
 export declare const __testing: {
     resolveBindingConversationFromCommand: typeof resolveBindingConversationFromCommand;

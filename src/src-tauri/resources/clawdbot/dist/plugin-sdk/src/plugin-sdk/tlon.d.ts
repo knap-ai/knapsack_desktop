@@ -1,7 +1,7 @@
-export type { ReplyPayload } from "../auto-reply/types.js";
+export type { ReplyPayload } from "../auto-reply/reply-payload.js";
 export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";
 export { applyAccountNameToChannelSection, patchScopedAccountConfig, } from "../channels/plugins/setup-helpers.js";
-export type { ChannelAccountSnapshot, ChannelOutboundAdapter, ChannelSetupInput, } from "../channels/plugins/types.js";
+export type { ChannelAccountSnapshot, ChannelOutboundAdapter, ChannelSetupInput, } from "../channels/plugins/types.public.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
 export type { OpenClawConfig } from "../config/config.js";

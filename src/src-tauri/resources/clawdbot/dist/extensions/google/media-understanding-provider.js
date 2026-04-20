@@ -1,10 +1,9 @@
-import { o as resolveProviderHttpRequestConfig, r as postJsonRequest, t as assertOkOrThrowHttpError } from "../../shared-bNb64sx7.js";
-import { n as describeImagesWithModel, t as describeImageWithModel } from "../../image-runtime-DrCqEvKh.js";
-import "../../media-understanding-CbOWvFaG.js";
-import "../../provider-http-CMHzFsgV.js";
-import { n as normalizeGoogleModelId } from "../../model-id-GSg7lJuG.js";
-import { a as normalizeGoogleApiBaseUrl, c as parseGeminiAuth, t as DEFAULT_GOOGLE_API_BASE_URL } from "../../api-tF_YSNoD.js";
-import "../../runtime-api-Ciu7TJQF.js";
+import { normalizeGoogleModelId } from "./model-id.js";
+import { DEFAULT_GOOGLE_API_BASE_URL } from "./provider-policy.js";
+import { resolveGoogleGenerativeAiHttpRequestConfig } from "./api.js";
+import "./runtime-api.js";
+import { assertOkOrThrowHttpError, postJsonRequest } from "openclaw/plugin-sdk/provider-http";
+import { describeImageWithModel, describeImagesWithModel } from "openclaw/plugin-sdk/media-understanding";
 //#region extensions/google/media-understanding-provider.ts
 const DEFAULT_GOOGLE_AUDIO_BASE_URL = DEFAULT_GOOGLE_API_BASE_URL;
 const DEFAULT_GOOGLE_VIDEO_BASE_URL = DEFAULT_GOOGLE_API_BASE_URL;
@@ -19,20 +18,16 @@ async function generateGeminiInlineDataText(params) {
 		if (!trimmed) return params.defaultModel;
 		return normalizeGoogleModelId(trimmed);
 	})();
-	const { baseUrl, allowPrivateNetwork, headers, dispatcherPolicy } = resolveProviderHttpRequestConfig({
-		baseUrl: normalizeGoogleApiBaseUrl(params.baseUrl ?? params.defaultBaseUrl),
-		defaultBaseUrl: DEFAULT_GOOGLE_API_BASE_URL,
-		allowPrivateNetwork: Boolean(params.baseUrl?.trim()),
+	const { baseUrl, allowPrivateNetwork, headers, dispatcherPolicy } = resolveGoogleGenerativeAiHttpRequestConfig({
+		apiKey: params.apiKey,
+		baseUrl: params.baseUrl,
 		headers: params.headers,
 		request: params.request,
-		defaultHeaders: parseGeminiAuth(params.apiKey).headers,
-		provider: "google",
-		api: "google-generative-ai",
 		capability: params.defaultMime.startsWith("audio/") ? "audio" : "video",
 		transport: "media-understanding"
 	});
 	const { response: res, release } = await postJsonRequest({
-		url: `${baseUrl}/models/${model}:generateContent`,
+		url: `${baseUrl ?? params.defaultBaseUrl}/models/${model}:generateContent`,
 		headers,
 		body: { contents: [{
 			role: "user",
@@ -95,6 +90,17 @@ const googleMediaUnderstandingProvider = {
 		"audio",
 		"video"
 	],
+	defaultModels: {
+		image: DEFAULT_GOOGLE_VIDEO_MODEL,
+		audio: DEFAULT_GOOGLE_AUDIO_MODEL,
+		video: DEFAULT_GOOGLE_VIDEO_MODEL
+	},
+	autoPriority: {
+		image: 30,
+		audio: 40,
+		video: 10
+	},
+	nativeDocumentInputs: ["pdf"],
 	describeImage: describeImageWithModel,
 	describeImages: describeImagesWithModel,
 	transcribeAudio: transcribeGeminiAudio,

@@ -4,14 +4,14 @@
  * Singleton hook runner that's initialized when plugins are loaded
  * and can be called from anywhere in the codebase.
  */
+import type { GlobalHookRunnerRegistry } from "./hook-registry.types.js";
+import type { PluginHookGatewayContext, PluginHookGatewayStopEvent } from "./hook-types.js";
 import { type HookRunner } from "./hooks.js";
-import type { PluginRegistry } from "./registry.js";
-import type { PluginHookGatewayContext, PluginHookGatewayStopEvent } from "./types.js";
 /**
  * Initialize the global hook runner with a plugin registry.
  * Called once when plugins are loaded during gateway startup.
  */
-export declare function initializeGlobalHookRunner(registry: PluginRegistry): void;
+export declare function initializeGlobalHookRunner(registry: GlobalHookRunnerRegistry): void;
 /**
  * Get the global hook runner.
  * Returns null if plugins haven't been loaded yet.
@@ -21,7 +21,7 @@ export declare function getGlobalHookRunner(): HookRunner | null;
  * Get the global plugin registry.
  * Returns null if plugins haven't been loaded yet.
  */
-export declare function getGlobalPluginRegistry(): PluginRegistry | null;
+export declare function getGlobalPluginRegistry(): GlobalHookRunnerRegistry | null;
 /**
  * Check if any hooks are registered for a given hook name.
  */

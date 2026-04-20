@@ -1,5 +1,6 @@
 import { type OpenClawConfig } from "openclaw/plugin-sdk/account-core";
-import type { TelegramAccountConfig, TelegramActionConfig } from "openclaw/plugin-sdk/telegram-core";
+import type { TelegramAccountConfig, TelegramActionConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { TelegramTransport } from "./fetch.js";
 export type ResolvedTelegramAccount = {
     accountId: string;
     enabled: boolean;
@@ -7,6 +8,13 @@ export type ResolvedTelegramAccount = {
     token: string;
     tokenSource: "env" | "tokenFile" | "config" | "none";
     config: TelegramAccountConfig;
+};
+export type TelegramMediaRuntimeOptions = {
+    token: string;
+    transport?: TelegramTransport;
+    apiRoot?: string;
+    trustedLocalFileRoots?: readonly string[];
+    dangerouslyAllowPrivateNetwork?: boolean;
 };
 export declare function listTelegramAccountIds(cfg: OpenClawConfig): string[];
 /** @internal Reset the once-per-process warning flag. Exported for tests only. */
@@ -18,6 +26,12 @@ export declare function createTelegramActionGate(params: {
     cfg: OpenClawConfig;
     accountId?: string | null;
 }): (key: keyof TelegramActionConfig, defaultValue?: boolean) => boolean;
+export declare function resolveTelegramMediaRuntimeOptions(params: {
+    cfg: OpenClawConfig;
+    accountId?: string | null;
+    token: string;
+    transport?: TelegramTransport;
+}): TelegramMediaRuntimeOptions;
 export type TelegramPollActionGateState = {
     sendMessageEnabled: boolean;
     pollEnabled: boolean;

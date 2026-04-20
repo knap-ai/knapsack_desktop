@@ -1,9 +1,10 @@
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type SecretInput, type SecretRef } from "../config/types.secrets.js";
 import type { SecretInputMode } from "./provider-auth-types.js";
 export type ApiKeyStorageOptions = {
     secretInputMode?: SecretInputMode;
+    config?: OpenClawConfig;
 };
 export type WriteOAuthCredentialsOptions = {
     syncSiblingAgents?: boolean;
@@ -17,6 +18,14 @@ export declare function buildApiKeyCredential(provider: string, input: SecretInp
     keyRef?: SecretRef;
     metadata?: Record<string, string>;
 };
+export declare function upsertApiKeyProfile(params: {
+    provider: string;
+    input: SecretInput;
+    agentDir?: string;
+    options?: ApiKeyStorageOptions;
+    profileId?: string;
+    metadata?: Record<string, string>;
+}): string;
 export declare function applyAuthProfileConfig(cfg: OpenClawConfig, params: {
     profileId: string;
     provider: string;

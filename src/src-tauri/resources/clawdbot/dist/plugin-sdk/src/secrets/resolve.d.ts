@@ -1,9 +1,7 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { SecretRef, SecretRefSource } from "../config/types.secrets.js";
-export type SecretRefResolveCache = {
-    resolvedByRefKey?: Map<string, Promise<unknown>>;
-    filePayloadByProvider?: Map<string, Promise<unknown>>;
-};
+import type { SecretRefResolveCache } from "./resolve-types.js";
+export type { SecretRefResolveCache } from "./resolve-types.js";
 type ResolveSecretRefOptions = {
     config: OpenClawConfig;
     env?: NodeJS.ProcessEnv;
@@ -37,4 +35,3 @@ export declare function isProviderScopedSecretResolutionError(value: unknown): v
 export declare function resolveSecretRefValues(refs: SecretRef[], options: ResolveSecretRefOptions): Promise<Map<string, unknown>>;
 export declare function resolveSecretRefValue(ref: SecretRef, options: ResolveSecretRefOptions): Promise<unknown>;
 export declare function resolveSecretRefString(ref: SecretRef, options: ResolveSecretRefOptions): Promise<string>;
-export {};

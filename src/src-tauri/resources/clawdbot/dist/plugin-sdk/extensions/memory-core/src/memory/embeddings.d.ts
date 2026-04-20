@@ -1,5 +1,5 @@
 import { type MemoryEmbeddingProvider, type MemoryEmbeddingProviderCreateOptions, type MemoryEmbeddingProviderRuntime } from "openclaw/plugin-sdk/memory-core-host-engine-embeddings";
-export { DEFAULT_GEMINI_EMBEDDING_MODEL, DEFAULT_LOCAL_MODEL, DEFAULT_MISTRAL_EMBEDDING_MODEL, DEFAULT_OLLAMA_EMBEDDING_MODEL, DEFAULT_OPENAI_EMBEDDING_MODEL, DEFAULT_VOYAGE_EMBEDDING_MODEL, } from "openclaw/plugin-sdk/memory-core-host-engine-embeddings";
+export { DEFAULT_GEMINI_EMBEDDING_MODEL, DEFAULT_LMSTUDIO_EMBEDDING_MODEL, DEFAULT_LOCAL_MODEL, DEFAULT_MISTRAL_EMBEDDING_MODEL, DEFAULT_OLLAMA_EMBEDDING_MODEL, DEFAULT_OPENAI_EMBEDDING_MODEL, DEFAULT_VOYAGE_EMBEDDING_MODEL, } from "openclaw/plugin-sdk/memory-core-host-engine-embeddings";
 export type EmbeddingProvider = MemoryEmbeddingProvider;
 export type EmbeddingProviderId = string;
 export type EmbeddingProviderRequest = string;
@@ -17,5 +17,5 @@ type CreateEmbeddingProviderOptions = MemoryEmbeddingProviderCreateOptions & {
     provider: EmbeddingProviderRequest;
     fallback: EmbeddingProviderFallback;
 };
-export declare function resolveEmbeddingProviderFallbackModel(providerId: string, fallbackSourceModel: string): string;
+export declare function resolveEmbeddingProviderFallbackModel(providerId: string, fallbackSourceModel: string, config?: MemoryEmbeddingProviderCreateOptions["config"]): string;
 export declare function createEmbeddingProvider(options: CreateEmbeddingProviderOptions): Promise<EmbeddingProviderResult>;

@@ -1,4 +1,5 @@
 import type { PluginLoadOptions } from "./loader.js";
+import { type PluginManifestRecord } from "./manifest-registry.js";
 import type { PluginWebSearchProviderEntry } from "./types.js";
 declare function resetWebSearchProviderSnapshotCacheForTests(): void;
 export declare const __testing: {
@@ -12,6 +13,8 @@ export declare function resolvePluginWebSearchProviders(params: {
     onlyPluginIds?: readonly string[];
     activate?: boolean;
     cache?: boolean;
+    mode?: "runtime" | "setup";
+    origin?: PluginManifestRecord["origin"];
 }): PluginWebSearchProviderEntry[];
 export declare function resolveRuntimeWebSearchProviders(params: {
     config?: PluginLoadOptions["config"];
@@ -19,5 +22,6 @@ export declare function resolveRuntimeWebSearchProviders(params: {
     env?: PluginLoadOptions["env"];
     bundledAllowlistCompat?: boolean;
     onlyPluginIds?: readonly string[];
+    origin?: PluginManifestRecord["origin"];
 }): PluginWebSearchProviderEntry[];
 export {};

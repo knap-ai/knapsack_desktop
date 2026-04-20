@@ -4,13 +4,13 @@ export declare const ProtocolSchemas: {
         minProtocol: import("@sinclair/typebox").TInteger;
         maxProtocol: import("@sinclair/typebox").TInteger;
         client: import("@sinclair/typebox").TObject<{
-            id: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "webchat" | "webchat-ui" | "openclaw-control-ui" | "openclaw-tui" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "test" | "fingerprint" | "openclaw-probe">[]>;
+            id: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "webchat" | "test" | "webchat-ui" | "openclaw-control-ui" | "openclaw-tui" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "fingerprint" | "openclaw-probe">[]>;
             displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             version: import("@sinclair/typebox").TString;
             platform: import("@sinclair/typebox").TString;
             deviceFamily: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             modelIdentifier: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            mode: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"node" | "cli" | "webchat" | "test" | "ui" | "backend" | "probe">[]>;
+            mode: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "node" | "webchat" | "test" | "ui" | "backend" | "probe">[]>;
             instanceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         }>;
         caps: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
@@ -92,6 +92,12 @@ export declare const ProtocolSchemas: {
             role: import("@sinclair/typebox").TString;
             scopes: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
             issuedAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            deviceTokens: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+                deviceToken: import("@sinclair/typebox").TString;
+                role: import("@sinclair/typebox").TString;
+                scopes: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
+                issuedAtMs: import("@sinclair/typebox").TInteger;
+            }>>>;
         }>>;
         policy: import("@sinclair/typebox").TObject<{
             maxPayload: import("@sinclair/typebox").TInteger;
@@ -231,6 +237,30 @@ export declare const ProtocolSchemas: {
         ts: import("@sinclair/typebox").TInteger;
         data: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>;
     }>;
+    MessageActionParams: import("@sinclair/typebox").TObject<{
+        channel: import("@sinclair/typebox").TString;
+        action: import("@sinclair/typebox").TString;
+        params: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        requesterSenderId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        senderIsOwner: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        sessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        toolContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            currentChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            currentGraphChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            currentChannelProvider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            currentThreadTs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            currentMessageId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+            replyToMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"off">, import("@sinclair/typebox").TLiteral<"first">, import("@sinclair/typebox").TLiteral<"all">, import("@sinclair/typebox").TLiteral<"batched">]>>;
+            hasRepliedRef: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+                value: import("@sinclair/typebox").TBoolean;
+            }>>;
+            skipCrossContextDecoration: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        }>>;
+        idempotencyKey: import("@sinclair/typebox").TString;
+    }>;
     SendParams: import("@sinclair/typebox").TObject<{
         to: import("@sinclair/typebox").TString;
         message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -282,6 +312,8 @@ export declare const ProtocolSchemas: {
         bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
         lane: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         extraSystemPrompt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        bootstrapContextMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"full">, import("@sinclair/typebox").TLiteral<"lightweight">]>>;
+        bootstrapContextRunKind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"default">, import("@sinclair/typebox").TLiteral<"heartbeat">, import("@sinclair/typebox").TLiteral<"cron">]>>;
         internalEvents: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
             type: import("@sinclair/typebox").TLiteral<"task_completion">;
             source: import("@sinclair/typebox").TString;
@@ -292,6 +324,7 @@ export declare const ProtocolSchemas: {
             status: import("@sinclair/typebox").TString;
             statusLabel: import("@sinclair/typebox").TString;
             result: import("@sinclair/typebox").TString;
+            mediaUrls: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
             statsLine: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             replyInstruction: import("@sinclair/typebox").TString;
         }>>>;
@@ -488,6 +521,163 @@ export declare const ProtocolSchemas: {
         includeGlobal: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
         includeUnknown: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
     }>;
+    SessionCompactionCheckpoint: import("@sinclair/typebox").TObject<{
+        checkpointId: import("@sinclair/typebox").TString;
+        sessionKey: import("@sinclair/typebox").TString;
+        sessionId: import("@sinclair/typebox").TString;
+        createdAt: import("@sinclair/typebox").TInteger;
+        reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+        tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        preCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+        postCompaction: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>;
+    }>;
+    SessionsCompactionListParams: import("@sinclair/typebox").TObject<{
+        key: import("@sinclair/typebox").TString;
+    }>;
+    SessionsCompactionGetParams: import("@sinclair/typebox").TObject<{
+        key: import("@sinclair/typebox").TString;
+        checkpointId: import("@sinclair/typebox").TString;
+    }>;
+    SessionsCompactionBranchParams: import("@sinclair/typebox").TObject<{
+        key: import("@sinclair/typebox").TString;
+        checkpointId: import("@sinclair/typebox").TString;
+    }>;
+    SessionsCompactionRestoreParams: import("@sinclair/typebox").TObject<{
+        key: import("@sinclair/typebox").TString;
+        checkpointId: import("@sinclair/typebox").TString;
+    }>;
+    SessionsCompactionListResult: import("@sinclair/typebox").TObject<{
+        ok: import("@sinclair/typebox").TLiteral<true>;
+        key: import("@sinclair/typebox").TString;
+        checkpoints: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+            checkpointId: import("@sinclair/typebox").TString;
+            sessionKey: import("@sinclair/typebox").TString;
+            sessionId: import("@sinclair/typebox").TString;
+            createdAt: import("@sinclair/typebox").TInteger;
+            reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+            tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            preCompaction: import("@sinclair/typebox").TObject<{
+                sessionId: import("@sinclair/typebox").TString;
+                sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            }>;
+            postCompaction: import("@sinclair/typebox").TObject<{
+                sessionId: import("@sinclair/typebox").TString;
+                sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            }>;
+        }>>;
+    }>;
+    SessionsCompactionGetResult: import("@sinclair/typebox").TObject<{
+        ok: import("@sinclair/typebox").TLiteral<true>;
+        key: import("@sinclair/typebox").TString;
+        checkpoint: import("@sinclair/typebox").TObject<{
+            checkpointId: import("@sinclair/typebox").TString;
+            sessionKey: import("@sinclair/typebox").TString;
+            sessionId: import("@sinclair/typebox").TString;
+            createdAt: import("@sinclair/typebox").TInteger;
+            reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+            tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            preCompaction: import("@sinclair/typebox").TObject<{
+                sessionId: import("@sinclair/typebox").TString;
+                sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            }>;
+            postCompaction: import("@sinclair/typebox").TObject<{
+                sessionId: import("@sinclair/typebox").TString;
+                sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            }>;
+        }>;
+    }>;
+    SessionsCompactionBranchResult: import("@sinclair/typebox").TObject<{
+        ok: import("@sinclair/typebox").TLiteral<true>;
+        sourceKey: import("@sinclair/typebox").TString;
+        key: import("@sinclair/typebox").TString;
+        sessionId: import("@sinclair/typebox").TString;
+        checkpoint: import("@sinclair/typebox").TObject<{
+            checkpointId: import("@sinclair/typebox").TString;
+            sessionKey: import("@sinclair/typebox").TString;
+            sessionId: import("@sinclair/typebox").TString;
+            createdAt: import("@sinclair/typebox").TInteger;
+            reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+            tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            preCompaction: import("@sinclair/typebox").TObject<{
+                sessionId: import("@sinclair/typebox").TString;
+                sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            }>;
+            postCompaction: import("@sinclair/typebox").TObject<{
+                sessionId: import("@sinclair/typebox").TString;
+                sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            }>;
+        }>;
+        entry: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            updatedAt: import("@sinclair/typebox").TInteger;
+        }>;
+    }>;
+    SessionsCompactionRestoreResult: import("@sinclair/typebox").TObject<{
+        ok: import("@sinclair/typebox").TLiteral<true>;
+        key: import("@sinclair/typebox").TString;
+        sessionId: import("@sinclair/typebox").TString;
+        checkpoint: import("@sinclair/typebox").TObject<{
+            checkpointId: import("@sinclair/typebox").TString;
+            sessionKey: import("@sinclair/typebox").TString;
+            sessionId: import("@sinclair/typebox").TString;
+            createdAt: import("@sinclair/typebox").TInteger;
+            reason: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"manual">, import("@sinclair/typebox").TLiteral<"auto-threshold">, import("@sinclair/typebox").TLiteral<"overflow-retry">, import("@sinclair/typebox").TLiteral<"timeout-retry">]>;
+            tokensBefore: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            tokensAfter: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            firstKeptEntryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            preCompaction: import("@sinclair/typebox").TObject<{
+                sessionId: import("@sinclair/typebox").TString;
+                sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            }>;
+            postCompaction: import("@sinclair/typebox").TObject<{
+                sessionId: import("@sinclair/typebox").TString;
+                sessionFile: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                leafId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+                entryId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            }>;
+        }>;
+        entry: import("@sinclair/typebox").TObject<{
+            sessionId: import("@sinclair/typebox").TString;
+            updatedAt: import("@sinclair/typebox").TInteger;
+        }>;
+    }>;
     SessionsCreateParams: import("@sinclair/typebox").TObject<{
         key: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -521,6 +711,7 @@ export declare const ProtocolSchemas: {
         thinkingLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
         fastMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TBoolean, import("@sinclair/typebox").TNull]>>;
         verboseLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+        traceLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
         reasoningLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
         responseUsage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"off">, import("@sinclair/typebox").TLiteral<"tokens">, import("@sinclair/typebox").TLiteral<"full">, import("@sinclair/typebox").TLiteral<"on">, import("@sinclair/typebox").TNull]>>;
         elevatedLevel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
@@ -568,6 +759,12 @@ export declare const ProtocolSchemas: {
         raw: import("@sinclair/typebox").TString;
         baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+        }>>;
         note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
     }>;
@@ -575,6 +772,12 @@ export declare const ProtocolSchemas: {
         raw: import("@sinclair/typebox").TString;
         baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+        }>>;
         note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
     }>;
@@ -719,52 +922,9 @@ export declare const ProtocolSchemas: {
     }>;
     TalkConfigResult: import("@sinclair/typebox").TObject<{
         config: import("@sinclair/typebox").TObject<{
-            talk: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-                interruptOnSpeech: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-                silenceTimeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-                voiceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                voiceAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-                modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-                    source: import("@sinclair/typebox").TLiteral<"env">;
-                    provider: import("@sinclair/typebox").TString;
-                    id: import("@sinclair/typebox").TString;
-                }>, import("@sinclair/typebox").TObject<{
-                    source: import("@sinclair/typebox").TLiteral<"file">;
-                    provider: import("@sinclair/typebox").TString;
-                    id: import("@sinclair/typebox").TString;
-                }>, import("@sinclair/typebox").TObject<{
-                    source: import("@sinclair/typebox").TLiteral<"exec">;
-                    provider: import("@sinclair/typebox").TString;
-                    id: import("@sinclair/typebox").TString;
-                }>]>]>>;
-            }>, import("@sinclair/typebox").TObject<{
-                interruptOnSpeech: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-                silenceTimeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-                voiceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                voiceAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-                modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-                    source: import("@sinclair/typebox").TLiteral<"env">;
-                    provider: import("@sinclair/typebox").TString;
-                    id: import("@sinclair/typebox").TString;
-                }>, import("@sinclair/typebox").TObject<{
-                    source: import("@sinclair/typebox").TLiteral<"file">;
-                    provider: import("@sinclair/typebox").TString;
-                    id: import("@sinclair/typebox").TString;
-                }>, import("@sinclair/typebox").TObject<{
-                    source: import("@sinclair/typebox").TLiteral<"exec">;
-                    provider: import("@sinclair/typebox").TString;
-                    id: import("@sinclair/typebox").TString;
-                }>]>]>>;
+            talk: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
                 provider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                 providers: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TObject<{
-                    voiceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                    voiceAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-                    modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                    outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                     apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
                         source: import("@sinclair/typebox").TLiteral<"env">;
                         provider: import("@sinclair/typebox").TString;
@@ -782,10 +942,6 @@ export declare const ProtocolSchemas: {
                 resolved: import("@sinclair/typebox").TObject<{
                     provider: import("@sinclair/typebox").TString;
                     config: import("@sinclair/typebox").TObject<{
-                        voiceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                        voiceAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-                        modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                        outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
                         apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
                             source: import("@sinclair/typebox").TLiteral<"env">;
                             provider: import("@sinclair/typebox").TString;
@@ -801,7 +957,9 @@ export declare const ProtocolSchemas: {
                         }>]>]>>;
                     }>;
                 }>;
-            }>]>>;
+                interruptOnSpeech: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+                silenceTimeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            }>>;
             session: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
                 mainKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             }>>;
@@ -816,6 +974,7 @@ export declare const ProtocolSchemas: {
         modelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         outputFormat: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         speed: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+        rateWpm: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
         stability: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
         similarity: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
         style: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
@@ -823,6 +982,7 @@ export declare const ProtocolSchemas: {
         seed: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
         normalize: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         language: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        latencyTier: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
     }>;
     TalkSpeakResult: import("@sinclair/typebox").TObject<{
         audioBase64: import("@sinclair/typebox").TString;
@@ -919,6 +1079,7 @@ export declare const ProtocolSchemas: {
     AgentsCreateParams: import("@sinclair/typebox").TObject<{
         name: import("@sinclair/typebox").TString;
         workspace: import("@sinclair/typebox").TString;
+        model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>;
@@ -927,12 +1088,14 @@ export declare const ProtocolSchemas: {
         agentId: import("@sinclair/typebox").TString;
         name: import("@sinclair/typebox").TString;
         workspace: import("@sinclair/typebox").TString;
+        model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>;
     AgentsUpdateParams: import("@sinclair/typebox").TObject<{
         agentId: import("@sinclair/typebox").TString;
         name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         workspace: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>;
     AgentsUpdateResult: import("@sinclair/typebox").TObject<{
@@ -1031,6 +1194,7 @@ export declare const ProtocolSchemas: {
         id: import("@sinclair/typebox").TString;
         name: import("@sinclair/typebox").TString;
         provider: import("@sinclair/typebox").TString;
+        alias: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         contextWindow: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
         reasoning: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
     }>;
@@ -1040,8 +1204,59 @@ export declare const ProtocolSchemas: {
             id: import("@sinclair/typebox").TString;
             name: import("@sinclair/typebox").TString;
             provider: import("@sinclair/typebox").TString;
+            alias: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             contextWindow: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
             reasoning: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        }>>;
+    }>;
+    CommandEntry: import("@sinclair/typebox").TObject<{
+        name: import("@sinclair/typebox").TString;
+        nativeName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        textAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+        description: import("@sinclair/typebox").TString;
+        category: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"session">, import("@sinclair/typebox").TLiteral<"options">, import("@sinclair/typebox").TLiteral<"status">, import("@sinclair/typebox").TLiteral<"management">, import("@sinclair/typebox").TLiteral<"media">, import("@sinclair/typebox").TLiteral<"tools">, import("@sinclair/typebox").TLiteral<"docks">]>>;
+        source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"native">, import("@sinclair/typebox").TLiteral<"skill">, import("@sinclair/typebox").TLiteral<"plugin">]>;
+        scope: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"text">, import("@sinclair/typebox").TLiteral<"native">, import("@sinclair/typebox").TLiteral<"both">]>;
+        acceptsArgs: import("@sinclair/typebox").TBoolean;
+        args: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+            name: import("@sinclair/typebox").TString;
+            description: import("@sinclair/typebox").TString;
+            type: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"string">, import("@sinclair/typebox").TLiteral<"number">, import("@sinclair/typebox").TLiteral<"boolean">]>;
+            required: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+            choices: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+                value: import("@sinclair/typebox").TString;
+                label: import("@sinclair/typebox").TString;
+            }>>>;
+            dynamic: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        }>>>;
+    }>;
+    CommandsListParams: import("@sinclair/typebox").TObject<{
+        agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        provider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        scope: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"text">, import("@sinclair/typebox").TLiteral<"native">, import("@sinclair/typebox").TLiteral<"both">]>>;
+        includeArgs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    }>;
+    CommandsListResult: import("@sinclair/typebox").TObject<{
+        commands: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+            name: import("@sinclair/typebox").TString;
+            nativeName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            textAliases: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+            description: import("@sinclair/typebox").TString;
+            category: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"session">, import("@sinclair/typebox").TLiteral<"options">, import("@sinclair/typebox").TLiteral<"status">, import("@sinclair/typebox").TLiteral<"management">, import("@sinclair/typebox").TLiteral<"media">, import("@sinclair/typebox").TLiteral<"tools">, import("@sinclair/typebox").TLiteral<"docks">]>>;
+            source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"native">, import("@sinclair/typebox").TLiteral<"skill">, import("@sinclair/typebox").TLiteral<"plugin">]>;
+            scope: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"text">, import("@sinclair/typebox").TLiteral<"native">, import("@sinclair/typebox").TLiteral<"both">]>;
+            acceptsArgs: import("@sinclair/typebox").TBoolean;
+            args: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+                name: import("@sinclair/typebox").TString;
+                description: import("@sinclair/typebox").TString;
+                type: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"string">, import("@sinclair/typebox").TLiteral<"number">, import("@sinclair/typebox").TLiteral<"boolean">]>;
+                required: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+                choices: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+                    value: import("@sinclair/typebox").TString;
+                    label: import("@sinclair/typebox").TString;
+                }>>>;
+                dynamic: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+            }>>>;
         }>>;
     }>;
     SkillsStatusParams: import("@sinclair/typebox").TObject<{
@@ -1150,6 +1365,47 @@ export declare const ProtocolSchemas: {
     SkillsBinsResult: import("@sinclair/typebox").TObject<{
         bins: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
     }>;
+    SkillsSearchParams: import("@sinclair/typebox").TObject<{
+        query: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    }>;
+    SkillsSearchResult: import("@sinclair/typebox").TObject<{
+        results: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+            score: import("@sinclair/typebox").TNumber;
+            slug: import("@sinclair/typebox").TString;
+            displayName: import("@sinclair/typebox").TString;
+            summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            version: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            updatedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        }>>;
+    }>;
+    SkillsDetailParams: import("@sinclair/typebox").TObject<{
+        slug: import("@sinclair/typebox").TString;
+    }>;
+    SkillsDetailResult: import("@sinclair/typebox").TObject<{
+        skill: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+            slug: import("@sinclair/typebox").TString;
+            displayName: import("@sinclair/typebox").TString;
+            summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
+            createdAt: import("@sinclair/typebox").TInteger;
+            updatedAt: import("@sinclair/typebox").TInteger;
+        }>, import("@sinclair/typebox").TNull]>;
+        latestVersion: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+            version: import("@sinclair/typebox").TString;
+            createdAt: import("@sinclair/typebox").TInteger;
+            changelog: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        }>, import("@sinclair/typebox").TNull]>>;
+        metadata: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+            os: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>, import("@sinclair/typebox").TNull]>>;
+            systems: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>, import("@sinclair/typebox").TNull]>>;
+        }>, import("@sinclair/typebox").TNull]>>;
+        owner: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
+            handle: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+            displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+            image: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
+        }>, import("@sinclair/typebox").TNull]>>;
+    }>;
     SkillsInstallParams: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
         name: import("@sinclair/typebox").TString;
         installId: import("@sinclair/typebox").TString;
@@ -1206,7 +1462,7 @@ export declare const ProtocolSchemas: {
             model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
             thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
             allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
             lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
             toolsAllow: import("@sinclair/typebox").TOptional<TSchema>;
@@ -1307,7 +1563,7 @@ export declare const ProtocolSchemas: {
             model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
             fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
             thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+            timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
             allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
             lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
             toolsAllow: import("@sinclair/typebox").TOptional<TSchema>;
@@ -1528,6 +1784,9 @@ export declare const ProtocolSchemas: {
             }>>>;
         }>;
     }>;
+    ExecApprovalGetParams: import("@sinclair/typebox").TObject<{
+        id: import("@sinclair/typebox").TString;
+    }>;
     ExecApprovalRequestParams: import("@sinclair/typebox").TObject<{
         id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         command: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
@@ -1669,11 +1928,18 @@ export declare const ProtocolSchemas: {
         state: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delta">, import("@sinclair/typebox").TLiteral<"final">, import("@sinclair/typebox").TLiteral<"aborted">, import("@sinclair/typebox").TLiteral<"error">]>;
         message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
         errorMessage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        errorKind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"refusal">, import("@sinclair/typebox").TLiteral<"timeout">, import("@sinclair/typebox").TLiteral<"rate_limit">, import("@sinclair/typebox").TLiteral<"context_length">, import("@sinclair/typebox").TLiteral<"unknown">]>>;
         usage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
         stopReason: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>;
     UpdateRunParams: import("@sinclair/typebox").TObject<{
         sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+            threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+        }>>;
         note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
         timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;

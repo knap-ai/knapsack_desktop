@@ -1,13 +1,13 @@
-export type { ReplyPayload } from "../auto-reply/types.js";
+export type { ReplyPayload } from "../auto-reply/reply-payload.js";
 export { mergeAllowlist, summarizeMapping } from "../channels/allowlists/resolve-utils.js";
-export { resolveMentionGatingWithBypass } from "../channels/mention-gating.js";
+export { resolveMentionGating, resolveMentionGatingWithBypass, resolveInboundMentionDecision, } from "../channels/mention-gating.js";
 export { deleteAccountFromConfigSection, setAccountEnabledInConfigSection, } from "../channels/plugins/config-helpers.js";
 export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";
 export { formatPairingApproveHint } from "../channels/plugins/helpers.js";
 export { addWildcardAllowFrom, mergeAllowFromEntries, setTopLevelChannelDmPolicyWithAllowFrom, } from "../channels/plugins/setup-wizard-helpers.js";
 export { applyAccountNameToChannelSection, applySetupAccountConfigPatch, migrateBaseNameToDefaultAccount, patchScopedAccountConfig, } from "../channels/plugins/setup-helpers.js";
 export { createAccountListHelpers } from "../channels/plugins/account-helpers.js";
-export type { BaseProbeResult, ChannelAccountSnapshot, ChannelDirectoryEntry, ChannelGroupContext, ChannelMessageActionAdapter, ChannelStatusIssue, } from "../channels/plugins/types.js";
+export type { BaseProbeResult, ChannelAccountSnapshot, ChannelDirectoryEntry, ChannelGroupContext, ChannelMessageActionAdapter, ChannelStatusIssue, } from "../channels/plugins/types.public.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
 export type { OpenClawConfig } from "../config/config.js";
@@ -35,5 +35,7 @@ export { deliverTextOrMediaReply, isNumericTargetId, resolveOutboundMediaUrls, r
 export { formatResolvedUnresolvedNote } from "./resolution-notes.js";
 export { buildBaseAccountStatusSnapshot } from "./status-helpers.js";
 export { chunkTextForOutbound } from "./text-chunking.js";
+type FacadeModule = typeof import("@openclaw/zalouser/contract-api.js");
+export declare const collectZalouserSecurityAuditFindings: FacadeModule["collectZalouserSecurityAuditFindings"];
 export declare const zalouserSetupAdapter: import("./channel-setup.js").ChannelSetupAdapter;
 export declare const zalouserSetupWizard: import("./channel-setup.js").ChannelSetupWizard;

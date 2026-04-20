@@ -71,7 +71,7 @@ export declare const DEFAULT_INPUT_IMAGE_MIMES: string[];
 export declare const DEFAULT_INPUT_FILE_MIMES: string[];
 export declare const DEFAULT_INPUT_IMAGE_MAX_BYTES: number;
 export declare const DEFAULT_INPUT_FILE_MAX_BYTES: number;
-export declare const DEFAULT_INPUT_FILE_MAX_CHARS = 200000;
+export declare const DEFAULT_INPUT_FILE_MAX_CHARS = 60000;
 export declare const DEFAULT_INPUT_MAX_REDIRECTS = 3;
 export declare const DEFAULT_INPUT_TIMEOUT_MS = 10000;
 export declare const DEFAULT_INPUT_PDF_MAX_PAGES = 4;

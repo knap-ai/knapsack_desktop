@@ -1,8 +1,9 @@
 import type { ModelCatalogEntry } from "../agents/model-catalog.js";
-import { type OpenClawConfig, loadConfig } from "../config/config.js";
 import { type SessionEntry, type SessionScope } from "../config/sessions.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult } from "./session-utils.types.js";
 export { archiveFileOnDisk, archiveSessionTranscripts, attachOpenClawTranscriptMeta, capArrayByJsonBytes, readFirstUserMessageFromTranscript, readLastMessagePreviewFromTranscript, readLatestSessionUsageFromTranscript, readSessionTitleFieldsFromTranscript, readSessionPreviewItemsFromTranscript, readSessionMessages, resolveSessionTranscriptCandidates, } from "./session-utils.fs.js";
+export { canonicalizeSpawnedByForAgent, resolveSessionStoreKey } from "./session-store-key.js";
 export type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult, SessionsPatchResult, SessionsPreviewEntry, SessionsPreviewResult, } from "./session-utils.types.js";
 export declare function deriveSessionTitle(entry: SessionEntry | undefined, firstUserMessage?: string | null): string | undefined;
 export declare function loadSessionEntry(sessionKey: string): {
@@ -33,7 +34,7 @@ export declare function pruneLegacyStoreKeys(params: {
     candidates: Iterable<string>;
 }): void;
 export declare function migrateAndPruneGatewaySessionStoreKey(params: {
-    cfg: ReturnType<typeof loadConfig>;
+    cfg: OpenClawConfig;
     key: string;
     store: Record<string, SessionEntry>;
 }): {
@@ -58,11 +59,6 @@ export declare function listAgentsForGateway(cfg: OpenClawConfig): {
     scope: SessionScope;
     agents: GatewayAgentRow[];
 };
-export declare function resolveSessionStoreKey(params: {
-    cfg: OpenClawConfig;
-    sessionKey: string;
-}): string;
-export declare function canonicalizeSpawnedByForAgent(cfg: OpenClawConfig, agentId: string, spawnedBy?: string): string | undefined;
 export declare function resolveGatewaySessionStoreTarget(params: {
     cfg: OpenClawConfig;
     key: string;

@@ -5,14 +5,15 @@ export type ToolPolicyPipelineStep = {
     label: string;
     stripPluginOnlyAllowlist?: boolean;
     suppressUnavailableCoreToolWarning?: boolean;
+    suppressUnavailableCoreToolWarningAllowlist?: string[];
 };
 export declare function buildDefaultToolPolicyPipelineSteps(params: {
     profilePolicy?: ToolPolicyLike;
     profile?: string;
-    profileAlsoAllow?: string[];
+    profileUnavailableCoreWarningAllowlist?: string[];
     providerProfilePolicy?: ToolPolicyLike;
     providerProfile?: string;
-    providerProfileAlsoAllow?: string[];
+    providerProfileUnavailableCoreWarningAllowlist?: string[];
     globalPolicy?: ToolPolicyLike;
     globalProviderPolicy?: ToolPolicyLike;
     agentPolicy?: ToolPolicyLike;

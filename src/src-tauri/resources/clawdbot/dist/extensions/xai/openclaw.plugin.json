@@ -83,6 +83,9 @@
     "webSearchProviders": [
       "grok"
     ],
+    "videoGenerationProviders": [
+      "xai"
+    ],
     "tools": [
       "code_execution",
       "x_search"

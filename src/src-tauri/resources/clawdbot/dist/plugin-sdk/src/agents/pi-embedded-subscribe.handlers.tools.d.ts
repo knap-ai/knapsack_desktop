@@ -4,7 +4,7 @@ export declare function handleToolExecutionStart(ctx: ToolHandlerContext, evt: A
     toolName: string;
     toolCallId: string;
     args: unknown;
-}): Promise<void> | undefined;
+}): void | Promise<void>;
 export declare function handleToolExecutionUpdate(ctx: ToolHandlerContext, evt: AgentEvent & {
     toolName: string;
     toolCallId: string;

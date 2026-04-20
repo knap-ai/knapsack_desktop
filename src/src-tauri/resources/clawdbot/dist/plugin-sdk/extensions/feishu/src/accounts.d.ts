@@ -1,5 +1,5 @@
-import { coerceSecretRef } from "openclaw/plugin-sdk/config-runtime";
-import type { ClawdbotConfig } from "../runtime-api.js";
+import { type OpenClawConfig as ClawdbotConfig } from "openclaw/plugin-sdk/account-resolution";
+import { coerceSecretRef } from "openclaw/plugin-sdk/provider-auth";
 import type { FeishuConfig, FeishuDefaultAccountSelectionSource, FeishuDomain, ResolvedFeishuAccount } from "./types.js";
 declare const listFeishuAccountIds: (cfg: ClawdbotConfig) => string[];
 export { listFeishuAccountIds };

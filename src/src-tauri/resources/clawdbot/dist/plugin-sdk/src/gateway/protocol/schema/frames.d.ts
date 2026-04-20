@@ -9,13 +9,13 @@ export declare const ConnectParamsSchema: import("@sinclair/typebox").TObject<{
     minProtocol: import("@sinclair/typebox").TInteger;
     maxProtocol: import("@sinclair/typebox").TInteger;
     client: import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "webchat" | "webchat-ui" | "openclaw-control-ui" | "openclaw-tui" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "test" | "fingerprint" | "openclaw-probe">[]>;
+        id: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "webchat" | "test" | "webchat-ui" | "openclaw-control-ui" | "openclaw-tui" | "gateway-client" | "openclaw-macos" | "openclaw-ios" | "openclaw-android" | "node-host" | "fingerprint" | "openclaw-probe">[]>;
         displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         version: import("@sinclair/typebox").TString;
         platform: import("@sinclair/typebox").TString;
         deviceFamily: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         modelIdentifier: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        mode: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"node" | "cli" | "webchat" | "test" | "ui" | "backend" | "probe">[]>;
+        mode: import("@sinclair/typebox").TUnion<import("@sinclair/typebox").TLiteral<"cli" | "node" | "webchat" | "test" | "ui" | "backend" | "probe">[]>;
         instanceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>;
     caps: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
@@ -97,6 +97,12 @@ export declare const HelloOkSchema: import("@sinclair/typebox").TObject<{
         role: import("@sinclair/typebox").TString;
         scopes: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
         issuedAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+        deviceTokens: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
+            deviceToken: import("@sinclair/typebox").TString;
+            role: import("@sinclair/typebox").TString;
+            scopes: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
+            issuedAtMs: import("@sinclair/typebox").TInteger;
+        }>>>;
     }>>;
     policy: import("@sinclair/typebox").TObject<{
         maxPayload: import("@sinclair/typebox").TInteger;

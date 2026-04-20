@@ -30,6 +30,8 @@ export declare function execDocker(args: string[], opts?: ExecDockerOptions): Pr
 }>;
 export declare function readDockerContainerLabel(containerName: string, label: string): Promise<string | null>;
 export declare function readDockerContainerEnvVar(containerName: string, envVar: string): Promise<string | null>;
+export declare function readDockerNetworkDriver(network: string): Promise<string | null>;
+export declare function readDockerNetworkGateway(network: string): Promise<string | null>;
 export declare function readDockerPort(containerName: string, port: number): Promise<number | null>;
 export declare function ensureDockerImage(image: string): Promise<void>;
 export declare function dockerContainerState(name: string): Promise<{

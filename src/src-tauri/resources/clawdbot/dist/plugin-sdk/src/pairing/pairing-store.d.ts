@@ -1,5 +1,6 @@
-import type { ChannelId, ChannelPairingAdapter } from "../channels/plugins/types.js";
-export type PairingChannel = ChannelId;
+import type { ChannelPairingAdapter } from "../channels/plugins/pairing.types.js";
+import type { PairingChannel } from "./pairing-store.types.js";
+export type { PairingChannel } from "./pairing-store.types.js";
 export type PairingRequest = {
     id: string;
     code: string;
@@ -49,4 +50,3 @@ export declare function approveChannelPairingCode(params: {
     id: string;
     entry?: PairingRequest;
 } | null>;
-export {};

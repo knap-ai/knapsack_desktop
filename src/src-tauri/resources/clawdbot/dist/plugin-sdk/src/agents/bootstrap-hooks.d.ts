@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
 export declare function applyBootstrapHookOverrides(params: {
     files: WorkspaceBootstrapFile[];

@@ -7,6 +7,7 @@ export declare function registerPluginHttpRoute(params: {
     handler: PluginHttpRouteHandler;
     auth: PluginHttpRouteRegistration["auth"];
     match?: PluginHttpRouteRegistration["match"];
+    gatewayRuntimeScopeSurface?: PluginHttpRouteRegistration["gatewayRuntimeScopeSurface"];
     replaceExisting?: boolean;
     pluginId?: string;
     source?: string;

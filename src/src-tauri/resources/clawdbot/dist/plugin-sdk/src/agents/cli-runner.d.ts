@@ -1,24 +1,10 @@
-import type { ImageContent } from "@mariozechner/pi-ai";
-import type { ThinkLevel } from "../auto-reply/thinking.js";
-import type { OpenClawConfig } from "../config/config.js";
-import type { RunCliAgentParams } from "./cli-runner/types.js";
+import type { PreparedCliRunContext, RunCliAgentParams } from "./cli-runner/types.js";
 import type { EmbeddedPiRunResult } from "./pi-embedded-runner.js";
 export declare function runCliAgent(params: RunCliAgentParams): Promise<EmbeddedPiRunResult>;
-export declare function runClaudeCliAgent(params: {
-    sessionId: string;
-    sessionKey?: string;
-    agentId?: string;
-    sessionFile: string;
-    workspaceDir: string;
-    config?: OpenClawConfig;
-    prompt: string;
+export declare function runPreparedCliAgent(context: PreparedCliRunContext): Promise<EmbeddedPiRunResult>;
+export type RunClaudeCliAgentParams = Omit<RunCliAgentParams, "provider" | "cliSessionId"> & {
     provider?: string;
-    model?: string;
-    thinkLevel?: ThinkLevel;
-    timeoutMs: number;
-    runId: string;
-    extraSystemPrompt?: string;
-    ownerNumbers?: string[];
     claudeSessionId?: string;
-    images?: ImageContent[];
-}): Promise<EmbeddedPiRunResult>;
+};
+export declare function buildRunClaudeCliAgentParams(params: RunClaudeCliAgentParams): RunCliAgentParams;
+export declare function runClaudeCliAgent(params: RunClaudeCliAgentParams): Promise<EmbeddedPiRunResult>;

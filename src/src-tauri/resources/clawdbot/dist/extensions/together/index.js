@@ -1,5 +1,7 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-BnIQWKLx.js";
-import { i as buildTogetherProvider, n as applyTogetherConfig, t as TOGETHER_DEFAULT_MODEL_REF } from "../../onboard-BLy8COsB.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
+import { n as applyTogetherConfig, t as TOGETHER_DEFAULT_MODEL_REF } from "../../onboard-DaSPucJN.js";
+import { t as buildTogetherProvider } from "../../provider-catalog-Dkh83AVJ.js";
+import { t as buildTogetherVideoGenerationProvider } from "../../video-generation-provider-C5sRCLux.js";
 var together_default = defineSingleProviderPluginEntry({
 	id: "together",
 	name: "Together Provider",
@@ -19,7 +21,11 @@ var together_default = defineSingleProviderPluginEntry({
 			applyConfig: (cfg) => applyTogetherConfig(cfg),
 			wizard: { groupLabel: "Together AI" }
 		}],
-		catalog: { buildProvider: buildTogetherProvider }
+		catalog: { buildProvider: buildTogetherProvider },
+		classifyFailoverReason: ({ errorMessage }) => /\bconcurrency limit\b.*\b(?:breached|reached)\b/i.test(errorMessage) ? "rate_limit" : void 0
+	},
+	register(api) {
+		api.registerVideoGenerationProvider(buildTogetherVideoGenerationProvider());
 	}
 });
 //#endregion

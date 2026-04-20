@@ -1,51 +1,35 @@
-import { i as getChildLogger } from "../../logger-BCzP_yik.js";
-import { l as normalizeMainKey } from "../../session-key-D7XpmyVq.js";
-import { c as loadConfig } from "../../io-DhtVmzAJ.js";
-import { t as redactIdentifier } from "../../redact-identifier-3CI3eDo3.js";
-import { d as updateSessionStore, i as loadSessionStore } from "../../store-BGmy-Wot.js";
-import { t as canonicalizeMainSessionAlias } from "../../main-session-CFwamLE8.js";
-import { l as resolveStorePath } from "../../paths-DBIQqSpZ.js";
-import { a as resolveSessionResetType, i as resolveSessionResetPolicy, n as evaluateSessionFreshness, o as resolveThreadFlag, r as resolveChannelResetConfig } from "../../session-file-B_sG4I7G.js";
-import { n as resolveSessionKey } from "../../session-key-CrIfzXHI.js";
-import { n as SILENT_REPLY_TOKEN, t as HEARTBEAT_TOKEN } from "../../tokens-Bot0VGKf.js";
-import { a as stripHeartbeatToken, i as resolveHeartbeatPrompt, n as HEARTBEAT_PROMPT } from "../../heartbeat-CguHGkad.js";
-import { c as optimizeImageToPng } from "../../image-ops-DjlnMkqM.js";
-import { p as resolveSendableOutboundReplyParts, s as hasOutboundReplyContent } from "../../reply-payload-SzVz53hc.js";
-import { i as LocalMediaAccessError, n as loadWebMediaRaw, o as getDefaultLocalRoots, r as optimizeImageToJpeg, t as loadWebMedia } from "../../web-media-4TOxrRxF.js";
-import { t as appendCronStyleCurrentTimeLine } from "../../current-time-D5BJUy-c.js";
-import "../../routing-Br1fEo8A.js";
-import { n as emitHeartbeatEvent, o as resolveIndicatorType, t as resolveHeartbeatVisibility } from "../../heartbeat-visibility-CIk_o9BM.js";
-import { t as resolveHeartbeatReplyPayload } from "../../heartbeat-reply-payload-enSdLyYn.js";
-import { t as getReplyFromConfig } from "../../reply-BilMVRVo.js";
-import "../../runtime-env-CoykX19-.js";
-import "../../config-runtime-CmISCurQ.js";
-import "../../reply-runtime-DxFWfQpm.js";
-import { t as resolveWhatsAppHeartbeatRecipients } from "../../whatsapp-heartbeat-B4yUEp_v.js";
-import "../../channel-runtime-BQArgtty.js";
-import "../../text-runtime-B0ZpmkER.js";
-import "../../agent-runtime-B7ucOTD-.js";
-import { n as resolveWebCredsBackupPath, r as resolveWebCredsPath, t as hasWebCredsSync } from "../../creds-files-B9w_-ph2.js";
-import "../../runtime-api-rROA7VYI.js";
-import { n as whatsAppActionRuntime, t as handleWhatsAppAction } from "../../action-runtime-SGatffR-.js";
-import { i as setActiveWebListener, n as requireActiveWebListener, r as resolveWebAccountId, t as getActiveWebListener } from "../../active-listener-HztIeFkJ.js";
-import { n as sendPollWhatsApp, r as sendReactionWhatsApp, t as sendMessageWhatsApp } from "../../send-aQ-61ZNj.js";
-import { t as createWhatsAppLoginTool } from "../../agent-tools-login-DQswuQEY.js";
-import { t as DEFAULT_WEB_MEDIA_BYTES } from "../../constants-Cxo1GsKV.js";
-import { a as maybeRestoreCredsFromBackup, c as readWebSelfId, d as webAuthExists, i as logoutWeb, l as readWebSelfIdentity, n as getWebAuthAgeMs, o as pickWebChannel, r as logWebSelfId, s as readCredsJsonRaw, t as WA_WEB_AUTH_DIR, u as resolveDefaultWebAuthDir } from "../../auth-store-BHt3Da5y.js";
-import { n as getStatusCode, t as formatError } from "../../session-errors-DWlRnyTv.js";
-import { o as whatsappHeartbeatLog, u as newConnectionId$1 } from "../../deliver-reply-7UuA_Wpg.js";
-import { a as waitForWaConnection, i as waitForCredsSaveQueueWithTimeout, n as newConnectionId, r as waitForCredsSaveQueue, t as createWaSocket } from "../../session-Cz5uoIxI.js";
-import { a as extractMediaPlaceholder, i as extractLocationData, n as monitorWebChannel, o as extractText, r as monitorWebInbox, s as resetWebInboundDedupe, t as loginWeb } from "../../login-DW2Orybl.js";
+import { n as resolveWebCredsBackupPath, r as resolveWebCredsPath, t as hasWebCredsSync } from "./creds-files-BD3Rjqo2.js";
+import { n as whatsAppActionRuntime, t as handleWhatsAppAction } from "./action-runtime-lXscyQq5.js";
+import { n as sendPollWhatsApp, r as sendReactionWhatsApp, t as sendMessageWhatsApp } from "./send-RylHu2jU.js";
+import { startWebLoginWithQr, waitForWebLogin } from "./login-qr-runtime.js";
+import { t as createWhatsAppLoginTool } from "./agent-tools-login-BwV6-7My.js";
+import { t as resolveWhatsAppHeartbeatRecipients } from "./heartbeat-recipients-DZfPzRUS.js";
+import { n as setWhatsAppRuntime } from "./runtime-Cf-gW1xY.js";
+import { a as maybeRestoreCredsFromBackup, c as readWebSelfId, d as webAuthExists, i as logoutWeb, l as readWebSelfIdentity, n as getWebAuthAgeMs, o as pickWebChannel, r as logWebSelfId, s as readCredsJsonRaw, t as WA_WEB_AUTH_DIR, u as resolveDefaultWebAuthDir } from "./auth-store-3FRPEigM.js";
+import { t as DEFAULT_WEB_MEDIA_BYTES } from "./constants-f5LlBu0G.js";
+import "./runtime-api-vb71a5Kp.js";
+import { n as resolveWebAccountId, t as getActiveWebListener } from "./active-listener-DvlWD5J-.js";
+import { n as getStatusCode, t as formatError } from "./session-errors-CjMYNFqh.js";
+import { c as waitForCredsSaveQueue, d as writeCredsJsonAtomically, l as waitForCredsSaveQueueWithTimeout, m as newConnectionId$1, o as createWaSocket, s as newConnectionId, u as waitForWaConnection } from "./connection-controller-ByQ0-fZO.js";
+import { S as whatsappHeartbeatLog, _ as resolveSessionKey$1, a as loadWebMedia, b as resolveStorePath$1, c as optimizeImageToPng, d as extractMediaPlaceholder, f as extractText, g as resolveChannelResetConfig, h as loadSessionStore$1, i as getDefaultLocalRoots, l as monitorWebInbox, m as evaluateSessionFreshness, n as monitorWebChannel, o as loadWebMediaRaw, p as resetWebInboundDedupe, r as LocalMediaAccessError, s as optimizeImageToJpeg, t as loginWeb, u as extractLocationData, v as resolveSessionResetPolicy, x as resolveThreadFlag, y as resolveSessionResetType } from "./login-BPCVMYVA.js";
+import { normalizeOptionalLowercaseString, redactIdentifier as redactIdentifier$1 } from "openclaw/plugin-sdk/text-runtime";
+import { canonicalizeMainSessionAlias, loadConfig as loadConfig$1, loadSessionStore, resolveSessionKey, resolveStorePath, updateSessionStore } from "openclaw/plugin-sdk/config-runtime";
+import { getChildLogger as getChildLogger$2 } from "openclaw/plugin-sdk/runtime-env";
+import { emitHeartbeatEvent, resolveHeartbeatVisibility, resolveIndicatorType } from "openclaw/plugin-sdk/infra-runtime";
+import { normalizeMainKey, normalizeMainKey as normalizeMainKey$1 } from "openclaw/plugin-sdk/routing";
+import { DEFAULT_HEARTBEAT_ACK_MAX_CHARS, HEARTBEAT_PROMPT, HEARTBEAT_TOKEN, HEARTBEAT_TOKEN as HEARTBEAT_TOKEN$1, SILENT_REPLY_TOKEN, getReplyFromConfig, resolveHeartbeatPrompt, resolveHeartbeatReplyPayload, stripHeartbeatToken, stripHeartbeatToken as stripHeartbeatToken$1 } from "openclaw/plugin-sdk/reply-runtime";
+import { appendCronStyleCurrentTimeLine } from "openclaw/plugin-sdk/agent-runtime";
+import { hasOutboundReplyContent, resolveSendableOutboundReplyParts as resolveSendableOutboundReplyParts$1 } from "openclaw/plugin-sdk/reply-payload";
 //#region extensions/whatsapp/src/auto-reply/session-snapshot.ts
 function getSessionSnapshot(cfg, from, _isHeartbeat = false, ctx) {
 	const sessionCfg = cfg.session;
 	const scope = sessionCfg?.scope ?? "per-sender";
-	const key = ctx?.sessionKey?.trim() ?? resolveSessionKey(scope, {
+	const key = ctx?.sessionKey?.trim() ?? resolveSessionKey$1(scope, {
 		From: from,
 		To: "",
 		Body: ""
 	}, normalizeMainKey(sessionCfg?.mainKey));
-	const entry = loadSessionStore(resolveStorePath(sessionCfg?.store))[key];
+	const entry = loadSessionStore$1(resolveStorePath$1(sessionCfg?.store))[key];
 	const isThread = resolveThreadFlag({
 		sessionKey: key,
 		messageThreadId: ctx?.messageThreadId ?? null,
@@ -86,25 +70,25 @@ function getSessionSnapshot(cfg, from, _isHeartbeat = false, ctx) {
 //#region extensions/whatsapp/src/auto-reply/heartbeat-runner.ts
 function resolveDefaultAgentIdFromConfig(cfg) {
 	const agents = cfg.agents?.list ?? [];
-	return (agents.find((agent) => agent?.default)?.id ?? agents[0]?.id ?? "main").trim().toLowerCase() || "main";
+	return normalizeOptionalLowercaseString(agents.find((agent) => agent?.default)?.id ?? agents[0]?.id ?? "main") ?? "main";
 }
 async function runWebHeartbeatOnce(opts) {
 	const { cfg: cfgOverride, to, verbose = false, sessionId, overrideBody, dryRun = false } = opts;
 	const replyResolver = opts.replyResolver ?? getReplyFromConfig;
 	const sender = opts.sender ?? sendMessageWhatsApp;
 	const runId = newConnectionId$1();
-	const redactedTo = redactIdentifier(to);
-	const heartbeatLogger = getChildLogger({
+	const redactedTo = redactIdentifier$1(to);
+	const heartbeatLogger = getChildLogger$2({
 		module: "web-heartbeat",
 		runId,
 		to: redactedTo
 	});
-	const cfg = cfgOverride ?? loadConfig();
+	const cfg = cfgOverride ?? loadConfig$1();
 	const visibility = resolveHeartbeatVisibility({
 		cfg,
 		channel: "whatsapp"
 	});
-	const heartbeatOkText = HEARTBEAT_TOKEN;
+	const heartbeatOkText = HEARTBEAT_TOKEN$1;
 	const maybeSendHeartbeatOk = async () => {
 		if (!visibility.showOk) return false;
 		if (dryRun) {
@@ -123,7 +107,7 @@ async function runWebHeartbeatOnce(opts) {
 	};
 	const sessionCfg = cfg.session;
 	const sessionScope = sessionCfg?.scope ?? "per-sender";
-	const mainKey = normalizeMainKey(sessionCfg?.mainKey);
+	const mainKey = normalizeMainKey$1(sessionCfg?.mainKey);
 	const rawSessionKey = resolveSessionKey(sessionScope, { From: to }, mainKey);
 	const sessionKey = canonicalizeMainSessionAlias({
 		cfg,
@@ -218,10 +202,10 @@ async function runWebHeartbeatOnce(opts) {
 			});
 			return;
 		}
-		const reply = resolveSendableOutboundReplyParts(replyPayload);
+		const reply = resolveSendableOutboundReplyParts$1(replyPayload);
 		const hasMedia = reply.hasMedia;
-		const ackMaxChars = Math.max(0, cfg.agents?.defaults?.heartbeat?.ackMaxChars ?? 300);
-		const stripped = stripHeartbeatToken(replyPayload.text, {
+		const ackMaxChars = Math.max(0, cfg.agents?.defaults?.heartbeat?.ackMaxChars ?? DEFAULT_HEARTBEAT_ACK_MAX_CHARS);
+		const stripped = stripHeartbeatToken$1(replyPayload.text, {
 			mode: "heartbeat",
 			maxAckChars: ackMaxChars
 		});
@@ -316,19 +300,4 @@ function resolveHeartbeatRecipients(cfg, opts = {}) {
 	return resolveWhatsAppHeartbeatRecipients(cfg, opts);
 }
 //#endregion
-//#region extensions/whatsapp/runtime-api.ts
-let loginQrModulePromise = null;
-function loadLoginQrModule() {
-	loginQrModulePromise ??= import("../../login-qr-BPsUaGFE.js");
-	return loginQrModulePromise;
-}
-async function startWebLoginWithQr(...args) {
-	const { startWebLoginWithQr } = await loadLoginQrModule();
-	return await startWebLoginWithQr(...args);
-}
-async function waitForWebLogin(...args) {
-	const { waitForWebLogin } = await loadLoginQrModule();
-	return await waitForWebLogin(...args);
-}
-//#endregion
-export { DEFAULT_WEB_MEDIA_BYTES, HEARTBEAT_PROMPT, HEARTBEAT_TOKEN, LocalMediaAccessError, SILENT_REPLY_TOKEN, WA_WEB_AUTH_DIR, createWaSocket, createWhatsAppLoginTool, extractLocationData, extractMediaPlaceholder, extractText, formatError, getActiveWebListener, getDefaultLocalRoots, getStatusCode, getWebAuthAgeMs, handleWhatsAppAction, hasWebCredsSync, loadWebMedia, loadWebMediaRaw, logWebSelfId, loginWeb, logoutWeb, maybeRestoreCredsFromBackup, monitorWebChannel, monitorWebInbox, newConnectionId, optimizeImageToJpeg, optimizeImageToPng, pickWebChannel, readCredsJsonRaw, readWebSelfId, readWebSelfIdentity, requireActiveWebListener, resetWebInboundDedupe, resolveDefaultWebAuthDir, resolveHeartbeatRecipients, resolveWebAccountId, resolveWebCredsBackupPath, resolveWebCredsPath, runWebHeartbeatOnce, sendMessageWhatsApp, sendPollWhatsApp, sendReactionWhatsApp, setActiveWebListener, startWebLoginWithQr, stripHeartbeatToken, waitForCredsSaveQueue, waitForCredsSaveQueueWithTimeout, waitForWaConnection, waitForWebLogin, webAuthExists, whatsAppActionRuntime };
+export { DEFAULT_WEB_MEDIA_BYTES, HEARTBEAT_PROMPT, HEARTBEAT_TOKEN, LocalMediaAccessError, SILENT_REPLY_TOKEN, WA_WEB_AUTH_DIR, createWaSocket, createWhatsAppLoginTool, extractLocationData, extractMediaPlaceholder, extractText, formatError, getActiveWebListener, getDefaultLocalRoots, getStatusCode, getWebAuthAgeMs, handleWhatsAppAction, hasWebCredsSync, loadWebMedia, loadWebMediaRaw, logWebSelfId, loginWeb, logoutWeb, maybeRestoreCredsFromBackup, monitorWebChannel, monitorWebInbox, newConnectionId, optimizeImageToJpeg, optimizeImageToPng, pickWebChannel, readCredsJsonRaw, readWebSelfId, readWebSelfIdentity, resetWebInboundDedupe, resolveDefaultWebAuthDir, resolveHeartbeatRecipients, resolveWebAccountId, resolveWebCredsBackupPath, resolveWebCredsPath, runWebHeartbeatOnce, sendMessageWhatsApp, sendPollWhatsApp, sendReactionWhatsApp, setWhatsAppRuntime, startWebLoginWithQr, stripHeartbeatToken, waitForCredsSaveQueue, waitForCredsSaveQueueWithTimeout, waitForWaConnection, waitForWebLogin, webAuthExists, whatsAppActionRuntime, writeCredsJsonAtomically };

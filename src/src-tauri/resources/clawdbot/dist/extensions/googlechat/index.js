@@ -1,13 +1,22 @@
-import { i as defineChannelPluginEntry } from "../../core-BghMcc08.js";
-import { n as setGoogleChatRuntime } from "../../runtime-88R8CJ9I.js";
-import { t as googlechatPlugin } from "../../channel-B57LCj6t.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/googlechat/index.ts
-var googlechat_default = defineChannelPluginEntry({
+var googlechat_default = defineBundledChannelEntry({
 	id: "googlechat",
 	name: "Google Chat",
 	description: "OpenClaw Google Chat channel plugin",
-	plugin: googlechatPlugin,
-	setRuntime: setGoogleChatRuntime
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "googlechatPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	},
+	runtime: {
+		specifier: "./runtime-api.js",
+		exportName: "setGoogleChatRuntime"
+	}
 });
 //#endregion
-export { googlechat_default as default, googlechatPlugin, setGoogleChatRuntime };
+export { googlechat_default as default };

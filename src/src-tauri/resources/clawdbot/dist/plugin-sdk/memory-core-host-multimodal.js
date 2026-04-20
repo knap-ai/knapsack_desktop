@@ -1,3 +1,2 @@
-import { a as isMemoryMultimodalEnabled, o as normalizeMemoryMultimodalSettings } from "../multimodal-D2Ic0vzl.js";
-import "../memory-core-host-multimodal-DiXSkv1Z.js";
-export { isMemoryMultimodalEnabled, normalizeMemoryMultimodalSettings };
+import { a as isMemoryMultimodalEnabled, o as normalizeMemoryMultimodalSettings, s as supportsMemoryMultimodalEmbeddings } from "../multimodal-CSgiW0p4.js";
+export { isMemoryMultimodalEnabled, normalizeMemoryMultimodalSettings, supportsMemoryMultimodalEmbeddings };

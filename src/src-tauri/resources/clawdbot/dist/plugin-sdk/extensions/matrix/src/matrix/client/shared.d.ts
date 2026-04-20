@@ -8,6 +8,7 @@ export declare function resolveSharedMatrixClient(params?: {
     auth?: MatrixAuth;
     startClient?: boolean;
     accountId?: string | null;
+    abortSignal?: AbortSignal;
 }): Promise<MatrixClient>;
 export declare function acquireSharedMatrixClient(params?: {
     cfg?: CoreConfig;
@@ -16,6 +17,7 @@ export declare function acquireSharedMatrixClient(params?: {
     auth?: MatrixAuth;
     startClient?: boolean;
     accountId?: string | null;
+    abortSignal?: AbortSignal;
 }): Promise<MatrixClient>;
 export declare function stopSharedClient(): void;
 export declare function stopSharedClientForAccount(auth: MatrixAuth): void;

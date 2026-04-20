@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ContextEngineInfo } from "../context-engine/types.js";
 export declare const DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR = 20000;
 type PiSettingsManagerLike = {
@@ -12,6 +12,12 @@ type PiSettingsManagerLike = {
     }) => void;
     setCompactionEnabled?: (enabled: boolean) => void;
 };
+/**
+ * Ensures the compaction reserve tokens are at least the specified minimum.
+ * Note: This function is not context-aware and uses an uncapped floor.
+ * If called for small-context models without threading `contextTokenBudget`,
+ * it may re-introduce context overflow issues.
+ */
 export declare function ensurePiCompactionReserveTokens(params: {
     settingsManager: PiSettingsManagerLike;
     minReserveTokens?: number;
@@ -23,6 +29,8 @@ export declare function resolveCompactionReserveTokensFloor(cfg?: OpenClawConfig
 export declare function applyPiCompactionSettingsFromConfig(params: {
     settingsManager: PiSettingsManagerLike;
     cfg?: OpenClawConfig;
+    /** When known, the resolved context window budget for the current model. */
+    contextTokenBudget?: number;
 }): {
     didOverride: boolean;
     compaction: {

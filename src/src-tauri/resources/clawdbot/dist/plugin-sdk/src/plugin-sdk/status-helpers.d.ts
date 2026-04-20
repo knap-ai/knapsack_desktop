@@ -1,11 +1,25 @@
 import type { ChannelStatusAdapter } from "../channels/plugins/types.adapters.js";
 import type { ChannelAccountSnapshot } from "../channels/plugins/types.core.js";
-import type { ChannelStatusIssue } from "../channels/plugins/types.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { ChannelStatusIssue } from "../channels/plugins/types.public.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+export type { ChannelAccountSnapshot } from "../channels/plugins/types.core.js";
+export type { ChannelStatusIssue } from "../channels/plugins/types.public.js";
 export { isRecord } from "../channels/plugins/status-issues/shared.js";
 export { appendMatchMetadata, asString, collectIssuesForEnabledAccounts, formatMatchMetadata, resolveEnabledConfiguredAccountId, } from "../channels/plugins/status-issues/shared.js";
 type RuntimeLifecycleSnapshot = {
     running?: boolean | null;
+    connected?: boolean | null;
+    restartPending?: boolean | null;
+    reconnectAttempts?: number | null;
+    lastConnectedAt?: number | null;
+    lastDisconnect?: string | {
+        at: number;
+        status?: number;
+        error?: string;
+        loggedOut?: boolean;
+    } | null;
+    lastEventAt?: number | null;
+    healthState?: string | null;
     lastStartAt?: number | null;
     lastStopAt?: number | null;
     lastError?: string | null;
@@ -106,6 +120,18 @@ export declare function buildBaseAccountStatusSnapshot<TExtra extends StatusSnap
 }, extra?: TExtra): {
     lastInboundAt: number | null;
     lastOutboundAt: number | null;
+    healthState?: string | undefined;
+    lastEventAt?: number | undefined;
+    lastDisconnect?: string | {
+        at: number;
+        status?: number;
+        error?: string;
+        loggedOut?: boolean;
+    } | undefined;
+    lastConnectedAt?: number | undefined;
+    reconnectAttempts?: number | undefined;
+    restartPending?: boolean | undefined;
+    connected?: boolean | undefined;
     running: boolean;
     lastStartAt: number | null;
     lastStopAt: number | null;
@@ -127,6 +153,18 @@ export declare function buildComputedAccountStatusSnapshot<TExtra extends Status
 }, extra?: TExtra): {
     lastInboundAt: number | null;
     lastOutboundAt: number | null;
+    healthState?: string | undefined;
+    lastEventAt?: number | undefined;
+    lastDisconnect?: string | {
+        at: number;
+        status?: number;
+        error?: string;
+        loggedOut?: boolean;
+    } | undefined;
+    lastConnectedAt?: number | undefined;
+    reconnectAttempts?: number | undefined;
+    restartPending?: boolean | undefined;
+    connected?: boolean | undefined;
     running: boolean;
     lastStartAt: number | null;
     lastStopAt: number | null;
@@ -150,6 +188,18 @@ export declare function buildRuntimeAccountStatusSnapshot<TExtra extends StatusS
     runtime?: RuntimeLifecycleSnapshot | null;
     probe?: unknown;
 }, extra?: TExtra): {
+    healthState?: string | undefined;
+    lastEventAt?: number | undefined;
+    lastDisconnect?: string | {
+        at: number;
+        status?: number;
+        error?: string;
+        loggedOut?: boolean;
+    } | undefined;
+    lastConnectedAt?: number | undefined;
+    reconnectAttempts?: number | undefined;
+    restartPending?: boolean | undefined;
+    connected?: boolean | undefined;
     running: boolean;
     lastStartAt: number | null;
     lastStopAt: number | null;

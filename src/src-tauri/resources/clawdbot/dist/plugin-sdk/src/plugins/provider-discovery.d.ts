@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
 import type { ModelProviderConfig } from "../config/types.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ProviderDiscoveryOrder, ProviderPlugin } from "./types.js";
 export declare function resolvePluginDiscoveryProviders(params: {
     config?: OpenClawConfig;

@@ -1,0 +1,137 @@
+import { i as formatErrorMessage } from "./errors-D8p6rxH8.js";
+import { t as acquireSessionWriteLock } from "./session-write-lock-CcI4KSH8.js";
+import { t as emitSessionTranscriptUpdate } from "./transcript-events-CdRuhFsO.js";
+import { t as log } from "./logger-CMwqWyWx.js";
+import { SessionManager } from "@mariozechner/pi-coding-agent";
+//#region src/agents/session-raw-append-message.ts
+const RAW_APPEND_MESSAGE = Symbol("openclaw.session.rawAppendMessage");
+/**
+* Return the unguarded appendMessage implementation for a session manager.
+*/
+function getRawSessionAppendMessage(sessionManager) {
+	return sessionManager[RAW_APPEND_MESSAGE] ?? sessionManager.appendMessage.bind(sessionManager);
+}
+function setRawSessionAppendMessage(sessionManager, appendMessage) {
+	sessionManager[RAW_APPEND_MESSAGE] = appendMessage;
+}
+//#endregion
+//#region src/agents/pi-embedded-runner/transcript-rewrite.ts
+function estimateMessageBytes(message) {
+	return Buffer.byteLength(JSON.stringify(message), "utf8");
+}
+function remapEntryId(entryId, rewrittenEntryIds) {
+	if (!entryId) return null;
+	return rewrittenEntryIds.get(entryId) ?? entryId;
+}
+function appendBranchEntry(params) {
+	const { sessionManager, entry, rewrittenEntryIds, appendMessage } = params;
+	if (entry.type === "message") return appendMessage(entry.message);
+	if (entry.type === "compaction") return sessionManager.appendCompaction(entry.summary, remapEntryId(entry.firstKeptEntryId, rewrittenEntryIds) ?? entry.firstKeptEntryId, entry.tokensBefore, entry.details, entry.fromHook);
+	if (entry.type === "thinking_level_change") return sessionManager.appendThinkingLevelChange(entry.thinkingLevel);
+	if (entry.type === "model_change") return sessionManager.appendModelChange(entry.provider, entry.modelId);
+	if (entry.type === "custom") return sessionManager.appendCustomEntry(entry.customType, entry.data);
+	if (entry.type === "custom_message") return sessionManager.appendCustomMessageEntry(entry.customType, entry.content, entry.display, entry.details);
+	if (entry.type === "session_info") {
+		if (entry.name) return sessionManager.appendSessionInfo(entry.name);
+		return sessionManager.appendSessionInfo("");
+	}
+	if (entry.type === "branch_summary") return sessionManager.branchWithSummary(remapEntryId(entry.parentId, rewrittenEntryIds), entry.summary, entry.details, entry.fromHook);
+	return sessionManager.appendLabelChange(remapEntryId(entry.targetId, rewrittenEntryIds) ?? entry.targetId, entry.label);
+}
+/**
+* Safely rewrites transcript message entries on the active branch by branching
+* from the first rewritten message's parent and re-appending the suffix.
+*/
+function rewriteTranscriptEntriesInSessionManager(params) {
+	const replacementsById = new Map(params.replacements.filter((replacement) => replacement.entryId.trim().length > 0).map((replacement) => [replacement.entryId, replacement.message]));
+	if (replacementsById.size === 0) return {
+		changed: false,
+		bytesFreed: 0,
+		rewrittenEntries: 0,
+		reason: "no replacements requested"
+	};
+	const branch = params.sessionManager.getBranch();
+	if (branch.length === 0) return {
+		changed: false,
+		bytesFreed: 0,
+		rewrittenEntries: 0,
+		reason: "empty session"
+	};
+	const matchedIndices = [];
+	let bytesFreed = 0;
+	for (let index = 0; index < branch.length; index++) {
+		const entry = branch[index];
+		if (entry.type !== "message") continue;
+		const replacement = replacementsById.get(entry.id);
+		if (!replacement) continue;
+		const originalBytes = estimateMessageBytes(entry.message);
+		const replacementBytes = estimateMessageBytes(replacement);
+		matchedIndices.push(index);
+		bytesFreed += Math.max(0, originalBytes - replacementBytes);
+	}
+	if (matchedIndices.length === 0) return {
+		changed: false,
+		bytesFreed: 0,
+		rewrittenEntries: 0,
+		reason: "no matching message entries"
+	};
+	const firstMatchedEntry = branch[matchedIndices[0]];
+	if (!firstMatchedEntry) return {
+		changed: false,
+		bytesFreed: 0,
+		rewrittenEntries: 0,
+		reason: "invalid first rewrite target"
+	};
+	if (!firstMatchedEntry.parentId) params.sessionManager.resetLeaf();
+	else params.sessionManager.branch(firstMatchedEntry.parentId);
+	const appendMessage = getRawSessionAppendMessage(params.sessionManager);
+	const rewrittenEntryIds = /* @__PURE__ */ new Map();
+	for (let index = matchedIndices[0]; index < branch.length; index++) {
+		const entry = branch[index];
+		const replacement = entry.type === "message" ? replacementsById.get(entry.id) : void 0;
+		const newEntryId = replacement === void 0 ? appendBranchEntry({
+			sessionManager: params.sessionManager,
+			entry,
+			rewrittenEntryIds,
+			appendMessage
+		}) : appendMessage(replacement);
+		rewrittenEntryIds.set(entry.id, newEntryId);
+	}
+	return {
+		changed: true,
+		bytesFreed,
+		rewrittenEntries: matchedIndices.length
+	};
+}
+/**
+* Open a transcript file, rewrite message entries on the active branch, and
+* emit a transcript update when the active branch changed.
+*/
+async function rewriteTranscriptEntriesInSessionFile(params) {
+	let sessionLock;
+	try {
+		sessionLock = await acquireSessionWriteLock({ sessionFile: params.sessionFile });
+		const result = rewriteTranscriptEntriesInSessionManager({
+			sessionManager: SessionManager.open(params.sessionFile),
+			replacements: params.request.replacements
+		});
+		if (result.changed) {
+			emitSessionTranscriptUpdate(params.sessionFile);
+			log.info(`[transcript-rewrite] rewrote ${result.rewrittenEntries} entr${result.rewrittenEntries === 1 ? "y" : "ies"} bytesFreed=${result.bytesFreed} sessionKey=${params.sessionKey ?? params.sessionId ?? "unknown"}`);
+		}
+		return result;
+	} catch (err) {
+		const reason = formatErrorMessage(err);
+		log.warn(`[transcript-rewrite] failed: ${reason}`);
+		return {
+			changed: false,
+			bytesFreed: 0,
+			rewrittenEntries: 0,
+			reason
+		};
+	} finally {
+		await sessionLock?.release();
+	}
+}
+//#endregion
+export { setRawSessionAppendMessage as i, rewriteTranscriptEntriesInSessionManager as n, getRawSessionAppendMessage as r, rewriteTranscriptEntriesInSessionFile as t };

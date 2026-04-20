@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.js";
 import type { ContextEngine } from "./types.js";
 /**
  * A factory that creates a ContextEngine instance.
@@ -41,7 +41,9 @@ export declare function listContextEngineIds(): string[];
  *   1. `config.plugins.slots.contextEngine` (explicit slot override)
  *   2. Default slot value ("legacy")
  *
- * Throws if the resolved engine id has no registered factory.
+ * Non-default engines that fail (unregistered, factory throw, or contract
+ * violation) are logged and silently replaced by the default engine.
+ * Throws only when the default engine itself cannot be resolved.
  */
 export declare function resolveContextEngine(config?: OpenClawConfig): Promise<ContextEngine>;
 export {};

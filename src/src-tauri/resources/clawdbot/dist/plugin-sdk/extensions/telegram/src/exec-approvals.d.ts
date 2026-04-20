@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import type { TelegramExecApprovalConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { ExecApprovalRequest, PluginApprovalRequest } from "openclaw/plugin-sdk/infra-runtime";
 import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
 export declare function resolveTelegramExecApprovalConfig(params: {
     cfg: OpenClawConfig;
@@ -38,7 +39,7 @@ export declare const shouldHandleTelegramExecApprovalRequest: (input: {
     cfg: OpenClawConfig;
     accountId?: string | null;
 } & {
-    request: import("openclaw/plugin-sdk/approval-runtime").ExecApprovalRequest | import("openclaw/plugin-sdk/approval-runtime").PluginApprovalRequest;
+    request: ExecApprovalRequest | PluginApprovalRequest;
 }) => boolean;
 export declare function shouldInjectTelegramExecApprovalButtons(params: {
     cfg: OpenClawConfig;

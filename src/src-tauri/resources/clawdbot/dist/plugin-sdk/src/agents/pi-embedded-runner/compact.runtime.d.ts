@@ -1,3 +1,2 @@
-type CompactEmbeddedPiSessionDirect = typeof import("./compact.js").compactEmbeddedPiSessionDirect;
+import type { CompactEmbeddedPiSessionDirect } from "./compact.runtime.types.js";
 export declare function compactEmbeddedPiSessionDirect(...args: Parameters<CompactEmbeddedPiSessionDirect>): ReturnType<CompactEmbeddedPiSessionDirect>;
-export {};

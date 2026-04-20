@@ -1,6 +1,7 @@
-import { r as formatErrorMessage } from "../errors-Bs2h5H8p.js";
-import { d as resolvePinnedHostnameWithPolicy, i as createPinnedDispatcher, r as closeDispatcher, s as isBlockedHostnameOrIp, u as resolvePinnedHostname } from "../ssrf-BWlfjI7J.js";
-import { n as fetchWithSsrFGuard } from "../fetch-guard-Lvq2pw52.js";
-import { a as ssrfPolicyFromAllowPrivateNetwork, n as buildHostnameAllowlistPolicyFromSuffixAllowlist, t as assertHttpUrlTargetsPrivateNetwork } from "../ssrf-policy-B7Ivb-NK.js";
-import "../ssrf-runtime-BoGiIhjZ.js";
-export { assertHttpUrlTargetsPrivateNetwork, buildHostnameAllowlistPolicyFromSuffixAllowlist, closeDispatcher, createPinnedDispatcher, fetchWithSsrFGuard, formatErrorMessage, isBlockedHostnameOrIp, resolvePinnedHostname, resolvePinnedHostnameWithPolicy, ssrfPolicyFromAllowPrivateNetwork };
+import { i as formatErrorMessage } from "../errors-D8p6rxH8.js";
+import { s as isPrivateOrLoopbackHost } from "../net-lBInRHnX.js";
+import { n as fetchWithSsrFGuard } from "../fetch-guard-B3p4gGaY.js";
+import { a as createPinnedDispatcher, c as isBlockedHostnameOrIp, h as resolvePinnedHostnameWithPolicy, i as closeDispatcher, m as resolvePinnedHostname } from "../ssrf-DoOclwFS.js";
+import { d as ssrfPolicyFromPrivateNetworkOptIn, i as hasLegacyFlatAllowPrivateNetworkAlias, l as ssrfPolicyFromAllowPrivateNetwork, n as buildHostnameAllowlistPolicyFromSuffixAllowlist, o as isPrivateNetworkOptInEnabled, r as createLegacyPrivateNetworkDoctorContract, s as migrateLegacyFlatAllowPrivateNetworkAlias, t as assertHttpUrlTargetsPrivateNetwork, u as ssrfPolicyFromDangerouslyAllowPrivateNetwork } from "../ssrf-policy-CChtVzhj.js";
+import "../ssrf-runtime-CmuKDV7X.js";
+export { assertHttpUrlTargetsPrivateNetwork, buildHostnameAllowlistPolicyFromSuffixAllowlist, closeDispatcher, createLegacyPrivateNetworkDoctorContract, createPinnedDispatcher, fetchWithSsrFGuard, formatErrorMessage, hasLegacyFlatAllowPrivateNetworkAlias, isBlockedHostnameOrIp, isPrivateNetworkOptInEnabled, isPrivateOrLoopbackHost, migrateLegacyFlatAllowPrivateNetworkAlias, resolvePinnedHostname, resolvePinnedHostnameWithPolicy, ssrfPolicyFromAllowPrivateNetwork, ssrfPolicyFromDangerouslyAllowPrivateNetwork, ssrfPolicyFromPrivateNetworkOptIn };

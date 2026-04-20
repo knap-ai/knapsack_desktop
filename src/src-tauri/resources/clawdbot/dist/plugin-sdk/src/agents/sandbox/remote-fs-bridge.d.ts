@@ -1,12 +1,11 @@
-import type { SandboxBackendCommandParams, SandboxBackendCommandResult } from "./backend.js";
-import type { SandboxFsBridge } from "./fs-bridge.js";
-import type { SandboxContext } from "./types.js";
+import type { SandboxBackendCommandParams, SandboxBackendCommandResult, SandboxFsBridgeContext } from "./backend-handle.types.js";
+import type { SandboxFsBridge } from "./fs-bridge.types.js";
 export type RemoteShellSandboxHandle = {
     remoteWorkspaceDir: string;
     remoteAgentWorkspaceDir: string;
     runRemoteShellScript(params: SandboxBackendCommandParams): Promise<SandboxBackendCommandResult>;
 };
 export declare function createRemoteShellSandboxFsBridge(params: {
-    sandbox: SandboxContext;
+    sandbox: SandboxFsBridgeContext;
     runtime: RemoteShellSandboxHandle;
 }): SandboxFsBridge;

@@ -1,2 +1,26 @@
-import { a as CODE_ASSIST_ENDPOINT_DAILY, c as LOAD_CODE_ASSIST_ENDPOINTS, d as TIER_FREE, f as TIER_LEGACY, h as USERINFO_URL, i as CODE_ASSIST_ENDPOINT_AUTOPUSH, l as REDIRECT_URI, m as TOKEN_URL, n as CLIENT_ID_KEYS, o as CODE_ASSIST_ENDPOINT_PROD, p as TIER_STANDARD, r as CLIENT_SECRET_KEYS, s as DEFAULT_FETCH_TIMEOUT_MS, t as AUTH_URL, u as SCOPES } from "../../oauth.shared-DFV7na8K.js";
+//#region extensions/google/oauth.shared.ts
+const CLIENT_ID_KEYS = ["OPENCLAW_GEMINI_OAUTH_CLIENT_ID", "GEMINI_CLI_OAUTH_CLIENT_ID"];
+const CLIENT_SECRET_KEYS = ["OPENCLAW_GEMINI_OAUTH_CLIENT_SECRET", "GEMINI_CLI_OAUTH_CLIENT_SECRET"];
+const REDIRECT_URI = "http://localhost:8085/oauth2callback";
+const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
+const CODE_ASSIST_ENDPOINT_PROD = "https://cloudcode-pa.googleapis.com";
+const CODE_ASSIST_ENDPOINT_DAILY = "https://daily-cloudcode-pa.sandbox.googleapis.com";
+const CODE_ASSIST_ENDPOINT_AUTOPUSH = "https://autopush-cloudcode-pa.sandbox.googleapis.com";
+const LOAD_CODE_ASSIST_ENDPOINTS = [
+	CODE_ASSIST_ENDPOINT_PROD,
+	CODE_ASSIST_ENDPOINT_DAILY,
+	CODE_ASSIST_ENDPOINT_AUTOPUSH
+];
+const DEFAULT_FETCH_TIMEOUT_MS = 1e4;
+const SCOPES = [
+	"https://www.googleapis.com/auth/cloud-platform",
+	"https://www.googleapis.com/auth/userinfo.email",
+	"https://www.googleapis.com/auth/userinfo.profile"
+];
+const TIER_FREE = "free-tier";
+const TIER_LEGACY = "legacy-tier";
+const TIER_STANDARD = "standard-tier";
+//#endregion
 export { AUTH_URL, CLIENT_ID_KEYS, CLIENT_SECRET_KEYS, CODE_ASSIST_ENDPOINT_AUTOPUSH, CODE_ASSIST_ENDPOINT_DAILY, CODE_ASSIST_ENDPOINT_PROD, DEFAULT_FETCH_TIMEOUT_MS, LOAD_CODE_ASSIST_ENDPOINTS, REDIRECT_URI, SCOPES, TIER_FREE, TIER_LEGACY, TIER_STANDARD, TOKEN_URL, USERINFO_URL };

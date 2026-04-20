@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { SandboxToolPolicy, SandboxToolPolicyResolved } from "./types.js";
 export declare function classifyToolAgainstSandboxToolPolicy(name: string, policy?: SandboxToolPolicy): {
     blockedByDeny: boolean;

@@ -1,7 +1,6 @@
-import type { SessionEntry } from "../config/sessions.js";
+import type { FallbackNoticeState } from "../status/fallback-notice-state.js";
 import type { RuntimeFallbackAttempt } from "./reply/agent-runner-execution.js";
-export type FallbackNoticeState = Pick<SessionEntry, "fallbackNoticeSelectedModel" | "fallbackNoticeActiveModel" | "fallbackNoticeReason">;
-export declare function normalizeFallbackModelRef(value?: string): string | undefined;
+export { resolveActiveFallbackState, type FallbackNoticeState, } from "../status/fallback-notice-state.js";
 export declare function formatFallbackAttemptReason(attempt: RuntimeFallbackAttempt): string;
 export declare function buildFallbackReasonSummary(attempts: RuntimeFallbackAttempt[]): string;
 export declare function buildFallbackAttemptSummaries(attempts: RuntimeFallbackAttempt[]): string[];
@@ -17,14 +16,6 @@ export declare function buildFallbackClearedNotice(params: {
     selectedModel: string;
     previousActiveModel?: string;
 }): string;
-export declare function resolveActiveFallbackState(params: {
-    selectedModelRef: string;
-    activeModelRef: string;
-    state?: FallbackNoticeState;
-}): {
-    active: boolean;
-    reason?: string;
-};
 export type ResolvedFallbackTransition = {
     selectedModelRef: string;
     activeModelRef: string;

@@ -1,7 +1,9 @@
-import { n as fetchWithSsrFGuard } from "../../fetch-guard-Lvq2pw52.js";
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { a as ssrfPolicyFromAllowPrivateNetwork } from "../../ssrf-policy-B7Ivb-NK.js";
-import "../../api-Dv8lAN_k.js";
+import { s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
+import { n as fetchWithSsrFGuard } from "../../fetch-guard-B3p4gGaY.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { u as ssrfPolicyFromDangerouslyAllowPrivateNetwork } from "../../ssrf-policy-CChtVzhj.js";
+import "../../api-sbYcGYMI2.js";
 //#region extensions/thread-ownership/index.ts
 const mentionedThreads = /* @__PURE__ */ new Map();
 const MENTION_TTL_MS = 300 * 1e3;
@@ -10,11 +12,11 @@ function cleanExpiredMentions() {
 	for (const [key, ts] of mentionedThreads) if (now - ts > MENTION_TTL_MS) mentionedThreads.delete(key);
 }
 function resolveOwnershipAgent(config) {
-	const list = Array.isArray(config.agents?.list) ? config.agents.list.filter((entry) => Boolean(entry && typeof entry === "object")) : [];
+	const list = Array.isArray(config.agents?.list) ? config.agents.list.filter((entry) => entry !== null && typeof entry === "object") : [];
 	const selected = list.find((entry) => entry.default === true) ?? list[0];
-	const id = typeof selected?.id === "string" && selected.id.trim() ? selected.id.trim() : "unknown";
-	const identityName = typeof selected?.identity?.name === "string" ? selected.identity.name.trim() : "";
-	const fallbackName = typeof selected?.name === "string" ? selected.name.trim() : "";
+	const id = normalizeOptionalString(selected?.id) ?? "unknown";
+	const identityName = normalizeOptionalString(selected?.identity?.name) ?? "";
+	const fallbackName = normalizeOptionalString(selected?.name) ?? "";
 	return {
 		id,
 		name: identityName || fallbackName
@@ -58,7 +60,7 @@ var thread_ownership_default = definePluginEntry({
 						body: JSON.stringify({ agent_id: agentId })
 					},
 					timeoutMs: 3e3,
-					policy: ssrfPolicyFromAllowPrivateNetwork(true),
+					policy: ssrfPolicyFromDangerouslyAllowPrivateNetwork(true),
 					auditContext: "thread-ownership"
 				});
 				try {

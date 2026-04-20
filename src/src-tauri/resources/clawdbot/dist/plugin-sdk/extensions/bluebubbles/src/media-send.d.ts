@@ -1,4 +1,4 @@
-import { type OpenClawConfig } from "./runtime-api.js";
+import type { OpenClawConfig } from "./runtime-api.js";
 export declare function sendBlueBubblesMedia(params: {
     cfg: OpenClawConfig;
     to: string;

@@ -1,5 +1,5 @@
 import { type ModelRef } from "../../agents/model-selection.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export type ModelPickerCatalogEntry = {
     provider: string;
     id: string;

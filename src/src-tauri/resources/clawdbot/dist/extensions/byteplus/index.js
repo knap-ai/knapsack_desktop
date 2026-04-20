@@ -1,8 +1,10 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-BF3kHzmf.js";
-import "../../provider-auth-api-key-g0GKEM-Y.js";
-import { f as ensureModelAllowlistEntry } from "../../provider-onboard-DAFWptpQ.js";
-import { n as buildBytePlusProvider, t as buildBytePlusCodingProvider } from "../../provider-catalog-CAow9_XK.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-nkL4zxbI.js";
+import "../../provider-auth-api-key-F-AGqwyB.js";
+import { m as ensureModelAllowlistEntry } from "../../provider-onboard-CghzCQ2p.js";
+import { c as BYTEPLUS_MODEL_CATALOG, i as BYTEPLUS_CODING_MODEL_CATALOG } from "../../models-DkN-7jLx.js";
+import { n as buildBytePlusProvider, t as buildBytePlusCodingProvider } from "../../provider-catalog-DNNtFhNn.js";
+import { t as buildBytePlusVideoGenerationProvider } from "../../video-generation-provider-CL3UvB9n.js";
 //#region extensions/byteplus/index.ts
 const PROVIDER_ID = "byteplus";
 const BYTEPLUS_DEFAULT_MODEL_REF = "byteplus-plan/ark-code-latest";
@@ -55,8 +57,28 @@ var byteplus_default = definePluginEntry({
 						}
 					} };
 				}
+			},
+			augmentModelCatalog: () => {
+				const byteplusModels = BYTEPLUS_MODEL_CATALOG.map((entry) => ({
+					provider: "byteplus",
+					id: entry.id,
+					name: entry.name,
+					reasoning: entry.reasoning,
+					input: [...entry.input],
+					contextWindow: entry.contextWindow
+				}));
+				const byteplusPlanModels = BYTEPLUS_CODING_MODEL_CATALOG.map((entry) => ({
+					provider: "byteplus-plan",
+					id: entry.id,
+					name: entry.name,
+					reasoning: entry.reasoning,
+					input: [...entry.input],
+					contextWindow: entry.contextWindow
+				}));
+				return [...byteplusModels, ...byteplusPlanModels];
 			}
 		});
+		api.registerVideoGenerationProvider(buildBytePlusVideoGenerationProvider());
 	}
 });
 //#endregion

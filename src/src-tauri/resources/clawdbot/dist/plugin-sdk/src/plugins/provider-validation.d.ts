@@ -1,4 +1,5 @@
-import type { PluginDiagnostic, ProviderPlugin } from "./types.js";
+import type { PluginDiagnostic } from "./manifest-types.js";
+import type { ProviderPlugin } from "./types.js";
 export declare function normalizeRegisteredProvider(params: {
     pluginId: string;
     source: string;

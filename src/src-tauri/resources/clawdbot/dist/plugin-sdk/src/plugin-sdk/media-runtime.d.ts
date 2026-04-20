@@ -1,4 +1,5 @@
 export * from "../media/audio.js";
+export * from "../media/base64.js";
 export * from "../media/constants.js";
 export * from "../media/fetch.js";
 export * from "../media/ffmpeg-exec.js";

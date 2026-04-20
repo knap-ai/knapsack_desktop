@@ -1,5 +1,5 @@
-import { type ExecApprovalRequest } from "openclaw/plugin-sdk/approval-runtime";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { ExecApprovalRequest } from "openclaw/plugin-sdk/infra-runtime";
 export declare function shouldSuppressTelegramExecApprovalForwardingFallback(params: {
     cfg: OpenClawConfig;
     target: {

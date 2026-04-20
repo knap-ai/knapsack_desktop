@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { AuthProfileIdRepairResult, AuthProfileStore } from "./types.js";
 export declare function suggestOAuthProfileIdForLegacyDefault(params: {
     cfg?: OpenClawConfig;

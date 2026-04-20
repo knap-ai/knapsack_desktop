@@ -24,6 +24,7 @@ declare function splitPreservedRecentTurns(params: {
     preservedMessages: AgentMessage[];
 };
 declare function formatPreservedTurnsSection(messages: AgentMessage[]): string;
+declare function formatSplitTurnContextSection(messages: AgentMessage[]): string;
 /**
  * Read and format critical workspace context for compaction summary.
  * Extracts "Session Startup" and "Red Lines" from AGENTS.md.
@@ -38,6 +39,7 @@ export declare const __testing: {
     readonly formatToolFailuresSection: typeof formatToolFailuresSection;
     readonly splitPreservedRecentTurns: typeof splitPreservedRecentTurns;
     readonly formatPreservedTurnsSection: typeof formatPreservedTurnsSection;
+    readonly formatSplitTurnContextSection: typeof formatSplitTurnContextSection;
     readonly buildCompactionStructureInstructions: typeof buildCompactionStructureInstructions;
     readonly buildStructuredFallbackSummary: typeof buildStructuredFallbackSummary;
     readonly appendSummarySection: typeof appendSummarySection;

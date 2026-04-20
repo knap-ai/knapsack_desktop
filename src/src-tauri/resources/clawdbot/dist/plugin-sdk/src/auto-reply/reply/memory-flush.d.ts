@@ -1,7 +1,10 @@
 import { type SessionEntry } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export declare function resolveMemoryFlushContextWindowTokens(params: {
     modelId?: string;
     agentCfgContextTokens?: number;
+    cfg?: OpenClawConfig;
+    provider?: string;
 }): number;
 export declare function shouldRunMemoryFlush(params: {
     entry?: Pick<SessionEntry, "totalTokens" | "totalTokensFresh" | "compactionCount" | "memoryFlushCompactionCount">;

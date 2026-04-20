@@ -1,7 +1,7 @@
-import type { ReplyPayload } from "../../auto-reply/types.js";
+import type { ReplyPayload } from "../../auto-reply/reply-payload.js";
 import { type CliDeps } from "../../cli/outbound-send-deps.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { OutboundSessionContext } from "../../infra/outbound/session-context.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import type { AgentCommandOpts } from "./types.js";
@@ -27,6 +27,6 @@ export declare function deliverAgentCommandResult(params: {
     payloads: RunResult["payloads"];
 }): Promise<{
     payloads: import("../../infra/outbound/payloads.js").OutboundPayloadJson[];
-    meta: import("../pi-embedded.js").EmbeddedPiRunMeta;
+    meta: import("../pi-embedded.js").EmbeddedAgentRunMeta;
 }>;
 export {};

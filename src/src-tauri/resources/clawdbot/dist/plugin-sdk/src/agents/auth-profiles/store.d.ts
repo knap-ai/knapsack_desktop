@@ -2,12 +2,12 @@ import type { AuthProfileStore } from "./types.js";
 type LoadAuthProfileStoreOptions = {
     allowKeychainPrompt?: boolean;
     readOnly?: boolean;
+    syncExternalCli?: boolean;
 };
-export declare function replaceRuntimeAuthProfileStoreSnapshots(entries: Array<{
-    agentDir?: string;
-    store: AuthProfileStore;
-}>): void;
-export declare function clearRuntimeAuthProfileStoreSnapshots(): void;
+type SaveAuthProfileStoreOptions = {
+    filterExternalAuthProfiles?: boolean;
+    syncExternalCli?: boolean;
+};
 export declare function updateAuthProfileStoreWithLock(params: {
     agentDir?: string;
     updater: (store: AuthProfileStore) => boolean;
@@ -18,5 +18,11 @@ export declare function loadAuthProfileStoreForSecretsRuntime(agentDir?: string)
 export declare function ensureAuthProfileStore(agentDir?: string, options?: {
     allowKeychainPrompt?: boolean;
 }): AuthProfileStore;
-export declare function saveAuthProfileStore(store: AuthProfileStore, agentDir?: string): void;
-export {};
+export declare function ensureAuthProfileStoreForLocalUpdate(agentDir?: string): AuthProfileStore;
+export { hasAnyAuthProfileStoreSource } from "./source-check.js";
+export declare function replaceRuntimeAuthProfileStoreSnapshots(entries: Array<{
+    agentDir?: string;
+    store: AuthProfileStore;
+}>): void;
+export declare function clearRuntimeAuthProfileStoreSnapshots(): void;
+export declare function saveAuthProfileStore(store: AuthProfileStore, agentDir?: string, options?: SaveAuthProfileStoreOptions): void;

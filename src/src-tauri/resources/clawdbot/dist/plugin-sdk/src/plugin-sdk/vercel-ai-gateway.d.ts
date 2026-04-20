@@ -1,6 +1,4 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["vercel-ai-gateway"];
-type FacadeModule = FacadeEntry["module"];
+type FacadeModule = typeof import("@openclaw/vercel-ai-gateway/api.js");
 export declare const buildVercelAiGatewayProvider: FacadeModule["buildVercelAiGatewayProvider"];
 export declare const discoverVercelAiGatewayModels: FacadeModule["discoverVercelAiGatewayModels"];
 export declare const getStaticVercelAiGatewayModelCatalog: FacadeModule["getStaticVercelAiGatewayModelCatalog"];

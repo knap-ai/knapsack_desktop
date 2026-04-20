@@ -1,5 +1,5 @@
+import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import { type RoutePeer } from "openclaw/plugin-sdk/routing";
-import type { OpenClawConfig } from "./runtime-api.js";
 export type ResolveDiscordOutboundSessionRouteParams = {
     cfg: OpenClawConfig;
     agentId: string;

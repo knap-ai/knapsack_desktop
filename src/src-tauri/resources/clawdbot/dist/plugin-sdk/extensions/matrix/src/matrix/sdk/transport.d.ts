@@ -1,4 +1,4 @@
-import type { PinnedDispatcherPolicy } from "openclaw/plugin-sdk/infra-runtime";
+import { type PinnedDispatcherPolicy } from "openclaw/plugin-sdk/infra-runtime";
 import { type SsrFPolicy } from "../../runtime-api.js";
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 type QueryValue = string | number | boolean | null | undefined | Array<string | number | boolean | null | undefined>;

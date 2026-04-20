@@ -1,4 +1,4 @@
-import type { ConversationRef, SessionBindingBindInput, SessionBindingCapabilities, SessionBindingRecord, SessionBindingUnbindInput } from "./session-binding-service.js";
+import type { ConversationRef, SessionBindingBindInput, SessionBindingCapabilities, SessionBindingRecord, SessionBindingUnbindInput } from "./session-binding.types.js";
 declare function resolveBindingsFilePath(env?: NodeJS.ProcessEnv): string;
 export declare function getGenericCurrentConversationBindingCapabilities(params: {
     channel: string;

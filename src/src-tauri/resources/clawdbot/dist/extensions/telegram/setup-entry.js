@@ -1,13 +1,16 @@
-import { a as defineSetupPluginEntry } from "../../core-BghMcc08.js";
-import { n as telegramSetupAdapter, t as telegramSetupWizard } from "../../setup-surface-Dy5qZ0XD.js";
-import { t as createTelegramPluginBase } from "../../shared-DoOcydyi.js";
-//#region extensions/telegram/src/channel.setup.ts
-const telegramSetupPlugin = { ...createTelegramPluginBase({
-	setupWizard: telegramSetupWizard,
-	setup: telegramSetupAdapter
-}) };
-//#endregion
+import { defineBundledChannelSetupEntry } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/telegram/setup-entry.ts
-var setup_entry_default = defineSetupPluginEntry(telegramSetupPlugin);
+var setup_entry_default = defineBundledChannelSetupEntry({
+	importMetaUrl: import.meta.url,
+	features: { legacyStateMigrations: true },
+	plugin: {
+		specifier: "./setup-plugin-api.js",
+		exportName: "telegramSetupPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	}
+});
 //#endregion
-export { setup_entry_default as default, telegramSetupPlugin };
+export { setup_entry_default as default };

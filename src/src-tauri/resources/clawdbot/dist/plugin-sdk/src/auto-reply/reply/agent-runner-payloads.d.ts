@@ -1,7 +1,7 @@
-import type { MessagingToolSend } from "../../agents/pi-embedded-runner.js";
+import type { MessagingToolSend } from "../../agents/pi-embedded-messaging.types.js";
 import type { ReplyToMode } from "../../config/types.js";
 import type { OriginatingChannelType } from "../templating.js";
-import type { ReplyPayload } from "../types.js";
+import type { ReplyPayload, ReplyThreadingPolicy } from "../types.js";
 import { type BlockReplyPipeline } from "./block-reply-pipeline.js";
 export declare function buildReplyPayloads(params: {
     payloads: ReplyPayload[];
@@ -15,6 +15,7 @@ export declare function buildReplyPayloads(params: {
     replyToMode: ReplyToMode;
     replyToChannel?: OriginatingChannelType;
     currentMessageId?: string;
+    replyThreading?: ReplyThreadingPolicy;
     messageProvider?: string;
     messagingToolSentTexts?: string[];
     messagingToolSentMediaUrls?: string[];

@@ -1,4 +1,5 @@
-import type { OpenClawConfig, SkillConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { SkillConfig } from "../../config/types.skills.js";
 import { hasBinary, resolveConfigPath, resolveRuntimePlatform } from "../../shared/config-eval.js";
 import type { SkillEligibilityContext, SkillEntry } from "./types.js";
 export { hasBinary, resolveConfigPath, resolveRuntimePlatform };

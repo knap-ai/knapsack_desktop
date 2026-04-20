@@ -4,9 +4,10 @@ export { formatInboundEnvelope, formatInboundFromLabel, resolveEnvelopeFormatOpt
 export type { EnvelopeFormatOptions } from "../auto-reply/envelope.js";
 export { buildMentionRegexes, matchesMentionPatterns, matchesMentionWithExplicit, normalizeMentionText, } from "../auto-reply/reply/mentions.js";
 export { createChannelInboundDebouncer, shouldDebounceTextInbound, } from "../channels/inbound-debounce-policy.js";
-export type { MentionGateParams, MentionGateResult, MentionGateWithBypassParams, MentionGateWithBypassResult, } from "../channels/mention-gating.js";
-export { resolveMentionGating, resolveMentionGatingWithBypass, } from "../channels/mention-gating.js";
+export type { InboundMentionFacts, InboundMentionPolicy, InboundImplicitMentionKind, InboundMentionDecision, MentionGateParams, MentionGateResult, MentionGateWithBypassParams, MentionGateWithBypassResult, ResolveInboundMentionDecisionFlatParams, ResolveInboundMentionDecisionNestedParams, ResolveInboundMentionDecisionParams, } from "../channels/mention-gating.js";
+export { implicitMentionKindWhen, resolveInboundMentionDecision, resolveMentionGating, resolveMentionGatingWithBypass, } from "../channels/mention-gating.js";
 export type { NormalizedLocation } from "../channels/location.js";
 export { formatLocationText, toLocationContext } from "../channels/location.js";
 export { logInboundDrop } from "../channels/logging.js";
 export { resolveInboundSessionEnvelopeContext } from "../channels/session-envelope.js";
+export { mergeInboundPathRoots } from "../media/inbound-path-policy.js";

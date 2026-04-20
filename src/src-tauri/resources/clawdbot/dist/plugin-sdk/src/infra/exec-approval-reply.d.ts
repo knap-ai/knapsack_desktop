@@ -6,7 +6,10 @@ export type ExecApprovalUnavailableReason = "initiating-platform-disabled" | "in
 export type ExecApprovalReplyMetadata = {
     approvalId: string;
     approvalSlug: string;
+    approvalKind: "exec" | "plugin";
+    agentId?: string;
     allowedDecisions?: readonly ExecApprovalReplyDecision[];
+    sessionKey?: string;
 };
 export type ExecApprovalActionDescriptor = {
     decision: ExecApprovalReplyDecision;
@@ -20,17 +23,21 @@ export type ExecApprovalPendingReplyParams = {
     approvalSlug: string;
     approvalCommandId?: string;
     ask?: string | null;
+    agentId?: string | null;
     allowedDecisions?: readonly ExecApprovalReplyDecision[];
     command: string;
     cwd?: string;
     host: ExecHost;
     nodeId?: string;
+    sessionKey?: string | null;
     expiresAtMs?: number;
     nowMs?: number;
 };
 export type ExecApprovalUnavailableReplyParams = {
     warningText?: string;
+    channel?: string;
     channelLabel?: string;
+    accountId?: string;
     reason: ExecApprovalUnavailableReason;
     sentApproverDms?: boolean;
 };
@@ -43,6 +50,7 @@ export declare function buildExecApprovalActionDescriptors(params: {
     ask?: string | null;
     allowedDecisions?: readonly ExecApprovalReplyDecision[];
 }): ExecApprovalActionDescriptor[];
+export declare function buildApprovalInteractiveReplyFromActionDescriptors(actions: readonly ExecApprovalActionDescriptor[]): InteractiveReply | undefined;
 export declare function buildApprovalInteractiveReply(params: {
     approvalId: string;
     ask?: string | null;

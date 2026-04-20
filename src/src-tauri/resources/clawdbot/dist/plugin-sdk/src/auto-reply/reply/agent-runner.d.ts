@@ -4,6 +4,7 @@ import type { TemplateContext } from "../templating.js";
 import { type VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { type FollowupRun, type QueueSettings } from "./queue.js";
+import { type ReplyOperation } from "./reply-run-registry.js";
 import type { TypingController } from "./typing.js";
 export declare function runReplyAgent(params: {
     commandBody: string;
@@ -36,4 +37,6 @@ export declare function runReplyAgent(params: {
     sessionCtx: TemplateContext;
     shouldInjectGroupIntro: boolean;
     typingMode: TypingMode;
+    resetTriggered?: boolean;
+    replyOperation?: ReplyOperation;
 }): Promise<ReplyPayload | ReplyPayload[] | undefined>;

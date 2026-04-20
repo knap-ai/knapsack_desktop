@@ -1,3 +1,4 @@
+import type { MemoryCitationsMode } from "../config/types.memory.js";
 import type { ContextEngine, CompactResult } from "./types.js";
 /**
  * Delegate a context-engine compaction request to OpenClaw's built-in runtime compaction path.
@@ -13,3 +14,13 @@ import type { ContextEngine, CompactResult } from "./types.js";
  * compaction should implement their own `compact()` algorithm.
  */
 export declare function delegateCompactionToRuntime(params: Parameters<ContextEngine["compact"]>[0]): Promise<CompactResult>;
+/**
+ * Build a context-engine-ready systemPromptAddition from the active memory
+ * plugin prompt path. This lets non-legacy engines explicitly opt into the
+ * same memory/wiki guidance that the legacy engine gets via system prompt
+ * assembly, without reimplementing memory prompt formatting.
+ */
+export declare function buildMemorySystemPromptAddition(params: {
+    availableTools: Set<string>;
+    citationsMode?: MemoryCitationsMode;
+}): string | undefined;

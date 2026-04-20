@@ -1,9 +1,13 @@
 export declare const HOST_DANGEROUS_ENV_KEY_VALUES: readonly string[];
 export declare const HOST_DANGEROUS_ENV_PREFIXES: readonly string[];
+export declare const HOST_DANGEROUS_INHERITED_ENV_KEY_VALUES: readonly string[];
+export declare const HOST_DANGEROUS_INHERITED_ENV_PREFIXES: readonly string[];
 export declare const HOST_DANGEROUS_OVERRIDE_ENV_KEY_VALUES: readonly string[];
 export declare const HOST_DANGEROUS_OVERRIDE_ENV_PREFIXES: readonly string[];
 export declare const HOST_SHELL_WRAPPER_ALLOWED_OVERRIDE_ENV_KEY_VALUES: readonly string[];
+export declare const HOST_SHELL_WRAPPER_ALLOWED_OVERRIDE_ENV_PREFIX_VALUES: readonly string[];
 export declare const HOST_DANGEROUS_ENV_KEYS: Set<string>;
+export declare const HOST_DANGEROUS_INHERITED_ENV_KEYS: Set<string>;
 export declare const HOST_DANGEROUS_OVERRIDE_ENV_KEYS: Set<string>;
 export declare const HOST_SHELL_WRAPPER_ALLOWED_OVERRIDE_ENV_KEYS: Set<string>;
 export type HostExecEnvSanitizationResult = {
@@ -20,6 +24,7 @@ export declare function normalizeEnvVarKey(rawKey: string, options?: {
 }): string | null;
 export declare function normalizeHostOverrideEnvVarKey(rawKey: string): string | null;
 export declare function isDangerousHostEnvVarName(rawKey: string): boolean;
+export declare function isDangerousHostInheritedEnvVarName(rawKey: string): boolean;
 export declare function isDangerousHostEnvOverrideVarName(rawKey: string): boolean;
 export declare function sanitizeHostExecEnvWithDiagnostics(params?: {
     baseEnv?: Record<string, string | undefined>;

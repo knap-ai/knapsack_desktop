@@ -1,6 +1,7 @@
 import { type MediaKind } from "./constants.js";
 export declare function normalizeMimeType(mime?: string | null): string | undefined;
 export declare function getFileExtension(filePath?: string | null): string | undefined;
+export declare function mimeTypeFromFilePath(filePath?: string | null): string | undefined;
 export declare function isAudioFileName(fileName?: string | null): boolean;
 export declare function detectMime(opts: {
     buffer?: Buffer;

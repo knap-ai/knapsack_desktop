@@ -10,4 +10,5 @@ export declare function resolveBlueBubblesServerAccount(params: BlueBubblesAccou
     password: string;
     accountId: string;
     allowPrivateNetwork: boolean;
+    allowPrivateNetworkConfig?: boolean;
 };

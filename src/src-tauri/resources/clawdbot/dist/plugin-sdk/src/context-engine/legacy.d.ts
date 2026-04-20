@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { MemoryCitationsMode } from "../config/types.memory.js";
 import type { ContextEngine, ContextEngineInfo, AssembleResult, CompactResult, ContextEngineRuntimeContext, IngestResult } from "./types.js";
 /**
  * LegacyContextEngine wraps the existing compaction behavior behind the
@@ -21,6 +22,8 @@ export declare class LegacyContextEngine implements ContextEngine {
         sessionKey?: string;
         messages: AgentMessage[];
         tokenBudget?: number;
+        availableTools?: Set<string>;
+        citationsMode?: MemoryCitationsMode;
         model?: string;
     }): Promise<AssembleResult>;
     afterTurn(_params: {
@@ -47,4 +50,3 @@ export declare class LegacyContextEngine implements ContextEngine {
     }): Promise<CompactResult>;
     dispose(): Promise<void>;
 }
-export declare function registerLegacyContextEngine(): void;

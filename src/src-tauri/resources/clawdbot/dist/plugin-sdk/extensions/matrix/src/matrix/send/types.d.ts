@@ -19,6 +19,7 @@ export declare const EventType: {
     readonly Reaction: "m.reaction";
     readonly RoomMessage: "m.room.message";
 };
+export declare const MATRIX_OPENCLAW_FINALIZED_PREVIEW_KEY: "com.openclaw.finalized_preview";
 export type MatrixDirectAccountData = Record<string, string[]>;
 export type MatrixReplyRelation = {
     "m.in_reply_to": {
@@ -54,6 +55,8 @@ export type ReactionEventContent = MatrixReactionEventContent;
 export type MatrixSendResult = {
     messageId: string;
     roomId: string;
+    primaryMessageId?: string;
+    messageIds?: string[];
 };
 export type MatrixSendOpts = {
     client?: import("../sdk.js").MatrixClient;
@@ -73,8 +76,19 @@ export type MatrixSendOpts = {
     audioAsVoice?: boolean;
 };
 export type MatrixMediaMsgType = typeof MsgType.Image | typeof MsgType.Audio | typeof MsgType.Video | typeof MsgType.File;
+export type MatrixTextMsgType = typeof MsgType.Text | typeof MsgType.Notice;
 export type MediaKind = "image" | "audio" | "video" | "document" | "unknown";
 export type MatrixFormattedContent = MessageEventContent & {
     format?: string;
     formatted_body?: string;
 };
+export type MatrixExtraContentFields = Record<string, unknown>;
+/**
+ * MSC4357 live marker key.
+ * When present on event content, signals that the message is still being
+ * streamed (e.g. an LLM generating a response). Supporting clients render
+ * the message with a streaming animation until an edit without this marker
+ * arrives, indicating the stream is complete.
+ * @see https://github.com/matrix-org/matrix-spec-proposals/pull/4357
+ */
+export declare const MSC4357_LIVE_KEY: "org.matrix.msc4357.live";

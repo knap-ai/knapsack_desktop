@@ -10,17 +10,25 @@ export declare class DiscordSendError extends Error {
 }
 export declare const DISCORD_MAX_EMOJI_BYTES: number;
 export declare const DISCORD_MAX_STICKER_BYTES: number;
+export declare const DISCORD_MAX_EVENT_COVER_BYTES: number;
 export type DiscordSendResult = {
     messageId: string;
     channelId: string;
 };
+export type DiscordRuntimeAccountContext = {
+    cfg: OpenClawConfig;
+    accountId: string;
+};
 export type DiscordReactOpts = {
     cfg?: OpenClawConfig;
-    token?: string;
     accountId?: string;
+    token?: string;
     rest?: RequestClient;
     verbose?: boolean;
     retry?: RetryConfig;
+};
+export type DiscordReactionRuntimeContext = DiscordRuntimeAccountContext & {
+    rest: RequestClient;
 };
 export type DiscordReactionUser = {
     id: string;

@@ -1,7 +1,11 @@
 import { complete, type Api, type Model } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type ResolvedProviderAuth } from "./model-auth.js";
 type AllowedMissingApiKeyMode = ResolvedProviderAuth["mode"];
+export type SimpleCompletionModelOptions = {
+    maxTokens?: number;
+    signal?: AbortSignal;
+};
 export type PreparedSimpleCompletionModel = {
     model: Model<Api>;
     auth: ResolvedProviderAuth;
@@ -49,6 +53,6 @@ export declare function completeWithPreparedSimpleCompletionModel(params: {
     model: Model<Api>;
     auth: ResolvedProviderAuth;
     context: Parameters<typeof complete>[1];
-    options?: Omit<Parameters<typeof complete>[2], "apiKey">;
+    options?: SimpleCompletionModelOptions;
 }): Promise<import("@mariozechner/pi-ai").AssistantMessage>;
 export {};

@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
-import { type SessionEntry } from "../../config/sessions.js";
+import type { SessionEntry } from "../../config/sessions/types.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export declare function resolveCronSession(params: {
     cfg: OpenClawConfig;
     sessionKey: string;

@@ -61,6 +61,15 @@
     "imageGenerationProviders": [
       "google"
     ],
+    "musicGenerationProviders": [
+      "google"
+    ],
+    "speechProviders": [
+      "google"
+    ],
+    "videoGenerationProviders": [
+      "google"
+    ],
     "webSearchProviders": [
       "gemini"
     ]

@@ -1,20 +1,17 @@
-import { t as createSubsystemLogger } from "../../subsystem-CJEvHE2o.js";
-import { f as filterBootstrapFilesForSession, m as loadExtraBootstrapFilesWithDiagnostics } from "../../workspace-R-NeOkBt.js";
-import { a as isAgentBootstrapEvent } from "../../internal-hooks-LWzilokd.js";
-import { r as resolveHookConfig } from "../../config-D4gCdbz1.js";
+import { t as createSubsystemLogger } from "../../subsystem-Cgmckbux.js";
+import { l as normalizeTrimmedStringList } from "../../string-normalization-xm3f27dv.js";
+import { f as filterBootstrapFilesForSession, m as loadExtraBootstrapFilesWithDiagnostics } from "../../workspace-hhTlRYqM.js";
+import { a as isAgentBootstrapEvent } from "../../internal-hooks-4i4Rq3Qq.js";
+import { r as resolveHookConfig } from "../../config-DiksYOxU.js";
 //#region src/hooks/bundled/bootstrap-extra-files/handler.ts
 const HOOK_KEY = "bootstrap-extra-files";
 const log = createSubsystemLogger("bootstrap-extra-files");
-function normalizeStringArray(value) {
-	if (!Array.isArray(value)) return [];
-	return value.map((v) => typeof v === "string" ? v.trim() : "").filter(Boolean);
-}
 function resolveExtraBootstrapPatterns(hookConfig) {
-	const fromPaths = normalizeStringArray(hookConfig.paths);
+	const fromPaths = normalizeTrimmedStringList(hookConfig.paths);
 	if (fromPaths.length > 0) return fromPaths;
-	const fromPatterns = normalizeStringArray(hookConfig.patterns);
+	const fromPatterns = normalizeTrimmedStringList(hookConfig.patterns);
 	if (fromPatterns.length > 0) return fromPatterns;
-	return normalizeStringArray(hookConfig.files);
+	return normalizeTrimmedStringList(hookConfig.files);
 }
 const bootstrapExtraFilesHook = async (event) => {
 	if (!isAgentBootstrapEvent(event)) return;

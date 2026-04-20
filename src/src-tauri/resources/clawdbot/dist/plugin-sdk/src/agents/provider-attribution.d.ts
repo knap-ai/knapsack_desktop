@@ -15,7 +15,7 @@ export type ProviderAttributionPolicy = {
 export type ProviderAttributionIdentity = Pick<ProviderAttributionPolicy, "product" | "version">;
 export type ProviderRequestTransport = "stream" | "websocket" | "http" | "media-understanding";
 export type ProviderRequestCapability = "llm" | "audio" | "image" | "video" | "other";
-export type ProviderEndpointClass = "default" | "anthropic-public" | "github-copilot-native" | "moonshot-native" | "modelstudio-native" | "openai-public" | "openai-codex" | "azure-openai" | "openrouter" | "google-generative-ai" | "google-vertex" | "local" | "custom" | "invalid";
+export type ProviderEndpointClass = "default" | "anthropic-public" | "cerebras-native" | "chutes-native" | "deepseek-native" | "github-copilot-native" | "groq-native" | "mistral-public" | "moonshot-native" | "modelstudio-native" | "openai-public" | "openai-codex" | "opencode-native" | "azure-openai" | "openrouter" | "xai-native" | "zai-native" | "google-generative-ai" | "google-vertex" | "local" | "custom" | "invalid";
 export type ProviderEndpointResolution = {
     endpointClass: ProviderEndpointClass;
     hostname?: string;
@@ -46,12 +46,14 @@ export type ProviderRequestCapabilitiesInput = ProviderRequestPolicyInput & {
     modelId?: string | null;
     compat?: {
         supportsStore?: boolean;
+        supportsPromptCacheKey?: boolean;
     } | null;
 };
 export type ProviderRequestCompatibilityFamily = "moonshot";
 export type ProviderRequestCapabilities = ProviderRequestPolicyResolution & {
     isKnownNativeEndpoint: boolean;
     allowsOpenAIServiceTier: boolean;
+    supportsOpenAIReasoningCompatPayload: boolean;
     allowsAnthropicServiceTier: boolean;
     supportsResponsesStoreField: boolean;
     allowsResponsesStore: boolean;
@@ -67,3 +69,4 @@ export declare function resolveProviderAttributionHeaders(provider?: string | nu
 export declare function resolveProviderRequestPolicy(input: ProviderRequestPolicyInput, env?: RuntimeVersionEnv): ProviderRequestPolicyResolution;
 export declare function resolveProviderRequestAttributionHeaders(input: ProviderRequestPolicyInput, env?: RuntimeVersionEnv): Record<string, string> | undefined;
 export declare function resolveProviderRequestCapabilities(input: ProviderRequestCapabilitiesInput, env?: RuntimeVersionEnv): ProviderRequestCapabilities;
+export declare function describeProviderRequestRoutingSummary(input: ProviderRequestPolicyInput, env?: RuntimeVersionEnv): string;

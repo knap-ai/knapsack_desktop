@@ -7,6 +7,7 @@ export declare function createMatrixClient(params: {
     accessToken: string;
     password?: string;
     deviceId?: string;
+    persistStorage?: boolean;
     encryption?: boolean;
     localTimeoutMs?: number;
     initialSyncLimit?: number;

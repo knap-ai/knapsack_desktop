@@ -1,5 +1,5 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 type OpenAIServiceTier = "auto" | "default" | "flex" | "priority";
 type OpenAITextVerbosity = "low" | "medium" | "high";
 export declare function resolveOpenAIServiceTier(extraParams: Record<string, unknown> | undefined): OpenAIServiceTier | undefined;
@@ -7,6 +7,7 @@ export declare function resolveOpenAITextVerbosity(extraParams: Record<string, u
 export declare function resolveOpenAIFastMode(extraParams: Record<string, unknown> | undefined): boolean | undefined;
 export declare function createOpenAIResponsesContextManagementWrapper(baseStreamFn: StreamFn | undefined, extraParams: Record<string, unknown> | undefined): StreamFn;
 export declare function createOpenAIReasoningCompatibilityWrapper(baseStreamFn: StreamFn | undefined): StreamFn;
+export declare function createOpenAIStringContentWrapper(baseStreamFn: StreamFn | undefined): StreamFn;
 export declare function createOpenAIFastModeWrapper(baseStreamFn: StreamFn | undefined): StreamFn;
 export declare function createOpenAIServiceTierWrapper(baseStreamFn: StreamFn | undefined, serviceTier: OpenAIServiceTier): StreamFn;
 export declare function createOpenAITextVerbosityWrapper(baseStreamFn: StreamFn | undefined, verbosity: OpenAITextVerbosity): StreamFn;

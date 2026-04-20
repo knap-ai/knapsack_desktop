@@ -15,5 +15,6 @@ export type MatrixRoomKeyBackupIssue = {
 };
 export declare function resolveMatrixRoomKeyBackupIssue(backup: MatrixRoomKeyBackupStatusLike): MatrixRoomKeyBackupIssue;
 export declare function resolveMatrixRoomKeyBackupReadinessError(backup: MatrixRoomKeyBackupStatusLike, opts: {
+    allowUntrustedMatchingKey?: boolean;
     requireServerBackup: boolean;
 }): string | null;

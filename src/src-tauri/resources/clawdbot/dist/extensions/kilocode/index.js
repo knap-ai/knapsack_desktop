@@ -1,10 +1,15 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-BnIQWKLx.js";
-import { a as createKilocodeWrapper, c as isProxyReasoningUnsupported } from "../../provider-stream-D_iORY-e.js";
-import { s as KILOCODE_DEFAULT_MODEL_REF } from "../../provider-models-CG8L9a1d.js";
-import { n as buildKilocodeProviderWithDiscovery } from "../../provider-catalog-DNWozv_O.js";
-import { t as applyKilocodeConfig } from "../../onboard-DHcDJu4-.js";
+import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
+import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-CQPCLokR.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
+import { n as KILOCODE_THINKING_STREAM_HOOKS } from "../../provider-stream-DMhSzU-H.js";
+import "../../provider-stream-family-CjEB-fh0.js";
+import { s as KILOCODE_DEFAULT_MODEL_REF } from "../../provider-models-DqtwZN0T.js";
+import { n as buildKilocodeProviderWithDiscovery } from "../../provider-catalog-BGmI3hcf.js";
+import { t as applyKilocodeConfig } from "../../onboard-CatgEO6y.js";
+//#region extensions/kilocode/index.ts
+const PROVIDER_ID = "kilocode";
 var kilocode_default = defineSingleProviderPluginEntry({
-	id: "kilocode",
+	id: PROVIDER_ID,
 	name: "Kilo Gateway Provider",
 	description: "Bundled Kilo Gateway provider plugin",
 	provider: {
@@ -22,14 +27,12 @@ var kilocode_default = defineSingleProviderPluginEntry({
 			applyConfig: (cfg) => applyKilocodeConfig(cfg)
 		}],
 		catalog: { buildProvider: buildKilocodeProviderWithDiscovery },
-		capabilities: {
-			geminiThoughtSignatureSanitization: true,
-			geminiThoughtSignatureModelHints: ["gemini"]
-		},
-		wrapStreamFn: (ctx) => {
-			const thinkingLevel = ctx.modelId === "kilo/auto" || isProxyReasoningUnsupported(ctx.modelId) ? void 0 : ctx.thinkingLevel;
-			return createKilocodeWrapper(ctx.streamFn, thinkingLevel);
-		},
+		augmentModelCatalog: ({ config }) => readConfiguredProviderCatalogEntries({
+			config,
+			providerId: PROVIDER_ID
+		}),
+		...PASSTHROUGH_GEMINI_REPLAY_HOOKS,
+		...KILOCODE_THINKING_STREAM_HOOKS,
 		isCacheTtlEligible: (ctx) => ctx.modelId.startsWith("anthropic/")
 	}
 });

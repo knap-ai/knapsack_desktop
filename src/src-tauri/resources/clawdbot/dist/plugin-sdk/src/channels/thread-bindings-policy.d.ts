@@ -1,6 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
-export declare const DISCORD_THREAD_BINDING_CHANNEL = "discord";
-export declare const MATRIX_THREAD_BINDING_CHANNEL = "matrix";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type ThreadBindingSpawnKind = "subagent" | "acp";
 export type ThreadBindingSpawnPolicy = {
     channel: string;

@@ -1,2 +1,2 @@
-import { a as isValidOpenAIVoice, c as resolveOpenAITtsInstructions, i as isValidOpenAIModel, n as OPENAI_TTS_MODELS, o as normalizeOpenAITtsBaseUrl, r as OPENAI_TTS_VOICES, s as openaiTTS, t as DEFAULT_OPENAI_BASE_URL } from "../../tts-Df9zKVQX.js";
+import { a as isValidOpenAIVoice, c as resolveOpenAITtsInstructions, i as isValidOpenAIModel, n as OPENAI_TTS_MODELS, o as normalizeOpenAITtsBaseUrl, r as OPENAI_TTS_VOICES, s as openaiTTS, t as DEFAULT_OPENAI_BASE_URL } from "../../tts-Dl_pvXux.js";
 export { DEFAULT_OPENAI_BASE_URL, OPENAI_TTS_MODELS, OPENAI_TTS_VOICES, isValidOpenAIModel, isValidOpenAIVoice, normalizeOpenAITtsBaseUrl, openaiTTS, resolveOpenAITtsInstructions };

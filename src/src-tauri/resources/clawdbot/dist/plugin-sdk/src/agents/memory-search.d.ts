@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { SecretInput } from "../config/types.secrets.js";
-import { type MemoryMultimodalSettings } from "../plugin-sdk/memory-core-host-multimodal.js";
+import { type MemoryMultimodalSettings } from "../memory-host-sdk/multimodal.js";
 export type ResolvedMemorySearchConfig = {
     enabled: boolean;
     sources: Array<"memory" | "sessions">;
@@ -79,4 +79,6 @@ export type ResolvedMemorySearchConfig = {
         maxEntries?: number;
     };
 };
+export type ResolvedMemorySearchSyncConfig = ResolvedMemorySearchConfig["sync"];
 export declare function resolveMemorySearchConfig(cfg: OpenClawConfig, agentId: string): ResolvedMemorySearchConfig | null;
+export declare function resolveMemorySearchSyncConfig(cfg: OpenClawConfig, agentId: string): ResolvedMemorySearchSyncConfig | null;

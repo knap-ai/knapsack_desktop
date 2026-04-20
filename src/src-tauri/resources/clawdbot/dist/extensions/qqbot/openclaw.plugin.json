@@ -3,12 +3,18 @@
   "channels": [
     "qqbot"
   ],
+  "channelEnvVars": {
+    "qqbot": [
+      "QQBOT_APP_ID",
+      "QQBOT_CLIENT_SECRET"
+    ]
+  },
   "skills": [
     "./skills"
   ],
   "configSchema": {
     "type": "object",
-    "additionalProperties": false,
+    "additionalProperties": true,
     "$defs": {
       "audioFormatPolicy": {
         "type": "object",
@@ -133,7 +139,7 @@
       },
       "account": {
         "type": "object",
-        "additionalProperties": false,
+        "additionalProperties": true,
         "properties": {
           "enabled": {
             "type": "boolean"
@@ -182,6 +188,27 @@
             "enum": [
               "doc",
               "hot-reload"
+            ]
+          },
+          "streaming": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "partial"
+                    ],
+                    "default": "partial"
+                  }
+                }
+              }
             ]
           }
         }
@@ -241,6 +268,27 @@
         "enum": [
           "doc",
           "hot-reload"
+        ]
+      },
+      "streaming": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "partial"
+                ],
+                "default": "partial"
+              }
+            }
+          }
         ]
       },
       "accounts": {

@@ -1,8 +1,9 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-BF3kHzmf.js";
-import "../../provider-auth-api-key-g0GKEM-Y.js";
-import { f as ensureModelAllowlistEntry } from "../../provider-onboard-DAFWptpQ.js";
-import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-Cqp_TPva.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-nkL4zxbI.js";
+import "../../provider-auth-api-key-F-AGqwyB.js";
+import { m as ensureModelAllowlistEntry } from "../../provider-onboard-CghzCQ2p.js";
+import { c as DOUBAO_MODEL_CATALOG, i as DOUBAO_CODING_MODEL_CATALOG } from "../../models-DyyNieFR.js";
+import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-Ci9-exCJ.js";
 //#region extensions/volcengine/index.ts
 const PROVIDER_ID = "volcengine";
 const VOLCENGINE_DEFAULT_MODEL_REF = "volcengine-plan/ark-code-latest";
@@ -55,6 +56,25 @@ var volcengine_default = definePluginEntry({
 						}
 					} };
 				}
+			},
+			augmentModelCatalog: () => {
+				const volcengineModels = DOUBAO_MODEL_CATALOG.map((entry) => ({
+					provider: "volcengine",
+					id: entry.id,
+					name: entry.name,
+					reasoning: entry.reasoning,
+					input: [...entry.input],
+					contextWindow: entry.contextWindow
+				}));
+				const volcenginePlanModels = DOUBAO_CODING_MODEL_CATALOG.map((entry) => ({
+					provider: "volcengine-plan",
+					id: entry.id,
+					name: entry.name,
+					reasoning: entry.reasoning,
+					input: [...entry.input],
+					contextWindow: entry.contextWindow
+				}));
+				return [...volcengineModels, ...volcenginePlanModels];
 			}
 		});
 	}

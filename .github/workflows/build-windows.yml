@@ -55,16 +55,59 @@ jobs:
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
 
-      - name: Clean Tauri NSIS cache and stale bundle artifacts
+      - name: Build frontend
+        # Must run BEFORE Pack (below) — the prebuild hook calls
+        # verify-clawdbot-bundle.cjs which requires node_modules to exist.
+        working-directory: src
+        run: npm run build
+        env:
+          VITE_KN_API_SERVER: https://api.knapsack.ai
+          MICROSOFT_CLIENT_ID: unused
+          VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
+          VITE_GOOGLE_DEVELOPER_KEY: ""
+
+      - name: Pack node_modules into tar for WiX
+        # Run from within the clawdbot dir so tar needs no path juggling.
+        # WiX candle.exe chokes generating XML for ~13k node_modules files;
+        # packing into one tar reduces the WiX input to ~3k files.
+        working-directory: src/src-tauri/resources/clawdbot
+        shell: pwsh
         run: |
-          if (Test-Path "$env:LOCALAPPDATA\tauri\NSIS") {
-            Remove-Item -Recurse -Force "$env:LOCALAPPDATA\tauri\NSIS"
-            Write-Host "Cleared stale NSIS toolchain cache"
+          if (-not (Test-Path "node_modules")) {
+            Write-Error "node_modules not found in clawdbot — was npm ci run?"
+            exit 1
           }
+          Write-Host "Packing node_modules..."
+          tar -cf node_modules.tar node_modules
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "tar failed (exit $LASTEXITCODE)"
+            exit 1
+          }
+          Remove-Item -Recurse -Force node_modules
+          $mb = [math]::Round((Get-Item node_modules.tar).Length / 1MB, 1)
+          $n  = (Get-ChildItem -Recurse . | Measure-Object).Count
+          Write-Host "node_modules.tar: $mb MB. WiX will see $n files."
+
+      - name: Disable beforeBuildCommand in tauri.conf.json
+        # The frontend is already compiled above. Remove beforeBuildCommand so
+        # Tauri doesn't re-run npm run build — after Pack, node_modules is gone
+        # and the prebuild hook (verify-clawdbot-bundle.cjs) would fail.
+        shell: pwsh
+        run: |
+          $confPath = "src/src-tauri/tauri.conf.json"
+          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
+          $conf.build.PSObject.Properties.Remove('beforeBuildCommand')
+          $conf | ConvertTo-Json -Depth 20 | Set-Content $confPath -Encoding UTF8
+          Write-Host "Removed beforeBuildCommand from tauri.conf.json"
+
+      - name: Clean stale bundle artifacts and show disk space
+        shell: pwsh
+        run: |
           if (Test-Path "src\src-tauri\target\release\bundle") {
             Remove-Item -Recurse -Force "src\src-tauri\target\release\bundle"
             Write-Host "Cleared stale bundle artifacts"
           }
+          Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
 
       - name: Install AzureSignTool
         if: env.AZURE_KEY_VAULT_URI != ''
@@ -95,7 +138,13 @@ jobs:
 
       - name: Build Tauri app
         working-directory: src
-        run: npx tauri build
+        shell: pwsh
+        # --bundles msi uses Tauri v1's WiX-based MSI bundler (64-bit light.exe),
+        # which handles the large clawdbot resource set without NSIS (32-bit) OOM.
+        run: |
+          $log = "$env:RUNNER_TEMP\tauri-build.log"
+          npx tauri build --bundles msi --verbose 2>&1 | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
@@ -105,6 +154,37 @@ jobs:
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: Show disk space after build
+        if: always()
+        shell: pwsh
+        run: Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk after build: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
+
+      - name: Post build log to PR on failure
+        if: failure() && github.event.pull_request.number != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $pr   = "${{ github.event.pull_request.number }}"
+          $repo = "${{ github.repository }}"
+          $run  = "${{ github.run_id }}"
+          $log  = "$env:RUNNER_TEMP\tauri-build.log"
+          if (Test-Path $log) {
+            $tail = (Get-Content $log -Tail 100) -join "`n"
+            $body = "**[Windows CI] build-windows failed (run $run)**`n``````text`n$tail`n``````"
+          } else {
+            $body = "**[Windows CI] build-windows failed before Build step (run $run). No build log captured.**"
+          }
+          gh pr comment $pr --body $body --repo $repo
+
+      - name: Upload Tauri build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: tauri-build-log
+          path: ${{ runner.temp }}/tauri-build.log
+          if-no-files-found: ignore
 
       - name: Build web installer stub
         shell: pwsh

@@ -1,34 +1,16 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-BnIQWKLx.js";
-import { t as buildMistralProvider } from "../../provider-catalog-DTYMtV69.js";
-import { n as applyMistralConfig, t as MISTRAL_DEFAULT_MODEL_REF } from "../../onboard-Bq4DQWS5.js";
-import { n as applyMistralModelCompat, t as MISTRAL_MODEL_COMPAT_PATCH } from "../../api-OxFZRFM_.js";
-import { t as mistralMediaUnderstandingProvider } from "../../media-understanding-provider-CANfVfEe.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
+import { t as buildMistralProvider } from "../../provider-catalog-DyklmEYJ.js";
+import { n as applyMistralConfig, t as MISTRAL_DEFAULT_MODEL_REF } from "../../onboard-DNaIL0bs.js";
+import { i as applyMistralModelCompat } from "../../api-kDyCmmJF.js";
+import { t as mistralMediaUnderstandingProvider } from "../../media-understanding-provider-aqRXfQVl.js";
+import { t as contributeMistralResolvedModelCompat } from "../../provider-compat-gcQ8Jlvu.js";
 //#region extensions/mistral/index.ts
 const PROVIDER_ID = "mistral";
-const MISTRAL_MODEL_HINTS = [
-	"mistral",
-	"mistralai",
-	"mixtral",
-	"codestral",
-	"pixtral",
-	"devstral",
-	"ministral"
-];
-function isMistralBaseUrl(baseUrl) {
-	if (typeof baseUrl !== "string" || !baseUrl.trim()) return false;
-	try {
-		return new URL(baseUrl).hostname.toLowerCase() === "api.mistral.ai";
-	} catch {
-		return baseUrl.toLowerCase().includes("api.mistral.ai");
-	}
-}
-function isMistralModelHint(modelId) {
-	const normalized = modelId.trim().toLowerCase();
-	return MISTRAL_MODEL_HINTS.some((hint) => normalized === hint || normalized.startsWith(`${hint}/`) || normalized.startsWith(`${hint}-`) || normalized.startsWith(`${hint}:`));
-}
-function shouldContributeMistralCompat(params) {
-	if (params.model.api !== "openai-completions") return false;
-	return isMistralBaseUrl(params.model.baseUrl) || isMistralModelHint(params.modelId);
+function buildMistralReplayPolicy() {
+	return {
+		sanitizeToolCallIds: true,
+		toolCallIdMode: "strict9"
+	};
 }
 var mistral_default = defineSingleProviderPluginEntry({
 	id: PROVIDER_ID,
@@ -53,27 +35,17 @@ var mistral_default = defineSingleProviderPluginEntry({
 			buildProvider: buildMistralProvider,
 			allowExplicitBaseUrl: true
 		},
+		matchesContextOverflowError: ({ errorMessage }) => /\bmistral\b.*(?:input.*too long|token limit.*exceeded)/i.test(errorMessage),
 		normalizeResolvedModel: ({ model }) => applyMistralModelCompat(model),
-		contributeResolvedModelCompat: ({ modelId, model }) => shouldContributeMistralCompat({
+		contributeResolvedModelCompat: ({ modelId, model }) => contributeMistralResolvedModelCompat({
 			modelId,
 			model
-		}) ? MISTRAL_MODEL_COMPAT_PATCH : void 0,
-		capabilities: {
-			transcriptToolCallIdMode: "strict9",
-			transcriptToolCallIdModelHints: [
-				"mistral",
-				"mixtral",
-				"codestral",
-				"pixtral",
-				"devstral",
-				"ministral",
-				"mistralai"
-			]
-		}
+		}),
+		buildReplayPolicy: () => buildMistralReplayPolicy()
 	},
 	register(api) {
 		api.registerMediaUnderstandingProvider(mistralMediaUnderstandingProvider);
 	}
 });
 //#endregion
-export { mistral_default as default };
+export { buildMistralReplayPolicy, mistral_default as default };

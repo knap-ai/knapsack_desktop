@@ -12,6 +12,10 @@ export type ResolvedGatewayAuth = {
     allowTailscale: boolean;
     trustedProxy?: GatewayTrustedProxyConfig;
 };
+export type EffectiveSharedGatewayAuth = {
+    mode: "token" | "password";
+    secret: string | undefined;
+};
 export type GatewayAuthResult = {
     ok: boolean;
     method?: "none" | "token" | "password" | "tailscale" | "device-token" | "bootstrap-token" | "trusted-proxy";
@@ -62,6 +66,12 @@ export declare function resolveGatewayAuth(params: {
     env?: NodeJS.ProcessEnv;
     tailscaleMode?: GatewayTailscaleMode;
 }): ResolvedGatewayAuth;
+export declare function resolveEffectiveSharedGatewayAuth(params: {
+    authConfig?: GatewayAuthConfig | null;
+    authOverride?: GatewayAuthConfig | null;
+    env?: NodeJS.ProcessEnv;
+    tailscaleMode?: GatewayTailscaleMode;
+}): EffectiveSharedGatewayAuth | null;
 export declare function assertGatewayAuthConfigured(auth: ResolvedGatewayAuth, rawAuthConfig?: GatewayAuthConfig | null): void;
 export declare function authorizeGatewayConnect(params: AuthorizeGatewayConnectParams): Promise<GatewayAuthResult>;
 export declare function authorizeHttpGatewayConnect(params: Omit<AuthorizeGatewayConnectParams, "authSurface">): Promise<GatewayAuthResult>;

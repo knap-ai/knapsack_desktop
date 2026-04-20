@@ -1,9 +1,11 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
+import type { TSchema } from "@sinclair/typebox";
 import type { ImageSanitizationLimits } from "../image-sanitization.js";
-export type AnyAgentTool = AgentTool<any, unknown> & {
+export type AgentToolWithMeta<TParameters extends TSchema, TResult> = AgentTool<TParameters, TResult> & {
     ownerOnly?: boolean;
     displaySummary?: string;
 };
+export type AnyAgentTool = AgentToolWithMeta<any, unknown>;
 export type StringParamOptions = {
     required?: boolean;
     trim?: boolean;

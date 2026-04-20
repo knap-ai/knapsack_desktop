@@ -15,15 +15,25 @@ export type SafeLocalReadResult = {
     realPath: string;
     stat: Stats;
 };
+export type FsSafeTestHooks = {
+    afterPreOpenLstat?: (filePath: string) => Promise<void> | void;
+    beforeOpen?: (filePath: string, flags: number) => Promise<void> | void;
+    afterOpen?: (filePath: string, handle: FileHandle) => Promise<void> | void;
+};
+export declare function __setFsSafeTestHooksForTest(hooks?: FsSafeTestHooks): void;
 export declare function openFileWithinRoot(params: {
     rootDir: string;
     relativePath: string;
     rejectHardlinks?: boolean;
+    nonBlockingRead?: boolean;
+    allowSymlinkTargetWithinRoot?: boolean;
 }): Promise<SafeOpenResult>;
 export declare function readFileWithinRoot(params: {
     rootDir: string;
     relativePath: string;
     rejectHardlinks?: boolean;
+    nonBlockingRead?: boolean;
+    allowSymlinkTargetWithinRoot?: boolean;
     maxBytes?: number;
 }): Promise<SafeLocalReadResult>;
 export declare function readPathWithinRoot(params: {
@@ -41,6 +51,9 @@ export declare function readLocalFileSafely(params: {
     filePath: string;
     maxBytes?: number;
 }): Promise<SafeLocalReadResult>;
+export declare function openLocalFileSafely(params: {
+    filePath: string;
+}): Promise<SafeOpenResult>;
 export type SafeWritableOpenResult = {
     handle: FileHandle;
     createdForWrite: boolean;

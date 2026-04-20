@@ -22,6 +22,15 @@ export type MatrixOwnDeviceVerificationStatus = {
     backupVersion: string | null;
     backup: MatrixRoomKeyBackupStatus;
 };
+export type MatrixDeviceVerificationStatus = {
+    encryptionEnabled: boolean;
+    userId: string | null;
+    deviceId: string | null;
+    verified: boolean;
+    localVerified: boolean;
+    crossSigningVerified: boolean;
+    signedByOwner: boolean;
+};
 export type MatrixRoomKeyBackupStatus = {
     serverVersion: string | null;
     activeVersion: string | null;
@@ -107,6 +116,7 @@ export declare class MatrixClient {
     private readonly autoBootstrapCrypto;
     private stopPersistPromise;
     private verificationSummaryListenerBound;
+    private currentSyncState;
     readonly dms: {
         update: () => Promise<boolean>;
         isDm: (roomId: string) => boolean;
@@ -133,7 +143,11 @@ export declare class MatrixClient {
     off(eventName: string, listener: (...args: unknown[]) => void): this;
     private idbPersistTimer;
     private ensureCryptoSupportInitialized;
-    start(): Promise<void>;
+    start(opts?: {
+        abortSignal?: AbortSignal;
+        readyTimeoutMs?: number;
+    }): Promise<void>;
+    private waitForInitialSyncReady;
     private startSyncSession;
     prepareForOneOff(): Promise<void>;
     hasPersistedSyncState(): boolean;
@@ -184,6 +198,7 @@ export declare class MatrixClient {
     setTyping(roomId: string, typing: boolean, timeoutMs: number): Promise<void>;
     sendReadReceipt(roomId: string, eventId: string): Promise<void>;
     getRoomKeyBackupStatus(): Promise<MatrixRoomKeyBackupStatus>;
+    getDeviceVerificationStatus(userId: string | null | undefined, deviceId: string | null | undefined): Promise<MatrixDeviceVerificationStatus>;
     getOwnDeviceVerificationStatus(): Promise<MatrixOwnDeviceVerificationStatus>;
     verifyWithRecoveryKey(rawRecoveryKey: string): Promise<MatrixRecoveryKeyVerificationResult>;
     restoreRoomKeyBackup(params?: {
@@ -200,6 +215,7 @@ export declare class MatrixClient {
     private resolveActiveRoomKeyBackupVersion;
     private resolveCachedRoomKeyBackupDecryptionKey;
     private resolveRoomKeyBackupLocalState;
+    private shouldForceSecretStorageRecreationForBackupReset;
     private resolveRoomKeyBackupTrustState;
     private resolveDefaultSecretStorageKeyId;
     private resolveRoomKeyBackupVersion;

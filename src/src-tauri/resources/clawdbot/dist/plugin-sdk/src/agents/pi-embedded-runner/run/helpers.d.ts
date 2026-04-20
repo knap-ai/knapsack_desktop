@@ -1,4 +1,5 @@
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 import type { EmbeddedPiAgentMeta } from "../types.js";
 import { type UsageAccumulator } from "../usage-accumulator.js";
 type UsageSnapshot = {
@@ -9,6 +10,7 @@ type UsageSnapshot = {
     total?: number;
 };
 export type RuntimeAuthState = {
+    generation: number;
     sourceApiKey: string;
     authMode: string;
     profileId?: string;
@@ -29,12 +31,12 @@ export declare function scrubAnthropicRefusalMagic(prompt: string): string;
 export declare function createCompactionDiagId(): string;
 export declare function resolveMaxRunRetryIterations(profileCandidateCount: number): number;
 export declare function resolveActiveErrorContext(params: {
-    lastAssistant: {
-        provider?: string;
-        model?: string;
-    } | undefined;
     provider: string;
     model: string;
+    assistant?: {
+        provider?: string;
+        model?: string;
+    };
 }): {
     provider: string;
     model: string;
@@ -62,4 +64,6 @@ export declare function buildErrorAgentMeta(params: {
     } | null;
     lastTurnTotal?: number;
 }): EmbeddedPiAgentMeta;
+export declare function resolveFinalAssistantVisibleText(lastAssistant: AssistantMessage | undefined): string | undefined;
+export declare function resolveFinalAssistantRawText(lastAssistant: AssistantMessage | undefined): string | undefined;
 export {};

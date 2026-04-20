@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type ConfiguredAcpBindingSpec, type ResolvedConfiguredAcpBinding } from "./persistent-bindings.types.js";
 export declare function ensureConfiguredAcpBindingSession(params: {
     cfg: OpenClawConfig;
@@ -24,6 +24,7 @@ export declare function resetAcpSessionInPlace(params: {
     cfg: OpenClawConfig;
     sessionKey: string;
     reason: "new" | "reset";
+    clearMeta?: boolean;
 }): Promise<{
     ok: true;
 } | {

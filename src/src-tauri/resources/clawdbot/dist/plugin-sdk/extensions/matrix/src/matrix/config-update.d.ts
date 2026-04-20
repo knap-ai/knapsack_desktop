@@ -15,6 +15,8 @@ export type MatrixAccountPatch = {
     encryption?: boolean | null;
     initialSyncLimit?: number | null;
     allowBots?: MatrixConfig["allowBots"] | null;
+    autoJoin?: MatrixConfig["autoJoin"] | null;
+    autoJoinAllowlist?: MatrixConfig["autoJoinAllowlist"] | null;
     dm?: MatrixConfig["dm"] | null;
     groupPolicy?: MatrixConfig["groupPolicy"] | null;
     groupAllowFrom?: MatrixConfig["groupAllowFrom"] | null;

@@ -2,7 +2,7 @@
   "entries": [
     {
       "name": "@openclaw/bluebubbles",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw BlueBubbles channel plugin",
       "openclaw": {
         "channel": {
@@ -30,7 +30,7 @@
     },
     {
       "name": "@openclaw/discord",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw Discord channel plugin",
       "openclaw": {
         "channel": {
@@ -42,7 +42,11 @@
           "docsLabel": "discord",
           "blurb": "very well supported right now.",
           "systemImage": "bubble.left.and.bubble.right",
-          "markdownCapable": true
+          "markdownCapable": true,
+          "configuredState": {
+            "specifier": "./configured-state",
+            "exportName": "hasDiscordConfiguredState"
+          }
         },
         "install": {
           "npmSpec": "@openclaw/discord",
@@ -52,7 +56,7 @@
     },
     {
       "name": "@openclaw/feishu",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw Feishu/Lark channel plugin (community maintained by @m1heng)",
       "openclaw": {
         "channel": {
@@ -76,7 +80,7 @@
     },
     {
       "name": "@openclaw/msteams",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw Microsoft Teams channel plugin",
       "openclaw": {
         "channel": {
@@ -99,7 +103,7 @@
     },
     {
       "name": "@openclaw/nextcloud-talk",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw Nextcloud Talk channel plugin",
       "openclaw": {
         "channel": {
@@ -124,7 +128,7 @@
     },
     {
       "name": "@openclaw/nostr",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw Nostr channel plugin for NIP-04 encrypted DMs",
       "openclaw": {
         "channel": {
@@ -145,7 +149,7 @@
     },
     {
       "name": "@openclaw/qqbot",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw QQ Bot channel plugin",
       "openclaw": {
         "channel": {
@@ -166,7 +170,7 @@
     },
     {
       "name": "@openclaw/whatsapp",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw WhatsApp channel plugin",
       "openclaw": {
         "channel": {
@@ -177,7 +181,11 @@
           "docsPath": "/channels/whatsapp",
           "docsLabel": "whatsapp",
           "blurb": "works with your own number; recommend a separate phone + eSIM.",
-          "systemImage": "message"
+          "systemImage": "message",
+          "persistedAuthState": {
+            "specifier": "./auth-presence",
+            "exportName": "hasAnyWhatsAppAuth"
+          }
         },
         "install": {
           "npmSpec": "@openclaw/whatsapp",
@@ -187,7 +195,7 @@
     },
     {
       "name": "@openclaw/zalo",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw Zalo channel plugin",
       "openclaw": {
         "channel": {
@@ -211,7 +219,7 @@
     },
     {
       "name": "@openclaw/zalouser",
-      "version": "2026.4.1-beta.1",
+      "version": "2026.4.15-beta.1",
       "description": "OpenClaw Zalo Personal Account plugin via native zca-js integration",
       "openclaw": {
         "channel": {

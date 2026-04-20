@@ -1,9 +1,26 @@
 import type { ProviderRequestCapability, ProviderRequestTransport } from "../agents/provider-attribution.js";
 import { type ProviderRequestTransportOverrides, type ResolvedProviderRequestConfig } from "../agents/provider-request-config.js";
-import type { GuardedFetchResult } from "../infra/net/fetch-guard.js";
+import type { GuardedFetchMode, GuardedFetchResult } from "../infra/net/fetch-guard.js";
 import type { LookupFn, PinnedDispatcherPolicy, SsrFPolicy } from "../infra/net/ssrf.js";
 export { fetchWithTimeout } from "../utils/fetch-timeout.js";
 export { normalizeBaseUrl } from "../agents/provider-request-config.js";
+export type ProviderOperationDeadline = {
+    deadlineAtMs?: number;
+    label: string;
+    timeoutMs?: number;
+};
+export declare function createProviderOperationDeadline(params: {
+    timeoutMs?: number;
+    label: string;
+}): ProviderOperationDeadline;
+export declare function resolveProviderOperationTimeoutMs(params: {
+    deadline: ProviderOperationDeadline;
+    defaultTimeoutMs: number;
+}): number;
+export declare function waitProviderOperationPollInterval(params: {
+    deadline: ProviderOperationDeadline;
+    pollIntervalMs: number;
+}): Promise<void>;
 export declare function resolveProviderHttpRequestConfig(params: {
     baseUrl?: string;
     defaultBaseUrl: string;
@@ -28,6 +45,7 @@ export declare function fetchWithTimeoutGuarded(url: string, init: RequestInit, 
     pinDns?: boolean;
     dispatcherPolicy?: PinnedDispatcherPolicy;
     auditContext?: string;
+    mode?: GuardedFetchMode;
 }): Promise<GuardedFetchResult>;
 export declare function postTranscriptionRequest(params: {
     url: string;
@@ -35,9 +53,16 @@ export declare function postTranscriptionRequest(params: {
     body: BodyInit;
     timeoutMs?: number;
     fetchFn: typeof fetch;
+    pinDns?: boolean;
     allowPrivateNetwork?: boolean;
     dispatcherPolicy?: PinnedDispatcherPolicy;
     auditContext?: string;
+    /**
+     * Override the guarded-fetch mode. Defaults to an auto-upgrade to
+     * `TRUSTED_ENV_PROXY` when `HTTP_PROXY`/`HTTPS_PROXY` is configured in the
+     * environment; pass `"strict"` to force pinned-DNS even inside a proxy.
+     */
+    mode?: GuardedFetchMode;
 }): Promise<GuardedFetchResult>;
 export declare function postJsonRequest(params: {
     url: string;
@@ -45,9 +70,16 @@ export declare function postJsonRequest(params: {
     body: unknown;
     timeoutMs?: number;
     fetchFn: typeof fetch;
+    pinDns?: boolean;
     allowPrivateNetwork?: boolean;
     dispatcherPolicy?: PinnedDispatcherPolicy;
     auditContext?: string;
+    /**
+     * Override the guarded-fetch mode. Defaults to an auto-upgrade to
+     * `TRUSTED_ENV_PROXY` when `HTTP_PROXY`/`HTTPS_PROXY` is configured in the
+     * environment; pass `"strict"` to force pinned-DNS even inside a proxy.
+     */
+    mode?: GuardedFetchMode;
 }): Promise<GuardedFetchResult>;
 export declare function readErrorResponse(res: Response): Promise<string | undefined>;
 export declare function assertOkOrThrowHttpError(res: Response, label: string): Promise<void>;

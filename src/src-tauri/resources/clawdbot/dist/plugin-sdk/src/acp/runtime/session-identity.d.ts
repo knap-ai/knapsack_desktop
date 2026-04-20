@@ -14,6 +14,10 @@ export declare function createIdentityFromEnsure(params: {
     handle: AcpRuntimeHandle;
     now: number;
 }): SessionAcpIdentity | undefined;
+export declare function createIdentityFromHandleEvent(params: {
+    handle: AcpRuntimeHandle;
+    now: number;
+}): SessionAcpIdentity | undefined;
 export declare function createIdentityFromStatus(params: {
     status: AcpRuntimeStatus | undefined;
     now: number;

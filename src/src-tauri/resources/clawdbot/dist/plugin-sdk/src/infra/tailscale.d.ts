@@ -12,6 +12,7 @@ import { type RuntimeEnv } from "../runtime.js";
  */
 export declare function findTailscaleBinary(): Promise<string | null>;
 export declare function getTailnetHostname(exec?: typeof runExec, detectedBinary?: string): Promise<string>;
+export declare function getTestTailscaleBinaryOverride(env?: NodeJS.ProcessEnv): string | null;
 export declare function getTailscaleBinary(): Promise<string>;
 export declare function readTailscaleStatusJson(exec?: typeof runExec, opts?: {
     timeoutMs?: number;

@@ -1,5 +1,10 @@
 import type { OpenClawConfig } from "./config-runtime.js";
 type ApprovalKind = "exec" | "plugin";
+type ApprovalAuthorizationResult = {
+    authorized: boolean;
+    reason?: string;
+};
+export declare function isImplicitSameChatApprovalAuthorization(result: ApprovalAuthorizationResult | null | undefined): boolean;
 export declare function createResolvedApproverActionAuthAdapter(params: {
     channelLabel: string;
     resolveApprovers: (params: {
@@ -14,7 +19,7 @@ export declare function createResolvedApproverActionAuthAdapter(params: {
         senderId?: string | null;
         action: "approve";
         approvalKind: ApprovalKind;
-    }): {
+    }): ApprovalAuthorizationResult | {
         readonly authorized: true;
         reason?: undefined;
     } | {

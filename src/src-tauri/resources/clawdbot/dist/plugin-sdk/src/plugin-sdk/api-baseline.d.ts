@@ -31,13 +31,17 @@ export type PluginSdkApiBaselineWriteResult = {
     wrote: boolean;
     jsonPath: string;
     statefilePath: string;
+    hashPath: string;
 };
 export declare function renderPluginSdkApiBaseline(params?: {
     repoRoot?: string;
 }): Promise<PluginSdkApiBaselineRender>;
+/** Build the sha256 hash file content for plugin SDK API baseline artifacts. */
+export declare function computePluginSdkApiBaselineHashFileContent(rendered: PluginSdkApiBaselineRender): string;
 export declare function writePluginSdkApiBaselineStatefile(params?: {
     repoRoot?: string;
     check?: boolean;
     jsonPath?: string;
     statefilePath?: string;
+    hashPath?: string;
 }): Promise<PluginSdkApiBaselineWriteResult>;

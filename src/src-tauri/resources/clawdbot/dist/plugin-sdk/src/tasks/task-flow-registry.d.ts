@@ -10,17 +10,7 @@ type FlowRecordPatch = Omit<Partial<Pick<TaskFlowRecord, "status" | "notifyPolic
     cancelRequestedAt?: number | null;
     endedAt?: number | null;
 };
-export type TaskFlowUpdateResult = {
-    applied: true;
-    flow: TaskFlowRecord;
-} | {
-    applied: false;
-    reason: "not_found" | "revision_conflict";
-    current?: TaskFlowRecord;
-};
-export declare function deriveTaskFlowStatusFromTask(task: Pick<TaskRecord, "status" | "terminalOutcome">): TaskFlowStatus;
-export declare function getTaskFlowRegistryRestoreFailure(): string | null;
-export declare function createFlowRecord(params: {
+export type CreateFlowRecordParams = {
     syncMode?: TaskFlowSyncMode;
     ownerKey: string;
     requesterOrigin?: TaskFlowRecord["requesterOrigin"];
@@ -38,7 +28,18 @@ export declare function createFlowRecord(params: {
     createdAt?: number;
     updatedAt?: number;
     endedAt?: number | null;
-}): TaskFlowRecord;
+};
+export type TaskFlowUpdateResult = {
+    applied: true;
+    flow: TaskFlowRecord;
+} | {
+    applied: false;
+    reason: "not_found" | "revision_conflict";
+    current?: TaskFlowRecord;
+};
+export declare function deriveTaskFlowStatusFromTask(task: Pick<TaskRecord, "status" | "terminalOutcome">): TaskFlowStatus;
+export declare function getTaskFlowRegistryRestoreFailure(): string | null;
+export declare function createFlowRecord(params: CreateFlowRecordParams): TaskFlowRecord;
 export declare function createManagedTaskFlow(params: {
     ownerKey: string;
     controllerId: string;

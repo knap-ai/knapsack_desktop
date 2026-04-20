@@ -24,4 +24,8 @@ export declare function isValidCloudCodeAssistToolId(id: string, mode?: ToolCall
  * @param messages - The messages to sanitize
  * @param mode - "strict" (alphanumeric only) or "strict9" (alphanumeric length 9)
  */
-export declare function sanitizeToolCallIdsForCloudCodeAssist(messages: AgentMessage[], mode?: ToolCallIdMode): AgentMessage[];
+export declare function sanitizeToolCallIdsForCloudCodeAssist(messages: AgentMessage[], mode?: ToolCallIdMode, options?: {
+    preserveNativeAnthropicToolUseIds?: boolean;
+    preserveReplaySafeThinkingToolCallIds?: boolean;
+    allowedToolNames?: Iterable<string>;
+}): AgentMessage[];

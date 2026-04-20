@@ -1,4 +1,6 @@
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
+import { i as normalizeLowercaseStringOrEmpty, o as normalizeOptionalLowercaseString } from "../../string-coerce-BUSzWgUA.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 //#region extensions/phone-control/index.ts
@@ -35,8 +37,7 @@ function formatGroupList() {
 	].join(", ");
 }
 function parseDurationMs(input) {
-	if (!input) return null;
-	const raw = input.trim().toLowerCase();
+	const raw = normalizeOptionalLowercaseString(input);
 	if (!raw) return null;
 	const m = raw.match(/^(\d+)(s|m|h|d)$/);
 	if (!m) return null;
@@ -166,7 +167,7 @@ function formatHelp() {
 	].join("\n");
 }
 function parseGroup(raw) {
-	const value = (raw ?? "").trim().toLowerCase();
+	const value = normalizeOptionalLowercaseString(raw) ?? "";
 	if (!value) return null;
 	if (value === "camera" || value === "screen" || value === "writes" || value === "all") return value;
 	return null;
@@ -221,7 +222,7 @@ var phone_control_default = definePluginEntry({
 			acceptsArgs: true,
 			handler: async (ctx) => {
 				const tokens = (ctx.args?.trim() ?? "").split(/\s+/).filter(Boolean);
-				const action = tokens[0]?.toLowerCase() ?? "";
+				const action = normalizeLowercaseStringOrEmpty(tokens[0]);
 				const stateDir = api.runtime.state.resolveStateDir();
 				const statePath = resolveStatePath(stateDir);
 				if (!action || action === "help") return { text: `${formatStatus(await readArmState(statePath))}\n\n${formatHelp()}` };

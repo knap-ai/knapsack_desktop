@@ -1,45 +1,12 @@
 import type { ThinkLevel, VerboseLevel } from "../../auto-reply/thinking.js";
-import { loadConfig } from "../../config/config.js";
-import { type SessionEntry } from "../../config/sessions.js";
+import type { SessionEntry } from "../../config/sessions/types.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { resolveMessageChannel } from "../../utils/message-channel.js";
+import { type EmbeddedPiRunResult } from "../pi-embedded.js";
 import { buildWorkspaceSkillSnapshot } from "../skills.js";
 import { resolveAgentRunContext } from "./run-context.js";
 import type { AgentCommandOpts } from "./types.js";
-/**
- * Check whether a session transcript file exists and contains at least one
- * assistant message, indicating that the SessionManager has flushed the
- * initial user+assistant exchange to disk.  This is used to decide whether
- * a fallback retry can rely on the on-disk history or must re-send the
- * original prompt.
- *
- * The check parses JSONL records line-by-line (CWE-703) instead of relying
- * on a raw substring match against a bounded byte prefix, which could
- * produce false negatives when the pre-assistant content exceeds the byte
- * limit.
- */
-export declare function sessionFileHasContent(sessionFile: string | undefined): Promise<boolean>;
-export type PersistSessionEntryParams = {
-    sessionStore: Record<string, SessionEntry>;
-    sessionKey: string;
-    storePath: string;
-    entry: SessionEntry;
-    clearedFields?: string[];
-};
-export declare function persistSessionEntry(params: PersistSessionEntryParams): Promise<void>;
-export declare function resolveFallbackRetryPrompt(params: {
-    body: string;
-    isFallbackRetry: boolean;
-    sessionHasHistory?: boolean;
-}): string;
-export declare function prependInternalEventContext(body: string, events: AgentCommandOpts["internalEvents"]): string;
-export declare function createAcpVisibleTextAccumulator(): {
-    consume(chunk: string): {
-        text: string;
-        delta: string;
-    } | null;
-    finalize(): string;
-    finalizeRaw(): string;
-};
+export { createAcpVisibleTextAccumulator, resolveFallbackRetryPrompt, sessionFileHasContent, } from "./attempt-execution.helpers.js";
 export declare function persistAcpTurnTranscript(params: {
     body: string;
     finalText: string;
@@ -52,10 +19,22 @@ export declare function persistAcpTurnTranscript(params: {
     threadId?: string | number;
     sessionCwd: string;
 }): Promise<SessionEntry | undefined>;
+export declare function persistCliTurnTranscript(params: {
+    body: string;
+    result: EmbeddedPiRunResult;
+    sessionId: string;
+    sessionKey: string;
+    sessionEntry: SessionEntry | undefined;
+    sessionStore?: Record<string, SessionEntry>;
+    storePath?: string;
+    sessionAgentId: string;
+    threadId?: string | number;
+    sessionCwd: string;
+}): Promise<SessionEntry | undefined>;
 export declare function runAgentAttempt(params: {
     providerOverride: string;
     modelOverride: string;
-    cfg: ReturnType<typeof loadConfig>;
+    cfg: OpenClawConfig;
     sessionEntry: SessionEntry | undefined;
     sessionId: string;
     sessionKey: string | undefined;
@@ -85,7 +64,7 @@ export declare function runAgentAttempt(params: {
     storePath?: string;
     allowTransientCooldownProbe?: boolean;
     sessionHasHistory?: boolean;
-}): Promise<import("../pi-embedded.js").EmbeddedPiRunResult>;
+}): Promise<EmbeddedPiRunResult>;
 export declare function buildAcpResult(params: {
     payloadText: string;
     startedAt: number;

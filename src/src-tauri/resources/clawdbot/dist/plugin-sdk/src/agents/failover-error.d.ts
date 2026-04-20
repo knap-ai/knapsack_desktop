@@ -1,4 +1,4 @@
-import { type FailoverReason } from "./pi-embedded-helpers.js";
+import type { FailoverReason } from "./pi-embedded-helpers/types.js";
 export declare class FailoverError extends Error {
     readonly reason: FailoverReason;
     readonly provider?: string;

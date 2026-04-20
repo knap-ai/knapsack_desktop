@@ -1,6 +1,4 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["zalo-setup"];
-type FacadeModule = FacadeEntry["module"];
+type FacadeModule = typeof import("@openclaw/zalo/setup-api.js");
 export declare const evaluateZaloGroupAccess: FacadeModule["evaluateZaloGroupAccess"];
 export declare const resolveZaloRuntimeGroupPolicy: FacadeModule["resolveZaloRuntimeGroupPolicy"];
 export declare const zaloSetupAdapter: FacadeModule["zaloSetupAdapter"];

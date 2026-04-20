@@ -1,7 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
 import type { ExecAsk, ExecSecurity, ExecTarget } from "../../infra/exec-approvals.js";
-import type { MsgContext } from "../templating.js";
-import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "./directives.js";
+import type { ElevatedLevel, ReasoningLevel, ThinkLevel, TraceLevel, VerboseLevel } from "./directives.js";
 import type { QueueDropPolicy, QueueMode } from "./queue/types.js";
 export type InlineDirectives = {
     cleaned: string;
@@ -11,6 +9,9 @@ export type InlineDirectives = {
     hasVerboseDirective: boolean;
     verboseLevel?: VerboseLevel;
     rawVerboseLevel?: string;
+    hasTraceDirective: boolean;
+    traceLevel?: TraceLevel;
+    rawTraceLevel?: string;
     hasFastDirective: boolean;
     fastMode?: boolean;
     rawFastMode?: string;
@@ -55,11 +56,3 @@ export declare function parseInlineDirectives(body: string, options?: {
     disableElevated?: boolean;
     allowStatusDirective?: boolean;
 }): InlineDirectives;
-export declare function isDirectiveOnly(params: {
-    directives: InlineDirectives;
-    cleanedBody: string;
-    ctx: MsgContext;
-    cfg: OpenClawConfig;
-    agentId?: string;
-    isGroup: boolean;
-}): boolean;

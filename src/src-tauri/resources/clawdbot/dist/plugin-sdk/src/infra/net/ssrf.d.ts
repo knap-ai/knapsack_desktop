@@ -12,7 +12,10 @@ export type SsrFPolicy = {
     allowedHostnames?: string[];
     hostnameAllowlist?: string[];
 };
+export declare function normalizeHostnameAllowlist(values?: string[]): string[];
 export declare function isPrivateNetworkAllowedByPolicy(policy?: SsrFPolicy): boolean;
+export declare function isHostnameAllowedByPattern(hostname: string, pattern: string): boolean;
+export declare function matchesHostnameAllowlist(hostname: string, allowlist: string[]): boolean;
 export declare function isPrivateIpAddress(address: string, policy?: SsrFPolicy): boolean;
 export declare function isBlockedHostname(hostname: string): boolean;
 export declare function isBlockedHostnameOrIp(hostname: string, policy?: SsrFPolicy): boolean;
@@ -50,6 +53,7 @@ export declare function resolvePinnedHostnameWithPolicy(hostname: string, params
     lookupFn?: LookupFn;
     policy?: SsrFPolicy;
 }): Promise<PinnedHostname>;
+export declare function assertHostnameAllowedWithPolicy(hostname: string, policy?: SsrFPolicy): string;
 export declare function resolvePinnedHostname(hostname: string, lookupFn?: LookupFn): Promise<PinnedHostname>;
 export declare function createPinnedDispatcher(pinned: PinnedHostname, policy?: PinnedDispatcherPolicy, ssrfPolicy?: SsrFPolicy): Dispatcher;
 export declare function closeDispatcher(dispatcher?: Dispatcher | null): Promise<void>;

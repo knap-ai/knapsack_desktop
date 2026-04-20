@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { CompiledConfiguredBinding, ConfiguredBindingRecordResolution, ConfiguredBindingRuleConfig, ConfiguredBindingTargetFactory } from "./binding-types.js";
 import type { ChannelConfiguredBindingConversationRef } from "./types.adapters.js";
 export type ParsedConfiguredBindingSessionKey = {

@@ -1,8 +1,8 @@
-import { t as finalizeInboundContext } from "../../inbound-context-1KETU_yq.js";
-import "../../reply-runtime-DxFWfQpm.js";
-import { c as __testing } from "../../thread-bindings-DGck9pdd.js";
-import { n as buildDiscordInboundAccessContext } from "../../inbound-context-CHsCnazv.js";
-import { n as discordOutbound } from "../../outbound-adapter-DiShbjMH.js";
+import { t as discordPlugin } from "./channel-o0mosQGD.js";
+import { t as __testing } from "./thread-bindings.manager-BfxhjvHf.js";
+import { n as discordOutbound } from "./outbound-adapter-bhTRyGb7.js";
+import { n as buildDiscordInboundAccessContext } from "./inbound-context-DouSdifA.js";
+import { finalizeInboundContext } from "openclaw/plugin-sdk/reply-dispatch-runtime";
 //#region extensions/discord/src/monitor/inbound-context.test-helpers.ts
 function buildFinalizedDiscordDirectInboundContext() {
 	const { groupSystemPrompt, ownerAllowFrom, untrustedContext } = buildDiscordInboundAccessContext({
@@ -42,4 +42,4 @@ function buildFinalizedDiscordDirectInboundContext() {
 	});
 }
 //#endregion
-export { buildFinalizedDiscordDirectInboundContext, discordOutbound, __testing as discordThreadBindingTesting };
+export { buildFinalizedDiscordDirectInboundContext, discordOutbound, discordPlugin, __testing as discordThreadBindingTesting };

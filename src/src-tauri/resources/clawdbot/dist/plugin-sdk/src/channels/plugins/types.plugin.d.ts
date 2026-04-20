@@ -1,37 +1,8 @@
-import type { ChannelSetupWizardAdapter } from "./setup-wizard-types.js";
-import type { ChannelSetupWizard } from "./setup-wizard.js";
-import type { ChannelApprovalAdapter, ChannelApprovalCapability, ChannelAuthAdapter, ChannelCommandAdapter, ChannelConfigAdapter, ChannelConversationBindingSupport, ChannelDirectoryAdapter, ChannelResolverAdapter, ChannelElevatedAdapter, ChannelGatewayAdapter, ChannelGroupAdapter, ChannelHeartbeatAdapter, ChannelLifecycleAdapter, ChannelOutboundAdapter, ChannelPairingAdapter, ChannelSecurityAdapter, ChannelSetupAdapter, ChannelStatusAdapter, ChannelAllowlistAdapter, ChannelConfiguredBindingProvider } from "./types.adapters.js";
+import type { ChannelSetupWizard, ChannelSetupWizardAdapter } from "./setup-wizard-types.js";
+import type { ChannelConfigSchema } from "./types.config.js";
+export type { ChannelConfigRuntimeIssue, ChannelConfigRuntimeParseResult, ChannelConfigRuntimeSchema, ChannelConfigSchema, ChannelConfigUiHint, } from "./types.config.js";
+import type { ChannelApprovalCapability, ChannelAuthAdapter, ChannelCommandAdapter, ChannelConfigAdapter, ChannelConversationBindingSupport, ChannelDoctorAdapter, ChannelDirectoryAdapter, ChannelResolverAdapter, ChannelElevatedAdapter, ChannelGatewayAdapter, ChannelGroupAdapter, ChannelHeartbeatAdapter, ChannelLifecycleAdapter, ChannelOutboundAdapter, ChannelPairingAdapter, ChannelSecretsAdapter, ChannelSecurityAdapter, ChannelSetupAdapter, ChannelStatusAdapter, ChannelAllowlistAdapter, ChannelConfiguredBindingProvider } from "./types.adapters.js";
 import type { ChannelAgentTool, ChannelAgentToolFactory, ChannelCapabilities, ChannelId, ChannelAgentPromptAdapter, ChannelMentionAdapter, ChannelMessageActionAdapter, ChannelMessagingAdapter, ChannelMeta, ChannelStreamingAdapter, ChannelThreadingAdapter } from "./types.core.js";
-export type ChannelConfigUiHint = {
-    label?: string;
-    help?: string;
-    tags?: string[];
-    advanced?: boolean;
-    sensitive?: boolean;
-    placeholder?: string;
-    itemTemplate?: unknown;
-};
-export type ChannelConfigRuntimeIssue = {
-    path?: Array<string | number>;
-    message?: string;
-    code?: string;
-} & Record<string, unknown>;
-export type ChannelConfigRuntimeParseResult = {
-    success: true;
-    data: unknown;
-} | {
-    success: false;
-    issues: ChannelConfigRuntimeIssue[];
-};
-export type ChannelConfigRuntimeSchema = {
-    safeParse: (value: unknown) => ChannelConfigRuntimeParseResult;
-};
-/** JSON-schema-like config description published by a channel plugin. */
-export type ChannelConfigSchema = {
-    schema: Record<string, unknown>;
-    uiHints?: Record<string, ChannelConfigUiHint>;
-    runtime?: ChannelConfigRuntimeSchema;
-};
 /** Full capability contract for a native channel plugin. */
 type ChannelPluginSetupWizard = ChannelSetupWizard | ChannelSetupWizardAdapter;
 export type ChannelPlugin<ResolvedAccount = any, Probe = unknown, Audit = unknown> = {
@@ -64,8 +35,9 @@ export type ChannelPlugin<ResolvedAccount = any, Probe = unknown, Audit = unknow
     elevated?: ChannelElevatedAdapter;
     commands?: ChannelCommandAdapter;
     lifecycle?: ChannelLifecycleAdapter;
-    approvals?: ChannelApprovalAdapter;
+    secrets?: ChannelSecretsAdapter;
     allowlist?: ChannelAllowlistAdapter;
+    doctor?: ChannelDoctorAdapter;
     bindings?: ChannelConfiguredBindingProvider;
     conversationBindings?: ChannelConversationBindingSupport;
     streaming?: ChannelStreamingAdapter;
@@ -78,4 +50,3 @@ export type ChannelPlugin<ResolvedAccount = any, Probe = unknown, Audit = unknow
     heartbeat?: ChannelHeartbeatAdapter;
     agentTools?: ChannelAgentToolFactory | ChannelAgentTool[];
 };
-export {};

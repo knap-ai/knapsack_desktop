@@ -1,7 +1,7 @@
 import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type QueuedFileWriter } from "./queued-file-writer.js";
-export type CacheTraceStage = "session:loaded" | "session:sanitized" | "session:limited" | "prompt:before" | "prompt:images" | "stream:context" | "session:after";
+export type CacheTraceStage = "cache:result" | "cache:state" | "session:loaded" | "session:sanitized" | "session:limited" | "prompt:before" | "prompt:images" | "stream:context" | "session:after";
 export type CacheTraceEvent = {
     ts: string;
     seq: number;

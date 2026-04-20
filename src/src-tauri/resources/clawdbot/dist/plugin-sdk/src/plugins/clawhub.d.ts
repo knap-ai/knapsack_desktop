@@ -11,6 +11,8 @@ export declare const CLAWHUB_INSTALL_ERROR_CODE: {
     readonly PRIVATE_PACKAGE: "private_package";
     readonly INCOMPATIBLE_PLUGIN_API: "incompatible_plugin_api";
     readonly INCOMPATIBLE_GATEWAY: "incompatible_gateway";
+    readonly MISSING_ARCHIVE_INTEGRITY: "missing_archive_integrity";
+    readonly ARCHIVE_INTEGRITY_MISMATCH: "archive_integrity_mismatch";
 };
 export type ClawHubInstallErrorCode = (typeof CLAWHUB_INSTALL_ERROR_CODE)[keyof typeof CLAWHUB_INSTALL_ERROR_CODE];
 type PluginInstallLogger = {

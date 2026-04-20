@@ -15,6 +15,9 @@ export type UsageLike = {
     cache_read_input_tokens?: number;
     cache_creation_input_tokens?: number;
     cached_tokens?: number;
+    input_tokens_details?: {
+        cached_tokens?: number;
+    };
     prompt_tokens_details?: {
         cached_tokens?: number;
     };
@@ -47,6 +50,20 @@ export type AssistantUsageSnapshot = {
 export declare function makeZeroUsageSnapshot(): AssistantUsageSnapshot;
 export declare function hasNonzeroUsage(usage?: NormalizedUsage | null): usage is NormalizedUsage;
 export declare function normalizeUsage(raw?: UsageLike | null): NormalizedUsage | undefined;
+/**
+ * Maps normalized usage to OpenAI Chat Completions `usage` fields.
+ *
+ * `prompt_tokens` is input + cacheRead (cache write is excluded to match the
+ * OpenAI-style breakdown used by the compat endpoint).
+ *
+ * `total_tokens` is the greater of the component sum and aggregate `total` when
+ * present, so a partial breakdown cannot discard a valid upstream total.
+ */
+export declare function toOpenAiChatCompletionsUsage(usage: NormalizedUsage | undefined): {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+};
 export declare function derivePromptTokens(usage?: {
     input?: number;
     cacheRead?: number;

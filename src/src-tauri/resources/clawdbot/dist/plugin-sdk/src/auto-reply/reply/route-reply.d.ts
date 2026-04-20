@@ -6,7 +6,7 @@
  * provider where the message originated, even when the main session is shared
  * across multiple providers.
  */
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import type { OriginatingChannelType } from "../templating.js";
 import type { ReplyPayload } from "../types.js";
@@ -21,6 +21,14 @@ export type RouteReplyParams = {
     sessionKey?: string;
     /** Provider account id (multi-account). */
     accountId?: string;
+    /** Originating sender id for sender-scoped outbound media policy. */
+    requesterSenderId?: string;
+    /** Originating sender display name for name-keyed sender policy matching. */
+    requesterSenderName?: string;
+    /** Originating sender username for username-keyed sender policy matching. */
+    requesterSenderUsername?: string;
+    /** Originating sender E.164 phone number for e164-keyed sender policy matching. */
+    requesterSenderE164?: string;
     /** Thread id for replies (Telegram topic id or Matrix thread event id). */
     threadId?: string | number;
     /** Config for provider-specific settings. */

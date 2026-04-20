@@ -1,36 +1,9 @@
-import type { OpenClawConfig } from "../../config/config.js";
-import type { ChannelId } from "./types.js";
-export type ConfigWriteScope = {
-    channelId?: ChannelId | null;
-    accountId?: string | null;
-};
-export type ConfigWriteTarget = {
-    kind: "global";
-} | {
-    kind: "channel";
-    scope: {
-        channelId: ChannelId;
-    };
-} | {
-    kind: "account";
-    scope: {
-        channelId: ChannelId;
-        accountId: string;
-    };
-} | {
-    kind: "ambiguous";
-    scopes: ConfigWriteScope[];
-};
-export type ConfigWriteAuthorizationResult = {
-    allowed: true;
-} | {
-    allowed: false;
-    reason: "ambiguous-target" | "origin-disabled" | "target-disabled";
-    blockedScope?: {
-        kind: "origin" | "target";
-        scope: ConfigWriteScope;
-    };
-};
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { type ConfigWriteAuthorizationResultLike, type ConfigWriteScopeLike, type ConfigWriteTargetLike } from "./config-write-policy-shared.js";
+import type { ChannelId } from "./types.core.js";
+export type ConfigWriteScope = ConfigWriteScopeLike;
+export type ConfigWriteTarget = ConfigWriteTargetLike;
+export type ConfigWriteAuthorizationResult = ConfigWriteAuthorizationResultLike;
 export declare function resolveChannelConfigWrites(params: {
     cfg: OpenClawConfig;
     channelId?: ChannelId | null;

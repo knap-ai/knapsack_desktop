@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { callGateway } from "../../gateway/call.js";
 import { looksLikeSessionId } from "../../sessions/session-id.js";
 type GatewayCaller = typeof callGateway;
@@ -78,7 +78,7 @@ export declare function resolveVisibleSessionReference(params: {
     restrictToSpawned: boolean;
     visibilitySessionKey: string;
 }): Promise<VisibleSessionReferenceResolution>;
-export declare function normalizeOptionalKey(value?: string): string | undefined;
+export declare const normalizeOptionalKey: (value?: string) => string | undefined;
 export declare const __testing: {
     setDepsForTest(overrides?: Partial<{
         callGateway: GatewayCaller;

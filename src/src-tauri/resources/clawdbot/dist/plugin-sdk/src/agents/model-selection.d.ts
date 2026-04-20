@@ -1,10 +1,7 @@
-import type { OpenClawConfig } from "../config/config.js";
-import type { ModelCatalogEntry } from "./model-catalog.js";
-import { findNormalizedProviderKey, findNormalizedProviderValue, normalizeProviderId, normalizeProviderIdForAuth } from "./provider-id.js";
-export type ModelRef = {
-    provider: string;
-    model: string;
-};
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { ModelCatalogEntry } from "./model-catalog.types.js";
+export { resolveThinkingDefault } from "./model-thinking-default.js";
+import { type ModelRef, findNormalizedProviderKey, findNormalizedProviderValue, legacyModelKey, modelKey, normalizeModelRef, normalizeProviderId, normalizeProviderIdForAuth, parseModelRef } from "./model-selection-normalize.js";
 export type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "adaptive";
 export type ModelAliasIndex = {
     byAlias: Map<string, {
@@ -13,16 +10,44 @@ export type ModelAliasIndex = {
     }>;
     byKey: Map<string, string[]>;
 };
-export declare function modelKey(provider: string, model: string): string;
-export declare function legacyModelKey(provider: string, model: string): string | null;
-export { findNormalizedProviderKey, findNormalizedProviderValue, normalizeProviderId, normalizeProviderIdForAuth, };
-export declare function isCliProvider(provider: string, cfg?: OpenClawConfig): boolean;
-type ModelRefNormalizeOptions = {
-    allowPluginNormalization?: boolean;
+export { findNormalizedProviderKey, findNormalizedProviderValue, legacyModelKey, modelKey, normalizeModelRef, normalizeProviderId, normalizeProviderIdForAuth, parseModelRef, };
+export type { ModelRef };
+export { isCliProvider } from "./model-selection-cli.js";
+export declare function resolvePersistedOverrideModelRef(params: {
+    defaultProvider: string;
+    overrideProvider?: string;
+    overrideModel?: string;
+}): ModelRef | null;
+/**
+ * Runtime-first resolver for persisted model metadata.
+ * Use this when callers intentionally want the last executed model identity.
+ */
+export declare function resolvePersistedModelRef(params: {
+    defaultProvider: string;
+    runtimeProvider?: string;
+    runtimeModel?: string;
+    overrideProvider?: string;
+    overrideModel?: string;
+}): ModelRef | null;
+/**
+ * Selected-model resolver for persisted model metadata.
+ * Use this for control/status/UI surfaces that should honor explicit session
+ * overrides before falling back to runtime identity.
+ */
+export declare function resolvePersistedSelectedModelRef(params: {
+    defaultProvider: string;
+    runtimeProvider?: string;
+    runtimeModel?: string;
+    overrideProvider?: string;
+    overrideModel?: string;
+}): ModelRef | null;
+export declare function normalizeStoredOverrideModel(params: {
+    providerOverride?: string | null;
+    modelOverride?: string | null;
+}): {
+    providerOverride?: string;
+    modelOverride?: string;
 };
-export declare function normalizeModelRef(provider: string, model: string, options?: ModelRefNormalizeOptions): ModelRef;
-type ParseModelRefOptions = ModelRefNormalizeOptions;
-export declare function parseModelRef(raw: string, defaultProvider: string, options?: ParseModelRefOptions): ModelRef | null;
 export declare function inferUniqueProviderFromConfiguredModels(params: {
     cfg: OpenClawConfig;
     model: string;
@@ -104,12 +129,6 @@ export declare function resolveAllowedModelRef(params: {
 } | {
     error: string;
 };
-export declare function resolveThinkingDefault(params: {
-    cfg: OpenClawConfig;
-    provider: string;
-    model: string;
-    catalog?: ModelCatalogEntry[];
-}): ThinkLevel;
 /** Default reasoning level when session/directive do not set it: "on" if model supports reasoning, else "off". */
 export declare function resolveReasoningDefault(params: {
     provider: string;

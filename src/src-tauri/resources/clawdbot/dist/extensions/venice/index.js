@@ -1,26 +1,14 @@
-import { r as applyModelCompatPatch } from "../../provider-model-shared-B0P3sbBu.js";
-import { t as XAI_UNSUPPORTED_SCHEMA_KEYWORDS } from "../../provider-tools-Cjq0r_cA.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-BnIQWKLx.js";
-import { i as VENICE_DEFAULT_MODEL_REF } from "../../models-D2L2Be-9.js";
-import { t as buildVeniceProvider } from "../../api-Cjsj1oLk.js";
-import { t as applyVeniceConfig } from "../../onboard-_86VkqTZ.js";
+import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
+import { i as applyXaiModelCompat } from "../../provider-tools-Z_yR2St8.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
+import { i as VENICE_DEFAULT_MODEL_REF } from "../../models-CjZsUNMw.js";
+import { t as buildVeniceProvider } from "../../provider-catalog-D3YYc_IN.js";
+import { t as applyVeniceConfig } from "../../onboard-D4bkTlHg.js";
 //#region extensions/venice/index.ts
 const PROVIDER_ID = "venice";
-const XAI_TOOL_SCHEMA_PROFILE = "xai";
-const HTML_ENTITY_TOOL_CALL_ARGUMENTS_ENCODING = "html-entities";
 function isXaiBackedVeniceModel(modelId) {
-	return modelId.trim().toLowerCase().includes("grok");
-}
-function resolveXaiCompatPatch() {
-	return {
-		toolSchemaProfile: XAI_TOOL_SCHEMA_PROFILE,
-		unsupportedToolSchemaKeywords: Array.from(XAI_UNSUPPORTED_SCHEMA_KEYWORDS),
-		nativeWebSearchTool: true,
-		toolCallArgumentsEncoding: HTML_ENTITY_TOOL_CALL_ARGUMENTS_ENCODING
-	};
-}
-function applyXaiCompat(model) {
-	return applyModelCompatPatch(model, resolveXaiCompatPatch());
+	return normalizeLowercaseStringOrEmpty(modelId).includes("grok");
 }
 var venice_default = defineSingleProviderPluginEntry({
 	id: PROVIDER_ID,
@@ -48,7 +36,7 @@ var venice_default = defineSingleProviderPluginEntry({
 			wizard: { groupLabel: "Venice AI" }
 		}],
 		catalog: { buildProvider: buildVeniceProvider },
-		normalizeResolvedModel: ({ modelId, model }) => isXaiBackedVeniceModel(modelId) ? applyXaiCompat(model) : void 0
+		normalizeResolvedModel: ({ modelId, model }) => isXaiBackedVeniceModel(modelId) ? applyXaiModelCompat(model) : void 0
 	}
 });
 //#endregion

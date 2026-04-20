@@ -1,1 +1,1 @@
-export { normalizeHyphenSlug, normalizeStringEntries, normalizeStringEntriesLower, } from "../shared/string-normalization.js";
+export { normalizeAtHashSlug, normalizeHyphenSlug, normalizeStringEntries, normalizeStringEntriesLower, } from "../shared/string-normalization.js";

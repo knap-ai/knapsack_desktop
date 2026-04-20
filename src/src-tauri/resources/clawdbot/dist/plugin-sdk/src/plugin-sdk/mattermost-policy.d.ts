@@ -1,5 +1,11 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["mattermost-policy"];
-type FacadeModule = FacadeEntry["module"];
+type MattermostSenderAllowed = (params: {
+    senderId: string;
+    senderName?: string;
+    allowFrom: string[];
+    allowNameMatching?: boolean;
+}) => boolean;
+type FacadeModule = {
+    isMattermostSenderAllowed: MattermostSenderAllowed;
+};
 export declare const isMattermostSenderAllowed: FacadeModule["isMattermostSenderAllowed"];
 export {};

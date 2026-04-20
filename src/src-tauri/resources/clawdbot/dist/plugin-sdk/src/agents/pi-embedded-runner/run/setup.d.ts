@@ -1,6 +1,7 @@
-import type { Api, Model } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { OpenClawConfig } from "../../../config/types.openclaw.js";
+import type { ProviderRuntimeModel } from "../../../plugins/provider-runtime-model.types.js";
 import type { PluginHookBeforeAgentStartResult } from "../../../plugins/types.js";
+import { type ContextWindowInfo } from "../../context-window-guard.js";
 type HookContext = {
     agentId?: string;
     sessionKey?: string;
@@ -37,9 +38,9 @@ export declare function resolveEffectiveRuntimeModel(params: {
     cfg: OpenClawConfig | undefined;
     provider: string;
     modelId: string;
-    runtimeModel: Model<Api>;
+    runtimeModel: ProviderRuntimeModel;
 }): {
-    ctxInfo: import("../../context-window-guard.js").ContextWindowInfo;
-    effectiveModel: Model<Api>;
+    ctxInfo: ContextWindowInfo;
+    effectiveModel: ProviderRuntimeModel;
 };
 export {};

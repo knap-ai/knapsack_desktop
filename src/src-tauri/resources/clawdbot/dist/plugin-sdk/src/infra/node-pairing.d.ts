@@ -1,3 +1,4 @@
+import { type NodeApprovalScope } from "./node-pairing-authz.js";
 export type NodeDeclaredSurface = {
     nodeId: string;
     displayName?: string;
@@ -21,6 +22,9 @@ export type NodePairingPendingRequest = NodePairingRequestInput & {
     silent?: boolean;
     ts: number;
 };
+export type NodePairingPendingEntry = NodePairingPendingRequest & {
+    requiredApproveScopes: NodeApprovalScope[];
+};
 export type NodePairingPairedNode = NodeApprovedSurface & {
     token: string;
     bins?: string[];
@@ -29,7 +33,7 @@ export type NodePairingPairedNode = NodeApprovedSurface & {
     lastConnectedAtMs?: number;
 };
 export type NodePairingList = {
-    pending: NodePairingPendingRequest[];
+    pending: NodePairingPendingEntry[];
     paired: NodePairingPairedNode[];
 };
 type ApprovedNodePairingResult = {
@@ -48,7 +52,6 @@ export declare function requestNodePairing(req: NodePairingRequestInput, baseDir
     request: NodePairingPendingRequest;
     created: boolean;
 }>;
-export declare function approveNodePairing(requestId: string, baseDir?: string): Promise<ApprovedNodePairingResult | null>;
 export declare function approveNodePairing(requestId: string, options: {
     callerScopes?: readonly string[];
 }, baseDir?: string): Promise<ApproveNodePairingResult>;

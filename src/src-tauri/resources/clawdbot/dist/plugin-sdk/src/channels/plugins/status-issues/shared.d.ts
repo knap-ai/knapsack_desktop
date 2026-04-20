@@ -1,5 +1,5 @@
 import { isRecord } from "../../../utils.js";
-import type { ChannelAccountSnapshot, ChannelStatusIssue } from "../types.js";
+import type { ChannelAccountSnapshot, ChannelStatusIssue } from "../types.public.js";
 export { isRecord };
 export declare function asString(value: unknown): string | undefined;
 export declare function formatMatchMetadata(params: {

@@ -1,2 +1,2 @@
-import { t as buildNvidiaProvider } from "../../provider-catalog-D_p4S7tu.js";
+import { t as buildNvidiaProvider } from "../../provider-catalog-CzLM-h93.js";
 export { buildNvidiaProvider };

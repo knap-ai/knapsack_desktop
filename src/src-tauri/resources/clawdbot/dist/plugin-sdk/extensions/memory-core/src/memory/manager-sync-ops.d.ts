@@ -4,18 +4,7 @@ import { type OpenClawConfig, type ResolvedMemorySearchConfig } from "openclaw/p
 import { type SessionFileEntry } from "openclaw/plugin-sdk/memory-core-host-engine-qmd";
 import { type MemoryFileEntry, type MemorySource, type MemorySyncProgressUpdate } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
 import { type EmbeddingProvider, type EmbeddingProviderId, type EmbeddingProviderRuntime } from "./embeddings.js";
-type MemoryIndexMeta = {
-    model: string;
-    provider: string;
-    providerKey?: string;
-    sources?: MemorySource[];
-    scopeHash?: string;
-    chunkTokens: number;
-    chunkOverlap: number;
-    vectorDims?: number;
-    ftsTokenizer?: string;
-};
-export declare function openMemoryDatabaseAtPath(dbPath: string, allowExtension: boolean): DatabaseSync;
+import { type MemoryIndexMeta } from "./manager-reindex-state.js";
 export declare function runDetachedMemorySync(sync: () => Promise<void>, reason: "interval" | "watch"): void;
 export declare abstract class MemoryManagerSyncOps {
     protected abstract readonly cfg: OpenClawConfig;
@@ -94,9 +83,6 @@ export declare abstract class MemoryManagerSyncOps {
     };
     protected openDatabase(): DatabaseSync;
     private seedEmbeddingCache;
-    private swapIndexFiles;
-    private moveIndexFiles;
-    private removeIndexFiles;
     protected ensureSchema(): void;
     protected ensureWatcher(): void;
     protected ensureSessionListener(): void;
@@ -107,7 +93,6 @@ export declare abstract class MemoryManagerSyncOps {
     private resetSessionDelta;
     private isSessionFileForAgent;
     private normalizeTargetSessionFiles;
-    private clearSyncedSessionFiles;
     protected ensureIntervalSync(): void;
     private scheduleWatchSync;
     private shouldSyncSessions;
@@ -134,9 +119,4 @@ export declare abstract class MemoryManagerSyncOps {
     private resetIndex;
     protected readMeta(): MemoryIndexMeta | null;
     protected writeMeta(meta: MemoryIndexMeta): void;
-    private resolveConfiguredSourcesForMeta;
-    private normalizeMetaSources;
-    private resolveConfiguredScopeHash;
-    private metaSourcesDiffer;
 }
-export {};

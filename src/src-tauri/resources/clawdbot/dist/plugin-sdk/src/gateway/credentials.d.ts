@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
-export { hasGatewayPasswordEnvCandidate, hasGatewayTokenEnvCandidate, readGatewayPasswordEnv, readGatewayTokenEnv, trimCredentialToUndefined, trimToUndefined, } from "./credential-planner.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+export { hasGatewayPasswordEnvCandidate, hasGatewayTokenEnvCandidate, trimCredentialToUndefined, trimToUndefined, } from "./credential-planner.js";
 export type ExplicitGatewayAuth = {
     token?: string;
     password?: string;

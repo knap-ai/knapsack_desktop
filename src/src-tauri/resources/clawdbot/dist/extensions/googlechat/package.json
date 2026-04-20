@@ -1,6 +1,6 @@
 {
   "name": "@openclaw/googlechat",
-  "version": "2026.4.1-beta.1",
+  "version": "2026.4.15-beta.1",
   "private": true,
   "description": "OpenClaw Google Chat channel plugin",
   "type": "module",
@@ -31,7 +31,7 @@
     "install": {
       "npmSpec": "@openclaw/googlechat",
       "defaultChoice": "npm",
-      "minHostVersion": ">=2026.4.1"
+      "minHostVersion": ">=2026.4.10"
     }
   }
 }

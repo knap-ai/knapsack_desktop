@@ -1,4 +1,6 @@
-import type { OpenClawConfig } from "../config/config.js";
+import { buildCommandsMessage as buildCommandsMessageCompat, buildCommandsMessagePaginated as buildCommandsMessagePaginatedCompat, buildHelpMessage as buildHelpMessageCompat } from "../auto-reply/command-status-builders.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+export { buildCommandsPaginationKeyboard } from "./telegram-command-ui.js";
 export { createPreCryptoDirectDmAuthorizer, resolveInboundDirectDmAccessWithRuntime, type DirectDmCommandAuthorizationRuntime, type ResolvedInboundDirectDmAccess, } from "./direct-dm.js";
 export { hasControlCommand, hasInlineCommandTokens, isControlCommandMessage, shouldComputeCommandAuthorized, } from "../auto-reply/command-detection.js";
 export { buildCommandText, buildCommandTextFromArgs, findCommandByNativeName, getCommandDetection, isCommandEnabled, isCommandMessage, isNativeCommandSurface, listChatCommands, listChatCommandsForConfig, listNativeCommandSpecs, listNativeCommandSpecsForConfig, maybeResolveTextAlias, normalizeCommandBody, parseCommandArgs, resolveCommandArgChoices, resolveCommandArgMenu, resolveTextCommand, serializeCommandArgs, shouldHandleTextCommands, } from "../auto-reply/commands-registry.js";
@@ -8,13 +10,12 @@ export { resolveCommandAuthorizedFromAuthorizers, resolveControlCommandGate, res
 export { resolveNativeCommandSessionTargets, type ResolveNativeCommandSessionTargetsParams, } from "../channels/native-command-session-targets.js";
 export { resolveCommandAuthorization, type CommandAuthorization, } from "../auto-reply/command-auth.js";
 export { listReservedChatSlashCommandNames, listSkillCommandsForAgents, listSkillCommandsForWorkspace, resolveSkillCommandInvocation, } from "../auto-reply/skill-commands.js";
+export { getPluginCommandSpecs, listProviderPluginCommandSpecs, } from "../plugins/command-registration.js";
 export type { SkillCommandSpec } from "../agents/skills.js";
-export { buildCommandsPaginationKeyboard } from "../auto-reply/reply/commands-info.js";
 export { buildModelsProviderData, formatModelsAvailableHeader, resolveModelsCommandReply, } from "../auto-reply/reply/commands-models.js";
 export type { ModelsProviderData } from "../auto-reply/reply/commands-models.js";
-export { resolveStoredModelOverride } from "../auto-reply/reply/model-selection.js";
-export type { StoredModelOverride } from "../auto-reply/reply/model-selection.js";
-export { buildCommandsMessage, buildCommandsMessagePaginated, buildHelpMessage, } from "../auto-reply/status.js";
+export { resolveStoredModelOverride } from "../auto-reply/reply/stored-model-override.js";
+export type { StoredModelOverride } from "../auto-reply/reply/stored-model-override.js";
 export type ResolveSenderCommandAuthorizationParams = {
     cfg: OpenClawConfig;
     rawBody: string;
@@ -63,3 +64,9 @@ export declare function resolveSenderCommandAuthorization(params: ResolveSenderC
     senderAllowedForCommands: boolean;
     commandAuthorized: boolean | undefined;
 }>;
+/** @deprecated Use `openclaw/plugin-sdk/command-status` instead. */
+export declare function buildCommandsMessage(...args: Parameters<typeof buildCommandsMessageCompat>): ReturnType<typeof buildCommandsMessageCompat>;
+/** @deprecated Use `openclaw/plugin-sdk/command-status` instead. */
+export declare function buildCommandsMessagePaginated(...args: Parameters<typeof buildCommandsMessagePaginatedCompat>): ReturnType<typeof buildCommandsMessagePaginatedCompat>;
+/** @deprecated Use `openclaw/plugin-sdk/command-status` instead. */
+export declare function buildHelpMessage(...args: Parameters<typeof buildHelpMessageCompat>): ReturnType<typeof buildHelpMessageCompat>;

@@ -1,1 +1,1 @@
-export declare function normalizeXaiModelId(id: string): string;
+export { normalizeNativeXaiModelId as normalizeXaiModelId } from "./provider-model-shared.js";

@@ -1,5 +1,4 @@
 import { type CommandResolution } from "./exec-command-resolution.js";
-export { DEFAULT_SAFE_BINS } from "./exec-safe-bin-policy.js";
 export { matchAllowlist, parseExecArgvToken, resolveAllowlistCandidatePath, resolveApprovalAuditCandidatePath, resolveCommandResolution, resolveCommandResolutionFromArgv, resolveExecutionTargetCandidatePath, resolveExecutionTargetResolution, resolvePolicyAllowlistCandidatePath, resolvePolicyTargetCandidatePath, resolvePolicyTargetResolution, type CommandResolution, type ExecutableResolution, type ExecArgvToken, } from "./exec-command-resolution.js";
 export type ExecCommandSegment = {
     raw: string;

@@ -1,8 +1,8 @@
-import { type MessagingToolSend } from "./pi-embedded-messaging.js";
+import type { MessagingToolSend } from "./pi-embedded-messaging.types.js";
 export declare function sanitizeToolResult(result: unknown): unknown;
 export declare function extractToolResultText(result: unknown): string | undefined;
 export declare function isToolResultMediaTrusted(toolName?: string, result?: unknown): boolean;
-export declare function filterToolResultMediaUrls(toolName: string | undefined, mediaUrls: string[], result?: unknown): string[];
+export declare function filterToolResultMediaUrls(toolName: string | undefined, mediaUrls: string[], result?: unknown, builtinToolNames?: ReadonlySet<string>): string[];
 /**
  * Extract media file paths from a tool result.
  *

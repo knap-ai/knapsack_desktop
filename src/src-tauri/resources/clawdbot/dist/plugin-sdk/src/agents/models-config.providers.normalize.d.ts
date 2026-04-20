@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
-import type { SecretDefaults } from "./models-config.providers.secrets.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { SecretDefaults } from "./models-config.providers.secret-helpers.js";
 type ModelsConfig = NonNullable<OpenClawConfig["models"]>;
 export declare function normalizeProviders(params: {
     providers: ModelsConfig["providers"];

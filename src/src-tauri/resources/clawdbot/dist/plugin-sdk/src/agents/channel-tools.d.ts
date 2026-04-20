@@ -1,5 +1,5 @@
-import type { ChannelAgentTool, ChannelMessageActionName } from "../channels/plugins/types.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { ChannelAgentTool, ChannelMessageActionName } from "../channels/plugins/types.public.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 type ChannelAgentToolMeta = {
     channelId: string;
 };
@@ -20,6 +20,7 @@ export declare function listChannelSupportedActions(params: {
     sessionId?: string | null;
     agentId?: string | null;
     requesterSenderId?: string | null;
+    senderIsOwner?: boolean;
 }): ChannelMessageActionName[];
 /**
  * Get the list of all supported message actions across all configured channels.
@@ -34,6 +35,7 @@ export declare function listAllChannelSupportedActions(params: {
     sessionId?: string | null;
     agentId?: string | null;
     requesterSenderId?: string | null;
+    senderIsOwner?: boolean;
 }): ChannelMessageActionName[];
 export declare function listChannelAgentTools(params: {
     cfg?: OpenClawConfig;

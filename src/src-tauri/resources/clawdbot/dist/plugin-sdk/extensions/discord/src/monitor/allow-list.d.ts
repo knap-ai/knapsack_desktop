@@ -28,9 +28,7 @@ export type DiscordGuildEntryResolved = {
     reactionNotifications?: "off" | "own" | "all" | "allowlist";
     users?: string[];
     roles?: string[];
-    channels?: Record<string, {
-        allow?: boolean;
-    } & DiscordChannelOverrideConfig>;
+    channels?: Record<string, DiscordChannelOverrideConfig>;
 };
 export type DiscordChannelConfigResolved = DiscordChannelOverrideConfig & {
     allowed: boolean;
@@ -168,6 +166,14 @@ export declare function isDiscordGroupAllowedByPolicy(params: {
     channelAllowlistConfigured: boolean;
     channelAllowed: boolean;
 }): boolean;
+export declare function resolveDiscordChannelPolicyCommandAuthorizer(params: {
+    groupPolicy: "open" | "disabled" | "allowlist";
+    guildInfo?: DiscordGuildEntryResolved | null;
+    channelConfig?: DiscordChannelConfigResolved | null;
+}): {
+    readonly configured: boolean;
+    readonly allowed: boolean;
+};
 export declare function resolveGroupDmAllow(params: {
     channels?: string[];
     channelId: string;

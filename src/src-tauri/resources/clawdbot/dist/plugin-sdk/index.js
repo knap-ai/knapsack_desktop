@@ -1,5 +1,5 @@
-import { t as registerContextEngine } from "../registry-0V6fQpn5.js";
-import { n as emptyPluginConfigSchema } from "../config-schema-dIP9qvIK.js";
-import { t as delegateCompactionToRuntime } from "../delegate-D2XjHYBM.js";
-import { r as onDiagnosticEvent } from "../diagnostic-events-ROhwFcx1.js";
-export { delegateCompactionToRuntime, emptyPluginConfigSchema, onDiagnosticEvent, registerContextEngine };
+import { t as registerContextEngine } from "../registry-hc1-G3yP.js";
+import { n as delegateCompactionToRuntime, t as buildMemorySystemPromptAddition } from "../delegate-C6gGfaoC.js";
+import { r as onDiagnosticEvent } from "../diagnostic-events-P3w1ZgD_.js";
+import { n as emptyPluginConfigSchema } from "../config-schema-BJSXw2hl.js";
+export { buildMemorySystemPromptAddition, delegateCompactionToRuntime, emptyPluginConfigSchema, onDiagnosticEvent, registerContextEngine };

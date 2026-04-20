@@ -9,4 +9,15 @@ export declare function isSilentReplyPayloadText(text: string | undefined, token
  * If the result is empty, the entire message should be treated as silent.
  */
 export declare function stripSilentToken(text: string, token?: string): string;
+/**
+ * Strip leading silent reply tokens from text.
+ * Handles cases like "NO_REPLYThe user is saying..." where the token
+ * is not separated from the following text.
+ */
+export declare function stripLeadingSilentToken(text: string, token?: string): string;
+/**
+ * Check whether text starts with one or more leading silent reply tokens where
+ * the final token is glued directly to visible content.
+ */
+export declare function startsWithSilentToken(text: string | undefined, token?: string): boolean;
 export declare function isSilentReplyPrefixText(text: string | undefined, token?: string): boolean;

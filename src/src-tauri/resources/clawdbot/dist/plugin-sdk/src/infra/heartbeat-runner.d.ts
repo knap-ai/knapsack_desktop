@@ -1,11 +1,12 @@
-import type { ChannelHeartbeatDeps } from "../channels/plugins/types.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { ChannelHeartbeatDeps } from "../channels/plugins/types.public.js";
 import type { AgentDefaultsConfig } from "../config/types.agent-defaults.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type RuntimeEnv } from "../runtime.js";
 import { isCronSystemEvent } from "./heartbeat-events-filter.js";
 import { areHeartbeatsEnabled, type HeartbeatRunResult, setHeartbeatsEnabled } from "./heartbeat-wake.js";
 import type { OutboundSendDeps } from "./outbound/deliver.js";
 export type HeartbeatDeps = OutboundSendDeps & ChannelHeartbeatDeps & {
+    getReplyFromConfig?: typeof import("./heartbeat-runner.runtime.js").getReplyFromConfig;
     runtime?: RuntimeEnv;
     getQueueSize?: (lane?: string) => number;
     nowMs?: () => number;
@@ -32,4 +33,5 @@ export declare function startHeartbeatRunner(opts: {
     runtime?: RuntimeEnv;
     abortSignal?: AbortSignal;
     runOnce?: typeof runHeartbeatOnce;
+    stableSchedulerSeed?: string;
 }): HeartbeatRunner;

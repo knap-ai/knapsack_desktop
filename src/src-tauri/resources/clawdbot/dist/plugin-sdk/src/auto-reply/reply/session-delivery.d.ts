@@ -8,6 +8,7 @@ export declare function resolveLastChannelRaw(params: {
     originatingChannelRaw?: string;
     persistedLastChannel?: string;
     sessionKey?: string;
+    isInterSession?: boolean;
 }): string | undefined;
 export declare function resolveLastToRaw(params: {
     originatingChannelRaw?: string;
@@ -16,6 +17,7 @@ export declare function resolveLastToRaw(params: {
     persistedLastTo?: string;
     persistedLastChannel?: string;
     sessionKey?: string;
+    isInterSession?: boolean;
 }): string | undefined;
 export declare function maybeRetireLegacyMainDeliveryRoute(params: {
     sessionCfg: {

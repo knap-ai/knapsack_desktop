@@ -71,7 +71,7 @@ export type MatrixVerificationRequestLike = {
     on: (eventName: string, listener: (...args: unknown[]) => void) => void;
 };
 export type MatrixVerificationCryptoApi = {
-    requestOwnUserVerification: () => Promise<unknown | null>;
+    requestOwnUserVerification: () => Promise<MatrixVerificationRequestLike | null>;
     findVerificationRequestDMInProgress?: (roomId: string, userId: string) => MatrixVerificationRequestLike | undefined;
     requestDeviceVerification?: (userId: string, deviceId: string) => Promise<MatrixVerificationRequestLike>;
     requestVerificationDM?: (userId: string, roomId: string) => Promise<MatrixVerificationRequestLike>;
@@ -83,6 +83,7 @@ export declare class MatrixVerificationManager {
     private readonly trackedVerificationVerifiers;
     private readonly summaryListeners;
     private readRequestValue;
+    private readVerificationPhase;
     private pruneVerificationSessions;
     private getVerificationPhaseName;
     private emitVerificationSummary;

@@ -1,4 +1,12 @@
-import { d as GatewayClient } from "../method-scopes-DNlWj6m4.js";
-import { t as createOperatorApprovalsGatewayClient } from "../operator-approvals-client-DS85D1Fh.js";
-import { t as createConnectedChannelStatusPatch } from "../gateway-runtime-B7jG4Cjq.js";
-export { GatewayClient, createConnectedChannelStatusPatch, createOperatorApprovalsGatewayClient };
+import { t as GatewayClient } from "../client-DkWAat_P.js";
+import { n as withOperatorApprovalsGatewayClient, t as createOperatorApprovalsGatewayClient } from "../operator-approvals-client-CGHXKajQ.js";
+//#region src/gateway/channel-status-patches.ts
+function createConnectedChannelStatusPatch(at = Date.now()) {
+	return {
+		connected: true,
+		lastConnectedAt: at,
+		lastEventAt: at
+	};
+}
+//#endregion
+export { GatewayClient, createConnectedChannelStatusPatch, createOperatorApprovalsGatewayClient, withOperatorApprovalsGatewayClient };

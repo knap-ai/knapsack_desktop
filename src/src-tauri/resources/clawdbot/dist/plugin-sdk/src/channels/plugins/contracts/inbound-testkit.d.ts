@@ -35,7 +35,7 @@ export declare function buildDispatchInboundCaptureMock<T extends Record<string,
         };
     }>>;
 };
-export declare function buildDispatchInboundContextCapture(importOriginal: <T extends Record<string, unknown>>() => Promise<T>, capture: InboundContextCapture): Promise<typeof import("../../../auto-reply/dispatch.js") & {
+export declare function buildDispatchInboundContextCapture(loadActual: <T extends Record<string, unknown>>() => Promise<T>, capture: InboundContextCapture): Promise<typeof import("../../../auto-reply/dispatch.js") & {
     dispatchInboundMessage: import("vitest").Mock<(params: {
         ctx: unknown;
     }) => Promise<{

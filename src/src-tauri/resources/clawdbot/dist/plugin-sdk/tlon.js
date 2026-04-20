@@ -1,13 +1,24 @@
-import { t as formatDocsLink } from "../links-Ce33eXq9.js";
-import { _ as normalizeAccountId, g as DEFAULT_ACCOUNT_ID } from "../session-key-D7XpmyVq.js";
-import { r as buildChannelConfigSchema } from "../config-schema-BoSEJoAt.js";
-import { t as createDedupeCache } from "../dedupe-_6bbS8VC.js";
-import { n as emptyPluginConfigSchema } from "../config-schema-dIP9qvIK.js";
-import { l as patchScopedAccountConfig, t as applyAccountNameToChannelSection } from "../setup-helpers-CjYO5YkF.js";
-import { r as buildComputedAccountStatusSnapshot } from "../status-helpers-CtpWf3f1.js";
-import { s as isBlockedHostnameOrIp, t as SsrFBlockedError } from "../ssrf-BWlfjI7J.js";
-import { n as fetchWithSsrFGuard } from "../fetch-guard-Lvq2pw52.js";
-import { t as createLoggerBackedRuntime } from "../runtime-DQYrJ0Nk.js";
-import { t as createChannelReplyPipeline } from "../channel-reply-pipeline-S26JmiPz.js";
-import { n as tlonSetupWizard, t as tlonSetupAdapter } from "../tlon-Dy01xzyW.js";
+import { t as formatDocsLink } from "../links-Dp5-Wbn2.js";
+import { r as buildChannelConfigSchema } from "../config-schema-sgVTuroC.js";
+import { n as normalizeAccountId, t as DEFAULT_ACCOUNT_ID } from "../account-id-j7GeQlaZ.js";
+import { t as createDedupeCache } from "../dedupe-uU1DnJKZ.js";
+import { n as fetchWithSsrFGuard } from "../fetch-guard-B3p4gGaY.js";
+import { c as isBlockedHostnameOrIp, t as SsrFBlockedError } from "../ssrf-DoOclwFS.js";
+import { n as emptyPluginConfigSchema } from "../config-schema-BJSXw2hl.js";
+import { l as patchScopedAccountConfig, t as applyAccountNameToChannelSection } from "../setup-helpers-NxWLbAbV.js";
+import { t as createChannelReplyPipeline } from "../channel-reply-pipeline-DHFpjrzi.js";
+import { r as buildComputedAccountStatusSnapshot } from "../status-helpers-BEDVo_4L.js";
+import { t as createLoggerBackedRuntime } from "../runtime-logger-CMNNz8AK.js";
+import "../runtime-Lsq_Ew0U.js";
+import { t as createOptionalChannelSetupSurface } from "../channel-setup-CXvL-Qpc.js";
+//#region src/plugin-sdk/tlon.ts
+const tlonSetup = createOptionalChannelSetupSurface({
+	channel: "tlon",
+	label: "Tlon",
+	npmSpec: "@openclaw/tlon",
+	docsPath: "/channels/tlon"
+});
+const tlonSetupAdapter = tlonSetup.setupAdapter;
+const tlonSetupWizard = tlonSetup.setupWizard;
+//#endregion
 export { DEFAULT_ACCOUNT_ID, SsrFBlockedError, applyAccountNameToChannelSection, buildChannelConfigSchema, buildComputedAccountStatusSnapshot, createChannelReplyPipeline, createDedupeCache, createLoggerBackedRuntime, emptyPluginConfigSchema, fetchWithSsrFGuard, formatDocsLink, isBlockedHostnameOrIp, normalizeAccountId, patchScopedAccountConfig, tlonSetupAdapter, tlonSetupWizard };

@@ -1,6 +1,8 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { TaskFlowRecord } from "./task-flow-registry.types.js";
+import type { TaskRegistryControlRuntime } from "./task-registry-control.types.js";
 import type { TaskDeliveryState, TaskDeliveryStatus, TaskEventRecord, TaskNotifyPolicy, TaskRecord, TaskRegistrySummary, TaskRegistrySnapshot, TaskRuntime, TaskScopeKind, TaskStatus, TaskTerminalOutcome } from "./task-registry.types.js";
+type TaskRegistryDeliveryRuntime = Pick<typeof import("./task-registry-delivery-runtime.js"), "sendMessage">;
 export type ParentFlowLinkErrorCode = "scope_kind_not_session" | "parent_flow_not_found" | "owner_key_mismatch" | "cancel_requested" | "terminal";
 export declare class ParentFlowLinkError extends Error {
     readonly code: ParentFlowLinkErrorCode;
@@ -50,6 +52,7 @@ export declare function markTaskLostById(params: {
 }): TaskRecord | null;
 export declare function createTaskRecord(params: {
     runtime: TaskRuntime;
+    taskKind?: string;
     sourceId?: string;
     requesterSessionKey?: string;
     ownerKey?: string;
@@ -146,3 +149,7 @@ export declare function resetTaskRegistryForTests(opts?: {
     persist?: boolean;
 }): void;
 export declare function resetTaskRegistryDeliveryRuntimeForTests(): void;
+export declare function setTaskRegistryDeliveryRuntimeForTests(runtime: TaskRegistryDeliveryRuntime): void;
+export declare function resetTaskRegistryControlRuntimeForTests(): void;
+export declare function setTaskRegistryControlRuntimeForTests(runtime: TaskRegistryControlRuntime): void;
+export {};

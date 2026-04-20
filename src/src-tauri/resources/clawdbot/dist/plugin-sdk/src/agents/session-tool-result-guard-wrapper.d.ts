@@ -1,4 +1,5 @@
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type InputProvenance } from "../sessions/input-provenance.js";
 export type GuardedSessionManager = SessionManager & {
     /** Flush any synthetic tool results for pending tool calls. Idempotent. */
@@ -13,6 +14,8 @@ export type GuardedSessionManager = SessionManager & {
 export declare function guardSessionManager(sessionManager: SessionManager, opts?: {
     agentId?: string;
     sessionKey?: string;
+    config?: OpenClawConfig;
+    contextWindowTokens?: number;
     inputProvenance?: InputProvenance;
     allowSyntheticToolResults?: boolean;
     allowedToolNames?: Iterable<string>;

@@ -1,1 +1,1 @@
-export declare function resolveAllowlistModelKey(raw: string, defaultProvider: string): string | null;
+export { resolveStaticAllowlistModelKey as resolveAllowlistModelKey } from "./model-ref-shared.js";

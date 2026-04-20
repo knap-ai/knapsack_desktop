@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { AcpRuntime, AcpRuntimeHandle } from "../runtime/types.js";
 import { type AcpCloseSessionInput, type AcpCloseSessionResult, type AcpInitializeSessionInput, type AcpManagerObservabilitySnapshot, type AcpRunTurnInput, type AcpSessionManagerDeps, type AcpSessionResolution, type AcpSessionRuntimeOptions, type AcpSessionStatus, type AcpStartupIdentityReconcileResult, type SessionAcpMeta } from "./manager.types.js";
 export declare class AcpSessionManager {
@@ -68,8 +68,11 @@ export declare class AcpSessionManager {
     private enforceConcurrentSessionLimit;
     private recordTurnCompletion;
     private recordErrorCode;
-    private shouldRetryTurnWithFreshHandle;
+    private prepareFreshHandleRetry;
     private isRecoverableAcpxExitError;
+    private isRecoverableMissingPersistentSessionError;
+    private clearPersistedRuntimeResumeState;
+    private discardPersistedRuntimeState;
     private evictIdleRuntimeHandles;
     private resolveRuntimeCapabilities;
     private applyRuntimeControls;
@@ -83,6 +86,7 @@ export declare class AcpSessionManager {
     private clearCachedRuntimeState;
     private clearCachedRuntimeStateIfHandleMatches;
     private runtimeHandlesMatch;
+    private runtimeHandleMatchesMeta;
     private resolveBackgroundTaskContext;
     private createBackgroundTaskRecord;
     private markBackgroundTaskRunning;

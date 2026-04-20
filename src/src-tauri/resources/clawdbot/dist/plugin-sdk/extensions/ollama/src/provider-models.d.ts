@@ -1,5 +1,4 @@
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-onboard";
-import { type SsrFPolicy } from "openclaw/plugin-sdk/ssrf-runtime";
 export type OllamaTagModel = {
     name: string;
     modified_at?: string;
@@ -16,16 +15,27 @@ export type OllamaTagsResponse = {
 };
 export type OllamaModelWithContext = OllamaTagModel & {
     contextWindow?: number;
+    capabilities?: string[];
 };
-export declare function buildOllamaBaseUrlSsrFPolicy(baseUrl: string): SsrFPolicy | undefined;
+export declare function buildOllamaBaseUrlSsrFPolicy(baseUrl: string): {
+    hostnameAllowlist: string[];
+    allowPrivateNetwork: boolean;
+} | undefined;
 export declare function resolveOllamaApiBase(configuredBaseUrl?: string): string;
+export type OllamaModelShowInfo = {
+    contextWindow?: number;
+    capabilities?: string[];
+};
+export declare function queryOllamaModelShowInfo(apiBase: string, modelName: string): Promise<OllamaModelShowInfo>;
+/** @deprecated Use queryOllamaModelShowInfo instead. */
 export declare function queryOllamaContextWindow(apiBase: string, modelName: string): Promise<number | undefined>;
 export declare function enrichOllamaModelsWithContext(apiBase: string, models: OllamaTagModel[], opts?: {
     concurrency?: number;
 }): Promise<OllamaModelWithContext[]>;
 export declare function isReasoningModelHeuristic(modelId: string): boolean;
-export declare function buildOllamaModelDefinition(modelId: string, contextWindow?: number): ModelDefinitionConfig;
+export declare function buildOllamaModelDefinition(modelId: string, contextWindow?: number, capabilities?: string[]): ModelDefinitionConfig;
 export declare function fetchOllamaModels(baseUrl: string): Promise<{
     reachable: boolean;
     models: OllamaTagModel[];
 }>;
+export declare function resetOllamaModelShowInfoCacheForTest(): void;

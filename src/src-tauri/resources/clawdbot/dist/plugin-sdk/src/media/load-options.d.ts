@@ -8,7 +8,7 @@ export type OutboundMediaAccess = {
 export type OutboundMediaLoadParams = {
     maxBytes?: number;
     mediaAccess?: OutboundMediaAccess;
-    mediaLocalRoots?: readonly string[];
+    mediaLocalRoots?: readonly string[] | "any";
     mediaReadFile?: OutboundMediaReadFile;
     optimizeImages?: boolean;
     /** Agent workspace directory for resolving relative MEDIA: paths. */
@@ -23,7 +23,7 @@ export type OutboundMediaLoadOptions = {
     /** Agent workspace directory for resolving relative MEDIA: paths. */
     workspaceDir?: string;
 };
-export declare function resolveOutboundMediaLocalRoots(mediaLocalRoots?: readonly string[]): readonly string[] | undefined;
+export declare function resolveOutboundMediaLocalRoots(mediaLocalRoots?: readonly string[] | "any"): readonly string[] | "any" | undefined;
 export declare function resolveOutboundMediaAccess(params?: {
     mediaAccess?: OutboundMediaAccess;
     mediaLocalRoots?: readonly string[];

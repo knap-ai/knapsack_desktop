@@ -1,11 +1,16 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 /**
  * Read critical sections from workspace AGENTS.md for post-compaction injection.
  * Returns formatted system event text, or null if no AGENTS.md or no relevant sections.
  * Substitutes YYYY-MM-DD placeholders with the real date so agents read the correct
  * daily memory files instead of guessing based on training cutoff.
  */
-export declare function readPostCompactionContext(workspaceDir: string, cfg?: OpenClawConfig, nowMs?: number): Promise<string | null>;
+export type PostCompactionContextOptions = {
+    cfg?: OpenClawConfig;
+    agentId?: string;
+    nowMs?: number;
+};
+export declare function readPostCompactionContext(workspaceDir: string, options?: PostCompactionContextOptions): Promise<string | null>;
 /**
  * Extract named sections from markdown content.
  * Matches H2 (##) or H3 (###) headings case-insensitively.

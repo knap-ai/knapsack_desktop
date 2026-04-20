@@ -1,14 +1,9 @@
 import type { SkillCommandSpec } from "../agents/skills.js";
 import type { OpenClawConfig } from "../config/types.js";
-import type { ChatCommandDefinition, CommandArgDefinition, CommandArgs, CommandDetection, CommandNormalizeOptions, NativeCommandSpec, ShouldHandleTextCommandsParams } from "./commands-registry.types.js";
+import type { ChatCommandDefinition, CommandArgDefinition, CommandArgs, NativeCommandSpec, ShouldHandleTextCommandsParams } from "./commands-registry.types.js";
+export { isCommandEnabled, listChatCommands, listChatCommandsForConfig, } from "./commands-registry-list.js";
+export { getCommandDetection, maybeResolveTextAlias, normalizeCommandBody, resolveTextCommand, } from "./commands-registry-normalize.js";
 export type { ChatCommandDefinition, CommandArgChoiceContext, CommandArgDefinition, CommandArgMenuSpec, CommandArgValues, CommandArgs, CommandDetection, CommandNormalizeOptions, CommandScope, NativeCommandSpec, ShouldHandleTextCommandsParams, } from "./commands-registry.types.js";
-export declare function listChatCommands(params?: {
-    skillCommands?: SkillCommandSpec[];
-}): ChatCommandDefinition[];
-export declare function isCommandEnabled(cfg: OpenClawConfig, commandKey: string): boolean;
-export declare function listChatCommandsForConfig(cfg: OpenClawConfig, params?: {
-    skillCommands?: SkillCommandSpec[];
-}): ChatCommandDefinition[];
 export declare function listNativeCommandSpecs(params?: {
     skillCommands?: SkillCommandSpec[];
     provider?: string;
@@ -42,13 +37,6 @@ export declare function resolveCommandArgMenu(params: {
     choices: ResolvedCommandArgChoice[];
     title?: string;
 } | null;
-export declare function normalizeCommandBody(raw: string, options?: CommandNormalizeOptions): string;
 export declare function isCommandMessage(raw: string): boolean;
-export declare function getCommandDetection(_cfg?: OpenClawConfig): CommandDetection;
-export declare function maybeResolveTextAlias(raw: string, cfg?: OpenClawConfig): string | null;
-export declare function resolveTextCommand(raw: string, cfg?: OpenClawConfig): {
-    command: ChatCommandDefinition;
-    args?: string;
-} | null;
 export declare function isNativeCommandSurface(surface?: string): boolean;
 export declare function shouldHandleTextCommands(params: ShouldHandleTextCommandsParams): boolean;

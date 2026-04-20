@@ -1,8 +1,8 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
-import { type NormalizedPluginsConfig } from "./config-state.js";
+import { type PluginActivationConfigSource } from "./config-state.js";
 import { type PluginRegistry } from "./registry.js";
-import type { CreatePluginRuntimeOptions } from "./runtime/index.js";
+import type { CreatePluginRuntimeOptions } from "./runtime/types.js";
 import { buildPluginLoaderAliasMap, buildPluginLoaderJitiOptions, listPluginSdkAliasCandidates, listPluginSdkExportedSubpaths, type PluginSdkResolutionPreference, resolveExtensionApiAlias, resolvePluginSdkAliasCandidateOrder, resolvePluginSdkAliasFile, resolvePluginRuntimeModulePath, resolvePluginSdkScopedAliasMap, shouldPreferNativeJiti } from "./sdk-alias.js";
 import type { PluginLogger } from "./types.js";
 export type PluginLoadResult = PluginRegistry;
@@ -34,7 +34,21 @@ export declare class PluginLoadFailureError extends Error {
     readonly registry: PluginRegistry;
     constructor(registry: PluginRegistry);
 }
+export declare class PluginLoadReentryError extends Error {
+    readonly cacheKey: string;
+    constructor(cacheKey: string);
+}
 export declare function clearPluginLoaderCache(): void;
+/**
+ * On Windows, the Node.js ESM loader requires absolute paths to be expressed
+ * as file:// URLs (e.g. file:///C:/Users/...). Raw drive-letter paths like
+ * C:\... are rejected with ERR_UNSUPPORTED_ESM_URL_SCHEME because the loader
+ * mistakes the drive letter for an unknown URL scheme.
+ *
+ * This helper converts Windows absolute import specifiers to file:// URLs and
+ * leaves everything else unchanged.
+ */
+declare function toSafeImportPath(specifier: string): string;
 export declare const __testing: {
     buildPluginLoaderJitiOptions: typeof buildPluginLoaderJitiOptions;
     buildPluginLoaderAliasMap: typeof buildPluginLoaderAliasMap;
@@ -45,7 +59,9 @@ export declare const __testing: {
     resolvePluginSdkAliasCandidateOrder: typeof resolvePluginSdkAliasCandidateOrder;
     resolvePluginSdkAliasFile: typeof resolvePluginSdkAliasFile;
     resolvePluginRuntimeModulePath: typeof resolvePluginRuntimeModulePath;
+    shouldLoadChannelPluginInSetupRuntime: typeof shouldLoadChannelPluginInSetupRuntime;
     shouldPreferNativeJiti: typeof shouldPreferNativeJiti;
+    toSafeImportPath: typeof toSafeImportPath;
     getCompatibleActivePluginRegistry: typeof getCompatibleActivePluginRegistry;
     resolvePluginLoadCacheContext: typeof resolvePluginLoadCacheContext;
     readonly maxPluginRegistryCacheEntries: number;
@@ -54,9 +70,9 @@ export declare const __testing: {
 declare function resolvePluginLoadCacheContext(options?: PluginLoadOptions): {
     env: NodeJS.ProcessEnv;
     cfg: OpenClawConfig;
-    normalized: NormalizedPluginsConfig;
+    normalized: import("./config-normalization-shared.ts").NormalizedPluginsConfig;
     activationSourceConfig: OpenClawConfig;
-    activationSourceNormalized: NormalizedPluginsConfig;
+    activationSource: PluginActivationConfigSource;
     autoEnabledReasons: Readonly<Record<string, string[]>>;
     onlyPluginIds: string[] | undefined;
     includeSetupOnlyChannelPlugins: boolean;
@@ -68,6 +84,17 @@ declare function resolvePluginLoadCacheContext(options?: PluginLoadOptions): {
 };
 declare function getCompatibleActivePluginRegistry(options?: PluginLoadOptions): PluginRegistry | undefined;
 export declare function resolveRuntimePluginRegistry(options?: PluginLoadOptions): PluginRegistry | undefined;
+export declare function resolvePluginRegistryLoadCacheKey(options?: PluginLoadOptions): string;
+export declare function isPluginRegistryLoadInFlight(options?: PluginLoadOptions): boolean;
+export declare function resolveCompatibleRuntimePluginRegistry(options?: PluginLoadOptions): PluginRegistry | undefined;
+declare function shouldLoadChannelPluginInSetupRuntime(params: {
+    manifestChannels: string[];
+    setupSource?: string;
+    startupDeferConfiguredChannelFullLoadUntilAfterListen?: boolean;
+    cfg: OpenClawConfig;
+    env: NodeJS.ProcessEnv;
+    preferSetupRuntimeForChannelPlugins?: boolean;
+}): boolean;
 export declare function loadOpenClawPlugins(options?: PluginLoadOptions): PluginRegistry;
 export declare function loadOpenClawPluginCliRegistry(options?: PluginLoadOptions): Promise<PluginRegistry>;
 export {};

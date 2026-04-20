@@ -7,7 +7,7 @@ export { formatPairingApproveHint, parseOptionalDelimitedEntries, } from "../cha
 export { addWildcardAllowFrom, setTopLevelChannelAllowFrom, setTopLevelChannelDmPolicyWithAllowFrom, } from "../channels/plugins/setup-wizard-helpers.js";
 export { PAIRING_APPROVED_MESSAGE } from "../channels/plugins/pairing-message.js";
 export { patchScopedAccountConfig } from "../channels/plugins/setup-helpers.js";
-export type { BaseProbeResult } from "../channels/plugins/types.js";
+export type { BaseProbeResult } from "../channels/plugins/types.public.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { getChatChannelMeta } from "./channel-plugin-common.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";

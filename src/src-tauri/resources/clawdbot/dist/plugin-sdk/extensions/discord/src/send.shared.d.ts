@@ -1,9 +1,8 @@
 import { Embed, RequestClient, type MessagePayloadFile, type MessagePayloadObject, type TopLevelComponents } from "@buape/carbon";
 import type { RESTAPIPoll } from "discord-api-types/rest/v10";
 import { type APIEmbed } from "discord-api-types/v10";
-import { type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import { type PollInput } from "openclaw/plugin-sdk/media-runtime";
-import type { ChunkMode } from "openclaw/plugin-sdk/reply-runtime";
+import type { ChunkMode } from "openclaw/plugin-sdk/reply-chunking";
 import type { RetryRunner } from "openclaw/plugin-sdk/retry-runtime";
 import { createDiscordClient, resolveDiscordRest } from "./client.js";
 type DiscordRequest = RetryRunner;
@@ -18,17 +17,6 @@ type DiscordRecipient = {
     id: string;
 };
 declare function normalizeReactionEmoji(raw: string): string;
-declare function parseRecipient(raw: string): DiscordRecipient;
-/**
- * Parse and resolve Discord recipient, including username lookup.
- * This enables sending DMs by username (e.g., "john.doe") by querying
- * the Discord directory to resolve usernames to user IDs.
- *
- * @param raw - The recipient string (username, ID, or known format)
- * @param accountId - Discord account ID to use for directory lookup
- * @returns Parsed DiscordRecipient with resolved user ID if applicable
- */
-export declare function parseAndResolveRecipient(raw: string, accountId?: string, cfg?: OpenClawConfig): Promise<DiscordRecipient>;
 declare function normalizeStickerIds(raw: string[]): string[];
 declare function normalizeEmojiName(raw: string, label: string): string;
 declare function normalizeDiscordPollInput(input: PollInput): RESTAPIPoll;
@@ -83,4 +71,4 @@ declare function formatReactionEmoji(emoji: {
     id?: string | null;
     name?: string | null;
 }): string;
-export { buildDiscordSendError, buildReactionIdentifier, createDiscordClient, formatReactionEmoji, normalizeDiscordPollInput, normalizeEmojiName, normalizeReactionEmoji, normalizeStickerIds, parseRecipient, resolveChannelId, resolveDiscordRest, sendDiscordMedia, sendDiscordText, };
+export { buildDiscordSendError, buildReactionIdentifier, createDiscordClient, formatReactionEmoji, normalizeDiscordPollInput, normalizeEmojiName, normalizeReactionEmoji, normalizeStickerIds, resolveChannelId, resolveDiscordRest, sendDiscordMedia, sendDiscordText, };

@@ -1,2 +1,2 @@
-import { n as applyFalConfig, t as FAL_DEFAULT_IMAGE_MODEL_REF } from "../../onboard-D1MsLBCI.js";
+import { n as applyFalConfig, t as FAL_DEFAULT_IMAGE_MODEL_REF } from "../../onboard-DzOaTKWG.js";
 export { FAL_DEFAULT_IMAGE_MODEL_REF, applyFalConfig };

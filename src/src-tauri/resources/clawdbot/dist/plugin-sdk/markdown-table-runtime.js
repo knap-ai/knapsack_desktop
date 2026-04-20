@@ -1,3 +1,2 @@
-import { t as resolveMarkdownTableMode } from "../markdown-tables-DAbwMp5F.js";
-import "../markdown-table-runtime-4CgY-jlq.js";
+import { t as resolveMarkdownTableMode } from "../markdown-tables-zB1bGV-D.js";
 export { resolveMarkdownTableMode };

@@ -8,6 +8,7 @@ export declare const AgentInternalEventSchema: import("@sinclair/typebox").TObje
     status: import("@sinclair/typebox").TString;
     statusLabel: import("@sinclair/typebox").TString;
     result: import("@sinclair/typebox").TString;
+    mediaUrls: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
     statsLine: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     replyInstruction: import("@sinclair/typebox").TString;
 }>;
@@ -17,6 +18,42 @@ export declare const AgentEventSchema: import("@sinclair/typebox").TObject<{
     stream: import("@sinclair/typebox").TString;
     ts: import("@sinclair/typebox").TInteger;
     data: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>;
+}>;
+export declare const MessageActionToolContextSchema: import("@sinclair/typebox").TObject<{
+    currentChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    currentGraphChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    currentChannelProvider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    currentThreadTs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    currentMessageId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+    replyToMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"off">, import("@sinclair/typebox").TLiteral<"first">, import("@sinclair/typebox").TLiteral<"all">, import("@sinclair/typebox").TLiteral<"batched">]>>;
+    hasRepliedRef: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        value: import("@sinclair/typebox").TBoolean;
+    }>>;
+    skipCrossContextDecoration: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+}>;
+export declare const MessageActionParamsSchema: import("@sinclair/typebox").TObject<{
+    channel: import("@sinclair/typebox").TString;
+    action: import("@sinclair/typebox").TString;
+    params: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>;
+    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    requesterSenderId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    senderIsOwner: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    sessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    toolContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        currentChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        currentGraphChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        currentChannelProvider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        currentThreadTs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        currentMessageId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+        replyToMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"off">, import("@sinclair/typebox").TLiteral<"first">, import("@sinclair/typebox").TLiteral<"all">, import("@sinclair/typebox").TLiteral<"batched">]>>;
+        hasRepliedRef: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+            value: import("@sinclair/typebox").TBoolean;
+        }>>;
+        skipCrossContextDecoration: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    }>>;
+    idempotencyKey: import("@sinclair/typebox").TString;
 }>;
 export declare const SendParamsSchema: import("@sinclair/typebox").TObject<{
     to: import("@sinclair/typebox").TString;
@@ -76,6 +113,8 @@ export declare const AgentParamsSchema: import("@sinclair/typebox").TObject<{
     bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
     lane: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     extraSystemPrompt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    bootstrapContextMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"full">, import("@sinclair/typebox").TLiteral<"lightweight">]>>;
+    bootstrapContextRunKind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"default">, import("@sinclair/typebox").TLiteral<"heartbeat">, import("@sinclair/typebox").TLiteral<"cron">]>>;
     internalEvents: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
         type: import("@sinclair/typebox").TLiteral<"task_completion">;
         source: import("@sinclair/typebox").TString;
@@ -86,6 +125,7 @@ export declare const AgentParamsSchema: import("@sinclair/typebox").TObject<{
         status: import("@sinclair/typebox").TString;
         statusLabel: import("@sinclair/typebox").TString;
         result: import("@sinclair/typebox").TString;
+        mediaUrls: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
         statsLine: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
         replyInstruction: import("@sinclair/typebox").TString;
     }>>>;

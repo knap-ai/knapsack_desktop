@@ -1,11 +1,13 @@
-import type { OpenClawConfig } from "../config/config.js";
-import { loadConfig, resolveConfigPath, resolveGatewayPort, resolveStateDir } from "../config/config.js";
+import { loadConfig } from "../config/io.js";
+import { resolveConfigPath as resolveConfigPathFromPaths, resolveGatewayPort as resolveGatewayPortFromPaths, resolveStateDir as resolveStateDirFromPaths } from "../config/paths.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
 import { loadGatewayTlsRuntime } from "../infra/tls/gateway.js";
 import { type GatewayClientMode, type GatewayClientName } from "../utils/message-channel.js";
 import { GatewayClient, type GatewayClientOptions } from "./client.js";
 import { type GatewayConnectionDetails } from "./connection-details.js";
-import { type GatewayCredentialMode, type GatewayCredentialPrecedence, type GatewayRemoteCredentialFallback, type GatewayRemoteCredentialPrecedence } from "./credentials.js";
+import { resolveGatewayCredentialsWithSecretInputs } from "./credentials-secret-inputs.js";
+import { type ExplicitGatewayAuth } from "./credentials.js";
 import { type OperatorScope } from "./method-scopes.js";
 export type { GatewayConnectionDetails };
 type CallGatewayBaseOptions = {
@@ -47,9 +49,9 @@ declare const defaultGatewayCallDeps: {
     createGatewayClient: (opts: GatewayClientOptions) => GatewayClient;
     loadConfig: typeof loadConfig;
     loadOrCreateDeviceIdentity: typeof loadOrCreateDeviceIdentity;
-    resolveGatewayPort: typeof resolveGatewayPort;
-    resolveConfigPath: typeof resolveConfigPath;
-    resolveStateDir: typeof resolveStateDir;
+    resolveGatewayPort: typeof resolveGatewayPortFromPaths;
+    resolveConfigPath: typeof resolveConfigPathFromPaths;
+    resolveStateDir: typeof resolveStateDirFromPaths;
     loadGatewayTlsRuntime: typeof loadGatewayTlsRuntime;
 };
 export declare function buildGatewayConnectionDetails(options?: {
@@ -63,10 +65,7 @@ export declare const __testing: {
     setCreateGatewayClientForTests(createGatewayClient?: typeof defaultCreateGatewayClient): void;
     resetDepsForTests(): void;
 };
-export type ExplicitGatewayAuth = {
-    token?: string;
-    password?: string;
-};
+export type { ExplicitGatewayAuth } from "./credentials.js";
 export declare function resolveExplicitGatewayAuth(opts?: ExplicitGatewayAuth): ExplicitGatewayAuth;
 export declare function ensureExplicitGatewayAuth(params: {
     urlOverride?: string;
@@ -76,23 +75,7 @@ export declare function ensureExplicitGatewayAuth(params: {
     errorHint: string;
     configPath?: string;
 }): void;
-export declare function resolveGatewayCredentialsWithSecretInputs(params: {
-    config: OpenClawConfig;
-    explicitAuth?: ExplicitGatewayAuth;
-    urlOverride?: string;
-    urlOverrideSource?: "cli" | "env";
-    env?: NodeJS.ProcessEnv;
-    modeOverride?: GatewayCredentialMode;
-    localTokenPrecedence?: GatewayCredentialPrecedence;
-    localPasswordPrecedence?: GatewayCredentialPrecedence;
-    remoteTokenPrecedence?: GatewayRemoteCredentialPrecedence;
-    remotePasswordPrecedence?: GatewayRemoteCredentialPrecedence;
-    remoteTokenFallback?: GatewayRemoteCredentialFallback;
-    remotePasswordFallback?: GatewayRemoteCredentialFallback;
-}): Promise<{
-    token?: string;
-    password?: string;
-}>;
+export { resolveGatewayCredentialsWithSecretInputs };
 export declare function callGatewayScoped<T = Record<string, unknown>>(opts: CallGatewayScopedOptions): Promise<T>;
 export declare function callGatewayCli<T = Record<string, unknown>>(opts: CallGatewayCliOptions): Promise<T>;
 export declare function callGatewayLeastPrivilege<T = Record<string, unknown>>(opts: CallGatewayBaseOptions): Promise<T>;

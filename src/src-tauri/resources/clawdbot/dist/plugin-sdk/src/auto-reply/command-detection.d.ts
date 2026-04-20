@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/types.js";
-import { type CommandNormalizeOptions } from "./commands-registry.js";
+import type { CommandNormalizeOptions } from "./commands-registry.types.js";
 export declare function hasControlCommand(text?: string, cfg?: OpenClawConfig, options?: CommandNormalizeOptions): boolean;
 export declare function isControlCommandMessage(text?: string, cfg?: OpenClawConfig, options?: CommandNormalizeOptions): boolean;
 /**

@@ -1,6 +1,6 @@
-import type { OpenClawConfig } from "../config/config.js";
-import type { PluginRegistry } from "./registry.js";
-type CapabilityProviderRegistryKey = "speechProviders" | "mediaUnderstandingProviders" | "imageGenerationProviders";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginRegistry } from "./registry-types.js";
+type CapabilityProviderRegistryKey = "memoryEmbeddingProviders" | "speechProviders" | "realtimeTranscriptionProviders" | "realtimeVoiceProviders" | "mediaUnderstandingProviders" | "imageGenerationProviders" | "videoGenerationProviders" | "musicGenerationProviders";
 type CapabilityProviderForKey<K extends CapabilityProviderRegistryKey> = PluginRegistry[K][number] extends {
     provider: infer T;
 } ? T : never;

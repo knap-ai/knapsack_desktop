@@ -1,7 +1,10 @@
-import type { EventSource, MessageEvent, PostbackEvent } from "@line/bot-sdk";
+import type { webhook } from "@line/bot-sdk";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import type { HistoryEntry } from "openclaw/plugin-sdk/reply-history";
 import type { ResolvedLineAccount } from "./types.js";
+type EventSource = webhook.Source | undefined;
+type MessageEvent = webhook.MessageEvent;
+type PostbackEvent = webhook.PostbackEvent;
 interface MediaRef {
     path: string;
     contentType?: string;
@@ -28,7 +31,7 @@ export declare function buildLineMessageContext(params: BuildLineMessageContextP
         OriginatingChannel: "line";
         OriginatingTo: string;
         GroupSystemPrompt: string | undefined;
-        InboundHistory: Pick<HistoryEntry, "timestamp" | "body" | "sender">[] | undefined;
+        InboundHistory: Pick<HistoryEntry, "body" | "sender" | "timestamp">[] | undefined;
         LocationLat?: number | undefined;
         LocationLon?: number | undefined;
         LocationAccuracy?: number;
@@ -61,13 +64,13 @@ export declare function buildLineMessageContext(params: BuildLineMessageContextP
     } & Omit<import("openclaw/plugin-sdk/reply-runtime").MsgContext, "CommandAuthorized"> & {
         CommandAuthorized: boolean;
     };
-    event: MessageEvent;
+    event: webhook.MessageEvent;
     userId: string | undefined;
     groupId: string | undefined;
     roomId: string | undefined;
     isGroup: boolean;
     route: import("openclaw/plugin-sdk/routing").ResolvedAgentRoute;
-    replyToken: string;
+    replyToken: string | undefined;
     accountId: string;
 } | null>;
 export declare function buildLinePostbackContext(params: {
@@ -81,7 +84,7 @@ export declare function buildLinePostbackContext(params: {
         OriginatingChannel: "line";
         OriginatingTo: string;
         GroupSystemPrompt: string | undefined;
-        InboundHistory: Pick<HistoryEntry, "timestamp" | "body" | "sender">[] | undefined;
+        InboundHistory: Pick<HistoryEntry, "body" | "sender" | "timestamp">[] | undefined;
         LocationLat?: number | undefined;
         LocationLon?: number | undefined;
         LocationAccuracy?: number;
@@ -114,13 +117,13 @@ export declare function buildLinePostbackContext(params: {
     } & Omit<import("openclaw/plugin-sdk/reply-runtime").MsgContext, "CommandAuthorized"> & {
         CommandAuthorized: boolean;
     };
-    event: PostbackEvent;
+    event: webhook.PostbackEvent;
     userId: string | undefined;
     groupId: string | undefined;
     roomId: string | undefined;
     isGroup: boolean;
     route: import("openclaw/plugin-sdk/routing").ResolvedAgentRoute;
-    replyToken: string;
+    replyToken: string | undefined;
     accountId: string;
 } | null>;
 export type LineMessageContext = NonNullable<Awaited<ReturnType<typeof buildLineMessageContext>>>;

@@ -1,5 +1,5 @@
 import type { MsgContext } from "../auto-reply/templating.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.js";
 import type { MediaUnderstandingConfig, MediaUnderstandingModelConfig } from "../config/types.tools.js";
 import { MediaAttachmentCache } from "./attachments.js";
 import type { MediaUnderstandingCapability, MediaUnderstandingDecision, MediaUnderstandingModelDecision, MediaUnderstandingOutput, MediaUnderstandingProvider } from "./types.js";
@@ -11,6 +11,9 @@ export declare function buildModelDecision(params: {
     reason?: string;
 }): MediaUnderstandingModelDecision;
 export declare function formatDecisionSummary(decision: MediaUnderstandingDecision): string;
+export declare function findDecisionReason(decision: MediaUnderstandingDecision, outcome?: MediaUnderstandingModelDecision["outcome"]): string | undefined;
+export declare function normalizeDecisionReason(reason?: string): string | undefined;
+export declare function summarizeDecisionReason(reason?: string): string | undefined;
 export declare function runProviderEntry(params: {
     capability: MediaUnderstandingCapability;
     entry: MediaUnderstandingModelConfig;

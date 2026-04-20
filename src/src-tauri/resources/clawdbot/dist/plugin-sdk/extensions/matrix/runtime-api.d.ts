@@ -3,7 +3,8 @@ export { requiresExplicitMatrixDefaultAccount, resolveMatrixDefaultOrOnlyAccount
 export * from "./src/account-selection.js";
 export * from "./src/env-vars.js";
 export * from "./src/storage-paths.js";
-export { assertHttpUrlTargetsPrivateNetwork, closeDispatcher, createPinnedDispatcher, resolvePinnedHostnameWithPolicy, ssrfPolicyFromAllowPrivateNetwork, type LookupFn, type SsrFPolicy, } from "openclaw/plugin-sdk/ssrf-runtime";
+export { ensureMatrixSdkInstalled, isMatrixSdkAvailable } from "./src/matrix/deps.js";
+export { assertHttpUrlTargetsPrivateNetwork, closeDispatcher, createPinnedDispatcher, resolvePinnedHostnameWithPolicy, ssrfPolicyFromDangerouslyAllowPrivateNetwork, ssrfPolicyFromAllowPrivateNetwork, type LookupFn, type SsrFPolicy, } from "openclaw/plugin-sdk/ssrf-runtime";
 export { setMatrixThreadBindingIdleTimeoutBySessionKey, setMatrixThreadBindingMaxAgeBySessionKey, } from "./src/matrix/thread-bindings-shared.js";
 export { setMatrixRuntime } from "./src/runtime.js";
 export { writeJsonFileAtomically } from "openclaw/plugin-sdk/json-store";

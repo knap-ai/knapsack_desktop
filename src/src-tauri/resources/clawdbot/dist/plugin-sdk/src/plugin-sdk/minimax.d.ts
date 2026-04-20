@@ -1,18 +1,9 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["minimax"];
-type FacadeModule = FacadeEntry["module"];
-export declare const applyMinimaxApiConfig: FacadeModule["applyMinimaxApiConfig"];
-export declare const applyMinimaxApiConfigCn: FacadeModule["applyMinimaxApiConfigCn"];
-export declare const applyMinimaxApiProviderConfig: FacadeModule["applyMinimaxApiProviderConfig"];
-export declare const applyMinimaxApiProviderConfigCn: FacadeModule["applyMinimaxApiProviderConfigCn"];
-export declare const buildMinimaxPortalProvider: FacadeModule["buildMinimaxPortalProvider"];
-export declare const buildMinimaxProvider: FacadeModule["buildMinimaxProvider"];
-export declare const isMiniMaxModernModelId: FacadeModule["isMiniMaxModernModelId"];
-export declare const MINIMAX_API_BASE_URL = "https://api.minimax.io/anthropic";
-export declare const MINIMAX_CN_API_BASE_URL = "https://api.minimaxi.com/anthropic";
-export declare const MINIMAX_DEFAULT_MODEL_ID = "MiniMax-M2.7";
-export declare const MINIMAX_DEFAULT_MODEL_REF = "minimax/MiniMax-M2.7";
-export declare const MINIMAX_TEXT_MODEL_CATALOG: FacadeModule["MINIMAX_TEXT_MODEL_CATALOG"];
-export declare const MINIMAX_TEXT_MODEL_ORDER: FacadeModule["MINIMAX_TEXT_MODEL_ORDER"];
+type FacadeModule = {
+    MINIMAX_DEFAULT_MODEL_ID: string;
+    MINIMAX_DEFAULT_MODEL_REF: string;
+    MINIMAX_TEXT_MODEL_REFS: readonly string[];
+};
+export declare const MINIMAX_DEFAULT_MODEL_ID: FacadeModule["MINIMAX_DEFAULT_MODEL_ID"];
+export declare const MINIMAX_DEFAULT_MODEL_REF: FacadeModule["MINIMAX_DEFAULT_MODEL_REF"];
 export declare const MINIMAX_TEXT_MODEL_REFS: FacadeModule["MINIMAX_TEXT_MODEL_REFS"];
 export {};

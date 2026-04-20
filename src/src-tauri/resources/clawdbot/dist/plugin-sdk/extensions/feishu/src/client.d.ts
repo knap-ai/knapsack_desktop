@@ -1,6 +1,11 @@
 import * as Lark from "@larksuiteoapi/node-sdk";
-import { HttpsProxyAgent } from "https-proxy-agent";
 import type { FeishuConfig, FeishuDomain, ResolvedFeishuAccount } from "./types.js";
+declare const pluginVersion: string;
+export { pluginVersion };
+declare const FEISHU_USER_AGENT: string;
+export { FEISHU_USER_AGENT };
+/** User-Agent header value for all Feishu API requests. */
+export declare function getFeishuUserAgent(): string;
 type FeishuClientSdk = Pick<typeof Lark, "AppType" | "Client" | "defaultHttpInstance" | "Domain" | "EventDispatcher" | "LoggerLevel" | "WSClient">;
 /** Default HTTP timeout for Feishu API requests (30 seconds). */
 export declare const FEISHU_HTTP_TIMEOUT_MS = 30000;
@@ -27,7 +32,7 @@ export declare function createFeishuClient(creds: FeishuClientCredentials): Lark
  * Create a Feishu WebSocket client for an account.
  * Note: WSClient is not cached since each call creates a new connection.
  */
-export declare function createFeishuWSClient(account: ResolvedFeishuAccount): Lark.WSClient;
+export declare function createFeishuWSClient(account: ResolvedFeishuAccount): Promise<Lark.WSClient>;
 /**
  * Create an event dispatcher for an account.
  */
@@ -42,6 +47,4 @@ export declare function getFeishuClient(accountId: string): Lark.Client | null;
 export declare function clearClientCache(accountId?: string): void;
 export declare function setFeishuClientRuntimeForTest(overrides?: {
     sdk?: Partial<FeishuClientSdk>;
-    HttpsProxyAgent?: typeof HttpsProxyAgent;
 }): void;
-export {};

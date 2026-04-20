@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { SandboxConfig, SandboxToolPolicyResolved } from "./types.js";
 export declare function resolveSandboxRuntimeStatus(params: {
     cfg?: OpenClawConfig;

@@ -1,11 +1,9 @@
+export { isExternalHookSession, mapHookExternalContentSource, resolveHookExternalContentSource, type HookExternalContentSource, } from "./external-content-source.js";
 /**
  * Check if content contains suspicious patterns that may indicate injection.
  */
 export declare function detectSuspiciousPatterns(content: string): string[];
 export type ExternalContentSource = "email" | "webhook" | "api" | "browser" | "channel_metadata" | "web_search" | "web_fetch" | "unknown";
-export type HookExternalContentSource = "gmail" | "webhook";
-export declare function resolveHookExternalContentSource(sessionKey: string): HookExternalContentSource | undefined;
-export declare function mapHookExternalContentSource(source: HookExternalContentSource): Extract<ExternalContentSource, "email" | "webhook">;
 export type WrapExternalContentOptions = {
     /** Source of the external content */
     source: ExternalContentSource;
@@ -46,10 +44,6 @@ export declare function buildSafeExternalPrompt(params: {
     jobId?: string;
     timestamp?: string;
 }): string;
-/**
- * Checks if a session key indicates an external hook source.
- */
-export declare function isExternalHookSession(sessionKey: string): boolean;
 /**
  * Extracts the hook type from a session key.
  */

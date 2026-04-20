@@ -29,6 +29,11 @@ type FetchMediaOptions = {
     lookupFn?: LookupFn;
     dispatcherAttempts?: FetchDispatcherAttempt[];
     shouldRetryFetchError?: (error: unknown) => boolean;
+    /**
+     * Allow an operator-configured explicit proxy to resolve target DNS after
+     * hostname-policy checks instead of forcing local pinned-DNS first.
+     */
+    trustExplicitProxyDns?: boolean;
 };
 export declare function fetchRemoteMedia(options: FetchMediaOptions): Promise<FetchMediaResult>;
 export {};

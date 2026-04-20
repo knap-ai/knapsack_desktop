@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ChannelAccountSnapshot } from "./types.core.js";
 export declare function createAccountListHelpers(channelKey: string, options?: {
     normalizeAccountId?: (id: string) => string;

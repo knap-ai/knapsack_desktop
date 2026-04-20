@@ -1,14 +1,14 @@
-import type { PluginLoadOptions } from "./loader.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export declare function withBundledPluginAllowlistCompat(params: {
-    config: PluginLoadOptions["config"];
+    config: OpenClawConfig | undefined;
     pluginIds: readonly string[];
-}): PluginLoadOptions["config"];
+}): OpenClawConfig | undefined;
 export declare function withBundledPluginEnablementCompat(params: {
-    config: PluginLoadOptions["config"];
+    config: OpenClawConfig | undefined;
     pluginIds: readonly string[];
-}): PluginLoadOptions["config"];
+}): OpenClawConfig | undefined;
 export declare function withBundledPluginVitestCompat(params: {
-    config: PluginLoadOptions["config"];
+    config: OpenClawConfig | undefined;
     pluginIds: readonly string[];
-    env?: PluginLoadOptions["env"];
-}): PluginLoadOptions["config"];
+    env?: NodeJS.ProcessEnv;
+}): OpenClawConfig | undefined;

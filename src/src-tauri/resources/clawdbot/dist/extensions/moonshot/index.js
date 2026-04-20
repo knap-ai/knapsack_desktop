@@ -1,11 +1,12 @@
-import { n as resolveMoonshotThinkingType, t as createMoonshotThinkingWrapper } from "../../moonshot-thinking-stream-wrappers-ARhjUCLc.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-BnIQWKLx.js";
-import "../../provider-moonshot-BLDsPAGU.js";
-import { a as buildMoonshotProvider, i as applyMoonshotNativeStreamingUsageCompat } from "../../provider-catalog-CYxnVAzN.js";
-import { n as applyMoonshotConfig, r as applyMoonshotConfigCn, t as MOONSHOT_DEFAULT_MODEL_REF } from "../../onboard-BsVCVxAi.js";
-import "../../api-NP0VAm3-.js";
-import { r as moonshotMediaUnderstandingProvider } from "../../media-understanding-provider-yX8P1RRH.js";
-import { n as createKimiWebSearchProvider } from "../../kimi-web-search-provider-C3PzoAJC.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
+import { i as MOONSHOT_THINKING_STREAM_HOOKS } from "../../provider-stream-DMhSzU-H.js";
+import "../../provider-stream-family-CjEB-fh0.js";
+import { a as buildMoonshotProvider, i as applyMoonshotNativeStreamingUsageCompat } from "../../provider-catalog-2_ZH8EKE.js";
+import { n as applyMoonshotConfig, r as applyMoonshotConfigCn, t as MOONSHOT_DEFAULT_MODEL_REF } from "../../onboard-C3gcdU28.js";
+import "../../api-B0-290UG.js";
+import { r as moonshotMediaUnderstandingProvider } from "../../media-understanding-provider-DLOqoa4d.js";
+import { n as createKimiWebSearchProvider } from "../../kimi-web-search-provider-98dcZ3qq.js";
 var moonshot_default = defineSingleProviderPluginEntry({
 	id: "moonshot",
 	name: "Moonshot Provider",
@@ -41,13 +42,8 @@ var moonshot_default = defineSingleProviderPluginEntry({
 			allowExplicitBaseUrl: true
 		},
 		applyNativeStreamingUsageCompat: ({ providerConfig }) => applyMoonshotNativeStreamingUsageCompat(providerConfig),
-		wrapStreamFn: (ctx) => {
-			const thinkingType = resolveMoonshotThinkingType({
-				configuredThinking: ctx.extraParams?.thinking,
-				thinkingLevel: ctx.thinkingLevel
-			});
-			return createMoonshotThinkingWrapper(ctx.streamFn, thinkingType);
-		}
+		...OPENAI_COMPATIBLE_REPLAY_HOOKS,
+		...MOONSHOT_THINKING_STREAM_HOOKS
 	},
 	register(api) {
 		api.registerMediaUnderstandingProvider(moonshotMediaUnderstandingProvider);

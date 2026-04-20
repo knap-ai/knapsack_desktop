@@ -11,7 +11,7 @@ export type MatrixCryptoFacade = {
     prepare: (joinedRooms: string[]) => Promise<void>;
     updateSyncData: (toDeviceMessages: unknown, otkCounts: unknown, unusedFallbackKeyAlgs: unknown, changedDeviceLists: unknown, leftDeviceLists: unknown) => Promise<void>;
     isRoomEncrypted: (roomId: string) => Promise<boolean>;
-    requestOwnUserVerification: () => Promise<unknown | null>;
+    requestOwnUserVerification: () => Promise<MatrixVerificationSummary | null>;
     encryptMedia: (buffer: Buffer) => Promise<{
         buffer: Buffer;
         file: Omit<EncryptedFile, "url">;

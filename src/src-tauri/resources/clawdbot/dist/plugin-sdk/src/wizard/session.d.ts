@@ -26,6 +26,7 @@ export declare class WizardSession {
     private runner;
     private currentStep;
     private stepDeferred;
+    private pendingTerminalResolution;
     private answerDeferred;
     private status;
     private error;

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 export declare const ATTEMPT_CACHE_TTL_CUSTOM_TYPE = "openclaw.cache-ttl";
 export declare function composeSystemPromptWithHookContext(params: {
     baseSystemPrompt?: string;
@@ -22,7 +22,8 @@ export declare function shouldAppendAttemptCacheTtl(params: {
     config?: OpenClawConfig;
     provider: string;
     modelId: string;
-    isCacheTtlEligibleProvider: (provider: string, modelId: string) => boolean;
+    modelApi?: string;
+    isCacheTtlEligibleProvider: (provider: string, modelId: string, modelApi?: string) => boolean;
 }): boolean;
 export declare function appendAttemptCacheTtlIfNeeded(params: {
     sessionManager: {
@@ -33,6 +34,14 @@ export declare function appendAttemptCacheTtlIfNeeded(params: {
     config?: OpenClawConfig;
     provider: string;
     modelId: string;
-    isCacheTtlEligibleProvider: (provider: string, modelId: string) => boolean;
+    modelApi?: string;
+    isCacheTtlEligibleProvider: (provider: string, modelId: string, modelApi?: string) => boolean;
     now?: number;
+}): boolean;
+export declare function shouldPersistCompletedBootstrapTurn(params: {
+    shouldRecordCompletedBootstrapTurn: boolean;
+    promptError: unknown;
+    aborted: boolean;
+    timedOutDuringCompaction: boolean;
+    compactionOccurredThisAttempt: boolean;
 }): boolean;

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 type PreflightFailureKind = "tls-cert" | "network";
 export type OpenAIOAuthTlsPreflightResult = {
     ok: true;

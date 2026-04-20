@@ -1,23 +1,16 @@
-import type { OpenClawConfig } from "../config/config.js";
-import type { PluginWebSearchProviderEntry, WebSearchProviderToolDefinition } from "../plugins/types.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginWebSearchProviderEntry, WebSearchProviderToolDefinition } from "../plugins/web-provider-types.js";
 import type { RuntimeWebSearchMetadata } from "../secrets/runtime-web-tools.types.js";
-type WebSearchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web ? Web extends {
-    search?: infer Search;
-} ? Search : undefined : undefined;
-export type ResolveWebSearchDefinitionParams = {
-    config?: OpenClawConfig;
-    sandboxed?: boolean;
-    runtimeWebSearch?: RuntimeWebSearchMetadata;
-    providerId?: string;
-    preferRuntimeProviders?: boolean;
-};
-export type RunWebSearchParams = ResolveWebSearchDefinitionParams & {
-    args: Record<string, unknown>;
-};
+import type { ResolveWebSearchDefinitionParams, RunWebSearchParams, RunWebSearchResult, RuntimeWebSearchConfig as WebSearchConfig } from "./runtime-types.js";
+export type { ListWebSearchProvidersParams, ResolveWebSearchDefinitionParams, RunWebSearchParams, RunWebSearchResult, RuntimeWebSearchConfig, RuntimeWebSearchProviderEntry, RuntimeWebSearchToolDefinition, } from "./runtime-types.js";
 declare function resolveSearchConfig(cfg?: OpenClawConfig): WebSearchConfig;
 export declare function resolveWebSearchEnabled(params: {
     search?: WebSearchConfig;
     sandboxed?: boolean;
+}): boolean;
+export declare function isWebSearchProviderConfigured(params: {
+    provider: Pick<PluginWebSearchProviderEntry, "credentialPath" | "id" | "envVars" | "getConfiguredCredentialValue" | "getCredentialValue" | "requiresCredential">;
+    config?: OpenClawConfig;
 }): boolean;
 export declare function listWebSearchProviders(params?: {
     config?: OpenClawConfig;
@@ -34,13 +27,18 @@ export declare function resolveWebSearchDefinition(options?: ResolveWebSearchDef
     provider: PluginWebSearchProviderEntry;
     definition: WebSearchProviderToolDefinition;
 } | null;
-export declare function runWebSearch(params: RunWebSearchParams): Promise<{
-    provider: string;
-    result: Record<string, unknown>;
-}>;
+declare function resolveWebSearchCandidates(options?: ResolveWebSearchDefinitionParams): PluginWebSearchProviderEntry[];
+declare function hasExplicitWebSearchSelection(params: {
+    search?: WebSearchConfig;
+    runtimeWebSearch?: RuntimeWebSearchMetadata;
+    providerId?: string;
+    providers?: PluginWebSearchProviderEntry[];
+}): boolean;
+export declare function runWebSearch(params: RunWebSearchParams): Promise<RunWebSearchResult>;
 export declare const __testing: {
     resolveSearchConfig: typeof resolveSearchConfig;
     resolveSearchProvider: typeof resolveWebSearchProviderId;
     resolveWebSearchProviderId: typeof resolveWebSearchProviderId;
+    resolveWebSearchCandidates: typeof resolveWebSearchCandidates;
+    hasExplicitWebSearchSelection: typeof hasExplicitWebSearchSelection;
 };
-export {};

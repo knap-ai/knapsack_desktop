@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { createLoggerBackedRuntime } from "./runtime.js";
+import { createLoggerBackedRuntime } from "./runtime-logger.js";
 export { safeParseJsonWithSchema, safeParseWithSchema } from "../utils/zod-parse.js";
 type PassiveChannelStatusSnapshot = {
     configured?: boolean;
@@ -65,3 +65,8 @@ export declare function createDeferred<T>(): {
     resolve: (value: T | PromiseLike<T>) => void;
     reject: (reason?: unknown) => void;
 };
+export declare function resolveAmbientNodeProxyAgent<TAgent>(params?: {
+    onError?: (error: unknown) => void;
+    onUsingProxy?: () => void;
+    protocol?: "http" | "https";
+}): Promise<TAgent | undefined>;

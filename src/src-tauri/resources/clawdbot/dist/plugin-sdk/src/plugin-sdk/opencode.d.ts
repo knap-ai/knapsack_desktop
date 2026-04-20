@@ -1,9 +1,13 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["opencode"];
-type FacadeModule = FacadeEntry["module"];
-export declare const applyOpencodeZenConfig: FacadeModule["applyOpencodeZenConfig"];
-export declare const applyOpencodeZenModelDefault: FacadeModule["applyOpencodeZenModelDefault"];
-export declare const applyOpencodeZenProviderConfig: FacadeModule["applyOpencodeZenProviderConfig"];
-export declare const OPENCODE_ZEN_DEFAULT_MODEL = "opencode/claude-opus-4-6";
-export declare const OPENCODE_ZEN_DEFAULT_MODEL_REF = "opencode/claude-opus-4-6";
-export {};
+import { type OpenClawConfig } from "./provider-auth-api-key.js";
+export { applyOpencodeZenModelDefault, OPENCODE_ZEN_DEFAULT_MODEL } from "./provider-onboard.js";
+export declare function createOpencodeCatalogApiKeyAuthMethod(params: {
+    providerId: string;
+    label: string;
+    optionKey: string;
+    flagName: `--${string}`;
+    defaultModel: string;
+    applyConfig: (cfg: OpenClawConfig) => OpenClawConfig;
+    noteMessage: string;
+    choiceId: string;
+    choiceLabel: string;
+}): import("./plugin-entry.ts").ProviderAuthMethod;

@@ -1,4 +1,5 @@
-import type { CreateSandboxBackendParams, SandboxBackendManager, SandboxBackendCommandParams, SandboxBackendHandle } from "./backend.js";
+import type { SandboxBackendCommandParams } from "./backend-handle.types.js";
+import type { CreateSandboxBackendParams, SandboxBackendHandle, SandboxBackendManager } from "./backend.types.js";
 export declare function createDockerSandboxBackend(params: CreateSandboxBackendParams): Promise<SandboxBackendHandle>;
 export declare function createDockerSandboxBackendHandle(params: {
     containerName: string;

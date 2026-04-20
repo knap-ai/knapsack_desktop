@@ -1,13 +1,11 @@
-import { a as defineSetupPluginEntry } from "../../core-BghMcc08.js";
-import { a as imessageSetupAdapter } from "../../setup-core-BEyq5Zjn.js";
-import { r as imessageSetupWizard, t as createIMessagePluginBase } from "../../shared-QtosIQnZ.js";
-//#region extensions/imessage/src/channel.setup.ts
-const imessageSetupPlugin = { ...createIMessagePluginBase({
-	setupWizard: imessageSetupWizard,
-	setup: imessageSetupAdapter
-}) };
-//#endregion
+import { n as defineBundledChannelSetupEntry } from "../../channel-entry-contract-mcFqxQzW.js";
 //#region extensions/imessage/setup-entry.ts
-var setup_entry_default = defineSetupPluginEntry(imessageSetupPlugin);
+var setup_entry_default = defineBundledChannelSetupEntry({
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./api.js",
+		exportName: "imessageSetupPlugin"
+	}
+});
 //#endregion
-export { setup_entry_default as default, imessageSetupPlugin };
+export { setup_entry_default as default };

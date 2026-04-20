@@ -7,6 +7,12 @@ export declare const ConfigApplyParamsSchema: import("@sinclair/typebox").TObjec
     raw: import("@sinclair/typebox").TString;
     baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+    }>>;
     note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
 }>;
@@ -14,6 +20,12 @@ export declare const ConfigPatchParamsSchema: import("@sinclair/typebox").TObjec
     raw: import("@sinclair/typebox").TString;
     baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+    }>>;
     note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
 }>;
@@ -23,6 +35,12 @@ export declare const ConfigSchemaLookupParamsSchema: import("@sinclair/typebox")
 }>;
 export declare const UpdateRunParamsSchema: import("@sinclair/typebox").TObject<{
     sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
+        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+    }>>;
     note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
     timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;

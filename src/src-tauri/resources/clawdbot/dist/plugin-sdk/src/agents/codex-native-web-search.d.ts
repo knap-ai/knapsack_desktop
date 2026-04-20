@@ -1,4 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+export { describeCodexNativeWebSearch, resolveCodexNativeWebSearchConfig, } from "./codex-native-web-search.shared.js";
 export type CodexNativeSearchMode = "cached" | "live";
 export type CodexNativeSearchContextSize = "low" | "medium" | "high";
 export type CodexNativeSearchUserLocation = {
@@ -26,7 +27,6 @@ export type CodexNativeSearchActivation = {
 export type CodexNativeSearchPayloadPatchResult = {
     status: "payload_not_object" | "native_tool_already_present" | "injected";
 };
-export declare function resolveCodexNativeWebSearchConfig(config: OpenClawConfig | undefined): ResolvedCodexNativeWebSearchConfig;
 export declare function isCodexNativeSearchEligibleModel(params: {
     modelProvider?: string;
     modelApi?: string;
@@ -58,4 +58,3 @@ export declare function isCodexNativeWebSearchRelevant(params: {
     agentId?: string;
     agentDir?: string;
 }): boolean;
-export declare function describeCodexNativeWebSearch(config: OpenClawConfig | undefined): string | undefined;

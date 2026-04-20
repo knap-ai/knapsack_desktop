@@ -1,16 +1,10 @@
 import { Logger as TsLogger } from "tslog";
 import { shouldSkipMutatingLoggingConfigRead } from "./config.js";
-import type { ConsoleStyle } from "./console.js";
 import { type LogLevel } from "./levels.js";
+import type { LoggerSettings } from "./types.js";
+export type { LoggerSettings } from "./types.js";
 export declare const DEFAULT_LOG_DIR: string;
 export declare const DEFAULT_LOG_FILE: string;
-export type LoggerSettings = {
-    level?: LogLevel;
-    file?: string;
-    maxFileBytes?: number;
-    consoleLevel?: LogLevel;
-    consoleStyle?: ConsoleStyle;
-};
 type LogObj = {
     date?: Date;
 } & Record<string, unknown>;
@@ -45,4 +39,3 @@ export declare function registerLogTransport(transport: LogTransport): () => voi
 export declare const __test__: {
     shouldSkipMutatingLoggingConfigRead: typeof shouldSkipMutatingLoggingConfigRead;
 };
-export {};

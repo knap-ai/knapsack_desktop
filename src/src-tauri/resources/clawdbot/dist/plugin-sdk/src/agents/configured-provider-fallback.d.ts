@@ -6,4 +6,5 @@ export type ProviderModelRef = {
 export declare function resolveConfiguredProviderFallback(params: {
     cfg: Pick<OpenClawConfig, "models">;
     defaultProvider: string;
+    defaultModel?: string;
 }): ProviderModelRef | null;

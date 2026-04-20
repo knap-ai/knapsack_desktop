@@ -15,6 +15,7 @@ export declare function ensureGatewayStartupAuth(params: {
     generatedToken?: string;
     persistedGeneratedToken: boolean;
 }>;
+export declare function assertGatewayAuthNotKnownWeak(auth: ResolvedGatewayAuth): void;
 export declare function assertHooksTokenSeparateFromGatewayAuth(params: {
     cfg: OpenClawConfig;
     auth: ResolvedGatewayAuth;

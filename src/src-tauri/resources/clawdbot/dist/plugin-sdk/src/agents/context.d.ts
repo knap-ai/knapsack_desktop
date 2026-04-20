@@ -1,11 +1,14 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+export { resetContextWindowCacheForTest } from "./context-runtime-state.js";
 type ModelEntry = {
     id: string;
     contextWindow?: number;
+    contextTokens?: number;
 };
 type ConfigModelEntry = {
     id?: string;
     contextWindow?: number;
+    contextTokens?: number;
 };
 type ProviderConfigEntry = {
     models?: ConfigModelEntry[];
@@ -22,7 +25,6 @@ export declare function applyConfiguredContextWindows(params: {
     cache: Map<string, number>;
     modelsConfig: ModelsConfig | undefined;
 }): void;
-export declare function resetContextWindowCacheForTest(): void;
 export declare function lookupContextTokens(modelId?: string, options?: {
     allowAsyncLoad?: boolean;
 }): number | undefined;
@@ -34,4 +36,3 @@ export declare function resolveContextTokensForModel(params: {
     fallbackContextTokens?: number;
     allowAsyncLoad?: boolean;
 }): number | undefined;
-export {};

@@ -8,5 +8,6 @@ export type AgentIdentityFile = {
 };
 export declare function parseIdentityMarkdown(content: string): AgentIdentityFile;
 export declare function identityHasValues(identity: AgentIdentityFile): boolean;
+export declare function mergeIdentityMarkdownContent(content: string | undefined, identity: Pick<AgentIdentityFile, "name" | "theme" | "emoji" | "avatar">): string;
 export declare function loadIdentityFromFile(identityPath: string): AgentIdentityFile | null;
 export declare function loadAgentIdentityFromWorkspace(workspace: string): AgentIdentityFile | null;

@@ -1,6 +1,4 @@
-import type { PluginSdkFacadeTypeMap } from "../generated/plugin-sdk-facade-type-map.generated.js";
-type FacadeEntry = PluginSdkFacadeTypeMap["xiaomi"];
-type FacadeModule = FacadeEntry["module"];
+type FacadeModule = typeof import("@openclaw/xiaomi/api.js");
 export declare const applyXiaomiConfig: FacadeModule["applyXiaomiConfig"];
 export declare const applyXiaomiProviderConfig: FacadeModule["applyXiaomiProviderConfig"];
 export declare const buildXiaomiProvider: FacadeModule["buildXiaomiProvider"];

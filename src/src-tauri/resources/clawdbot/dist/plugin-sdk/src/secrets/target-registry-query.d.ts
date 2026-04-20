@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { DiscoveredConfigSecretTarget, ResolvedPlanTarget, SecretTargetRegistryEntry } from "./target-registry-types.js";
 export declare function listSecretTargetRegistryEntries(): SecretTargetRegistryEntry[];
 export declare function isKnownSecretTargetType(value: unknown): value is string;

@@ -2,7 +2,6 @@ import type { AcpRuntimeError } from "../../../acp/runtime/errors.js";
 import type { AcpRuntimeSessionMode } from "../../../acp/runtime/types.js";
 import type { AcpSessionRuntimeOptions } from "../../../config/sessions/types.js";
 import type { CommandHandlerResult, HandleCommandsParams } from "../commands-types.js";
-export { resolveAcpInstallCommandHint, resolveConfiguredAcpBackendId } from "./install-hints.js";
 export declare const COMMAND = "/acp";
 export declare const ACP_SPAWN_USAGE = "Usage: /acp spawn [harness-id] [--mode persistent|oneshot] [--thread auto|here|off] [--bind here|off] [--cwd <path>] [--label <label>].";
 export declare const ACP_STEER_USAGE = "Usage: /acp steer [--session <session-key|session-id|session-label>] <instruction>";

@@ -1,6 +1,7 @@
+import type { DispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.types.js";
 import type { FinalizedMsgContext } from "../auto-reply/templating.js";
-import type { ChannelId } from "../channels/plugins/types.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { ChannelId } from "../channels/plugins/types.public.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type DmGroupAccessReasonCode } from "../security/dm-policy-shared.js";
 import type { OutboundReplyPayload } from "./reply-payload.js";
 export type DirectDmCommandAuthorizationRuntime = {
@@ -103,7 +104,7 @@ type DirectDmRuntime = {
             resolveEnvelopeFormatOptions: (cfg: OpenClawConfig) => ReturnType<typeof import("../auto-reply/envelope.js").resolveEnvelopeFormatOptions>;
             formatAgentEnvelope: typeof import("../auto-reply/envelope.js").formatAgentEnvelope;
             finalizeInboundContext: typeof import("../auto-reply/reply/inbound-context.js").finalizeInboundContext;
-            dispatchReplyWithBufferedBlockDispatcher: typeof import("../auto-reply/reply/provider-dispatcher.js").dispatchReplyWithBufferedBlockDispatcher;
+            dispatchReplyWithBufferedBlockDispatcher: DispatchReplyWithBufferedBlockDispatcher;
         };
     };
 };

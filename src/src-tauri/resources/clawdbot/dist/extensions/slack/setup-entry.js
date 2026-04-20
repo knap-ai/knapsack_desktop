@@ -1,12 +1,15 @@
-import { a as defineSetupPluginEntry } from "../../core-BghMcc08.js";
-import { i as createSlackPluginBase, n as slackSetupAdapter, t as slackSetupWizard } from "../../setup-surface-BWKHSbc2.js";
-//#region extensions/slack/src/channel.setup.ts
-const slackSetupPlugin = { ...createSlackPluginBase({
-	setupWizard: slackSetupWizard,
-	setup: slackSetupAdapter
-}) };
-//#endregion
+import { defineBundledChannelSetupEntry } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/slack/setup-entry.ts
-var setup_entry_default = defineSetupPluginEntry(slackSetupPlugin);
+var setup_entry_default = defineBundledChannelSetupEntry({
+	importMetaUrl: import.meta.url,
+	plugin: {
+		specifier: "./setup-plugin-api.js",
+		exportName: "slackSetupPlugin"
+	},
+	secrets: {
+		specifier: "./secret-contract-api.js",
+		exportName: "channelSecrets"
+	}
+});
 //#endregion
-export { setup_entry_default as default, slackSetupPlugin };
+export { setup_entry_default as default };

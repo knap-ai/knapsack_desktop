@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.js";
 import type { PluginWebFetchProviderEntry, WebFetchProviderToolDefinition } from "../plugins/types.js";
 import type { RuntimeWebFetchMetadata } from "../secrets/runtime-web-tools.types.js";
 type WebFetchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web ? Web extends {
@@ -14,6 +14,10 @@ export type ResolveWebFetchDefinitionParams = {
 export declare function resolveWebFetchEnabled(params: {
     fetch?: WebFetchConfig;
     sandboxed?: boolean;
+}): boolean;
+export declare function isWebFetchProviderConfigured(params: {
+    provider: Pick<PluginWebFetchProviderEntry, "envVars" | "getConfiguredCredentialValue" | "getCredentialValue" | "requiresCredential">;
+    config?: OpenClawConfig;
 }): boolean;
 export declare function listWebFetchProviders(params?: {
     config?: OpenClawConfig;

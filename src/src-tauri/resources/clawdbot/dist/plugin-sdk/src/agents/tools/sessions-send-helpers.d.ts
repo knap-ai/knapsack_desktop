@@ -1,4 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
+export { ANNOUNCE_SKIP_TOKEN, REPLY_SKIP_TOKEN, isAnnounceSkip, isReplySkip, } from "./sessions-send-tokens.js";
 export type AnnounceTarget = {
     channel: string;
     to: string;
@@ -29,6 +30,4 @@ export declare function buildAgentToAgentAnnounceContext(params: {
     roundOneReply?: string;
     latestReply?: string;
 }): string;
-export declare function isAnnounceSkip(text?: string): boolean;
-export declare function isReplySkip(text?: string): boolean;
 export declare function resolvePingPongTurns(cfg?: OpenClawConfig): number;

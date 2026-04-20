@@ -1,2 +1,2 @@
-import { t as buildOpenrouterProvider } from "../../provider-catalog-Nhyq2GoA.js";
+import { t as buildOpenrouterProvider } from "../../provider-catalog-CBF060vN.js";
 export { buildOpenrouterProvider };

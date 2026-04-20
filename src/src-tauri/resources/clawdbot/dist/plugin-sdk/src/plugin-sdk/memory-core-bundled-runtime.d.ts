@@ -1,0 +1,11 @@
+type ApiFacadeModule = typeof import("@openclaw/memory-core/api.js");
+type RuntimeFacadeModule = typeof import("@openclaw/memory-core/runtime-api.js");
+export declare const createEmbeddingProvider: RuntimeFacadeModule["createEmbeddingProvider"];
+export declare const registerBuiltInMemoryEmbeddingProviders: RuntimeFacadeModule["registerBuiltInMemoryEmbeddingProviders"];
+export declare const removeGroundedShortTermCandidates: RuntimeFacadeModule["removeGroundedShortTermCandidates"];
+export declare const repairDreamingArtifacts: RuntimeFacadeModule["repairDreamingArtifacts"];
+export declare const previewGroundedRemMarkdown: ApiFacadeModule["previewGroundedRemMarkdown"];
+export declare const dedupeDreamDiaryEntries: ApiFacadeModule["dedupeDreamDiaryEntries"];
+export declare const writeBackfillDiaryEntries: ApiFacadeModule["writeBackfillDiaryEntries"];
+export declare const removeBackfillDiaryEntries: ApiFacadeModule["removeBackfillDiaryEntries"];
+export {};

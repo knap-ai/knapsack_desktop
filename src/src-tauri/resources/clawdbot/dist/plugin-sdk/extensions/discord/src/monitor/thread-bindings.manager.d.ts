@@ -1,4 +1,4 @@
-import { type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import { type OpenClawConfig } from "openclaw/plugin-sdk/runtime-config-snapshot";
 import { resolveThreadBindingThreadName } from "./thread-bindings.messages.js";
 import { resolveThreadBindingsPath, resetThreadBindingsForTests } from "./thread-bindings.state.js";
 import { type ThreadBindingManager } from "./thread-bindings.types.js";

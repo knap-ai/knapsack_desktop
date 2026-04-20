@@ -1,7 +1,9 @@
-import type { ExecCommandSegment } from "./exec-approvals-analysis.js";
 import { resolveAllowAlwaysPatternEntries } from "./exec-approvals-allowlist.js";
+import type { ExecCommandSegment } from "./exec-approvals-analysis.js";
+import type { ExecAllowlistEntry } from "./exec-approvals.types.js";
 export * from "./exec-approvals-analysis.js";
 export * from "./exec-approvals-allowlist.js";
+export type { ExecAllowlistEntry } from "./exec-approvals.types.js";
 export type ExecHost = "sandbox" | "gateway" | "node";
 export type ExecTarget = "auto" | ExecHost;
 export type ExecSecurity = "deny" | "allowlist" | "full";
@@ -71,16 +73,6 @@ export type ExecApprovalsDefaults = {
     askFallback?: ExecSecurity;
     autoAllowSkills?: boolean;
 };
-export type ExecAllowlistEntry = {
-    id?: string;
-    pattern: string;
-    source?: "allow-always";
-    commandText?: string;
-    argPattern?: string;
-    lastUsedAt?: number;
-    lastUsedCommand?: string;
-    lastResolvedPath?: string;
-};
 export type ExecApprovalsAgent = ExecApprovalsDefaults & {
     allowlist?: ExecAllowlistEntry[];
 };
@@ -126,6 +118,7 @@ export declare function mergeExecApprovalsSocketDefaults(params: {
 export declare function readExecApprovalsSnapshot(): ExecApprovalsSnapshot;
 export declare function loadExecApprovals(): ExecApprovalsFile;
 export declare function saveExecApprovals(file: ExecApprovalsFile): void;
+export declare function restoreExecApprovalsSnapshot(snapshot: ExecApprovalsSnapshot): void;
 export declare function ensureExecApprovals(): ExecApprovalsFile;
 export type ExecApprovalsDefaultOverrides = {
     security?: ExecSecurity;

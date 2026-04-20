@@ -27,4 +27,17 @@ export declare function writeStorageMeta(params: {
     userId: string;
     accountId?: string | null;
     deviceId?: string | null;
-}): void;
+    currentTokenStateClaimed?: boolean;
+}): boolean;
+export declare function claimCurrentTokenStorageState(params: {
+    rootDir: string;
+}): boolean;
+export declare function repairCurrentTokenStorageMetaDeviceId(params: {
+    homeserver: string;
+    userId: string;
+    accessToken: string;
+    accountId?: string | null;
+    deviceId: string;
+    env?: NodeJS.ProcessEnv;
+    stateDir?: string;
+}): boolean;

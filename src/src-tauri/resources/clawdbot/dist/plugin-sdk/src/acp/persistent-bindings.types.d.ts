@@ -1,6 +1,7 @@
-import type { ChannelId } from "../channels/plugins/types.js";
+import type { ChannelId } from "../channels/plugins/types.public.js";
 import type { SessionBindingRecord } from "../infra/outbound/session-binding-service.js";
 import type { AcpRuntimeSessionMode } from "./runtime/types.js";
+export { normalizeText } from "./normalize-text.js";
 export type ConfiguredAcpBindingChannel = ChannelId;
 export type ConfiguredAcpBindingSpec = {
     channel: ConfiguredAcpBindingChannel;
@@ -26,7 +27,6 @@ export type AcpBindingConfigShape = {
     backend?: string;
     label?: string;
 };
-export declare function normalizeText(value: unknown): string | undefined;
 export declare function normalizeMode(value: unknown): AcpRuntimeSessionMode;
 export declare function normalizeBindingConfig(raw: unknown): AcpBindingConfigShape;
 export declare function buildConfiguredAcpSessionKey(spec: ConfiguredAcpBindingSpec): string;

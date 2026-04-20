@@ -1,14 +1,15 @@
-import { n as matchesExactOrPrefix } from "../../provider-model-shared-B0P3sbBu.js";
-import { t as definePluginEntry } from "../../plugin-entry-DA7dUJNL.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-BF3kHzmf.js";
-import "../../provider-auth-api-key-g0GKEM-Y.js";
-import { n as applyOpencodeZenConfig } from "../../onboard-C2KTeoqJ.js";
-import { t as OPENCODE_ZEN_DEFAULT_MODEL } from "../../api-Ihe2Wwnp.js";
+import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
+import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS, l as matchesExactOrPrefix } from "../../provider-model-shared-DyDnBaDe.js";
+import "../../text-runtime-DTMxvodz.js";
+import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { t as OPENCODE_ZEN_DEFAULT_MODEL } from "../../provider-onboard-CghzCQ2p.js";
+import { t as createOpencodeCatalogApiKeyAuthMethod } from "../../opencode-BixjxGk1.js";
+import { n as applyOpencodeZenConfig } from "../../onboard-CBtRt-4S.js";
 //#region extensions/opencode/index.ts
 const PROVIDER_ID = "opencode";
 const MINIMAX_MODERN_MODEL_MATCHERS = ["minimax-m2.7"];
 function isModernOpencodeModel(modelId) {
-	const lower = modelId.trim().toLowerCase();
+	const lower = normalizeLowercaseStringOrEmpty(modelId);
 	if (lower.endsWith("-free") || lower === "alpha-glm-4.7") return false;
 	return !matchesExactOrPrefix(lower, MINIMAX_MODERN_MODEL_MATCHERS);
 }
@@ -22,18 +23,12 @@ var opencode_default = definePluginEntry({
 			label: "OpenCode Zen",
 			docsPath: "/providers/models",
 			envVars: ["OPENCODE_API_KEY", "OPENCODE_ZEN_API_KEY"],
-			auth: [createProviderApiKeyAuthMethod({
+			auth: [createOpencodeCatalogApiKeyAuthMethod({
 				providerId: PROVIDER_ID,
-				methodId: "api-key",
 				label: "OpenCode Zen catalog",
-				hint: "Shared API key for Zen + Go catalogs",
 				optionKey: "opencodeZenApiKey",
 				flagName: "--opencode-zen-api-key",
-				envVar: "OPENCODE_API_KEY",
-				promptMessage: "Enter OpenCode API key",
-				profileIds: ["opencode:default", "opencode-go:default"],
 				defaultModel: OPENCODE_ZEN_DEFAULT_MODEL,
-				expectedProviders: ["opencode", "opencode-go"],
 				applyConfig: (cfg) => applyOpencodeZenConfig(cfg),
 				noteMessage: [
 					"OpenCode uses one API key across the Zen and Go catalogs.",
@@ -41,20 +36,10 @@ var opencode_default = definePluginEntry({
 					"Get your API key at: https://opencode.ai/auth",
 					"Choose the Zen catalog when you want the curated multi-model proxy."
 				].join("\n"),
-				noteTitle: "OpenCode",
-				wizard: {
-					choiceId: "opencode-zen",
-					choiceLabel: "OpenCode Zen catalog",
-					groupId: "opencode",
-					groupLabel: "OpenCode",
-					groupHint: "Shared API key for Zen + Go catalogs"
-				}
+				choiceId: "opencode-zen",
+				choiceLabel: "OpenCode Zen catalog"
 			})],
-			capabilities: {
-				openAiCompatTurnValidation: false,
-				geminiThoughtSignatureSanitization: true,
-				geminiThoughtSignatureModelHints: ["gemini"]
-			},
+			...PASSTHROUGH_GEMINI_REPLAY_HOOKS,
 			isModernModelRef: ({ modelId }) => isModernOpencodeModel(modelId)
 		});
 	}

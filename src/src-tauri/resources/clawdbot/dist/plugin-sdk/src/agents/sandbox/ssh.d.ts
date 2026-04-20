@@ -1,4 +1,4 @@
-import type { SandboxBackendCommandResult } from "./backend.js";
+import type { SandboxBackendCommandResult } from "./backend-handle.types.js";
 export type SshSandboxSettings = {
     command: string;
     target: string;

@@ -1,25 +1,14 @@
-import { loadConfig } from "../config/config.js";
-import { callGateway } from "../gateway/call.js";
 import { type DeliveryContext } from "../utils/delivery-context.js";
 import { type SubagentRunOutcome } from "./subagent-announce-output.js";
-import type { SpawnSubagentMode } from "./subagent-spawn.js";
+import { callGateway, loadConfig } from "./subagent-announce.runtime.js";
+import type { SpawnSubagentMode } from "./subagent-spawn.types.js";
 type SubagentAnnounceDeps = {
     callGateway: typeof callGateway;
     loadConfig: typeof loadConfig;
+    loadSubagentRegistryRuntime: typeof loadSubagentRegistryRuntime;
 };
-export declare function buildSubagentSystemPrompt(params: {
-    requesterSessionKey?: string;
-    requesterOrigin?: DeliveryContext;
-    childSessionKey: string;
-    label?: string;
-    task?: string;
-    /** Whether ACP-specific routing guidance should be included. Defaults to true. */
-    acpEnabled?: boolean;
-    /** Depth of the child being spawned (1 = sub-agent, 2 = sub-sub-agent). */
-    childDepth?: number;
-    /** Config value: max allowed spawn depth. */
-    maxSpawnDepth?: number;
-}): string;
+declare function loadSubagentRegistryRuntime(): Promise<typeof import("./subagent-announce.registry.runtime.js")>;
+export { buildSubagentSystemPrompt } from "./subagent-system-prompt.js";
 export { captureSubagentCompletionReply } from "./subagent-announce-output.js";
 export type { SubagentRunOutcome } from "./subagent-announce-output.js";
 export type SubagentAnnounceType = "subagent task" | "cron job";

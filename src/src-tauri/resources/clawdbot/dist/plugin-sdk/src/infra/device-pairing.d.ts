@@ -1,3 +1,4 @@
+import { type DeviceBootstrapProfile } from "../shared/device-bootstrap-profile.js";
 export type DevicePairingPendingRequest = {
     requestId: string;
     deviceId: string;
@@ -57,18 +58,25 @@ export type PairedDevice = {
     createdAtMs: number;
     approvedAtMs: number;
 };
+export type PairedDeviceMetadataPatch = Pick<PairedDevice, "displayName" | "clientId" | "clientMode" | "remoteIp">;
 export type DevicePairingList = {
     pending: DevicePairingPendingRequest[];
     paired: PairedDevice[];
+};
+export type DevicePairingForbiddenReason = "caller-scopes-required" | "caller-missing-scope" | "scope-outside-requested-roles" | "bootstrap-role-not-allowed" | "bootstrap-scope-not-allowed";
+export type DevicePairingForbiddenResult = {
+    status: "forbidden";
+    reason: DevicePairingForbiddenReason;
+    scope?: string;
+    role?: string;
 };
 export type ApproveDevicePairingResult = {
     status: "approved";
     requestId: string;
     device: PairedDevice;
-} | {
-    status: "forbidden";
-    missingScope: string;
-} | null;
+} | DevicePairingForbiddenResult | null;
+export declare function formatDevicePairingForbiddenMessage(result: DevicePairingForbiddenResult): string;
+export declare function listApprovedPairedDeviceRoles(device: Pick<PairedDevice, "role" | "roles">): string[];
 export declare function listEffectivePairedDeviceRoles(device: Pick<PairedDevice, "role" | "roles" | "tokens">): string[];
 export declare function hasEffectivePairedDeviceRole(device: Pick<PairedDevice, "role" | "roles" | "tokens">, role: string): boolean;
 export declare function listDevicePairing(baseDir?: string): Promise<DevicePairingList>;
@@ -83,6 +91,7 @@ export declare function approveDevicePairing(requestId: string, baseDir?: string
 export declare function approveDevicePairing(requestId: string, options: {
     callerScopes?: readonly string[];
 }, baseDir?: string): Promise<ApproveDevicePairingResult>;
+export declare function approveBootstrapDevicePairing(requestId: string, bootstrapProfile: DeviceBootstrapProfile, baseDir?: string): Promise<ApproveDevicePairingResult>;
 export declare function rejectDevicePairing(requestId: string, baseDir?: string): Promise<{
     requestId: string;
     deviceId: string;
@@ -90,7 +99,7 @@ export declare function rejectDevicePairing(requestId: string, baseDir?: string)
 export declare function removePairedDevice(deviceId: string, baseDir?: string): Promise<{
     deviceId: string;
 } | null>;
-export declare function updatePairedDeviceMetadata(deviceId: string, patch: Partial<Omit<PairedDevice, "deviceId" | "createdAtMs" | "approvedAtMs" | "approvedScopes">>, baseDir?: string): Promise<void>;
+export declare function updatePairedDeviceMetadata(deviceId: string, patch: Partial<PairedDeviceMetadataPatch>, baseDir?: string): Promise<void>;
 export declare function summarizeDeviceTokens(tokens: Record<string, DeviceAuthToken> | undefined): DeviceAuthTokenSummary[] | undefined;
 export declare function verifyDeviceToken(params: {
     deviceId: string;

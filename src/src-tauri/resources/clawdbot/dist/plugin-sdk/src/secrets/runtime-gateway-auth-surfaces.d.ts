@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { SecretDefaults } from "./runtime-shared.js";
 export declare const GATEWAY_AUTH_SURFACE_PATHS: readonly ["gateway.auth.token", "gateway.auth.password", "gateway.remote.token", "gateway.remote.password"];
 export type GatewayAuthSurfacePath = (typeof GATEWAY_AUTH_SURFACE_PATHS)[number];

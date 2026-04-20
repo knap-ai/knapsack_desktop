@@ -1,12 +1,13 @@
-import type { OpenClawConfig } from "../config/config.js";
 import type { AgentModelEntryConfig } from "../config/types.agent-defaults.js";
 import type { ModelApi, ModelDefinitionConfig, ModelProviderConfig } from "../config/types.models.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type { OpenClawConfig, ModelApi, ModelDefinitionConfig, ModelProviderConfig };
 export { resolveAgentModelFallbackValues, resolveAgentModelPrimaryValue, } from "../config/model-input.js";
 export type AgentModelAliasEntry = string | {
     modelRef: string;
     alias?: string;
 };
+export declare const OPENCODE_ZEN_DEFAULT_MODEL = "opencode/claude-opus-4-6";
 export type ProviderOnboardPresetAppliers<TArgs extends unknown[]> = {
     applyProviderConfig: (cfg: OpenClawConfig, ...args: TArgs) => OpenClawConfig;
     applyConfig: (cfg: OpenClawConfig, ...args: TArgs) => OpenClawConfig;
@@ -17,6 +18,10 @@ export declare function applyOnboardAuthAgentModelsAndProviders(cfg: OpenClawCon
     providers: Record<string, ModelProviderConfig>;
 }): OpenClawConfig;
 export declare function applyAgentDefaultModelPrimary(cfg: OpenClawConfig, primary: string): OpenClawConfig;
+export declare function applyOpencodeZenModelDefault(cfg: OpenClawConfig): {
+    next: OpenClawConfig;
+    changed: boolean;
+};
 export declare function applyProviderConfigWithDefaultModels(cfg: OpenClawConfig, params: {
     agentModels: Record<string, AgentModelEntryConfig>;
     providerId: string;

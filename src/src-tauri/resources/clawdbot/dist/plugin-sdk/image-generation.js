@@ -1,2 +1,2 @@
-import "../image-generation-fGeErcL3.js";
+import "../image-generation-D3PFOG75.js";
 export {};

@@ -1,50 +1,73 @@
-import { i as coerceSecretRef, l as normalizeSecretInputString } from "../../types.secrets-DTXJhyWe.js";
-import { m as resolveNonEnvSecretRefApiKeyMarker } from "../../model-auth-markers-BjPX15EF.js";
-import { o as resolveProviderWebSearchPluginConfig } from "../../provider-web-search-BvBfxXst.js";
-import "../../secret-input-C8U7qpTM.js";
-import "../../provider-auth-rTeK2_Yu.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-BnIQWKLx.js";
-import { r as createToolStreamWrapper } from "../../provider-stream-D_iORY-e.js";
-import { t as buildXaiProvider } from "../../provider-catalog-BK0ohwR_.js";
-import { n as applyXaiConfig, t as XAI_DEFAULT_MODEL_REF } from "../../onboard-CaJD-Ao-.js";
-import { a as resolveXaiTransport, c as resolveXaiForwardCompatModel, i as resolveXaiModelCompatPatch, o as shouldContributeXaiCompat, r as applyXaiModelCompat, s as isModernXaiModel } from "../../api-BxiD-3Ux.js";
-import { t as normalizeXaiModelId } from "../../model-id-CIBZa1lG.js";
-import { t as createCodeExecutionTool } from "../../code-execution-B3-P50Kg.js";
-import { n as createXaiToolCallArgumentDecodingWrapper, r as createXaiToolPayloadCompatibilityWrapper, t as createXaiFastModeWrapper } from "../../stream-Cyyg1UrL.js";
-import { n as createXaiWebSearchProvider } from "../../web-search-72j67XkQ.js";
-import { t as createXSearchTool } from "../../x-search-6OqhuZul.js";
+import { r as normalizeNativeXaiModelId } from "../../provider-model-id-normalize-C-aZ6pzm.js";
+import { f as resolveXaiModelCompatPatch, i as applyXaiModelCompat } from "../../provider-tools-Z_yR2St8.js";
+import { c as jsonResult } from "../../common-BWtun2If.js";
+import { p as readProviderEnvValue } from "../../web-search-provider-common-EFbs_Gas.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
+import { i as defaultToolStreamExtraParams } from "../../provider-stream-shared-DisAYlnl.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
+import "../../provider-web-search-B6Xg-MPv.js";
+import { t as buildXaiProvider } from "../../provider-catalog-CAjZQu79.js";
+import { n as applyXaiConfig, t as XAI_DEFAULT_MODEL_REF } from "../../onboard-MTq3iaV4.js";
+import { n as resolveXaiForwardCompatModel, t as isModernXaiModel } from "../../provider-models-DBZIiLTe.js";
+import { n as resolveXaiTransport, r as shouldContributeXaiCompat } from "../../api-Bhpm0opl.js";
+import { n as resolveFallbackXaiAuth } from "../../tool-auth-shared-DmJqYRaL.js";
+import { s as resolveEffectiveXSearchConfig } from "../../x-search-shared-CY_pbvbF.js";
+import { i as wrapXaiProviderStream } from "../../stream-DaJo9aJo.js";
+import { t as buildXaiVideoGenerationProvider } from "../../video-generation-provider-C11fnQYb.js";
+import { n as createXaiWebSearchProvider } from "../../web-search-BW-cZmyj.js";
+import { n as createXSearchToolDefinition, t as buildMissingXSearchApiKeyPayload } from "../../x-search-tool-shared-DYRZooJs.js";
+import { Type } from "@sinclair/typebox";
 //#region extensions/xai/index.ts
 const PROVIDER_ID = "xai";
-function readConfiguredOrManagedApiKey(value) {
-	const literal = normalizeSecretInputString(value);
-	if (literal) return literal;
-	const ref = coerceSecretRef(value);
-	return ref ? resolveNonEnvSecretRefApiKeyMarker(ref.source) : void 0;
+function hasResolvableXaiApiKey(config) {
+	return Boolean(resolveFallbackXaiAuth(config)?.apiKey || readProviderEnvValue(["XAI_API_KEY"]));
 }
-function readLegacyGrokFallback(config) {
-	const tools = config.tools;
-	if (!tools || typeof tools !== "object") return;
-	const web = tools.web;
-	if (!web || typeof web !== "object") return;
-	const search = web.search;
-	if (!search || typeof search !== "object") return;
-	const grok = search.grok;
-	if (!grok || typeof grok !== "object") return;
-	const apiKey = readConfiguredOrManagedApiKey(grok.apiKey);
-	return apiKey ? {
-		apiKey,
-		source: "tools.web.search.grok.apiKey"
-	} : void 0;
+function isCodeExecutionEnabled(config) {
+	if (!config || typeof config !== "object") return hasResolvableXaiApiKey(config);
+	const entries = config.plugins;
+	const pluginEntries = entries && typeof entries === "object" ? entries.entries : void 0;
+	const xaiEntry = pluginEntries && typeof pluginEntries.xai === "object" ? pluginEntries.xai : void 0;
+	const pluginConfig = xaiEntry && typeof xaiEntry.config === "object" ? xaiEntry.config : void 0;
+	if ((pluginConfig && typeof pluginConfig.codeExecution === "object" ? pluginConfig.codeExecution : void 0)?.enabled === false) return false;
+	return hasResolvableXaiApiKey(config);
 }
-function resolveXaiProviderFallbackAuth(config) {
-	if (!config || typeof config !== "object") return;
-	const record = config;
-	const pluginApiKey = readConfiguredOrManagedApiKey(resolveProviderWebSearchPluginConfig(record, PROVIDER_ID)?.apiKey);
-	if (pluginApiKey) return {
-		apiKey: pluginApiKey,
-		source: "plugins.entries.xai.config.webSearch.apiKey"
+function isXSearchEnabled(config) {
+	if ((config && typeof config === "object" ? resolveEffectiveXSearchConfig(config) : void 0)?.enabled === false) return false;
+	return hasResolvableXaiApiKey(config);
+}
+function createLazyCodeExecutionTool(ctx) {
+	if (!isCodeExecutionEnabled(ctx.runtimeConfig ?? ctx.config)) return null;
+	return {
+		label: "Code Execution",
+		name: "code_execution",
+		description: "Run sandboxed Python analysis with xAI. Use for calculations, tabulation, summaries, and chart-style analysis without local machine access.",
+		parameters: Type.Object({ task: Type.String({ description: "The full analysis task for xAI's remote Python sandbox. Include any data to analyze directly in the task." }) }),
+		execute: async (toolCallId, args) => {
+			const { createCodeExecutionTool } = await import("./code-execution.js");
+			const tool = createCodeExecutionTool({
+				config: ctx.config,
+				runtimeConfig: ctx.runtimeConfig ?? null
+			});
+			if (!tool) return jsonResult({
+				error: "missing_xai_api_key",
+				message: "code_execution needs an xAI API key. Set XAI_API_KEY in the Gateway environment, or configure plugins.entries.xai.config.webSearch.apiKey.",
+				docs: "https://docs.openclaw.ai/tools/code-execution"
+			});
+			return await tool.execute(toolCallId, args);
+		}
 	};
-	return readLegacyGrokFallback(record);
+}
+function createLazyXSearchTool(ctx) {
+	if (!isXSearchEnabled(ctx.runtimeConfig ?? ctx.config)) return null;
+	return createXSearchToolDefinition(async (toolCallId, args) => {
+		const { createXSearchTool } = await import("./x-search.js");
+		const tool = createXSearchTool({
+			config: ctx.config,
+			runtimeConfig: ctx.runtimeConfig ?? null
+		});
+		if (!tool) return jsonResult(buildMissingXSearchApiKeyPayload());
+		return await tool.execute(toolCallId, args);
+	});
 }
 var xai_default = defineSingleProviderPluginEntry({
 	id: "xai",
@@ -67,21 +90,11 @@ var xai_default = defineSingleProviderPluginEntry({
 			wizard: { groupLabel: "xAI (Grok)" }
 		}],
 		catalog: { buildProvider: buildXaiProvider },
-		prepareExtraParams: (ctx) => {
-			if (ctx.extraParams?.tool_stream !== void 0) return ctx.extraParams;
-			return {
-				...ctx.extraParams,
-				tool_stream: true
-			};
-		},
-		wrapStreamFn: (ctx) => {
-			let streamFn = createXaiToolPayloadCompatibilityWrapper(ctx.streamFn);
-			if (typeof ctx.extraParams?.fastMode === "boolean") streamFn = createXaiFastModeWrapper(streamFn, ctx.extraParams.fastMode);
-			streamFn = createXaiToolCallArgumentDecodingWrapper(streamFn);
-			return createToolStreamWrapper(streamFn, ctx.extraParams?.tool_stream !== false);
-		},
+		...OPENAI_COMPATIBLE_REPLAY_HOOKS,
+		prepareExtraParams: (ctx) => defaultToolStreamExtraParams(ctx.extraParams),
+		wrapStreamFn: wrapXaiProviderStream,
 		resolveSyntheticAuth: ({ config }) => {
-			const fallbackAuth = resolveXaiProviderFallbackAuth(config);
+			const fallbackAuth = resolveFallbackXaiAuth(config);
 			if (!fallbackAuth) return;
 			return {
 				apiKey: fallbackAuth.apiKey,
@@ -99,7 +112,7 @@ var xai_default = defineSingleProviderPluginEntry({
 			modelId,
 			model
 		}) ? resolveXaiModelCompatPatch() : void 0,
-		normalizeModelId: ({ modelId }) => normalizeXaiModelId(modelId),
+		normalizeModelId: ({ modelId }) => normalizeNativeXaiModelId(modelId),
 		resolveDynamicModel: (ctx) => resolveXaiForwardCompatModel({
 			providerId: PROVIDER_ID,
 			ctx
@@ -108,14 +121,9 @@ var xai_default = defineSingleProviderPluginEntry({
 	},
 	register(api) {
 		api.registerWebSearchProvider(createXaiWebSearchProvider());
-		api.registerTool((ctx) => createCodeExecutionTool({
-			config: ctx.config,
-			runtimeConfig: ctx.runtimeConfig
-		}), { name: "code_execution" });
-		api.registerTool((ctx) => createXSearchTool({
-			config: ctx.config,
-			runtimeConfig: ctx.runtimeConfig
-		}), { name: "x_search" });
+		api.registerVideoGenerationProvider(buildXaiVideoGenerationProvider());
+		api.registerTool((ctx) => createLazyCodeExecutionTool(ctx), { name: "code_execution" });
+		api.registerTool((ctx) => createLazyXSearchTool(ctx), { name: "x_search" });
 	}
 });
 //#endregion

@@ -1,14 +1,7 @@
-import { type OpenClawConfig } from "../config/config.js";
-export type ModelInputType = "text" | "image" | "document";
-export type ModelCatalogEntry = {
-    id: string;
-    name: string;
-    provider: string;
-    contextWindow?: number;
-    reasoning?: boolean;
-    input?: ModelInputType[];
-};
-type PiSdkModule = typeof import("./pi-model-discovery.js");
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { ModelCatalogEntry } from "./model-catalog.types.js";
+export type { ModelCatalogEntry, ModelInputType } from "./model-catalog.types.js";
+type PiSdkModule = typeof import("./pi-model-discovery-runtime.js");
 export declare function resetModelCatalogCacheForTest(): void;
 export declare function __setModelCatalogImportForTest(loader?: () => Promise<PiSdkModule>): void;
 export declare function loadModelCatalog(params?: {
@@ -27,4 +20,3 @@ export declare function modelSupportsDocument(entry: ModelCatalogEntry | undefin
  * Find a model in the catalog by provider and model ID.
  */
 export declare function findModelInCatalog(catalog: ModelCatalogEntry[], provider: string, modelId: string): ModelCatalogEntry | undefined;
-export {};

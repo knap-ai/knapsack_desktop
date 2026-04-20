@@ -1,4 +1,4 @@
-import type { MessagingToolSend } from "../../agents/pi-embedded-runner.js";
+import type { MessagingToolSend } from "../../agents/pi-embedded-messaging.types.js";
 import type { ReplyPayload } from "../types.js";
 export declare function filterMessagingToolDuplicates(params: {
     payloads: ReplyPayload[];

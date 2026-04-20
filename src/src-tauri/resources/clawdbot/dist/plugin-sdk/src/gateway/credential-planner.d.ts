@@ -1,4 +1,5 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { normalizeOptionalString } from "../shared/string-coerce.js";
 export type GatewayCredentialInputPath = "gateway.auth.token" | "gateway.auth.password" | "gateway.remote.token" | "gateway.remote.password";
 export type GatewayConfiguredCredentialInput = {
     path: GatewayCredentialInputPath;
@@ -31,7 +32,7 @@ export type GatewayCredentialPlan = {
     remotePasswordActive: boolean;
 };
 type GatewaySecretDefaults = NonNullable<OpenClawConfig["secrets"]>["defaults"];
-export declare function trimToUndefined(value: unknown): string | undefined;
+export declare const trimToUndefined: typeof normalizeOptionalString;
 /**
  * Like trimToUndefined but also rejects unresolved env var placeholders (e.g. `${VAR}`).
  * This prevents literal placeholder strings like `${OPENCLAW_GATEWAY_TOKEN}` from being
@@ -40,8 +41,6 @@ export declare function trimToUndefined(value: unknown): string | undefined;
  * also be rejected, but this is an extremely unlikely edge case.
  */
 export declare function trimCredentialToUndefined(value: unknown): string | undefined;
-export declare function readGatewayTokenEnv(env?: NodeJS.ProcessEnv): string | undefined;
-export declare function readGatewayPasswordEnv(env?: NodeJS.ProcessEnv): string | undefined;
 export declare function hasGatewayTokenEnvCandidate(env?: NodeJS.ProcessEnv): boolean;
 export declare function hasGatewayPasswordEnvCandidate(env?: NodeJS.ProcessEnv): boolean;
 export declare function createGatewayCredentialPlan(params: {

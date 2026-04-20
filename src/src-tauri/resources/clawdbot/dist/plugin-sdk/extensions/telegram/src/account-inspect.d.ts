@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { TelegramAccountConfig } from "openclaw/plugin-sdk/telegram-core";
+import type { TelegramAccountConfig } from "openclaw/plugin-sdk/config-runtime";
 export type TelegramCredentialStatus = "available" | "configured_unavailable" | "missing";
 export type InspectedTelegramAccount = {
     accountId: string;

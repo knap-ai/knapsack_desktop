@@ -9,6 +9,8 @@ export declare function applyModelOverrideToSessionEntry(params: {
     selection: ModelOverrideSelection;
     profileOverride?: string;
     profileOverrideSource?: "auto" | "user";
+    selectionSource?: "auto" | "user";
+    markLiveSwitchPending?: boolean;
 }): {
     updated: boolean;
 };

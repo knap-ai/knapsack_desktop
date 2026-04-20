@@ -1,181 +1,16 @@
+import type { AgentHarness } from "../agents/harness/types.js";
 import type { AnyAgentTool } from "../agents/tools/common.js";
-import type { ChannelPlugin } from "../channels/plugins/types.js";
-import type { OperatorScope } from "../gateway/method-scopes.js";
-import type { GatewayRequestHandler, GatewayRequestHandlers } from "../gateway/server-methods/types.js";
+import type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
+import type { OperatorScope } from "../gateway/operator-scopes.js";
+import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import { registerInternalHook } from "../hooks/internal-hooks.js";
-import type { HookEntry } from "../hooks/types.js";
-import type { PluginActivationSource } from "./config-state.js";
-import type { PluginRuntime } from "./runtime/types.js";
-import type { CliBackendPlugin, ImageGenerationProviderPlugin, WebFetchProviderPlugin, OpenClawPluginApi, OpenClawPluginChannelRegistration, OpenClawPluginCliCommandDescriptor, OpenClawPluginCliRegistrar, OpenClawPluginCommandDefinition, PluginConversationBindingResolvedEvent, OpenClawPluginHttpRouteAuth, OpenClawPluginHttpRouteMatch, OpenClawPluginHttpRouteHandler, OpenClawPluginHookOptions, MediaUnderstandingProviderPlugin, ProviderPlugin, OpenClawPluginService, OpenClawPluginToolFactory, PluginConfigUiHint, PluginDiagnostic, PluginBundleFormat, PluginFormat, PluginLogger, PluginOrigin, PluginKind, PluginRegistrationMode, PluginHookName, PluginHookHandlerMap, PluginHookRegistration as TypedPluginHookRegistration, SpeechProviderPlugin, WebSearchProviderPlugin } from "./types.js";
-export type PluginToolRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    factory: OpenClawPluginToolFactory;
-    names: string[];
-    optional: boolean;
-    source: string;
-    rootDir?: string;
+import type { PluginDiagnostic } from "./manifest-types.js";
+import type { PluginHttpRouteRegistration as RegistryTypesPluginHttpRouteRegistration, PluginRecord, PluginRegistry, PluginRegistryParams, PluginTextTransformsRegistration } from "./registry-types.js";
+import type { CliBackendPlugin, ImageGenerationProviderPlugin, MusicGenerationProviderPlugin, OpenClawPluginApi, OpenClawPluginChannelRegistration, OpenClawPluginCliCommandDescriptor, OpenClawPluginCliRegistrar, OpenClawPluginCommandDefinition, OpenClawPluginGatewayRuntimeScopeSurface, OpenClawPluginHookOptions, OpenClawPluginNodeHostCommand, OpenClawPluginReloadRegistration, OpenClawPluginSecurityAuditCollector, MediaUnderstandingProviderPlugin, OpenClawPluginService, OpenClawPluginToolFactory, PluginHookHandlerMap, PluginHookName, PluginRegistrationMode, ProviderPlugin, RealtimeTranscriptionProviderPlugin, RealtimeVoiceProviderPlugin, SpeechProviderPlugin, VideoGenerationProviderPlugin, WebSearchProviderPlugin } from "./types.js";
+export type PluginHttpRouteRegistration = RegistryTypesPluginHttpRouteRegistration & {
+    gatewayRuntimeScopeSurface?: OpenClawPluginGatewayRuntimeScopeSurface;
 };
-export type PluginCliRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    register: OpenClawPluginCliRegistrar;
-    commands: string[];
-    descriptors: OpenClawPluginCliCommandDescriptor[];
-    source: string;
-    rootDir?: string;
-};
-export type PluginHttpRouteRegistration = {
-    pluginId?: string;
-    path: string;
-    handler: OpenClawPluginHttpRouteHandler;
-    auth: OpenClawPluginHttpRouteAuth;
-    match: OpenClawPluginHttpRouteMatch;
-    source?: string;
-};
-export type PluginChannelRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    plugin: ChannelPlugin;
-    source: string;
-    rootDir?: string;
-};
-export type PluginChannelSetupRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    plugin: ChannelPlugin;
-    source: string;
-    enabled: boolean;
-    rootDir?: string;
-};
-export type PluginProviderRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    provider: ProviderPlugin;
-    source: string;
-    rootDir?: string;
-};
-export type PluginCliBackendRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    backend: CliBackendPlugin;
-    source: string;
-    rootDir?: string;
-};
-type PluginOwnedProviderRegistration<T extends {
-    id: string;
-}> = {
-    pluginId: string;
-    pluginName?: string;
-    provider: T;
-    source: string;
-    rootDir?: string;
-};
-export type PluginSpeechProviderRegistration = PluginOwnedProviderRegistration<SpeechProviderPlugin>;
-export type PluginMediaUnderstandingProviderRegistration = PluginOwnedProviderRegistration<MediaUnderstandingProviderPlugin>;
-export type PluginImageGenerationProviderRegistration = PluginOwnedProviderRegistration<ImageGenerationProviderPlugin>;
-export type PluginWebFetchProviderRegistration = PluginOwnedProviderRegistration<WebFetchProviderPlugin>;
-export type PluginWebSearchProviderRegistration = PluginOwnedProviderRegistration<WebSearchProviderPlugin>;
-export type PluginHookRegistration = {
-    pluginId: string;
-    entry: HookEntry;
-    events: string[];
-    source: string;
-    rootDir?: string;
-};
-export type PluginServiceRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    service: OpenClawPluginService;
-    source: string;
-    rootDir?: string;
-};
-export type PluginCommandRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    command: OpenClawPluginCommandDefinition;
-    source: string;
-    rootDir?: string;
-};
-export type PluginConversationBindingResolvedHandlerRegistration = {
-    pluginId: string;
-    pluginName?: string;
-    pluginRoot?: string;
-    handler: (event: PluginConversationBindingResolvedEvent) => void | Promise<void>;
-    source: string;
-    rootDir?: string;
-};
-export type PluginRecord = {
-    id: string;
-    name: string;
-    version?: string;
-    description?: string;
-    format?: PluginFormat;
-    bundleFormat?: PluginBundleFormat;
-    bundleCapabilities?: string[];
-    kind?: PluginKind | PluginKind[];
-    source: string;
-    rootDir?: string;
-    origin: PluginOrigin;
-    workspaceDir?: string;
-    enabled: boolean;
-    explicitlyEnabled?: boolean;
-    activated?: boolean;
-    imported?: boolean;
-    activationSource?: PluginActivationSource;
-    activationReason?: string;
-    status: "loaded" | "disabled" | "error";
-    error?: string;
-    toolNames: string[];
-    hookNames: string[];
-    channelIds: string[];
-    cliBackendIds: string[];
-    providerIds: string[];
-    speechProviderIds: string[];
-    mediaUnderstandingProviderIds: string[];
-    imageGenerationProviderIds: string[];
-    webFetchProviderIds: string[];
-    webSearchProviderIds: string[];
-    gatewayMethods: string[];
-    cliCommands: string[];
-    services: string[];
-    commands: string[];
-    httpRoutes: number;
-    hookCount: number;
-    configSchema: boolean;
-    configUiHints?: Record<string, PluginConfigUiHint>;
-    configJsonSchema?: Record<string, unknown>;
-    memorySlotSelected?: boolean;
-};
-export type PluginRegistry = {
-    plugins: PluginRecord[];
-    tools: PluginToolRegistration[];
-    hooks: PluginHookRegistration[];
-    typedHooks: TypedPluginHookRegistration[];
-    channels: PluginChannelRegistration[];
-    channelSetups: PluginChannelSetupRegistration[];
-    providers: PluginProviderRegistration[];
-    cliBackends?: PluginCliBackendRegistration[];
-    speechProviders: PluginSpeechProviderRegistration[];
-    mediaUnderstandingProviders: PluginMediaUnderstandingProviderRegistration[];
-    imageGenerationProviders: PluginImageGenerationProviderRegistration[];
-    webFetchProviders: PluginWebFetchProviderRegistration[];
-    webSearchProviders: PluginWebSearchProviderRegistration[];
-    gatewayHandlers: GatewayRequestHandlers;
-    gatewayMethodScopes?: Partial<Record<string, OperatorScope>>;
-    httpRoutes: PluginHttpRouteRegistration[];
-    cliRegistrars: PluginCliRegistration[];
-    services: PluginServiceRegistration[];
-    commands: PluginCommandRegistration[];
-    conversationBindingResolvedHandlers: PluginConversationBindingResolvedHandlerRegistration[];
-    diagnostics: PluginDiagnostic[];
-};
-export type PluginRegistryParams = {
-    logger: PluginLogger;
-    coreGatewayHandlers?: GatewayRequestHandlers;
-    runtime: PluginRuntime;
-    activateGlobalSideEffects?: boolean;
-};
+export type { PluginChannelRegistration, PluginChannelSetupRegistration, PluginCliBackendRegistration, PluginCliRegistration, PluginCommandRegistration, PluginConversationBindingResolvedHandlerRegistration, PluginHookRegistration, PluginAgentHarnessRegistration, PluginMemoryEmbeddingProviderRegistration, PluginNodeHostCommandRegistration, PluginProviderRegistration, PluginRecord, PluginRegistry, PluginRegistryParams, PluginReloadRegistration, PluginSecurityAuditCollectorRegistration, PluginServiceRegistration, PluginTextTransformsRegistration, PluginToolRegistration, PluginSpeechProviderRegistration, PluginRealtimeTranscriptionProviderRegistration, PluginRealtimeVoiceProviderRegistration, PluginMediaUnderstandingProviderRegistration, PluginImageGenerationProviderRegistration, PluginVideoGenerationProviderRegistration, PluginMusicGenerationProviderRegistration, PluginWebFetchProviderRegistration, PluginWebSearchProviderRegistration, } from "./registry-types.js";
 type PluginTypedHookPolicy = {
     allowPromptInjection?: boolean;
 };
@@ -196,10 +31,16 @@ export declare function createPluginRegistry(registryParams: PluginRegistryParam
     }) => void;
     registerChannel: (record: PluginRecord, registration: OpenClawPluginChannelRegistration | ChannelPlugin, mode?: PluginRegistrationMode) => void;
     registerProvider: (record: PluginRecord, provider: ProviderPlugin) => void;
+    registerAgentHarness: (record: PluginRecord, harness: AgentHarness) => void;
     registerCliBackend: (record: PluginRecord, backend: CliBackendPlugin) => void;
+    registerTextTransforms: (record: PluginRecord, transforms: PluginTextTransformsRegistration["transforms"]) => void;
     registerSpeechProvider: (record: PluginRecord, provider: SpeechProviderPlugin) => void;
+    registerRealtimeTranscriptionProvider: (record: PluginRecord, provider: RealtimeTranscriptionProviderPlugin) => void;
+    registerRealtimeVoiceProvider: (record: PluginRecord, provider: RealtimeVoiceProviderPlugin) => void;
     registerMediaUnderstandingProvider: (record: PluginRecord, provider: MediaUnderstandingProviderPlugin) => void;
     registerImageGenerationProvider: (record: PluginRecord, provider: ImageGenerationProviderPlugin) => void;
+    registerVideoGenerationProvider: (record: PluginRecord, provider: VideoGenerationProviderPlugin) => void;
+    registerMusicGenerationProvider: (record: PluginRecord, provider: MusicGenerationProviderPlugin) => void;
     registerWebSearchProvider: (record: PluginRecord, provider: WebSearchProviderPlugin) => void;
     registerGatewayMethod: (record: PluginRecord, method: string, handler: GatewayRequestHandler, opts?: {
         scope?: OperatorScope;
@@ -208,6 +49,9 @@ export declare function createPluginRegistry(registryParams: PluginRegistryParam
         commands?: string[];
         descriptors?: OpenClawPluginCliCommandDescriptor[];
     }) => void;
+    registerReload: (record: PluginRecord, registration: OpenClawPluginReloadRegistration) => void;
+    registerNodeHostCommand: (record: PluginRecord, nodeCommand: OpenClawPluginNodeHostCommand) => void;
+    registerSecurityAuditCollector: (record: PluginRecord, collector: OpenClawPluginSecurityAuditCollector) => void;
     registerService: (record: PluginRecord, service: OpenClawPluginService) => void;
     registerCommand: (record: PluginRecord, command: OpenClawPluginCommandDefinition) => void;
     registerHook: (record: PluginRecord, events: string | string[], handler: Parameters<typeof registerInternalHook>[1], opts: OpenClawPluginHookOptions | undefined, config: OpenClawPluginApi["config"]) => void;
