@@ -3286,7 +3286,8 @@ pub async fn set_llm_keys(
 /// stay within NSIS file-count limits.  Extract it on first launch if needed.
 /// tar.exe (built into Windows 10 1803+ / Server 2019+) handles long paths
 /// reliably, unlike PowerShell's Compress-Archive which hits MAX_PATH=260.
-#[cfg(target_os = "windows")]
+/// No Windows-specific Rust APIs needed — tar_path.exists() is false on
+/// macOS/Linux so the function is a no-op on those platforms.
 fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
   let tar_path = resource_path(app_handle, "resources/clawdbot/node_modules.tar");
   if !tar_path.exists() {
@@ -3301,8 +3302,6 @@ fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
     return;
   }
   eprintln!("[clawd/service] Extracting node_modules.tar on first launch...");
-  use std::os::windows::process::CommandExt;
-  const CREATE_NO_WINDOW: u32 = 0x0800_0000;
   match std::process::Command::new("tar.exe")
     .args([
       "-xf",
@@ -3310,7 +3309,6 @@ fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
       "-C",
       clawdbot_dir.to_str().unwrap_or(""),
     ])
-    .creation_flags(CREATE_NO_WINDOW)
     .output()
   {
     Ok(out) if out.status.success() => {
@@ -3346,7 +3344,6 @@ async fn prepare_gateway_config(
   app_handle: &tauri::AppHandle,
   cfg: &SharedClawdbotConfig,
 ) -> Result<ServiceSetup, String> {
-  #[cfg(target_os = "windows")]
   extract_node_modules_if_needed(app_handle);
 
   let tokens = load_or_create_tokens(app_handle)?;
