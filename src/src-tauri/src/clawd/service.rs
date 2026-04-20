@@ -21,12 +21,89 @@ static GATEWAY_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32:
 static LAST_GATEWAY_SETUP: once_cell::sync::Lazy<std::sync::Mutex<Option<ServiceSetup>>> =
   once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
+/// On macOS the gateway runs as a LaunchAgent whose env vars are baked into the
+/// plist at enable-time.  When the user later changes an API key we must
+/// regenerate the plist before restarting so the new key reaches the gateway.
+/// We store (program_args, env) from the last plist write for exactly this.
+#[cfg(target_os = "macos")]
+static LAST_MACOS_PLIST_ARGS: once_cell::sync::Lazy<
+  std::sync::Mutex<Option<(Vec<String>, Vec<(String, String)>)>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
 #[cfg(target_os = "windows")]
 fn windows_log_path(stream: &str) -> PathBuf {
   let temp = std::env::temp_dir();
   match stream {
     "stdout" => temp.join("knapsack-clawdbot.out.log"),
     _ => temp.join("knapsack-clawdbot.err.log"),
+  }
+}
+
+/// Regenerate the macOS LaunchAgent plist with current in-process env var values
+/// and write it to `plist_path`.  Returns `true` if the plist was updated.
+///
+/// Called from `set_api_key` before restarting the gateway so that the new
+/// API key (e.g. `GEMINI_API_KEY`) is baked into the plist.  Without this,
+/// the gateway would restart with the stale plist that was written at enable-time.
+#[cfg(target_os = "macos")]
+fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool {
+  const LLM_ENV_KEYS: &[&str] = &[
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GROQ_API_KEY",
+    "OPENROUTER_API_KEY",
+    "OLLAMA_API_KEY",
+    "OLLAMA_HOST",
+    "KNAPSACK_ACTIVE_PROVIDER",
+    "KNAPSACK_GEMINI_MODEL",
+    "KNAPSACK_OPENAI_MODEL",
+    "KNAPSACK_ANTHROPIC_MODEL",
+    "KNAPSACK_GROQ_MODEL",
+    "KNAPSACK_OPENROUTER_MODEL",
+    "KNAPSACK_OLLAMA_MODEL",
+  ];
+
+  let saved = LAST_MACOS_PLIST_ARGS.lock().unwrap().clone();
+  let (prog_args, mut plist_env) = match saved {
+    Some(v) => v,
+    None => {
+      eprintln!("[clawd/service] regenerate_macos_plist: no saved plist args, skipping");
+      return false;
+    }
+  };
+
+  for key in LLM_ENV_KEYS {
+    match std::env::var(key) {
+      Ok(val) => {
+        let val = val.trim().to_string();
+        if val.is_empty() {
+          plist_env.retain(|(k, _)| k.as_str() != *key);
+        } else if let Some(entry) = plist_env.iter_mut().find(|(k, _)| k.as_str() == *key) {
+          entry.1 = val;
+        } else {
+          plist_env.push((key.to_string(), val));
+        }
+      }
+      Err(_) => {
+        plist_env.retain(|(k, _)| k.as_str() != *key);
+      }
+    }
+  }
+
+  let new_plist = generate_plist(&prog_args, &plist_env);
+  match fs::write(plist_path, &new_plist) {
+    Ok(_) => {
+      harden_file_permissions(plist_path);
+      eprintln!("[clawd/service] Regenerated plist with updated LLM keys at {}", plist_path.display());
+      *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((prog_args, plist_env));
+      true
+    }
+    Err(e) => {
+      eprintln!("[clawd/service] WARNING: Failed to regenerate plist: {}", e);
+      false
+    }
   }
 }
 
@@ -2550,15 +2627,11 @@ pub async fn set_api_key(
     // updates the default model but does NOT re-run provider discovery, so
     // the old provider (e.g. Ollama) stays in the catalog and the gateway
     // keeps routing requests through it.
-    //
-    // Kill the running gateway; the health-check will auto-restart it with
-    // the updated env vars and correct provider discovery.
     let switch_model = crate::clawd::gateway_client::resolve_default_model();
     eprintln!(
       "[clawd/service] Provider switch to '{}' (model: {}) — restarting gateway for provider re-discovery",
       provider, switch_model
     );
-    // Invalidate the cached WS connection first
     crate::clawd::gateway_client::invalidate();
     #[cfg(target_os = "windows")]
     {
@@ -2567,13 +2640,20 @@ pub async fn set_api_key(
     #[cfg(target_os = "macos")]
     {
       if let Ok(plist_path) = launch_agent_plist_path() {
-        if plist_path.exists() {
-          let uid = unsafe { libc::getuid() };
-          let domain = format!("gui/{}", uid);
-          let _ = std::process::Command::new("launchctl")
-            .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
-            .status();
-        }
+        regenerate_macos_plist_with_current_env(&plist_path);
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+          .status();
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+          .status();
+        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+        let _ = std::process::Command::new("launchctl")
+          .args(["kickstart", "-k", &service])
+          .status();
       }
     }
     return HttpResponse::Ok().json(SetApiKeyResponse {
@@ -2759,13 +2839,24 @@ pub async fn set_api_key(
   #[cfg(target_os = "macos")]
   {
     if let Ok(plist_path) = launch_agent_plist_path() {
-      if plist_path.exists() {
-        let uid = unsafe { libc::getuid() };
-        let domain = format!("gui/{}", uid);
-        let _ = std::process::Command::new("launchctl")
-          .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
-          .status();
-      }
+      // Regenerate the plist with the new key baked in, then do a full restart
+      // so the gateway picks up the updated env vars.  Just bootout + relying on
+      // the health-check is not enough because the health-check uses kickstart
+      // which re-uses the old (stale) plist.
+      regenerate_macos_plist_with_current_env(&plist_path);
+      let uid = unsafe { libc::getuid() };
+      let domain = format!("gui/{}", uid);
+      let _ = std::process::Command::new("launchctl")
+        .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+        .status();
+      std::thread::sleep(std::time::Duration::from_millis(500));
+      let _ = std::process::Command::new("launchctl")
+        .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+        .status();
+      let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+      let _ = std::process::Command::new("launchctl")
+        .args(["kickstart", "-k", &service])
+        .status();
     }
   }
 
@@ -5309,6 +5400,9 @@ pub async fn set_service_enabled(
           message: format!("Failed writing plist {}: {}", plist_path.display(), e),
         });
       }
+
+      // Save for plist regeneration when the API key changes later.
+      *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((program_args.clone(), env.clone()));
 
       // Run "openclaw doctor --fix" to auto-migrate config for the new
       // version (e.g. WhatsApp allowFrom validation, Telegram streaming rename).
