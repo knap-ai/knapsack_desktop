@@ -3282,50 +3282,6 @@ pub async fn set_llm_keys(
 
 // ── Shared gateway config setup (used by both macOS and Windows) ────────
 
-/// On Windows the NSIS installer bundles node_modules as a single tarball to
-/// stay within NSIS file-count limits.  Extract it on first launch if needed.
-/// tar.exe (built into Windows 10 1803+ / Server 2019+) handles long paths
-/// reliably, unlike PowerShell's Compress-Archive which hits MAX_PATH=260.
-/// No Windows-specific Rust APIs needed — tar_path.exists() is false on
-/// macOS/Linux so the function is a no-op on those platforms.
-fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
-  let tar_path = resource_path(app_handle, "resources/clawdbot/node_modules.tar");
-  if !tar_path.exists() {
-    return;
-  }
-  let clawdbot_dir = match tar_path.parent() {
-    Some(p) => p.to_path_buf(),
-    None => return,
-  };
-  let nm_path = clawdbot_dir.join("node_modules");
-  if nm_path.exists() {
-    return;
-  }
-  eprintln!("[clawd/service] Extracting node_modules.tar on first launch...");
-  match std::process::Command::new("tar.exe")
-    .args([
-      "-xf",
-      tar_path.to_str().unwrap_or(""),
-      "-C",
-      clawdbot_dir.to_str().unwrap_or(""),
-    ])
-    .output()
-  {
-    Ok(out) if out.status.success() => {
-      eprintln!("[clawd/service] node_modules extracted OK");
-    }
-    Ok(out) => {
-      eprintln!(
-        "[clawd/service] node_modules extraction failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-      );
-    }
-    Err(e) => {
-      eprintln!("[clawd/service] node_modules extraction error: {}", e);
-    }
-  }
-}
-
 #[derive(Clone)]
 struct ServiceSetup {
   node_path: PathBuf,
@@ -3344,8 +3300,6 @@ async fn prepare_gateway_config(
   app_handle: &tauri::AppHandle,
   cfg: &SharedClawdbotConfig,
 ) -> Result<ServiceSetup, String> {
-  extract_node_modules_if_needed(app_handle);
-
   let tokens = load_or_create_tokens(app_handle)?;
 
   fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {

@@ -76,9 +76,13 @@ jobs:
           $mb = [math]::Round((Get-Item $archive).Length / 1MB, 1)
           Write-Host "Created node_modules.tar ($mb MB); node_modules directory removed."
 
-      - name: Clean stale bundle artifacts and show disk space
+      - name: Diagnose clawdbot bundle + disk space
         shell: pwsh
         run: |
+          $clawdbot = "src\src-tauri\resources\clawdbot"
+          $count = (Get-ChildItem -Recurse -Force $clawdbot | Measure-Object).Count
+          Write-Host "clawdbot total items after pack: $count"
+          Get-ChildItem $clawdbot | Select-Object Name, Length | Format-Table
           if (Test-Path "src\src-tauri\target\release\bundle") {
             Remove-Item -Recurse -Force "src\src-tauri\target\release\bundle"
             Write-Host "Cleared stale bundle artifacts"
