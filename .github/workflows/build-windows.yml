@@ -55,6 +55,17 @@ jobs:
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
 
+      - name: Build frontend
+        # Must run BEFORE Pack (below) — the prebuild hook calls
+        # verify-clawdbot-bundle.cjs which requires node_modules to exist.
+        working-directory: src
+        run: npm run build
+        env:
+          VITE_KN_API_SERVER: https://api.knapsack.ai
+          MICROSOFT_CLIENT_ID: unused
+          VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
+          VITE_GOOGLE_DEVELOPER_KEY: ""
+
       - name: Pack node_modules into tar for WiX
         # Run from within the clawdbot dir so tar needs no path juggling.
         # WiX candle.exe chokes generating XML for ~13k node_modules files;
@@ -76,6 +87,18 @@ jobs:
           $mb = [math]::Round((Get-Item node_modules.tar).Length / 1MB, 1)
           $n  = (Get-ChildItem -Recurse . | Measure-Object).Count
           Write-Host "node_modules.tar: $mb MB. WiX will see $n files."
+
+      - name: Disable beforeBuildCommand in tauri.conf.json
+        # The frontend is already compiled above. Remove beforeBuildCommand so
+        # Tauri doesn't re-run npm run build — after Pack, node_modules is gone
+        # and the prebuild hook (verify-clawdbot-bundle.cjs) would fail.
+        shell: pwsh
+        run: |
+          $confPath = "src/src-tauri/tauri.conf.json"
+          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
+          $conf.build.PSObject.Properties.Remove('beforeBuildCommand')
+          $conf | ConvertTo-Json -Depth 20 | Set-Content $confPath -Encoding UTF8
+          Write-Host "Removed beforeBuildCommand from tauri.conf.json"
 
       - name: Clean stale bundle artifacts and show disk space
         shell: pwsh
@@ -112,19 +135,6 @@ jobs:
           $conf.tauri.bundle.windows | Add-Member -NotePropertyName "signCommand" -NotePropertyValue $signCommand -Force
           $conf | ConvertTo-Json -Depth 20 | Set-Content $confPath -Encoding UTF8
           Write-Host "Injected signCommand into tauri.conf.json for Tauri v1 code signing"
-
-      - name: Build frontend
-        working-directory: src
-        run: npm run build
-        env:
-          VITE_KN_API_SERVER: https://api.knapsack.ai
-          MICROSOFT_CLIENT_ID: unused
-          VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
-          VITE_GOOGLE_DEVELOPER_KEY: ""
-
-      - name: Verify Tauri CLI
-        working-directory: src
-        run: npx tauri --version
 
       - name: Build Tauri app
         working-directory: src
