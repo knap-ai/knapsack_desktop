@@ -288,7 +288,7 @@ jobs:
 
       - name: Build Tauri app
         working-directory: src
-        run: npx tauri build --bundle nsis
+        run: npx tauri build --bundles nsis
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
