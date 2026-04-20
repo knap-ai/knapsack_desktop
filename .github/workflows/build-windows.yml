@@ -143,7 +143,7 @@ jobs:
         # which handles the large clawdbot resource set without NSIS (32-bit) OOM.
         run: |
           $log = "$env:RUNNER_TEMP\tauri-build.log"
-          npx tauri build --bundles msi 2>&1 | Tee-Object -FilePath $log
+          npx tauri build --bundles msi --verbose 2>&1 | Tee-Object -FilePath $log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
@@ -154,6 +154,11 @@ jobs:
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: Show disk space after build
+        if: always()
+        shell: pwsh
+        run: Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk after build: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
 
       - name: Post build log to PR on failure
         if: failure() && github.event.pull_request.number != ''
