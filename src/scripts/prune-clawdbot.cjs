@@ -44,12 +44,13 @@ function rmDir(dir) {
 
 const nodeModules = path.join(CLAWDBOT_DIR, 'node_modules');
 const extensionsDir = path.join(CLAWDBOT_DIR, 'extensions');
+const distExtensionsDir = path.join(CLAWDBOT_DIR, 'dist', 'extensions');
 
 const beforeNM = getDirSizeMB(nodeModules);
 const beforeExt = getDirSizeMB(extensionsDir);
 console.log(`[prune-clawdbot] Pruning clawdbot bundle (node_modules: ${beforeNM} MB, extensions: ${beforeExt} MB)...`);
 
-// Step 1: Remove unused extensions
+// Step 1: Remove unused extensions (source and compiled dist)
 const UNUSED_EXTENSIONS = [
   'bluebubbles', 'copilot-proxy', 'feishu', 'google-antigravity-auth',
   'google-gemini-cli-auth', 'line', 'lobster', 'matrix', 'mattermost',
@@ -57,9 +58,10 @@ const UNUSED_EXTENSIONS = [
   'qwen-portal-auth', 'tlon', 'twitch', 'zalo', 'zalouser',
 ];
 
-console.log(`[prune-clawdbot] 1/3 Removing ${UNUSED_EXTENSIONS.length} unused extensions...`);
+console.log(`[prune-clawdbot] 1/5 Removing ${UNUSED_EXTENSIONS.length} unused extensions (source + dist)...`);
 for (const ext of UNUSED_EXTENSIONS) {
   rmDir(path.join(extensionsDir, ext));
+  rmDir(path.join(distExtensionsDir, ext));
 }
 
 // Step 2: Remove unused heavy packages
@@ -81,17 +83,34 @@ const UNUSED_PACKAGES = [
   // devDependencies — build tools and linters not needed at runtime
   'vite', 'unrun', '@rolldown', 'rolldown', 'rolldown-plugin-dts', 'tsdown',
   '@esbuild',
-  '@oxlint', '@oxlint-tsgolint', '@oxfmt',
+  '@oxlint', '@oxlint-tsgolint', '@oxfmt', 'oxfmt',
   '@typescript', // @typescript/native-preview — TS compiler preview, dev only
   'vitest', '@vitest', '@jscpd',
   'madge', 'precinct', 'filing-cabinet', 'dependency-tree',
-  '@lit', '@lit-labs', 'lit',
+  '@lit', '@lit-labs', 'lit', 'lit-html',
   // Type-only packages — not needed at runtime
   '@types', 'jsdom',
+  // Syntax highlighting — bundled inline in dist, not required at runtime
+  'reprism', 'shiki', '@shikijs',
+  // Web framework — not referenced in dist bundle
+  'hono',
+  // Build/transpile tools — transitive deps of removed packages
+  '@babel', 'css-tree', 'enhanced-resolve', 'postcss', 'ast-types',
+  // ESLint tooling — not needed at runtime
+  '@typescript-eslint',
+  // JSON schema tools — not referenced in dist bundle
+  'json-schema-to-ts',
+  // Vue.js — not referenced in dist bundle
+  '@vue',
+  // FFI library — not referenced in dist bundle
+  'koffi',
+  // Packages only used by removed extensions
+  'matrix-js-sdk', 'matrix-widget-api', '@matrix-org',
+  'nostr-tools', 'libsignal',
 ];
 
 let saved = 0;
-console.log(`[prune-clawdbot] 2/3 Removing ${UNUSED_PACKAGES.length} unused packages...`);
+console.log(`[prune-clawdbot] 2/5 Removing ${UNUSED_PACKAGES.length} unused packages...`);
 for (const pkg of UNUSED_PACKAGES) {
   const target = path.join(nodeModules, pkg);
   if (fs.existsSync(target)) {
@@ -118,8 +137,33 @@ if (fs.existsSync(binDir)) {
   } catch { /* skip */ }
 }
 
-// Step 3: Clean up .cache, docs, and source maps
-console.log('[prune-clawdbot] 3/3 Cleaning up ancillary files...');
+// Step 3: Remove specific build-artifact subdirectories from kept packages
+console.log('[prune-clawdbot] 3/5 Removing build-artifact subdirectories...');
+const SPECIFIC_DIRS_TO_REMOVE = [
+  // C source for libopus — 376 files, build-only, never executed at runtime
+  '@discordjs/opus/deps',
+  // CSS/SCSS themes — not needed for Node.js terminal output
+  'highlight.js/styles',
+  'highlight.js/scss',
+];
+for (const relDir of SPECIFIC_DIRS_TO_REMOVE) {
+  const target = path.join(nodeModules, relDir);
+  if (rmDir(target)) {
+    console.log(`[prune-clawdbot]     removed ${relDir}`);
+  }
+}
+
+// Step 4: Clean up .cache, docs, source maps, and other non-runtime files
+console.log('[prune-clawdbot] 4/5 Cleaning up ancillary files...');
+
+// Exact filenames (case-insensitive) that are legal/doc text, never needed at runtime
+const REMOVE_EXACT_NAMES = new Set([
+  'license', 'licence', 'notice', 'copying', 'authors',
+  'license.txt', 'licence.txt', 'notice.txt', 'copying.txt',
+  'license.md', 'licence.md',
+  '.gitattributes', '.npmignore', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
+  'binding.gyp',
+]);
 
 function walkAndRemove(dir, predicate) {
   if (!fs.existsSync(dir)) return;
@@ -140,15 +184,26 @@ function walkAndRemove(dir, predicate) {
   } catch { /* skip */ }
 }
 
-const REMOVE_DIRS = new Set(['.cache', 'docs', 'example', 'examples', 'test', 'tests', '__tests__', '__image_snapshots__']);
+const REMOVE_DIRS = new Set([
+  '.cache', 'docs', 'example', 'examples', 'test', 'tests', '__tests__',
+  '__image_snapshots__', 'benchmark', 'benchmarks', '.github',
+]);
 walkAndRemove(nodeModules, (name, isDir) => {
   if (isDir) return REMOVE_DIRS.has(name);
+  const lower = name.toLowerCase();
+  // Legal/doc files
+  if (REMOVE_EXACT_NAMES.has(lower)) return true;
+  // Changelog and similar (prefix match)
+  if (lower.startsWith('changelog') || lower.startsWith('changes')
+      || lower.startsWith('history') || lower.startsWith('authors')) return true;
   // Source maps, TypeScript source/declarations, and docs — never needed at JS runtime
   return name.endsWith('.map')
     || name.endsWith('.ts') || name.endsWith('.cts') || name.endsWith('.mts')
     || name.endsWith('.md') || name.endsWith('.MD');
 });
 
+// Step 5: Report results
+console.log('[prune-clawdbot] 5/5 Computing final sizes...');
 const afterNM = getDirSizeMB(nodeModules);
 const afterExt = getDirSizeMB(extensionsDir);
 const totalSaved = (beforeNM + beforeExt) - (afterNM + afterExt);
