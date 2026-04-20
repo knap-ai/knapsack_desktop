@@ -143,8 +143,10 @@ function walkAndRemove(dir, predicate) {
 const REMOVE_DIRS = new Set(['.cache', 'docs', 'example', 'examples', 'test', 'tests', '__tests__', '__image_snapshots__']);
 walkAndRemove(nodeModules, (name, isDir) => {
   if (isDir) return REMOVE_DIRS.has(name);
-  // Remove source maps, TypeScript declaration files (not needed at JS runtime)
-  return name.endsWith('.map') || name.endsWith('.d.ts') || name.endsWith('.d.cts') || name.endsWith('.d.mts');
+  // Source maps, TypeScript source/declarations, and docs — never needed at JS runtime
+  return name.endsWith('.map')
+    || name.endsWith('.ts') || name.endsWith('.cts') || name.endsWith('.mts')
+    || name.endsWith('.md') || name.endsWith('.MD');
 });
 
 const afterNM = getDirSizeMB(nodeModules);
