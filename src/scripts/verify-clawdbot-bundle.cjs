@@ -154,7 +154,6 @@ const CRITICAL_PACKAGES = [
   '@modelcontextprotocol/sdk',
   '@slack/bolt',
   '@slack/web-api',
-  'matrix-js-sdk',
   'file-type',
 ];
 
