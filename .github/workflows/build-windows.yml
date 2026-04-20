@@ -55,16 +55,14 @@ jobs:
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
 
-      - name: Clean Tauri NSIS cache and stale bundle artifacts
+      - name: Clean stale bundle artifacts and show disk space
+        shell: pwsh
         run: |
-          if (Test-Path "$env:LOCALAPPDATA\tauri\NSIS") {
-            Remove-Item -Recurse -Force "$env:LOCALAPPDATA\tauri\NSIS"
-            Write-Host "Cleared stale NSIS toolchain cache"
-          }
           if (Test-Path "src\src-tauri\target\release\bundle") {
             Remove-Item -Recurse -Force "src\src-tauri\target\release\bundle"
             Write-Host "Cleared stale bundle artifacts"
           }
+          Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
 
       - name: Install AzureSignTool
         if: env.AZURE_KEY_VAULT_URI != ''
