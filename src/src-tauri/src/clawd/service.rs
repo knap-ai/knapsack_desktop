@@ -1178,7 +1178,10 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   }
   if let Some(k) = &tokens.gemini_api_key {
     let k = k.trim();
-    if !k.is_empty() { std::env::set_var("GEMINI_API_KEY", k); }
+    if !k.is_empty() {
+      std::env::set_var("GEMINI_API_KEY", k);
+      std::env::set_var("GOOGLE_API_KEY", k);
+    }
   }
   // Propagate the active provider and model so the multi-provider
   // completion (meeting notes) can pick the right one.
@@ -2487,7 +2490,10 @@ pub async fn set_api_key(
     if let Some(p) = &tokens.active_provider { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
     if let Some(k) = &tokens.openai_api_key { std::env::set_var("OPENAI_API_KEY", k); }
     if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
-    if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
+    if let Some(k) = &tokens.gemini_api_key {
+      std::env::set_var("GEMINI_API_KEY", k);
+      std::env::set_var("GOOGLE_API_KEY", k);
+    }
     if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
     if let Some(k) = &tokens.openrouter_api_key {
       let k = k.trim();
@@ -2667,7 +2673,10 @@ pub async fn set_api_key(
   if let Some(k) = &tokens.groq_api_key { std::env::set_var("GROQ_API_KEY", k); }
   if let Some(k) = &tokens.openai_api_key { std::env::set_var("OPENAI_API_KEY", k); }
   if let Some(k) = &tokens.anthropic_api_key { std::env::set_var("ANTHROPIC_API_KEY", k); }
-  if let Some(k) = &tokens.gemini_api_key { std::env::set_var("GEMINI_API_KEY", k); }
+  if let Some(k) = &tokens.gemini_api_key {
+    std::env::set_var("GEMINI_API_KEY", k);
+    std::env::set_var("GOOGLE_API_KEY", k);
+  }
   if let Some(k) = &tokens.openrouter_api_key {
     let k = k.trim();
     if !k.is_empty() && validate_api_key_format(k).is_ok() {
@@ -4019,7 +4028,9 @@ async fn prepare_gateway_config(
     let k = k.trim().to_string();
     if !k.is_empty() {
       std::env::set_var("GEMINI_API_KEY", &k);
-      env.push(("GEMINI_API_KEY".to_string(), k));
+      std::env::set_var("GOOGLE_API_KEY", &k);
+      env.push(("GEMINI_API_KEY".to_string(), k.clone()));
+      env.push(("GOOGLE_API_KEY".to_string(), k));
     }
   }
   if tokens.ollama_enabled.unwrap_or(false) {
@@ -5202,7 +5213,9 @@ pub async fn set_service_enabled(
         let k = k.trim().to_string();
         if !k.is_empty() {
           std::env::set_var("GEMINI_API_KEY", &k);
-          env.push(("GEMINI_API_KEY".to_string(), k));
+          std::env::set_var("GOOGLE_API_KEY", &k);
+          env.push(("GEMINI_API_KEY".to_string(), k.clone()));
+          env.push(("GOOGLE_API_KEY".to_string(), k));
         }
       }
 
