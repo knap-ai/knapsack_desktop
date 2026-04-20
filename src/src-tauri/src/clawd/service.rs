@@ -3282,15 +3282,17 @@ pub async fn set_llm_keys(
 
 // ── Shared gateway config setup (used by both macOS and Windows) ────────
 
-/// On Windows the NSIS installer bundles node_modules as a single zip to stay
-/// within NSIS file-count limits.  Extract it on first launch if needed.
+/// On Windows the NSIS installer bundles node_modules as a single tarball to
+/// stay within NSIS file-count limits.  Extract it on first launch if needed.
+/// tar.exe (built into Windows 10 1803+ / Server 2019+) handles long paths
+/// reliably, unlike PowerShell's Compress-Archive which hits MAX_PATH=260.
 #[cfg(target_os = "windows")]
 fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
-  let zip_path = resource_path(app_handle, "resources/clawdbot/node_modules.zip");
-  if !zip_path.exists() {
+  let tar_path = resource_path(app_handle, "resources/clawdbot/node_modules.tar.gz");
+  if !tar_path.exists() {
     return;
   }
-  let clawdbot_dir = match zip_path.parent() {
+  let clawdbot_dir = match tar_path.parent() {
     Some(p) => p.to_path_buf(),
     None => return,
   };
@@ -3298,16 +3300,16 @@ fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
   if nm_path.exists() {
     return;
   }
-  eprintln!("[clawd/service] Extracting node_modules.zip on first launch...");
+  eprintln!("[clawd/service] Extracting node_modules.tar.gz on first launch...");
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-  let cmd = format!(
-    "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
-    zip_path.display(),
-    clawdbot_dir.display()
-  );
-  match std::process::Command::new("powershell.exe")
-    .args(["-NoProfile", "-NonInteractive", "-Command", &cmd])
+  match std::process::Command::new("tar.exe")
+    .args([
+      "-xzf",
+      tar_path.to_str().unwrap_or(""),
+      "-C",
+      clawdbot_dir.to_str().unwrap_or(""),
+    ])
     .creation_flags(CREATE_NO_WINDOW)
     .output()
   {
