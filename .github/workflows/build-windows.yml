@@ -55,38 +55,15 @@ jobs:
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
 
-      - name: Pack node_modules into tarball for NSIS
+      - name: Clean stale bundle artifacts and show disk space
         shell: pwsh
         run: |
-          # NSIS fails with ~13k individual node_modules files.
-          # Use tar.exe (built into Windows Server 2019+) to produce a single
-          # archive file instead. Uncompressed .tar — NSIS LZMA packs it better
-          # than double-compressing. The Rust service layer extracts on first launch.
-          $clawdbot = "src\src-tauri\resources\clawdbot"
-          $archive  = "$clawdbot\node_modules.tar"
-          Write-Host "Using tar: $((Get-Command tar).Source)"
-          Write-Host "Creating $archive ..."
-          $tarOut = tar -cf $archive -C $clawdbot node_modules 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "tar output: $tarOut"
-            Write-Error "tar failed (exit $LASTEXITCODE)"
-            exit 1
-          }
-          Remove-Item -Recurse -Force "$clawdbot\node_modules"
-          $mb = [math]::Round((Get-Item $archive).Length / 1MB, 1)
-          Write-Host "Created node_modules.tar ($mb MB); node_modules directory removed."
-
-      - name: Diagnose clawdbot bundle + disk space
-        shell: pwsh
-        run: |
-          $clawdbot = "src\src-tauri\resources\clawdbot"
-          $count = (Get-ChildItem -Recurse -Force $clawdbot | Measure-Object).Count
-          Write-Host "clawdbot total items after pack: $count"
-          Get-ChildItem $clawdbot | Select-Object Name, Length | Format-Table
           if (Test-Path "src\src-tauri\target\release\bundle") {
             Remove-Item -Recurse -Force "src\src-tauri\target\release\bundle"
             Write-Host "Cleared stale bundle artifacts"
           }
+          $count = (Get-ChildItem -Recurse -Force "src\src-tauri\resources\clawdbot" | Measure-Object).Count
+          Write-Host "clawdbot resource file count: $count"
           Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
 
       - name: Install AzureSignTool
@@ -118,7 +95,9 @@ jobs:
 
       - name: Build Tauri app
         working-directory: src
-        run: npx tauri build --bundles nsis
+        # Use WiX (MSI) bundler — its 64-bit light.exe linker handles the large
+        # clawdbot resource set without the OOM failures seen with NSIS (32-bit).
+        run: npx tauri build --bundles wix
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
