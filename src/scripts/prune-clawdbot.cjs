@@ -188,21 +188,41 @@ const REMOVE_DIRS = new Set([
   '.cache', 'docs', 'example', 'examples', 'test', 'tests', '__tests__',
   '__image_snapshots__', 'benchmark', 'benchmarks', '.github',
 ]);
-walkAndRemove(nodeModules, (name, isDir) => {
-  if (isDir) return REMOVE_DIRS.has(name);
-  const lower = name.toLowerCase();
-  // Legal/doc files
-  if (REMOVE_EXACT_NAMES.has(lower)) return true;
-  // Changelog and similar — only doc/text extensions, never runtime .js/.cjs/.mjs modules
-  const ext = lower.slice(lower.lastIndexOf('.'));
-  const isRuntimeModule = ext === '.js' || ext === '.cjs' || ext === '.mjs';
-  if (!isRuntimeModule && (lower.startsWith('changelog') || lower.startsWith('changes')
-      || lower.startsWith('history') || lower.startsWith('authors'))) return true;
-  // Source maps, TypeScript source/declarations, and docs — never needed at JS runtime
-  return name.endsWith('.map')
-    || name.endsWith('.ts') || name.endsWith('.cts') || name.endsWith('.mts')
-    || name.endsWith('.md') || name.endsWith('.MD');
-});
+function pruneArtifacts(dir) {
+  walkAndRemove(dir, (name, isDir) => {
+    if (isDir) return REMOVE_DIRS.has(name);
+    const lower = name.toLowerCase();
+    // Legal/doc files
+    if (REMOVE_EXACT_NAMES.has(lower)) return true;
+    // Changelog and similar — only doc/text extensions, never runtime .js/.cjs/.mjs modules
+    const ext = lower.slice(lower.lastIndexOf('.'));
+    const isRuntimeModule = ext === '.js' || ext === '.cjs' || ext === '.mjs';
+    if (!isRuntimeModule && (lower.startsWith('changelog') || lower.startsWith('changes')
+        || lower.startsWith('history') || lower.startsWith('authors'))) return true;
+    // Source maps, TypeScript source/declarations, and docs — never needed at JS runtime
+    return name.endsWith('.map')
+      || name.endsWith('.ts') || name.endsWith('.cts') || name.endsWith('.mts')
+      || name.endsWith('.md') || name.endsWith('.MD');
+  });
+}
+
+pruneArtifacts(nodeModules);
+
+// Also clean up extension-level node_modules (installed by install-bundled-plugin-deps.cjs).
+// These can contain test artifacts like __image_snapshots__ with deeply-nested paths that
+// exceed the Windows MAX_PATH limit and cause NSIS bundling to fail.
+if (fs.existsSync(distExtensionsDir)) {
+  try {
+    for (const extEntry of fs.readdirSync(distExtensionsDir, { withFileTypes: true })) {
+      if (!extEntry.isDirectory()) continue;
+      const extNodeModules = path.join(distExtensionsDir, extEntry.name, 'node_modules');
+      if (fs.existsSync(extNodeModules)) {
+        console.log(`[prune-clawdbot]     cleaning extension node_modules: ${extEntry.name}`);
+        pruneArtifacts(extNodeModules);
+      }
+    }
+  } catch { /* skip */ }
+}
 
 // Step 5: Report results
 console.log('[prune-clawdbot] 5/5 Computing final sizes...');

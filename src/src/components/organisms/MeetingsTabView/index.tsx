@@ -54,6 +54,7 @@ interface MeetingsTabViewProps {
   onBack?: () => void
   onChatClick?: () => void
   onEmailClick?: (notesMarkdown: string, meeting?: Meeting) => void
+  onAttendeeClick?: (email: string, name: string) => void
 }
 
 const MeetingsTabView = ({
@@ -67,6 +68,7 @@ const MeetingsTabView = ({
   onBack,
   onChatClick,
   onEmailClick,
+  onAttendeeClick,
 }: MeetingsTabViewProps) => {
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true')
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true')
@@ -379,6 +381,7 @@ const MeetingsTabView = ({
                       handleOpenInsights={handleOpenInsights}
                       onChatClick={onChatClick}
                       onEmailClick={onEmailClick}
+                      onAttendeeClick={onAttendeeClick}
                     />
                   ) : null
                 })()}
