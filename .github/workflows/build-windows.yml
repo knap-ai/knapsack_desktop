@@ -55,6 +55,19 @@ jobs:
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
 
+      - name: Pack node_modules into zip for NSIS
+        shell: pwsh
+        run: |
+          # NSIS fails or times out with ~13k individual node_modules files.
+          # Compress them into a single zip so NSIS sees 1 file instead.
+          # The Rust service layer extracts the zip on first launch.
+          $nm = "src\src-tauri\resources\clawdbot\node_modules"
+          Write-Host "Compressing $nm ..."
+          Compress-Archive -Path "$nm\*" -DestinationPath "src\src-tauri\resources\clawdbot\node_modules.zip" -CompressionLevel Fastest
+          Remove-Item -Recurse -Force $nm
+          $zipMB = [math]::Round((Get-Item "src\src-tauri\resources\clawdbot\node_modules.zip").Length / 1MB, 1)
+          Write-Host "Created node_modules.zip ($zipMB MB); node_modules directory removed."
+
       - name: Clean stale bundle artifacts and show disk space
         shell: pwsh
         run: |

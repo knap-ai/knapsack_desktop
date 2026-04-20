@@ -3282,6 +3282,50 @@ pub async fn set_llm_keys(
 
 // ── Shared gateway config setup (used by both macOS and Windows) ────────
 
+/// On Windows the NSIS installer bundles node_modules as a single zip to stay
+/// within NSIS file-count limits.  Extract it on first launch if needed.
+#[cfg(target_os = "windows")]
+fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
+  let zip_path = resource_path(app_handle, "resources/clawdbot/node_modules.zip");
+  if !zip_path.exists() {
+    return;
+  }
+  let clawdbot_dir = match zip_path.parent() {
+    Some(p) => p.to_path_buf(),
+    None => return,
+  };
+  let nm_path = clawdbot_dir.join("node_modules");
+  if nm_path.exists() {
+    return;
+  }
+  eprintln!("[clawd/service] Extracting node_modules.zip on first launch...");
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+  let cmd = format!(
+    "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
+    zip_path.display(),
+    clawdbot_dir.display()
+  );
+  match std::process::Command::new("powershell.exe")
+    .args(["-NoProfile", "-NonInteractive", "-Command", &cmd])
+    .creation_flags(CREATE_NO_WINDOW)
+    .output()
+  {
+    Ok(out) if out.status.success() => {
+      eprintln!("[clawd/service] node_modules extracted OK");
+    }
+    Ok(out) => {
+      eprintln!(
+        "[clawd/service] node_modules extraction failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+      );
+    }
+    Err(e) => {
+      eprintln!("[clawd/service] node_modules extraction error: {}", e);
+    }
+  }
+}
+
 #[derive(Clone)]
 struct ServiceSetup {
   node_path: PathBuf,
@@ -3300,6 +3344,9 @@ async fn prepare_gateway_config(
   app_handle: &tauri::AppHandle,
   cfg: &SharedClawdbotConfig,
 ) -> Result<ServiceSetup, String> {
+  #[cfg(target_os = "windows")]
+  extract_node_modules_if_needed(app_handle);
+
   let tokens = load_or_create_tokens(app_handle)?;
 
   fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
