@@ -56,18 +56,26 @@ jobs:
         run: node scripts/verify-clawdbot-bundle.cjs
 
       - name: Pack node_modules into tar for WiX
+        # Run from within the clawdbot dir so tar needs no path juggling.
+        # WiX candle.exe chokes generating XML for ~13k node_modules files;
+        # packing into one tar reduces the WiX input to ~3k files.
+        working-directory: src/src-tauri/resources/clawdbot
         shell: pwsh
         run: |
-          # WiX candle.exe chokes generating XML for ~13k node_modules files.
-          # Pack them into a single tar so WiX sees ~3k files instead of ~16k.
-          $clawdbot = "src\src-tauri\resources\clawdbot"
-          $archive  = "$clawdbot\node_modules.tar"
-          Write-Host "Packing node_modules ($($(Get-ChildItem -Recurse $clawdbot\node_modules | Measure-Object).Count) files) into tar..."
-          tar -cf $archive -C $clawdbot node_modules
-          if ($LASTEXITCODE -ne 0) { Write-Error "tar failed"; exit 1 }
-          Remove-Item -Recurse -Force "$clawdbot\node_modules"
-          $mb = [math]::Round((Get-Item $archive).Length / 1MB, 1)
-          Write-Host "node_modules.tar: $mb MB. WiX file count now: $($(Get-ChildItem -Recurse $clawdbot | Measure-Object).Count)"
+          if (-not (Test-Path "node_modules")) {
+            Write-Error "node_modules not found in clawdbot — was npm ci run?"
+            exit 1
+          }
+          Write-Host "Packing node_modules..."
+          tar -cf node_modules.tar node_modules
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "tar failed (exit $LASTEXITCODE)"
+            exit 1
+          }
+          Remove-Item -Recurse -Force node_modules
+          $mb = [math]::Round((Get-Item node_modules.tar).Length / 1MB, 1)
+          $n  = (Get-ChildItem -Recurse . | Measure-Object).Count
+          Write-Host "node_modules.tar: $mb MB. WiX will see $n files."
 
       - name: Clean stale bundle artifacts and show disk space
         shell: pwsh
@@ -107,9 +115,12 @@ jobs:
 
       - name: Build Tauri app
         working-directory: src
+        shell: pwsh
         # Use WiX (MSI) bundler — its 64-bit light.exe linker handles the large
         # clawdbot resource set without the OOM failures seen with NSIS (32-bit).
-        run: npx tauri build --bundles wix
+        run: |
+          npx tauri build --bundles wix 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\tauri-build.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
@@ -119,6 +130,14 @@ jobs:
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: Upload Tauri build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: tauri-build-log
+          path: ${{ runner.temp }}/tauri-build.log
+          if-no-files-found: ignore
 
       - name: Build web installer stub
         shell: pwsh
