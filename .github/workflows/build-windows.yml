@@ -119,8 +119,12 @@ jobs:
         # Use WiX (MSI) bundler — its 64-bit light.exe linker handles the large
         # clawdbot resource set without the OOM failures seen with NSIS (32-bit).
         run: |
-          npx tauri build --bundles wix 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\tauri-build.log"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $log = "$env:RUNNER_TEMP\tauri-build.log"
+          Start-Transcript -Path $log -NoClobber | Out-Null
+          npx tauri build --bundles wix
+          $ec = $LASTEXITCODE
+          Stop-Transcript | Out-Null
+          exit $ec
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
@@ -130,6 +134,24 @@ jobs:
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: Post build log to PR on failure
+        if: failure() && github.event.pull_request.number != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $pr   = "${{ github.event.pull_request.number }}"
+          $repo = "${{ github.repository }}"
+          $run  = "${{ github.run_id }}"
+          $log  = "$env:RUNNER_TEMP\tauri-build.log"
+          if (Test-Path $log) {
+            $tail = (Get-Content $log -Tail 100) -join "`n"
+            $body = "**[Windows CI] build-windows failed (run $run)**`n``````text`n$tail`n``````"
+          } else {
+            $body = "**[Windows CI] build-windows failed before Build step (run $run). No build log captured.**"
+          }
+          gh pr comment $pr --body $body --repo $repo
 
       - name: Upload Tauri build log on failure
         if: failure()
