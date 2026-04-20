@@ -898,6 +898,7 @@ type ChatInputBarProps = {
   onStopGeneration: () => void
   replyToMsg?: Msg | null
   onCancelReply?: () => void
+  initialValue?: string
 }
 
 // ── Memoized single-message renderer ──────────────────────────────────
@@ -1073,7 +1074,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     busy, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
-    replyToMsg, onCancelReply,
+    replyToMsg, onCancelReply, initialValue,
   } = props
   const [input, setInput] = useState('')
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
@@ -1086,6 +1087,13 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     const timer = setTimeout(() => textareaRef.current?.focus(), 100)
     return () => clearTimeout(timer)
   }, [])
+
+  useEffect(() => {
+    if (initialValue) {
+      setInput(initialValue)
+      setTimeout(() => textareaRef.current?.focus(), 150)
+    }
+  }, [initialValue])
 
   const handleSend = () => {
     const text = input.trim()
@@ -1422,9 +1430,11 @@ interface ClawdChatProps {
   onBusyChange?: (busy: boolean) => void
   /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
   openProviderPanel?: number
+  /** Pre-fills the chat input field when set. */
+  initialInput?: string
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -4804,6 +4814,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         onStopGeneration={stableStopGeneration}
         replyToMsg={replyToMsg}
         onCancelReply={() => setReplyToMsg(null)}
+        initialValue={initialInput}
       />
       </div>
       </div>{/* end ClawdChatContent */}

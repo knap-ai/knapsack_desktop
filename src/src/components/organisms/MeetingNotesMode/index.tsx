@@ -100,6 +100,7 @@ interface MeetingNotesModeProps {
   onChatClick?: () => void
   onEmailClick?: (notesMarkdown: string, meeting: Meeting | undefined) => void
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
+  onAttendeeClick?: (email: string, name: string) => void
 }
 
 const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
@@ -126,6 +127,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   onChatClick,
   onEmailClick,
   onLibraryWorkspaceOpen,
+  onAttendeeClick,
 }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
@@ -156,6 +158,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     'Transcript saved',
   ]
   const [isEditing, setIsEditing] = useState(true)
+  const [prepContent, setPrepContent] = useState('')
+  const [isPrepGenerating, setIsPrepGenerating] = useState(false)
 
   const templatePrompt: MeetingTemplatePrompt = useMemo(() => {
     if (thread.promptTemplate) {
@@ -742,6 +746,58 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     setIsEditing(!isEditing)
   }
 
+  const generatePrep = () => {
+    if (!meeting || isPrepGenerating) return
+    setIsPrepGenerating(true)
+    setPrepContent('')
+
+    const participantList = meeting.participants
+      .map(p => p.name ? `${p.name} (${p.email})` : p.email)
+      .join(', ')
+    const startTime = meeting.start
+      ? new Date(meeting.start * 1000).toLocaleString()
+      : 'unknown time'
+    const description = meeting.description
+      ? `\nAgenda/Description: ${meeting.description}`
+      : ''
+
+    const prompt = `You are a meeting preparation assistant. Generate a concise, practical meeting prep for the following meeting.
+
+Meeting: ${meeting.title || thread.subtitle}
+Time: ${startTime}
+Participants: ${participantList}${description}
+
+Provide exactly three short sections using these markdown headers:
+
+## Key Context
+(2-3 bullets on the likely purpose, relationship, and what each person is likely to want)
+
+## Topics to Cover
+(2-3 bullets on specific agenda items or discussion points)
+
+## Questions to Ask
+(2-3 sharp, specific questions to raise in this meeting)
+
+Be direct, specific, and concise. No filler text.`
+
+    addToLLMQueue({
+      prompt,
+      semanticSearchQuery: `meeting preparation ${meeting.title || thread.subtitle}`,
+      documents: [],
+      messageStreamCallback: (chunk) => {
+        setPrepContent(prev => prev + chunk)
+      },
+      messageFinishCallback: async (response) => {
+        setPrepContent(response)
+        setIsPrepGenerating(false)
+        return undefined
+      },
+      errorCallback: () => {
+        setIsPrepGenerating(false)
+      },
+    })
+  }
+
   return (
     <div className="notetaker-note">
       <div className="notetaker-note__container">
@@ -971,10 +1027,27 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         {!notesMarkdown.trim() &&
           !recordingHandlers.isRecording(thread.id) &&
           !isSynthesizing() &&
-          meeting &&
-          (getEventUrl(meeting) || (meeting.participants && meeting.participants.length > 0) || meeting.description) && (
+          meeting && (
             <div className="notetaker-note__prep">
-              <div className="notetaker-note__prep-header">Meeting Prep</div>
+              <div className="notetaker-note__prep-header-row">
+                <span className="notetaker-note__prep-header">Meeting Prep</span>
+                {!prepContent && (
+                  <button
+                    className="notetaker-note__prep-generate"
+                    onClick={generatePrep}
+                    disabled={isPrepGenerating}
+                  >
+                    {isPrepGenerating ? (
+                      <>
+                        <span className="notetaker-note__prep-spinner" />
+                        Generating...
+                      </>
+                    ) : 'Generate'}
+                  </button>
+                )}
+              </div>
+
+              {/* Static metadata rows */}
               {getEventUrl(meeting) && (
                 <div className="notetaker-note__prep-row">
                   <span className="notetaker-note__prep-label">Video</span>
@@ -1017,6 +1090,18 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
                           </button>
                         )
                       }
+                      if (onAttendeeClick) {
+                        return (
+                          <button
+                            key={i}
+                            className="notetaker-note__prep-chip notetaker-note__prep-chip--clickable"
+                            onClick={() => onAttendeeClick(p.email, label)}
+                            title={p.email}
+                          >
+                            {label}
+                          </button>
+                        )
+                      }
                       return (
                         <span key={i} className="notetaker-note__prep-chip">
                           {label}
@@ -1026,12 +1111,14 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
                   </div>
                 </div>
               )}
-              {meeting.description && (
-                <div className="notetaker-note__prep-row">
-                  <span className="notetaker-note__prep-label">Agenda</span>
-                  <span className="notetaker-note__prep-value notetaker-note__prep-value--description">
-                    {meeting.description}
-                  </span>
+
+              {/* AI-generated prep content */}
+              {prepContent && (
+                <div className="notetaker-note__prep-ai">
+                  <MarkdownDisplay
+                    markdown={prepContent}
+                    onChange={() => {}}
+                  />
                 </div>
               )}
             </div>

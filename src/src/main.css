@@ -528,6 +528,12 @@ html, body {
   gap: 10px;
 }
 
+.notetaker-note__prep-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .notetaker-note__prep-header {
   font-size: 11px;
   font-weight: 600;
@@ -535,6 +541,68 @@ html, body {
   text-transform: uppercase;
   color: #969595;
   font-family: 'Inter', sans-serif;
+}
+
+.notetaker-note__prep-generate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #D0CECC;
+  background: white;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6A6969;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.notetaker-note__prep-generate:hover:not(:disabled) {
+  background: #F0EFEF;
+  border-color: #ABA9A9;
+  color: #333333;
+}
+
+.notetaker-note__prep-generate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.notetaker-note__prep-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #ABA9A9;
+  border-top-color: #6474AC;
+  border-radius: 50%;
+  animation: prep-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes prep-spin {
+  to { transform: rotate(360deg); }
+}
+
+.notetaker-note__prep-ai {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #333333;
+}
+
+.notetaker-note__prep-ai p,
+.notetaker-note__prep-ai li {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.notetaker-note__prep-ai h2 {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333333;
+  margin-top: 10px;
+  margin-bottom: 4px;
 }
 
 .notetaker-note__prep-row {
@@ -603,4 +671,14 @@ html, body {
 
 .notetaker-note__prep-chip--linked:hover {
   background: #D5E3F7;
+}
+
+.notetaker-note__prep-chip--clickable {
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.notetaker-note__prep-chip--clickable:hover {
+  background: #D8D6FF;
+  color: #4A4A9A;
 }
