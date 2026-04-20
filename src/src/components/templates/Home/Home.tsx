@@ -100,6 +100,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
+  const [chatInitialInput, setChatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const isResizingRef = useRef(false)
 
@@ -641,6 +642,10 @@ function Home({
                     // Back from note view returns to sidebar
                   }}
                   onChatClick={() => setMeetingSubView('chat')}
+                  onAttendeeClick={(email, name) => {
+                    setChatInitialInput(`Tell me about ${name || email}`)
+                    setMeetingSubView('chat')
+                  }}
                   onEmailClick={(notesMarkdown, meeting) => {
                     const participants = meeting?.participants ?? []
                     const toEmails = participants
@@ -668,6 +673,7 @@ function Home({
                       userName={userName}
                       onBusyChange={setIsChatBusy}
                       openProviderPanel={openProviderPanelTrigger}
+                      initialInput={chatInitialInput}
                     />
                   </div>
                   {showActivityPanel && (
