@@ -139,11 +139,11 @@ jobs:
       - name: Build Tauri app
         working-directory: src
         shell: pwsh
-        # Use WiX (MSI) bundler — its 64-bit light.exe linker handles the large
-        # clawdbot resource set without the OOM failures seen with NSIS (32-bit).
+        # --bundles msi uses Tauri v1's WiX-based MSI bundler (64-bit light.exe),
+        # which handles the large clawdbot resource set without NSIS (32-bit) OOM.
         run: |
           $log = "$env:RUNNER_TEMP\tauri-build.log"
-          npx tauri build --bundles wix 2>&1 | Tee-Object -FilePath $log
+          npx tauri build --bundles msi 2>&1 | Tee-Object -FilePath $log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
