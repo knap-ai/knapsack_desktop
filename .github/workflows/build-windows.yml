@@ -59,16 +59,22 @@ jobs:
         shell: pwsh
         run: |
           # NSIS fails with ~13k individual node_modules files.
-          # Use tar.exe (built into Windows Server 2019+) — handles long paths
-          # reliably unlike Compress-Archive which hits MAX_PATH at 260 chars.
-          # The Rust service layer extracts the tarball on first launch.
+          # Use tar.exe (built into Windows Server 2019+) to produce a single
+          # archive file instead. Uncompressed .tar — NSIS LZMA packs it better
+          # than double-compressing. The Rust service layer extracts on first launch.
           $clawdbot = "src\src-tauri\resources\clawdbot"
-          Write-Host "Creating node_modules.tar.gz via tar.exe ..."
-          tar -czf "$clawdbot\node_modules.tar.gz" -C $clawdbot node_modules
-          if ($LASTEXITCODE -ne 0) { Write-Error "tar failed"; exit 1 }
+          $archive  = "$clawdbot\node_modules.tar"
+          Write-Host "Using tar: $((Get-Command tar).Source)"
+          Write-Host "Creating $archive ..."
+          $tarOut = tar -cf $archive -C $clawdbot node_modules 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "tar output: $tarOut"
+            Write-Error "tar failed (exit $LASTEXITCODE)"
+            exit 1
+          }
           Remove-Item -Recurse -Force "$clawdbot\node_modules"
-          $mb = [math]::Round((Get-Item "$clawdbot\node_modules.tar.gz").Length / 1MB, 1)
-          Write-Host "Created node_modules.tar.gz ($mb MB); node_modules directory removed."
+          $mb = [math]::Round((Get-Item $archive).Length / 1MB, 1)
+          Write-Host "Created node_modules.tar ($mb MB); node_modules directory removed."
 
       - name: Clean stale bundle artifacts and show disk space
         shell: pwsh

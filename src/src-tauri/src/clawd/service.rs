@@ -3288,7 +3288,7 @@ pub async fn set_llm_keys(
 /// reliably, unlike PowerShell's Compress-Archive which hits MAX_PATH=260.
 #[cfg(target_os = "windows")]
 fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
-  let tar_path = resource_path(app_handle, "resources/clawdbot/node_modules.tar.gz");
+  let tar_path = resource_path(app_handle, "resources/clawdbot/node_modules.tar");
   if !tar_path.exists() {
     return;
   }
@@ -3300,12 +3300,12 @@ fn extract_node_modules_if_needed(app_handle: &tauri::AppHandle) {
   if nm_path.exists() {
     return;
   }
-  eprintln!("[clawd/service] Extracting node_modules.tar.gz on first launch...");
+  eprintln!("[clawd/service] Extracting node_modules.tar on first launch...");
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x0800_0000;
   match std::process::Command::new("tar.exe")
     .args([
-      "-xzf",
+      "-xf",
       tar_path.to_str().unwrap_or(""),
       "-C",
       clawdbot_dir.to_str().unwrap_or(""),
