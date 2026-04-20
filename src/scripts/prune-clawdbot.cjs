@@ -194,9 +194,11 @@ function pruneArtifacts(dir) {
     const lower = name.toLowerCase();
     // Legal/doc files
     if (REMOVE_EXACT_NAMES.has(lower)) return true;
-    // Changelog and similar (prefix match)
-    if (lower.startsWith('changelog') || lower.startsWith('changes')
-        || lower.startsWith('history') || lower.startsWith('authors')) return true;
+    // Changelog and similar — only doc/text extensions, never runtime .js/.cjs/.mjs modules
+    const ext = lower.slice(lower.lastIndexOf('.'));
+    const isRuntimeModule = ext === '.js' || ext === '.cjs' || ext === '.mjs';
+    if (!isRuntimeModule && (lower.startsWith('changelog') || lower.startsWith('changes')
+        || lower.startsWith('history') || lower.startsWith('authors'))) return true;
     // Source maps, TypeScript source/declarations, and docs — never needed at JS runtime
     return name.endsWith('.map')
       || name.endsWith('.ts') || name.endsWith('.cts') || name.endsWith('.mts')
