@@ -86,6 +86,8 @@ const UNUSED_PACKAGES = [
   'vitest', '@vitest', '@jscpd',
   'madge', 'precinct', 'filing-cabinet', 'dependency-tree',
   '@lit', '@lit-labs', 'lit',
+  // Type-only packages — not needed at runtime
+  '@types', 'jsdom',
 ];
 
 let saved = 0;
@@ -141,7 +143,8 @@ function walkAndRemove(dir, predicate) {
 const REMOVE_DIRS = new Set(['.cache', 'docs', 'example', 'examples', 'test', 'tests', '__tests__', '__image_snapshots__']);
 walkAndRemove(nodeModules, (name, isDir) => {
   if (isDir) return REMOVE_DIRS.has(name);
-  return name.endsWith('.map');
+  // Remove source maps, TypeScript declaration files (not needed at JS runtime)
+  return name.endsWith('.map') || name.endsWith('.d.ts') || name.endsWith('.d.cts') || name.endsWith('.d.mts');
 });
 
 const afterNM = getDirSizeMB(nodeModules);
