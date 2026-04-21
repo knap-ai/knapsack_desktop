@@ -3955,11 +3955,24 @@ async fn prepare_gateway_config(
         }
 
         if patched {
-          match fs::write(&config_path, serde_json::to_string_pretty(&cfg_val).unwrap_or_default()) {
-            Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
-            Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
+          // Skip direct file write if the gateway is already running — it
+          // watches openclaw.json and treats any external write as a
+          // "Config overwrite / missing-meta-before-write" anomaly, triggering
+          // an unnecessary SIGUSR1 reload.  The config.patch RPC fired in
+          // connect_and_handshake (gateway_client.rs) pushes the same changes
+          // to the live gateway via RPC without touching the file.
+          if gateway_client::is_gateway_port_open().await {
+            eprintln!(
+              "[clawd/service] Config needs patching but gateway is live — \
+               skipping file write to avoid anomaly; config.patch RPC will apply changes"
+            );
+          } else {
+            match fs::write(&config_path, serde_json::to_string_pretty(&cfg_val).unwrap_or_default()) {
+              Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
+              Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
+            }
+            harden_file_permissions(&config_path);
           }
-          harden_file_permissions(&config_path);
         }
       }
     }
