@@ -221,6 +221,7 @@ fn create_calendar_event(event: Event) -> Result<(), Error> {
     google_meet_url,
     recurrence_json,
     recurrence_id,
+    calendar_account_email: String::new(),
   };
 
   calendar_event.create()
