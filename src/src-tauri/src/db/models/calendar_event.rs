@@ -21,6 +21,8 @@ pub struct CalendarEvent {
   pub google_meet_url: Option<String>,
   pub recurrence_json: Option<String>,
   pub recurrence_id: Option<String>,
+  /// The Google account email whose calendar this event was synced from.
+  pub calendar_account_email: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,27 +31,22 @@ struct Participant {
     name: String,
 }
 
+const SELECT_COLS: &str = "id, event_id, title, description, creator_email, \
+  attendees_json, location, start, end, google_meet_url, recurrence_json, \
+  recurrence_id, calendar_account_email";
+
 // table calendar_events
 impl CalendarEvent {
   pub fn find_by_id(id: u64) -> Result<Option<CalendarEvent>, Error> {
     let connection = get_db_conn();
-    let mut stmt = connection.prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE id = ?1")?;
+    let query = format!(
+      "SELECT {} FROM calendar_events WHERE id = ?1",
+      SELECT_COLS
+    );
+    let mut stmt = connection.prepare(&query)?;
     let calendar_event = stmt
       .query_row(params![id], |row| {
-        Ok(CalendarEvent {
-          id: Some(row.get(0)?),
-          event_id: row.get(1)?,
-          title: row.get(2)?,
-          description: row.get(3)?,
-          creator_email: row.get(4)?,
-          attendees_json: row.get(5)?,
-          location: row.get(6)?,
-          start: row.get(7)?,
-          end: row.get(8)?,
-          google_meet_url: row.get(9)?,
-          recurrence_json: row.get(10)?,
-          recurrence_id: row.get(11)?,
-        })
+        CalendarEvent::build_struct_from_row(row)
       })
       .optional()?;
 
@@ -70,6 +67,7 @@ impl CalendarEvent {
       google_meet_url: row.get(9)?,
       recurrence_json: row.get(10)?,
       recurrence_id: row.get(11)?,
+      calendar_account_email: row.get::<_, Option<String>>(12)?.unwrap_or_default(),
     })
   }
 
@@ -99,8 +97,8 @@ impl CalendarEvent {
     let connection = get_db_conn();
     let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
     let query = format!(
-      "SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE id IN ({})",
-      placeholders
+      "SELECT {} FROM calendar_events WHERE id IN ({})",
+      SELECT_COLS, placeholders
     );
     let mut stmt = connection.prepare(&query)?;
 
@@ -118,8 +116,12 @@ impl CalendarEvent {
 
   pub fn find_all() -> Vec<CalendarEvent> {
     let connection = get_db_conn();
+    let query = format!(
+      "SELECT {} FROM calendar_events ORDER BY start",
+      SELECT_COLS
+    );
     let mut stmt = connection
-      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events ORDER BY start")
+      .prepare(&query)
       .expect("could not prepare query get calendar events");
     let rows = stmt
       .query_map([], |row| CalendarEvent::build_struct_from_row(row))
@@ -137,8 +139,12 @@ impl CalendarEvent {
 
   pub fn find_by_timestamp_range(start: u64, end: u64) -> Vec<CalendarEvent> {
     let connection = get_db_conn();
+    let query = format!(
+      "SELECT {} FROM calendar_events WHERE start >= ?1 AND start <= ?2 ORDER BY start",
+      SELECT_COLS
+    );
     let mut stmt = connection
-      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE start >= ?1 AND start <= ?2 ORDER BY start")
+      .prepare(&query)
       .expect("could not prepare query get calendar events");
     let rows = stmt
       .query_map([start, end], |row| {
@@ -169,8 +175,18 @@ impl CalendarEvent {
     let connection = get_db_conn();
     let result = connection
       .execute(
-        "INSERT INTO calendar_events (id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT(event_id) DO UPDATE SET title = ?3, description = ?4, creator_email = ?5, attendees_json = ?6, location = ?7, start = ?8, end = ?9, google_meet_url = ?10",
-        (&self.id, &self.event_id, &self.title, &self.description, &self.creator_email, &self.attendees_json, &self.location, &self.start, &self.end, &self.google_meet_url, &self.recurrence_json, &self.recurrence_id),
+        "INSERT INTO calendar_events \
+          (id, event_id, title, description, creator_email, attendees_json, location, \
+           start, end, google_meet_url, recurrence_json, recurrence_id, calendar_account_email) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) \
+         ON CONFLICT(event_id, calendar_account_email) DO UPDATE SET \
+           title = ?3, description = ?4, creator_email = ?5, attendees_json = ?6, \
+           location = ?7, start = ?8, end = ?9, google_meet_url = ?10",
+        (
+          &self.id, &self.event_id, &self.title, &self.description, &self.creator_email,
+          &self.attendees_json, &self.location, &self.start, &self.end, &self.google_meet_url,
+          &self.recurrence_json, &self.recurrence_id, &self.calendar_account_email,
+        ),
       )
       .map_err(|e| e.into());
     match result {
@@ -183,9 +199,16 @@ impl CalendarEvent {
     let connection = get_db_conn();
     connection
       .execute(
-        "UPDATE calendar_events SET event_id = ?2, title = ?3, description = ?4, creator_email = ?5, attendees_json = ?6, location = ?7, start = ?8, end = ?9, google_meet_url = ?10, recurrence_json =11?, recurrence_id =12? WHERE id = ?1",
-        (&self.id, &self.event_id, &self.title, &self.description, &self.creator_email, &self.attendees_json, &self.location, &self.start, &self.end, &self.google_meet_url, &self.recurrence_json, &self.recurrence_id),
-        )
+        "UPDATE calendar_events SET event_id = ?2, title = ?3, description = ?4, \
+         creator_email = ?5, attendees_json = ?6, location = ?7, start = ?8, end = ?9, \
+         google_meet_url = ?10, recurrence_json = ?11, recurrence_id = ?12, \
+         calendar_account_email = ?13 WHERE id = ?1",
+        (
+          &self.id, &self.event_id, &self.title, &self.description, &self.creator_email,
+          &self.attendees_json, &self.location, &self.start, &self.end, &self.google_meet_url,
+          &self.recurrence_json, &self.recurrence_id, &self.calendar_account_email,
+        ),
+      )
       .expect("Could not update calendar event");
     Ok(())
   }
@@ -203,8 +226,12 @@ impl CalendarEvent {
     to_timestamp: i64,
   ) -> Result<Vec<CalendarEvent>, Error> {
     let connection = get_db_conn();
+    let query = format!(
+      "SELECT {} FROM calendar_events WHERE start >= ?1 and start <= ?2 ORDER BY start ASC",
+      SELECT_COLS
+    );
     let mut stmt = connection
-      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE start >= ?1 and start <= ?2  ORDER BY start ASC")
+      .prepare(&query)
       .map_err(|error| {
         log::error!("Failed to prepare calendar events query: {:?}", error);
         Error::KSError(format!(
@@ -236,86 +263,60 @@ impl CalendarEvent {
   }
 
   pub fn get_recent_calendar_events(limit: usize) -> Vec<CalendarEvent> {
-    // Opportunistically clean up stale events before querying
     let _ = Self::cleanup_stale_events();
     let connection = get_db_conn();
     let now_epoch = std::time::SystemTime::now()
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap()
       .as_secs() as i64;
+    let query = format!(
+      "SELECT {} FROM calendar_events WHERE start > ?1 ORDER BY start ASC LIMIT ?2",
+      SELECT_COLS
+    );
     let mut stmt = connection
-      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE start > ?1 ORDER BY start ASC LIMIT ?2")
+      .prepare(&query)
       .expect("could not prepare query emails");
     let rows = stmt
       .query_map(rusqlite::params![now_epoch, limit], |row| {
-        Ok((
-          row.get::<_, u64>(0),
-          row.get::<_, String>(1),
-          row.get::<_, Option<String>>(2),
-          row.get::<_, Option<String>>(3),
-          row.get::<_, Option<String>>(4),
-          row.get::<_, Option<String>>(5),
-          row.get::<_, Option<String>>(6),
-          row.get::<_, Option<i64>>(7),
-          row.get::<_, Option<i64>>(8),
-          row.get::<_, Option<String>>(9),
-          row.get::<_, Option<String>>(10),
-          row.get::<_, Option<String>>(11),
-        ))
+        CalendarEvent::build_struct_from_row(row)
       })
       .expect("could not execute query");
-    let mut calendar_events = Vec::new();
-    for row in rows {
-      let (
-        id,
-        event_id,
-        title,
-        description,
-        creator_email,
-        attendees_json,
-        location,
-        start,
-        end,
-        google_meet_url,
-        recurrence_json,
-        recurrence_id,
-      ) = row.unwrap();
-      calendar_events.push(CalendarEvent {
-        id: Some(id.unwrap()),
-        event_id: event_id.unwrap(),
-        title: title.unwrap(),
-        description: description.unwrap(),
-        creator_email: creator_email.unwrap(),
-        attendees_json: attendees_json.unwrap(),
-        location: location.unwrap(),
-        start: start.unwrap(),
-        end: end.unwrap(),
-        google_meet_url: google_meet_url.unwrap(),
-        recurrence_json: recurrence_json.unwrap(),
-        recurrence_id: recurrence_id.unwrap(),
-      });
-    }
-    return calendar_events;
+    rows.filter_map(Result::ok).collect()
   }
 
-  pub fn delete_calendar_events_removed(calendar_events: Vec<String>) -> Result<(), Error> {
-    if calendar_events.is_empty() {
+  /// Delete events for a specific calendar account that were not returned in the
+  /// latest sync. Events from other accounts are left untouched.
+  pub fn delete_calendar_events_removed(
+    event_ids: Vec<String>,
+    calendar_account_email: &str,
+  ) -> Result<(), Error> {
+    let connection = get_db_conn();
+
+    if event_ids.is_empty() {
+      // No events synced — remove all events for this account.
+      connection
+        .execute(
+          "DELETE FROM calendar_events WHERE calendar_account_email = ?1",
+          params![calendar_account_email],
+        )
+        .map_err(|e| {
+          log::error!("Failed to delete all events for account {}: {:?}", calendar_account_email, e);
+          Error::KSError(format!("Failed to delete calendar events: {:?}", e))
+        })?;
       return Ok(());
     }
 
-    let connection = get_db_conn();
-
-    let id_list = calendar_events
+    let id_list = event_ids
       .iter()
       .map(|id| format!("\"{}\"", id))
       .collect::<Vec<String>>()
       .join(",");
     let query = format!(
-      "DELETE FROM calendar_events WHERE event_id NOT IN ({})",
+      "DELETE FROM calendar_events WHERE calendar_account_email = ?1 AND event_id NOT IN ({})",
       id_list
     );
     connection
-      .execute(&query, [])
+      .execute(&query, params![calendar_account_email])
       .map_err(|e| {
         log::error!("Failed to batch delete removed calendar events: {:?}", e);
         Error::KSError(format!("Failed to delete removed calendar events: {:?}", e))
@@ -325,14 +326,13 @@ impl CalendarEvent {
   }
 
   /// Delete calendar events whose end time is more than 24 hours in the past.
-  /// This prevents stale events from accumulating and triggering repeat notifications.
   pub fn cleanup_stale_events() -> Result<usize, Error> {
     let connection = get_db_conn();
     let cutoff = std::time::SystemTime::now()
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap()
       .as_secs() as i64
-      - 86400; // 24 hours ago
+      - 86400;
     let deleted = connection
       .execute(
         "DELETE FROM calendar_events WHERE end IS NOT NULL AND end < ?1",
@@ -350,59 +350,18 @@ impl CalendarEvent {
 
   pub fn get_calendar_event_by_recurrence_id(recurrence_id: String) -> Vec<CalendarEvent> {
     let connection = get_db_conn();
+    let query = format!(
+      "SELECT {} FROM calendar_events WHERE recurrence_id = ?1",
+      SELECT_COLS
+    );
     let mut stmt = connection
-      .prepare("SELECT id, event_id, title, description, creator_email, attendees_json, location, start, end, google_meet_url, recurrence_json, recurrence_id FROM calendar_events WHERE recurrence_id = ?1")
+      .prepare(&query)
       .expect("could not prepare query emails");
     let rows = stmt
       .query_map([recurrence_id], |row| {
-        Ok((
-          row.get::<_, u64>(0),
-          row.get::<_, String>(1),
-          row.get::<_, Option<String>>(2),
-          row.get::<_, Option<String>>(3),
-          row.get::<_, Option<String>>(4),
-          row.get::<_, Option<String>>(5),
-          row.get::<_, Option<String>>(6),
-          row.get::<_, Option<i64>>(7),
-          row.get::<_, Option<i64>>(8),
-          row.get::<_, Option<String>>(9),
-          row.get::<_, Option<String>>(10),
-          row.get::<_, Option<String>>(11),
-        ))
+        CalendarEvent::build_struct_from_row(row)
       })
       .expect("could not execute query");
-
-    let mut calendar_events = Vec::new();
-    for row in rows {
-      let (
-        id,
-        event_id,
-        title,
-        description,
-        creator_email,
-        attendees_json,
-        location,
-        start,
-        end,
-        google_meet_url,
-        recurrence_json,
-        recurrence_id,
-      ) = row.unwrap();
-      calendar_events.push(CalendarEvent {
-        id: Some(id.unwrap()),
-        event_id: event_id.unwrap(),
-        title: title.unwrap(),
-        description: description.unwrap(),
-        creator_email: creator_email.unwrap(),
-        attendees_json: attendees_json.unwrap(),
-        location: location.unwrap(),
-        start: start.unwrap(),
-        end: end.unwrap(),
-        google_meet_url: google_meet_url.unwrap(),
-        recurrence_json: recurrence_json.unwrap(),
-        recurrence_id: recurrence_id.unwrap(),
-      });
-    }
-    return calendar_events;
+    rows.filter_map(Result::ok).collect()
   }
 }

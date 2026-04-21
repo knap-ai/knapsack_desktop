@@ -10,6 +10,23 @@ export class GoogleAuthError extends Error {
   }
 }
 
+// Module-level flag.  Set before opening the OAuth browser window so the
+// signin_success listener in App.tsx knows to treat this as an "add calendar"
+// flow rather than a primary login.
+let _pendingCalendarAddEmail: string | null = null
+
+/** Store the primary user email before triggering the add-calendar OAuth flow. */
+export const setPendingCalendarAddEmail = (email: string): void => {
+  _pendingCalendarAddEmail = email
+}
+
+/** Consume (read + clear) the pending calendar-add email. */
+export const consumePendingCalendarAddEmail = (): string | null => {
+  const email = _pendingCalendarAddEmail
+  _pendingCalendarAddEmail = null
+  return email
+}
+
 export const openGoogleAuthScreen = (scope: string) => {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
@@ -38,11 +55,8 @@ export const openGoogleAuthScreen = (scope: string) => {
   console.log('[Google OAuth] Opening URL:', fullUrl)
   console.log('[Google OAuth] redirect_uri:', KN_API_GOOGLE_SIGNIN_REDIRECT)
 
-  // window.open with _blank causes Tauri/WebView2 to route to the system browser,
-  // which avoids Google blocking OAuth inside embedded webviews.
   const popup = window.open(fullUrl, '_blank', 'noopener,noreferrer')
   if (!popup) {
-    // Fallback for environments where window.open is blocked
     try {
       open(fullUrl)
     } catch (error: any) {
@@ -54,4 +68,15 @@ export const openGoogleAuthScreen = (scope: string) => {
       throw error
     }
   }
+}
+
+/** Open the OAuth flow to add an additional Google Calendar account.
+ *  The resulting signin_success event will be handled as an add-calendar
+ *  flow (not a full re-login) because we store the primary email here. */
+export const openAddGoogleCalendarScreen = (
+  primaryEmail: string,
+  calendarScope: string,
+): void => {
+  setPendingCalendarAddEmail(primaryEmail)
+  openGoogleAuthScreen(calendarScope)
 }

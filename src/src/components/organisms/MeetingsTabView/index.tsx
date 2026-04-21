@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 
 import { IThread, ThreadType } from 'src/api/threads'
-import { Connection, ConnectionKeys } from 'src/api/connections'
+import { Connection, ConnectionKeys, hasGoogleCalendar } from 'src/api/connections'
 import { LLMParams } from 'src/App'
 import { IFeed } from 'src/hooks/feed/useFeed'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
@@ -330,7 +330,7 @@ const MeetingsTabView = ({
                   </button>
                 </div>
                 {/* Calendar connection prompt */}
-                {connections && !connections[ConnectionKeys.GOOGLE_CALENDAR] && !connections[ConnectionKeys.MICROSOFT_CALENDAR] && onConnectCalendar && (
+                {connections && !hasGoogleCalendar(connections) && !connections[ConnectionKeys.MICROSOFT_CALENDAR] && onConnectCalendar && (
                   <div className="MeetingsTabView__calendar-prompt MeetingsTabView__calendar-prompt--notetaker">
                     <div className="MeetingsTabView__calendar-prompt-content">
                       <img src={CalendarIcon} alt="Calendar" className="MeetingsTabView__calendar-prompt-icon" />

@@ -7,7 +7,7 @@ import {
   dateFormat,
   getConnections,
   getConnectionsStatus,
-  syncedMessage
+  syncedMessage,
 } from 'src/api/connections'
 
 import KNDateUtils from 'src/utils/KNDateUtils'
@@ -99,36 +99,38 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
   const fetchConnections = useCallback(
     async (email: string) => {
       const cloudConnections = await getConnections(email)
-      // const localConnections = await getLocalConnections()
       const updatedConnections: Record<string, Connection> = {}
-      for (const { id, key, state, lastSynced, syncedSince } of [
-        ...Object.values(cloudConnections),
-        // ...Object.values(localConnections),
-      ]) {
-        updatedConnections[key] =
-          connections[key]?.state === ConnectionStates.UP_TO_DATE ||
-          connections[key]?.state === ConnectionStates.SYNCING
-            ? connections[key]
-            : { id, key, state }
+
+      // cloudConnections is keyed by record key (scope, or scope|calEmail for
+      // calendar connections).  We must iterate by record key — not by the
+      // connection.key field — so multiple calendar accounts are preserved.
+      for (const [recordKey, connection] of Object.entries(cloudConnections)) {
+        const { id, key, state, lastSynced, syncedSince, calendarAccountEmail } = connection
+
+        updatedConnections[recordKey] =
+          connections[recordKey]?.state === ConnectionStates.UP_TO_DATE ||
+          connections[recordKey]?.state === ConnectionStates.SYNCING
+            ? connections[recordKey]
+            : { id, key, state, calendarAccountEmail }
 
         if (lastSynced != null) {
           if (typeof lastSynced === 'string') {
-            updatedConnections[key].lastSynced = lastSynced
+            updatedConnections[recordKey].lastSynced = lastSynced
           } else {
             let lastSyncedDate = lastSynced as Date
             let syncedSinceDate = syncedSince as Date
 
-            updatedConnections[key].lastSynced = syncedMessage[key as ConnectionKeys]
+            updatedConnections[recordKey].lastSynced = syncedMessage[key as ConnectionKeys]
             if (key !== ConnectionKeys.LOCAL_FILES) {
-              updatedConnections[key].lastSynced += KNDateUtils.formatDate(
+              updatedConnections[recordKey].lastSynced += KNDateUtils.formatDate(
                 syncedSinceDate ? syncedSinceDate : lastSyncedDate,
-                dateFormat[key as ConnectionKeys]
+                dateFormat[key as ConnectionKeys],
               )
             }
           }
         }
-
       }
+
       setConnections(updatedConnections)
       return updatedConnections
     },
@@ -145,22 +147,25 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
     if (syncingConnections.length) {
       interval = setInterval(async () => {
         const connectionsStatus = await getConnectionsStatus()
-        const finishedConnections = Object.entries(connectionsStatus)
-          .filter(([key, value]) => syncingConnections.includes(key) && !value)
-          .reduce(
-            (acc: Record<string, Connection>, [key]) => ({
-              ...acc,
-              [key]: {
-                ...connections[key],
-                state: ConnectionStates.UP_TO_DATE,
-              },
-            }),
-            {},
-          )
-        setConnections(prev => ({
-          ...prev,
-          ...finishedConnections,
-        }))
+        const finishedConnections: Record<string, Connection> = {}
+
+        for (const syncingKey of syncingConnections) {
+          // Calendar connections have keys like "google_calendar_read|email".
+          // The backend status is still keyed by the base scope.
+          const baseScope = syncingKey.split('|')[0]
+          const backendIsDone = connectionsStatus[baseScope] === false
+
+          if (backendIsDone) {
+            finishedConnections[syncingKey] = {
+              ...connections[syncingKey],
+              state: ConnectionStates.UP_TO_DATE,
+            }
+          }
+        }
+
+        if (Object.keys(finishedConnections).length > 0) {
+          setConnections(prev => ({ ...prev, ...finishedConnections }))
+        }
       }, 3000)
     }
     return () => {

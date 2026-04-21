@@ -6,7 +6,7 @@ import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
 import KNDateUtils from 'src/utils/KNDateUtils'
 import { ThreadType } from 'src/api/threads'
 import { getAppVersion } from 'src/utils/app'
-import { Connection, ConnectionKeys } from 'src/api/connections'
+import { Connection, ConnectionKeys, hasGoogleCalendar } from 'src/api/connections'
 import { TabChoices } from 'src/components/TabBar'
 import { listWorkspaces, Workspace } from 'src/api/workspaces'
 
@@ -58,7 +58,7 @@ function NotetakerSidebar({
   }, [])
 
   const hasCalendarConnected = useMemo(
-    () => !!(connections[ConnectionKeys.GOOGLE_CALENDAR] || connections[ConnectionKeys.MICROSOFT_CALENDAR]),
+    () => !!(hasGoogleCalendar(connections) || connections[ConnectionKeys.MICROSOFT_CALENDAR]),
     [connections],
   )
 

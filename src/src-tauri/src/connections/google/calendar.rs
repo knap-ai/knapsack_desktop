@@ -32,6 +32,9 @@ pub struct FetchGoogleCalendarResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FetchGoogleCalendarParams {
   email: String,
+  /// The Google account whose calendar to fetch.  Defaults to `email` when
+  /// omitted (single-account backwards compatibility).
+  calendar_account_email: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -42,32 +45,41 @@ pub struct FetchCalendarEventPayload {
 
 pub async fn fetch_calendar(
   email: String,
+  calendar_account_email: String,
   app_handle: tauri::AppHandle,
   connections_data: Arc<Mutex<ConnectionsData>>,
 ) -> Result<(), Error> {
-  let user_conn = match get_knapsack_api_connection(email.clone()) {
+  let _user_conn = match get_knapsack_api_connection(email.clone()) {
     Ok(connection) => connection,
-    Err(error) => {
+    Err(_error) => {
       return Err(Error::KSError("Fail to get user connection".to_string()));
     }
   };
 
-  let user_connection = match UserConnection::find_by_user_email_and_scope(
+  let user_connection = match UserConnection::find_by_user_email_scope_and_calendar_account(
     email.clone(),
     String::from(GOOGLE_CALENDAR_SCOPE),
+    calendar_account_email.clone(),
   ) {
     Ok(user_connection) => user_connection,
     Err(error) => {
-      let msg = format!("Failed to find user connection for user: {}", email);
+      let msg = format!(
+        "Failed to find calendar connection for user {} / calendar {}",
+        email, calendar_account_email
+      );
       knap_log_error(msg, Some(error), Some(true));
       return Err(Error::KSError("Fail to get user connection".to_string()));
     }
   };
+
   let access_token = match refresh_connection_token(email.clone(), user_connection.clone()).await {
     Ok(token) => token,
     Err(error) => {
       log::error!("Failed to refresh access token: {:?}", error);
-      let msg = format!("Failed to refresh access token in google calendar for user: {}", email);
+      let msg = format!(
+        "Failed to refresh access token for calendar {} (user {})",
+        calendar_account_email, email
+      );
       knap_log_error(msg, Some(error), None);
       return Err(Error::KSError("Fail to refresh access token".to_string()));
     }
@@ -89,23 +101,23 @@ pub async fn fetch_calendar(
   )
   .await;
 
+  let cal_email_clone = calendar_account_email.clone();
   tauri::async_runtime::spawn(async move {
     let hub = CalendarHub::new(
       get_https_client(),
       access_token,
     );
 
-    // NOTE: adding events from earlier than today for testing purposes.
-    // Can't hurt to store a few days' extra events.
     let two_weeks_ago = chrono::Utc::now() - chrono::Duration::days(16);
     let one_month_later = chrono::Utc::now() + chrono::Duration::days(31);
     let mut page_token: Option<String> = None;
 
     let mut event_ids_total: Vec<String> = Vec::new();
     loop {
+      // List events from the calendar identified by calendar_account_email.
       let mut request = hub
         .events()
-        .list(&email)
+        .list(&cal_email_clone)
         .single_events(true)
         .time_min(two_weeks_ago)
         .time_max(one_month_later)
@@ -189,6 +201,7 @@ pub async fn fetch_calendar(
               google_meet_url,
               recurrence_json,
               recurrence_id,
+              calendar_account_email: cal_email_clone.clone(),
             };
             if let Err(e) = calendar_event.create() {
               let msg = format!("Failed to create calendar event: {:?}", e);
@@ -203,8 +216,7 @@ pub async fn fetch_calendar(
         }
         Err(error) => {
           log::error!("Calendar sync failed {:?}", error.to_string());
-          let error_msg = format!("Fetch calendar failed: {:?}", error.to_string()
-          );
+          let error_msg = format!("Fetch calendar failed: {:?}", error.to_string());
           knap_log_error(error_msg, None, Some(true));
           ConnectionsData::lock_and_set_connection_is_syncing(
             connections_data.clone(),
@@ -217,7 +229,7 @@ pub async fn fetch_calendar(
       };
     }
     let event_count = event_ids_total.len();
-    CalendarEvent::delete_calendar_events_removed(event_ids_total);
+    CalendarEvent::delete_calendar_events_removed(event_ids_total, &cal_email_clone);
     ConnectionsData::lock_and_set_connection_is_syncing(
       connections_data,
       ConnectionsEnum::GoogleCalendar,
@@ -247,8 +259,16 @@ async fn fetch_google_calendar_api(
     actix_web::web::Query::<FetchGoogleCalendarParams>::from_query(req.query_string()).unwrap();
   let unwrapped_app_handle = app_handle.get_ref().clone();
   let unwrapped_connections_data = connections_data.get_ref().clone();
+
+  // Default calendar_account_email to the primary user email for compat.
+  let calendar_account_email = params
+    .calendar_account_email
+    .clone()
+    .unwrap_or_else(|| params.email.clone());
+
   match fetch_calendar(
     params.email.clone(),
+    calendar_account_email,
     unwrapped_app_handle,
     unwrapped_connections_data,
   )
@@ -259,8 +279,7 @@ async fn fetch_google_calendar_api(
     ),
     Err(error) => {
       log::error!("Fetch calendar failed: {:?}", error);
-      let error_msg = format!("Fetch calendar failed: {:?}", error
-      );
+      let error_msg = format!("Fetch calendar failed: {:?}", error);
       HttpResponse::BadRequest().json(
         FetchGoogleCalendarResponse { success: false, message: error_msg }
       )

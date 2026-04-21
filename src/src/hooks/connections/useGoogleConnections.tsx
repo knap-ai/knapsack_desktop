@@ -4,7 +4,8 @@ import {
   Connection,
   ConnectionKeys,
   ConnectionStates,
-  googleConnections,
+  calendarConnectionKey,
+  getGoogleCalendarConnections,
   isConnectionReadyToSync,
   syncGoogleCalendarAPI,
   syncGoogleDriveAPI,
@@ -22,7 +23,7 @@ export const useGoogleConnections = (
   const authFailureCounts = useRef<Record<string, number>>({})
 
   const handleSyncError = useCallback(
-    (error: unknown, connectionKey: ConnectionKeys) => {
+    (error: unknown, connectionKey: string) => {
       console.error(error)
       const err = error as Error
       if (err.message.includes('400')) {
@@ -30,10 +31,8 @@ export const useGoogleConnections = (
         authFailureCounts.current[connectionKey] = count
 
         if (count >= AUTH_FAILURE_THRESHOLD) {
-          // Only trigger reconnect after repeated auth failures
-          removeConnection?.(connectionKey)
+          removeConnection?.(connectionKey as ConnectionKeys)
         } else {
-          // First failure: mark as failed but don't trigger reconnect dialog
           setConnectionState?.(connectionKey, ConnectionStates.FAILED)
         }
         return
@@ -43,7 +42,7 @@ export const useGoogleConnections = (
     [setConnectionState, removeConnection],
   )
 
-  const resetAuthFailure = useCallback((connectionKey: ConnectionKeys) => {
+  const resetAuthFailure = useCallback((connectionKey: string) => {
     authFailureCounts.current[connectionKey] = 0
   }, [])
 
@@ -73,14 +72,16 @@ export const useGoogleConnections = (
     [setConnectionState, handleSyncError, resetAuthFailure],
   )
 
+  /** Sync a single Google Calendar account identified by calendarAccountEmail. */
   const syncGoogleCalendar = useCallback(
-    async (emailAddress: string) => {
-      setConnectionState?.(ConnectionKeys.GOOGLE_CALENDAR, ConnectionStates.SYNCING)
+    async (primaryEmail: string, calendarAccountEmail: string) => {
+      const recordKey = calendarConnectionKey(calendarAccountEmail)
+      setConnectionState?.(recordKey, ConnectionStates.SYNCING)
       try {
-        await syncGoogleCalendarAPI(emailAddress)
-        resetAuthFailure(ConnectionKeys.GOOGLE_CALENDAR)
+        await syncGoogleCalendarAPI(primaryEmail, calendarAccountEmail)
+        resetAuthFailure(recordKey)
       } catch (error) {
-        handleSyncError(error, ConnectionKeys.GOOGLE_CALENDAR)
+        handleSyncError(error, recordKey)
       }
     },
     [setConnectionState, handleSyncError, resetAuthFailure],
@@ -96,26 +97,32 @@ export const useGoogleConnections = (
         await syncGoogleGmail(email)
         return
       }
-      if (connectionKey === ConnectionKeys.GOOGLE_CALENDAR) {
-        await syncGoogleCalendar(email)
-        return
-      }
     },
-    [syncGoogleCalendar, syncGoogleDrive, syncGoogleGmail],
+    [syncGoogleDrive, syncGoogleGmail],
   )
 
   const syncConnections = useCallback(
     async (email: string, connections: Record<string, Connection>) => {
-      const promises = []
-      for (const connectionKey of Object.keys(googleConnections)) {
+      const promises: Promise<void>[] = []
+
+      // Sync Drive and Gmail using the base scope keys.
+      for (const connectionKey of [ConnectionKeys.GOOGLE_DRIVE, ConnectionKeys.GOOGLE_GMAIL]) {
         if (isConnectionReadyToSync(connections[connectionKey])) {
-          promises.push(syncByConnectionKey(email, connectionKey as ConnectionKeys))
+          promises.push(syncByConnectionKey(email, connectionKey))
         }
       }
+
+      // Sync every linked Google Calendar account independently.
+      for (const calConn of getGoogleCalendarConnections(connections)) {
+        if (isConnectionReadyToSync(calConn) && calConn.calendarAccountEmail) {
+          promises.push(syncGoogleCalendar(email, calConn.calendarAccountEmail))
+        }
+      }
+
       await Promise.all(promises)
     },
-    [syncByConnectionKey],
+    [syncByConnectionKey, syncGoogleCalendar],
   )
 
-  return { syncByConnectionKey, syncConnections }
+  return { syncByConnectionKey, syncConnections, syncGoogleCalendar }
 }

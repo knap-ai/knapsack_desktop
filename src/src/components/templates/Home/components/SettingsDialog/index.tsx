@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 
-import { Connection, ConnectionKeys, connectionsMap } from 'src/api/connections'
+import {
+  Connection,
+  ConnectionKeys,
+  connectionsMap,
+  getGoogleCalendarConnections,
+} from 'src/api/connections'
+import { openAddGoogleCalendarScreen } from 'src/utils/permissions/google'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { logError } from 'src/utils/errorHandling'
@@ -944,18 +950,21 @@ export const SettingsDialog = ({
           <Typography weight={TypographyWeight.medium}>Permissions</Typography>
 
           <div className="PermissionContent flex flex-col gap-2">
+            {/* Non-calendar connections */}
             {Object.values(connections)
-              .filter(item => connectionsKey.includes(item.key as ConnectionKeys))
+              .filter(
+                item =>
+                  connectionsKey.includes(item.key as ConnectionKeys) &&
+                  item.key !== ConnectionKeys.GOOGLE_CALENDAR &&
+                  item.key !== ConnectionKeys.MICROSOFT_CALENDAR,
+              )
               .map(item => (
                 <div
                   className="flex justify-between h-[36px] items-center"
                   key={`${item.key}-${item.id}`}
                 >
                   <Typography>
-                    {connectionsMap[item.key].label}
-                    {connectionsKey.includes(item.key as ConnectionKeys)
-                      ? `, ${email}`
-                      : ''}
+                    {connectionsMap[item.key]?.label ?? item.key}, {email}
                   </Typography>
                   <Typography
                     className={`cursor-pointer ${styles.link}`}
@@ -965,31 +974,86 @@ export const SettingsDialog = ({
                   </Typography>
                 </div>
               ))}
+
+            {/* Google Calendar — one row per linked account */}
+            {getGoogleCalendarConnections(connections).map(item => (
+              <div
+                className="flex justify-between h-[36px] items-center"
+                key={`cal-${item.id}-${item.calendarAccountEmail}`}
+              >
+                <Typography>
+                  Calendar, {item.calendarAccountEmail || email}
+                </Typography>
+                <Typography
+                  className={`cursor-pointer ${styles.link}`}
+                  onClick={() => handleDeleteConnection(item)}
+                >
+                  Remove
+                </Typography>
+              </div>
+            ))}
+
+            {/* Microsoft Calendar */}
+            {connections[ConnectionKeys.MICROSOFT_CALENDAR] && (
+              <div className="flex justify-between h-[36px] items-center">
+                <Typography>Outlook Calendar, {email}</Typography>
+                <Typography
+                  className={`cursor-pointer ${styles.link}`}
+                  onClick={() => handleDeleteConnection(connections[ConnectionKeys.MICROSOFT_CALENDAR])}
+                >
+                  Remove
+                </Typography>
+              </div>
+            )}
           </div>
         </div>
         <div className="AddAccountContainer p-6 pt-4 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Add an account</Typography>
           <div className="PermissionContent flex flex-col gap-2">
-            {
-              connectionsKey
-              .filter( ( key: ConnectionKeys ) =>
-                !Object.keys(connections).includes(key as ConnectionKeys)
-                && Object.keys(PERMISSION_NAME_LIST).includes(key as ConnectionKeys)
+            {/* Standard non-calendar permissions that aren't yet connected */}
+            {connectionsKey
+              .filter(
+                (key: ConnectionKeys) =>
+                  key !== ConnectionKeys.GOOGLE_CALENDAR &&
+                  key !== ConnectionKeys.MICROSOFT_CALENDAR &&
+                  !Object.keys(connections).includes(key as string) &&
+                  Object.keys(PERMISSION_NAME_LIST).includes(key as string),
               )
-              .map(( connectionKey: ConnectionKeys ) =>{
-                  return (
-                    <div key={connectionKey} className="flex justify-between h-[36px] items-center">
-                    <Typography>{ Object.keys(PERMISSION_NAME_LIST).includes(connectionKey) ? PERMISSION_NAME_LIST[connectionKey] : ""}</Typography>
-                    <Typography
-                      className={`cursor-pointer ${styles.link}`}
-                      onClick={() => onConnectAccountClick([connectionKey])}
-                    >
-                      Add
-                    </Typography>
-                  </div>
-                  )
-              })
-            }
+              .map((connectionKey: ConnectionKeys) => (
+                <div key={connectionKey} className="flex justify-between h-[36px] items-center">
+                  <Typography>
+                    {PERMISSION_NAME_LIST[connectionKey] ?? ''}
+                  </Typography>
+                  <Typography
+                    className={`cursor-pointer ${styles.link}`}
+                    onClick={() => onConnectAccountClick([connectionKey])}
+                  >
+                    Add
+                  </Typography>
+                </div>
+              ))}
+
+            {/* Add Google Calendar (always available for Google users) */}
+            {profile?.provider === ConnectionKeys.GOOGLE_PROFILE && (
+              <div className="flex justify-between h-[36px] items-center">
+                <Typography>Google Calendar</Typography>
+                <Typography
+                  className={`cursor-pointer ${styles.link}`}
+                  onClick={() => {
+                    if (email) {
+                      openAddGoogleCalendarScreen(
+                        email,
+                        'https://www.googleapis.com/auth/calendar.readonly',
+                      )
+                    }
+                  }}
+                >
+                  {getGoogleCalendarConnections(connections).length > 0
+                    ? 'Add another'
+                    : 'Add'}
+                </Typography>
+              </div>
+            )}
           </div>
         </div>
         <hr className="border-zinc-200" />

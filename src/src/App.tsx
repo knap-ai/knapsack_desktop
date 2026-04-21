@@ -48,6 +48,10 @@ import { BaseException } from './utils/exceptions/base'
 import KNAnalytics from './utils/KNAnalytics'
 import { KNLocalStorage, RECONNECT_DISMISSED_AT } from './utils/KNLocalStorage'
 import { isSharingEnabled } from './utils/settings'
+import {
+  consumePendingCalendarAddEmail,
+} from './utils/permissions/google'
+import { hasGoogleCalendar, getGoogleCalendarConnections } from 'src/api/connections'
 
 export type CreateAutomationProps = {
   uuid?: string
@@ -483,6 +487,30 @@ function App() {
         if (!hasOnboarded) {
           return
         }
+
+        // Check if this is an "add calendar" flow triggered from settings.
+        const pendingPrimaryEmail = consumePendingCalendarAddEmail()
+        if (pendingPrimaryEmail) {
+          getCompleteGoogleSignIn(
+            event.payload.code,
+            event.payload.raw_scopes,
+            pendingPrimaryEmail,
+          )
+            .then(() => {
+              // Refresh the connections list so the new calendar appears.
+              fetchConnections(pendingPrimaryEmail).then(updatedConnections => {
+                syncConnections(pendingPrimaryEmail, updatedConnections)
+              })
+            })
+            .catch(error => {
+              logError(new Error('Failed to add Google Calendar account'), {
+                additionalInfo: '',
+                error,
+              })
+            })
+          return
+        }
+
         getCompleteGoogleSignIn(event.payload.code, event.payload.raw_scopes)
           .then(async response => {
             auth.updateProfile({
@@ -553,7 +581,7 @@ function App() {
         if (event.payload.success) {
           KNAnalytics.trackEvent('CalendarSynced', {
             synced_events_count: event.payload.synced_events_count || 0,
-            source: connections[ConnectionKeys.GOOGLE_CALENDAR] ? 'google' : 'microsoft',
+            source: hasGoogleCalendar(connections) ? 'google' : 'microsoft',
             success: true,
           })
 
@@ -588,9 +616,16 @@ function App() {
           })
         }
 
+        // Build a sync-target map: all google calendar accounts + ms + gmail.
+        const calendarEntries = Object.fromEntries(
+          getGoogleCalendarConnections(connections).map(c => {
+            const k = `${ConnectionKeys.GOOGLE_CALENDAR}|${c.calendarAccountEmail}`
+            return [k, c]
+          }),
+        )
         const CalendarConnection = Object.fromEntries(
           Object.entries({
-            [ConnectionKeys.GOOGLE_CALENDAR]: connections[ConnectionKeys.GOOGLE_CALENDAR],
+            ...calendarEntries,
             [ConnectionKeys.MICROSOFT_CALENDAR]: connections[ConnectionKeys.MICROSOFT_CALENDAR],
             [ConnectionKeys.GOOGLE_GMAIL]: connections[ConnectionKeys.GOOGLE_GMAIL],
             [ConnectionKeys.MICROSOFT_OUTLOOK]: connections[ConnectionKeys.MICROSOFT_OUTLOOK],

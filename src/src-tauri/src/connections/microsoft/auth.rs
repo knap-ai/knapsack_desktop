@@ -319,6 +319,7 @@ pub async fn refresh_user_connection(user_connection: UserConnection, email: Str
     refresh_token: refresh_response.refresh_token,
     connection: user_connection.connection,
     last_synced: user_connection.last_synced,
+    calendar_account_email: user_connection.calendar_account_email,
   };
   updated_user_connection.clone().update();
 
@@ -383,6 +384,7 @@ pub fn create_user_connection(
     refresh_token: refresh_token,
     connection: Some(connection),
     last_synced: None,
+    calendar_account_email: String::new(),
   };
   user_connection.upsert()
 }
