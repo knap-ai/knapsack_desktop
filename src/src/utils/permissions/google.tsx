@@ -78,5 +78,8 @@ export const openAddGoogleCalendarScreen = (
   calendarScope: string,
 ): void => {
   setPendingCalendarAddEmail(primaryEmail)
-  openGoogleAuthScreen(calendarScope)
+  // userinfo.email is required so the backend can identify which Google account
+  // was just authorized and store it as the calendar_account_email.
+  const scopeWithEmail = `${calendarScope} https://www.googleapis.com/auth/userinfo.email`
+  openGoogleAuthScreen(scopeWithEmail)
 }
