@@ -157,7 +157,7 @@ jobs:
         run: bash scripts/recreate-updater-archive.sh
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: macos-artifacts
           path: |
@@ -332,7 +332,7 @@ jobs:
           Write-Host "Signed: Knapsack-web-setup.exe"
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: windows-artifacts
           path: |
@@ -355,7 +355,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           path: artifacts
 
