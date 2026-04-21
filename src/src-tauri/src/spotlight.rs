@@ -87,7 +87,7 @@ fn register_shortcut(app_handle: AppHandle<Wry>) {
 
 #[tauri::command]
 pub fn kn_show_app(app_handle: AppHandle<Wry>) {
-  if let Some(window) = app_handle.get_window("main_window") {
+  if let Some(window) = app_handle.get_window("main") {
     log::debug!("show_spotlight: 1");
     // panel!(app_handle).show();
     window.show().expect("Failed to show window");
@@ -97,7 +97,7 @@ pub fn kn_show_app(app_handle: AppHandle<Wry>) {
 
 #[tauri::command]
 pub fn kn_hide_app(app_handle: AppHandle<Wry>) {
-  if let Some(window) = app_handle.get_window("main_window") {
+  if let Some(window) = app_handle.get_window("main") {
     log::debug!("hide_spotlight: 1");
     // panel!(app_handle).order_out(None);
     window.hide().expect("Failed to hide window");

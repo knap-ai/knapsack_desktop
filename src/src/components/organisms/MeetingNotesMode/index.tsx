@@ -580,15 +580,20 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }
 
+  // Keep a ref so the listener below always calls the latest handleStopRecording
+  // without stale-closure issues (recordingHandlers changes each render when
+  // isRecordingStates updates, so capturing it in a [thread.id]-scoped effect
+  // means isRecording() always returned false and stop was silently skipped).
+  const handleStopRecordingRef = React.useRef(handleStopRecording)
+  handleStopRecordingRef.current = handleStopRecording
+
   useEffect(() => {
     const unlisten = listen('stop-recording-from-indicator', () => {
-      if (recordingHandlers.isRecording(thread.id)) {
-        handleStopRecording('Indicator')
-      }
+      handleStopRecordingRef.current('Indicator')
     })
     return () => { unlisten.then(fn => fn()) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thread.id])
+  }, [])
 
   const isSynthesizing = useCallback(() => {
     return recordingHandlers.isLoadingNotes(thread.id) || isLLMLoading
