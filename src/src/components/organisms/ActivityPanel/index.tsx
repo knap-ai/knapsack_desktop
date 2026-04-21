@@ -168,6 +168,35 @@ interface ActivityPanelProps {
   onClose?: () => void
 }
 
+// Combines /service/status and /service/health into one non-contradictory line.
+// The two endpoints measure different things: status checks the LaunchAgent plist
+// via launchctl; health probes the HTTP port. The gateway process can be running
+// (health OK) while the plist is missing (status: not installed), which is
+// confusing when displayed as two independent lines.
+function formatServiceStatus(
+  status: { running: boolean; installed?: boolean; label?: string },
+  health: { gateway_ok: boolean; browser_ok: boolean } | null
+): string {
+  const gw = health?.gateway_ok ?? false
+  const br = health?.browser_ok ?? false
+  const lines: string[] = []
+
+  lines.push(`Gateway: ${gw ? 'OK' : 'down'}  |  Browser: ${br ? 'OK' : 'down'}`)
+
+  if (status.running) {
+    lines.push(`LaunchAgent: registered${status.label ? ` (${status.label})` : ''}`)
+  } else if (gw) {
+    // Process is alive but not managed by launchctl — explain rather than contradict
+    lines.push(`LaunchAgent: not registered — gateway is running standalone (won't auto-restart on crash)`)
+  } else if (status.installed) {
+    lines.push(`LaunchAgent: installed but not running${status.label ? ` (${status.label})` : ''}`)
+  } else {
+    lines.push(`LaunchAgent: not installed`)
+  }
+
+  return lines.join('\n')
+}
+
 const ActivityPanel: React.FC<ActivityPanelProps> = ({ onClose }) => {
   const [activeSubTab, setActiveSubTab] = useState<ActivitySubTab>('terminal')
 
@@ -845,18 +874,12 @@ const TerminalView: React.FC = () => {
           fetch('http://127.0.0.1:8897/api/clawd/service/status').catch(() => null),
           fetch('http://127.0.0.1:8897/api/clawd/service/health').catch(() => null),
         ])
-        if (statusRes?.ok) {
-          const data = await statusRes.json()
-          const parts = [`Service: ${data.running ? 'running' : 'stopped'}`]
-          if (data.label) parts.push(`Label: ${data.label}`)
-          if (data.message) parts.push(data.message)
-          addLine('clawdbot', 'stdout', parts.join('\n'))
-        } else {
+        if (!statusRes?.ok) {
           addLine('clawdbot', 'stderr', 'Backend not reachable (is the app running?)')
-        }
-        if (healthRes?.ok) {
-          const data = await healthRes.json()
-          addLine('clawdbot', 'stdout', `Gateway: ${data.gateway_ok ? 'OK' : 'down'}  |  Browser: ${data.browser_ok ? 'OK' : 'down'}`)
+        } else {
+          const status = await statusRes.json()
+          const health = healthRes?.ok ? await healthRes.json() : null
+          addLine('clawdbot', 'stdout', formatServiceStatus(status, health))
         }
       } catch (err) {
         addLine('clawdbot', 'stderr', `Failed to fetch status: ${err}`)
@@ -1139,18 +1162,12 @@ const TerminalView: React.FC = () => {
             fetch('http://127.0.0.1:8897/api/clawd/service/status').catch(() => null),
             fetch('http://127.0.0.1:8897/api/clawd/service/health').catch(() => null),
           ])
-          if (statusRes?.ok) {
-            const data = await statusRes.json()
-            const parts = [`Service: ${data.running ? 'running' : 'stopped'}`]
-            if (data.label) parts.push(`Label: ${data.label}`)
-            if (data.message) parts.push(data.message)
-            addLine(sessionId, 'stdout', parts.join('\n'))
-          } else {
+          if (!statusRes?.ok) {
             addLine(sessionId, 'stderr', 'Backend not reachable')
-          }
-          if (healthRes?.ok) {
-            const data = await healthRes.json()
-            addLine(sessionId, 'stdout', `Gateway: ${data.gateway_ok ? 'OK' : 'down'}  |  Browser: ${data.browser_ok ? 'OK' : 'down'}`)
+          } else {
+            const status = await statusRes.json()
+            const health = healthRes?.ok ? await healthRes.json() : null
+            addLine(sessionId, 'stdout', formatServiceStatus(status, health))
           }
         } catch (err) {
           addLine(sessionId, 'stderr', `Failed: ${err}`)
