@@ -1610,6 +1610,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // The "browser not responding" banner is suppressed until this exceeds the threshold
   // (20 polls × 3 s ≈ 60 s) so we don't alarm users during normal browser startup.
   const [browserNotReadyPolls, setBrowserNotReadyPolls] = useState(0)
+  // The "gateway down" banner and header label are suppressed until this exceeds the
+  // threshold (2 polls × 3 s = 6 s) so brief 1-5s outages (gateway restart, sleep/wake)
+  // are silently absorbed without alarming the user.
+  const [gatewayDownPolls, setGatewayDownPolls] = useState(0)
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
   const [googleChatWebhook, setGoogleChatWebhook] = useState('')
   const [skills, setSkills] = useState<SkillInfo[]>([])
@@ -2986,6 +2990,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               consecutiveDownPolls = 0
               browserNotReadyCount = 0
               setBrowserNotReadyPolls(0)
+              setGatewayDownPolls(0)
               setTimeout(pollGateway, 5000)
             } else if (h.gateway_ok && !h.browser_ok) {
               // Gateway is up but browser is still starting or not reachable.
@@ -2994,6 +2999,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               consecutiveDownPolls++
               browserNotReadyCount++
               setBrowserNotReadyPolls(browserNotReadyCount)
+              setGatewayDownPolls(0)
               setTimeout(pollGateway, 3000)
             } else {
               // Gateway is down (reconnecting state).
@@ -3005,6 +3011,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               // inherit stale counts into the next startup cycle.
               browserNotReadyCount = 0
               setBrowserNotReadyPolls(0)
+              setGatewayDownPolls(consecutiveDownPolls)
 
               // Nudge the backend to restart the gateway if it stays down.
               if (wasHealthy && consecutiveDownPolls === 3) {
@@ -3026,6 +3033,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             // HTTP backend itself is unreachable — back off exponentially (1s→15s)
             // so we don't hammer it while it's starting up or restarting.
             consecutiveDownPolls++
+            setGatewayDownPolls(consecutiveDownPolls)
             // After 2 consecutive backend-unreachable errors, clear the stale health
             // state so the status bar doesn't show "Gateway: OK" from the last poll.
             if (consecutiveDownPolls >= 2) {
@@ -4229,8 +4237,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       const gwStarting = channelStatus.gatewayStarting
       // Extract a short diagnostic hint from the health message when gateway is down.
       // The full message (with stderr tail) is still available in the tooltip.
+      // Suppress header label changes and the banner during the grace period
+      // (2 polls × 3 s = 6 s) so brief restarts don't alarm the user.
+      const gwPastGrace = gatewayDownPolls >= 2
       let gwLabel = 'Gateway: OK'
-      if (!health.gateway_ok) {
+      if (!health.gateway_ok && gwPastGrace) {
         if (gwStarting) {
           gwLabel = 'Gateway: starting...'
         } else if (health.message?.includes('plist not found')) {
@@ -4241,16 +4252,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           gwLabel = 'Gateway: reconnecting...'
         }
       }
+      const gwOkForDisplay = health.gateway_ok || !gwPastGrace
+      const brOkForDisplay = health.browser_ok || !gwPastGrace
       parts.push(
-        <span key="gw" className={health.gateway_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
-          title={!health.gateway_ok && health.message ? health.message : undefined}>
+        <span key="gw" className={gwOkForDisplay ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
+          title={!health.gateway_ok && gwPastGrace && health.message ? health.message : undefined}>
           {gwLabel}
         </span>,
       )
       parts.push(
-        <span key="br" className={health.browser_ok ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
-          title={!health.browser_ok && health.message ? health.message : undefined}>
-          {health.browser_ok ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : health.gateway_ok ? 'Browser: starting...' : 'Browser: waiting for gateway'}
+        <span key="br" className={brOkForDisplay ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
+          title={!health.browser_ok && gwPastGrace && health.message ? health.message : undefined}>
+          {brOkForDisplay ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : health.gateway_ok ? 'Browser: starting...' : 'Browser: waiting for gateway'}
         </span>,
       )
     } else if (status?.running) {
@@ -4612,8 +4625,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             </div>
           </div>
         )}
-        {/* Gateway troubleshooting banner — shown when gateway is down and no longer in startup phase */}
-        {health && !health.gateway_ok && !channelStatus.gatewayStarting && (
+        {/* Gateway troubleshooting banner — shown only after grace period (2 polls × 3 s = 6 s)
+            so brief restarts and sleep/wake blips don't surface a scary error. */}
+        {health && !health.gateway_ok && gatewayDownPolls >= 2 && !channelStatus.gatewayStarting && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner">
               <p className="ClawdGatewayBannerTitle">Gateway connectivity issue</p>
