@@ -281,6 +281,7 @@ pub async fn get_or_create_drive_document_from_file(
   file: &File,
   temp_dir: &PathBuf,
   hub: &DriveHub<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+  account_email: &str,
 ) -> DriveDocument {
   let mime_type = file.mime_type.clone().unwrap();
   let drive_id = file.id.clone().unwrap();
@@ -317,6 +318,7 @@ pub async fn get_or_create_drive_document_from_file(
     url,
     timestamp: None,
     content_chunks: maybe_content,
+    account_email: account_email.to_string(),
   };
 
   let insert_result = drive_document.create();
@@ -331,6 +333,7 @@ pub async fn fetch_drive(
   access_token: String,
   _semantic_service: Arc<Mutex<Option<SemanticService>>>,
   user_connection: UserConnection,
+  account_email: String,
 ) -> Result<(), Error> {
   let mut maybe_next_page_token: Option<String> = None;
   let hub = DriveHub::new(
@@ -378,10 +381,11 @@ pub async fn fetch_drive(
       let temp_dir_clone = temp_dir.clone();
       let hub_clone = hub.clone();
       let drive_documents_clone = drive_documents.clone();
+      let account_email_clone = account_email.clone();
       let task = tauri::async_runtime::spawn(async move {
         let _permit = semaphore_clone.acquire().await.unwrap();
         let drive_document =
-          get_or_create_drive_document_from_file(&file, &temp_dir_clone, &hub_clone).await;
+          get_or_create_drive_document_from_file(&file, &temp_dir_clone, &hub_clone, &account_email_clone).await;
         drive_documents_clone.lock().await.push(drive_document);
       });
       tasks.push(task);
@@ -453,6 +457,7 @@ async fn start_drive_data_fetching(
     }
   };
 
+  let account_email = user_connection.calendar_account_email.clone();
   tauri::async_runtime::spawn(async move {
     if ConnectionsData::lock_and_get_connection_is_syncing(
       connections_data.clone(),
@@ -468,7 +473,7 @@ async fn start_drive_data_fetching(
       true,
     )
     .await;
-    let result = fetch_drive(access_token, semantic_service, user_connection.clone()).await;
+    let result = fetch_drive(access_token, semantic_service, user_connection.clone(), account_email).await;
     if let Err(error) = result {
       let msg = format!("Failed to fetch drive files: {}", email);
       knap_log_error(msg, Some(error), Some(true));
@@ -599,7 +604,7 @@ async fn fetch_google_drive_files(
   for file in data.files.iter() {
     let (_response, file) = hub.files().get(&file.id).doit().await.unwrap();
 
-    let drive_document = get_or_create_drive_document_from_file(&file, &temp_dir, &hub).await;
+    let drive_document = get_or_create_drive_document_from_file(&file, &temp_dir, &hub, &email).await;
     let document =
       create_drive_document(drive_document.id.unwrap(), drive_document.checksum.clone());
 

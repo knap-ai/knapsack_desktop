@@ -78,7 +78,7 @@ fn get_body_content(maybe_body: Option<MessagePartBody>) -> Option<String> {
   }
 }
 
-pub async fn upsert_email_by_uid(email_uid: &str, access_token: &str, flag_update: bool) -> Result<Email, Error> {
+pub async fn upsert_email_by_uid(email_uid: &str, access_token: &str, flag_update: bool, account_email: &str) -> Result<Email, Error> {
   let email_result = Email::find_by_uid(email_uid).ok().flatten();
   if let Some(email) = email_result {
     if email.thread_id.is_some() && !flag_update {
@@ -191,6 +191,7 @@ pub async fn upsert_email_by_uid(email_uid: &str, access_token: &str, flag_updat
     is_read: Some(is_read),
     is_archived: Some(is_archived),
     is_deleted: Some(false),
+    account_email: account_email.to_string(),
   };
   let email_message_creation_response = email_message.create();
   if let Err(error) = email_message_creation_response {
@@ -210,7 +211,7 @@ pub async fn embed_email(
   )?;
   let access_token = refresh_connection_token(email.clone().to_string(), user_connection.clone()).await?;
 
-  let email = upsert_email_by_uid(email_uid, &access_token, false).await?;
+  let email = upsert_email_by_uid(email_uid, &access_token, false, email).await?;
 
   let documents = email.get_documents();
 
@@ -228,6 +229,7 @@ pub async fn fetch_gmail(
   days: u16,
   embedding_priority: u16,
   flag_update: bool,
+  account_email: String,
 ) -> Result<(), Error> {
   let mut maybe_next_page_token: Option<String> = None;
   let mut all_email_uuids = Vec::new(); 
@@ -267,9 +269,10 @@ pub async fn fetch_gmail(
       let message_id = message.clone().id.unwrap();
       all_email_uuids.push(message_id.clone());
       let email_documents_clone = email_documents.clone();
+      let account_email_clone = account_email.clone();
       let task = tauri::async_runtime::spawn(async move {
         let _permit = semaphore_clone.acquire().await.unwrap();
-        let result = upsert_email_by_uid(&message_id, &access_token_clone, flag_update.clone()).await;
+        let result = upsert_email_by_uid(&message_id, &access_token_clone, flag_update.clone(), &account_email_clone).await;
         match result {
           Ok(email_message) => {
             if (older_date.timestamp() as u64 > email_message.clone().date) {
@@ -321,7 +324,7 @@ pub async fn fetch_gmail(
     }
   }
 
-  Email::mark_deleted_emails(&all_email_uuids, 3).await?;
+  Email::mark_deleted_emails(&all_email_uuids, 3, &account_email).await?;
 
   UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), older_date);
   Ok(())
@@ -359,6 +362,7 @@ async fn start_gmail_data_fetching(
     }
 
   };
+  let account_email = user_connection.calendar_account_email.clone();
   tauri::async_runtime::spawn(async move {
     if ConnectionsData::lock_and_get_connection_is_syncing(
       connections_data.clone(),
@@ -380,7 +384,8 @@ async fn start_gmail_data_fetching(
       semantic_service.clone(),
       3,
       3,
-      true
+      true,
+      account_email,
     )
     .await;
 

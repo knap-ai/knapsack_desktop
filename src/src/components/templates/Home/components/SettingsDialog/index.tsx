@@ -5,8 +5,14 @@ import {
   ConnectionKeys,
   connectionsMap,
   getGoogleCalendarConnections,
+  getGoogleDriveConnections,
+  getGoogleGmailConnections,
 } from 'src/api/connections'
-import { openAddGoogleCalendarScreen } from 'src/utils/permissions/google'
+import {
+  openAddGoogleCalendarScreen,
+  openAddGoogleDriveScreen,
+  openAddGoogleGmailScreen,
+} from 'src/utils/permissions/google'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { logError } from 'src/utils/errorHandling'
@@ -950,12 +956,14 @@ export const SettingsDialog = ({
           <Typography weight={TypographyWeight.medium}>Permissions</Typography>
 
           <div className="PermissionContent flex flex-col gap-2">
-            {/* Non-calendar connections */}
+            {/* Non-calendar, non-drive, non-gmail connections */}
             {Object.values(connections)
               .filter(
                 item =>
                   connectionsKey.includes(item.key as ConnectionKeys) &&
                   item.key !== ConnectionKeys.GOOGLE_CALENDAR &&
+                  item.key !== ConnectionKeys.GOOGLE_DRIVE &&
+                  item.key !== ConnectionKeys.GOOGLE_GMAIL &&
                   item.key !== ConnectionKeys.MICROSOFT_CALENDAR,
               )
               .map(item => (
@@ -974,6 +982,42 @@ export const SettingsDialog = ({
                   </Typography>
                 </div>
               ))}
+
+            {/* Google Drive — one row per linked account */}
+            {getGoogleDriveConnections(connections).map(item => (
+              <div
+                className="flex justify-between h-[36px] items-center"
+                key={`drive-${item.id}-${item.calendarAccountEmail}`}
+              >
+                <Typography>
+                  Drive, {item.calendarAccountEmail || email}
+                </Typography>
+                <Typography
+                  className={`cursor-pointer ${styles.link}`}
+                  onClick={() => handleDeleteConnection(item)}
+                >
+                  Remove
+                </Typography>
+              </div>
+            ))}
+
+            {/* Google Gmail — one row per linked account */}
+            {getGoogleGmailConnections(connections).map(item => (
+              <div
+                className="flex justify-between h-[36px] items-center"
+                key={`gmail-${item.id}-${item.calendarAccountEmail}`}
+              >
+                <Typography>
+                  Gmail, {item.calendarAccountEmail || email}
+                </Typography>
+                <Typography
+                  className={`cursor-pointer ${styles.link}`}
+                  onClick={() => handleDeleteConnection(item)}
+                >
+                  Remove
+                </Typography>
+              </div>
+            ))}
 
             {/* Google Calendar — one row per linked account */}
             {getGoogleCalendarConnections(connections).map(item => (
@@ -1010,13 +1054,15 @@ export const SettingsDialog = ({
         <div className="AddAccountContainer p-6 pt-4 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Add an account</Typography>
           <div className="PermissionContent flex flex-col gap-2">
-            {/* Standard non-calendar permissions that aren't yet connected */}
+            {/* Standard permissions that aren't multi-account and aren't yet connected */}
             {connectionsKey
               .filter(
                 (key: ConnectionKeys) =>
                   key !== ConnectionKeys.GOOGLE_CALENDAR &&
+                  key !== ConnectionKeys.GOOGLE_DRIVE &&
+                  key !== ConnectionKeys.GOOGLE_GMAIL &&
                   key !== ConnectionKeys.MICROSOFT_CALENDAR &&
-                  !Object.keys(connections).includes(key as string) &&
+                  !Object.keys(connections).some(k => k === key || k.startsWith(`${key}|`)) &&
                   Object.keys(PERMISSION_NAME_LIST).includes(key as string),
               )
               .map((connectionKey: ConnectionKeys) => (
@@ -1032,6 +1078,32 @@ export const SettingsDialog = ({
                   </Typography>
                 </div>
               ))}
+
+            {/* Add Google Drive (always available for Google users) */}
+            {profile?.provider === ConnectionKeys.GOOGLE_PROFILE && (
+              <div className="flex justify-between h-[36px] items-center">
+                <Typography>Google Drive</Typography>
+                <Typography
+                  className={`cursor-pointer ${styles.link}`}
+                  onClick={() => { if (email) openAddGoogleDriveScreen(email) }}
+                >
+                  {getGoogleDriveConnections(connections).length > 0 ? 'Add another' : 'Add'}
+                </Typography>
+              </div>
+            )}
+
+            {/* Add Gmail (always available for Google users) */}
+            {profile?.provider === ConnectionKeys.GOOGLE_PROFILE && (
+              <div className="flex justify-between h-[36px] items-center">
+                <Typography>Gmail</Typography>
+                <Typography
+                  className={`cursor-pointer ${styles.link}`}
+                  onClick={() => { if (email) openAddGoogleGmailScreen(email) }}
+                >
+                  {getGoogleGmailConnections(connections).length > 0 ? 'Add another' : 'Add'}
+                </Typography>
+              </div>
+            )}
 
             {/* Add Google Calendar (always available for Google users) */}
             {profile?.provider === ConnectionKeys.GOOGLE_PROFILE && (

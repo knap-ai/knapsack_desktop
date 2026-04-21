@@ -89,7 +89,7 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
     })
   }, [setConnections])
 
-  const { syncByConnectionKey, syncConnections: syncGoogleConnections } =
+  const { syncConnections: syncGoogleConnections } =
     useGoogleConnections(setConnectionState, removeConnection)
   const { syncConnections: syncLocalConnections, getLocalConnections } =
     useLocalConnections(setConnectionState)
@@ -200,13 +200,14 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
   )
 
   const syncGoogleConnectionsByKey = useCallback(
-    async (email: string, ConnectionKeys: ConnectionKeys[]) => {
-      for (const connectionKey of ConnectionKeys) {
-        setConnectionState(connectionKey, ConnectionStates.IDLE)
-        syncByConnectionKey(email, connectionKey as ConnectionKeys)
-      }
+    async (email: string, keys: ConnectionKeys[]) => {
+      const subset = Object.fromEntries(
+        keys.flatMap(k => Object.entries(connections).filter(([_, c]) => c.key === k))
+      )
+      setConnectionState(keys[0], ConnectionStates.IDLE)
+      syncGoogleConnections(email, subset)
     },
-    [setConnectionState, syncByConnectionKey],
+    [setConnectionState, syncGoogleConnections, connections],
   )
 
   const syncMicrosoftConnectionsByKey = useCallback(

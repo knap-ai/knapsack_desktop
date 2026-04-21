@@ -21,13 +21,14 @@ pub struct DriveDocument {
   pub url: String,
   pub timestamp: Option<u64>,
   pub content_chunks: Option<Vec<String>>,
+  pub account_email: String,
 }
 
 impl DriveDocument {
   pub fn find_by_id(id: u64) -> Result<Option<DriveDocument>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-      .prepare("SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp FROM drive_documents WHERE id = ?1")?;
+      .prepare("SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email FROM drive_documents WHERE id = ?1")?;
 
     let drive_document = stmt
       .query_row(params![id], |row| {
@@ -43,6 +44,7 @@ impl DriveDocument {
           url: row.get(8)?,
           timestamp: row.get(9)?,
           content_chunks: None,
+          account_email: row.get(10).unwrap_or_default(),
         })
       })
       .optional()?;
@@ -53,7 +55,7 @@ impl DriveDocument {
   pub fn find_by_drive_id(drive_id: &str) -> Result<Option<DriveDocument>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-      .prepare("SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp FROM drive_documents WHERE drive_id = ?1")?;
+      .prepare("SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email FROM drive_documents WHERE drive_id = ?1")?;
 
     let drive_document = stmt
       .query_row(params![drive_id], |row| {
@@ -69,6 +71,7 @@ impl DriveDocument {
           url: row.get(8)?,
           timestamp: row.get(9)?,
           content_chunks: None,
+          account_email: row.get(10).unwrap_or_default(),
         })
       })
       .optional()?;
@@ -85,7 +88,7 @@ impl DriveDocument {
     .collect::<Vec<_>>()
     .join(", ");
     let mut stmt = connection
-      .prepare(&format!("SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp FROM drive_documents WHERE drive_id IN ({})", 
+      .prepare(&format!("SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email FROM drive_documents WHERE drive_id IN ({})",
       formatted_ids))?;
 
     let rows = stmt
@@ -102,6 +105,7 @@ impl DriveDocument {
           url: row.get(8)?,
           timestamp: row.get(9)?,
           content_chunks: None,
+          account_email: row.get(10).unwrap_or_default(),
       })
     })?;
 
@@ -125,7 +129,7 @@ impl DriveDocument {
     let connection = get_db_conn();
     let result = connection
       .execute(
-        "INSERT INTO drive_documents (id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO drive_documents (id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, account_email) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         (
           &self.id,
           &self.drive_id,
@@ -136,6 +140,7 @@ impl DriveDocument {
           &self.summary,
           &self.checksum,
           &self.url,
+          &self.account_email,
         ),
       )
       .map_err(|e| e.into());

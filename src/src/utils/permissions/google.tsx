@@ -10,21 +10,37 @@ export class GoogleAuthError extends Error {
   }
 }
 
-// Module-level flag.  Set before opening the OAuth browser window so the
-// signin_success listener in App.tsx knows to treat this as an "add calendar"
-// flow rather than a primary login.
-let _pendingCalendarAddEmail: string | null = null
-
-/** Store the primary user email before triggering the add-calendar OAuth flow. */
-export const setPendingCalendarAddEmail = (email: string): void => {
-  _pendingCalendarAddEmail = email
+// Module-level pending-add-account state.  Set before opening the OAuth browser
+// window so the signin_success listener in App.tsx knows this is an
+// "add account" flow rather than a primary login.
+type PendingAddAccountFlow = {
+  primaryEmail: string
+  type: 'calendar' | 'drive' | 'gmail'
 }
 
-/** Consume (read + clear) the pending calendar-add email. */
+let _pendingAddAccountFlow: PendingAddAccountFlow | null = null
+
+/** Store the primary user email and connection type before triggering an add-account OAuth flow. */
+export const setPendingAddAccountFlow = (primaryEmail: string, type: 'calendar' | 'drive' | 'gmail'): void => {
+  _pendingAddAccountFlow = { primaryEmail, type }
+}
+
+/** Consume (read + clear) the pending add-account flow state. */
+export const consumePendingAddAccountFlow = (): PendingAddAccountFlow | null => {
+  const flow = _pendingAddAccountFlow
+  _pendingAddAccountFlow = null
+  return flow
+}
+
+/** @deprecated Use setPendingAddAccountFlow / consumePendingAddAccountFlow instead. */
+export const setPendingCalendarAddEmail = (email: string): void =>
+  setPendingAddAccountFlow(email, 'calendar')
+
+/** @deprecated Use consumePendingAddAccountFlow instead. */
 export const consumePendingCalendarAddEmail = (): string | null => {
-  const email = _pendingCalendarAddEmail
-  _pendingCalendarAddEmail = null
-  return email
+  const flow = consumePendingAddAccountFlow()
+  if (!flow || flow.type !== 'calendar') return null
+  return flow.primaryEmail
 }
 
 export const openGoogleAuthScreen = (scope: string) => {
@@ -70,16 +86,32 @@ export const openGoogleAuthScreen = (scope: string) => {
   }
 }
 
-/** Open the OAuth flow to add an additional Google Calendar account.
- *  The resulting signin_success event will be handled as an add-calendar
- *  flow (not a full re-login) because we store the primary email here. */
+/** Open the OAuth flow to add an additional Google Calendar account. */
 export const openAddGoogleCalendarScreen = (
   primaryEmail: string,
   calendarScope: string,
 ): void => {
-  setPendingCalendarAddEmail(primaryEmail)
+  setPendingAddAccountFlow(primaryEmail, 'calendar')
   // userinfo.email is required so the backend can identify which Google account
   // was just authorized and store it as the calendar_account_email.
   const scopeWithEmail = `${calendarScope} https://www.googleapis.com/auth/userinfo.email`
   openGoogleAuthScreen(scopeWithEmail)
+}
+
+/** Open the OAuth flow to add an additional Google Drive account. */
+export const openAddGoogleDriveScreen = (
+  primaryEmail: string,
+): void => {
+  setPendingAddAccountFlow(primaryEmail, 'drive')
+  const scope = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email'
+  openGoogleAuthScreen(scope)
+}
+
+/** Open the OAuth flow to add an additional Gmail account. */
+export const openAddGoogleGmailScreen = (
+  primaryEmail: string,
+): void => {
+  setPendingAddAccountFlow(primaryEmail, 'gmail')
+  const scope = 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/userinfo.email'
+  openGoogleAuthScreen(scope)
 }
