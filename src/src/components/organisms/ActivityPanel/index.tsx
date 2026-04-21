@@ -187,11 +187,11 @@ function formatServiceStatus(
     lines.push(`LaunchAgent: registered${status.label ? ` (${status.label})` : ''}`)
   } else if (gw) {
     // Process is alive but not managed by launchctl — explain rather than contradict
-    lines.push(`LaunchAgent: not registered — gateway is running standalone (won't auto-restart on crash)`)
+    lines.push(`LaunchAgent: not registered — gateway running standalone (won't auto-restart on crash)\nRun "enable" to register it properly.`)
   } else if (status.installed) {
-    lines.push(`LaunchAgent: installed but not running${status.label ? ` (${status.label})` : ''}`)
+    lines.push(`LaunchAgent: installed but not running${status.label ? ` (${status.label})` : ''}\nRun "enable" to start it.`)
   } else {
-    lines.push(`LaunchAgent: not installed`)
+    lines.push(`LaunchAgent: not installed\nRun "enable" to install and start the gateway.`)
   }
 
   return lines.join('\n')
@@ -884,7 +884,7 @@ const TerminalView: React.FC = () => {
       } catch (err) {
         addLine('clawdbot', 'stderr', `Failed to fetch status: ${err}`)
       }
-      addLine('clawdbot', 'system', 'Commands: "status", "logs" (stream live), "skills list", "claude <prompt>" (run Claude Code)')
+      addLine('clawdbot', 'system', 'Commands: "status", "enable", "disable", "logs" (stream live), "skills list", "claude <prompt>" (run Claude Code)')
     }
     fetchStatus()
   }, [sessions, addLine])
@@ -1168,6 +1168,41 @@ const TerminalView: React.FC = () => {
             const status = await statusRes.json()
             const health = healthRes?.ok ? await healthRes.json() : null
             addLine(sessionId, 'stdout', formatServiceStatus(status, health))
+          }
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed: ${err}`)
+        } finally {
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
+        return
+      }
+
+      // enable / disable — register or remove the LaunchAgent
+      if (trimmed === 'enable' || trimmed === 'disable') {
+        const enabling = trimmed === 'enable'
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        addLine(sessionId, 'system', enabling ? 'Registering LaunchAgent and starting gateway...' : 'Stopping gateway and removing LaunchAgent...')
+        try {
+          const res = await fetch('http://127.0.0.1:8897/api/clawd/service/enable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: enabling }),
+          })
+          const data = await res.json()
+          if (data.success) {
+            addLine(sessionId, 'stdout', data.message || (enabling ? 'Gateway enabled.' : 'Gateway disabled.'))
+            // Refresh status so user sees the new state immediately
+            const [statusRes, healthRes] = await Promise.all([
+              fetch('http://127.0.0.1:8897/api/clawd/service/status').catch(() => null),
+              fetch('http://127.0.0.1:8897/api/clawd/service/health').catch(() => null),
+            ])
+            if (statusRes?.ok) {
+              const status = await statusRes.json()
+              const health = healthRes?.ok ? await healthRes.json() : null
+              addLine(sessionId, 'stdout', formatServiceStatus(status, health))
+            }
+          } else {
+            addLine(sessionId, 'stderr', data.message || 'Operation failed.')
           }
         } catch (err) {
           addLine(sessionId, 'stderr', `Failed: ${err}`)
