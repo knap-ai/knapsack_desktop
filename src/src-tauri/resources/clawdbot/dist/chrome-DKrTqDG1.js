@@ -761,7 +761,27 @@ function buildOpenClawChromeLaunchArgs(params) {
 		args.push("--no-sandbox");
 		args.push("--disable-setuid-sandbox");
 	}
+	// On macOS, Chrome's sandbox blocks the Mach IPC port required by the
+	// crashpad handler, causing a child_port_handshake error whenever the
+	// renderer crashes (e.g. under a heavy React UI). Fix both root causes:
+	//   1. Don't spawn the crashpad handler at all — no Mach port, no error.
+	//   2. Disable the sandbox so Mach ports can flow freely even if crashpad
+	//      is re-enabled later. Safe here: this profile is already isolated via
+	//      --user-data-dir and --disable-web-security.
+	if (process.platform === "darwin") {
+		args.push("--disable-crash-reporter");
+		if (!resolved.noSandbox) {
+			args.push("--no-sandbox");
+			args.push("--disable-setuid-sandbox");
+		}
+	}
 	if (process.platform === "linux") args.push("--disable-dev-shm-usage");
+	// Prevent macOS from throttling or deprioritising the renderer process
+	// when it's running in the background or behind another window. Without
+	// these, macOS can starve the renderer under memory pressure mid-interaction
+	// (e.g. clicking through a complex Spotify/React UI), causing it to drop.
+	args.push("--disable-renderer-backgrounding");
+	args.push("--disable-backgrounding-occluded-windows");
 	if (resolved.extraArgs.length > 0) args.push(...resolved.extraArgs);
 	return args;
 }
