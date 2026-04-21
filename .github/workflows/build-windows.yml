@@ -180,7 +180,7 @@ jobs:
 
       - name: Upload Tauri build log on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: tauri-build-log
           path: ${{ runner.temp }}/tauri-build.log
@@ -220,21 +220,21 @@ jobs:
           Write-Host "Signed: Knapsack-web-setup.exe"
 
       - name: Upload MSI artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: knapsack-windows-msi
           path: src/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: warn
 
       - name: Upload NSIS artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: knapsack-windows-nsis
           path: src/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: warn
 
       - name: Upload web installer stub artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: knapsack-windows-web-setup
           path: src/installer/Knapsack-web-setup.exe

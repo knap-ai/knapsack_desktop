@@ -76,14 +76,14 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: knapsack-macos-dmg
           path: src/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: warn
 
       - name: Upload updater artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: knapsack-macos-updater
           path: |
