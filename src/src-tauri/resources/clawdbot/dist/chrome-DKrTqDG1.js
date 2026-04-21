@@ -733,10 +733,25 @@ function buildOpenClawChromeLaunchArgs(params) {
 		"--disable-sync",
 		"--disable-background-networking",
 		"--disable-component-update",
-		"--disable-features=Translate,MediaRouter",
+		// Disable features that break OAuth cross-origin redirects and iframes.
+		// IsolateOrigins and site-per-process cause OAuth provider iframes to be
+		// treated as cross-process and can block postMessage / cookie access.
+		"--disable-features=Translate,MediaRouter,IsolateOrigins,site-per-process",
+		"--disable-site-isolation-trials",
 		"--disable-session-crashed-bubble",
 		"--hide-crash-restore-bubble",
-		"--password-store=basic"
+		"--password-store=basic",
+		// Suppress navigator.webdriver and related automation signals that OAuth
+		// providers use for headless/bot detection.
+		"--disable-blink-features=AutomationControlled",
+		// Allow OAuth provider windows opened via window.open() to actually appear.
+		// Chrome blocks popups by default in automated sessions.
+		"--disable-popup-blocking",
+		// Relax same-origin and mixed-content enforcement so OAuth redirects that
+		// cross origins (e.g. auth.spotify.com → creators.spotify.com) don't get
+		// blocked mid-flow.  Safe here because this profile is isolated to automation.
+		"--disable-web-security",
+		"--allow-running-insecure-content"
 	];
 	if (resolved.headless) {
 		args.push("--headless=new");
