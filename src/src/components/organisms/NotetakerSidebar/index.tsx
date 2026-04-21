@@ -47,6 +47,16 @@ function NotetakerSidebar({
   }, [])
 
   useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 900) {
+        setIsCollapsed(true)
+      }
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
