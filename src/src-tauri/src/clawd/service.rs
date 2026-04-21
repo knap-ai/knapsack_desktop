@@ -841,6 +841,7 @@ fn downgrade_streaming_if_object(val: &serde_json::Value) -> Option<serde_json::
 }
 
 /// Handles:
+///   - Non-object channel entries (must be object per gateway schema) — removed
 ///   - Top-level per-channel `dmPolicy` / `allowFrom`
 ///   - Per-account `dmPolicy` / `allowFrom` inside `channels.*.accounts.*`
 ///   - Google Chat's `dm.policy` / `dm.allowFrom` sub-object
@@ -850,6 +851,38 @@ fn downgrade_streaming_if_object(val: &serde_json::Value) -> Option<serde_json::
 fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
   let mut patched = false;
 
+  let channel_names: Vec<String> = cfg
+    .get("channels")
+    .and_then(|v| v.as_object())
+    .map(|obj| obj.keys().cloned().collect())
+    .unwrap_or_default();
+
+  // Remove any channel entries that are not objects — the gateway rejects them
+  // with "invalid config: must be object" and refuses to reload the config.
+  let non_object_channels: Vec<String> = channel_names
+    .iter()
+    .filter(|name| {
+      cfg
+        .pointer(&format!("/channels/{}", name))
+        .map(|v| !v.is_object())
+        .unwrap_or(false)
+    })
+    .cloned()
+    .collect();
+  if !non_object_channels.is_empty() {
+    if let Some(channels_obj) = cfg.get_mut("channels").and_then(|v| v.as_object_mut()) {
+      for name in &non_object_channels {
+        channels_obj.remove(name);
+        eprintln!(
+          "[clawd/service] Removed invalid channels.{} (not an object — gateway requires object)",
+          name
+        );
+      }
+    }
+    patched = true;
+  }
+
+  // Re-collect names after removal (non-object ones are gone now)
   let channel_names: Vec<String> = cfg
     .get("channels")
     .and_then(|v| v.as_object())
