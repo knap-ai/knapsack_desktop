@@ -132,10 +132,18 @@ pub async fn fetch_calendar(
       match result {
         Ok(response) => {
           let events = response.1.items.unwrap_or_default();
-          let event_ids: Vec<String> = events.iter().filter_map(|event| event.id.clone()).collect();
-          event_ids_total.extend(event_ids);
           for event in events {
-            let event_id = event.id.unwrap();
+            let event_id = match event.id {
+              Some(id) => id,
+              None => continue,
+            };
+            // Skip cancelled events (e.g. the original slot of a rescheduled
+            // occurrence). Excluding their IDs causes delete_calendar_events_removed
+            // to purge any previously-stored copy.
+            if event.status.as_deref() == Some("cancelled") {
+              continue;
+            }
+            event_ids_total.push(event_id.clone());
             let title = event.summary;
             let description = event.description;
             let mut creator_email = None;
