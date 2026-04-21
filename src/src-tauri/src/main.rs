@@ -186,13 +186,14 @@ fn setup_handler(
   });
 
   let actix_app_handle = app.handle();
+  let server_error_handle = actix_app_handle.clone();
 
   // Clone is_chatting for the heartbeat loop (before it's moved into the server thread)
   let heartbeat_is_chatting = is_chatting.clone();
   let heartbeat_app_handle = app.handle();
 
   // Start the server
-  let _handle = std::thread::spawn(|| {
+  let _handle = std::thread::spawn(move || {
     match server::actix::start_server(
       8897,
       // llm_path,
@@ -206,8 +207,28 @@ fn setup_handler(
         info!("Server started on port 8897");
         std::process::exit(0);
       }
-      Err(_) => {
-        info!("Error starting server on port 8897");
+      Err(e) => {
+        eprintln!("Error starting server on port 8897: {}", e);
+        let window = server_error_handle.get_window("main");
+        #[cfg(target_os = "macos")]
+        let log_hint = "~/Library/Logs/Knapsack/ks_error.log";
+        #[cfg(target_os = "windows")]
+        let log_hint = "%APPDATA%\\Knapsack\\logs\\ks_error.log";
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let log_hint = "~/.config/Knapsack/logs/ks_error.log";
+        tauri::api::dialog::blocking::message(
+          window.as_ref(),
+          "Knapsack couldn't start",
+          format!(
+            "Knapsack failed to start its internal server on port 8897.\n\n\
+             This usually means another instance of Knapsack is already running.\n\n\
+             To fix it, open Terminal and run:\n    lsof -ti :8897 | xargs kill -9\n\
+             Then reopen Knapsack.\n\n\
+             Error: {}\n\
+             Log: {}",
+            e, log_hint
+          ),
+        );
         std::process::exit(1);
       }
     }

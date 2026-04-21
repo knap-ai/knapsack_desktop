@@ -225,6 +225,13 @@ function ensurePageState(page) {
 			pageStates.delete(page);
 			observedPages.delete(page);
 		});
+		// OAuth flows often open a new window via window.open(). Playwright fires
+		// "popup" on the originating page in addition to context "page". Register
+		// the popup immediately so it appears in getAllPages() / listPagesViaPlaywright()
+		// and the agent can switch to it without a stale-page gap.
+		page.on("popup", (popup) => {
+			ensurePageState(popup);
+		});
 	}
 	return state;
 }
