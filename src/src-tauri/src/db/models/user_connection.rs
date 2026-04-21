@@ -23,6 +23,9 @@ pub struct UserConnection {
   pub refresh_token: Option<String>,
   pub connection: Option<Connection>,
   pub last_synced: Option<u64>,
+  /// For google_calendar_read connections this holds the Google account email
+  /// whose calendar is synced. Empty string for all other connection types.
+  pub calendar_account_email: String,
 }
 
 impl UserConnection {
@@ -35,8 +38,10 @@ impl UserConnection {
     let connection = get_db_conn();
 
     connection.execute(
-      "INSERT INTO user_connections (user_id, connection_id, token, refresh_token) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id, connection_id) DO UPDATE SET token = ?3",
-      (&self.user_id, &self.connection_id, &self.token, &self.refresh_token),
+      "INSERT INTO user_connections (user_id, connection_id, token, refresh_token, calendar_account_email) \
+       VALUES (?1, ?2, ?3, ?4, ?5) \
+       ON CONFLICT (user_id, connection_id, calendar_account_email) DO UPDATE SET token = ?3",
+      (&self.user_id, &self.connection_id, &self.token, &self.refresh_token, &self.calendar_account_email),
     )?;
     Ok(())
   }
@@ -74,8 +79,7 @@ impl UserConnection {
   ) -> Result<UserConnection, Error> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare(
-      "
-      SELECT
+      "SELECT
         user_connections.id,
         user_connections.user_id,
         user_connections.connection_id,
@@ -84,11 +88,13 @@ impl UserConnection {
         user_connections.last_synced,
         scope,
         provider,
-        email
+        email,
+        user_connections.calendar_account_email
       FROM user_connections
       LEFT JOIN connections on connection_id = connections.id
       LEFT JOIN users on user_id = users.id
-      WHERE users.email = ?1 and scope = ?2",
+      WHERE users.email = ?1 and scope = ?2
+      LIMIT 1",
     )?;
     let row = stmt.query_row(params![user_email, scope], |row| {
       Ok((
@@ -101,6 +107,7 @@ impl UserConnection {
         row.get::<_, String>(6)?,
         row.get::<_, String>(7)?,
         row.get::<_, String>(8)?,
+        row.get::<_, String>(9)?,
       ))
     })?;
     let (
@@ -113,6 +120,7 @@ impl UserConnection {
       scope,
       provider,
       _email,
+      calendar_account_email,
     ) = row;
     let connection_instance = Connection {
       id: Some(connection_id),
@@ -126,9 +134,131 @@ impl UserConnection {
       token,
       refresh_token,
       connection: Some(connection_instance),
-      last_synced: last_synced,
+      last_synced,
+      calendar_account_email,
     };
     Ok(user_connection)
+  }
+
+  /// Find the calendar connection for a specific Google calendar account email.
+  pub fn find_by_user_email_scope_and_calendar_account(
+    user_email: String,
+    scope: String,
+    calendar_account_email: String,
+  ) -> Result<UserConnection, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection.prepare(
+      "SELECT
+        user_connections.id,
+        user_connections.user_id,
+        user_connections.connection_id,
+        user_connections.token,
+        user_connections.refresh_token,
+        user_connections.last_synced,
+        scope,
+        provider,
+        email,
+        user_connections.calendar_account_email
+      FROM user_connections
+      LEFT JOIN connections on connection_id = connections.id
+      LEFT JOIN users on user_id = users.id
+      WHERE users.email = ?1 AND scope = ?2 AND user_connections.calendar_account_email = ?3",
+    )?;
+    let row = stmt.query_row(params![user_email, scope, calendar_account_email], |row| {
+      Ok((
+        row.get::<_, u64>(0)?,
+        row.get::<_, u64>(1)?,
+        row.get::<_, u64>(2)?,
+        row.get::<_, String>(3)?,
+        row.get::<_, Option<String>>(4)?,
+        row.get::<_, Option<u64>>(5)?,
+        row.get::<_, String>(6)?,
+        row.get::<_, String>(7)?,
+        row.get::<_, String>(8)?,
+        row.get::<_, String>(9)?,
+      ))
+    })?;
+    let (
+      user_connections_id,
+      user_id,
+      connection_id,
+      token,
+      refresh_token,
+      last_synced,
+      scope,
+      provider,
+      _email,
+      cal_email,
+    ) = row;
+    let connection_instance = Connection {
+      id: Some(connection_id),
+      scope,
+      provider,
+    };
+    Ok(UserConnection {
+      id: Some(user_connections_id),
+      user_id,
+      connection_id,
+      token,
+      refresh_token,
+      connection: Some(connection_instance),
+      last_synced,
+      calendar_account_email: cal_email,
+    })
+  }
+
+  /// Return all calendar connections for a user (one per linked Google account).
+  pub fn find_calendar_connections_by_user_email(
+    user_email: String,
+    calendar_scope: String,
+  ) -> Result<Vec<UserConnection>, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection.prepare(
+      "SELECT
+        user_connections.id,
+        user_connections.user_id,
+        user_connections.connection_id,
+        user_connections.token,
+        user_connections.last_synced,
+        scope,
+        provider,
+        user_connections.refresh_token,
+        user_connections.calendar_account_email
+      FROM user_connections
+      LEFT JOIN connections on connection_id = connections.id
+      LEFT JOIN users on user_id = users.id
+      WHERE users.email = ?1 AND scope = ?2",
+    )?;
+    let rows = stmt.query_map(params![user_email, calendar_scope], |row| {
+      let user_connections_id = row.get::<_, u64>(0)?;
+      let user_id = row.get::<_, u64>(1)?;
+      let connection_id = row.get::<_, u64>(2)?;
+      let token = row.get::<_, String>(3)?;
+      let last_synced = row.get::<_, Option<u64>>(4)?;
+      let scope = row.get::<_, String>(5)?;
+      let provider = row.get::<_, String>(6)?;
+      let refresh_token = row.get::<_, Option<String>>(7)?;
+      let calendar_account_email = row.get::<_, String>(8)?;
+
+      let connection_instance = Connection {
+        id: Some(connection_id),
+        scope,
+        provider,
+      };
+
+      Ok(UserConnection {
+        id: Some(user_connections_id),
+        user_id,
+        connection_id,
+        token,
+        refresh_token,
+        connection: Some(connection_instance),
+        last_synced,
+        calendar_account_email,
+      })
+    })?;
+    let result = rows.into_iter().collect::<Result<_, _>>()?;
+    Ok(result)
   }
 
   pub fn update_last_sync_by_id(
@@ -147,8 +277,7 @@ impl UserConnection {
   pub fn find_by_user_email(user_email: String) -> Result<Vec<UserConnection>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare(
-      "
-      SELECT
+      "SELECT
         user_connections.id,
         user_connections.user_id,
         user_connections.connection_id,
@@ -156,7 +285,8 @@ impl UserConnection {
         user_connections.last_synced,
         scope,
         provider,
-        user_connections.refresh_token
+        user_connections.refresh_token,
+        user_connections.calendar_account_email
       FROM user_connections
       LEFT JOIN connections on connection_id = connections.id
       LEFT JOIN users on user_id = users.id
@@ -171,6 +301,7 @@ impl UserConnection {
       let scope = row.get::<_, String>(5)?;
       let provider = row.get::<_, String>(6)?;
       let refresh_token = row.get::<_, Option<String>>(7)?;
+      let calendar_account_email = row.get::<_, String>(8)?;
 
       let connection_instance = Connection {
         id: Some(connection_id),
@@ -185,7 +316,8 @@ impl UserConnection {
         token,
         refresh_token,
         connection: Some(connection_instance),
-        last_synced: last_synced,
+        last_synced,
+        calendar_account_email,
       })
     })?;
     let result = user_connections.into_iter().collect::<Result<_, _>>()?;
@@ -213,8 +345,7 @@ impl UserConnection {
   pub fn find_by_id(id: u64) -> Result<UserConnection, Error> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare(
-      "
-      SELECT
+      "SELECT
         user_connections.id,
         user_connections.user_id,
         user_connections.connection_id,
@@ -223,7 +354,8 @@ impl UserConnection {
         user_connections.last_synced,
         scope,
         provider,
-        email
+        email,
+        user_connections.calendar_account_email
       FROM user_connections
       LEFT JOIN connections on connection_id = connections.id
       LEFT JOIN users on user_id = users.id
@@ -240,6 +372,7 @@ impl UserConnection {
         row.get::<_, String>(6)?,
         row.get::<_, String>(7)?,
         row.get::<_, String>(8)?,
+        row.get::<_, String>(9)?,
       ))
     })?;
     let (
@@ -252,6 +385,7 @@ impl UserConnection {
       scope,
       provider,
       _email,
+      calendar_account_email,
     ) = row;
     let connection_instance = Connection {
       id: Some(connection_id),
@@ -265,7 +399,8 @@ impl UserConnection {
       token,
       refresh_token,
       connection: Some(connection_instance),
-      last_synced: last_synced,
+      last_synced,
+      calendar_account_email,
     };
     Ok(user_connection)
   }

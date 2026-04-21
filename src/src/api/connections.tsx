@@ -35,7 +35,24 @@ export type Connection = {
   state: ConnectionStates
   lastSynced?: Date | string
   syncedSince?: Date | string
+  /** Set for google_calendar_read connections — the Google account email whose
+   *  calendar this connection syncs.  Empty string for all other types. */
+  calendarAccountEmail?: string
 }
+
+/** Record key used for a Google Calendar connection given its account email. */
+export const calendarConnectionKey = (calendarAccountEmail: string): string =>
+  `${ConnectionKeys.GOOGLE_CALENDAR}|${calendarAccountEmail}`
+
+/** All Google Calendar connections in the connections map. */
+export const getGoogleCalendarConnections = (
+  connections: Record<string, Connection>,
+): Connection[] =>
+  Object.values(connections).filter(c => c.key === ConnectionKeys.GOOGLE_CALENDAR)
+
+/** True if at least one Google Calendar account is connected. */
+export const hasGoogleCalendar = (connections: Record<string, Connection>): boolean =>
+  getGoogleCalendarConnections(connections).length > 0
 
 export const isConnectionReadyToSync = (connection?: Connection) => {
   return connection?.state && connection.state !== ConnectionStates.SYNCING
@@ -195,19 +212,34 @@ export async function getConnections(email: string): Promise<Record<string, Conn
         connection: { scope: string; id: number }
         lastSynced?: number
         syncedSince?: number
+        calendarAccountEmail?: string
       },
-    ) => ({
-      ...acc,
-      [userConnection.connection.scope]: {
-        id: userConnection.id,
-        key: userConnection.connection.scope,
-        state: ConnectionStates.IDLE,
-        lastSynced: userConnection.lastSynced ? new Date(userConnection.lastSynced * 1000) : null,
-        syncedSince: userConnection.syncedSince
-          ? new Date(userConnection.syncedSince * 1000)
-          : null,
-      } as Connection,
-    }),
+    ) => {
+      const scope = userConnection.connection.scope
+      const calendarAccountEmail = userConnection.calendarAccountEmail || ''
+      // Calendar connections are keyed as "scope|accountEmail" so that
+      // multiple linked calendars can coexist in the same record.
+      const recordKey =
+        scope === ConnectionKeys.GOOGLE_CALENDAR && calendarAccountEmail
+          ? calendarConnectionKey(calendarAccountEmail)
+          : scope
+
+      return {
+        ...acc,
+        [recordKey]: {
+          id: userConnection.id,
+          key: scope,
+          state: ConnectionStates.IDLE,
+          lastSynced: userConnection.lastSynced
+            ? new Date(userConnection.lastSynced * 1000)
+            : null,
+          syncedSince: userConnection.syncedSince
+            ? new Date(userConnection.syncedSince * 1000)
+            : null,
+          calendarAccountEmail,
+        } as Connection,
+      }
+    },
     {},
   )
 }
@@ -280,8 +312,11 @@ export async function syncGoogleGmailAPI(email: string) {
   return !!data?.success
 }
 
-export async function syncGoogleCalendarAPI(email: string) {
-  const response = await fetch(`${KN_API_GOOGLE_CALENDAR}?email=${email}`, {
+export async function syncGoogleCalendarAPI(email: string, calendarAccountEmail?: string) {
+  const accountParam = calendarAccountEmail
+    ? `&calendar_account_email=${encodeURIComponent(calendarAccountEmail)}`
+    : ''
+  const response = await fetch(`${KN_API_GOOGLE_CALENDAR}?email=${email}${accountParam}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -292,7 +327,7 @@ export async function syncGoogleCalendarAPI(email: string) {
     throw new Error('400 - ' + data.message)
   }
   if (response.status != 200) {
-    throw new Error('Failed to sync local files')
+    throw new Error('Failed to sync Google Calendar')
   }
   return !!data?.success
 }
@@ -487,13 +522,23 @@ export async function getAccessToken(userEmail: string, scope: string) {
   return data.access_token
 }
 
-export async function getCompleteGoogleSignIn(code: string, scope: string) {
-  const response = await fetch(`${KN_API_COMPLETE_GOOGLE_SIGN_IN}?code=${code}&scope=${scope}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
+export async function getCompleteGoogleSignIn(
+  code: string,
+  scope: string,
+  primaryEmail?: string,
+) {
+  const primaryParam = primaryEmail
+    ? `&primary_email=${encodeURIComponent(primaryEmail)}`
+    : ''
+  const response = await fetch(
+    `${KN_API_COMPLETE_GOOGLE_SIGN_IN}?code=${code}&scope=${scope}${primaryParam}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     },
-  })
+  )
 
   const data = await response.json()
   if (!response.ok) {

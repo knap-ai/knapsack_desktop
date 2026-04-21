@@ -167,8 +167,9 @@ pub fn create_knapsack_api_connection(user_email: String, refresh_internal: &str
         refresh_token: Some(refresh_internal.to_string()),
         connection: None,
         last_synced: None,
+        calendar_account_email: String::new(),
       };
-      user_connection.upsert(); 
+      user_connection.upsert();
     } else {
       let user_connection = user_conn.as_mut().unwrap();
       user_connection.token = refresh_internal.to_string();

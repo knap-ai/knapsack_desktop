@@ -46,6 +46,11 @@ pub struct SigninParams {
   scope: Option<String>,
   error: Option<String>,
   error_description: Option<String>,
+  /// When set, this is an "add calendar account" flow for an already-logged-in
+  /// user.  The new OAuth tokens belong to a second Google account; we skip
+  /// creating a new user and instead attach the calendar connection to the
+  /// existing user identified by this email.
+  primary_email: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -243,10 +248,18 @@ fn create_connections_from_scopes(
       if !(scopes.contains(scope_value)) {
         continue;
       }
+      // For the calendar scope, calendar_account_email = the Google account
+      // email whose calendar we're linking.
+      let calendar_account_email = if *scope_key == GOOGLE_CALENDAR_SCOPE {
+        email.clone()
+      } else {
+        String::new()
+      };
       let user_connection_creation_result = create_user_connection(
         email.clone(),
         refresh_token.clone(),
         String::from(*scope_key),
+        calendar_account_email,
       );
 
       match user_connection_creation_result {
@@ -264,6 +277,22 @@ fn create_connections_from_scopes(
     }
   }
   Ok(connected_scopes)
+}
+
+/// Create a calendar connection for a *secondary* Google account.  The
+/// `primary_user_email` identifies the existing user; `calendar_email` is the
+/// new account being linked.
+fn create_additional_calendar_connection(
+  primary_user_email: String,
+  calendar_email: String,
+  refresh_token: String,
+) -> Result<(), Error> {
+  create_user_connection(
+    primary_user_email,
+    refresh_token,
+    String::from(GOOGLE_CALENDAR_SCOPE),
+    calendar_email,
+  )
 }
 
 /// Exchange OAuth code for tokens locally using Google's token endpoint.
@@ -399,11 +428,39 @@ async fn complete_google_signin(
     }
   };
 
-  let email = profile.email.clone().unwrap();
-  // In self-hosted mode (local token exchange), uuid may not be available from knap.ai
-  // Use a placeholder or generate one locally
+  let calendar_email = profile.email.clone().unwrap();
+
+  // ── Add-calendar flow ──────────────────────────────────────────────────────
+  // When `primary_email` is provided the caller is already logged in as that
+  // user and just wants to link an additional Google Calendar account.
+  if let Some(primary_email) = params.primary_email.clone() {
+    match create_additional_calendar_connection(
+      primary_email.clone(),
+      calendar_email.clone(),
+      response.refresh_token.clone(),
+    ) {
+      Ok(_) => {
+        log::info!("Linked additional calendar {} to user {}", calendar_email, primary_email);
+      }
+      Err(err) => {
+        log::error!("Failed to link additional calendar: {:?}", err);
+        return HttpResponse::InternalServerError().json(json!({
+          "error": format!("Failed to link additional calendar: {:?}", err),
+          "success": false
+        }));
+      }
+    }
+
+    return HttpResponse::Ok().json(json!({
+      "success": true,
+      "calendar_email": calendar_email,
+      "connection_keys": [GOOGLE_CALENDAR_SCOPE]
+    }));
+  }
+
+  // ── Normal (primary) sign-in flow ──────────────────────────────────────────
+  let email = calendar_email.clone();
   let uuid = profile.uuid.clone().unwrap_or_else(|| {
-    // Generate a deterministic UUID from email for self-hosted mode
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
     let mut hasher = DefaultHasher::new();
@@ -416,7 +473,6 @@ async fn complete_google_signin(
     uuid: Some(uuid),
   }.create();
 
-  // Create Knapsack API connection only if we have internal tokens (non-self-hosted mode)
   if let Some(ref refresh_internal) = response.refresh_internal {
     create_knapsack_api_connection(
       email.clone(),
@@ -529,6 +585,7 @@ pub fn create_user_connection(
   email: String,
   refresh_token: String,
   scope: String,
+  calendar_account_email: String,
 ) -> Result<(), Error> {
   let user = User::find_by_email(email)?;
   let connection = Connection::find_by_scope(scope)?;
@@ -540,6 +597,7 @@ pub fn create_user_connection(
     refresh_token: Some(refresh_token.clone()),
     connection: None,
     last_synced: None,
+    calendar_account_email,
   };
   user_connection.upsert()
 }
