@@ -324,7 +324,7 @@ async fn fetch_calendar(
   }
 
   let event_count = event_ids_total.len();
-  CalendarEvent::delete_calendar_events_removed(event_ids_total.clone());
+  CalendarEvent::delete_calendar_events_removed(event_ids_total.clone(), "");
   UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), (chrono::Utc::now() + chrono::Duration::days(31)));
 
   ConnectionsData::lock_and_set_connection_is_syncing(
