@@ -1611,7 +1611,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // (20 polls × 3 s ≈ 60 s) so we don't alarm users during normal browser startup.
   const [browserNotReadyPolls, setBrowserNotReadyPolls] = useState(0)
   // The "gateway down" banner and header label are suppressed until this exceeds the
-  // threshold (2 polls × 3 s = 6 s) so brief 1-5s outages (gateway restart, sleep/wake)
+  // threshold (3 polls × 3 s = 9 s) so brief outages (gateway restart, sleep/wake)
   // are silently absorbed without alarming the user.
   const [gatewayDownPolls, setGatewayDownPolls] = useState(0)
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
@@ -4239,7 +4239,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // The full message (with stderr tail) is still available in the tooltip.
       // Suppress header label changes and the banner during the grace period
       // (2 polls × 3 s = 6 s) so brief restarts don't alarm the user.
-      const gwPastGrace = gatewayDownPolls >= 2
+      const gwPastGrace = gatewayDownPolls >= 3
       let gwLabel = 'Gateway: OK'
       if (!health.gateway_ok && gwPastGrace) {
         if (gwStarting) {
@@ -4625,9 +4625,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             </div>
           </div>
         )}
-        {/* Gateway troubleshooting banner — shown only after grace period (2 polls × 3 s = 6 s)
+        {/* Gateway troubleshooting banner — shown only after grace period (3 polls × 3 s = 9 s)
             so brief restarts and sleep/wake blips don't surface a scary error. */}
-        {health && !health.gateway_ok && gatewayDownPolls >= 2 && !channelStatus.gatewayStarting && (
+        {health && !health.gateway_ok && gatewayDownPolls >= 3 && !channelStatus.gatewayStarting && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner">
               <p className="ClawdGatewayBannerTitle">Gateway connectivity issue</p>
