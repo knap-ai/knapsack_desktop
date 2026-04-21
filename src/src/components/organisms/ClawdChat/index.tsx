@@ -199,8 +199,12 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('spending cap') || lower.includes('monthly spending') || (lower.includes('exceeded') && lower.includes('ai studio'))) {
     return `⚠️ **Gemini monthly spending cap reached** (active: \`${activeModel}\`). Your Google AI Studio project has hit its monthly budget limit. [Manage your spending cap at ai.studio/spend](https://ai.studio/spend), or switch to a different provider in Settings → Provider.\n\n${switchProviderAction}`
   }
-  // Rate limit (but not quota)
-  if (lower.includes('rate_limit') || lower.includes('rate limit') || (lower.includes('429') && !lower.includes('insufficient_quota'))) {
+  // No API key configured for provider (must check before 429 — gateway wraps this as "HTTP 429: No API key found")
+  if (lower.includes('no api key found') || lower.includes('no api key for') || lower.includes('configure auth for this agent')) {
+    return `🔑 **No API key configured for \`${activeModel}\`.** Add your API key in Settings → Provider.\n\n${fixApiKeyAction}`
+  }
+  // Rate limit (but not quota, and not a missing-key auth error)
+  if (lower.includes('rate_limit') || lower.includes('rate limit') || (lower.includes('429') && !lower.includes('insufficient_quota') && !lower.includes('api key'))) {
     return `⏳ **Rate limited** (active: \`${activeModel}\`). Too many requests — please wait a moment and try again, or switch to a different model in Settings → Provider.\n\n${switchProviderAction}`
   }
   // Invalid API key
@@ -4001,10 +4005,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               } else {
                 console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
                 let displayText = agentOut.reply!
-                // When the gateway surfaces a rate-limit or spending cap error, enrich the message
+                // When the gateway surfaces an error (rate limit, auth, key), enrich the message
                 if (agentOut.gateway) {
                   const lowerReply = displayText.toLowerCase()
-                  if (lowerReply.includes('rate limit') || lowerReply.includes('rate_limit') || lowerReply.includes('spending cap')) {
+                  if (lowerReply.includes('rate limit') || lowerReply.includes('rate_limit') ||
+                      lowerReply.includes('spending cap') || lowerReply.includes('no api key found') ||
+                      lowerReply.includes('configure auth for this agent')) {
                     displayText = friendlyError(displayText, getActiveModelLabel())
                   }
                 }

@@ -841,6 +841,7 @@ fn downgrade_streaming_if_object(val: &serde_json::Value) -> Option<serde_json::
 }
 
 /// Handles:
+///   - Non-object channel entries (must be object per gateway schema) — removed
 ///   - Top-level per-channel `dmPolicy` / `allowFrom`
 ///   - Per-account `dmPolicy` / `allowFrom` inside `channels.*.accounts.*`
 ///   - Google Chat's `dm.policy` / `dm.allowFrom` sub-object
@@ -850,6 +851,38 @@ fn downgrade_streaming_if_object(val: &serde_json::Value) -> Option<serde_json::
 fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
   let mut patched = false;
 
+  let channel_names: Vec<String> = cfg
+    .get("channels")
+    .and_then(|v| v.as_object())
+    .map(|obj| obj.keys().cloned().collect())
+    .unwrap_or_default();
+
+  // Remove any channel entries that are not objects — the gateway rejects them
+  // with "invalid config: must be object" and refuses to reload the config.
+  let non_object_channels: Vec<String> = channel_names
+    .iter()
+    .filter(|name| {
+      cfg
+        .pointer(&format!("/channels/{}", name))
+        .map(|v| !v.is_object())
+        .unwrap_or(false)
+    })
+    .cloned()
+    .collect();
+  if !non_object_channels.is_empty() {
+    if let Some(channels_obj) = cfg.get_mut("channels").and_then(|v| v.as_object_mut()) {
+      for name in &non_object_channels {
+        channels_obj.remove(name);
+        eprintln!(
+          "[clawd/service] Removed invalid channels.{} (not an object — gateway requires object)",
+          name
+        );
+      }
+    }
+    patched = true;
+  }
+
+  // Re-collect names after removal (non-object ones are gone now)
   let channel_names: Vec<String> = cfg
     .get("channels")
     .and_then(|v| v.as_object())
@@ -3922,11 +3955,24 @@ async fn prepare_gateway_config(
         }
 
         if patched {
-          match fs::write(&config_path, serde_json::to_string_pretty(&cfg_val).unwrap_or_default()) {
-            Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
-            Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
+          // Skip direct file write if the gateway is already running — it
+          // watches openclaw.json and treats any external write as a
+          // "Config overwrite / missing-meta-before-write" anomaly, triggering
+          // an unnecessary SIGUSR1 reload.  The config.patch RPC fired in
+          // connect_and_handshake (gateway_client.rs) pushes the same changes
+          // to the live gateway via RPC without touching the file.
+          if gateway_client::is_gateway_port_open().await {
+            eprintln!(
+              "[clawd/service] Config needs patching but gateway is live — \
+               skipping file write to avoid anomaly; config.patch RPC will apply changes"
+            );
+          } else {
+            match fs::write(&config_path, serde_json::to_string_pretty(&cfg_val).unwrap_or_default()) {
+              Ok(_) => eprintln!("[clawd/service] Config patched successfully"),
+              Err(e) => eprintln!("[clawd/service] WARNING: Failed to patch config: {}", e),
+            }
+            harden_file_permissions(&config_path);
           }
-          harden_file_permissions(&config_path);
         }
       }
     }

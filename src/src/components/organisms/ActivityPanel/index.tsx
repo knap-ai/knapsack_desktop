@@ -1131,6 +1131,9 @@ const TerminalView: React.FC = () => {
           '  clear              Clear terminal output',
           '  status             Show gateway / browser health',
           '  logs               Toggle live log streaming',
+          '  enable             Install and start the gateway LaunchAgent',
+          '  disable            Stop gateway and remove LaunchAgent',
+          '  gateway restart    Restart the gateway (re-runs enable)',
           '  doctor             Run openclaw doctor (check for issues)',
           '  doctor --fix       Run openclaw doctor --fix (auto-repair)',
           '  skills list        List skill status',
@@ -1209,6 +1212,46 @@ const TerminalView: React.FC = () => {
         } finally {
           updateSession(sessionId, s => ({ ...s, isExecuting: false }))
         }
+        return
+      }
+
+      // gateway restart — re-run enable to restart the gateway LaunchAgent
+      if (
+        trimmed === 'gateway restart' ||
+        trimmed === 'restart' ||
+        trimmed === 'openclaw gateway restart' ||
+        trimmed === 'openclaw restart'
+      ) {
+        updateSession(sessionId, s => ({ ...s, isExecuting: true }))
+        addLine(sessionId, 'system', 'Restarting gateway (re-registering LaunchAgent)...')
+        try {
+          const res = await fetch('http://127.0.0.1:8897/api/clawd/service/enable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true }),
+          })
+          const data = await res.json()
+          addLine(sessionId, data.success ? 'stdout' : 'stderr', data.message || (data.success ? 'Gateway restarted.' : 'Restart failed.'))
+          const [statusRes, healthRes] = await Promise.all([
+            fetch('http://127.0.0.1:8897/api/clawd/service/status').catch(() => null),
+            fetch('http://127.0.0.1:8897/api/clawd/service/health').catch(() => null),
+          ])
+          if (statusRes?.ok) {
+            const status = await statusRes.json()
+            const health = healthRes?.ok ? await healthRes.json() : null
+            addLine(sessionId, 'stdout', formatServiceStatus(status, health))
+          }
+        } catch (err) {
+          addLine(sessionId, 'stderr', `Failed: ${err}`)
+        } finally {
+          updateSession(sessionId, s => ({ ...s, isExecuting: false }))
+        }
+        return
+      }
+
+      // openclaw install — openclaw is embedded; guide user to enable/doctor instead
+      if (trimmed === 'openclaw install' || trimmed === 'openclaw setup') {
+        addLine(sessionId, 'system', 'openclaw is bundled inside Knapsack — no separate install needed.\nTry: "enable" to start the gateway, or "doctor" to diagnose issues.')
         return
       }
 
