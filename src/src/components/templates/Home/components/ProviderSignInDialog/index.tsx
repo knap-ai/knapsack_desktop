@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
+import { open as openExternalUrl } from '@tauri-apps/api/shell'
 
 import {
   Typography,
@@ -159,6 +160,9 @@ export const ProviderSignInDialog = ({
   const [keyStatus, setKeyStatus] = useState<ApiKeyStatusResponse | null>(null)
   const [validation, setValidation] = useState<ValidationState>('idle')
   const [validationMsg, setValidationMsg] = useState('')
+  const [oauthPending, setOauthPending] = useState(false)
+  const oauthPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const oauthTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const validateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -244,22 +248,93 @@ export const ProviderSignInDialog = ({
     }
   }, [selectedProvider, validateKey])
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (validateTimerRef.current) clearTimeout(validateTimerRef.current)
       if (extraValidateTimerRef.current) clearTimeout(extraValidateTimerRef.current)
+      if (oauthPollRef.current) clearInterval(oauthPollRef.current)
+      if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current)
     }
   }, [])
 
+  const handleOAuthLogin = useCallback(async (provider: Provider) => {
+    if (oauthPollRef.current) clearInterval(oauthPollRef.current)
+    if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current)
+
+    setOauthPending(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`${API_BASE}/api/clawd/service/oauth-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider }),
+      })
+      const data = await res.json()
+
+      if (!data.url) {
+        setError(data.error || 'Failed to start OAuth flow.')
+        setOauthPending(false)
+        return
+      }
+
+      await openExternalUrl(data.url)
+      KNAnalytics.trackEvent('oauth_started', { provider, app_version: KNAnalytics.APP_VERSION })
+
+      // Poll api-key-status until the key appears (max 5 min)
+      oauthPollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`${API_BASE}/api/clawd/service/api-key-status`)
+          const statusData: ApiKeyStatusResponse = await statusRes.json()
+          const connected =
+            provider === 'openrouter' ? statusData.has_openrouter_key :
+            provider === 'openai' ? statusData.has_openai_key :
+            provider === 'anthropic' ? statusData.has_anthropic_key : false
+
+          if (connected) {
+            clearInterval(oauthPollRef.current!)
+            clearTimeout(oauthTimeoutRef.current!)
+            oauthPollRef.current = null
+            oauthTimeoutRef.current = null
+            setOauthPending(false)
+            setSuccess(`${PROVIDER_CONFIGS.find(p => p.id === provider)?.name} connected successfully!`)
+            KNAnalytics.trackEvent('oauth_completed', { provider, app_version: KNAnalytics.APP_VERSION })
+            await fetchKeyStatus()
+            setTimeout(() => handleClose(), 1500)
+          }
+        } catch { /* ignore transient errors */ }
+      }, 1500)
+
+      oauthTimeoutRef.current = setTimeout(() => {
+        clearInterval(oauthPollRef.current!)
+        oauthPollRef.current = null
+        oauthTimeoutRef.current = null
+        setOauthPending(false)
+        setError('OAuth timed out. Please try again.')
+      }, 300_000)
+    } catch (e: any) {
+      setOauthPending(false)
+      setError(e?.message || 'Failed to start OAuth flow.')
+    }
+  }, [fetchKeyStatus, handleClose])
+
   // Fetch current status when dialog opens
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      // Cancel any in-flight OAuth when dialog closes
+      if (oauthPollRef.current) { clearInterval(oauthPollRef.current); oauthPollRef.current = null }
+      if (oauthTimeoutRef.current) { clearTimeout(oauthTimeoutRef.current); oauthTimeoutRef.current = null }
+      setOauthPending(false)
+      return
+    }
     setApiKey('')
     setError('')
     setSuccess('')
     setValidation('idle')
     setValidationMsg('')
+    setOauthPending(false)
     setEditingExtraId(null)
     setExtraKey('')
     setExtraSuccess('')
@@ -293,6 +368,9 @@ export const ProviderSignInDialog = ({
     setSuccess('')
     setValidation('idle')
     setValidationMsg('')
+    if (oauthPollRef.current) { clearInterval(oauthPollRef.current); oauthPollRef.current = null }
+    if (oauthTimeoutRef.current) { clearTimeout(oauthTimeoutRef.current); oauthTimeoutRef.current = null }
+    setOauthPending(false)
   }, [selectedProvider])
 
   const handleSave = useCallback(async () => {
@@ -525,6 +603,25 @@ export const ProviderSignInDialog = ({
         </div>
 
         <div className={styles.providerSignInForm}>
+          {selectedProvider === 'openrouter' && (
+            <div className={styles.oauthSection}>
+              <button
+                className={styles.oauthButton}
+                onClick={() => handleOAuthLogin('openrouter')}
+                disabled={saving || oauthPending}
+              >
+                {oauthPending ? (
+                  <><span className={styles.oauthSpinner} /> Waiting for authorization…</>
+                ) : (
+                  'Sign in with OpenRouter'
+                )}
+              </button>
+              <div className={styles.oauthDivider}>
+                <span>or paste your API key below</span>
+              </div>
+            </div>
+          )}
+
           <label className={styles.formLabel}>
             {providerConfig.name} API Key
           </label>

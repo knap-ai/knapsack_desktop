@@ -5806,6 +5806,286 @@ pub async fn skills_update(
   }
 }
 
+// ── OAuth provider login ───────────────────────────────────────────────────
+//
+// Supports browser-based OAuth flows for providers that offer them.
+// Currently: OpenRouter (PKCE, callback on our local Actix port).
+//
+// Flow:
+//   1. Frontend POST /api/clawd/service/oauth-start → gets back a URL
+//   2. Frontend opens URL in system browser (tauri shell.open)
+//   3. Provider redirects to /api/clawd/oauth/callback?code=...
+//   4. Callback exchanges code for API key, saves to tokens.json, restarts gateway
+
+static PENDING_OAUTH: once_cell::sync::Lazy<std::sync::Mutex<Option<PendingOAuthState>>> =
+  once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
+struct PendingOAuthState {
+  provider: String,
+  state: String,
+  created_at: std::time::Instant,
+}
+
+fn generate_oauth_random(len: usize) -> String {
+  use rand::Rng;
+  rand::thread_rng()
+    .sample_iter(&rand::distributions::Alphanumeric)
+    .take(len)
+    .map(char::from)
+    .collect()
+}
+
+fn pkce_challenge(verifier: &str) -> String {
+  use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+  use sha2::Digest;
+  let hash = sha2::Sha256::digest(verifier.as_bytes());
+  URL_SAFE_NO_PAD.encode(hash)
+}
+
+const OAUTH_CALLBACK_URL: &str = "http://127.0.0.1:8897/api/clawd/oauth/callback";
+
+#[derive(Debug, Deserialize)]
+pub struct StartOAuthLoginRequest {
+  pub provider: String,
+}
+
+#[derive(Serialize)]
+struct StartOAuthLoginResponse {
+  url: String,
+}
+
+#[post("/api/clawd/service/oauth-start")]
+pub async fn start_oauth_login(
+  _app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<StartOAuthLoginRequest>,
+) -> impl Responder {
+  match payload.provider.as_str() {
+    "openrouter" => {
+      let verifier = generate_oauth_random(64);
+      let challenge = pkce_challenge(&verifier);
+      let state = generate_oauth_random(32);
+
+      *PENDING_OAUTH.lock().unwrap() = Some(PendingOAuthState {
+        provider: "openrouter".to_string(),
+        state: state.clone(),
+        created_at: std::time::Instant::now(),
+      });
+
+      let callback_encoded = urlencoding::encode(OAUTH_CALLBACK_URL);
+      let url = format!(
+        "https://openrouter.ai/auth?callback_url={}&code_challenge={}&code_challenge_method=S256&state={}",
+        callback_encoded, challenge, state
+      );
+
+      HttpResponse::Ok().json(StartOAuthLoginResponse { url })
+    }
+    _ => HttpResponse::BadRequest().json(serde_json::json!({
+      "error": format!("Provider '{}' does not support OAuth login", payload.provider)
+    })),
+  }
+}
+
+#[derive(Deserialize)]
+pub struct OAuthCallbackQuery {
+  pub code: Option<String>,
+  pub state: Option<String>,
+  pub error: Option<String>,
+}
+
+#[get("/api/clawd/oauth/callback")]
+pub async fn oauth_callback(
+  app_handle: web::Data<tauri::AppHandle>,
+  query: web::Query<OAuthCallbackQuery>,
+) -> impl Responder {
+  if let Some(ref err) = query.error {
+    return oauth_html_page(false, &format!("Authorization denied: {}", err));
+  }
+
+  let code = match query.code.as_deref().filter(|c| !c.is_empty()) {
+    Some(c) => c.to_string(),
+    None => return oauth_html_page(false, "Missing authorization code."),
+  };
+
+  let pending = PENDING_OAUTH.lock().unwrap().take();
+  let pending = match pending {
+    Some(p) => p,
+    None => return oauth_html_page(false, "No pending OAuth request — please try again from Knapsack."),
+  };
+
+  if pending.created_at.elapsed().as_secs() > 300 {
+    return oauth_html_page(false, "OAuth request timed out. Please try again.");
+  }
+
+  if let Some(ref returned_state) = query.state {
+    if returned_state != &pending.state {
+      return oauth_html_page(false, "Invalid OAuth state. Please try again.");
+    }
+  }
+
+  let provider = pending.provider.clone();
+
+  match provider.as_str() {
+    "openrouter" => {
+      let key = match exchange_openrouter_code(&code).await {
+        Ok(k) => k,
+        Err(e) => return oauth_html_page(false, &format!("Failed to get API key: {}", e)),
+      };
+
+      match save_and_restart_for_oauth(&app_handle, "openrouter", &key) {
+        Ok(_) => {
+          eprintln!("[clawd/service] OpenRouter OAuth: key saved, gateway restarting");
+          oauth_html_page(true, "OpenRouter")
+        }
+        Err(e) => oauth_html_page(false, &format!("Failed to save key: {}", e)),
+      }
+    }
+    _ => oauth_html_page(false, "Unknown OAuth provider."),
+  }
+}
+
+async fn exchange_openrouter_code(code: &str) -> Result<String, String> {
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(30))
+    .build()
+    .map_err(|e| e.to_string())?;
+
+  let resp = client
+    .post("https://openrouter.ai/api/v1/auth/keys")
+    .header("Content-Type", "application/json")
+    .json(&serde_json::json!({ "code": code }))
+    .send()
+    .await
+    .map_err(|e| format!("Network error: {}", e))?;
+
+  if !resp.status().is_success() {
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    return Err(format!("OpenRouter returned {}: {}", status, body));
+  }
+
+  let json: serde_json::Value = resp.json().await.map_err(|e| format!("Parse error: {}", e))?;
+  json
+    .get("key")
+    .and_then(|v| v.as_str())
+    .map(|s| s.to_string())
+    .ok_or_else(|| "Missing 'key' in OpenRouter response".to_string())
+}
+
+fn save_and_restart_for_oauth(
+  app_handle: &tauri::AppHandle,
+  provider: &str,
+  key: &str,
+) -> Result<(), String> {
+  let mut tokens = load_or_create_tokens(app_handle)?;
+
+  match provider {
+    "openrouter" => {
+      tokens.openrouter_api_key = Some(key.to_string());
+    }
+    _ => return Err(format!("Unsupported OAuth provider: {}", provider)),
+  }
+  tokens.active_provider = Some(provider.to_string());
+  save_tokens(app_handle, &tokens)?;
+
+  // Propagate to environment immediately
+  std::env::set_var("OPENROUTER_API_KEY", key);
+  std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", provider);
+  std::env::remove_var("OLLAMA_API_KEY");
+
+  // Restart gateway (same logic as set_api_key)
+  crate::clawd::gateway_client::invalidate();
+
+  #[cfg(target_os = "windows")]
+  {
+    kill_process_on_port(18789);
+  }
+
+  #[cfg(target_os = "macos")]
+  {
+    if let Ok(plist_path) = launch_agent_plist_path() {
+      regenerate_macos_plist_with_current_env(&plist_path);
+      let uid = unsafe { libc::getuid() };
+      let domain = format!("gui/{}", uid);
+      let _ = std::process::Command::new("launchctl")
+        .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+        .status();
+      std::thread::sleep(std::time::Duration::from_millis(500));
+      let _ = std::process::Command::new("launchctl")
+        .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+        .status();
+      let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+      let _ = std::process::Command::new("launchctl")
+        .args(["kickstart", "-k", &service])
+        .status();
+    }
+  }
+
+  Ok(())
+}
+
+fn oauth_html_page(success: bool, message: &str) -> HttpResponse {
+  let (title, icon, color, body) = if success {
+    (
+      format!("Connected to {} — Knapsack", message),
+      "✓",
+      "#16a34a",
+      format!(
+        "<strong>{}</strong> connected to Knapsack.<br><br>You can close this tab and return to Knapsack.",
+        message
+      ),
+    )
+  } else {
+    (
+      "Authentication Failed — Knapsack".to_string(),
+      "✗",
+      "#dc2626",
+      format!(
+        "{}<br><br>You can close this tab and try again in Knapsack.",
+        message
+      ),
+    )
+  };
+
+  let html = format!(
+    r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title}</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           display: flex; align-items: center; justify-content: center;
+           min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; }}
+    .card {{ text-align: center; padding: 48px 40px; background: white;
+             border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08);
+             max-width: 400px; width: 90%; }}
+    .icon {{ font-size: 48px; color: {color}; margin-bottom: 16px; line-height: 1; }}
+    h1 {{ font-size: 20px; font-weight: 700; margin: 0 0 12px; color: #1e293b; }}
+    p {{ font-size: 15px; line-height: 1.6; color: #64748b; margin: 0; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">{icon}</div>
+    <h1>{title}</h1>
+    <p>{body}</p>
+  </div>
+</body>
+</html>"#,
+    title = title,
+    icon = icon,
+    color = color,
+    body = body,
+  );
+
+  HttpResponse::Ok()
+    .content_type("text/html; charset=utf-8")
+    .body(html)
+}
+
+// ── End OAuth provider login ───────────────────────────────────────────────
+
 /// On macOS, automatically register the LaunchAgent on first launch so the
 /// user never sees "LaunchAgent plist not found — try toggling Enable in Settings."
 ///
