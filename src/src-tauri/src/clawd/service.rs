@@ -3950,18 +3950,26 @@ async fn prepare_gateway_config(
         // ── Auto-heal allowlist channels ──────────────────────────────
         // Must run AFTER other patches so that the in-memory cfg_val is
         // already up-to-date before we persist it.
-        if sanitize_channel_allowlist_configs(&mut cfg_val) {
+        // Track separately: channel fixes MUST always reach disk (even while
+        // the gateway is running) because an invalid channel entry causes every
+        // subsequent config reload to fail — a worse outcome than the anomaly.
+        let channels_sanitized = sanitize_channel_allowlist_configs(&mut cfg_val);
+        if channels_sanitized {
           patched = true;
         }
 
         if patched {
-          // Skip direct file write if the gateway is already running — it
-          // watches openclaw.json and treats any external write as a
-          // "Config overwrite / missing-meta-before-write" anomaly, triggering
-          // an unnecessary SIGUSR1 reload.  The config.patch RPC fired in
-          // connect_and_handshake (gateway_client.rs) pushes the same changes
-          // to the live gateway via RPC without touching the file.
-          if gateway_client::is_gateway_port_open().await {
+          // Skip direct file write if the gateway is already running AND we
+          // only have non-critical patches (browser settings, token sync, tools).
+          // The config.patch RPC in connect_and_handshake handles those via RPC
+          // without touching the file, avoiding the "Config overwrite /
+          // missing-meta-before-write" anomaly and an unnecessary SIGUSR1 reload.
+          //
+          // Exception: channel sanitization always writes — invalid channel
+          // entries cause gateway config reloads to fail entirely, so the fix
+          // must reach disk even if it triggers the anomaly.
+          let gateway_live = gateway_client::is_gateway_port_open().await;
+          if gateway_live && !channels_sanitized {
             eprintln!(
               "[clawd/service] Config needs patching but gateway is live — \
                skipping file write to avoid anomaly; config.patch RPC will apply changes"
