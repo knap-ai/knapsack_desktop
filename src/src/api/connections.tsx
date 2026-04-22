@@ -44,11 +44,31 @@ export type Connection = {
 export const calendarConnectionKey = (calendarAccountEmail: string): string =>
   `${ConnectionKeys.GOOGLE_CALENDAR}|${calendarAccountEmail}`
 
+/** Record key used for a Google Drive connection given its account email. */
+export const driveConnectionKey = (accountEmail: string): string =>
+  `${ConnectionKeys.GOOGLE_DRIVE}|${accountEmail}`
+
+/** Record key used for a Google Gmail connection given its account email. */
+export const gmailConnectionKey = (accountEmail: string): string =>
+  `${ConnectionKeys.GOOGLE_GMAIL}|${accountEmail}`
+
 /** All Google Calendar connections in the connections map. */
 export const getGoogleCalendarConnections = (
   connections: Record<string, Connection>,
 ): Connection[] =>
   Object.values(connections).filter(c => c.key === ConnectionKeys.GOOGLE_CALENDAR)
+
+/** All Google Drive connections in the connections map. */
+export const getGoogleDriveConnections = (
+  connections: Record<string, Connection>,
+): Connection[] =>
+  Object.values(connections).filter(c => c.key === ConnectionKeys.GOOGLE_DRIVE)
+
+/** All Google Gmail connections in the connections map. */
+export const getGoogleGmailConnections = (
+  connections: Record<string, Connection>,
+): Connection[] =>
+  Object.values(connections).filter(c => c.key === ConnectionKeys.GOOGLE_GMAIL)
 
 /** True if at least one Google Calendar account is connected. */
 export const hasGoogleCalendar = (connections: Record<string, Connection>): boolean =>
@@ -217,11 +237,16 @@ export async function getConnections(email: string): Promise<Record<string, Conn
     ) => {
       const scope = userConnection.connection.scope
       const calendarAccountEmail = userConnection.calendarAccountEmail || ''
-      // Calendar connections are keyed as "scope|accountEmail" so that
-      // multiple linked calendars can coexist in the same record.
+      // Calendar, Drive, and Gmail connections are keyed as "scope|accountEmail"
+      // so that multiple linked accounts can coexist in the same record.
+      const multiAccountScopes = new Set([
+        ConnectionKeys.GOOGLE_CALENDAR,
+        ConnectionKeys.GOOGLE_DRIVE,
+        ConnectionKeys.GOOGLE_GMAIL,
+      ])
       const recordKey =
-        scope === ConnectionKeys.GOOGLE_CALENDAR && calendarAccountEmail
-          ? calendarConnectionKey(calendarAccountEmail)
+        multiAccountScopes.has(scope as ConnectionKeys) && calendarAccountEmail
+          ? `${scope}|${calendarAccountEmail}`
           : scope
 
       return {
@@ -281,8 +306,11 @@ export async function getGoogleProfile(email: string) {
   } as Profile
 }
 
-export async function syncGoogleDriveAPI(email: string) {
-  const response = await fetch(`${KN_API_GOOGLE_DRIVE}?email=${email}`, {
+export async function syncGoogleDriveAPI(email: string, accountEmail?: string) {
+  const accountParam = accountEmail
+    ? `&account_email=${encodeURIComponent(accountEmail)}`
+    : ''
+  const response = await fetch(`${KN_API_GOOGLE_DRIVE}?email=${email}${accountParam}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -295,8 +323,11 @@ export async function syncGoogleDriveAPI(email: string) {
   return !!data?.success
 }
 
-export async function syncGoogleGmailAPI(email: string) {
-  const response = await fetch(`${KN_API_GOOGLE_GMAIL}?email=${email}`, {
+export async function syncGoogleGmailAPI(email: string, accountEmail?: string) {
+  const accountParam = accountEmail
+    ? `&account_email=${encodeURIComponent(accountEmail)}`
+    : ''
+  const response = await fetch(`${KN_API_GOOGLE_GMAIL}?email=${email}${accountParam}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

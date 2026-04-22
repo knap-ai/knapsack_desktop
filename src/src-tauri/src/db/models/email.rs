@@ -27,6 +27,7 @@ pub struct Email {
   pub is_read: Option<bool>,
   pub is_archived: Option<bool>,
   pub is_deleted: Option<bool>,
+  pub account_email: String,
 }
 
 impl Email {
@@ -45,6 +46,7 @@ impl Email {
       is_read: row.get(10)?,
       is_archived: row.get(11)?,
       is_deleted: Some(row.get(12)?),
+      account_email: row.get(13).unwrap_or_default(),
     })
   }
   pub fn delete(&self) -> Result<()> {
@@ -94,8 +96,8 @@ impl Email {
     let connection = get_db_conn();
     connection
       .execute(
-        "INSERT INTO emails (email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT(email_uid) DO UPDATE SET subject = ?2, date = ?3, sender = ?4, body = ?5, recipient = ?6, cc = ?7, thread_id = ?8, is_starred = ?9,  is_read = ?10, is_archived =?11, is_deleted =?12",
-        params![self.email_uid, self.subject, self.date, self.sender, self.body, self.recipient, self.cc, self.thread_id, self.is_starred, self.is_read, self.is_archived, self.is_deleted],
+        "INSERT INTO emails (email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) ON CONFLICT(email_uid, account_email) DO UPDATE SET subject = ?2, date = ?3, sender = ?4, body = ?5, recipient = ?6, cc = ?7, thread_id = ?8, is_starred = ?9, is_read = ?10, is_archived = ?11, is_deleted = ?12",
+        params![self.email_uid, self.subject, self.date, self.sender, self.body, self.recipient, self.cc, self.thread_id, self.is_starred, self.is_read, self.is_archived, self.is_deleted, self.account_email],
       )?;
     self.id = Some(connection.last_insert_rowid() as u64);
     Ok(())
@@ -104,7 +106,7 @@ impl Email {
   pub fn find_by_id(id: u64) -> Result<Option<Email>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails WHERE id = ?1")
+      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE id = ?1")
       .expect("could not prepare query emails");
     let email = stmt
       .query_row([id], |row| Email::build_struct_from_row(row))
@@ -115,7 +117,7 @@ impl Email {
   pub fn find_by_uid(uid: &str) -> Result<Option<Email>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails WHERE email_uid = ?1")
+      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE email_uid = ?1")
       .expect("could not prepare query emails");
     let email = stmt
       .query_row([uid], |row| Email::build_struct_from_row(row))
@@ -130,7 +132,7 @@ impl Email {
     let limit_string = limit.clone().to_string();
     let limit_str = limit_string.as_str();
     let mut stmt = connection
-      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails WHERE sender LIKE ?1 OR recipient LIKE ?1 ORDER BY date DESC LIMIT ?2")
+      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE sender LIKE ?1 OR recipient LIKE ?1 ORDER BY date DESC LIMIT ?2")
       .expect("could not prepare query emails");
     let rows = stmt
       .query_map([&sender_or_recipient_query_str, &limit_str], |row| {
@@ -157,7 +159,7 @@ impl Email {
   pub fn get_email_message(email_uid: &str) -> Option<Email> {
     let connection = get_db_conn();
     let mut stmt = connection
-      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails WHERE email_uid = ?1")
+      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE email_uid = ?1")
       .expect("could not prepare query emails");
     //TODO use build_struct_from_row
     let result = stmt.query_row(&[email_uid], |row| Email::build_struct_from_row(row));
@@ -174,7 +176,7 @@ impl Email {
   pub fn get_recent_emails(limit: usize) -> Vec<Email> {
     let connection = get_db_conn();
     let mut stmt = connection
-      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails ORDER BY date DESC LIMIT ?1")
+      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails ORDER BY date DESC LIMIT ?1")
       .expect("could not prepare query emails");
     //TODO use build_struct_from_row
     let rows = stmt
@@ -220,7 +222,7 @@ impl Email {
 
     let where_query = "WHERE sender LIKE ?1 AND date >= ?2 AND date <= ?3".to_string();
 
-    let query = format!("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails {} ORDER BY date DESC LIMIT ?4", where_query);
+    let query = format!("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails {} ORDER BY date DESC LIMIT ?4", where_query);
     let mut stmt = connection
       .prepare(&query)
       .expect("could not prepare query emails");
@@ -273,7 +275,7 @@ impl Email {
       where_query = format!("WHERE {}", where_queries.join(" and "));
     }
 
-    let query = format!("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails {} ORDER BY date DESC LIMIT ?{}", where_query, params.len() + 1);
+    let query = format!("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails {} ORDER BY date DESC LIMIT ?{}", where_query, params.len() + 1);
     params.push(limit.to_string());
     let mut stmt = connection
       .prepare(&query)
@@ -398,7 +400,7 @@ impl Email {
   pub fn get_last_email_by_thread_id(thread_id: &str) -> Result<Vec<Email>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted FROM emails WHERE thread_id = ?1 ORDER BY date DESC")
+        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 ORDER BY date DESC")
         .expect("could not prepare query emails by thread_id");
 
     let emails = stmt
@@ -410,30 +412,33 @@ impl Email {
     Ok(emails)
   }
 
-  pub async fn mark_deleted_emails(fetched_uuids: &[String], days: i64) -> Result<(), Error> {
+  pub async fn mark_deleted_emails(fetched_uuids: &[String], days: i64, account_email: &str) -> Result<(), Error> {
     let connection = get_db_conn();
     let days_ago = chrono::Utc::now() - chrono::Duration::days(days);
     let days_ago_timestamp = days_ago.timestamp() as u64;
     let current_timestamp = chrono::Utc::now().timestamp() as u64;
-  
+
     let placeholders: String = fetched_uuids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
     let query = format!(
-        "UPDATE emails SET is_deleted = TRUE 
-        WHERE email_uid NOT IN ({}) 
-        AND date >= ? 
-        AND date <= ? 
+        "UPDATE emails SET is_deleted = TRUE
+        WHERE email_uid NOT IN ({})
+        AND account_email = ?
+        AND date >= ?
+        AND date <= ?
         AND is_deleted = FALSE",
         placeholders
     );
-  
+
     let mut stmt = connection.prepare(&query)?;
-    
+
+    let account_email_owned = account_email.to_owned();
     let mut params: Vec<&dyn rusqlite::ToSql> = fetched_uuids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+    params.push(&account_email_owned);
     params.push(&days_ago_timestamp);
     params.push(&current_timestamp);
-  
+
     stmt.execute(params.as_slice())?;
-  
+
     Ok(())
   }
 }

@@ -151,6 +151,7 @@ async fn upsert_email_by_uid(
     is_read: Some(email_data.isRead),
     is_archived: Some(is_archived),
     is_deleted: Some(false),
+    account_email: String::new(),
   };
 
   email_entry.create();
@@ -312,7 +313,7 @@ pub async fn fetch_outlook_emails(
     }
   }
 
-  Email::mark_deleted_emails(&all_email_uuids, 3).await?;
+  Email::mark_deleted_emails(&all_email_uuids, 3, "").await?;
 
   Ok(())
 }

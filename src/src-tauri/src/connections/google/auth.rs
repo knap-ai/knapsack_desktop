@@ -248,9 +248,11 @@ fn create_connections_from_scopes(
       if !(scopes.contains(scope_value)) {
         continue;
       }
-      // For the calendar scope, calendar_account_email = the Google account
-      // email whose calendar we're linking.
-      let calendar_account_email = if *scope_key == GOOGLE_CALENDAR_SCOPE {
+      // For calendar, drive, and gmail the calendar_account_email identifies
+      // which Google account's data this connection syncs.
+      let calendar_account_email = if [GOOGLE_CALENDAR_SCOPE, GOOGLE_DRIVE_SCOPE, GOOGLE_GMAIL_SCOPE]
+        .contains(scope_key)
+      {
         email.clone()
       } else {
         String::new()
@@ -279,20 +281,39 @@ fn create_connections_from_scopes(
   Ok(connected_scopes)
 }
 
-/// Create a calendar connection for a *secondary* Google account.  The
-/// `primary_user_email` identifies the existing user; `calendar_email` is the
-/// new account being linked.
-fn create_additional_calendar_connection(
+/// Create connections for a *secondary* Google account.  Looks at `raw_scopes`
+/// to decide which connection types to create (calendar, drive, gmail).
+/// `primary_user_email` identifies the existing user; `new_account_email` is
+/// the email of the newly authorised Google account.
+fn create_additional_connections(
   primary_user_email: String,
-  calendar_email: String,
+  new_account_email: String,
+  raw_scopes: String,
   refresh_token: String,
-) -> Result<(), Error> {
-  create_user_connection(
-    primary_user_email,
-    refresh_token,
-    String::from(GOOGLE_CALENDAR_SCOPE),
-    calendar_email,
-  )
+) -> Result<Vec<String>, Error> {
+  let scopes = raw_scopes.split(' ').collect::<Vec<&str>>();
+
+  let scope_map: &[(&str, &[&str])] = &[
+    (GOOGLE_CALENDAR_SCOPE, &["https://www.googleapis.com/auth/calendar.readonly"]),
+    (GOOGLE_DRIVE_SCOPE,    &["https://www.googleapis.com/auth/drive.readonly"]),
+    (GOOGLE_GMAIL_SCOPE,    &["https://www.googleapis.com/auth/gmail.modify"]),
+  ];
+
+  let mut created: Vec<String> = vec![];
+  for (scope_key, scope_values) in scope_map {
+    let has_scope = scope_values.iter().any(|sv| scopes.contains(sv));
+    if !has_scope {
+      continue;
+    }
+    create_user_connection(
+      primary_user_email.clone(),
+      refresh_token.clone(),
+      String::from(*scope_key),
+      new_account_email.clone(),
+    )?;
+    created.push(String::from(*scope_key));
+  }
+  Ok(created)
 }
 
 /// Exchange OAuth code for tokens locally using Google's token endpoint.
@@ -430,32 +451,33 @@ async fn complete_google_signin(
 
   let calendar_email = profile.email.clone().unwrap();
 
-  // ── Add-calendar flow ──────────────────────────────────────────────────────
+  // ── Add-account flow ───────────────────────────────────────────────────────
   // When `primary_email` is provided the caller is already logged in as that
-  // user and just wants to link an additional Google Calendar account.
+  // user and wants to link an additional Google account (calendar, drive, or
+  // gmail depending on which scopes were granted).
   if let Some(primary_email) = params.primary_email.clone() {
-    match create_additional_calendar_connection(
+    match create_additional_connections(
       primary_email.clone(),
       calendar_email.clone(),
+      raw_scopes.clone(),
       response.refresh_token.clone(),
     ) {
-      Ok(_) => {
-        log::info!("Linked additional calendar {} to user {}", calendar_email, primary_email);
+      Ok(created_keys) => {
+        log::info!("Linked additional account {} to user {} for scopes {:?}", calendar_email, primary_email, created_keys);
+        return HttpResponse::Ok().json(json!({
+          "success": true,
+          "calendar_email": calendar_email,
+          "connection_keys": created_keys
+        }));
       }
       Err(err) => {
-        log::error!("Failed to link additional calendar: {:?}", err);
+        log::error!("Failed to link additional account: {:?}", err);
         return HttpResponse::InternalServerError().json(json!({
-          "error": format!("Failed to link additional calendar: {:?}", err),
+          "error": format!("Failed to link additional account: {:?}", err),
           "success": false
         }));
       }
     }
-
-    return HttpResponse::Ok().json(json!({
-      "success": true,
-      "calendar_email": calendar_email,
-      "connection_keys": [GOOGLE_CALENDAR_SCOPE]
-    }));
   }
 
   // ── Normal (primary) sign-in flow ──────────────────────────────────────────

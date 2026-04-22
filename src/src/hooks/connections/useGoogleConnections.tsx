@@ -5,7 +5,11 @@ import {
   ConnectionKeys,
   ConnectionStates,
   calendarConnectionKey,
+  driveConnectionKey,
+  gmailConnectionKey,
   getGoogleCalendarConnections,
+  getGoogleDriveConnections,
+  getGoogleGmailConnections,
   isConnectionReadyToSync,
   syncGoogleCalendarAPI,
   syncGoogleDriveAPI,
@@ -46,27 +50,31 @@ export const useGoogleConnections = (
     authFailureCounts.current[connectionKey] = 0
   }, [])
 
+  /** Sync a single Google Drive account identified by accountEmail. */
   const syncGoogleDrive = useCallback(
-    async (emailAddress: string) => {
-      setConnectionState?.(ConnectionKeys.GOOGLE_DRIVE, ConnectionStates.SYNCING)
+    async (primaryEmail: string, accountEmail: string) => {
+      const recordKey = driveConnectionKey(accountEmail)
+      setConnectionState?.(recordKey, ConnectionStates.SYNCING)
       try {
-        await syncGoogleDriveAPI(emailAddress)
-        resetAuthFailure(ConnectionKeys.GOOGLE_DRIVE)
+        await syncGoogleDriveAPI(primaryEmail, accountEmail)
+        resetAuthFailure(recordKey)
       } catch (error) {
-        handleSyncError(error, ConnectionKeys.GOOGLE_DRIVE)
+        handleSyncError(error, recordKey)
       }
     },
     [setConnectionState, handleSyncError, resetAuthFailure],
   )
 
+  /** Sync a single Gmail account identified by accountEmail. */
   const syncGoogleGmail = useCallback(
-    async (emailAddress: string) => {
-      setConnectionState?.(ConnectionKeys.GOOGLE_GMAIL, ConnectionStates.SYNCING)
+    async (primaryEmail: string, accountEmail: string) => {
+      const recordKey = gmailConnectionKey(accountEmail)
+      setConnectionState?.(recordKey, ConnectionStates.SYNCING)
       try {
-        await syncGoogleGmailAPI(emailAddress)
-        resetAuthFailure(ConnectionKeys.GOOGLE_GMAIL)
+        await syncGoogleGmailAPI(primaryEmail, accountEmail)
+        resetAuthFailure(recordKey)
       } catch (error) {
-        handleSyncError(error, ConnectionKeys.GOOGLE_GMAIL)
+        handleSyncError(error, recordKey)
       }
     },
     [setConnectionState, handleSyncError, resetAuthFailure],
@@ -87,28 +95,21 @@ export const useGoogleConnections = (
     [setConnectionState, handleSyncError, resetAuthFailure],
   )
 
-  const syncByConnectionKey = useCallback(
-    async (email: string, connectionKey: ConnectionKeys) => {
-      if (connectionKey === ConnectionKeys.GOOGLE_DRIVE) {
-        await syncGoogleDrive(email)
-        return
-      }
-      if (connectionKey === ConnectionKeys.GOOGLE_GMAIL) {
-        await syncGoogleGmail(email)
-        return
-      }
-    },
-    [syncGoogleDrive, syncGoogleGmail],
-  )
-
   const syncConnections = useCallback(
     async (email: string, connections: Record<string, Connection>) => {
       const promises: Promise<void>[] = []
 
-      // Sync Drive and Gmail using the base scope keys.
-      for (const connectionKey of [ConnectionKeys.GOOGLE_DRIVE, ConnectionKeys.GOOGLE_GMAIL]) {
-        if (isConnectionReadyToSync(connections[connectionKey])) {
-          promises.push(syncByConnectionKey(email, connectionKey))
+      // Sync every linked Google Drive account independently.
+      for (const driveConn of getGoogleDriveConnections(connections)) {
+        if (isConnectionReadyToSync(driveConn) && driveConn.calendarAccountEmail) {
+          promises.push(syncGoogleDrive(email, driveConn.calendarAccountEmail))
+        }
+      }
+
+      // Sync every linked Gmail account independently.
+      for (const gmailConn of getGoogleGmailConnections(connections)) {
+        if (isConnectionReadyToSync(gmailConn) && gmailConn.calendarAccountEmail) {
+          promises.push(syncGoogleGmail(email, gmailConn.calendarAccountEmail))
         }
       }
 
@@ -121,8 +122,8 @@ export const useGoogleConnections = (
 
       await Promise.all(promises)
     },
-    [syncByConnectionKey, syncGoogleCalendar],
+    [syncGoogleDrive, syncGoogleGmail, syncGoogleCalendar],
   )
 
-  return { syncByConnectionKey, syncConnections, syncGoogleCalendar }
+  return { syncConnections, syncGoogleCalendar, syncGoogleDrive, syncGoogleGmail }
 }
