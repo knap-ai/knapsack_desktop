@@ -2159,11 +2159,32 @@ pub async fn service_status() -> impl Responder {
     // Best-effort: `launchctl print gui/<uid>/<label>` exits 0 when loaded.
     let uid = unsafe { libc::getuid() };
     let domain = format!("gui/{}/{}", uid, LAUNCH_AGENT_LABEL);
-    let running = std::process::Command::new("launchctl")
+    let launchctl_running = std::process::Command::new("launchctl")
       .args(["print", &domain])
       .status()
       .map(|s| s.success())
       .unwrap_or(false);
+
+    // Fallback: if launchctl doesn't report the service as loaded, probe the
+    // port directly via HTTP (not raw TCP — a bare TCP connect causes spurious
+    // code=1006 "closed before connect" WS errors in the gateway log).
+    // This handles the case where the gateway is running from a prior session
+    // but the plist is missing or launchctl hasn't registered it yet.
+    let port_ok = if !launchctl_running {
+      let probe = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(800))
+        .build()
+        .ok()
+        .map(|c| c.get("http://127.0.0.1:18789/health").send());
+      match probe {
+        Some(fut) => fut.await.map(|r| r.status().is_success() || r.status().as_u16() == 404).unwrap_or(false),
+        None => false,
+      }
+    } else {
+      false
+    };
+
+    let running = launchctl_running || port_ok;
 
     HttpResponse::Ok().json(ServiceStatusResponse {
       success: true,
