@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dayjs from 'dayjs'
 
 import { mergeAttributes } from '@tiptap/core'
@@ -14,7 +14,7 @@ import debounce from 'lodash/debounce'
 import { CSSTransition, TransitionGroup } from 'react-transition-group'
 import { FeedItem } from 'src/api/feed_items'
 import { isRecordingStatus, statusRecordByThreadID } from 'src/api/recording'
-import { IThread } from 'src/api/threads'
+import { IThread, ThreadType } from 'src/api/threads'
 import { LLMParams } from 'src/App'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { IFeed } from 'src/hooks/feed/useFeed'
@@ -148,6 +148,28 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }).catch(() => {})
   }, [])
   const [isTitleSet, setIsTitleSet] = useState(thread.subtitle !== 'Untitled Meeting')
+  const [isEditingTitle, setIsEditingTitle] = useState(
+    !thread.recorded && thread.subtitle === 'Untitled Meeting',
+  )
+  const [editableTitle, setEditableTitle] = useState(thread.subtitle || '')
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus()
+      titleInputRef.current.select()
+    }
+  }, [isEditingTitle])
+
+  const saveTitleEdit = () => {
+    const trimmed = editableTitle.trim()
+    if (trimmed && trimmed !== thread.subtitle) {
+      feed.renameMeeting(thread.id, trimmed, feedItemId)
+      setIsTitleSet(true)
+    }
+    setIsEditingTitle(false)
+  }
+
   const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
   const transcribingTexts = [
     'Privately transcribing...',
@@ -160,6 +182,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [isEditing, setIsEditing] = useState(true)
   const [prepContent, setPrepContent] = useState('')
   const [isPrepGenerating, setIsPrepGenerating] = useState(false)
+  const [suggestedCalendarEvent, setSuggestedCalendarEvent] = useState<Meeting | null>(null)
 
   const templatePrompt: MeetingTemplatePrompt = useMemo(() => {
     if (thread.promptTemplate) {
@@ -431,6 +454,27 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }, [recordingHandlers.hasSynthesized(thread.id), notesMarkdown, isTitleSet])
 
+  // After synthesis, prompt to attach ad-hoc notes to a nearby calendar event that has no notes yet.
+  useEffect(() => {
+    if (!recordingHandlers.hasSynthesized(thread.id) || meeting || suggestedCalendarEvent) return
+    const FORTY_FIVE_MIN = 45 * 60 * 1000
+    const meetingTime = timestamp.getTime()
+    for (const feedItems of Object.values(feed.feedContent)) {
+      for (const fi of feedItems) {
+        if (!fi.calendarEvent || fi.id === feedItemId) continue
+        const hasNotes = fi.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
+        if (hasNotes) continue
+        const calStart = fi.calendarEvent.start
+          ? fi.calendarEvent.start * 1000
+          : fi.timestamp.getTime()
+        if (Math.abs(calStart - meetingTime) <= FORTY_FIVE_MIN) {
+          setSuggestedCalendarEvent(fi.calendarEvent)
+          return
+        }
+      }
+    }
+  }, [recordingHandlers.hasSynthesized(thread.id)])
+
   const getRunParamObject = () => {
     if (runParam) {
       try {
@@ -632,9 +676,28 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
           <div className="w-full flex flex-col gap-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <h1 className="notetaker-note__title">
-                  {thread.subtitle}
-                </h1>
+                {isEditingTitle ? (
+                  <input
+                    ref={titleInputRef}
+                    className="notetaker-note__title-input"
+                    value={editableTitle}
+                    onChange={e => setEditableTitle(e.target.value)}
+                    onBlur={saveTitleEdit}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); saveTitleEdit() }
+                      else if (e.key === 'Escape') setIsEditingTitle(false)
+                    }}
+                    placeholder="Meeting title..."
+                  />
+                ) : (
+                  <h1
+                    className="notetaker-note__title"
+                    onClick={!thread.recorded ? () => { setIsEditingTitle(true) } : undefined}
+                    style={!thread.recorded ? { cursor: 'text' } : undefined}
+                  >
+                    {thread.subtitle}
+                  </h1>
+                )}
                 <div className="notetaker-note__meta">
                   <span className="notetaker-note__meta-item">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -809,9 +872,28 @@ Be direct, specific, and concise. No filler text.`
         <div className="w-full flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <h1 className="notetaker-note__title">
-                {thread.subtitle}
-              </h1>
+              {isEditingTitle ? (
+                <input
+                  ref={titleInputRef}
+                  className="notetaker-note__title-input"
+                  value={editableTitle}
+                  onChange={e => setEditableTitle(e.target.value)}
+                  onBlur={saveTitleEdit}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); saveTitleEdit() }
+                    else if (e.key === 'Escape') setIsEditingTitle(false)
+                  }}
+                  placeholder="Meeting title..."
+                />
+              ) : (
+                <h1
+                  className="notetaker-note__title"
+                  onClick={!thread.recorded ? () => { setIsEditingTitle(true) } : undefined}
+                  style={!thread.recorded ? { cursor: 'text' } : undefined}
+                >
+                  {thread.subtitle}
+                </h1>
+              )}
               {/* Metadata row */}
               <div className="notetaker-note__meta">
                 {recordingHandlers.isRecording(thread.id) && (
@@ -885,6 +967,32 @@ Be direct, specific, and concise. No filler text.`
         {/* Recording notice */}
         {recordingHandlers.isRecording(thread.id) && (
           <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
+        )}
+
+        {/* Attach-to-calendar-event prompt */}
+        {suggestedCalendarEvent && (
+          <div className="notetaker-note__attach-banner">
+            <span className="notetaker-note__attach-banner-text">
+              Attach these notes to <strong>&ldquo;{suggestedCalendarEvent.title}&rdquo;</strong>?
+            </span>
+            <button
+              className="notetaker-note__attach-banner-yes"
+              onClick={() => {
+                if (feedItemId != null) {
+                  feed.attachNotesToCalendarEvent(feedItemId, suggestedCalendarEvent)
+                }
+                setSuggestedCalendarEvent(null)
+              }}
+            >
+              Yes, attach
+            </button>
+            <button
+              className="notetaker-note__attach-banner-no"
+              onClick={() => setSuggestedCalendarEvent(null)}
+            >
+              No
+            </button>
+          </div>
         )}
 
         {/* Permission error banner */}

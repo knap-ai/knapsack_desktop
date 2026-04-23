@@ -637,10 +637,12 @@ pub async fn stop_recording(
         knap_log_error(err_msg.clone(), None, Some(true));
         log::error!("Failed to delete input txt file: {:?}", e);
       }
-      if let Err(e) = std::fs::remove_file(&output_path) {
-        let err_msg = format!("Failed to delete output txt file: {:?}", e);
-        knap_log_error(err_msg.clone(), None, Some(true));
-        log::error!("Failed to delete output file: {:?}", e);
+      if output_path.exists() {
+        if let Err(e) = std::fs::remove_file(&output_path) {
+          let err_msg = format!("Failed to delete output txt file: {:?}", e);
+          knap_log_error(err_msg.clone(), None, Some(true));
+          log::error!("Failed to delete output file: {:?}", e);
+        }
       }
     }
     Err(e) => {

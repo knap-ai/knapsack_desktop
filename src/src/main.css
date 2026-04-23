@@ -276,6 +276,25 @@ html, body {
   line-height: 1.3;
 }
 
+.notetaker-note__title-input {
+  font-family: 'Lora', serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #333333;
+  margin: 0;
+  line-height: 1.3;
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid #6474AC;
+  background: transparent;
+  outline: none;
+  padding: 0;
+}
+
+.notetaker-note__title-input::placeholder {
+  color: #BBBBBB;
+}
+
 .notetaker-note__meta {
   display: flex;
   align-items: center;
@@ -455,6 +474,57 @@ html, body {
 
 .notetaker-note__bottom-stop:hover {
   background: #A23933;
+}
+
+.notetaker-note__attach-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #EEF1FA;
+  border: 1px solid #C5CCEC;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  flex-wrap: wrap;
+}
+
+.notetaker-note__attach-banner-text {
+  flex: 1;
+  color: #333;
+  min-width: 0;
+}
+
+.notetaker-note__attach-banner-yes {
+  background: #6474AC;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.notetaker-note__attach-banner-yes:hover {
+  background: #4e5e9a;
+}
+
+.notetaker-note__attach-banner-no {
+  background: transparent;
+  color: #6A6969;
+  border: 1px solid #D8D8D8;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.notetaker-note__attach-banner-no:hover {
+  background: #F5F5F5;
 }
 
 .notetaker-note__permission-error {
