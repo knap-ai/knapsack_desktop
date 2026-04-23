@@ -106,6 +106,7 @@ interface MeetingNotesModeProps {
 const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   thread,
   meeting,
+  timestamp,
   runParam,
   addToLLMQueue = () => {
     console.log('LLM Queue not configured:')
