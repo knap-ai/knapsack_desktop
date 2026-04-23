@@ -2170,6 +2170,7 @@ pub async fn service_status() -> impl Responder {
     // code=1006 "closed before connect" WS errors in the gateway log).
     // This handles the case where the gateway is running from a prior session
     // but the plist is missing or launchctl hasn't registered it yet.
+    // 401 is treated as "running": gateway requires auth but is listening.
     let port_ok = if !launchctl_running {
       let probe = reqwest::Client::builder()
         .timeout(std::time::Duration::from_millis(800))
@@ -2177,7 +2178,7 @@ pub async fn service_status() -> impl Responder {
         .ok()
         .map(|c| c.get("http://127.0.0.1:18789/health").send());
       match probe {
-        Some(fut) => fut.await.map(|r| r.status().is_success() || r.status().as_u16() == 404).unwrap_or(false),
+        Some(fut) => fut.await.map(|r| r.status().is_success() || r.status().as_u16() == 401 || r.status().as_u16() == 404).unwrap_or(false),
         None => false,
       }
     } else {
@@ -5851,14 +5852,28 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   };
 
   if plist_path.exists() {
-    return; // Already registered — nothing to do.
+    // Plist exists — check if the service is actually loaded.  If it is,
+    // there's nothing to do.  If it isn't (e.g. bootstrap failed on a prior
+    // launch, the service was manually unregistered, or the app was reinstalled
+    // without deleting the plist), fall through and re-bootstrap so the gateway
+    // starts without the user having to toggle Enable in Settings.
+    let uid = unsafe { libc::getuid() };
+    let domain = format!("gui/{}/{}", uid, LAUNCH_AGENT_LABEL);
+    let is_loaded = std::process::Command::new("launchctl")
+      .args(["print", &domain])
+      .status()
+      .map(|s| s.success())
+      .unwrap_or(false);
+    if is_loaded {
+      return;
+    }
+    eprintln!("[clawd/service] auto_enable: plist exists but service not loaded — re-bootstrapping");
   }
 
-  // Signal to the health endpoint that first-time setup is in progress so it
-  // can show a cleaner "starting for the first time" message rather than
-  // "service is registering — please retry".
+  // Signal to the health endpoint that setup is in progress so it can show a
+  // cleaner message rather than "service is registering — please retry".
   AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
-  eprintln!("[clawd/service] auto_enable: plist not found, registering LaunchAgent for first launch");
+  eprintln!("[clawd/service] auto_enable: registering LaunchAgent");
 
   // Build a default config (base_url is set inside prepare_gateway_config's
   // return value; we only need the Arc wrapper to satisfy the signature).
