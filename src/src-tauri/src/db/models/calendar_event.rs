@@ -72,10 +72,13 @@ impl CalendarEvent {
   }
 
   pub fn get_event_participants_str(event_id: u64) -> Result<String, Error> {
+    if event_id == 0 {
+      return Ok("".to_string());
+    }
     let calendar_event = match CalendarEvent::find_by_id(event_id) {
       Ok(Some(calendar_event)) => calendar_event,
       Ok(None) => {
-        log::error!("Couldn't find calendar event for event_id: {}", event_id);
+        log::warn!("Couldn't find calendar event for event_id: {}", event_id);
         return Ok("".to_string());
       },
       Err(_) => {

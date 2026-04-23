@@ -424,7 +424,9 @@ function NotetakerSidebar({
                 .map(([dateStr, events]) => {
                   const date = dayjs(dateStr)
                   const isToday = date.isSame(dayjs(), 'day')
-                  const filteredEvents = filterBySearch(events).slice(0, 4)
+                  const filteredEvents = isToday
+                    ? filterBySearch(events)
+                    : filterBySearch(events).slice(0, 4)
                   if (filteredEvents.length === 0) return null
                   return (
                     <div key={dateStr} className="notetaker-sidebar__calendar-day">
@@ -501,10 +503,9 @@ function NotetakerSidebar({
                               {isNow && (
                                 <button
                                   className="notetaker-sidebar__start-now-btn"
-                                  onClick={e => {
+                                  onClick={async e => {
                                     e.stopPropagation()
-                                    if (item.id != null) feed.selectFeedItem(key, item.id)
-                                    feed.createNewMeeting()
+                                    await feed.startCalendarMeeting(item)
                                     onMeetingSelect?.()
                                     onTabChange(TabChoices.Meeting, 'meetings')
                                   }}

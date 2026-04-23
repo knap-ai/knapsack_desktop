@@ -147,6 +147,14 @@ export interface IFeed {
       }
     | undefined
   >
+  startCalendarMeeting: (item: FeedItem) => Promise<
+    | {
+        feedItemId: number | undefined
+        threadId: number
+      }
+    | undefined
+  >
+  attachNotesToCalendarEvent: (feedItemId: number, meeting: Meeting) => Promise<void>
   renameMeeting: (threadId: number, newTitle: string, feedItemId?: number) => Promise<void>
   refreshFeedItems: () => Promise<never[] | undefined>
   runEmailAutopilot: () => void
@@ -1623,6 +1631,136 @@ export function useFeed(
     }
   }
 
+  const startCalendarMeeting = async (item: FeedItem) => {
+    const saveTranscript = await shouldSaveTranscript()
+
+    if (item.id != null) {
+      const thread = item.threads?.[0]
+      if (!thread) return
+      const timelineKey = KNDateUtils.timelineKeyFromTimestamp(item.timestamp)
+      await selectFeedItem(timelineKey, item.id)
+      try {
+        await startRecord(thread.id, item.id, 0, saveTranscript)
+        setIsRecording(item)
+      } catch (recordErr: any) {
+        logError(new Error('Failed to start recording for calendar meeting'), {
+          additionalInfo: recordErr.message || String(recordErr),
+          error: recordErr.message || String(recordErr),
+        })
+        handleErrorContact(
+          'Could not start recording. Check audio permissions in System Settings and try again. You can still type notes manually.',
+        )
+      }
+      return { threadId: thread.id, feedItemId: item.id }
+    }
+
+    if (!item.calendarEvent) return
+    const meeting = item.calendarEvent
+    try {
+      const title = meeting.title || 'Untitled Meeting'
+      const feedItemReturn = await insertFeedItemAPI(meeting.start * 1000, title)
+      const newThread = await createThread(
+        meeting.start * 1000,
+        true,
+        feedItemReturn.id,
+        '',
+        title,
+        ThreadType.MEETING_NOTES,
+      )
+      if (!newThread) return
+      const thread = {
+        id: newThread.id,
+        date: newThread.timestamp ? new Date(newThread.timestamp) : undefined,
+        hideFollowUp: true,
+        messages: [],
+        isLoading: true,
+        title: newThread.title,
+        subtitle: newThread.subtitle,
+        threadType: newThread.threadType,
+      } as IThread
+      const feedItem = new FeedItem({
+        id: feedItemReturn.id,
+        timestamp: new Date(feedItemReturn.timestamp),
+        threads: [thread],
+        run: undefined,
+        isLoading: false,
+        title: feedItemReturn.title,
+        calendarEvent: meeting,
+      })
+      const timelineKey = KNDateUtils.timelineKeyFromTimestamp(feedItem.timestamp)
+      setFeedContent(prevState => {
+        if (!prevState[timelineKey]) prevState[timelineKey] = []
+        prevState[timelineKey] = prevState[timelineKey].filter(
+          fi => !(fi.calendarEvent?.event_id === meeting.event_id && !fi.id),
+        )
+        prevState[timelineKey].push(feedItem)
+        prevState[timelineKey] = KNDateUtils.sortByTimestamp(prevState[timelineKey])
+        return { ...prevState }
+      })
+      setSelectedFeedItem(feedItem)
+      setSubTab(SubTabChoices.Workspace)
+      try {
+        await startRecord(thread.id, feedItem.id, 0, saveTranscript)
+        setIsRecording(feedItem)
+      } catch (recordErr: any) {
+        logError(new Error('Failed to start recording for calendar meeting'), {
+          additionalInfo: recordErr.message || String(recordErr),
+          error: recordErr.message || String(recordErr),
+        })
+        handleErrorContact(
+          'Could not start recording. Check audio permissions in System Settings and try again. You can still type notes manually.',
+        )
+      }
+      return { threadId: thread.id, feedItemId: feedItem.id }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      logError(new Error('startCalendarMeeting failed'), {
+        additionalInfo: 'Error occurred while starting calendar meeting.',
+        error: errMsg,
+      })
+      handleErrorContact('Error starting meeting, please try again later.')
+      throw error
+    }
+  }
+
+  const attachNotesToCalendarEvent = async (feedItemId: number, meeting: Meeting) => {
+    for (const [timelineKey, feedItems] of Object.entries(feedContent)) {
+      const feedItem = feedItems.find(fi => fi.id === feedItemId)
+      if (!feedItem) continue
+
+      const newTitle = meeting.title || feedItem.title
+      const updatedThreads = feedItem.threads?.map(t => ({ ...t, subtitle: newTitle }))
+      const updatedFeedItem = new FeedItem({
+        ...feedItem,
+        title: newTitle,
+        threads: updatedThreads,
+        calendarEvent: meeting,
+      })
+
+      try {
+        await updateFeedItem(feedItemId, updatedFeedItem)
+        if (updatedThreads?.[0]) {
+          await updateThread(updatedThreads[0].id, updatedThreads[0] as IThread)
+        }
+      } catch (err) {
+        logError(err instanceof Error ? err : new Error(String(err)), {
+          additionalInfo: 'attachNotesToCalendarEvent: failed to persist changes',
+          error: String(err),
+        })
+      }
+
+      setFeedContent(prevState => {
+        const updated = { ...prevState }
+        updated[timelineKey] = feedItems.map(fi =>
+          fi.id === feedItemId ? updatedFeedItem : fi,
+        )
+        return updated
+      })
+      setSelectedFeedItem(updatedFeedItem)
+      return
+    }
+  }
+
   const renameMeeting = async (threadId: number, newTitle: string, feedItemId?: number) => {
     if (!feedItemId) return
 
@@ -1928,6 +2066,8 @@ export function useFeed(
     getRecordingFeedItemTitle,
     createNewMeeting,
     openCalendarEvent,
+    startCalendarMeeting,
+    attachNotesToCalendarEvent,
     renameMeeting,
     refreshFeedItems,
     runEmailAutopilot,
