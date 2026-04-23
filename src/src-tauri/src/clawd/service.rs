@@ -5913,6 +5913,12 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   }
   eprintln!("[clawd/service] auto_enable: wrote plist to {}", plist_path.display());
 
+  // Save args so regenerate_macos_plist_with_current_env() can update the plist
+  // later when the user saves or changes an API key (e.g. GOOGLE_API_KEY).
+  // Without this, the regeneration call from set_api_key() finds LAST_MACOS_PLIST_ARGS=None
+  // and silently skips the update, leaving the gateway subprocess running without the key.
+  *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((setup.program_args.clone(), setup.env.clone()));
+
   let uid = unsafe { libc::getuid() };
   let domain = format!("gui/{}", uid);
 
