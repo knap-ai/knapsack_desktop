@@ -355,6 +355,19 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                       recordingHandlers={recordingHandlers}
                       handleOpenTasks={handleOpenTasks}
                       onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
+                      onEmailClick={(notesMarkdown, meeting) => {
+                        const participants = meeting?.participants ?? []
+                        const toEmails = participants
+                          .filter(p => p.email && p.email !== userEmail)
+                          .map(p => p.email)
+                          .join(', ')
+                        const subject = meeting?.title ? `Follow up: ${meeting.title}` : 'Meeting Follow Up'
+                        const escapedNotes = notesMarkdown
+                          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                          .replace(/\n/g, '<br>')
+                        const body = `<p>Hi,</p><p>Thank you for our meeting${meeting?.title ? ` — ${meeting.title}` : ''}. Here's a summary of what we discussed:</p><p>${escapedNotes}</p><p>Please let me know if you have any questions!</p><p>Best,<br>${userName || ''}</p>`
+                        feed.setComposedEmailDraft({ to: toEmails, subject, body })
+                      }}
                     />
                   </div>
                   )
