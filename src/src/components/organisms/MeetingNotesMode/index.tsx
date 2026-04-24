@@ -184,6 +184,27 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [prepContent, setPrepContent] = useState('')
   const [isPrepGenerating, setIsPrepGenerating] = useState(false)
   const [suggestedCalendarEvent, setSuggestedCalendarEvent] = useState<Meeting | null>(null)
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false)
+  const calendarPickerRef = useRef<HTMLDivElement>(null)
+
+  const sameDayMeetings = useMemo(() => {
+    if (!feed.meetings || meeting) return []
+    const day = dayjs(timestamp).format('YYYY-MM-DD')
+    return Object.values(feed.meetings).filter(
+      m => dayjs(m.start * 1000).format('YYYY-MM-DD') === day,
+    ).sort((a, b) => a.start - b.start)
+  }, [feed.meetings, timestamp, meeting])
+
+  useEffect(() => {
+    if (!showCalendarPicker) return
+    const handler = (e: MouseEvent) => {
+      if (calendarPickerRef.current && !calendarPickerRef.current.contains(e.target as Node)) {
+        setShowCalendarPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showCalendarPicker])
 
   const templatePrompt: MeetingTemplatePrompt = useMemo(() => {
     if (thread.promptTemplate) {
@@ -709,6 +730,47 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
                     </svg>
                     {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
                   </span>
+                  {thread.recorded && !meeting && sameDayMeetings.length > 0 && (
+                    <div className="notetaker-note__link-event-wrap" ref={calendarPickerRef}>
+                      <button
+                        className="notetaker-note__link-event-btn"
+                        onClick={() => setShowCalendarPicker(v => !v)}
+                        title="Link to a calendar event"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        Link to calendar event
+                      </button>
+                      {showCalendarPicker && (
+                        <div className="notetaker-note__calendar-picker">
+                          {sameDayMeetings.map(m => (
+                            <button
+                              key={m.event_id}
+                              className="notetaker-note__calendar-picker-item"
+                              onClick={() => {
+                                if (feedItemId != null) {
+                                  feed.attachNotesToCalendarEvent(feedItemId, m)
+                                }
+                                setShowCalendarPicker(false)
+                                setSuggestedCalendarEvent(null)
+                              }}
+                            >
+                              <span className="notetaker-note__calendar-picker-time">
+                                {dayjs(m.start * 1000).format('h:mm A')}
+                              </span>
+                              <span className="notetaker-note__calendar-picker-title">
+                                {m.title}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex-shrink-0 flex items-center gap-2">
@@ -921,6 +983,47 @@ Be direct, specific, and concise. No filler text.`
                     {meeting.participants.slice(0, 3).map(p => p.name || p.email.split('@')[0]).join(', ')}
                     {meeting.participants.length > 3 && ` +${meeting.participants.length - 3}`}
                   </span>
+                )}
+                {thread.recorded && !meeting && sameDayMeetings.length > 0 && (
+                  <div className="notetaker-note__link-event-wrap" ref={calendarPickerRef}>
+                    <button
+                      className="notetaker-note__link-event-btn"
+                      onClick={() => setShowCalendarPicker(v => !v)}
+                      title="Link to a calendar event"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                      Link to calendar event
+                    </button>
+                    {showCalendarPicker && (
+                      <div className="notetaker-note__calendar-picker">
+                        {sameDayMeetings.map(m => (
+                          <button
+                            key={m.event_id}
+                            className="notetaker-note__calendar-picker-item"
+                            onClick={() => {
+                              if (feedItemId != null) {
+                                feed.attachNotesToCalendarEvent(feedItemId, m)
+                              }
+                              setShowCalendarPicker(false)
+                              setSuggestedCalendarEvent(null)
+                            }}
+                          >
+                            <span className="notetaker-note__calendar-picker-time">
+                              {dayjs(m.start * 1000).format('h:mm A')}
+                            </span>
+                            <span className="notetaker-note__calendar-picker-title">
+                              {m.title}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

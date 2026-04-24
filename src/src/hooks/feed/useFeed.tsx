@@ -101,6 +101,7 @@ export interface IFeed {
     }>
   >
   feedContent: Record<string, FeedItem[]>
+  meetings: Record<string, Meeting> | undefined
   insertFeedItem: (
     timestamp: number,
     hideFollowUp: boolean,
@@ -2048,6 +2049,7 @@ export function useFeed(
 
   const feed: IFeed = {
     feedContent,
+    meetings,
     insertFeedItem,
     handleAutomationFeed,
     insertMessageToFeedItem,
