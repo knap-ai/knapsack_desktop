@@ -187,6 +187,12 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [showCalendarPicker, setShowCalendarPicker] = useState(false)
   const calendarPickerRef = useRef<HTMLDivElement>(null)
 
+  const [inlineInsights, setInlineInsights] = useState<Array<{id: number; mins: number; text: string}>>([])
+  const [briefPrepContent, setBriefPrepContent] = useState('')
+  const [isBriefPrepGenerating, setIsBriefPrepGenerating] = useState(false)
+  const [briefPrepDismissed, setBriefPrepDismissed] = useState(false)
+  const briefPrepTriggeredRef = useRef(false)
+
   const sameDayMeetings = useMemo(() => {
     if (!feed.meetings || meeting) return []
     const day = dayjs(timestamp).format('YYYY-MM-DD')
@@ -393,21 +399,22 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       // wasRecording to be false inside stopRecording, preventing note generation.
       handleStopRecording('Automatic')
     })
-    // Listen for 15-minute heartbeat insights during recording (proactive mode only)
+    // Listen for heartbeat insights during recording — always show inline, notify if proactive mode on
     const unlistenHeartbeatPromise = listen(
       'meeting_heartbeat',
       async (event: Event<{ threadId: number; insight: string; elapsedMinutes: number }>) => {
-        const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
-        if (!isProactive) return
-
         const { insight, elapsedMinutes } = event.payload
         const mins = Math.round(elapsedMinutes)
-        invoke('show_notification_window', {
-          eventId: null,
-          buttonConfigs: [{ buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' }],
-          title: `Meeting insight (${mins} min)`,
-          time: insight,
-        }).catch(e => console.error('Failed to show meeting insight notification:', e))
+        setInlineInsights(prev => [...prev, { id: Date.now(), mins, text: insight }])
+        const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
+        if (isProactive) {
+          invoke('show_notification_window', {
+            eventId: null,
+            buttonConfigs: [{ buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' }],
+            title: `Meeting insight (${mins} min)`,
+            time: insight,
+          }).catch(e => console.error('Failed to show meeting insight notification:', e))
+        }
       },
     )
     return () => {
@@ -496,6 +503,34 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       }
     }
   }, [recordingHandlers.hasSynthesized(thread.id)])
+
+  // Auto-generate brief meeting prep when a calendar meeting opens for the first time
+  useEffect(() => {
+    if (!meeting?.event_id || thread.recorded || briefPrepTriggeredRef.current) return
+    briefPrepTriggeredRef.current = true
+    setIsBriefPrepGenerating(true)
+    const participantList = meeting.participants
+      .map(p => p.name ? `${p.name} (${p.email})` : p.email)
+      .join(', ')
+    const desc = meeting.description ? ` Context: ${meeting.description}.` : ''
+    addToLLMQueue({
+      prompt: `You are preparing someone for a meeting. Write exactly 3 sentences of plain text — no bullet points, no headers, no markdown formatting. Sentence 1: explain the real reason this meeting is happening and what's at stake. Sentence 2: what the person should focus on or do to make this meeting successful. Sentence 3: the single most important thing to watch out for or remember going in. Be sharp and specific.
+
+Meeting: ${meeting.title || thread.subtitle || 'Meeting'}
+Participants: ${participantList}${desc}
+
+Output only the 3 sentences, nothing else.`,
+      semanticSearchQuery: `meeting purpose ${meeting.title || thread.subtitle || ''}`,
+      documents: [],
+      messageStreamCallback: (chunk) => setBriefPrepContent(prev => prev + chunk),
+      messageFinishCallback: async (response) => {
+        setBriefPrepContent(response)
+        setIsBriefPrepGenerating(false)
+        return undefined
+      },
+      errorCallback: () => setIsBriefPrepGenerating(false),
+    })
+  }, [meeting?.event_id])
 
   const getRunParamObject = () => {
     if (runParam) {
@@ -1153,6 +1188,57 @@ Be direct, specific, and concise. No filler text.`
             isEditing={isEditing}
             onEditClick={onEditClick}
           />
+        )}
+
+        {/* Brief meeting prep — auto-generated on open, hidden once recording starts, dismissable */}
+        {meeting && !thread.recorded && !recordingHandlers.isRecording(thread.id) && !briefPrepDismissed && (briefPrepContent || isBriefPrepGenerating) && (
+          <div className="notetaker-note__brief-prep-card">
+            <div className="notetaker-note__brief-prep-card-header">
+              <span className="notetaker-note__brief-prep-card-label">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                </svg>
+                Meeting Brief
+              </span>
+              <button
+                className="notetaker-note__brief-prep-card-dismiss"
+                onClick={() => setBriefPrepDismissed(true)}
+                title="Dismiss"
+              >
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            {isBriefPrepGenerating && !briefPrepContent ? (
+              <p className="notetaker-note__brief-prep-card-loading">Preparing your meeting brief...</p>
+            ) : (
+              <p className="notetaker-note__brief-prep-card-text">{briefPrepContent}</p>
+            )}
+          </div>
+        )}
+
+        {/* Inline insights — collected from heartbeat during recording, dismissable */}
+        {inlineInsights.length > 0 && (
+          <div className="notetaker-note__insights-inline">
+            {inlineInsights.map(insight => (
+              <div key={insight.id} className="notetaker-note__insight-card">
+                <div className="notetaker-note__insight-card-header">
+                  <span className="notetaker-note__insight-card-badge">{insight.mins} min</span>
+                  <button
+                    className="notetaker-note__insight-card-dismiss"
+                    onClick={() => setInlineInsights(prev => prev.filter(i => i.id !== insight.id))}
+                    title="Dismiss"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                      <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+                <p className="notetaker-note__insight-card-text">{insight.text}</p>
+              </div>
+            ))}
+          </div>
         )}
 
         {/* Editor - always shown, focused during recording */}
