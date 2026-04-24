@@ -505,6 +505,7 @@ function Home({
                   : 'home'
                 : 'home'
             }
+            recordingHandlers={recordingHandlers}
           />
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
             <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main relative">
@@ -645,6 +646,10 @@ function Home({
                   onAttendeeClick={(email, name) => {
                     setChatInitialInput(`Tell me about ${name || email}`)
                     setMeetingSubView('chat')
+                  }}
+                  onLibraryWorkspaceOpen={(ws) => {
+                    setCurrentTab(TabChoices.Library)
+                    setSelectedWorkspace(ws)
                   }}
                   onEmailClick={(notesMarkdown, meeting) => {
                     const participants = meeting?.participants ?? []

@@ -9,8 +9,10 @@ import {
   removeDocumentFromWorkspace,
   parseTags,
 } from '../../../api/workspaces'
+import { KN_API_STREAM_LLM_COMPLETE, KN_API_GET_USER_EMAIL } from '../../../utils/constants'
 
 const SUMMARY_CACHE_PREFIX = 'knap.library.summary.'
+const DOC_SUMMARY_CACHE_PREFIX = 'knap.library.docsummary.'
 
 interface WorkspaceViewProps {
   workspace: Workspace
@@ -27,6 +29,19 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   const [editName, setEditName] = useState(workspace.name)
   const [editDescription, setEditDescription] = useState(workspace.description ?? '')
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null)
+  const [isSummarizing, setIsSummarizing] = useState(false)
+  const [overallSummary, setOverallSummary] = useState<string | null>(() => {
+    try {
+      const raw = localStorage.getItem(SUMMARY_CACHE_PREFIX + workspace.uuid + '.overall')
+      return raw ? raw : null
+    } catch { return null }
+  })
+  const [docSummaries, setDocSummaries] = useState<Record<number, string>>(() => {
+    try {
+      const raw = localStorage.getItem(DOC_SUMMARY_CACHE_PREFIX + workspace.uuid)
+      return raw ? JSON.parse(raw) : {}
+    } catch { return {} }
+  })
   const dropRef = useRef<HTMLDivElement>(null)
 
   // Load AI-generated card summary from localStorage (written by WorkspacesList).
@@ -151,6 +166,71 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
   const handleClearSearch = () => {
     setSearchQuery('')
     setActiveSearchQuery('')
+  }
+
+  const streamLLM = async (prompt: string): Promise<string> => {
+    let userEmail = ''
+    try {
+      const r = await fetch(KN_API_GET_USER_EMAIL)
+      if (r.ok) userEmail = (await r.json()).email ?? ''
+    } catch { /* no-op */ }
+
+    const response = await fetch(KN_API_STREAM_LLM_COMPLETE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_email: userEmail, user_name: '', prompt, semantic_search_query: null, documents: [], is_local: false }),
+    })
+    if (!response.ok || !response.body) return ''
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let text = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+        if (!line.startsWith('data: ') || line.trim() === 'data: [DONE]') continue
+        try { text += JSON.parse(line.slice(6)).choices[0].text } catch { /* malformed */ }
+      }
+    }
+    return text.trim()
+  }
+
+  const handleSummarize = async () => {
+    if (isSummarizing || documents.length === 0) return
+    setIsSummarizing(true)
+    try {
+      const docList = documents.map(d => `- ${d.documentName}`).join('\n')
+
+      // Overall 2-sentence summary
+      const overallText = await streamLLM(
+        `You are summarizing a collection called "${currentWorkspace.name}".\n` +
+        `It contains these documents:\n${docList}\n\n` +
+        `Write exactly 2 sentences summarizing what this collection is about and why it matters. ` +
+        `Be specific and concise. Reply with only the 2 sentences, no preamble.`
+      )
+      if (overallText) {
+        setOverallSummary(overallText)
+        localStorage.setItem(SUMMARY_CACHE_PREFIX + workspace.uuid + '.overall', overallText)
+      }
+
+      // Per-document 1-sentence summaries
+      const newDocSummaries: Record<number, string> = { ...docSummaries }
+      for (const doc of documents) {
+        if (!doc.id) continue
+        const hint = [doc.documentName, doc.summary, doc.documentPath].filter(Boolean).join(' | ')
+        const oneSentence = await streamLLM(
+          `Write exactly 1 sentence summarizing this document: "${hint}". ` +
+          `Be specific. Reply with only the sentence, no preamble.`
+        )
+        if (oneSentence && doc.id) {
+          newDocSummaries[doc.id] = oneSentence
+        }
+      }
+      setDocSummaries(newDocSummaries)
+      localStorage.setItem(DOC_SUMMARY_CACHE_PREFIX + workspace.uuid, JSON.stringify(newDocSummaries))
+    } finally {
+      setIsSummarizing(false)
+    }
   }
 
   const handleSaveEdit = async () => {
@@ -287,12 +367,17 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
               Edit
             </button>
           </div>
+          {currentWorkspace.entityType === 'person' && currentWorkspace.entityKey && (
+            <p className="text-sm text-gray-400 mt-0.5 ml-10">
+              {currentWorkspace.entityKey}
+            </p>
+          )}
           {currentWorkspace.description && (
             <p className="text-sm text-gray-500 mt-1 ml-10">
               {currentWorkspace.description}
             </p>
           )}
-          {aiSummary && (
+          {aiSummary && !overallSummary && (
             <div className="ml-10 mt-2">
               <p className="text-sm text-gray-700">{aiSummary.summary}</p>
               {aiSummary.nextAction && (
@@ -314,6 +399,11 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
                   → {aiSummary.nextAction}
                 </button>
               )}
+            </div>
+          )}
+          {overallSummary && (
+            <div className="ml-10 mt-2">
+              <p className="text-sm text-gray-700">{overallSummary}</p>
             </div>
           )}
         </div>
@@ -394,6 +484,13 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
           onClick={handleAddFolder}
         >
           + Add Folder
+        </button>
+        <button
+          className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+          onClick={handleSummarize}
+          disabled={isSummarizing || documents.length === 0}
+        >
+          {isSummarizing ? 'Summarizing…' : '✦ Summarize'}
         </button>
       </div>
 
@@ -502,10 +599,10 @@ function WorkspaceView({ workspace, onBack }: WorkspaceViewProps) {
                     </div>
                   )}
 
-                  {/* Summary — shown inline when available */}
-                  {doc.summary && (
+                  {/* Summary — per-doc AI summary takes priority, fallback to stored summary */}
+                  {(doc.id && docSummaries[doc.id] ? docSummaries[doc.id] : doc.summary) && (
                     <div className="mt-2 ml-8 text-xs text-gray-600">
-                      {doc.summary}
+                      {doc.id && docSummaries[doc.id] ? docSummaries[doc.id] : doc.summary}
                     </div>
                   )}
                 </div>

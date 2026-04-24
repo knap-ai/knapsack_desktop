@@ -386,12 +386,21 @@ $ks-red: #C14841;
     }
   }
 
+  &__calendar-event--recording {
+    background: rgba(220, 38, 38, 0.06);
+    border-radius: 6px;
+  }
+
   &__calendar-event-bar {
     width: 3px;
     height: 28px;
     border-radius: 2px;
     background: $ks-accent;
     flex-shrink: 0;
+
+    &--recording {
+      background: #dc2626;
+    }
   }
 
   &__calendar-event-content {
@@ -414,6 +423,32 @@ $ks-red: #C14841;
   &__now-label {
     color: $ks-red;
     font-weight: 600;
+  }
+
+  &__recording-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #dc2626;
+    font-weight: 600;
+  }
+
+  &__recording-dot-pulse {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #dc2626;
+    animation: sidebar-rec-pulse 1.2s ease-in-out infinite;
+  }
+
+  &__recording-time {
+    color: $ks-text-muted;
+  }
+
+  @keyframes sidebar-rec-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
   }
 
   &__start-now-btn {

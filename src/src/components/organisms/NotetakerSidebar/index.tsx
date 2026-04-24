@@ -9,6 +9,7 @@ import { getAppVersion } from 'src/utils/app'
 import { Connection, ConnectionKeys, hasGoogleCalendar } from 'src/api/connections'
 import { TabChoices } from 'src/components/TabBar'
 import { listWorkspaces, Workspace } from 'src/api/workspaces'
+import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 
 import './style.scss'
 
@@ -22,6 +23,7 @@ interface NotetakerSidebarProps {
   onMeetingSelect?: () => void
   activeView?: 'home' | 'chat'
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
+  recordingHandlers?: RecordingContextProps
 }
 
 function NotetakerSidebar({
@@ -34,6 +36,7 @@ function NotetakerSidebar({
   onMeetingSelect,
   activeView = 'home',
   onLibraryWorkspaceOpen,
+  recordingHandlers,
 }: NotetakerSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -451,10 +454,14 @@ function NotetakerSidebar({
                             typeof item.getTitle === 'function'
                               ? item.getTitle()
                               : item.title || ''
+                          const isActivelyRecording = recordingHandlers != null &&
+                            item.threads?.some(
+                              t => t.threadType === ThreadType.MEETING_NOTES && t.id != null && recordingHandlers.isRecording(t.id)
+                            )
                           return (
                             <div
                               key={item.id ?? `cal-${item.calendarEvent?.id ?? title}`}
-                              className={`notetaker-sidebar__calendar-event ${isNow ? 'notetaker-sidebar__calendar-event--now' : ''}`}
+                              className={`notetaker-sidebar__calendar-event ${isNow ? 'notetaker-sidebar__calendar-event--now' : ''} ${isActivelyRecording ? 'notetaker-sidebar__calendar-event--recording' : ''}`}
                               onClick={() => {
                                 if (item.id != null) {
                                   feed.selectFeedItem(key, item.id)
@@ -465,21 +472,31 @@ function NotetakerSidebar({
                                 onTabChange(TabChoices.Meeting, 'meetings')
                               }}
                             >
-                              <div className="notetaker-sidebar__calendar-event-bar" />
+                              <div className={`notetaker-sidebar__calendar-event-bar ${isActivelyRecording ? 'notetaker-sidebar__calendar-event-bar--recording' : ''}`} />
                               <div className="notetaker-sidebar__calendar-event-content">
                                 <div className="notetaker-sidebar__calendar-event-title">
                                   {title}
                                 </div>
                                 <div className="notetaker-sidebar__calendar-event-time">
-                                  {isNow && (
+                                  {isActivelyRecording ? (
+                                    <span className="notetaker-sidebar__recording-label">
+                                      <span className="notetaker-sidebar__recording-dot-pulse" />
+                                      Recording
+                                    </span>
+                                  ) : isNow ? (
                                     <span className="notetaker-sidebar__now-label">
                                       Now &middot;{' '}
                                     </span>
+                                  ) : null}
+                                  {!isActivelyRecording && formatTimeRange(item)}
+                                  {isActivelyRecording && (
+                                    <span className="notetaker-sidebar__recording-time">
+                                      {' '}&middot; {formatTimeRange(item)}
+                                    </span>
                                   )}
-                                  {formatTimeRange(item)}
                                 </div>
                               </div>
-                              {item.threads?.some(
+                              {!isActivelyRecording && item.threads?.some(
                                 t => t.threadType === ThreadType.MEETING_NOTES && t.recorded,
                               ) && (
                                 <svg
@@ -500,7 +517,7 @@ function NotetakerSidebar({
                                   <line x1="16" y1="17" x2="8" y2="17" />
                                 </svg>
                               )}
-                              {isNow && (
+                              {isNow && !isActivelyRecording && (
                                 <button
                                   className="notetaker-sidebar__start-now-btn"
                                   onClick={async e => {
