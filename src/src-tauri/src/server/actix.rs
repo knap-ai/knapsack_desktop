@@ -290,6 +290,7 @@ pub async fn start_server<'a>(
       // OAuth provider login (OpenRouter browser-based auth)
       .service(clawd::service::start_oauth_login)
       .service(clawd::service::oauth_callback)
+      .service(clawd::service::gemini_connect)
       // Ollama (local LLM) endpoints
       .service(clawd::service::ollama_status)
       .service(clawd::service::ollama_models)
