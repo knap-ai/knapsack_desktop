@@ -823,3 +823,119 @@ html, body {
   background: #D8D6FF;
   color: #4A4A9A;
 }
+
+/* Brief meeting prep card — auto-generated on open */
+.notetaker-note__brief-prep-card {
+  background: #FFFBEF;
+  border: 1px solid #E5D585;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.notetaker-note__brief-prep-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.notetaker-note__brief-prep-card-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: #8A6B10;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.notetaker-note__brief-prep-card-dismiss {
+  background: none;
+  border: none;
+  color: #A68C30;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  transition: background 0.1s ease;
+}
+
+.notetaker-note__brief-prep-card-dismiss:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #6A5210;
+}
+
+.notetaker-note__brief-prep-card-loading {
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  color: #A68C30;
+  font-style: italic;
+  margin: 0;
+}
+
+.notetaker-note__brief-prep-card-text {
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  color: #4A3808;
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* Inline insight cards — collected during recording, dismissable */
+.notetaker-note__insights-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notetaker-note__insight-card {
+  background: #F0F4FF;
+  border: 1px solid #C5CCEC;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.notetaker-note__insight-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.notetaker-note__insight-card-badge {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: #C05A1E;
+  background: rgba(192, 90, 30, 0.1);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.notetaker-note__insight-card-dismiss {
+  background: none;
+  border: none;
+  color: #8A95C4;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  transition: background 0.1s ease;
+}
+
+.notetaker-note__insight-card-dismiss:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #5A65A0;
+}
+
+.notetaker-note__insight-card-text {
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  color: #2C3A6E;
+  line-height: 1.55;
+  margin: 0;
+}
