@@ -4,13 +4,13 @@ import { invoke } from '@tauri-apps/api/tauri'
  * Waits for the Tauri IPC bridge to be ready before attempting to invoke commands.
  * This prevents 'command not found' errors during app initialization race conditions.
  *
- * @param maxRetries Maximum number of retry attempts (default: 10)
- * @param retryDelay Delay between retries in milliseconds (default: 100ms)
+ * @param maxRetries Maximum number of retry attempts (default: 20)
+ * @param retryDelay Delay between retries in milliseconds (default: 150ms)
  * @returns Promise that resolves when bridge is ready, rejects if max retries exceeded
  */
 export async function waitForTauriIpcBridge(
-  maxRetries: number = 10,
-  retryDelay: number = 100
+  maxRetries: number = 20,
+  retryDelay: number = 150
 ): Promise<void> {
   let attempts = 0
 
@@ -27,8 +27,9 @@ export async function waitForTauriIpcBridge(
           `Tauri IPC bridge not ready after ${maxRetries} attempts. Last error: ${error}`
         )
       }
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, retryDelay))
+      // Wait before retrying with exponential backoff
+      const delay = retryDelay * Math.min(attempts, 3)
+      await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
 }
@@ -45,16 +46,29 @@ export async function waitForTauriIpcBridge(
 export async function safeInvoke<T>(
   command: string,
   args?: Record<string, unknown>,
-  maxRetries: number = 10
+  maxRetries: number = 20
 ): Promise<T> {
-  try {
-    return await invoke<T>(command, args)
-  } catch (error: any) {
-    // If the error is 'command not found', wait for bridge and retry
-    if (error?.toString().includes('not found')) {
-      await waitForTauriIpcBridge(maxRetries)
+  let attempts = 0
+
+  while (attempts < maxRetries) {
+    try {
       return await invoke<T>(command, args)
+    } catch (error: any) {
+      const errorStr = error?.toString() || ''
+      const isNotFoundError = errorStr.includes('not found') || errorStr.includes('command')
+
+      if (isNotFoundError && attempts < maxRetries - 1) {
+        attempts++
+        // Exponential backoff: 150ms, 300ms, 450ms, then 450ms for remaining attempts
+        const delay = 150 * Math.min(attempts, 3)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+
+      // If not a 'not found' error, or we've exhausted retries, throw
+      throw error
     }
-    throw error
   }
+
+  throw new Error(`Failed to invoke command '${command}' after ${maxRetries} attempts`)
 }
