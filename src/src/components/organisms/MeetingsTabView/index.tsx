@@ -7,6 +7,7 @@ import { LLMParams } from 'src/App'
 import { IFeed } from 'src/hooks/feed/useFeed'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { MeetingTemplatePrompt } from 'src/utils/template_prompts'
+import { Workspace } from 'src/api/workspaces'
 
 import { Button, ButtonVariant } from 'src/components/atoms/button'
 import MeetingNotesMode from 'src/components/organisms/MeetingNotesMode'
@@ -55,6 +56,7 @@ interface MeetingsTabViewProps {
   onChatClick?: () => void
   onEmailClick?: (notesMarkdown: string, meeting?: Meeting) => void
   onAttendeeClick?: (email: string, name: string) => void
+  onLibraryWorkspaceOpen?: (ws: Workspace) => void
 }
 
 const MeetingsTabView = ({
@@ -69,6 +71,7 @@ const MeetingsTabView = ({
   onChatClick,
   onEmailClick,
   onAttendeeClick,
+  onLibraryWorkspaceOpen,
 }: MeetingsTabViewProps) => {
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true')
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true')
@@ -382,6 +385,7 @@ const MeetingsTabView = ({
                       onChatClick={onChatClick}
                       onEmailClick={onEmailClick}
                       onAttendeeClick={onAttendeeClick}
+                      onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
                     />
                   ) : null
                 })()}
