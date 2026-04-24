@@ -289,6 +289,14 @@ impl CalendarEvent {
 
   /// Delete events for a specific calendar account that were not returned in the
   /// latest sync. Events from other accounts are left untouched.
+  ///
+  /// When `calendar_account_email` is non-empty (a real account), also purge
+  /// legacy rows whose `calendar_account_email` is `''` and whose `event_id`
+  /// is either (a) present in the current sync — meaning the event now has a
+  /// proper-account row and the empty-email copy is a stale duplicate — or
+  /// (b) absent from the sync — meaning it was cancelled/rescheduled and was
+  /// never cleaned up by a previous sync.  This collapses the two-row state
+  /// left by the multi_google_calendar migration.
   pub fn delete_calendar_events_removed(
     event_ids: Vec<String>,
     calendar_account_email: &str,
@@ -306,6 +314,16 @@ impl CalendarEvent {
           log::error!("Failed to delete all events for account {}: {:?}", calendar_account_email, e);
           Error::KSError(format!("Failed to delete calendar events: {:?}", e))
         })?;
+
+      // Also wipe all legacy empty-email rows — nothing valid should remain there.
+      if !calendar_account_email.is_empty() {
+        connection
+          .execute("DELETE FROM calendar_events WHERE calendar_account_email = ''", [])
+          .map_err(|e| {
+            log::error!("Failed to purge legacy empty-email calendar events: {:?}", e);
+            Error::KSError(format!("Failed to purge legacy events: {:?}", e))
+          })?;
+      }
       return Ok(());
     }
 
@@ -324,6 +342,22 @@ impl CalendarEvent {
         log::error!("Failed to batch delete removed calendar events: {:?}", e);
         Error::KSError(format!("Failed to delete removed calendar events: {:?}", e))
       })?;
+
+    // Purge ALL legacy empty-email rows not present in the current sync.
+    // Rows that ARE present will be cleaned up by the migration or are
+    // harmless (migration already removed same-event-id duplicates).
+    if !calendar_account_email.is_empty() {
+      let legacy_query = format!(
+        "DELETE FROM calendar_events WHERE calendar_account_email = '' AND event_id NOT IN ({})",
+        id_list
+      );
+      connection
+        .execute(&legacy_query, [])
+        .map_err(|e| {
+          log::error!("Failed to purge stale legacy calendar events: {:?}", e);
+          Error::KSError(format!("Failed to purge stale legacy events: {:?}", e))
+        })?;
+    }
 
     Ok(())
   }

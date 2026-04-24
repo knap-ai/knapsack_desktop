@@ -151,7 +151,7 @@ fn convert_date_string_to_timestamp(date: &str) -> Option<i64> {
   }
 }
 
-fn create_calendar_event(event: Event) -> Result<(), Error> {
+fn create_calendar_event(event: Event, calendar_account_email: String) -> Result<(), Error> {
   let event_id = event.id.unwrap();
   let title = event.subject;
   let description = event.body.unwrap().content;
@@ -221,7 +221,7 @@ fn create_calendar_event(event: Event) -> Result<(), Error> {
     google_meet_url,
     recurrence_json,
     recurrence_id,
-    calendar_account_email: String::new(),
+    calendar_account_email,
   };
 
   calendar_event.create()
@@ -298,7 +298,7 @@ async fn fetch_calendar(
       event_ids_total.extend(event_ids);
 
       for event in events {
-        if let Err(e) = create_calendar_event(event) {
+        if let Err(e) = create_calendar_event(event, email.clone()) {
           let msg = format!("Error creating calendar event: {}", email);
           knap_log_error(msg, Some(e), Some(true));
         };
@@ -325,7 +325,7 @@ async fn fetch_calendar(
   }
 
   let event_count = event_ids_total.len();
-  CalendarEvent::delete_calendar_events_removed(event_ids_total.clone(), "");
+  CalendarEvent::delete_calendar_events_removed(event_ids_total.clone(), &email);
   UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), (chrono::Utc::now() + chrono::Duration::days(31)));
 
   ConnectionsData::lock_and_set_connection_is_syncing(
