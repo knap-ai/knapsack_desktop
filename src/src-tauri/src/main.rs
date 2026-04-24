@@ -176,6 +176,12 @@ fn setup_handler(
   // starts, so that llm_complete (meeting notes) and transcribe can use them.
   clawd::service::propagate_llm_keys_to_env(&app_handle);
 
+  // Remove the standalone OpenClaw gateway plist on every startup.
+  // This handles the case where the user (or an AI assistant) re-installed
+  // the standalone gateway after the initial cleanup — the old ai.openclaw.gateway
+  // service competes for port 18789 and prevents the Knapsack gateway from starting.
+  clawd::service::remove_stale_standalone_gateway();
+
   // Auto-register the LaunchAgent on first launch so the user never sees
   // "LaunchAgent plist not found — try toggling Enable in Settings."
   let auto_enable_handle = app.handle();

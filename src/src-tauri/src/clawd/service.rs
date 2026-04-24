@@ -326,7 +326,7 @@ fn kill_stale_clawdbot_chromes() {
 /// This function is best-effort: if the plist doesn't exist or bootout fails,
 /// we silently continue.
 #[cfg(target_os = "macos")]
-fn remove_stale_standalone_gateway() {
+pub fn remove_stale_standalone_gateway() {
   const STANDALONE_LABEL: &str = "ai.openclaw.gateway";
   let home = match dirs::home_dir() {
     Some(h) => h,
@@ -383,7 +383,7 @@ fn kill_stale_clawdbot_chromes() {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn remove_stale_standalone_gateway() {
+pub fn remove_stale_standalone_gateway() {
   // No-op on other platforms
 }
 

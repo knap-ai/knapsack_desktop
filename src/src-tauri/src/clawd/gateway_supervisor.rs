@@ -89,6 +89,11 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
 
   eprintln!("[gateway_supervisor] trying bootout + bootstrap fallback");
 
+  // Remove the standalone OpenClaw gateway if present — it may have been
+  // re-installed (e.g. by `openclaw gateway install`) after the initial
+  // startup cleanup and could be holding port 18789.
+  super::service::remove_stale_standalone_gateway();
+
   // bootout (ignore errors — service may not be loaded)
   let _ = Command::new("launchctl")
     .args(["bootout", &domain, &plist_str])
