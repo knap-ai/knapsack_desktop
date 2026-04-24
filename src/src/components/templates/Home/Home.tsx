@@ -244,8 +244,9 @@ function Home({
     (connectionKeys: ConnectionKeys[]) => {
       if (auth.profile?.provider && auth.profile.provider == ConnectionKeys.MICROSOFT_PROFILE) {
         handleMicrosoftMenuItemClick(connectionKeys)
+      } else {
+        handleGoogleMenuItemClick(connectionKeys)
       }
-      handleGoogleMenuItemClick(connectionKeys)
     },
     [auth.profile],
   )

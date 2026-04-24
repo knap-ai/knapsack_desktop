@@ -3344,8 +3344,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       setAdvancedMode(true)
       localStorage.setItem(ADVANCED_MODE_STORAGE, 'true')
       pushAssistant('⚡ **Advanced mode enabled.** Re-sending your request with shell access...')
-      // Small delay to let state update, then re-send original prompt
-      setTimeout(() => doSend(originalPrompt), 100)
+      // Use doSendRef so the re-send picks up the new advancedMode=true state after re-render
+      setTimeout(() => doSendRef.current?.(originalPrompt), 100)
       return
     }
 

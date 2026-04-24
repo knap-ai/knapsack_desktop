@@ -1,7 +1,7 @@
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { insertAutomationRun } from 'src/api/automations'
-import { Connection, ConnectionKeys, ConnectionStates } from 'src/api/connections'
+import { Connection, ConnectionKeys, ConnectionStates, getGoogleGmailConnections } from 'src/api/connections'
 import { getEmailThread } from 'src/api/data_source'
 import {
   deleteFeedItem,
@@ -2040,9 +2040,7 @@ export function useFeed(
   }, [feedContent])
 
   const loggedEmailAutopilot = useMemo(() => {
-    return connections[ConnectionKeys.GOOGLE_GMAIL] || connections[ConnectionKeys.MICROSOFT_OUTLOOK]
-      ? true
-      : false
+    return getGoogleGmailConnections(connections).length > 0 || !!connections[ConnectionKeys.MICROSOFT_OUTLOOK]
   }, [connections])
 
   const [composedEmailDraft, setComposedEmailDraft] = useState<ComposedEmailDraft | null>(null)
