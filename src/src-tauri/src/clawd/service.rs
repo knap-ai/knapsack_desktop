@@ -37,8 +37,8 @@ fn kill_process_on_port(port: u16) {
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-  // Try up to 3 times to kill the process and verify port is free
-  for attempt in 1..=3 {
+  // Try up to 5 times to kill the process and verify port is free
+  for attempt in 1..=5 {
     let output = std::process::Command::new("netstat")
       .args(["-ano", "-p", "tcp"])
       .creation_flags(CREATE_NO_WINDOW)
@@ -58,8 +58,8 @@ fn kill_process_on_port(port: u16) {
                   .args(["/PID", &pid.to_string(), "/F", "/T"])
                   .creation_flags(CREATE_NO_WINDOW)
                   .status();
-                // Wait for process to fully terminate
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                // Wait for process to fully terminate with longer delay
+                std::thread::sleep(std::time::Duration::from_millis(800));
               }
             }
           }
@@ -72,21 +72,22 @@ fn kill_process_on_port(port: u16) {
       return;
     }
 
-    // Brief pause before retry
-    if attempt < 3 {
-      std::thread::sleep(std::time::Duration::from_millis(300));
+    // Brief pause before retry with exponential backoff
+    if attempt < 5 {
+      let delay = 300 * attempt as u64;
+      std::thread::sleep(std::time::Duration::from_millis(delay));
     }
   }
 
-  eprintln!("[clawd/service] WARNING: Failed to free port {} after 3 attempts", port);
+  eprintln!("[clawd/service] WARNING: Failed to free port {} after 5 attempts", port);
 }
 
 /// On Unix/macOS, kill a process listening on the given TCP port.
 /// Enhanced with retry logic to ensure the port is actually freed.
 #[cfg(not(target_os = "windows"))]
 fn kill_process_on_port(port: u16) {
-  // Try up to 3 times to kill the process and verify port is free
-  for attempt in 1..=3 {
+  // Try up to 5 times to kill the process and verify port is free
+  for attempt in 1..=5 {
     let output = std::process::Command::new("lsof")
       .args(["-ti", &format!(":{}", port)])
       .output();
@@ -102,8 +103,8 @@ fn kill_process_on_port(port: u16) {
             let _ = std::process::Command::new("kill")
               .args(["-9", &pid.to_string()])
               .status();
-            // Wait for process to fully terminate
-            std::thread::sleep(std::time::Duration::from_millis(500));
+            // Wait for process to fully terminate with longer delay
+            std::thread::sleep(std::time::Duration::from_millis(800));
           }
         }
       }
@@ -114,13 +115,14 @@ fn kill_process_on_port(port: u16) {
       return;
     }
 
-    // Brief pause before retry
-    if attempt < 3 {
-      std::thread::sleep(std::time::Duration::from_millis(300));
+    // Brief pause before retry with exponential backoff
+    if attempt < 5 {
+      let delay = 300 * attempt as u64;
+      std::thread::sleep(std::time::Duration::from_millis(delay));
     }
   }
 
-  eprintln!("[clawd/service] WARNING: Failed to free port {} after 3 attempts", port);
+  eprintln!("[clawd/service] WARNING: Failed to free port {} after 5 attempts", port);
 }
 
 /// Check if a process with the given PID is still running (Windows).

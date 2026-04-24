@@ -2278,6 +2278,7 @@ pub async fn chat(
               "beautifulsoup4",
               "lxml",
               "openpyxl",
+              "xlrd",
               "scikit-learn",
               "sklearn",
               "sympy",
