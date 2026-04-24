@@ -307,6 +307,7 @@ type Msg = {
   model?: string // model used for this response (e.g. "gpt-4o-mini")
   promptActions?: PromptAction[] // pre-defined actions (skip extractPromptActions parsing)
   replyTo?: string // ID of the message this is a reply to
+  confirmedActionPrompts?: string[] // prompts whose action buttons have been resolved inline
 }
 
 type ServiceStatus = {
@@ -915,7 +916,7 @@ type ChatMessageProps = {
   mdPlugins: any[]
   mdComponents: Components
   onExampleClick?: (e: React.MouseEvent, text: string) => void
-  onAction?: (prompt: string) => void
+  onAction?: (prompt: string, srcMsgId?: string) => void
   onReply?: (msg: Msg) => void
   replyToMsg?: Msg | null
   onScrollToMsg?: (id: string) => void
@@ -987,16 +988,27 @@ const ChatMessage = memo(function ChatMessage({
         )}
         {actions.length > 0 && (
           <div className="ClawdPromptActions">
-            {actions.map((action, i) => (
-              <button
-                key={i}
-                className="ClawdPromptAction"
-                onClick={(e) => { e.stopPropagation(); onAction?.(action.prompt) }}
-              >
-                <span className="ClawdPromptActionNum">{i + 1}</span>
-                {action.label}
-              </button>
-            ))}
+            {actions.map((action, i) => {
+              const isConfirmed = m.confirmedActionPrompts?.includes(action.prompt)
+              if (isConfirmed) {
+                const isAdvancedMode = action.prompt.startsWith('__enable_advanced_and_resend__')
+                return (
+                  <div key={i} className="ClawdPromptActionConfirmed">
+                    {isAdvancedMode ? '⚡ Advanced mode enabled' : `✓ ${action.label}`}
+                  </div>
+                )
+              }
+              return (
+                <button
+                  key={i}
+                  className="ClawdPromptAction"
+                  onClick={(e) => { e.stopPropagation(); onAction?.(action.prompt, m.id) }}
+                >
+                  <span className="ClawdPromptActionNum">{i + 1}</span>
+                  {action.label}
+                </button>
+              )
+            })}
           </div>
         )}
         {m.model && m.role === 'assistant' && (
@@ -3325,7 +3337,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Send with specific text (for prompt action clicks, example clicks, voice auto-send)
   // If the chat is busy (mid-inference), queue the message to send after completion.
-  const handleSendWithText = useCallback(async (text: string) => {
+  const handleSendWithText = useCallback(async (text: string, srcMsgId?: string) => {
     if (!text.trim()) return
 
     // Handle "open provider settings" action — opens the AI provider sidebar directly
@@ -3343,7 +3355,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // Enable advanced mode directly (skip warning dialog since user clicked the suggestion)
       setAdvancedMode(true)
       localStorage.setItem(ADVANCED_MODE_STORAGE, 'true')
-      pushAssistant('⚡ **Advanced mode enabled.** Re-sending your request with shell access...')
+      // Replace the action button with an inline confirmation in the source message
+      if (srcMsgId) {
+        setMsgs(prev => prev.map(m =>
+          m.id === srcMsgId
+            ? { ...m, confirmedActionPrompts: [...(m.confirmedActionPrompts ?? []), text] }
+            : m
+        ))
+      }
       // Use doSendRef so the re-send picks up the new advancedMode=true state after re-render
       setTimeout(() => doSendRef.current?.(originalPrompt), 100)
       return
