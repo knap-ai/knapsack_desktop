@@ -175,77 +175,13 @@ fn has_default_model(snapshot: &serde_json::Value) -> bool {
 
 /// Pick the best default model based on which LLM API key is available.
 ///
-/// The gateway inherits env vars from the desktop app (service.rs propagates
-/// ANTHROPIC_API_KEY, OPENAI_API_KEY, GROQ_API_KEY, GEMINI_API_KEY).
+/// Delegates to `gateway_client::resolve_default_model` so the two call
+/// sites can't drift — a previous local copy here fell back to
+/// `anthropic/claude-opus-4-6`, which itself fails when the user has no
+/// Anthropic key, whereas the gateway_client version falls back to the free
+/// Groq model.
 fn resolve_default_model() -> String {
-    // Respect the user's active provider selection so the gateway model
-    // matches what the user configured in Settings.
-    let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
-
-    match active.as_str() {
-        "openrouter" => {
-            let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
-                .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
-            return format!("openrouter/{}", model);
-        }
-        "ollama" => {
-            let model = std::env::var("KNAPSACK_OLLAMA_MODEL")
-                .unwrap_or_else(|_| "llama3.1".to_string());
-            return format!("ollama/{}", model);
-        }
-        "anthropic" if has_key("ANTHROPIC_API_KEY") => {
-            let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
-                .unwrap_or_else(|_| "claude-opus-4-6".to_string());
-            return format!("anthropic/{}", model);
-        }
-        "openai" if has_key("OPENAI_API_KEY") => {
-            let model = std::env::var("KNAPSACK_OPENAI_MODEL")
-                .unwrap_or_else(|_| "gpt-5.4".to_string());
-            return format!("openai/{}", model);
-        }
-        "groq" if has_key("GROQ_API_KEY") => {
-            let model = std::env::var("KNAPSACK_GROQ_MODEL")
-                .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
-            return format!("groq/{}", model);
-        }
-        "gemini" if has_key("GEMINI_API_KEY") => {
-            let model = std::env::var("KNAPSACK_GEMINI_MODEL")
-                .unwrap_or_else(|_| "gemini-2.0-flash".to_string());
-            return format!("google/{}", model);
-        }
-        _ => {}
-    }
-
-    // Fallback: try providers in preference order
-    if has_key("ANTHROPIC_API_KEY") {
-        let model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
-            .unwrap_or_else(|_| "claude-opus-4-6".to_string());
-        return format!("anthropic/{}", model);
-    }
-    if has_key("OPENAI_API_KEY") {
-        let model = std::env::var("KNAPSACK_OPENAI_MODEL")
-            .unwrap_or_else(|_| "gpt-5.4".to_string());
-        return format!("openai/{}", model);
-    }
-    if has_key("GROQ_API_KEY") { return "groq/llama-3.3-70b-versatile".to_string(); }
-    if has_key("GEMINI_API_KEY") { return "google/gemini-2.0-flash".to_string(); }
-    if has_key("OPENROUTER_API_KEY") {
-        let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
-            .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
-        return format!("openrouter/{}", model);
-    }
-    if std::env::var("OLLAMA_API_KEY").map(|k| !k.trim().is_empty()).unwrap_or(false) {
-        let model = std::env::var("KNAPSACK_OLLAMA_MODEL")
-            .unwrap_or_else(|_| "llama3.1".to_string());
-        return format!("ollama/{}", model);
-    }
-
-    // Fallback — matches the gateway's compiled default
-    "anthropic/claude-opus-4-6".to_string()
-}
-
-fn has_key(var: &str) -> bool {
-    std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false)
+    crate::clawd::gateway_client::resolve_default_model()
 }
 
 /// Check whether `browser.enabled` is already true in the config snapshot.

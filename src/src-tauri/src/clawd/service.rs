@@ -3457,6 +3457,44 @@ struct ServiceSetup {
   working_dir: PathBuf,
 }
 
+/// Whether any known LLM provider env var is populated.  Used by the gateway
+/// config setup to decide whether it's safe to pin `agents.defaults.model` —
+/// if no keys are available at all, pinning any model just produces a
+/// different "No API key found" error, so we leave the field unset and let
+/// the user configure a provider first.
+fn any_provider_key_available() -> bool {
+  const VARS: &[&str] = &[
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GROQ_API_KEY",
+    "OPENROUTER_API_KEY",
+    "OLLAMA_API_KEY",
+  ];
+  VARS.iter().any(|v| {
+    std::env::var(v).map(|k| !k.trim().is_empty()).unwrap_or(false)
+  })
+}
+
+/// Whether the provider prefix in a model ref (e.g. "openai/gpt-5.4",
+/// "anthropic/claude-opus-4-6") has an available API key in the environment.
+/// Unknown prefixes return `true` so we don't clobber user-configured custom
+/// providers.
+fn model_ref_has_key(model_ref: &str) -> bool {
+  let provider = model_ref.split('/').next().unwrap_or("").to_lowercase();
+  let has = |var: &str| std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false);
+  match provider.as_str() {
+    "openai" | "openai-codex" => has("OPENAI_API_KEY"),
+    "anthropic" => has("ANTHROPIC_API_KEY"),
+    "google" | "gemini" | "vertex" => has("GEMINI_API_KEY") || has("GOOGLE_API_KEY"),
+    "groq" => has("GROQ_API_KEY"),
+    "openrouter" => has("OPENROUTER_API_KEY"),
+    "ollama" => has("OLLAMA_API_KEY"),
+    _ => true,
+  }
+}
+
 /// Platform-agnostic gateway configuration setup.
 /// Finds Node.js, resolves paths, creates/patches config files, builds env vars.
 /// Returns everything needed to spawn the gateway process.
@@ -3579,7 +3617,20 @@ async fn prepare_gateway_config(
   if !config_path.exists() {
     let _ = ensure_dir(&clawdbot_home);
     harden_dir_permissions(&clawdbot_home);
-    let default_config = serde_json::json!({
+    // Pin agents.defaults.model based on the user's available provider keys.
+    // Without this, the OpenClaw gateway falls back to its compiled default
+    // (openai/gpt-5.4) and every request fails with "No API key found for
+    // provider openai" for any user who doesn't have an OpenAI key.
+    let agents_defaults = if any_provider_key_available() {
+      serde_json::json!({
+        "defaults": {
+          "model": {"primary": crate::clawd::gateway_client::resolve_default_model()}
+        }
+      })
+    } else {
+      serde_json::Value::Null
+    };
+    let mut default_config = serde_json::json!({
       "gateway": {
         "mode": "local",
         "auth": {
@@ -3622,6 +3673,12 @@ async fn prepare_gateway_config(
         }
       }
     });
+    if !agents_defaults.is_null() {
+      default_config
+        .as_object_mut()
+        .unwrap()
+        .insert("agents".to_string(), agents_defaults);
+    }
     match fs::write(&config_path, serde_json::to_string_pretty(&default_config).unwrap_or_default()) {
       Ok(_) => eprintln!("[clawd/service] Created default config at {}", config_path.display()),
       Err(e) => eprintln!("[clawd/service] WARNING: Failed to create config at {}: {}", config_path.display(), e),
@@ -3730,6 +3787,57 @@ async fn prepare_gateway_config(
               eprintln!("[clawd/service] Migrated agents.defaults.model from string to object form");
               patched = true;
             }
+          }
+        }
+
+        // Ensure agents.defaults.model.primary refers to a provider whose key
+        // is actually available.  Without this, a stored model whose provider
+        // key has been removed (or a missing model entry on first launch
+        // after the user configured a non-OpenAI key) falls through to the
+        // gateway's compiled default of openai/gpt-5.4 and every request
+        // fails with "No API key found for provider openai".
+        //
+        // Read both string and object forms (regression guard from CLAUDE.md):
+        // service.rs writes {"primary": "..."} while older code wrote a bare
+        // string.  Copy to owned string so the borrow ends before we mutate.
+        let current_primary: String = cfg_val
+          .pointer("/agents/defaults/model")
+          .and_then(|v| match v {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Object(o) => {
+              o.get("primary").and_then(|p| p.as_str()).map(|s| s.to_string())
+            }
+            _ => None,
+          })
+          .unwrap_or_default();
+        let needs_model_fix = current_primary.trim().is_empty()
+          || !model_ref_has_key(current_primary.trim());
+        if needs_model_fix && any_provider_key_available() {
+          let new_model = crate::clawd::gateway_client::resolve_default_model();
+          if new_model != current_primary {
+            // Ensure agents.defaults exists, in two separate borrows so each
+            // mutable borrow of cfg_val is released before the next starts.
+            if cfg_val.pointer("/agents").is_none() {
+              cfg_val.as_object_mut().unwrap().insert(
+                "agents".to_string(),
+                serde_json::json!({}),
+              );
+            }
+            if cfg_val.pointer("/agents/defaults").is_none() {
+              cfg_val.pointer_mut("/agents").unwrap().as_object_mut().unwrap().insert(
+                "defaults".to_string(),
+                serde_json::json!({}),
+              );
+            }
+            cfg_val.pointer_mut("/agents/defaults").unwrap().as_object_mut().unwrap().insert(
+              "model".to_string(),
+              serde_json::json!({"primary": new_model.clone()}),
+            );
+            eprintln!(
+              "[clawd/service] Patched agents.defaults.model.primary: {:?} → '{}' (provider key mismatch)",
+              current_primary, new_model
+            );
+            patched = true;
           }
         }
 
@@ -6521,4 +6629,92 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
 #[cfg(not(target_os = "macos"))]
 pub async fn auto_enable_if_needed(_app_handle: &tauri::AppHandle) {
   // No-op on non-macOS platforms.
+}
+
+#[cfg(test)]
+mod provider_key_tests {
+  use super::*;
+
+  // These tests mutate process-wide env vars, so they must run serially
+  // (cargo's default is parallel).  We guard with a mutex and always
+  // restore the prior state to avoid cross-test contamination.
+  static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+  const ALL_VARS: &[&str] = &[
+    "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
+    "GROQ_API_KEY", "OPENROUTER_API_KEY", "OLLAMA_API_KEY",
+  ];
+
+  fn clear_all() {
+    for v in ALL_VARS { std::env::remove_var(v); }
+  }
+
+  #[test]
+  fn no_keys_means_no_provider_available() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    assert!(!any_provider_key_available());
+  }
+
+  #[test]
+  fn anthropic_key_alone_counts_as_available() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
+    assert!(any_provider_key_available());
+    std::env::remove_var("ANTHROPIC_API_KEY");
+  }
+
+  #[test]
+  fn empty_or_whitespace_key_does_not_count() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    std::env::set_var("ANTHROPIC_API_KEY", "   ");
+    assert!(!any_provider_key_available());
+    std::env::remove_var("ANTHROPIC_API_KEY");
+  }
+
+  #[test]
+  fn model_ref_without_matching_key_is_detected() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    // User selected OpenAI model but has no OpenAI key — the stored model
+    // is stale and should be re-resolved.
+    assert!(!model_ref_has_key("openai/gpt-5.4"));
+    assert!(!model_ref_has_key("anthropic/claude-opus-4-6"));
+    assert!(!model_ref_has_key("google/gemini-2.5-pro"));
+    assert!(!model_ref_has_key("groq/llama-3.3-70b-versatile"));
+  }
+
+  #[test]
+  fn model_ref_with_matching_key_is_recognized() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
+    assert!(model_ref_has_key("anthropic/claude-opus-4-6"));
+    assert!(!model_ref_has_key("openai/gpt-5.4"));
+    std::env::remove_var("ANTHROPIC_API_KEY");
+  }
+
+  #[test]
+  fn gemini_model_ref_recognizes_either_env_var() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    std::env::set_var("GOOGLE_API_KEY", "AIzaTest");
+    assert!(model_ref_has_key("google/gemini-2.5-pro"));
+    assert!(model_ref_has_key("gemini/gemini-2.5-flash"));
+    std::env::remove_var("GOOGLE_API_KEY");
+    std::env::set_var("GEMINI_API_KEY", "AIzaTest");
+    assert!(model_ref_has_key("google/gemini-2.5-pro"));
+    std::env::remove_var("GEMINI_API_KEY");
+  }
+
+  #[test]
+  fn unknown_provider_prefix_is_trusted() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    // Don't clobber custom providers the user may have configured out-of-band.
+    assert!(model_ref_has_key("custom/my-model"));
+    assert!(model_ref_has_key("minimax/m2.5"));
+  }
 }
