@@ -984,6 +984,34 @@ async fn apply_runtime_browser_config(token: &str) {
     eprintln!("[gateway_client] agents.defaults.model updated: {:?} → '{}' in runtime patch", existing_model, model);
   }
 
+  // Cap Telegram long-poll timeout if Telegram is configured but no explicit
+  // timeout is set.  Grammy's default is 500s (≈8 min): getUpdates blocks for
+  // the entire duration, and when the gateway receives a SIGUSR1 (e.g. from a
+  // config.patch), it cannot cancel the in-flight poll → shutdown times out →
+  // gateway exits ungracefully and orphans its Chrome child process, which then
+  // holds the CDP port (18800) and prevents the restarted gateway from
+  // launching a new browser.  60s is long enough for reliable delivery and
+  // short enough that a clean shutdown always completes within the Node default
+  // graceful-shutdown window.
+  let tg_has_token = config_inner
+    .pointer("/channels/telegram/botToken")
+    .and_then(|v| v.as_str())
+    .map(|s| !s.trim().is_empty())
+    .unwrap_or(false);
+  if tg_has_token {
+    let tg_has_timeout = config_inner
+      .pointer("/channels/telegram/timeoutSeconds")
+      .and_then(|v| v.as_u64())
+      .is_some();
+    if !tg_has_timeout {
+      patch_obj.as_object_mut().unwrap().insert(
+        "channels".to_string(),
+        serde_json::json!({"telegram": {"timeoutSeconds": 60}}),
+      );
+      eprintln!("[gateway_client] Adding channels.telegram.timeoutSeconds=60 to runtime patch (Grammy default 500s causes shutdown stall)");
+    }
+  }
+
   let raw_patch = patch_obj.to_string();
 
   let patch_id = next_request_id();
