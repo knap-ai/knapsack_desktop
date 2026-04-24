@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
+import { open as openExternalUrl } from '@tauri-apps/api/shell'
+import { listen } from '@tauri-apps/api/event'
 
 import {
   Typography,
@@ -11,7 +13,7 @@ import styles from './styles.module.scss'
 
 const API_BASE = 'http://127.0.0.1:8897'
 
-type Provider = 'openai' | 'anthropic' | 'openrouter'
+type Provider = 'openai' | 'anthropic' | 'openrouter' | 'gemini'
 
 type ProviderConfig = {
   id: Provider
@@ -76,6 +78,19 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     ],
     defaultModel: 'meta-llama/llama-3.3-70b-instruct:free',
   },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    description: 'Gemini 2.5 Pro, Flash — sign in with Google',
+    keyPrefix: 'AIza',
+    helpUrl: 'https://aistudio.google.com/apikey',
+    helpLabel: 'aistudio.google.com/apikey',
+    models: [
+      { id: 'gemini/gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, best for complex tasks' },
+      { id: 'gemini/gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and affordable' },
+    ],
+    defaultModel: 'gemini/gemini-2.5-pro',
+  },
 ]
 
 // Extra providers that OpenClaw supports via env vars.
@@ -131,9 +146,13 @@ type ApiKeyStatusResponse = {
   has_openai_key?: boolean
   has_anthropic_key?: boolean
   has_openrouter_key?: boolean
+  has_gemini_key?: boolean
+  has_gemini_cli_key?: boolean
   openai_key_hint?: string
   anthropic_key_hint?: string
   openrouter_key_hint?: string
+  gemini_key_hint?: string
+  gemini_cli_email?: string
   extra_providers?: ExtraProviderStatusItem[]
 }
 
@@ -159,6 +178,12 @@ export const ProviderSignInDialog = ({
   const [keyStatus, setKeyStatus] = useState<ApiKeyStatusResponse | null>(null)
   const [validation, setValidation] = useState<ValidationState>('idle')
   const [validationMsg, setValidationMsg] = useState('')
+  const [oauthPending, setOauthPending] = useState(false)
+  const [geminiOAuthPending, setGeminiOAuthPending] = useState(false)
+  const geminiOAuthPendingRef = useRef(false)
+  const oauthPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const oauthTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const geminiUnlistenRef = useRef<(() => void) | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const validateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -180,6 +205,7 @@ export const ProviderSignInDialog = ({
     if (provider === 'openai') return keyStatus.openai_key_hint
     if (provider === 'anthropic') return keyStatus.anthropic_key_hint
     if (provider === 'openrouter') return keyStatus.openrouter_key_hint
+    if (provider === 'gemini') return keyStatus.gemini_key_hint
     return undefined
   }
 
@@ -244,22 +270,171 @@ export const ProviderSignInDialog = ({
     }
   }, [selectedProvider, validateKey])
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (validateTimerRef.current) clearTimeout(validateTimerRef.current)
       if (extraValidateTimerRef.current) clearTimeout(extraValidateTimerRef.current)
+      if (oauthPollRef.current) clearInterval(oauthPollRef.current)
+      if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current)
+      if (geminiUnlistenRef.current) { geminiUnlistenRef.current(); geminiUnlistenRef.current = null }
     }
   }, [])
 
+  const handleOAuthLogin = useCallback(async (provider: Provider) => {
+    if (oauthPollRef.current) clearInterval(oauthPollRef.current)
+    if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current)
+
+    setOauthPending(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`${API_BASE}/api/clawd/service/oauth-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider }),
+      })
+      const data = await res.json()
+
+      if (!data.url) {
+        setError(data.error || 'Failed to start OAuth flow.')
+        setOauthPending(false)
+        return
+      }
+
+      await openExternalUrl(data.url)
+      KNAnalytics.trackEvent('oauth_started', { provider, app_version: KNAnalytics.APP_VERSION })
+
+      // Poll api-key-status until the key appears (max 5 min)
+      oauthPollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`${API_BASE}/api/clawd/service/api-key-status`)
+          const statusData: ApiKeyStatusResponse = await statusRes.json()
+          const connected =
+            provider === 'openrouter' ? statusData.has_openrouter_key :
+            provider === 'openai' ? statusData.has_openai_key :
+            provider === 'anthropic' ? statusData.has_anthropic_key : false
+
+          if (connected) {
+            clearInterval(oauthPollRef.current!)
+            clearTimeout(oauthTimeoutRef.current!)
+            oauthPollRef.current = null
+            oauthTimeoutRef.current = null
+            setOauthPending(false)
+            setSuccess(`${PROVIDER_CONFIGS.find(p => p.id === provider)?.name} connected successfully!`)
+            KNAnalytics.trackEvent('oauth_completed', { provider, app_version: KNAnalytics.APP_VERSION })
+            await fetchKeyStatus()
+            setTimeout(() => handleClose(), 1500)
+          }
+        } catch { /* ignore transient errors */ }
+      }, 1500)
+
+      oauthTimeoutRef.current = setTimeout(() => {
+        clearInterval(oauthPollRef.current!)
+        oauthPollRef.current = null
+        oauthTimeoutRef.current = null
+        setOauthPending(false)
+        setError('OAuth timed out. Please try again.')
+      }, 300_000)
+    } catch (e: any) {
+      setOauthPending(false)
+      setError(e?.message || 'Failed to start OAuth flow.')
+    }
+  }, [fetchKeyStatus, handleClose])
+
+  const handleGeminiOAuth = useCallback(async () => {
+    if (geminiUnlistenRef.current) { geminiUnlistenRef.current(); geminiUnlistenRef.current = null }
+
+    setGeminiOAuthPending(true)
+    geminiOAuthPendingRef.current = true
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`${API_BASE}/api/clawd/service/oauth-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'google-gemini' }),
+      })
+      const data = await res.json()
+      if (!data.url) {
+        setError(data.error || 'Failed to start Google sign-in.')
+        setGeminiOAuthPending(false)
+        geminiOAuthPendingRef.current = false
+        return
+      }
+
+      await openExternalUrl(data.url)
+      KNAnalytics.trackEvent('oauth_started', { provider: 'google-gemini', app_version: KNAnalytics.APP_VERSION })
+
+      // Listen for the signin_success event emitted by the existing Google callback handler
+      const unlisten = await listen<{ code: string; raw_scopes: string }>('signin_success', async (event) => {
+        if (!geminiOAuthPendingRef.current) return
+        const { code, raw_scopes } = event.payload
+        if (!raw_scopes.includes('cloud-platform')) return
+
+        geminiOAuthPendingRef.current = false
+        if (geminiUnlistenRef.current) { geminiUnlistenRef.current(); geminiUnlistenRef.current = null }
+
+        try {
+          const connectRes = await fetch(`${API_BASE}/api/clawd/service/gemini-connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+          })
+          const connectData = await connectRes.json()
+          if (connectData.success) {
+            KNAnalytics.trackEvent('oauth_completed', { provider: 'google-gemini', app_version: KNAnalytics.APP_VERSION })
+            setGeminiOAuthPending(false)
+            const emailLabel = connectData.email ? ` (${connectData.email})` : ''
+            setSuccess(`Google account${emailLabel} connected for Gemini!`)
+            await fetchKeyStatus()
+            setTimeout(() => handleClose(), 1500)
+          } else {
+            setGeminiOAuthPending(false)
+            setError(connectData.error || 'Failed to complete Gemini sign-in.')
+          }
+        } catch (e: any) {
+          setGeminiOAuthPending(false)
+          setError(e?.message || 'Failed to complete Gemini sign-in.')
+        }
+      })
+      geminiUnlistenRef.current = unlisten
+
+      // 5-minute hard timeout
+      oauthTimeoutRef.current = setTimeout(() => {
+        if (!geminiOAuthPendingRef.current) return
+        geminiOAuthPendingRef.current = false
+        if (geminiUnlistenRef.current) { geminiUnlistenRef.current(); geminiUnlistenRef.current = null }
+        setGeminiOAuthPending(false)
+        setError('Sign-in timed out. Please try again.')
+      }, 300_000)
+    } catch (e: any) {
+      setGeminiOAuthPending(false)
+      geminiOAuthPendingRef.current = false
+      setError(e?.message || 'Failed to start Google sign-in.')
+    }
+  }, [fetchKeyStatus, handleClose])
+
   // Fetch current status when dialog opens
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      // Cancel any in-flight OAuth when dialog closes
+      if (oauthPollRef.current) { clearInterval(oauthPollRef.current); oauthPollRef.current = null }
+      if (oauthTimeoutRef.current) { clearTimeout(oauthTimeoutRef.current); oauthTimeoutRef.current = null }
+      if (geminiUnlistenRef.current) { geminiUnlistenRef.current(); geminiUnlistenRef.current = null }
+      setOauthPending(false)
+      setGeminiOAuthPending(false)
+      geminiOAuthPendingRef.current = false
+      return
+    }
     setApiKey('')
     setError('')
     setSuccess('')
     setValidation('idle')
     setValidationMsg('')
+    setOauthPending(false)
     setEditingExtraId(null)
     setExtraKey('')
     setExtraSuccess('')
@@ -274,7 +449,10 @@ export const ProviderSignInDialog = ({
         setSelectedProvider(initialProvider)
         const config = PROVIDER_CONFIGS.find(p => p.id === initialProvider)!
         setSelectedModel(config.defaultModel)
-      } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic' || data.active_provider === 'openrouter') {
+      } else if (data.active_provider === 'google-gemini-cli') {
+        setSelectedProvider('gemini')
+        setSelectedModel('gemini/gemini-2.5-pro')
+      } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic' || data.active_provider === 'openrouter' || data.active_provider === 'gemini') {
         setSelectedProvider(data.active_provider as Provider)
         const config = PROVIDER_CONFIGS.find(p => p.id === data.active_provider)!
         setSelectedModel(data.model || config.defaultModel)
@@ -293,6 +471,12 @@ export const ProviderSignInDialog = ({
     setSuccess('')
     setValidation('idle')
     setValidationMsg('')
+    if (oauthPollRef.current) { clearInterval(oauthPollRef.current); oauthPollRef.current = null }
+    if (oauthTimeoutRef.current) { clearTimeout(oauthTimeoutRef.current); oauthTimeoutRef.current = null }
+    if (geminiUnlistenRef.current) { geminiUnlistenRef.current(); geminiUnlistenRef.current = null }
+    setOauthPending(false)
+    setGeminiOAuthPending(false)
+    geminiOAuthPendingRef.current = false
   }, [selectedProvider])
 
   const handleSave = useCallback(async () => {
@@ -365,10 +549,14 @@ export const ProviderSignInDialog = ({
     if (provider === 'openai') return !!keyStatus.has_openai_key
     if (provider === 'anthropic') return !!keyStatus.has_anthropic_key
     if (provider === 'openrouter') return !!keyStatus.has_openrouter_key
+    if (provider === 'gemini') return !!keyStatus.has_gemini_key || !!keyStatus.has_gemini_cli_key
     return false
   }
 
   const isActiveProvider = (provider: Provider): boolean => {
+    if (provider === 'gemini') {
+      return keyStatus?.active_provider === 'gemini' || keyStatus?.active_provider === 'google-gemini-cli'
+    }
     return keyStatus?.active_provider === provider
   }
 
@@ -510,6 +698,12 @@ export const ProviderSignInDialog = ({
                     <path d="M10 7h4M7 10v4M17 10v4M10 17h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                   </svg>
                 )}
+                {config.id === 'gemini' && (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" fill="currentColor" opacity="0.3"/>
+                    <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16zm0-3l-4-4h2.5V7h3v6H16l-4 4z" fill="currentColor"/>
+                  </svg>
+                )}
               </div>
               <div className={styles.providerTabContent}>
                 <span className={styles.providerTabName}>{config.name}</span>
@@ -525,6 +719,57 @@ export const ProviderSignInDialog = ({
         </div>
 
         <div className={styles.providerSignInForm}>
+          {selectedProvider === 'openrouter' && (
+            <div className={styles.oauthSection}>
+              <button
+                className={styles.oauthButton}
+                onClick={() => handleOAuthLogin('openrouter')}
+                disabled={saving || oauthPending}
+              >
+                {oauthPending ? (
+                  <><span className={styles.oauthSpinner} /> Waiting for authorization…</>
+                ) : (
+                  'Sign in with OpenRouter'
+                )}
+              </button>
+              <div className={styles.oauthDivider}>
+                <span>or paste your API key below</span>
+              </div>
+            </div>
+          )}
+
+          {selectedProvider === 'gemini' && (
+            <div className={styles.oauthSection}>
+              <button
+                className={styles.oauthButton}
+                onClick={handleGeminiOAuth}
+                disabled={saving || geminiOAuthPending}
+              >
+                {geminiOAuthPending ? (
+                  <><span className={styles.oauthSpinner} /> Waiting for Google sign-in…</>
+                ) : keyStatus?.has_gemini_cli_key ? (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="#4285F4"/><path d="M12 11.5v1h4.9c-.2 1.1-.9 2-1.9 2.6l1.5 1.2c.9-.8 1.5-2.1 1.5-3.7 0-.4 0-.7-.1-1H12z" fill="white"/><path d="M7.5 14.1l1.7-1.3c-.3-.8-.3-1.7 0-2.5L7.5 9c-.7 1.5-.7 3.2 0 5.1z" fill="white"/><path d="M12 7c1.3 0 2.5.5 3.4 1.3L17 6.7C15.6 5.4 13.9 4.5 12 4.5c-2.8 0-5.2 1.6-6.5 4L7.1 10c.8-1.7 2.6-3 4.9-3z" fill="white"/><path d="M12 17c-2.2 0-4.1-1.2-5-3l-1.6 1.2C6.7 17.4 9.2 19 12 19c1.9 0 3.7-.7 5-1.9l-1.5-1.2c-.9.7-2.1 1.1-3.5 1.1z" fill="white"/></svg>
+                    Sign in with a different Google account
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="#4285F4"/><path d="M12 11.5v1h4.9c-.2 1.1-.9 2-1.9 2.6l1.5 1.2c.9-.8 1.5-2.1 1.5-3.7 0-.4 0-.7-.1-1H12z" fill="white"/><path d="M7.5 14.1l1.7-1.3c-.3-.8-.3-1.7 0-2.5L7.5 9c-.7 1.5-.7 3.2 0 5.1z" fill="white"/><path d="M12 7c1.3 0 2.5.5 3.4 1.3L17 6.7C15.6 5.4 13.9 4.5 12 4.5c-2.8 0-5.2 1.6-6.5 4L7.1 10c.8-1.7 2.6-3 4.9-3z" fill="white"/><path d="M12 17c-2.2 0-4.1-1.2-5-3l-1.6 1.2C6.7 17.4 9.2 19 12 19c1.9 0 3.7-.7 5-1.9l-1.5-1.2c-.9.7-2.1 1.1-3.5 1.1z" fill="white"/></svg>
+                    Sign in with Google
+                  </>
+                )}
+              </button>
+              {keyStatus?.gemini_cli_email && (
+                <p style={{ margin: '6px 0 0', fontSize: 12, color: '#64748b', textAlign: 'center' }}>
+                  Connected as {keyStatus.gemini_cli_email}
+                </p>
+              )}
+              <div className={styles.oauthDivider}>
+                <span>or use a Gemini API key</span>
+              </div>
+            </div>
+          )}
+
           <label className={styles.formLabel}>
             {providerConfig.name} API Key
           </label>
