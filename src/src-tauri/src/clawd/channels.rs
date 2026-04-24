@@ -156,6 +156,52 @@ fn extract_base_hash(snapshot: &serde_json::Value) -> String {
     String::new()
 }
 
+/// Whether a config.patch error looks like the gateway dropped the WS
+/// mid-request (e.g. it restarted after applying a prior patch, or the
+/// pooled connection lapsed).  These are safe to retry with a fresh
+/// base_hash; RPC-level errors (rate-limit, stale hash, validation) are
+/// returned as-is because retrying with the same payload won't help.
+fn is_connection_level_error(err: &str) -> bool {
+    err.contains("connection closed")
+        || err.contains("channel closed")
+        || err.starts_with("Timeout waiting for response")
+        || err.starts_with("Failed to send request")
+}
+
+/// Call `gateway_client::config_patch` with a single retry on
+/// connection-level errors.  The `build_patch` closure returns the patch
+/// JSON given the freshly-fetched snapshot, so it can re-run
+/// `build_enable_patch` against the post-restart config (which may have
+/// moved on under our feet).  `base_hash` is refetched on the retry.
+async fn config_patch_with_reconnect<F>(
+    initial_snapshot: &serde_json::Value,
+    mut build_patch: F,
+) -> Result<serde_json::Value, String>
+where
+    F: FnMut(&serde_json::Value) -> String,
+{
+    let initial_patch = build_patch(initial_snapshot);
+    let initial_hash = extract_base_hash(initial_snapshot);
+    match gateway_client::config_patch(&initial_patch, &initial_hash, None).await {
+        Ok(v) => Ok(v),
+        Err(e) if is_connection_level_error(&e) => {
+            log::warn!(
+                "[channels] config.patch hit connection error ({}) — waiting for gateway and retrying once",
+                e
+            );
+            gateway_client::ensure_gateway_and_wait().await;
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            let fresh_snapshot = gateway_client::config_get(None)
+                .await
+                .map_err(|ge| format!("config.patch retry: config.get failed: {}", ge))?;
+            let fresh_patch = build_patch(&fresh_snapshot);
+            let fresh_hash = extract_base_hash(&fresh_snapshot);
+            gateway_client::config_patch(&fresh_patch, &fresh_hash, None).await
+        }
+        Err(e) => Err(e),
+    }
+}
+
 /// Check whether `agents.defaults.model` is already set in the config snapshot.
 fn has_default_model(snapshot: &serde_json::Value) -> bool {
     let config = snapshot.get("config").unwrap_or(snapshot);
@@ -1103,18 +1149,19 @@ pub async fn telegram_enable(
 
     match config_result {
         Ok(config_snapshot) => {
-            let base_hash = extract_base_hash(&config_snapshot);
-
-            let patch = if body.enabled {
-                build_enable_patch(
-                    r#"{"channels": {"telegram": {"dmPolicy": "pairing"}}}"#,
-                    &config_snapshot,
-                )
-            } else {
-                r#"{"channels": {"telegram": null}}"#.to_string()
+            let enabled = body.enabled;
+            let build_patch = |snapshot: &serde_json::Value| {
+                if enabled {
+                    build_enable_patch(
+                        r#"{"channels": {"telegram": {"dmPolicy": "pairing"}}}"#,
+                        snapshot,
+                    )
+                } else {
+                    r#"{"channels": {"telegram": null}}"#.to_string()
+                }
             };
 
-            match gateway_client::config_patch(&patch, &base_hash, None).await {
+            match config_patch_with_reconnect(&config_snapshot, build_patch).await {
                 Ok(_) => {
                     if body.enabled {
                         // Auto-approve the first pairing request so the device
@@ -1190,8 +1237,6 @@ pub async fn telegram_configure(
 
     match config_result {
         Ok(config_snapshot) => {
-            let base_hash = extract_base_hash(&config_snapshot);
-
             let patch_value = serde_json::json!({
                 "channels": {
                     "telegram": {
@@ -1205,12 +1250,14 @@ pub async fn telegram_configure(
                     }
                 }
             });
-            let patch = build_enable_patch(
-                &serde_json::to_string(&patch_value).unwrap(),
-                &config_snapshot,
-            );
+            let build_patch = |snapshot: &serde_json::Value| {
+                build_enable_patch(
+                    &serde_json::to_string(&patch_value).unwrap(),
+                    snapshot,
+                )
+            };
 
-            match gateway_client::config_patch(&patch, &base_hash, None).await {
+            match config_patch_with_reconnect(&config_snapshot, build_patch).await {
                 Ok(_) => {
                     log::info!("[channels] Telegram bot token configured successfully");
                     // Start watching for the owner's first message so we can
@@ -1730,18 +1777,22 @@ pub async fn generic_channel_configure(
     let config_result = gateway_client::config_get(None).await;
     match config_result {
         Ok(config_snapshot) => {
-            let base_hash = extract_base_hash(&config_snapshot);
-            let patch_value = serde_json::json!({
-                "channels": {
-                    channel.clone(): channel_config
-                }
-            });
-            let patch = build_enable_patch(
-                &serde_json::to_string(&patch_value).unwrap(),
-                &config_snapshot,
-            );
+            // Clone the channel config for each closure invocation so the
+            // retry path gets its own copy — serde_json::json! moves the
+            // value into the tree.
+            let build_patch = |snapshot: &serde_json::Value| {
+                let patch_value = serde_json::json!({
+                    "channels": {
+                        channel.clone(): channel_config.clone()
+                    }
+                });
+                build_enable_patch(
+                    &serde_json::to_string(&patch_value).unwrap(),
+                    snapshot,
+                )
+            };
 
-            match gateway_client::config_patch(&patch, &base_hash, None).await {
+            match config_patch_with_reconnect(&config_snapshot, build_patch).await {
                 Ok(_) => {
                     log::info!("[channels] {} configured successfully", channel);
                     // For channels using pairing mode, auto-approve the first
@@ -4073,4 +4124,30 @@ pub async fn telegram_get_agent_bot_statuses() -> impl Responder {
         .unwrap_or_default();
 
     HttpResponse::Ok().json(entries)
+}
+
+#[cfg(test)]
+mod reconnect_retry_tests {
+    use super::is_connection_level_error;
+
+    #[test]
+    fn connection_closed_is_retryable() {
+        assert!(is_connection_level_error("Gateway connection closed"));
+        assert!(is_connection_level_error("Gateway response channel closed"));
+    }
+
+    #[test]
+    fn send_failure_and_timeout_are_retryable() {
+        assert!(is_connection_level_error("Failed to send request: broken pipe"));
+        assert!(is_connection_level_error("Timeout waiting for response"));
+    }
+
+    #[test]
+    fn rpc_level_errors_are_not_retryable() {
+        // "ok=false" responses from the gateway — retrying the same payload
+        // won't change the outcome.
+        assert!(!is_connection_level_error("rate limit exceeded"));
+        assert!(!is_connection_level_error("invalid baseHash"));
+        assert!(!is_connection_level_error("schema validation failed: channels.telegram"));
+    }
 }

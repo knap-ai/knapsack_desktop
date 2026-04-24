@@ -65,7 +65,10 @@ fn resolve_stt_provider() -> Result<SttProvider, LLMError> {
   }
 
   Err(LLMError::ChatCompletionFailed(
-    "No speech-to-text provider available. Please add an OpenAI or Groq API key in Settings.".into(),
+    "No speech-to-text provider available. Speech-to-text requires a Groq or OpenAI API \
+     key (Anthropic and Gemini don't expose a Whisper-compatible endpoint). Groq offers a \
+     free tier — add a key in Settings → AI Provider → Groq."
+      .into(),
   ))
 }
 

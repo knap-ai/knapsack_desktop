@@ -632,16 +632,25 @@ pub async fn stop_recording(
   ) {
     Ok(_) => {
       log::info!("Successfully combined .wav/.raw files");
+      // NotFound is benign — the file may have already been cleaned up by
+      // another path (e.g. interrupted recording).  Only escalate to Sentry
+      // for real IO errors like permission-denied.
       if let Err(e) = std::fs::remove_file(&input_path) {
-        let err_msg = format!("Failed to delete input txt file: {:?}", e);
-        knap_log_error(err_msg.clone(), None, Some(true));
-        log::error!("Failed to delete input txt file: {:?}", e);
+        if e.kind() == std::io::ErrorKind::NotFound {
+          log::debug!("input txt file already gone, skipping delete: {:?}", input_path);
+        } else {
+          let err_msg = format!("Failed to delete input txt file: {:?}", e);
+          knap_log_error(err_msg, None, Some(true));
+        }
       }
       if output_path.exists() {
         if let Err(e) = std::fs::remove_file(&output_path) {
-          let err_msg = format!("Failed to delete output txt file: {:?}", e);
-          knap_log_error(err_msg.clone(), None, Some(true));
-          log::error!("Failed to delete output file: {:?}", e);
+          if e.kind() == std::io::ErrorKind::NotFound {
+            log::debug!("output txt file already gone, skipping delete: {:?}", output_path);
+          } else {
+            let err_msg = format!("Failed to delete output txt file: {:?}", e);
+            knap_log_error(err_msg, None, Some(true));
+          }
         }
       }
     }
