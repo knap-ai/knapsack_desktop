@@ -657,6 +657,20 @@
     border-top: 1px solid rgba(0, 0, 0, 0.06);
   }
 
+  .ClawdPromptActionConfirmed {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    color: #16a34a;
+    font-weight: 500;
+    font-size: 13px;
+    font-family: inherit;
+  }
+
   .ClawdPromptAction {
     display: flex;
     align-items: center;
