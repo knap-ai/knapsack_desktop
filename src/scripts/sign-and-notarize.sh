@@ -308,6 +308,14 @@ if [ "$DO_NOTARIZE" = true ]; then
       DMG_TEMP="$(mktemp -d /tmp/knapsack-dmg.XXXXXX)"
       cp -R "$APP_PATH" "$DMG_TEMP/"
       ln -s /Applications "$DMG_TEMP/Applications"
+
+      # codesign/stapler can leave files with the immutable (locked) flag or
+      # owner-only permissions. Finder refuses to copy such files from a DMG,
+      # showing "items had to be skipped / Locked". Clear the flags and ensure
+      # all files are world-readable before packaging into the DMG.
+      chflags -R nouchg,noschg "$DMG_TEMP" 2>/dev/null || true
+      chmod -R a+rX "$DMG_TEMP"
+
       rm -f "$DMG_PATH"
       hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_TEMP" \
         -ov -format UDZO "$DMG_PATH"
