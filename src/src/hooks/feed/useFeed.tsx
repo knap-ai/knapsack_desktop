@@ -1752,9 +1752,18 @@ export function useFeed(
 
       setFeedContent(prevState => {
         const updated = { ...prevState }
+        // Replace the feed item with the updated (now-linked) version.
         updated[timelineKey] = feedItems.map(fi =>
           fi.id === feedItemId ? updatedFeedItem : fi,
         )
+        // Remove the calendar-only placeholder for this meeting from every
+        // timeline bucket. The placeholder has no DB id and carries the same
+        // event_id as the meeting being attached.
+        for (const key of Object.keys(updated)) {
+          updated[key] = updated[key].filter(
+            fi => !(fi.calendarEvent?.event_id === meeting.event_id && !fi.id),
+          )
+        }
         return updated
       })
       setSelectedFeedItem(updatedFeedItem)
