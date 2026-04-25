@@ -307,6 +307,14 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     Err(_) => return false,
   };
 
+  // Snapshot restart-sensitive gateway fields before any modifications.
+  // These fields (gateway.auth.mode, gateway.tailscale) trigger a full
+  // gateway restart when changed.  We never intentionally modify them, but
+  // preserve them explicitly so a serde round-trip or future patch can't
+  // silently drop them and cause a spurious "deferring until N tasks complete".
+  let saved_auth_mode = cfg.pointer("/gateway/auth/mode").cloned();
+  let saved_tailscale  = cfg.pointer("/gateway/tailscale").cloned();
+
   let mut patched = false;
 
   // Sync gateway.auth.token from env vars into the config file.
@@ -574,23 +582,24 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   //
   // Grammy's default timeoutSeconds is 500 (≈8 min).  getUpdates long-polls
   // block for that entire duration, and when they do time out the resulting
-  // AbortError floods the log.  Set a reasonable 60s cap if Telegram is
-  // configured but no explicit timeout is set.
+  // AbortError floods the log.  Always enforce 60s — even if the field is
+  // already set — so a stale value from a previous session can't survive a
+  // restart and cause 16-minute stall-detector cycles.
   let tg_has_token = cfg
     .pointer("/channels/telegram/botToken")
     .and_then(|v| v.as_str())
     .map(|s| !s.trim().is_empty())
     .unwrap_or(false);
   if tg_has_token {
-    let tg_has_timeout = cfg
+    let current_tg_timeout = cfg
       .pointer("/channels/telegram/timeoutSeconds")
       .and_then(|v| v.as_u64())
-      .is_some();
-    if !tg_has_timeout {
+      .unwrap_or(0);
+    if current_tg_timeout != 60 {
       if cfg.pointer("/channels/telegram").is_some() {
         cfg.pointer_mut("/channels/telegram").unwrap().as_object_mut().unwrap()
           .insert("timeoutSeconds".into(), serde_json::json!(60));
-        eprintln!("[gateway_client] Set channels.telegram.timeoutSeconds to 60 (was Grammy default 500)");
+        eprintln!("[gateway_client] Set channels.telegram.timeoutSeconds to 60 (was {})", current_tg_timeout);
         patched = true;
       }
     }
@@ -665,6 +674,23 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
         .insert("model".into(), serde_json::json!(current_model));
       eprintln!("[gateway_client] Patched agents.defaults.model: {:?} → '{}'", disk_model, current_model);
       patched = true;
+    }
+  }
+
+  // Restore restart-sensitive gateway fields if anything above accidentally
+  // cleared them.  Under normal operation these are no-ops.
+  if let Some(auth_mode) = saved_auth_mode {
+    if cfg.pointer("/gateway/auth/mode") != Some(&auth_mode) {
+      if let Some(auth) = cfg.pointer_mut("/gateway/auth").and_then(|v| v.as_object_mut()) {
+        auth.insert("mode".to_string(), auth_mode);
+      }
+    }
+  }
+  if let Some(tailscale) = saved_tailscale {
+    if cfg.pointer("/gateway/tailscale") != Some(&tailscale) {
+      if let Some(gw) = cfg.pointer_mut("/gateway").and_then(|v| v.as_object_mut()) {
+        gw.insert("tailscale".to_string(), tailscale);
+      }
     }
   }
 
@@ -984,31 +1010,31 @@ async fn apply_runtime_browser_config(token: &str) {
     eprintln!("[gateway_client] agents.defaults.model updated: {:?} → '{}' in runtime patch", existing_model, model);
   }
 
-  // Cap Telegram long-poll timeout if Telegram is configured but no explicit
-  // timeout is set.  Grammy's default is 500s (≈8 min): getUpdates blocks for
-  // the entire duration, and when the gateway receives a SIGUSR1 (e.g. from a
-  // config.patch), it cannot cancel the in-flight poll → shutdown times out →
-  // gateway exits ungracefully and orphans its Chrome child process, which then
-  // holds the CDP port (18800) and prevents the restarted gateway from
-  // launching a new browser.  60s is long enough for reliable delivery and
-  // short enough that a clean shutdown always completes within the Node default
-  // graceful-shutdown window.
+  // Always enforce Telegram long-poll timeout = 60s.  Grammy's default is
+  // 500s (≈8 min): getUpdates blocks for the entire duration, and when the
+  // gateway receives a SIGUSR1 (e.g. from a config.patch), it cannot cancel
+  // the in-flight poll → shutdown times out → gateway exits ungracefully and
+  // orphans its Chrome child process, which then holds the CDP port (18800)
+  // and prevents the restarted gateway from launching a new browser.
+  // We always include this in the patch (not just when absent) so that a stale
+  // value from a previous session can't survive into a new one and cause the
+  // 16-minute stall-detector cycles seen in production.
   let tg_has_token = config_inner
     .pointer("/channels/telegram/botToken")
     .and_then(|v| v.as_str())
     .map(|s| !s.trim().is_empty())
     .unwrap_or(false);
   if tg_has_token {
-    let tg_has_timeout = config_inner
+    let current_tg_timeout = config_inner
       .pointer("/channels/telegram/timeoutSeconds")
       .and_then(|v| v.as_u64())
-      .is_some();
-    if !tg_has_timeout {
+      .unwrap_or(0);
+    if current_tg_timeout != 60 {
       patch_obj.as_object_mut().unwrap().insert(
         "channels".to_string(),
         serde_json::json!({"telegram": {"timeoutSeconds": 60}}),
       );
-      eprintln!("[gateway_client] Adding channels.telegram.timeoutSeconds=60 to runtime patch (Grammy default 500s causes shutdown stall)");
+      eprintln!("[gateway_client] Setting channels.telegram.timeoutSeconds=60 (was {}) — prevents shutdown stall", current_tg_timeout);
     }
   }
 

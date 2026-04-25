@@ -3691,6 +3691,13 @@ async fn prepare_gateway_config(
       if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&existing) {
         let mut patched = false;
 
+        // Snapshot restart-sensitive fields before any mutations.
+        // gateway.auth.mode and gateway.tailscale trigger a full gateway
+        // restart when changed; preserve them so none of the patches below
+        // can silently drop them and cause "deferring until N tasks complete".
+        let saved_auth_mode = cfg_val.pointer("/gateway/auth/mode").cloned();
+        let saved_tailscale  = cfg_val.pointer("/gateway/tailscale").cloned();
+
         // Ensure gateway.auth.token matches tokens.json
         let config_token = cfg_val
           .pointer("/gateway/auth/token")
@@ -4095,6 +4102,24 @@ async fn prepare_gateway_config(
         let channels_sanitized = sanitize_channel_allowlist_configs(&mut cfg_val);
         if channels_sanitized {
           patched = true;
+        }
+
+        // Restore restart-sensitive fields before any write — these are no-ops
+        // under normal operation but guard against a future patch accidentally
+        // dropping them and triggering "deferring until N tasks complete".
+        if let Some(auth_mode) = saved_auth_mode {
+          if cfg_val.pointer("/gateway/auth/mode") != Some(&auth_mode) {
+            if let Some(auth) = cfg_val.pointer_mut("/gateway/auth").and_then(|v| v.as_object_mut()) {
+              auth.insert("mode".to_string(), auth_mode);
+            }
+          }
+        }
+        if let Some(tailscale) = saved_tailscale {
+          if cfg_val.pointer("/gateway/tailscale") != Some(&tailscale) {
+            if let Some(gw) = cfg_val.pointer_mut("/gateway").and_then(|v| v.as_object_mut()) {
+              gw.insert("tailscale".to_string(), tailscale);
+            }
+          }
         }
 
         if patched {
