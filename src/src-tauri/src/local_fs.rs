@@ -110,21 +110,31 @@ fn remove_repeated_whitespace(input: &str) -> String {
 pub fn read_pdf_contents(path: PathBuf) -> Result<Vec<String>, Box<dyn std::error::Error>> {
   let path_str = path.to_str().unwrap_or("").to_string();
 
-  // Try the bundled Tauri sidecar first; fall back to the system pdftotext binary
-  // (available via `brew install poppler` on macOS) so dev builds work without bundling.
-  let stdout: String = match Command::new_sidecar(PDF_TO_TEXT_BINARY_NAME) {
-    Ok(cmd) => {
-      let output = cmd
-        .args(&["-layout", &path_str, "-"])
-        .output()
-        .map_err(|e| format!("pdftotext failed to run: {}", e))?;
-      if !output.status.success() {
-        error!("pdftotext ERROR: command error {:?}", path_str);
-      }
-      debug!("Content len: {}", output.stdout.len());
-      output.stdout
-    }
-    Err(_) => {
+  // Try the bundled Tauri sidecar first; fall back to the system pdftotext
+  // binary (available via `brew install poppler` on macOS) so dev builds work
+  // without bundling.
+  //
+  // Use .ok() on both new_sidecar() and .output() so that a registered-but-
+  // missing sidecar (binary in tauri.conf.json but not on disk) falls through
+  // to the system binary rather than propagating a NotFound error.  Previously
+  // new_sidecar() returned Ok(cmd) for a registered binary even when the binary
+  // was absent, causing .output() to fail and the error to be logged for every
+  // PDF opened from Google Drive.
+  let sidecar_stdout: Option<String> =
+    Command::new_sidecar(PDF_TO_TEXT_BINARY_NAME)
+      .ok()
+      .and_then(|cmd| cmd.args(&["-layout", &path_str, "-"]).output().ok())
+      .map(|output| {
+        if !output.status.success() {
+          error!("pdftotext ERROR: command error {:?}", path_str);
+        }
+        debug!("Content len: {}", output.stdout.len());
+        output.stdout
+      });
+
+  let stdout: String = match sidecar_stdout {
+    Some(s) => s,
+    None => {
       match std::process::Command::new(PDF_TO_TEXT_BINARY_NAME)
         .args(["-layout", &path_str, "-"])
         .output()
