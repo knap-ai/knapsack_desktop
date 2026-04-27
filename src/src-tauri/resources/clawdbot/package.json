@@ -1490,6 +1490,7 @@
     "music-metadata": "^11.12.3"
   },
   "overrides": {
+    "@anthropic-ai/sdk": "0.81.0",
     "axios": "1.15.0",
     "follow-redirects": "1.16.0"
   },
