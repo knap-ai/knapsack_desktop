@@ -7,4 +7,5 @@ export type HardenedManualCompactionBoundary = {
 };
 export declare function hardenManualCompactionBoundary(params: {
     sessionFile: string;
+    preserveRecentTail?: boolean;
 }): Promise<HardenedManualCompactionBoundary>;

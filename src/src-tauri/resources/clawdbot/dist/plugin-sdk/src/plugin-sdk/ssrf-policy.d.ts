@@ -12,6 +12,7 @@ export type PrivateNetworkOptInInput = boolean | null | undefined | Pick<SsrFPol
 export declare function isPrivateNetworkOptInEnabled(input: PrivateNetworkOptInInput): boolean;
 export declare function ssrfPolicyFromPrivateNetworkOptIn(input: PrivateNetworkOptInInput): SsrFPolicy | undefined;
 export declare function ssrfPolicyFromDangerouslyAllowPrivateNetwork(dangerouslyAllowPrivateNetwork: boolean | null | undefined): SsrFPolicy | undefined;
+export declare function mergeSsrFPolicies(...policies: Array<SsrFPolicy | undefined>): SsrFPolicy | undefined;
 export declare function hasLegacyFlatAllowPrivateNetworkAlias(value: unknown): boolean;
 export declare function migrateLegacyFlatAllowPrivateNetworkAlias(params: {
     entry: Record<string, unknown>;

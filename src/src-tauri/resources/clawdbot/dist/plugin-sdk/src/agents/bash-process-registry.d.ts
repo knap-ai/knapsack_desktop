@@ -1,4 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type { TerminationReason } from "../process/supervisor/types.js";
 import type { DeliveryContext } from "../utils/delivery-context.js";
 export type ProcessStatus = "running" | "completed" | "failed" | "killed";
 export type SessionStdin = {
@@ -32,6 +33,7 @@ export interface ProcessSession {
     tail: string;
     exitCode?: number | null;
     exitSignal?: NodeJS.Signals | number | null;
+    exitReason?: TerminationReason;
     exited: boolean;
     truncated: boolean;
     backgrounded: boolean;
@@ -48,6 +50,7 @@ export interface FinishedSession {
     status: ProcessStatus;
     exitCode?: number | null;
     exitSignal?: NodeJS.Signals | number | null;
+    exitReason?: TerminationReason;
     aggregated: string;
     tail: string;
     truncated: boolean;
@@ -63,7 +66,7 @@ export declare function drainSession(session: ProcessSession): {
     stdout: string;
     stderr: string;
 };
-export declare function markExited(session: ProcessSession, exitCode: number | null, exitSignal: NodeJS.Signals | number | null, status: ProcessStatus): void;
+export declare function markExited(session: ProcessSession, exitCode: number | null, exitSignal: NodeJS.Signals | number | null, status: ProcessStatus, exitReason?: TerminationReason): void;
 export declare function markBackgrounded(session: ProcessSession): void;
 export declare function tail(text: string, max?: number): string;
 export declare function trimWithCap(text: string, max: number): string;

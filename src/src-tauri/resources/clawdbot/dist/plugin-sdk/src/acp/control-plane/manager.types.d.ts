@@ -22,6 +22,7 @@ export type AcpInitializeSessionInput = {
     agent: string;
     mode: AcpRuntimeSessionMode;
     resumeSessionId?: string;
+    runtimeOptions?: Partial<AcpSessionRuntimeOptions>;
     cwd?: string;
     backendId?: string;
 };

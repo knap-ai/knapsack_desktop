@@ -1,13 +1,14 @@
-import { o as normalizeOptionalLowercaseString } from "../../string-coerce-BUSzWgUA.js";
-import { n as ensureAuthProfileStore } from "../../store-C1I9Mkh8.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../provider-auth-DWLaZig-.js";
-import { n as resolveCopilotForwardCompatModel, t as PROVIDER_ID } from "../../models-Bq8Uk4YG.js";
-import { t as resolveFirstGithubToken } from "../../auth-H8vJMJqb.js";
-import { t as githubCopilotMemoryEmbeddingProviderAdapter } from "../../embeddings-_Q6tP12m.js";
-import { t as buildGithubCopilotReplayPolicy } from "../../replay-policy-C6ThhIj3.js";
-import { n as wrapCopilotProviderStream } from "../../stream-DmnrowAI.js";
+import { s as normalizeOptionalLowercaseString } from "../../string-coerce-C1IzJjqi.js";
+import { n as ensureAuthProfileStore } from "../../store-CfHec0eX.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../provider-auth-B7ecZcum.js";
+import { r as resolvePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
+import { n as resolveCopilotForwardCompatModel, t as PROVIDER_ID } from "../../models-CZL3_C6Y.js";
+import { t as resolveFirstGithubToken } from "../../auth-1881MV1_.js";
+import { t as githubCopilotMemoryEmbeddingProviderAdapter } from "../../embeddings-FPLzhgGC.js";
+import { t as buildGithubCopilotReplayPolicy } from "../../replay-policy-D269bmn3.js";
+import { r as wrapCopilotProviderStream } from "../../stream-Dy0kutKG.js";
 //#region extensions/github-copilot/index.ts
 const COPILOT_ENV_VARS = [
 	"COPILOT_GITHUB_TOKEN",
@@ -27,7 +28,12 @@ var github_copilot_default = definePluginEntry({
 	name: "GitHub Copilot Provider",
 	description: "Bundled GitHub Copilot provider plugin",
 	register(api) {
-		const pluginConfig = api.pluginConfig ?? {};
+		const startupPluginConfig = api.pluginConfig ?? {};
+		function resolveCurrentPluginConfig(config) {
+			const runtimePluginConfig = resolvePluginConfigObject(config, "github-copilot");
+			if (runtimePluginConfig) return runtimePluginConfig;
+			return config ? {} : startupPluginConfig;
+		}
 		async function runGitHubCopilotAuth(ctx) {
 			const { githubCopilotLoginCommand } = await loadGithubCopilotRuntime();
 			await ctx.prompter.note(["This will open a GitHub device login to authorize Copilot.", "Requires an active GitHub Copilot subscription."].join("\n"), "GitHub Copilot");
@@ -51,7 +57,7 @@ var github_copilot_default = definePluginEntry({
 					profileId: "github-copilot:github",
 					credential
 				}],
-				defaultModel: "github-copilot/gpt-4o"
+				defaultModel: "github-copilot/claude-opus-4.7"
 			};
 		}
 		api.registerMemoryEmbeddingProvider(githubCopilotMemoryEmbeddingProviderAdapter);
@@ -76,7 +82,7 @@ var github_copilot_default = definePluginEntry({
 			catalog: {
 				order: "late",
 				run: async (ctx) => {
-					if ((pluginConfig.discovery?.enabled ?? ctx.config?.models?.copilotDiscovery?.enabled) === false) return null;
+					if ((resolveCurrentPluginConfig(ctx.config).discovery?.enabled ?? ctx.config?.models?.copilotDiscovery?.enabled) === false) return null;
 					const { DEFAULT_COPILOT_API_BASE_URL, resolveCopilotApiToken } = await loadGithubCopilotRuntime();
 					const { githubToken, hasProfile } = await resolveFirstGithubToken({
 						agentDir: ctx.agentDir,
@@ -102,7 +108,14 @@ var github_copilot_default = definePluginEntry({
 			resolveDynamicModel: (ctx) => resolveCopilotForwardCompatModel(ctx),
 			wrapStreamFn: wrapCopilotProviderStream,
 			buildReplayPolicy: ({ modelId }) => buildGithubCopilotReplayPolicy(modelId),
-			supportsXHighThinking: ({ modelId }) => COPILOT_XHIGH_MODEL_IDS.includes(normalizeOptionalLowercaseString(modelId) ?? ""),
+			resolveThinkingProfile: ({ modelId }) => ({ levels: [
+				{ id: "off" },
+				{ id: "minimal" },
+				{ id: "low" },
+				{ id: "medium" },
+				{ id: "high" },
+				...COPILOT_XHIGH_MODEL_IDS.includes(normalizeOptionalLowercaseString(modelId) ?? "") ? [{ id: "xhigh" }] : []
+			] }),
 			prepareRuntimeAuth: async (ctx) => {
 				const { resolveCopilotApiToken } = await loadGithubCopilotRuntime();
 				const token = await resolveCopilotApiToken({

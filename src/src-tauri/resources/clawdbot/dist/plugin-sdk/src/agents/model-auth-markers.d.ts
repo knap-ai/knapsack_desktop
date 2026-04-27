@@ -6,6 +6,7 @@ export declare const CUSTOM_LOCAL_AUTH_MARKER = "custom-local";
 export declare const GCP_VERTEX_CREDENTIALS_MARKER = "gcp-vertex-credentials";
 export declare const NON_ENV_SECRETREF_MARKER = "secretref-managed";
 export declare const SECRETREF_ENV_HEADER_MARKER_PREFIX = "secretref-env:";
+export declare function listKnownNonSecretApiKeyMarkers(): string[];
 export declare function isAwsSdkAuthMarker(value: string): boolean;
 export declare function isKnownEnvApiKeyMarker(value: string): boolean;
 export declare function resolveOAuthApiKeyMarker(providerId: string): string;

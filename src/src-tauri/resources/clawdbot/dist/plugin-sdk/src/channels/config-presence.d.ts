@@ -10,7 +10,13 @@ type ChannelPresenceOptions = {
         }) => boolean;
     };
 };
+export type ChannelPresenceSignalSource = "config" | "env" | "persisted-auth";
+export type ChannelPresenceSignal = {
+    channelId: string;
+    source: ChannelPresenceSignalSource;
+};
 export declare function hasMeaningfulChannelConfig(value: unknown): boolean;
 export declare function listPotentialConfiguredChannelIds(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv, options?: ChannelPresenceOptions): string[];
+export declare function listPotentialConfiguredChannelPresenceSignals(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv, options?: ChannelPresenceOptions): ChannelPresenceSignal[];
 export declare function hasPotentialConfiguredChannels(cfg: OpenClawConfig | null | undefined, env?: NodeJS.ProcessEnv, options?: ChannelPresenceOptions): boolean;
 export {};

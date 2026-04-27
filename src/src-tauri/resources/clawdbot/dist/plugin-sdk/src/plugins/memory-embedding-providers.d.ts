@@ -30,6 +30,8 @@ export type MemoryEmbeddingProvider = {
 export type MemoryEmbeddingProviderCreateOptions = {
     config: OpenClawConfig;
     agentDir?: string;
+    provider?: string;
+    fallback?: string;
     remote?: {
         baseUrl?: string;
         apiKey?: SecretInput;
@@ -41,6 +43,7 @@ export type MemoryEmbeddingProviderCreateOptions = {
         modelCacheDir?: string;
     };
     outputDimensionality?: number;
+    taskType?: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" | "SEMANTIC_SIMILARITY" | "CLASSIFICATION" | "CLUSTERING" | "QUESTION_ANSWERING" | "FACT_VERIFICATION";
 };
 export type MemoryEmbeddingProviderCreateResult = {
     provider: MemoryEmbeddingProvider | null;
@@ -50,6 +53,7 @@ export type MemoryEmbeddingProviderAdapter = {
     id: string;
     defaultModel?: string;
     transport?: "local" | "remote";
+    authProviderId?: string;
     autoSelectPriority?: number;
     allowExplicitWhenConfiguredAuto?: boolean;
     supportsMultimodalEmbeddings?: (params: {

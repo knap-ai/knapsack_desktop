@@ -282,6 +282,7 @@ export type SetupChannelsOptions = {
     onResolvedPlugin?: (channel: ChannelId, plugin: ChannelSetupPlugin) => void;
     promptAccountIds?: boolean;
     forceAllowFromChannels?: ChannelId[];
+    deferStatusUntilSelection?: boolean;
     skipStatusNote?: boolean;
     skipDmPolicyPrompt?: boolean;
     skipConfirm?: boolean;

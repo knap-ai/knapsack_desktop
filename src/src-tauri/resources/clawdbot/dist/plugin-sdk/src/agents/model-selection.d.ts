@@ -2,21 +2,16 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ModelCatalogEntry } from "./model-catalog.types.js";
 export { resolveThinkingDefault } from "./model-thinking-default.js";
 import { type ModelRef, findNormalizedProviderKey, findNormalizedProviderValue, legacyModelKey, modelKey, normalizeModelRef, normalizeProviderId, normalizeProviderIdForAuth, parseModelRef } from "./model-selection-normalize.js";
-export type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "adaptive";
-export type ModelAliasIndex = {
-    byAlias: Map<string, {
-        alias: string;
-        ref: ModelRef;
-    }>;
-    byKey: Map<string, string[]>;
-};
-export { findNormalizedProviderKey, findNormalizedProviderValue, legacyModelKey, modelKey, normalizeModelRef, normalizeProviderId, normalizeProviderIdForAuth, parseModelRef, };
-export type { ModelRef };
+import { buildConfiguredAllowlistKeys, buildConfiguredModelCatalog, buildModelAliasIndex, inferUniqueProviderFromCatalog, inferUniqueProviderFromConfiguredModels, normalizeModelSelection, resolveBareModelDefaultProvider, resolveConfiguredModelRef, resolveHooksGmailModel, resolveModelRefFromString, type ModelAliasIndex, type ModelRefStatus } from "./model-selection-shared.js";
+export type { ModelAliasIndex, ModelRef, ModelRefStatus };
+export type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "adaptive" | "max";
+export { buildConfiguredAllowlistKeys, buildConfiguredModelCatalog, buildModelAliasIndex, findNormalizedProviderKey, findNormalizedProviderValue, inferUniqueProviderFromConfiguredModels, inferUniqueProviderFromCatalog, legacyModelKey, modelKey, normalizeModelRef, normalizeModelSelection, normalizeProviderId, normalizeProviderIdForAuth, parseModelRef, resolveBareModelDefaultProvider, resolveConfiguredModelRef, resolveHooksGmailModel, resolveModelRefFromString, };
 export { isCliProvider } from "./model-selection-cli.js";
 export declare function resolvePersistedOverrideModelRef(params: {
     defaultProvider: string;
     overrideProvider?: string;
     overrideModel?: string;
+    allowPluginNormalization?: boolean;
 }): ModelRef | null;
 /**
  * Runtime-first resolver for persisted model metadata.
@@ -28,6 +23,7 @@ export declare function resolvePersistedModelRef(params: {
     runtimeModel?: string;
     overrideProvider?: string;
     overrideModel?: string;
+    allowPluginNormalization?: boolean;
 }): ModelRef | null;
 /**
  * Selected-model resolver for persisted model metadata.
@@ -40,6 +36,7 @@ export declare function resolvePersistedSelectedModelRef(params: {
     runtimeModel?: string;
     overrideProvider?: string;
     overrideModel?: string;
+    allowPluginNormalization?: boolean;
 }): ModelRef | null;
 export declare function normalizeStoredOverrideModel(params: {
     providerOverride?: string | null;
@@ -48,35 +45,7 @@ export declare function normalizeStoredOverrideModel(params: {
     providerOverride?: string;
     modelOverride?: string;
 };
-export declare function inferUniqueProviderFromConfiguredModels(params: {
-    cfg: OpenClawConfig;
-    model: string;
-}): string | undefined;
-export declare function resolveAllowlistModelKey(raw: string, defaultProvider: string): string | null;
-export declare function buildConfiguredAllowlistKeys(params: {
-    cfg: OpenClawConfig | undefined;
-    defaultProvider: string;
-}): Set<string> | null;
-export declare function buildModelAliasIndex(params: {
-    cfg: OpenClawConfig;
-    defaultProvider: string;
-    allowPluginNormalization?: boolean;
-}): ModelAliasIndex;
-export declare function resolveModelRefFromString(params: {
-    raw: string;
-    defaultProvider: string;
-    aliasIndex?: ModelAliasIndex;
-    allowPluginNormalization?: boolean;
-}): {
-    ref: ModelRef;
-    alias?: string;
-} | null;
-export declare function resolveConfiguredModelRef(params: {
-    cfg: OpenClawConfig;
-    defaultProvider: string;
-    defaultModel: string;
-    allowPluginNormalization?: boolean;
-}): ModelRef;
+export declare function resolveAllowlistModelKey(raw: string, defaultProvider: string, cfg?: OpenClawConfig): string | null;
 export declare function resolveDefaultModelForAgent(params: {
     cfg: OpenClawConfig;
     agentId?: string;
@@ -100,15 +69,6 @@ export declare function buildAllowedModelSet(params: {
     allowAny: boolean;
     allowedCatalog: ModelCatalogEntry[];
     allowedKeys: Set<string>;
-};
-export declare function buildConfiguredModelCatalog(params: {
-    cfg: OpenClawConfig;
-}): ModelCatalogEntry[];
-export type ModelRefStatus = {
-    key: string;
-    inCatalog: boolean;
-    allowAny: boolean;
-    allowed: boolean;
 };
 export declare function getModelRefStatus(params: {
     cfg: OpenClawConfig;
@@ -135,17 +95,3 @@ export declare function resolveReasoningDefault(params: {
     model: string;
     catalog?: ModelCatalogEntry[];
 }): "on" | "off";
-/**
- * Resolve the model configured for Gmail hook processing.
- * Returns null if hooks.gmail.model is not set.
- */
-export declare function resolveHooksGmailModel(params: {
-    cfg: OpenClawConfig;
-    defaultProvider: string;
-}): ModelRef | null;
-/**
- * Normalize a model selection value (string or `{primary?: string}`) to a
- * plain trimmed string.  Returns `undefined` when the input is empty/missing.
- * Shared by sessions-spawn and cron isolated-agent model resolution.
- */
-export declare function normalizeModelSelection(value: unknown): string | undefined;

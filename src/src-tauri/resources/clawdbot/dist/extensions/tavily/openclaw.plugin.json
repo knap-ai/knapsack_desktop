@@ -29,6 +29,11 @@
       "tavily_extract"
     ]
   },
+  "configContracts": {
+    "compatibilityRuntimePaths": [
+      "tools.web.search.apiKey"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

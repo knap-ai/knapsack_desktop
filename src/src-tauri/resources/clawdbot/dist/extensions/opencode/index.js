@@ -1,10 +1,11 @@
-import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
-import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS, l as matchesExactOrPrefix } from "../../provider-model-shared-DyDnBaDe.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { t as OPENCODE_ZEN_DEFAULT_MODEL } from "../../provider-onboard-CghzCQ2p.js";
-import { t as createOpencodeCatalogApiKeyAuthMethod } from "../../opencode-BixjxGk1.js";
-import { n as applyOpencodeZenConfig } from "../../onboard-CBtRt-4S.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
+import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS, l as matchesExactOrPrefix } from "../../provider-model-shared-D-iKoymz.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as OPENCODE_ZEN_DEFAULT_MODEL } from "../../provider-onboard-VLZPCYnL.js";
+import { t as createOpencodeCatalogApiKeyAuthMethod } from "../../opencode-xFQq5FII.js";
+import { n as applyOpencodeZenConfig } from "../../onboard-BkiMZQKK.js";
+import { t as opencodeMediaUnderstandingProvider } from "../../media-understanding-provider-D4vZ56oJ.js";
 //#region extensions/opencode/index.ts
 const PROVIDER_ID = "opencode";
 const MINIMAX_MODERN_MODEL_MATCHERS = ["minimax-m2.7"];
@@ -42,6 +43,7 @@ var opencode_default = definePluginEntry({
 			...PASSTHROUGH_GEMINI_REPLAY_HOOKS,
 			isModernModelRef: ({ modelId }) => isModernOpencodeModel(modelId)
 		});
+		api.registerMediaUnderstandingProvider(opencodeMediaUnderstandingProvider);
 	}
 });
 //#endregion

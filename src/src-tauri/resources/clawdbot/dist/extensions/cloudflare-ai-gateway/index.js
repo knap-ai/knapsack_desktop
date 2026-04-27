@@ -1,15 +1,16 @@
-import { s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
-import { n as ensureAuthProfileStore } from "../../store-C1I9Mkh8.js";
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-DqcJmob1.js";
-import { n as listProfilesForProvider, o as upsertAuthProfile } from "../../profiles-CVErLX2C.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-fye6IC_1.js";
-import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-DKL5bJRR.js";
-import "../../provider-auth-DWLaZig-.js";
-import { n as CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF } from "../../models-BRzaxjQj.js";
-import { t as buildCloudflareAiGatewayCatalogProvider } from "../../catalog-provider-DzjXaFZL.js";
-import { r as buildCloudflareAiGatewayConfigPatch, t as applyCloudflareAiGatewayConfig } from "../../onboard-CSFfquYs.js";
+import { c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
+import { n as ensureAuthProfileStore } from "../../store-CfHec0eX.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CkOd5v2f.js";
+import { n as listProfilesForProvider } from "../../profile-list-CPl71h59.js";
+import { i as upsertAuthProfile } from "../../profiles-RuCKjoVP.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-BHhtM4mz.js";
+import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-BIVX-4NW.js";
+import "../../provider-auth-B7ecZcum.js";
+import { n as CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF } from "../../models-BpS0sfAN.js";
+import { t as buildCloudflareAiGatewayCatalogProvider } from "../../catalog-provider-DCf7h0Mt.js";
+import { r as buildCloudflareAiGatewayConfigPatch, t as applyCloudflareAiGatewayConfig } from "../../onboard-CrozDD-7.js";
 //#region extensions/cloudflare-ai-gateway/index.ts
 const PROVIDER_ID = "cloudflare-ai-gateway";
 const PROVIDER_ENV_VAR = "CLOUDFLARE_AI_GATEWAY_API_KEY";

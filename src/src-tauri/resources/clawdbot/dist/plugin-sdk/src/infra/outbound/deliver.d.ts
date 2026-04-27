@@ -1,6 +1,9 @@
 import type { ReplyPayload } from "../../auto-reply/types.js";
+import type { ReplyToMode } from "../../config/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { OutboundMediaAccess } from "../../media/load-options.js";
 import type { OutboundDeliveryResult } from "./deliver-types.js";
+import type { OutboundDeliveryFormattingOptions } from "./formatting.js";
 import type { OutboundIdentity } from "./identity.js";
 import type { DeliveryMirror } from "./mirror.js";
 import { type NormalizedOutboundPayload } from "./payloads.js";
@@ -18,9 +21,12 @@ type DeliverOutboundPayloadsCoreParams = {
     accountId?: string;
     payloads: ReplyPayload[];
     replyToId?: string | null;
+    replyToMode?: ReplyToMode;
+    formatting?: OutboundDeliveryFormattingOptions;
     threadId?: string | number | null;
     identity?: OutboundIdentity;
     deps?: OutboundSendDeps;
+    mediaAccess?: OutboundMediaAccess;
     gifPlayback?: boolean;
     forceDocument?: boolean;
     abortSignal?: AbortSignal;

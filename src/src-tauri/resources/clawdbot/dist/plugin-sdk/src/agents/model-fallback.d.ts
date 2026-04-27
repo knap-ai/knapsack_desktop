@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { FallbackAttempt } from "./model-fallback.types.js";
+import type { FailoverReason } from "./pi-embedded-helpers/types.js";
 /**
  * Structured error thrown when all model fallback candidates have been
  * exhausted. Carries per-attempt details so callers can build informative
@@ -22,6 +23,22 @@ type ModelFallbackErrorHandler = (attempt: {
     attempt: number;
     total: number;
 }) => void | Promise<void>;
+export type ModelFallbackResultClassification = {
+    message: string;
+    reason?: FailoverReason;
+    status?: number;
+    code?: string;
+    rawError?: string;
+} | {
+    error: unknown;
+} | null | undefined;
+type ModelFallbackResultClassifier<T> = (attempt: {
+    result: T;
+    provider: string;
+    model: string;
+    attempt: number;
+    total: number;
+}) => ModelFallbackResultClassification | Promise<ModelFallbackResultClassification>;
 type ModelFallbackRunResult<T> = {
     result: T;
     provider: string;
@@ -54,6 +71,7 @@ export declare function runWithModelFallback<T>(params: {
     fallbacksOverride?: string[];
     run: ModelFallbackRunFn<T>;
     onError?: ModelFallbackErrorHandler;
+    classifyResult?: ModelFallbackResultClassifier<T>;
 }): Promise<ModelFallbackRunResult<T>>;
 export declare function runWithImageModelFallback<T>(params: {
     cfg: OpenClawConfig | undefined;

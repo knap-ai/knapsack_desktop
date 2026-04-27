@@ -1,5 +1,6 @@
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
 import type { MemoryCitationsMode } from "../config/types.memory.js";
+import type { BootstrapMode } from "./bootstrap-mode.js";
 import type { ResolvedTimeFormat } from "./date-time.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import type { EmbeddedSandboxInfo } from "./pi-embedded-runner/types.js";
@@ -12,6 +13,9 @@ import type { PromptMode } from "./system-prompt.types.js";
  * - "none": Just basic identity line, no sections
  */
 type OwnerIdDisplay = "raw" | "hash";
+export declare function buildAgentUserPromptPrefix(params: {
+    bootstrapMode?: BootstrapMode;
+}): string | undefined;
 export declare function buildAgentSystemPrompt(params: {
     workspaceDir: string;
     defaultThinkLevel?: ThinkLevel;

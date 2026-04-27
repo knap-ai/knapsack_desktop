@@ -1,11 +1,11 @@
-import { a as __require, n as __esmMin, o as __toCommonJS, r as __exportAll, s as __toESM, t as __commonJSMin } from "../../chunk-iyeSoAlh.js";
-import { r as redactSensitiveText } from "../../redact-D4nea1HF.js";
-import { c as registerLogTransport } from "../../logger-D8OnBgBc.js";
-import { r as onDiagnosticEvent } from "../../diagnostic-events-P3w1ZgD_.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { a as diag, i as metrics, n as init_esm$2, o as SpanStatusCode, r as trace, t as esm_exports$2 } from "../../esm-D5o-A_qX.js";
-import { t as require_src$29 } from "../../src-DW1u7wCS.js";
-import "../../api-D-nP3koq.js";
+import { a as __require, n as __esmMin, o as __toCommonJS, r as __exportAll, s as __toESM, t as __commonJSMin } from "../../chunk-A-jGZS85.js";
+import { r as redactSensitiveText } from "../../redact-Bl2deF7j.js";
+import { a as onInternalDiagnosticEvent } from "../../diagnostic-events-Cz86_awm.js";
+import { a as isValidDiagnosticSpanId, o as isValidDiagnosticTraceFlags, s as isValidDiagnosticTraceId } from "../../diagnostic-trace-context-D6vXBN1-.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { a as diag, c as TraceFlags, i as metrics, n as init_esm$2, o as context, r as trace, s as SpanStatusCode, t as esm_exports$2 } from "../../esm-D5DxKKFd.js";
+import { t as require_src$29 } from "../../src-CHt9-aM1.js";
+import "../../api-7H14Blnm.js";
 import * as zlib$2 from "zlib";
 import { Readable } from "stream";
 import * as fs$5 from "fs";
@@ -159,7 +159,7 @@ var require_constants$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/core/build/src/baggage/utils.js
-var require_utils$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_utils$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.parseKeyPairsIntoRecord = exports.parsePairKeyValue = exports.getKeyPairs = exports.serializeKeyPairs = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
@@ -230,7 +230,7 @@ var require_W3CBaggagePropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const suppress_tracing_1 = require_suppress_tracing();
 	const constants_1 = require_constants$2();
-	const utils_1 = require_utils$9();
+	const utils_1 = require_utils$10();
 	/**
 	* Propagates {@link Baggage} through Context format propagation.
 	*
@@ -536,10 +536,10 @@ var require_globalThis = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/core/build/src/version.js
-var require_version$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_version$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.VERSION = void 0;
-	exports.VERSION = "2.6.1";
+	exports.VERSION = "2.7.0";
 }));
 //#endregion
 //#region node_modules/@opentelemetry/semantic-conventions/build/esm/internal/utils.js
@@ -2550,7 +2550,7 @@ var init_esm$1 = __esmMin((() => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/core/build/src/semconv.js
-var require_semconv$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_semconv$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ATTR_PROCESS_RUNTIME_NAME = void 0;
 	/**
@@ -2567,9 +2567,9 @@ var require_semconv$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_sdk_info = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SDK_INFO = void 0;
-	const version_1 = require_version$2();
+	const version_1 = require_version$3();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
-	const semconv_1 = require_semconv$3();
+	const semconv_1 = require_semconv$4();
 	/** Constants describing the SDK in use */
 	exports.SDK_INFO = {
 		[semantic_conventions_1.ATTR_TELEMETRY_SDK_NAME]: "opentelemetry",
@@ -3231,6 +3231,7 @@ var require_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 				const keys = Object.keys(two);
 				for (let i = 0, j = keys.length; i < j; i++) {
 					const key = keys[i];
+					if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
 					result[key] = takeValue(two[key]);
 				}
 			}
@@ -3240,6 +3241,7 @@ var require_merge = /* @__PURE__ */ __commonJSMin(((exports) => {
 			const keys = Object.keys(two);
 			for (let i = 0, j = keys.length; i < j; i++) {
 				const key = keys[i];
+				if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
 				const twoValue = two[key];
 				if (isPrimitive(twoValue)) if (typeof twoValue === "undefined") delete result[key];
 				else result[key] = twoValue;
@@ -3617,7 +3619,7 @@ var require_src$28 = /* @__PURE__ */ __commonJSMin(((exports) => {
 			return ExportResult_1.ExportResultCode;
 		}
 	});
-	var utils_1 = require_utils$9();
+	var utils_1 = require_utils$10();
 	Object.defineProperty(exports, "parseKeyPairsIntoRecord", {
 		enumerable: true,
 		get: function() {
@@ -3932,6 +3934,1011 @@ var init_esm = __esmMin((() => {
 	init_otlp_network_export_delegate();
 }));
 //#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/protobuf/utils.js
+var require_utils$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.estimateVarintSize = void 0;
+	/**
+	* Estimate size of a number encoded as varint.
+	* @param v value to calculate size for
+	* @returns size in bytes of the varint encoding of the value
+	*/
+	function estimateVarintSize(v) {
+		if (v < 0) return 10;
+		if (v < 128) return 1;
+		if (v < 16384) return 2;
+		if (v < 2097152) return 3;
+		if (v < 268435456) return 4;
+		if (v < 34359738368) return 5;
+		if (v < 4398046511104) return 6;
+		if (v < 562949953421312) return 7;
+		if (v < 72057594037927940) return 8;
+		return 9;
+	}
+	exports.estimateVarintSize = estimateVarintSize;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/protobuf/protobuf-writer.js
+var require_protobuf_writer = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.ProtobufWriter = exports.GROWING_BUFFER_DEBUG_MESSAGE = void 0;
+	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
+	const utils_1 = require_utils$9();
+	exports.GROWING_BUFFER_DEBUG_MESSAGE = "ProtobufWriter: estimated size was too small, growing buffer.";
+	/**
+	* bytes reserved for length in length-delimited fields
+	* using 1 to assume most length-delimited fields are small
+	*/
+	const RESERVED_LENGTH_BYTES = 1;
+	/**
+	* Primitive protobuf writer, optimized to avoid small object allocations.
+	* Grows buffer dynamically if initial size is exceeded.
+	*/
+	var ProtobufWriter = class {
+		_buffer;
+		_textEncoder;
+		_dataView;
+		pos = 0;
+		constructor(estimatedSize = 65536) {
+			this._buffer = new Uint8Array(estimatedSize);
+			this._textEncoder = new TextEncoder();
+			this._dataView = new DataView(this._buffer.buffer, this._buffer.byteOffset);
+		}
+		/**
+		* Ensure buffer has capacity for at least size more bytes
+		*/
+		_ensureCapacity(size) {
+			const needed = this.pos + size;
+			if (needed <= this._buffer.length) return;
+			api_1.diag.debug(exports.GROWING_BUFFER_DEBUG_MESSAGE);
+			let newSize = this._buffer.length * 2;
+			while (newSize < needed) newSize *= 2;
+			const newBuffer = new Uint8Array(newSize);
+			newBuffer.set(this._buffer);
+			this._buffer = newBuffer;
+			this._dataView = new DataView(this._buffer.buffer, this._buffer.byteOffset);
+		}
+		/**
+		* Get the written bytes as a Uint8Array
+		*/
+		finish() {
+			return this._buffer.subarray(0, this.pos);
+		}
+		/**
+		* Insert placeholder for length. Update later with {@link finishLengthDelimited}
+		* Returns the position where to write the length.
+		*/
+		startLengthDelimited() {
+			const lengthPos = this.pos;
+			this._ensureCapacity(RESERVED_LENGTH_BYTES);
+			this.pos += RESERVED_LENGTH_BYTES;
+			return lengthPos;
+		}
+		/**
+		* Write length varint at placeholder position and shift content forward if needed.
+		* Most messages are small (< 128 bytes), so we reserve 1 byte and only shift
+		* when the length needs more bytes.
+		*/
+		finishLengthDelimited(pos, length) {
+			const v = length >>> 0;
+			const varintSize = (0, utils_1.estimateVarintSize)(v);
+			if (varintSize > RESERVED_LENGTH_BYTES) {
+				const additionalBytes = varintSize - RESERVED_LENGTH_BYTES;
+				this._ensureCapacity(additionalBytes);
+				this._buffer.copyWithin(pos + varintSize, pos + RESERVED_LENGTH_BYTES, this.pos);
+				this.pos += additionalBytes;
+			}
+			let writePos = pos;
+			if (v < 128) this._buffer[writePos] = v;
+			else if (v < 16384) {
+				this._buffer[writePos++] = v & 127 | 128;
+				this._buffer[writePos] = v >>> 7;
+			} else if (v < 2097152) {
+				this._buffer[writePos++] = v & 127 | 128;
+				this._buffer[writePos++] = v >>> 7 & 127 | 128;
+				this._buffer[writePos] = v >>> 14;
+			} else if (v < 268435456) {
+				this._buffer[writePos++] = v & 127 | 128;
+				this._buffer[writePos++] = v >>> 7 & 127 | 128;
+				this._buffer[writePos++] = v >>> 14 & 127 | 128;
+				this._buffer[writePos] = v >>> 21;
+			} else {
+				this._buffer[writePos++] = v & 127 | 128;
+				this._buffer[writePos++] = v >>> 7 & 127 | 128;
+				this._buffer[writePos++] = v >>> 14 & 127 | 128;
+				this._buffer[writePos++] = v >>> 21 & 127 | 128;
+				this._buffer[writePos] = v >>> 28;
+			}
+		}
+		/**
+		* Write a varint (variable-length integer)
+		*/
+		writeVarint(value) {
+			this._ensureCapacity((0, utils_1.estimateVarintSize)(value));
+			if (value >= 0 && value <= 4294967295) {
+				let v = value >>> 0;
+				while (v > 127) {
+					this._buffer[this.pos++] = v & 127 | 128;
+					v >>>= 7;
+				}
+				this._buffer[this.pos++] = v;
+			} else {
+				let low;
+				let high;
+				if (value >= 0) {
+					low = value >>> 0;
+					high = value / 4294967296 >>> 0;
+				} else {
+					const abs = Math.abs(value);
+					low = abs >>> 0;
+					high = abs / 4294967296 >>> 0;
+					low = ~low >>> 0;
+					high = ~high >>> 0;
+					low = low + 1 >>> 0;
+					if (low === 0) high = high + 1 >>> 0;
+				}
+				while (high > 0 || low > 127) {
+					this._buffer[this.pos++] = low & 127 | 128;
+					low = (low >>> 7 | high << 25) >>> 0;
+					high >>>= 7;
+				}
+				this._buffer[this.pos++] = low & 127;
+			}
+		}
+		/**
+		* Write a 32-bit fixed integer (little-endian)
+		*/
+		writeFixed32(value) {
+			this._ensureCapacity(4);
+			const v = value >>> 0;
+			this._buffer[this.pos++] = v & 255;
+			this._buffer[this.pos++] = v >>> 8 & 255;
+			this._buffer[this.pos++] = v >>> 16 & 255;
+			this._buffer[this.pos++] = v >>> 24 & 255;
+		}
+		/**
+		* Write a 64-bit fixed integer (little-endian)
+		* @param low - Low 32 bits
+		* @param high - High 32 bits
+		*/
+		writeFixed64(low, high) {
+			this._ensureCapacity(8);
+			const l = low >>> 0;
+			const h = high >>> 0;
+			this._buffer[this.pos++] = l & 255;
+			this._buffer[this.pos++] = l >>> 8 & 255;
+			this._buffer[this.pos++] = l >>> 16 & 255;
+			this._buffer[this.pos++] = l >>> 24 & 255;
+			this._buffer[this.pos++] = h & 255;
+			this._buffer[this.pos++] = h >>> 8 & 255;
+			this._buffer[this.pos++] = h >>> 16 & 255;
+			this._buffer[this.pos++] = h >>> 24 & 255;
+		}
+		/**
+		* Write length-delimited data (varint length + bytes)
+		*/
+		writeBytes(bytes) {
+			this.writeVarint(bytes.length);
+			this._ensureCapacity(bytes.length);
+			this._buffer.set(bytes, this.pos);
+			this.pos += bytes.length;
+		}
+		/**
+		* Write a field key (field number + wire type)
+		*/
+		writeTag(fieldNumber, wireType) {
+			this.writeVarint(fieldNumber << 3 | wireType);
+		}
+		/**
+		* Write a double (64-bit IEEE 754)
+		*/
+		writeDouble(value) {
+			this._ensureCapacity(8);
+			this._dataView.setFloat64(this.pos, value, true);
+			this.pos += 8;
+		}
+		/**
+		* Write a string as UTF-8 bytes (length-delimited)
+		*/
+		writeString(str) {
+			let isAscii = true;
+			const len = str.length;
+			for (let i = 0; i < len; i++) if (str.charCodeAt(i) > 127) {
+				isAscii = false;
+				break;
+			}
+			if (isAscii) {
+				this.writeVarint(len);
+				this._ensureCapacity(len);
+				for (let i = 0; i < len; i++) this._buffer[this.pos++] = str.charCodeAt(i);
+			} else {
+				const bytes = this._textEncoder.encode(str);
+				this.writeBytes(bytes);
+			}
+		}
+	};
+	exports.ProtobufWriter = ProtobufWriter;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/hex-to-binary.js
+var require_hex_to_binary = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.hexToBinary = void 0;
+	function intValue(charCode) {
+		if (charCode >= 48 && charCode <= 57) return charCode - 48;
+		if (charCode >= 97 && charCode <= 102) return charCode - 87;
+		return charCode - 55;
+	}
+	function hexToBinary(hexStr) {
+		const buf = new Uint8Array(hexStr.length / 2);
+		let offset = 0;
+		for (let i = 0; i < hexStr.length; i += 2) {
+			const hi = intValue(hexStr.charCodeAt(i));
+			const lo = intValue(hexStr.charCodeAt(i + 1));
+			buf[offset++] = hi << 4 | lo;
+		}
+		return buf;
+	}
+	exports.hexToBinary = hexToBinary;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/api-logs/build/src/types/LogRecord.js
+var require_LogRecord = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.SeverityNumber = void 0;
+	(function(SeverityNumber) {
+		SeverityNumber[SeverityNumber["UNSPECIFIED"] = 0] = "UNSPECIFIED";
+		SeverityNumber[SeverityNumber["TRACE"] = 1] = "TRACE";
+		SeverityNumber[SeverityNumber["TRACE2"] = 2] = "TRACE2";
+		SeverityNumber[SeverityNumber["TRACE3"] = 3] = "TRACE3";
+		SeverityNumber[SeverityNumber["TRACE4"] = 4] = "TRACE4";
+		SeverityNumber[SeverityNumber["DEBUG"] = 5] = "DEBUG";
+		SeverityNumber[SeverityNumber["DEBUG2"] = 6] = "DEBUG2";
+		SeverityNumber[SeverityNumber["DEBUG3"] = 7] = "DEBUG3";
+		SeverityNumber[SeverityNumber["DEBUG4"] = 8] = "DEBUG4";
+		SeverityNumber[SeverityNumber["INFO"] = 9] = "INFO";
+		SeverityNumber[SeverityNumber["INFO2"] = 10] = "INFO2";
+		SeverityNumber[SeverityNumber["INFO3"] = 11] = "INFO3";
+		SeverityNumber[SeverityNumber["INFO4"] = 12] = "INFO4";
+		SeverityNumber[SeverityNumber["WARN"] = 13] = "WARN";
+		SeverityNumber[SeverityNumber["WARN2"] = 14] = "WARN2";
+		SeverityNumber[SeverityNumber["WARN3"] = 15] = "WARN3";
+		SeverityNumber[SeverityNumber["WARN4"] = 16] = "WARN4";
+		SeverityNumber[SeverityNumber["ERROR"] = 17] = "ERROR";
+		SeverityNumber[SeverityNumber["ERROR2"] = 18] = "ERROR2";
+		SeverityNumber[SeverityNumber["ERROR3"] = 19] = "ERROR3";
+		SeverityNumber[SeverityNumber["ERROR4"] = 20] = "ERROR4";
+		SeverityNumber[SeverityNumber["FATAL"] = 21] = "FATAL";
+		SeverityNumber[SeverityNumber["FATAL2"] = 22] = "FATAL2";
+		SeverityNumber[SeverityNumber["FATAL3"] = 23] = "FATAL3";
+		SeverityNumber[SeverityNumber["FATAL4"] = 24] = "FATAL4";
+	})(exports.SeverityNumber || (exports.SeverityNumber = {}));
+}));
+//#endregion
+//#region node_modules/@opentelemetry/api-logs/build/src/NoopLogger.js
+var require_NoopLogger = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.NOOP_LOGGER = exports.NoopLogger = void 0;
+	var NoopLogger = class {
+		emit(_logRecord) {}
+		enabled() {
+			return false;
+		}
+	};
+	exports.NoopLogger = NoopLogger;
+	exports.NOOP_LOGGER = new NoopLogger();
+}));
+//#endregion
+//#region node_modules/@opentelemetry/api-logs/build/src/internal/global-utils.js
+var require_global_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.API_BACKWARDS_COMPATIBILITY_VERSION = exports.makeGetter = exports._global = exports.GLOBAL_LOGS_API_KEY = void 0;
+	exports.GLOBAL_LOGS_API_KEY = Symbol.for("io.opentelemetry.js.api.logs");
+	exports._global = globalThis;
+	/**
+	* Make a function which accepts a version integer and returns the instance of an API if the version
+	* is compatible, or a fallback version (usually NOOP) if it is not.
+	*
+	* @param requiredVersion Backwards compatibility version which is required to return the instance
+	* @param instance Instance which should be returned if the required version is compatible
+	* @param fallback Fallback instance, usually NOOP, which will be returned if the required version is not compatible
+	*/
+	function makeGetter(requiredVersion, instance, fallback) {
+		return (version) => version === requiredVersion ? instance : fallback;
+	}
+	exports.makeGetter = makeGetter;
+	/**
+	* A number which should be incremented each time a backwards incompatible
+	* change is made to the API. This number is used when an API package
+	* attempts to access the global API to ensure it is getting a compatible
+	* version. If the global API is not compatible with the API package
+	* attempting to get it, a NOOP API implementation will be returned.
+	*/
+	exports.API_BACKWARDS_COMPATIBILITY_VERSION = 1;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/api-logs/build/src/NoopLoggerProvider.js
+var require_NoopLoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.NOOP_LOGGER_PROVIDER = exports.NoopLoggerProvider = void 0;
+	const NoopLogger_1 = require_NoopLogger();
+	var NoopLoggerProvider = class {
+		getLogger(_name, _version, _options) {
+			return new NoopLogger_1.NoopLogger();
+		}
+	};
+	exports.NoopLoggerProvider = NoopLoggerProvider;
+	exports.NOOP_LOGGER_PROVIDER = new NoopLoggerProvider();
+}));
+//#endregion
+//#region node_modules/@opentelemetry/api-logs/build/src/ProxyLogger.js
+var require_ProxyLogger = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.ProxyLogger = void 0;
+	const NoopLogger_1 = require_NoopLogger();
+	var ProxyLogger = class {
+		constructor(provider, name, version, options) {
+			this._provider = provider;
+			this.name = name;
+			this.version = version;
+			this.options = options;
+		}
+		/**
+		* Emit a log record. This method should only be used by log appenders.
+		*
+		* @param logRecord
+		*/
+		emit(logRecord) {
+			this._getLogger().emit(logRecord);
+		}
+		enabled(options) {
+			return this._getLogger().enabled(options);
+		}
+		/**
+		* Try to get a logger from the proxy logger provider.
+		* If the proxy logger provider has no delegate, return a noop logger.
+		*/
+		_getLogger() {
+			if (this._delegate) return this._delegate;
+			const logger = this._provider._getDelegateLogger(this.name, this.version, this.options);
+			if (!logger) return NoopLogger_1.NOOP_LOGGER;
+			this._delegate = logger;
+			return this._delegate;
+		}
+	};
+	exports.ProxyLogger = ProxyLogger;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/api-logs/build/src/ProxyLoggerProvider.js
+var require_ProxyLoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.ProxyLoggerProvider = void 0;
+	const NoopLoggerProvider_1 = require_NoopLoggerProvider();
+	const ProxyLogger_1 = require_ProxyLogger();
+	var ProxyLoggerProvider = class {
+		getLogger(name, version, options) {
+			var _a;
+			return (_a = this._getDelegateLogger(name, version, options)) !== null && _a !== void 0 ? _a : new ProxyLogger_1.ProxyLogger(this, name, version, options);
+		}
+		/**
+		* Get the delegate logger provider.
+		* Used by tests only.
+		* @internal
+		*/
+		_getDelegate() {
+			var _a;
+			return (_a = this._delegate) !== null && _a !== void 0 ? _a : NoopLoggerProvider_1.NOOP_LOGGER_PROVIDER;
+		}
+		/**
+		* Set the delegate logger provider
+		* @internal
+		*/
+		_setDelegate(delegate) {
+			this._delegate = delegate;
+		}
+		/**
+		* @internal
+		*/
+		_getDelegateLogger(name, version, options) {
+			var _a;
+			return (_a = this._delegate) === null || _a === void 0 ? void 0 : _a.getLogger(name, version, options);
+		}
+	};
+	exports.ProxyLoggerProvider = ProxyLoggerProvider;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/api-logs/build/src/api/logs.js
+var require_logs$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.LogsAPI = void 0;
+	const global_utils_1 = require_global_utils();
+	const NoopLoggerProvider_1 = require_NoopLoggerProvider();
+	const ProxyLoggerProvider_1 = require_ProxyLoggerProvider();
+	exports.LogsAPI = class LogsAPI {
+		constructor() {
+			this._proxyLoggerProvider = new ProxyLoggerProvider_1.ProxyLoggerProvider();
+		}
+		static getInstance() {
+			if (!this._instance) this._instance = new LogsAPI();
+			return this._instance;
+		}
+		setGlobalLoggerProvider(provider) {
+			if (global_utils_1._global[global_utils_1.GLOBAL_LOGS_API_KEY]) return this.getLoggerProvider();
+			global_utils_1._global[global_utils_1.GLOBAL_LOGS_API_KEY] = (0, global_utils_1.makeGetter)(global_utils_1.API_BACKWARDS_COMPATIBILITY_VERSION, provider, NoopLoggerProvider_1.NOOP_LOGGER_PROVIDER);
+			this._proxyLoggerProvider._setDelegate(provider);
+			return provider;
+		}
+		/**
+		* Returns the global logger provider.
+		*
+		* @returns LoggerProvider
+		*/
+		getLoggerProvider() {
+			var _a, _b;
+			return (_b = (_a = global_utils_1._global[global_utils_1.GLOBAL_LOGS_API_KEY]) === null || _a === void 0 ? void 0 : _a.call(global_utils_1._global, global_utils_1.API_BACKWARDS_COMPATIBILITY_VERSION)) !== null && _b !== void 0 ? _b : this._proxyLoggerProvider;
+		}
+		/**
+		* Returns a logger from the global logger provider.
+		*
+		* @returns Logger
+		*/
+		getLogger(name, version, options) {
+			return this.getLoggerProvider().getLogger(name, version, options);
+		}
+		/** Remove the global logger provider */
+		disable() {
+			delete global_utils_1._global[global_utils_1.GLOBAL_LOGS_API_KEY];
+			this._proxyLoggerProvider = new ProxyLoggerProvider_1.ProxyLoggerProvider();
+		}
+	};
+}));
+//#endregion
+//#region node_modules/@opentelemetry/api-logs/build/src/index.js
+var require_src$27 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.logs = exports.NoopLogger = exports.NOOP_LOGGER = exports.SeverityNumber = void 0;
+	var LogRecord_1 = require_LogRecord();
+	Object.defineProperty(exports, "SeverityNumber", {
+		enumerable: true,
+		get: function() {
+			return LogRecord_1.SeverityNumber;
+		}
+	});
+	var NoopLogger_1 = require_NoopLogger();
+	Object.defineProperty(exports, "NOOP_LOGGER", {
+		enumerable: true,
+		get: function() {
+			return NoopLogger_1.NOOP_LOGGER;
+		}
+	});
+	Object.defineProperty(exports, "NoopLogger", {
+		enumerable: true,
+		get: function() {
+			return NoopLogger_1.NoopLogger;
+		}
+	});
+	exports.logs = require_logs$2().LogsAPI.getInstance();
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/protobuf/common-serializer.js
+var require_common_serializer = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.writeAnyValue = exports.writeKeyValue = exports.writeAttributes = exports.writeHrTimeAsFixed64 = void 0;
+	/**
+	* Write HrTime [seconds, nanoseconds] directly as fixed64 to the serializer.
+	* Converts to nanoseconds and writes as 64-bit little-endian integer without allocations.
+	*
+	* HrTime represents: total_nanos = seconds * 1_000_000_000 + nanoseconds
+	* We need to split this into low (bits 0-31) and high (bits 32-63).
+	*
+	* @param serializer - The protobuf writer
+	* @param hrTime - HrTime tuple [seconds, nanoseconds]
+	*/
+	function writeHrTimeAsFixed64(serializer, hrTime) {
+		const seconds = hrTime[0];
+		const nanos = hrTime[1];
+		const nanosPerSecond = 1e9;
+		const secondsLower16Bits = seconds & 65535;
+		const secondsUpperBits = seconds / 65536 >>> 0;
+		const nanosFromLower16Bits = secondsLower16Bits * nanosPerSecond;
+		const nanosFromUpperBits = secondsUpperBits * nanosPerSecond;
+		const lower16ContributionLow32 = nanosFromLower16Bits >>> 0;
+		const lower16ContributionHigh32 = Math.floor(nanosFromLower16Bits / 4294967296);
+		const upperBitsContributionLow32 = (nanosFromUpperBits & 65535) * 65536 >>> 0;
+		const upperBitsContributionHigh32 = nanosFromUpperBits / 65536 >>> 0;
+		const low32WithCarry = lower16ContributionLow32 + upperBitsContributionLow32 + nanos;
+		const totalLow = low32WithCarry >>> 0;
+		const carry = Math.floor(low32WithCarry / 4294967296);
+		const totalHigh = lower16ContributionHigh32 + upperBitsContributionHigh32 + carry >>> 0;
+		serializer.writeFixed64(totalLow, totalHigh);
+	}
+	exports.writeHrTimeAsFixed64 = writeHrTimeAsFixed64;
+	/**
+	* Write Attributes directly to protobuf as repeated KeyValue
+	*/
+	function writeAttributes(writer, attributes, fieldNumber) {
+		for (const key in attributes) {
+			if (!Object.prototype.hasOwnProperty.call(attributes, key)) continue;
+			const value = attributes[key];
+			writer.writeTag(fieldNumber, 2);
+			const kvStart = writer.startLengthDelimited();
+			const startPos = writer.pos;
+			writeKeyValue(writer, key, value);
+			writer.finishLengthDelimited(kvStart, writer.pos - startPos);
+		}
+	}
+	exports.writeAttributes = writeAttributes;
+	/**
+	* Write a KeyValue pair directly to protobuf
+	*/
+	function writeKeyValue(writer, key, value) {
+		writer.writeTag(1, 2);
+		writer.writeString(key);
+		writer.writeTag(2, 2);
+		const valueStart = writer.startLengthDelimited();
+		const startPos = writer.pos;
+		writeAnyValue(writer, value);
+		writer.finishLengthDelimited(valueStart, writer.pos - startPos);
+	}
+	exports.writeKeyValue = writeKeyValue;
+	const MIN_64_BIT_INT = -(2 ** 63);
+	const MAX_64_BIT_INT = 2 ** 63;
+	/**
+	* Write an AnyValue directly from raw attribute value to protobuf
+	*/
+	function writeAnyValue(writer, value) {
+		const t = typeof value;
+		if (t === "string") {
+			writer.writeTag(1, 2);
+			writer.writeString(value);
+		} else if (t === "boolean") {
+			writer.writeTag(2, 0);
+			writer.writeVarint(value ? 1 : 0);
+		} else if (t === "number") {
+			const numValue = value;
+			if (Number.isInteger(numValue) && numValue >= MIN_64_BIT_INT && numValue < MAX_64_BIT_INT) {
+				writer.writeTag(3, 0);
+				writer.writeVarint(numValue);
+			} else {
+				writer.writeTag(4, 1);
+				writer.writeDouble(numValue);
+			}
+		} else if (value instanceof Uint8Array) {
+			writer.writeTag(7, 2);
+			writer.writeBytes(value);
+		} else if (Array.isArray(value)) {
+			writer.writeTag(5, 2);
+			const arrayStart = writer.startLengthDelimited();
+			const arrayStartPos = writer.pos;
+			for (const item of value) {
+				writer.writeTag(1, 2);
+				const itemStart = writer.startLengthDelimited();
+				const itemStartPos = writer.pos;
+				writeAnyValue(writer, item);
+				writer.finishLengthDelimited(itemStart, writer.pos - itemStartPos);
+			}
+			writer.finishLengthDelimited(arrayStart, writer.pos - arrayStartPos);
+		} else if (t === "object" && value != null) {
+			writer.writeTag(6, 2);
+			const kvlistStart = writer.startLengthDelimited();
+			const kvlistStartPos = writer.pos;
+			const obj = value;
+			for (const k in obj) {
+				if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+				const v = obj[k];
+				writer.writeTag(1, 2);
+				const kvStart = writer.startLengthDelimited();
+				const kvStartPos = writer.pos;
+				writer.writeTag(1, 2);
+				writer.writeString(k);
+				writer.writeTag(2, 2);
+				const valueStart = writer.startLengthDelimited();
+				const valueStartPos = writer.pos;
+				writeAnyValue(writer, v);
+				writer.finishLengthDelimited(valueStart, writer.pos - valueStartPos);
+				writer.finishLengthDelimited(kvStart, writer.pos - kvStartPos);
+			}
+			writer.finishLengthDelimited(kvlistStart, writer.pos - kvlistStartPos);
+		}
+	}
+	exports.writeAnyValue = writeAnyValue;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/protobuf/protobuf-size-estimator.js
+var require_protobuf_size_estimator = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.ProtobufSizeEstimator = void 0;
+	const utils_1 = require_utils$9();
+	/**
+	* Calculate UTF-8 byte length without encoding
+	* @param str valid UTF-16 string
+	*/
+	function utf8ByteLength(str) {
+		const len = str.length;
+		let byteLen = 0;
+		for (let i = 0; i < len; i++) {
+			const code = str.charCodeAt(i);
+			if (code < 128) byteLen += 1;
+			else if (code < 2048) byteLen += 2;
+			else if (code < 55296 || code >= 57344) byteLen += 3;
+			else {
+				i++;
+				byteLen += 4;
+			}
+		}
+		return byteLen;
+	}
+	/**
+	* Size estimator for protobuf messages.
+	* Implements the same interface as ProtobufWriter but only counts bytes without allocating a buffer.
+	* @internal
+	*/
+	var ProtobufSizeEstimator = class {
+		pos = 0;
+		startLengthDelimited() {
+			return this.pos;
+		}
+		finishLengthDelimited(_, length) {
+			this.pos += (0, utils_1.estimateVarintSize)(length);
+		}
+		writeVarint(value) {
+			this.pos += (0, utils_1.estimateVarintSize)(value);
+		}
+		writeFixed32(_value) {
+			this.pos += 4;
+		}
+		writeFixed64(_low, _high) {
+			this.pos += 8;
+		}
+		writeBytes(bytes) {
+			this.pos += (0, utils_1.estimateVarintSize)(bytes.length);
+			this.pos += bytes.length;
+		}
+		writeTag(fieldNumber, wireType) {
+			this.writeVarint(fieldNumber << 3 | wireType);
+		}
+		writeDouble(_value) {
+			this.pos += 8;
+		}
+		writeString(str) {
+			const byteLen = utf8ByteLength(str);
+			this.pos += (0, utils_1.estimateVarintSize)(byteLen);
+			this.pos += byteLen;
+		}
+	};
+	exports.ProtobufSizeEstimator = ProtobufSizeEstimator;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/logs-serializer.js
+var require_logs_serializer = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.serializeLogsExportRequest = void 0;
+	const protobuf_writer_1 = require_protobuf_writer();
+	const hex_to_binary_1 = require_hex_to_binary();
+	const api_logs_1 = require_src$27();
+	const common_serializer_1 = require_common_serializer();
+	const protobuf_size_estimator_1 = require_protobuf_size_estimator();
+	/**
+	* Serialize a single LogRecord directly from ReadableLogRecord
+	*/
+	function serializeLogRecord(writer, logRecord) {
+		const logStart = writer.startLengthDelimited();
+		const logStartPos = writer.pos;
+		writer.writeTag(1, 1);
+		(0, common_serializer_1.writeHrTimeAsFixed64)(writer, logRecord.hrTime);
+		if (logRecord.severityNumber !== void 0 && logRecord.severityNumber !== api_logs_1.SeverityNumber.UNSPECIFIED) {
+			writer.writeTag(2, 0);
+			writer.writeVarint(logRecord.severityNumber);
+		}
+		if (logRecord.severityText) {
+			writer.writeTag(3, 2);
+			writer.writeString(logRecord.severityText);
+		}
+		if (logRecord.body !== void 0) {
+			writer.writeTag(5, 2);
+			const bodyStart = writer.startLengthDelimited();
+			const bodyStartPos = writer.pos;
+			(0, common_serializer_1.writeAnyValue)(writer, logRecord.body);
+			writer.finishLengthDelimited(bodyStart, writer.pos - bodyStartPos);
+		}
+		if (logRecord.attributes) (0, common_serializer_1.writeAttributes)(writer, logRecord.attributes, 6);
+		writer.writeTag(7, 0);
+		writer.writeVarint(logRecord.droppedAttributesCount);
+		if (logRecord.spanContext?.traceFlags) {
+			writer.writeTag(8, 5);
+			writer.writeFixed32(logRecord.spanContext.traceFlags);
+		}
+		if (logRecord.spanContext?.traceId) {
+			writer.writeTag(9, 2);
+			writer.writeBytes((0, hex_to_binary_1.hexToBinary)(logRecord.spanContext.traceId));
+		}
+		if (logRecord.spanContext?.spanId) {
+			writer.writeTag(10, 2);
+			writer.writeBytes((0, hex_to_binary_1.hexToBinary)(logRecord.spanContext.spanId));
+		}
+		writer.writeTag(11, 1);
+		(0, common_serializer_1.writeHrTimeAsFixed64)(writer, logRecord.hrTimeObserved);
+		if (logRecord.eventName) {
+			writer.writeTag(12, 2);
+			writer.writeString(logRecord.eventName);
+		}
+		writer.finishLengthDelimited(logStart, writer.pos - logStartPos);
+	}
+	/**
+	* Serialize ScopeLogs directly from SDK types
+	*/
+	function serializeScopeLogs(writer, scope, logRecords) {
+		const scopeLogsStart = writer.startLengthDelimited();
+		const scopeLogsStartPos = writer.pos;
+		writer.writeTag(1, 2);
+		const scopeStart = writer.startLengthDelimited();
+		const scopeStartPos = writer.pos;
+		writer.writeTag(1, 2);
+		writer.writeString(scope.name);
+		if (scope.version) {
+			writer.writeTag(2, 2);
+			writer.writeString(scope.version);
+		}
+		writer.finishLengthDelimited(scopeStart, writer.pos - scopeStartPos);
+		for (const logRecord of logRecords) {
+			writer.writeTag(2, 2);
+			serializeLogRecord(writer, logRecord);
+		}
+		if (scope.schemaUrl) {
+			writer.writeTag(3, 2);
+			writer.writeString(scope.schemaUrl);
+		}
+		writer.finishLengthDelimited(scopeLogsStart, writer.pos - scopeLogsStartPos);
+	}
+	function serializeResource(writer, resource, fieldNumber) {
+		writer.writeTag(fieldNumber, 2);
+		const resourceStart = writer.startLengthDelimited();
+		const resourceStartPos = writer.pos;
+		if (resource.attributes) (0, common_serializer_1.writeAttributes)(writer, resource.attributes, 1);
+		writer.writeTag(2, 0);
+		writer.writeVarint(0);
+		writer.finishLengthDelimited(resourceStart, writer.pos - resourceStartPos);
+	}
+	/**
+	* Serialize ResourceLogs directly from SDK Resource type
+	*/
+	function serializeResourceLogs(writer, resource, scopeMap) {
+		const resourceLogsStart = writer.startLengthDelimited();
+		const resourceLogsStartPos = writer.pos;
+		serializeResource(writer, resource, 1);
+		for (const scopeLogs of scopeMap.values()) {
+			writer.writeTag(2, 2);
+			const scope = scopeLogs[0].instrumentationScope;
+			serializeScopeLogs(writer, scope, scopeLogs);
+		}
+		if (resource.schemaUrl) {
+			writer.writeTag(3, 2);
+			writer.writeString(resource.schemaUrl);
+		}
+		writer.finishLengthDelimited(resourceLogsStart, writer.pos - resourceLogsStartPos);
+	}
+	/**
+	* Group log records by resource and instrumentation scope
+	*/
+	function createResourceMap(logRecords) {
+		const resourceMap = /* @__PURE__ */ new Map();
+		for (const record of logRecords) {
+			const resource = record.resource;
+			const scope = record.instrumentationScope;
+			let ismMap = resourceMap.get(resource);
+			if (!ismMap) {
+				ismMap = /* @__PURE__ */ new Map();
+				resourceMap.set(resource, ismMap);
+			}
+			let records = ismMap.get(scope);
+			if (!records) {
+				records = [];
+				ismMap.set(scope, records);
+			}
+			records.push(record);
+		}
+		return resourceMap;
+	}
+	/**
+	* Serialize ExportLogsServiceRequest directly from ReadableLogRecord[]
+	*/
+	function serializeLogsExportRequest(logRecords) {
+		const resourceMap = createResourceMap(logRecords);
+		const estimator = new protobuf_size_estimator_1.ProtobufSizeEstimator();
+		for (const [resource, scopeMap] of resourceMap) {
+			estimator.writeTag(1, 2);
+			serializeResourceLogs(estimator, resource, scopeMap);
+		}
+		const writer = new protobuf_writer_1.ProtobufWriter(estimator.pos);
+		for (const [resource, scopeMap] of resourceMap) {
+			writer.writeTag(1, 2);
+			serializeResourceLogs(writer, resource, scopeMap);
+		}
+		return writer.finish();
+	}
+	exports.serializeLogsExportRequest = serializeLogsExportRequest;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/protobuf/protobuf-reader.js
+var require_protobuf_reader = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.ProtobufReader = void 0;
+	/**
+	* Minimal binary protobuf reader.
+	* Only implements the wire-types that we currently need; this is not intended
+	* to be a general-purpose protobuf reader.
+	*
+	* Since the values we parse are generally small and not very nested, it's public
+	* interface does not enforce the same low-allocation philosophy that ProtobufWriter does.
+	* If this is needed in the future, we should refactor this to fit the use-case.
+	*/
+	var ProtobufReader = class {
+		pos = 0;
+		_buf;
+		_textDecoder;
+		constructor(buf) {
+			this._buf = buf;
+			this._textDecoder = new TextDecoder();
+		}
+		isAtEnd() {
+			return this.pos >= this._buf.length;
+		}
+		/** Read a varint and decode it as a tag, returning field number and wire type. */
+		readTag() {
+			const raw = this.readVarint();
+			return {
+				fieldNumber: raw >>> 3,
+				wireType: raw & 7
+			};
+		}
+		/**
+		* Read a base-128 varint.
+		* Returns a JS `number`; precision above 2^53 is silently lost.
+		*/
+		readVarint() {
+			let result = 0;
+			let shift = 0;
+			while (this.pos < this._buf.length) {
+				const b = this._buf[this.pos++];
+				result += (b & 127) * Math.pow(2, shift);
+				shift += 7;
+				if ((b & 128) === 0) break;
+			}
+			return result;
+		}
+		/** Read a length-delimited byte sequence (bytes field or embedded message). */
+		readBytes() {
+			const len = this.readVarint();
+			const slice = this._buf.subarray(this.pos, this.pos + len);
+			this.pos += len;
+			return slice;
+		}
+		/** Read a length-delimited UTF-8 string. */
+		readString() {
+			return this._textDecoder.decode(this.readBytes());
+		}
+		/**
+		* Skip an unknown field.
+		* Handles wire types 0 (varint), 1 (64-bit), 2 (length-delimited),
+		* 3 (start-group), 4 (end-group), and 5 (32-bit).
+		*/
+		skip(wireType) {
+			switch (wireType) {
+				case 0:
+					this.readVarint();
+					break;
+				case 1:
+					this.pos += 8;
+					break;
+				case 2:
+					this.readBytes();
+					break;
+				case 3:
+					while (!this.isAtEnd()) {
+						const { wireType: nestedWireType } = this.readTag();
+						if (nestedWireType === 4) break;
+						this.skip(nestedWireType);
+					}
+					break;
+				case 4: break;
+				case 5:
+					this.pos += 4;
+					break;
+				default: throw new Error(`Unknown wire type ${wireType}, cannot safely skip`);
+			}
+		}
+	};
+	exports.ProtobufReader = ProtobufReader;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/response-deserializer.js
+var require_response_deserializer = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.deserializeExportLogsServiceResponse = void 0;
+	const protobuf_reader_1 = require_protobuf_reader();
+	/**
+	* Parse an ExportLogsPartialSuccess embedded message from raw bytes.
+	*
+	* Field map (opentelemetry/proto/collector/logs/v1/logs_service.proto):
+	*   1  rejected_log_records  int64   (varint)
+	*   2  error_message         string  (length-delimited)
+	*/
+	function deserializePartialSuccess(data) {
+		const reader = new protobuf_reader_1.ProtobufReader(data);
+		const result = {};
+		while (!reader.isAtEnd()) {
+			const { fieldNumber, wireType } = reader.readTag();
+			switch (fieldNumber) {
+				case 1:
+					if (wireType === 0) result.rejectedLogRecords = reader.readVarint();
+					else reader.skip(wireType);
+					break;
+				case 2:
+					if (wireType === 2) result.errorMessage = reader.readString();
+					else reader.skip(wireType);
+					break;
+				default:
+					reader.skip(wireType);
+					break;
+			}
+		}
+		return result;
+	}
+	/**
+	* Parse an ExportLogsServiceResponse protobuf message from raw bytes.
+	*
+	* Field map (opentelemetry/proto/collector/logs/v1/logs_service.proto):
+	*   1  partial_success  ExportLogsPartialSuccess  (length-delimited)
+	*/
+	function deserializeExportLogsServiceResponse(data) {
+		const reader = new protobuf_reader_1.ProtobufReader(data);
+		const result = {};
+		while (!reader.isAtEnd()) {
+			const { fieldNumber, wireType } = reader.readTag();
+			switch (fieldNumber) {
+				case 1:
+					if (wireType === 2) result.partialSuccess = deserializePartialSuccess(reader.readBytes());
+					else reader.skip(wireType);
+					break;
+				default:
+					reader.skip(wireType);
+					break;
+			}
+		}
+		return result;
+	}
+	exports.deserializeExportLogsServiceResponse = deserializeExportLogsServiceResponse;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/logs.js
+var require_logs$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.ProtobufLogsSerializer = void 0;
+	const logs_serializer_1 = require_logs_serializer();
+	const response_deserializer_1 = require_response_deserializer();
+	exports.ProtobufLogsSerializer = {
+		serializeRequest: (arg) => {
+			return (0, logs_serializer_1.serializeLogsExportRequest)(arg);
+		},
+		deserializeResponse: (arg) => {
+			return (0, response_deserializer_1.deserializeExportLogsServiceResponse)(arg);
+		}
+	};
+}));
+//#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/index.js
+var require_protobuf$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.ProtobufLogsSerializer = void 0;
+	var logs_1 = require_logs$1();
+	Object.defineProperty(exports, "ProtobufLogsSerializer", {
+		enumerable: true,
+		get: function() {
+			return logs_1.ProtobufLogsSerializer;
+		}
+	});
+}));
+//#endregion
 //#region node_modules/@protobufjs/aspromise/index.js
 var require_aspromise = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = asPromise;
@@ -4236,7 +5243,7 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	* @param {number} pos Source buffer offset
 	* @returns {number} Value read
 	*/
-	function factory(exports$7) {
+	function factory(exports$10) {
 		if (typeof Float32Array !== "undefined") (function() {
 			var f32 = new Float32Array([-0]), f8b = new Uint8Array(f32.buffer), le = f8b[3] === 128;
 			function writeFloat_f32_cpy(val, buf, pos) {
@@ -4254,9 +5261,9 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				buf[pos + 3] = f8b[0];
 			}
 			/* istanbul ignore next */
-			exports$7.writeFloatLE = le ? writeFloat_f32_cpy : writeFloat_f32_rev;
+			exports$10.writeFloatLE = le ? writeFloat_f32_cpy : writeFloat_f32_rev;
 			/* istanbul ignore next */
-			exports$7.writeFloatBE = le ? writeFloat_f32_rev : writeFloat_f32_cpy;
+			exports$10.writeFloatBE = le ? writeFloat_f32_rev : writeFloat_f32_cpy;
 			function readFloat_f32_cpy(buf, pos) {
 				f8b[0] = buf[pos];
 				f8b[1] = buf[pos + 1];
@@ -4272,9 +5279,9 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				return f32[0];
 			}
 			/* istanbul ignore next */
-			exports$7.readFloatLE = le ? readFloat_f32_cpy : readFloat_f32_rev;
+			exports$10.readFloatLE = le ? readFloat_f32_cpy : readFloat_f32_rev;
 			/* istanbul ignore next */
-			exports$7.readFloatBE = le ? readFloat_f32_rev : readFloat_f32_cpy;
+			exports$10.readFloatBE = le ? readFloat_f32_rev : readFloat_f32_cpy;
 		})();
 		else (function() {
 			function writeFloat_ieee754(writeUint, val, buf, pos) {
@@ -4289,14 +5296,14 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 					writeUint((sign << 31 | exponent + 127 << 23 | mantissa) >>> 0, buf, pos);
 				}
 			}
-			exports$7.writeFloatLE = writeFloat_ieee754.bind(null, writeUintLE);
-			exports$7.writeFloatBE = writeFloat_ieee754.bind(null, writeUintBE);
+			exports$10.writeFloatLE = writeFloat_ieee754.bind(null, writeUintLE);
+			exports$10.writeFloatBE = writeFloat_ieee754.bind(null, writeUintBE);
 			function readFloat_ieee754(readUint, buf, pos) {
 				var uint = readUint(buf, pos), sign = (uint >> 31) * 2 + 1, exponent = uint >>> 23 & 255, mantissa = uint & 8388607;
 				return exponent === 255 ? mantissa ? NaN : sign * Infinity : exponent === 0 ? sign * 1401298464324817e-60 * mantissa : sign * Math.pow(2, exponent - 150) * (mantissa + 8388608);
 			}
-			exports$7.readFloatLE = readFloat_ieee754.bind(null, readUintLE);
-			exports$7.readFloatBE = readFloat_ieee754.bind(null, readUintBE);
+			exports$10.readFloatLE = readFloat_ieee754.bind(null, readUintLE);
+			exports$10.readFloatBE = readFloat_ieee754.bind(null, readUintBE);
 		})();
 		if (typeof Float64Array !== "undefined") (function() {
 			var f64 = new Float64Array([-0]), f8b = new Uint8Array(f64.buffer), le = f8b[7] === 128;
@@ -4323,9 +5330,9 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				buf[pos + 7] = f8b[0];
 			}
 			/* istanbul ignore next */
-			exports$7.writeDoubleLE = le ? writeDouble_f64_cpy : writeDouble_f64_rev;
+			exports$10.writeDoubleLE = le ? writeDouble_f64_cpy : writeDouble_f64_rev;
 			/* istanbul ignore next */
-			exports$7.writeDoubleBE = le ? writeDouble_f64_rev : writeDouble_f64_cpy;
+			exports$10.writeDoubleBE = le ? writeDouble_f64_rev : writeDouble_f64_cpy;
 			function readDouble_f64_cpy(buf, pos) {
 				f8b[0] = buf[pos];
 				f8b[1] = buf[pos + 1];
@@ -4349,9 +5356,9 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				return f64[0];
 			}
 			/* istanbul ignore next */
-			exports$7.readDoubleLE = le ? readDouble_f64_cpy : readDouble_f64_rev;
+			exports$10.readDoubleLE = le ? readDouble_f64_cpy : readDouble_f64_rev;
 			/* istanbul ignore next */
-			exports$7.readDoubleBE = le ? readDouble_f64_rev : readDouble_f64_cpy;
+			exports$10.readDoubleBE = le ? readDouble_f64_rev : readDouble_f64_cpy;
 		})();
 		else (function() {
 			function writeDouble_ieee754(writeUint, off0, off1, val, buf, pos) {
@@ -4381,17 +5388,17 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 					}
 				}
 			}
-			exports$7.writeDoubleLE = writeDouble_ieee754.bind(null, writeUintLE, 0, 4);
-			exports$7.writeDoubleBE = writeDouble_ieee754.bind(null, writeUintBE, 4, 0);
+			exports$10.writeDoubleLE = writeDouble_ieee754.bind(null, writeUintLE, 0, 4);
+			exports$10.writeDoubleBE = writeDouble_ieee754.bind(null, writeUintBE, 4, 0);
 			function readDouble_ieee754(readUint, off0, off1, buf, pos) {
 				var lo = readUint(buf, pos + off0), hi = readUint(buf, pos + off1);
 				var sign = (hi >> 31) * 2 + 1, exponent = hi >>> 20 & 2047, mantissa = 4294967296 * (hi & 1048575) + lo;
 				return exponent === 2047 ? mantissa ? NaN : sign * Infinity : exponent === 0 ? sign * 5e-324 * mantissa : sign * Math.pow(2, exponent - 1075) * (mantissa + 4503599627370496);
 			}
-			exports$7.readDoubleLE = readDouble_ieee754.bind(null, readUintLE, 0, 4);
-			exports$7.readDoubleBE = readDouble_ieee754.bind(null, readUintBE, 4, 0);
+			exports$10.readDoubleLE = readDouble_ieee754.bind(null, readUintLE, 0, 4);
+			exports$10.readDoubleBE = readDouble_ieee754.bind(null, readUintBE, 4, 0);
 		})();
-		return exports$7;
+		return exports$10;
 	}
 	function writeUintLE(val, buf, pos) {
 		buf[pos] = val & 255;
@@ -4744,13 +5751,13 @@ var require_minimal$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	* @type {Array.<*>}
 	* @const
 	*/
-	util.emptyArray = Object.freeze ? Object.freeze([]) : [];
+	util.emptyArray = Object.freeze ? Object.freeze([]) : 	/* istanbul ignore next */ [];
 	/**
 	* An immutable empty object.
 	* @type {Object}
 	* @const
 	*/
-	util.emptyObject = Object.freeze ? Object.freeze({}) : (	/* istanbul ignore next */ {});
+	util.emptyObject = Object.freeze ? Object.freeze({}) : 	/* istanbul ignore next */ {};
 	/**
 	* Tests if the specified value is an integer.
 	* @function
@@ -4802,7 +5809,7 @@ var require_minimal$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	util.Buffer = (function() {
 		try {
 			var Buffer = util.inquire("buffer").Buffer;
-			return Buffer.prototype.utf8Write ? Buffer : null;
+			return Buffer.prototype.utf8Write ? Buffer : 			/* istanbul ignore next */ null;
 		} catch (e) {
 			/* istanbul ignore next */
 			return null;
@@ -5771,6 +6778,7 @@ var require_reader = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			case 5:
 				this.skip(4);
 				break;
+			/* istanbul ignore next */
 			default: throw Error("invalid wire type " + wireType + " at offset " + this.pos);
 		}
 		return this;
@@ -5779,7 +6787,7 @@ var require_reader = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		BufferReader = BufferReader_;
 		Reader.create = create();
 		BufferReader._configure();
-		var fn = util.Long ? "toLong" : "toNumber";
+		var fn = util.Long ? "toLong" : 		/* istanbul ignore next */ "toNumber";
 		util.merge(Reader.prototype, {
 			int64: function read_int64() {
 				return readLongVarint.call(this)[fn](false);
@@ -11165,658 +12173,6 @@ var require_root$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 					})();
 					return metrics;
 				})();
-				collector.logs = (function() {
-					/**
-					* Namespace logs.
-					* @memberof opentelemetry.proto.collector
-					* @namespace
-					*/
-					var logs = {};
-					logs.v1 = (function() {
-						/**
-						* Namespace v1.
-						* @memberof opentelemetry.proto.collector.logs
-						* @namespace
-						*/
-						var v1 = {};
-						v1.LogsService = (function() {
-							/**
-							* Constructs a new LogsService service.
-							* @memberof opentelemetry.proto.collector.logs.v1
-							* @classdesc Represents a LogsService
-							* @extends $protobuf.rpc.Service
-							* @constructor
-							* @param {$protobuf.RPCImpl} rpcImpl RPC implementation
-							* @param {boolean} [requestDelimited=false] Whether requests are length-delimited
-							* @param {boolean} [responseDelimited=false] Whether responses are length-delimited
-							*/
-							function LogsService(rpcImpl, requestDelimited, responseDelimited) {
-								$protobuf.rpc.Service.call(this, rpcImpl, requestDelimited, responseDelimited);
-							}
-							(LogsService.prototype = Object.create($protobuf.rpc.Service.prototype)).constructor = LogsService;
-							/**
-							* Creates new LogsService service using the specified rpc implementation.
-							* @function create
-							* @memberof opentelemetry.proto.collector.logs.v1.LogsService
-							* @static
-							* @param {$protobuf.RPCImpl} rpcImpl RPC implementation
-							* @param {boolean} [requestDelimited=false] Whether requests are length-delimited
-							* @param {boolean} [responseDelimited=false] Whether responses are length-delimited
-							* @returns {LogsService} RPC service. Useful where requests and/or responses are streamed.
-							*/
-							LogsService.create = function create(rpcImpl, requestDelimited, responseDelimited) {
-								return new this(rpcImpl, requestDelimited, responseDelimited);
-							};
-							/**
-							* Callback as used by {@link opentelemetry.proto.collector.logs.v1.LogsService#export_}.
-							* @memberof opentelemetry.proto.collector.logs.v1.LogsService
-							* @typedef ExportCallback
-							* @type {function}
-							* @param {Error|null} error Error, if any
-							* @param {opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse} [response] ExportLogsServiceResponse
-							*/
-							/**
-							* Calls Export.
-							* @function export
-							* @memberof opentelemetry.proto.collector.logs.v1.LogsService
-							* @instance
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceRequest} request ExportLogsServiceRequest message or plain object
-							* @param {opentelemetry.proto.collector.logs.v1.LogsService.ExportCallback} callback Node-style callback called with the error, if any, and ExportLogsServiceResponse
-							* @returns {undefined}
-							* @variation 1
-							*/
-							Object.defineProperty(LogsService.prototype["export"] = function export_(request, callback) {
-								return this.rpcCall(export_, $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest, $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse, request, callback);
-							}, "name", { value: "Export" });
-							/**
-							* Calls Export.
-							* @function export
-							* @memberof opentelemetry.proto.collector.logs.v1.LogsService
-							* @instance
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceRequest} request ExportLogsServiceRequest message or plain object
-							* @returns {Promise<opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse>} Promise
-							* @variation 2
-							*/
-							return LogsService;
-						})();
-						v1.ExportLogsServiceRequest = (function() {
-							/**
-							* Properties of an ExportLogsServiceRequest.
-							* @memberof opentelemetry.proto.collector.logs.v1
-							* @interface IExportLogsServiceRequest
-							* @property {Array.<opentelemetry.proto.logs.v1.IResourceLogs>|null} [resourceLogs] ExportLogsServiceRequest resourceLogs
-							*/
-							/**
-							* Constructs a new ExportLogsServiceRequest.
-							* @memberof opentelemetry.proto.collector.logs.v1
-							* @classdesc Represents an ExportLogsServiceRequest.
-							* @implements IExportLogsServiceRequest
-							* @constructor
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceRequest=} [properties] Properties to set
-							*/
-							function ExportLogsServiceRequest(properties) {
-								this.resourceLogs = [];
-								if (properties) {
-									for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) if (properties[keys[i]] != null) this[keys[i]] = properties[keys[i]];
-								}
-							}
-							/**
-							* ExportLogsServiceRequest resourceLogs.
-							* @member {Array.<opentelemetry.proto.logs.v1.IResourceLogs>} resourceLogs
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @instance
-							*/
-							ExportLogsServiceRequest.prototype.resourceLogs = $util.emptyArray;
-							/**
-							* Creates a new ExportLogsServiceRequest instance using the specified properties.
-							* @function create
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceRequest=} [properties] Properties to set
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest} ExportLogsServiceRequest instance
-							*/
-							ExportLogsServiceRequest.create = function create(properties) {
-								return new ExportLogsServiceRequest(properties);
-							};
-							/**
-							* Encodes the specified ExportLogsServiceRequest message. Does not implicitly {@link opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.verify|verify} messages.
-							* @function encode
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceRequest} message ExportLogsServiceRequest message or plain object to encode
-							* @param {$protobuf.Writer} [writer] Writer to encode to
-							* @returns {$protobuf.Writer} Writer
-							*/
-							ExportLogsServiceRequest.encode = function encode(message, writer) {
-								if (!writer) writer = $Writer.create();
-								if (message.resourceLogs != null && message.resourceLogs.length) for (var i = 0; i < message.resourceLogs.length; ++i) $root.opentelemetry.proto.logs.v1.ResourceLogs.encode(message.resourceLogs[i], writer.uint32(10).fork()).ldelim();
-								return writer;
-							};
-							/**
-							* Encodes the specified ExportLogsServiceRequest message, length delimited. Does not implicitly {@link opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.verify|verify} messages.
-							* @function encodeDelimited
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceRequest} message ExportLogsServiceRequest message or plain object to encode
-							* @param {$protobuf.Writer} [writer] Writer to encode to
-							* @returns {$protobuf.Writer} Writer
-							*/
-							ExportLogsServiceRequest.encodeDelimited = function encodeDelimited(message, writer) {
-								return this.encode(message, writer).ldelim();
-							};
-							/**
-							* Decodes an ExportLogsServiceRequest message from the specified reader or buffer.
-							* @function decode
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-							* @param {number} [length] Message length if known beforehand
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest} ExportLogsServiceRequest
-							* @throws {Error} If the payload is not a reader or valid buffer
-							* @throws {$protobuf.util.ProtocolError} If required fields are missing
-							*/
-							ExportLogsServiceRequest.decode = function decode(reader, length, error) {
-								if (!(reader instanceof $Reader)) reader = $Reader.create(reader);
-								var end = length === void 0 ? reader.len : reader.pos + length, message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest();
-								while (reader.pos < end) {
-									var tag = reader.uint32();
-									if (tag === error) break;
-									switch (tag >>> 3) {
-										case 1:
-											if (!(message.resourceLogs && message.resourceLogs.length)) message.resourceLogs = [];
-											message.resourceLogs.push($root.opentelemetry.proto.logs.v1.ResourceLogs.decode(reader, reader.uint32()));
-											break;
-										default:
-											reader.skipType(tag & 7);
-											break;
-									}
-								}
-								return message;
-							};
-							/**
-							* Decodes an ExportLogsServiceRequest message from the specified reader or buffer, length delimited.
-							* @function decodeDelimited
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest} ExportLogsServiceRequest
-							* @throws {Error} If the payload is not a reader or valid buffer
-							* @throws {$protobuf.util.ProtocolError} If required fields are missing
-							*/
-							ExportLogsServiceRequest.decodeDelimited = function decodeDelimited(reader) {
-								if (!(reader instanceof $Reader)) reader = new $Reader(reader);
-								return this.decode(reader, reader.uint32());
-							};
-							/**
-							* Verifies an ExportLogsServiceRequest message.
-							* @function verify
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {Object.<string,*>} message Plain object to verify
-							* @returns {string|null} `null` if valid, otherwise the reason why it is not
-							*/
-							ExportLogsServiceRequest.verify = function verify(message) {
-								if (typeof message !== "object" || message === null) return "object expected";
-								if (message.resourceLogs != null && message.hasOwnProperty("resourceLogs")) {
-									if (!Array.isArray(message.resourceLogs)) return "resourceLogs: array expected";
-									for (var i = 0; i < message.resourceLogs.length; ++i) {
-										var error = $root.opentelemetry.proto.logs.v1.ResourceLogs.verify(message.resourceLogs[i]);
-										if (error) return "resourceLogs." + error;
-									}
-								}
-								return null;
-							};
-							/**
-							* Creates an ExportLogsServiceRequest message from a plain object. Also converts values to their respective internal types.
-							* @function fromObject
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {Object.<string,*>} object Plain object
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest} ExportLogsServiceRequest
-							*/
-							ExportLogsServiceRequest.fromObject = function fromObject(object) {
-								if (object instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest) return object;
-								var message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest();
-								if (object.resourceLogs) {
-									if (!Array.isArray(object.resourceLogs)) throw TypeError(".opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.resourceLogs: array expected");
-									message.resourceLogs = [];
-									for (var i = 0; i < object.resourceLogs.length; ++i) {
-										if (typeof object.resourceLogs[i] !== "object") throw TypeError(".opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest.resourceLogs: object expected");
-										message.resourceLogs[i] = $root.opentelemetry.proto.logs.v1.ResourceLogs.fromObject(object.resourceLogs[i]);
-									}
-								}
-								return message;
-							};
-							/**
-							* Creates a plain object from an ExportLogsServiceRequest message. Also converts values to other types if specified.
-							* @function toObject
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest} message ExportLogsServiceRequest
-							* @param {$protobuf.IConversionOptions} [options] Conversion options
-							* @returns {Object.<string,*>} Plain object
-							*/
-							ExportLogsServiceRequest.toObject = function toObject(message, options) {
-								if (!options) options = {};
-								var object = {};
-								if (options.arrays || options.defaults) object.resourceLogs = [];
-								if (message.resourceLogs && message.resourceLogs.length) {
-									object.resourceLogs = [];
-									for (var j = 0; j < message.resourceLogs.length; ++j) object.resourceLogs[j] = $root.opentelemetry.proto.logs.v1.ResourceLogs.toObject(message.resourceLogs[j], options);
-								}
-								return object;
-							};
-							/**
-							* Converts this ExportLogsServiceRequest to JSON.
-							* @function toJSON
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @instance
-							* @returns {Object.<string,*>} JSON object
-							*/
-							ExportLogsServiceRequest.prototype.toJSON = function toJSON() {
-								return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-							};
-							/**
-							* Gets the default type url for ExportLogsServiceRequest
-							* @function getTypeUrl
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest
-							* @static
-							* @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-							* @returns {string} The default type url
-							*/
-							ExportLogsServiceRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-								if (typeUrlPrefix === void 0) typeUrlPrefix = "type.googleapis.com";
-								return typeUrlPrefix + "/opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest";
-							};
-							return ExportLogsServiceRequest;
-						})();
-						v1.ExportLogsServiceResponse = (function() {
-							/**
-							* Properties of an ExportLogsServiceResponse.
-							* @memberof opentelemetry.proto.collector.logs.v1
-							* @interface IExportLogsServiceResponse
-							* @property {opentelemetry.proto.collector.logs.v1.IExportLogsPartialSuccess|null} [partialSuccess] ExportLogsServiceResponse partialSuccess
-							*/
-							/**
-							* Constructs a new ExportLogsServiceResponse.
-							* @memberof opentelemetry.proto.collector.logs.v1
-							* @classdesc Represents an ExportLogsServiceResponse.
-							* @implements IExportLogsServiceResponse
-							* @constructor
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceResponse=} [properties] Properties to set
-							*/
-							function ExportLogsServiceResponse(properties) {
-								if (properties) {
-									for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) if (properties[keys[i]] != null) this[keys[i]] = properties[keys[i]];
-								}
-							}
-							/**
-							* ExportLogsServiceResponse partialSuccess.
-							* @member {opentelemetry.proto.collector.logs.v1.IExportLogsPartialSuccess|null|undefined} partialSuccess
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @instance
-							*/
-							ExportLogsServiceResponse.prototype.partialSuccess = null;
-							/**
-							* Creates a new ExportLogsServiceResponse instance using the specified properties.
-							* @function create
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceResponse=} [properties] Properties to set
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse} ExportLogsServiceResponse instance
-							*/
-							ExportLogsServiceResponse.create = function create(properties) {
-								return new ExportLogsServiceResponse(properties);
-							};
-							/**
-							* Encodes the specified ExportLogsServiceResponse message. Does not implicitly {@link opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse.verify|verify} messages.
-							* @function encode
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceResponse} message ExportLogsServiceResponse message or plain object to encode
-							* @param {$protobuf.Writer} [writer] Writer to encode to
-							* @returns {$protobuf.Writer} Writer
-							*/
-							ExportLogsServiceResponse.encode = function encode(message, writer) {
-								if (!writer) writer = $Writer.create();
-								if (message.partialSuccess != null && Object.hasOwnProperty.call(message, "partialSuccess")) $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.encode(message.partialSuccess, writer.uint32(10).fork()).ldelim();
-								return writer;
-							};
-							/**
-							* Encodes the specified ExportLogsServiceResponse message, length delimited. Does not implicitly {@link opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse.verify|verify} messages.
-							* @function encodeDelimited
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsServiceResponse} message ExportLogsServiceResponse message or plain object to encode
-							* @param {$protobuf.Writer} [writer] Writer to encode to
-							* @returns {$protobuf.Writer} Writer
-							*/
-							ExportLogsServiceResponse.encodeDelimited = function encodeDelimited(message, writer) {
-								return this.encode(message, writer).ldelim();
-							};
-							/**
-							* Decodes an ExportLogsServiceResponse message from the specified reader or buffer.
-							* @function decode
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-							* @param {number} [length] Message length if known beforehand
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse} ExportLogsServiceResponse
-							* @throws {Error} If the payload is not a reader or valid buffer
-							* @throws {$protobuf.util.ProtocolError} If required fields are missing
-							*/
-							ExportLogsServiceResponse.decode = function decode(reader, length, error) {
-								if (!(reader instanceof $Reader)) reader = $Reader.create(reader);
-								var end = length === void 0 ? reader.len : reader.pos + length, message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse();
-								while (reader.pos < end) {
-									var tag = reader.uint32();
-									if (tag === error) break;
-									switch (tag >>> 3) {
-										case 1:
-											message.partialSuccess = $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.decode(reader, reader.uint32());
-											break;
-										default:
-											reader.skipType(tag & 7);
-											break;
-									}
-								}
-								return message;
-							};
-							/**
-							* Decodes an ExportLogsServiceResponse message from the specified reader or buffer, length delimited.
-							* @function decodeDelimited
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse} ExportLogsServiceResponse
-							* @throws {Error} If the payload is not a reader or valid buffer
-							* @throws {$protobuf.util.ProtocolError} If required fields are missing
-							*/
-							ExportLogsServiceResponse.decodeDelimited = function decodeDelimited(reader) {
-								if (!(reader instanceof $Reader)) reader = new $Reader(reader);
-								return this.decode(reader, reader.uint32());
-							};
-							/**
-							* Verifies an ExportLogsServiceResponse message.
-							* @function verify
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {Object.<string,*>} message Plain object to verify
-							* @returns {string|null} `null` if valid, otherwise the reason why it is not
-							*/
-							ExportLogsServiceResponse.verify = function verify(message) {
-								if (typeof message !== "object" || message === null) return "object expected";
-								if (message.partialSuccess != null && message.hasOwnProperty("partialSuccess")) {
-									var error = $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.verify(message.partialSuccess);
-									if (error) return "partialSuccess." + error;
-								}
-								return null;
-							};
-							/**
-							* Creates an ExportLogsServiceResponse message from a plain object. Also converts values to their respective internal types.
-							* @function fromObject
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {Object.<string,*>} object Plain object
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse} ExportLogsServiceResponse
-							*/
-							ExportLogsServiceResponse.fromObject = function fromObject(object) {
-								if (object instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse) return object;
-								var message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse();
-								if (object.partialSuccess != null) {
-									if (typeof object.partialSuccess !== "object") throw TypeError(".opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse.partialSuccess: object expected");
-									message.partialSuccess = $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.fromObject(object.partialSuccess);
-								}
-								return message;
-							};
-							/**
-							* Creates a plain object from an ExportLogsServiceResponse message. Also converts values to other types if specified.
-							* @function toObject
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse} message ExportLogsServiceResponse
-							* @param {$protobuf.IConversionOptions} [options] Conversion options
-							* @returns {Object.<string,*>} Plain object
-							*/
-							ExportLogsServiceResponse.toObject = function toObject(message, options) {
-								if (!options) options = {};
-								var object = {};
-								if (options.defaults) object.partialSuccess = null;
-								if (message.partialSuccess != null && message.hasOwnProperty("partialSuccess")) object.partialSuccess = $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.toObject(message.partialSuccess, options);
-								return object;
-							};
-							/**
-							* Converts this ExportLogsServiceResponse to JSON.
-							* @function toJSON
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @instance
-							* @returns {Object.<string,*>} JSON object
-							*/
-							ExportLogsServiceResponse.prototype.toJSON = function toJSON() {
-								return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-							};
-							/**
-							* Gets the default type url for ExportLogsServiceResponse
-							* @function getTypeUrl
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse
-							* @static
-							* @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-							* @returns {string} The default type url
-							*/
-							ExportLogsServiceResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-								if (typeUrlPrefix === void 0) typeUrlPrefix = "type.googleapis.com";
-								return typeUrlPrefix + "/opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse";
-							};
-							return ExportLogsServiceResponse;
-						})();
-						v1.ExportLogsPartialSuccess = (function() {
-							/**
-							* Properties of an ExportLogsPartialSuccess.
-							* @memberof opentelemetry.proto.collector.logs.v1
-							* @interface IExportLogsPartialSuccess
-							* @property {number|Long|null} [rejectedLogRecords] ExportLogsPartialSuccess rejectedLogRecords
-							* @property {string|null} [errorMessage] ExportLogsPartialSuccess errorMessage
-							*/
-							/**
-							* Constructs a new ExportLogsPartialSuccess.
-							* @memberof opentelemetry.proto.collector.logs.v1
-							* @classdesc Represents an ExportLogsPartialSuccess.
-							* @implements IExportLogsPartialSuccess
-							* @constructor
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsPartialSuccess=} [properties] Properties to set
-							*/
-							function ExportLogsPartialSuccess(properties) {
-								if (properties) {
-									for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) if (properties[keys[i]] != null) this[keys[i]] = properties[keys[i]];
-								}
-							}
-							/**
-							* ExportLogsPartialSuccess rejectedLogRecords.
-							* @member {number|Long|null|undefined} rejectedLogRecords
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @instance
-							*/
-							ExportLogsPartialSuccess.prototype.rejectedLogRecords = null;
-							/**
-							* ExportLogsPartialSuccess errorMessage.
-							* @member {string|null|undefined} errorMessage
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @instance
-							*/
-							ExportLogsPartialSuccess.prototype.errorMessage = null;
-							/**
-							* Creates a new ExportLogsPartialSuccess instance using the specified properties.
-							* @function create
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsPartialSuccess=} [properties] Properties to set
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess} ExportLogsPartialSuccess instance
-							*/
-							ExportLogsPartialSuccess.create = function create(properties) {
-								return new ExportLogsPartialSuccess(properties);
-							};
-							/**
-							* Encodes the specified ExportLogsPartialSuccess message. Does not implicitly {@link opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.verify|verify} messages.
-							* @function encode
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsPartialSuccess} message ExportLogsPartialSuccess message or plain object to encode
-							* @param {$protobuf.Writer} [writer] Writer to encode to
-							* @returns {$protobuf.Writer} Writer
-							*/
-							ExportLogsPartialSuccess.encode = function encode(message, writer) {
-								if (!writer) writer = $Writer.create();
-								if (message.rejectedLogRecords != null && Object.hasOwnProperty.call(message, "rejectedLogRecords")) writer.uint32(8).int64(message.rejectedLogRecords);
-								if (message.errorMessage != null && Object.hasOwnProperty.call(message, "errorMessage")) writer.uint32(18).string(message.errorMessage);
-								return writer;
-							};
-							/**
-							* Encodes the specified ExportLogsPartialSuccess message, length delimited. Does not implicitly {@link opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess.verify|verify} messages.
-							* @function encodeDelimited
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.IExportLogsPartialSuccess} message ExportLogsPartialSuccess message or plain object to encode
-							* @param {$protobuf.Writer} [writer] Writer to encode to
-							* @returns {$protobuf.Writer} Writer
-							*/
-							ExportLogsPartialSuccess.encodeDelimited = function encodeDelimited(message, writer) {
-								return this.encode(message, writer).ldelim();
-							};
-							/**
-							* Decodes an ExportLogsPartialSuccess message from the specified reader or buffer.
-							* @function decode
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-							* @param {number} [length] Message length if known beforehand
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess} ExportLogsPartialSuccess
-							* @throws {Error} If the payload is not a reader or valid buffer
-							* @throws {$protobuf.util.ProtocolError} If required fields are missing
-							*/
-							ExportLogsPartialSuccess.decode = function decode(reader, length, error) {
-								if (!(reader instanceof $Reader)) reader = $Reader.create(reader);
-								var end = length === void 0 ? reader.len : reader.pos + length, message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess();
-								while (reader.pos < end) {
-									var tag = reader.uint32();
-									if (tag === error) break;
-									switch (tag >>> 3) {
-										case 1:
-											message.rejectedLogRecords = reader.int64();
-											break;
-										case 2:
-											message.errorMessage = reader.string();
-											break;
-										default:
-											reader.skipType(tag & 7);
-											break;
-									}
-								}
-								return message;
-							};
-							/**
-							* Decodes an ExportLogsPartialSuccess message from the specified reader or buffer, length delimited.
-							* @function decodeDelimited
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess} ExportLogsPartialSuccess
-							* @throws {Error} If the payload is not a reader or valid buffer
-							* @throws {$protobuf.util.ProtocolError} If required fields are missing
-							*/
-							ExportLogsPartialSuccess.decodeDelimited = function decodeDelimited(reader) {
-								if (!(reader instanceof $Reader)) reader = new $Reader(reader);
-								return this.decode(reader, reader.uint32());
-							};
-							/**
-							* Verifies an ExportLogsPartialSuccess message.
-							* @function verify
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {Object.<string,*>} message Plain object to verify
-							* @returns {string|null} `null` if valid, otherwise the reason why it is not
-							*/
-							ExportLogsPartialSuccess.verify = function verify(message) {
-								if (typeof message !== "object" || message === null) return "object expected";
-								if (message.rejectedLogRecords != null && message.hasOwnProperty("rejectedLogRecords")) {
-									if (!$util.isInteger(message.rejectedLogRecords) && !(message.rejectedLogRecords && $util.isInteger(message.rejectedLogRecords.low) && $util.isInteger(message.rejectedLogRecords.high))) return "rejectedLogRecords: integer|Long expected";
-								}
-								if (message.errorMessage != null && message.hasOwnProperty("errorMessage")) {
-									if (!$util.isString(message.errorMessage)) return "errorMessage: string expected";
-								}
-								return null;
-							};
-							/**
-							* Creates an ExportLogsPartialSuccess message from a plain object. Also converts values to their respective internal types.
-							* @function fromObject
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {Object.<string,*>} object Plain object
-							* @returns {opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess} ExportLogsPartialSuccess
-							*/
-							ExportLogsPartialSuccess.fromObject = function fromObject(object) {
-								if (object instanceof $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess) return object;
-								var message = new $root.opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess();
-								if (object.rejectedLogRecords != null) {
-									if ($util.Long) (message.rejectedLogRecords = $util.Long.fromValue(object.rejectedLogRecords)).unsigned = false;
-									else if (typeof object.rejectedLogRecords === "string") message.rejectedLogRecords = parseInt(object.rejectedLogRecords, 10);
-									else if (typeof object.rejectedLogRecords === "number") message.rejectedLogRecords = object.rejectedLogRecords;
-									else if (typeof object.rejectedLogRecords === "object") message.rejectedLogRecords = new $util.LongBits(object.rejectedLogRecords.low >>> 0, object.rejectedLogRecords.high >>> 0).toNumber();
-								}
-								if (object.errorMessage != null) message.errorMessage = String(object.errorMessage);
-								return message;
-							};
-							/**
-							* Creates a plain object from an ExportLogsPartialSuccess message. Also converts values to other types if specified.
-							* @function toObject
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess} message ExportLogsPartialSuccess
-							* @param {$protobuf.IConversionOptions} [options] Conversion options
-							* @returns {Object.<string,*>} Plain object
-							*/
-							ExportLogsPartialSuccess.toObject = function toObject(message, options) {
-								if (!options) options = {};
-								var object = {};
-								if (options.defaults) {
-									if ($util.Long) {
-										var long = new $util.Long(0, 0, false);
-										object.rejectedLogRecords = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
-									} else object.rejectedLogRecords = options.longs === String ? "0" : 0;
-									object.errorMessage = "";
-								}
-								if (message.rejectedLogRecords != null && message.hasOwnProperty("rejectedLogRecords")) if (typeof message.rejectedLogRecords === "number") object.rejectedLogRecords = options.longs === String ? String(message.rejectedLogRecords) : message.rejectedLogRecords;
-								else object.rejectedLogRecords = options.longs === String ? $util.Long.prototype.toString.call(message.rejectedLogRecords) : options.longs === Number ? new $util.LongBits(message.rejectedLogRecords.low >>> 0, message.rejectedLogRecords.high >>> 0).toNumber() : message.rejectedLogRecords;
-								if (message.errorMessage != null && message.hasOwnProperty("errorMessage")) object.errorMessage = message.errorMessage;
-								return object;
-							};
-							/**
-							* Converts this ExportLogsPartialSuccess to JSON.
-							* @function toJSON
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @instance
-							* @returns {Object.<string,*>} JSON object
-							*/
-							ExportLogsPartialSuccess.prototype.toJSON = function toJSON() {
-								return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-							};
-							/**
-							* Gets the default type url for ExportLogsPartialSuccess
-							* @function getTypeUrl
-							* @memberof opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess
-							* @static
-							* @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-							* @returns {string} The default type url
-							*/
-							ExportLogsPartialSuccess.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-								if (typeUrlPrefix === void 0) typeUrlPrefix = "type.googleapis.com";
-								return typeUrlPrefix + "/opentelemetry.proto.collector.logs.v1.ExportLogsPartialSuccess";
-							};
-							return ExportLogsPartialSuccess;
-						})();
-						return v1;
-					})();
-					return logs;
-				})();
 				return collector;
 			})();
 			proto.metrics = (function() {
@@ -16450,1544 +16806,11 @@ var require_root$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				})();
 				return metrics;
 			})();
-			proto.logs = (function() {
-				/**
-				* Namespace logs.
-				* @memberof opentelemetry.proto
-				* @namespace
-				*/
-				var logs = {};
-				logs.v1 = (function() {
-					/**
-					* Namespace v1.
-					* @memberof opentelemetry.proto.logs
-					* @namespace
-					*/
-					var v1 = {};
-					v1.LogsData = (function() {
-						/**
-						* Properties of a LogsData.
-						* @memberof opentelemetry.proto.logs.v1
-						* @interface ILogsData
-						* @property {Array.<opentelemetry.proto.logs.v1.IResourceLogs>|null} [resourceLogs] LogsData resourceLogs
-						*/
-						/**
-						* Constructs a new LogsData.
-						* @memberof opentelemetry.proto.logs.v1
-						* @classdesc Represents a LogsData.
-						* @implements ILogsData
-						* @constructor
-						* @param {opentelemetry.proto.logs.v1.ILogsData=} [properties] Properties to set
-						*/
-						function LogsData(properties) {
-							this.resourceLogs = [];
-							if (properties) {
-								for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) if (properties[keys[i]] != null) this[keys[i]] = properties[keys[i]];
-							}
-						}
-						/**
-						* LogsData resourceLogs.
-						* @member {Array.<opentelemetry.proto.logs.v1.IResourceLogs>} resourceLogs
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @instance
-						*/
-						LogsData.prototype.resourceLogs = $util.emptyArray;
-						/**
-						* Creates a new LogsData instance using the specified properties.
-						* @function create
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {opentelemetry.proto.logs.v1.ILogsData=} [properties] Properties to set
-						* @returns {opentelemetry.proto.logs.v1.LogsData} LogsData instance
-						*/
-						LogsData.create = function create(properties) {
-							return new LogsData(properties);
-						};
-						/**
-						* Encodes the specified LogsData message. Does not implicitly {@link opentelemetry.proto.logs.v1.LogsData.verify|verify} messages.
-						* @function encode
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {opentelemetry.proto.logs.v1.ILogsData} message LogsData message or plain object to encode
-						* @param {$protobuf.Writer} [writer] Writer to encode to
-						* @returns {$protobuf.Writer} Writer
-						*/
-						LogsData.encode = function encode(message, writer) {
-							if (!writer) writer = $Writer.create();
-							if (message.resourceLogs != null && message.resourceLogs.length) for (var i = 0; i < message.resourceLogs.length; ++i) $root.opentelemetry.proto.logs.v1.ResourceLogs.encode(message.resourceLogs[i], writer.uint32(10).fork()).ldelim();
-							return writer;
-						};
-						/**
-						* Encodes the specified LogsData message, length delimited. Does not implicitly {@link opentelemetry.proto.logs.v1.LogsData.verify|verify} messages.
-						* @function encodeDelimited
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {opentelemetry.proto.logs.v1.ILogsData} message LogsData message or plain object to encode
-						* @param {$protobuf.Writer} [writer] Writer to encode to
-						* @returns {$protobuf.Writer} Writer
-						*/
-						LogsData.encodeDelimited = function encodeDelimited(message, writer) {
-							return this.encode(message, writer).ldelim();
-						};
-						/**
-						* Decodes a LogsData message from the specified reader or buffer.
-						* @function decode
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-						* @param {number} [length] Message length if known beforehand
-						* @returns {opentelemetry.proto.logs.v1.LogsData} LogsData
-						* @throws {Error} If the payload is not a reader or valid buffer
-						* @throws {$protobuf.util.ProtocolError} If required fields are missing
-						*/
-						LogsData.decode = function decode(reader, length, error) {
-							if (!(reader instanceof $Reader)) reader = $Reader.create(reader);
-							var end = length === void 0 ? reader.len : reader.pos + length, message = new $root.opentelemetry.proto.logs.v1.LogsData();
-							while (reader.pos < end) {
-								var tag = reader.uint32();
-								if (tag === error) break;
-								switch (tag >>> 3) {
-									case 1:
-										if (!(message.resourceLogs && message.resourceLogs.length)) message.resourceLogs = [];
-										message.resourceLogs.push($root.opentelemetry.proto.logs.v1.ResourceLogs.decode(reader, reader.uint32()));
-										break;
-									default:
-										reader.skipType(tag & 7);
-										break;
-								}
-							}
-							return message;
-						};
-						/**
-						* Decodes a LogsData message from the specified reader or buffer, length delimited.
-						* @function decodeDelimited
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-						* @returns {opentelemetry.proto.logs.v1.LogsData} LogsData
-						* @throws {Error} If the payload is not a reader or valid buffer
-						* @throws {$protobuf.util.ProtocolError} If required fields are missing
-						*/
-						LogsData.decodeDelimited = function decodeDelimited(reader) {
-							if (!(reader instanceof $Reader)) reader = new $Reader(reader);
-							return this.decode(reader, reader.uint32());
-						};
-						/**
-						* Verifies a LogsData message.
-						* @function verify
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {Object.<string,*>} message Plain object to verify
-						* @returns {string|null} `null` if valid, otherwise the reason why it is not
-						*/
-						LogsData.verify = function verify(message) {
-							if (typeof message !== "object" || message === null) return "object expected";
-							if (message.resourceLogs != null && message.hasOwnProperty("resourceLogs")) {
-								if (!Array.isArray(message.resourceLogs)) return "resourceLogs: array expected";
-								for (var i = 0; i < message.resourceLogs.length; ++i) {
-									var error = $root.opentelemetry.proto.logs.v1.ResourceLogs.verify(message.resourceLogs[i]);
-									if (error) return "resourceLogs." + error;
-								}
-							}
-							return null;
-						};
-						/**
-						* Creates a LogsData message from a plain object. Also converts values to their respective internal types.
-						* @function fromObject
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {Object.<string,*>} object Plain object
-						* @returns {opentelemetry.proto.logs.v1.LogsData} LogsData
-						*/
-						LogsData.fromObject = function fromObject(object) {
-							if (object instanceof $root.opentelemetry.proto.logs.v1.LogsData) return object;
-							var message = new $root.opentelemetry.proto.logs.v1.LogsData();
-							if (object.resourceLogs) {
-								if (!Array.isArray(object.resourceLogs)) throw TypeError(".opentelemetry.proto.logs.v1.LogsData.resourceLogs: array expected");
-								message.resourceLogs = [];
-								for (var i = 0; i < object.resourceLogs.length; ++i) {
-									if (typeof object.resourceLogs[i] !== "object") throw TypeError(".opentelemetry.proto.logs.v1.LogsData.resourceLogs: object expected");
-									message.resourceLogs[i] = $root.opentelemetry.proto.logs.v1.ResourceLogs.fromObject(object.resourceLogs[i]);
-								}
-							}
-							return message;
-						};
-						/**
-						* Creates a plain object from a LogsData message. Also converts values to other types if specified.
-						* @function toObject
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {opentelemetry.proto.logs.v1.LogsData} message LogsData
-						* @param {$protobuf.IConversionOptions} [options] Conversion options
-						* @returns {Object.<string,*>} Plain object
-						*/
-						LogsData.toObject = function toObject(message, options) {
-							if (!options) options = {};
-							var object = {};
-							if (options.arrays || options.defaults) object.resourceLogs = [];
-							if (message.resourceLogs && message.resourceLogs.length) {
-								object.resourceLogs = [];
-								for (var j = 0; j < message.resourceLogs.length; ++j) object.resourceLogs[j] = $root.opentelemetry.proto.logs.v1.ResourceLogs.toObject(message.resourceLogs[j], options);
-							}
-							return object;
-						};
-						/**
-						* Converts this LogsData to JSON.
-						* @function toJSON
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @instance
-						* @returns {Object.<string,*>} JSON object
-						*/
-						LogsData.prototype.toJSON = function toJSON() {
-							return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-						};
-						/**
-						* Gets the default type url for LogsData
-						* @function getTypeUrl
-						* @memberof opentelemetry.proto.logs.v1.LogsData
-						* @static
-						* @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-						* @returns {string} The default type url
-						*/
-						LogsData.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-							if (typeUrlPrefix === void 0) typeUrlPrefix = "type.googleapis.com";
-							return typeUrlPrefix + "/opentelemetry.proto.logs.v1.LogsData";
-						};
-						return LogsData;
-					})();
-					v1.ResourceLogs = (function() {
-						/**
-						* Properties of a ResourceLogs.
-						* @memberof opentelemetry.proto.logs.v1
-						* @interface IResourceLogs
-						* @property {opentelemetry.proto.resource.v1.IResource|null} [resource] ResourceLogs resource
-						* @property {Array.<opentelemetry.proto.logs.v1.IScopeLogs>|null} [scopeLogs] ResourceLogs scopeLogs
-						* @property {string|null} [schemaUrl] ResourceLogs schemaUrl
-						*/
-						/**
-						* Constructs a new ResourceLogs.
-						* @memberof opentelemetry.proto.logs.v1
-						* @classdesc Represents a ResourceLogs.
-						* @implements IResourceLogs
-						* @constructor
-						* @param {opentelemetry.proto.logs.v1.IResourceLogs=} [properties] Properties to set
-						*/
-						function ResourceLogs(properties) {
-							this.scopeLogs = [];
-							if (properties) {
-								for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) if (properties[keys[i]] != null) this[keys[i]] = properties[keys[i]];
-							}
-						}
-						/**
-						* ResourceLogs resource.
-						* @member {opentelemetry.proto.resource.v1.IResource|null|undefined} resource
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @instance
-						*/
-						ResourceLogs.prototype.resource = null;
-						/**
-						* ResourceLogs scopeLogs.
-						* @member {Array.<opentelemetry.proto.logs.v1.IScopeLogs>} scopeLogs
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @instance
-						*/
-						ResourceLogs.prototype.scopeLogs = $util.emptyArray;
-						/**
-						* ResourceLogs schemaUrl.
-						* @member {string|null|undefined} schemaUrl
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @instance
-						*/
-						ResourceLogs.prototype.schemaUrl = null;
-						/**
-						* Creates a new ResourceLogs instance using the specified properties.
-						* @function create
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {opentelemetry.proto.logs.v1.IResourceLogs=} [properties] Properties to set
-						* @returns {opentelemetry.proto.logs.v1.ResourceLogs} ResourceLogs instance
-						*/
-						ResourceLogs.create = function create(properties) {
-							return new ResourceLogs(properties);
-						};
-						/**
-						* Encodes the specified ResourceLogs message. Does not implicitly {@link opentelemetry.proto.logs.v1.ResourceLogs.verify|verify} messages.
-						* @function encode
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {opentelemetry.proto.logs.v1.IResourceLogs} message ResourceLogs message or plain object to encode
-						* @param {$protobuf.Writer} [writer] Writer to encode to
-						* @returns {$protobuf.Writer} Writer
-						*/
-						ResourceLogs.encode = function encode(message, writer) {
-							if (!writer) writer = $Writer.create();
-							if (message.resource != null && Object.hasOwnProperty.call(message, "resource")) $root.opentelemetry.proto.resource.v1.Resource.encode(message.resource, writer.uint32(10).fork()).ldelim();
-							if (message.scopeLogs != null && message.scopeLogs.length) for (var i = 0; i < message.scopeLogs.length; ++i) $root.opentelemetry.proto.logs.v1.ScopeLogs.encode(message.scopeLogs[i], writer.uint32(18).fork()).ldelim();
-							if (message.schemaUrl != null && Object.hasOwnProperty.call(message, "schemaUrl")) writer.uint32(26).string(message.schemaUrl);
-							return writer;
-						};
-						/**
-						* Encodes the specified ResourceLogs message, length delimited. Does not implicitly {@link opentelemetry.proto.logs.v1.ResourceLogs.verify|verify} messages.
-						* @function encodeDelimited
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {opentelemetry.proto.logs.v1.IResourceLogs} message ResourceLogs message or plain object to encode
-						* @param {$protobuf.Writer} [writer] Writer to encode to
-						* @returns {$protobuf.Writer} Writer
-						*/
-						ResourceLogs.encodeDelimited = function encodeDelimited(message, writer) {
-							return this.encode(message, writer).ldelim();
-						};
-						/**
-						* Decodes a ResourceLogs message from the specified reader or buffer.
-						* @function decode
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-						* @param {number} [length] Message length if known beforehand
-						* @returns {opentelemetry.proto.logs.v1.ResourceLogs} ResourceLogs
-						* @throws {Error} If the payload is not a reader or valid buffer
-						* @throws {$protobuf.util.ProtocolError} If required fields are missing
-						*/
-						ResourceLogs.decode = function decode(reader, length, error) {
-							if (!(reader instanceof $Reader)) reader = $Reader.create(reader);
-							var end = length === void 0 ? reader.len : reader.pos + length, message = new $root.opentelemetry.proto.logs.v1.ResourceLogs();
-							while (reader.pos < end) {
-								var tag = reader.uint32();
-								if (tag === error) break;
-								switch (tag >>> 3) {
-									case 1:
-										message.resource = $root.opentelemetry.proto.resource.v1.Resource.decode(reader, reader.uint32());
-										break;
-									case 2:
-										if (!(message.scopeLogs && message.scopeLogs.length)) message.scopeLogs = [];
-										message.scopeLogs.push($root.opentelemetry.proto.logs.v1.ScopeLogs.decode(reader, reader.uint32()));
-										break;
-									case 3:
-										message.schemaUrl = reader.string();
-										break;
-									default:
-										reader.skipType(tag & 7);
-										break;
-								}
-							}
-							return message;
-						};
-						/**
-						* Decodes a ResourceLogs message from the specified reader or buffer, length delimited.
-						* @function decodeDelimited
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-						* @returns {opentelemetry.proto.logs.v1.ResourceLogs} ResourceLogs
-						* @throws {Error} If the payload is not a reader or valid buffer
-						* @throws {$protobuf.util.ProtocolError} If required fields are missing
-						*/
-						ResourceLogs.decodeDelimited = function decodeDelimited(reader) {
-							if (!(reader instanceof $Reader)) reader = new $Reader(reader);
-							return this.decode(reader, reader.uint32());
-						};
-						/**
-						* Verifies a ResourceLogs message.
-						* @function verify
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {Object.<string,*>} message Plain object to verify
-						* @returns {string|null} `null` if valid, otherwise the reason why it is not
-						*/
-						ResourceLogs.verify = function verify(message) {
-							if (typeof message !== "object" || message === null) return "object expected";
-							if (message.resource != null && message.hasOwnProperty("resource")) {
-								var error = $root.opentelemetry.proto.resource.v1.Resource.verify(message.resource);
-								if (error) return "resource." + error;
-							}
-							if (message.scopeLogs != null && message.hasOwnProperty("scopeLogs")) {
-								if (!Array.isArray(message.scopeLogs)) return "scopeLogs: array expected";
-								for (var i = 0; i < message.scopeLogs.length; ++i) {
-									var error = $root.opentelemetry.proto.logs.v1.ScopeLogs.verify(message.scopeLogs[i]);
-									if (error) return "scopeLogs." + error;
-								}
-							}
-							if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl")) {
-								if (!$util.isString(message.schemaUrl)) return "schemaUrl: string expected";
-							}
-							return null;
-						};
-						/**
-						* Creates a ResourceLogs message from a plain object. Also converts values to their respective internal types.
-						* @function fromObject
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {Object.<string,*>} object Plain object
-						* @returns {opentelemetry.proto.logs.v1.ResourceLogs} ResourceLogs
-						*/
-						ResourceLogs.fromObject = function fromObject(object) {
-							if (object instanceof $root.opentelemetry.proto.logs.v1.ResourceLogs) return object;
-							var message = new $root.opentelemetry.proto.logs.v1.ResourceLogs();
-							if (object.resource != null) {
-								if (typeof object.resource !== "object") throw TypeError(".opentelemetry.proto.logs.v1.ResourceLogs.resource: object expected");
-								message.resource = $root.opentelemetry.proto.resource.v1.Resource.fromObject(object.resource);
-							}
-							if (object.scopeLogs) {
-								if (!Array.isArray(object.scopeLogs)) throw TypeError(".opentelemetry.proto.logs.v1.ResourceLogs.scopeLogs: array expected");
-								message.scopeLogs = [];
-								for (var i = 0; i < object.scopeLogs.length; ++i) {
-									if (typeof object.scopeLogs[i] !== "object") throw TypeError(".opentelemetry.proto.logs.v1.ResourceLogs.scopeLogs: object expected");
-									message.scopeLogs[i] = $root.opentelemetry.proto.logs.v1.ScopeLogs.fromObject(object.scopeLogs[i]);
-								}
-							}
-							if (object.schemaUrl != null) message.schemaUrl = String(object.schemaUrl);
-							return message;
-						};
-						/**
-						* Creates a plain object from a ResourceLogs message. Also converts values to other types if specified.
-						* @function toObject
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {opentelemetry.proto.logs.v1.ResourceLogs} message ResourceLogs
-						* @param {$protobuf.IConversionOptions} [options] Conversion options
-						* @returns {Object.<string,*>} Plain object
-						*/
-						ResourceLogs.toObject = function toObject(message, options) {
-							if (!options) options = {};
-							var object = {};
-							if (options.arrays || options.defaults) object.scopeLogs = [];
-							if (options.defaults) {
-								object.resource = null;
-								object.schemaUrl = "";
-							}
-							if (message.resource != null && message.hasOwnProperty("resource")) object.resource = $root.opentelemetry.proto.resource.v1.Resource.toObject(message.resource, options);
-							if (message.scopeLogs && message.scopeLogs.length) {
-								object.scopeLogs = [];
-								for (var j = 0; j < message.scopeLogs.length; ++j) object.scopeLogs[j] = $root.opentelemetry.proto.logs.v1.ScopeLogs.toObject(message.scopeLogs[j], options);
-							}
-							if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl")) object.schemaUrl = message.schemaUrl;
-							return object;
-						};
-						/**
-						* Converts this ResourceLogs to JSON.
-						* @function toJSON
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @instance
-						* @returns {Object.<string,*>} JSON object
-						*/
-						ResourceLogs.prototype.toJSON = function toJSON() {
-							return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-						};
-						/**
-						* Gets the default type url for ResourceLogs
-						* @function getTypeUrl
-						* @memberof opentelemetry.proto.logs.v1.ResourceLogs
-						* @static
-						* @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-						* @returns {string} The default type url
-						*/
-						ResourceLogs.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-							if (typeUrlPrefix === void 0) typeUrlPrefix = "type.googleapis.com";
-							return typeUrlPrefix + "/opentelemetry.proto.logs.v1.ResourceLogs";
-						};
-						return ResourceLogs;
-					})();
-					v1.ScopeLogs = (function() {
-						/**
-						* Properties of a ScopeLogs.
-						* @memberof opentelemetry.proto.logs.v1
-						* @interface IScopeLogs
-						* @property {opentelemetry.proto.common.v1.IInstrumentationScope|null} [scope] ScopeLogs scope
-						* @property {Array.<opentelemetry.proto.logs.v1.ILogRecord>|null} [logRecords] ScopeLogs logRecords
-						* @property {string|null} [schemaUrl] ScopeLogs schemaUrl
-						*/
-						/**
-						* Constructs a new ScopeLogs.
-						* @memberof opentelemetry.proto.logs.v1
-						* @classdesc Represents a ScopeLogs.
-						* @implements IScopeLogs
-						* @constructor
-						* @param {opentelemetry.proto.logs.v1.IScopeLogs=} [properties] Properties to set
-						*/
-						function ScopeLogs(properties) {
-							this.logRecords = [];
-							if (properties) {
-								for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) if (properties[keys[i]] != null) this[keys[i]] = properties[keys[i]];
-							}
-						}
-						/**
-						* ScopeLogs scope.
-						* @member {opentelemetry.proto.common.v1.IInstrumentationScope|null|undefined} scope
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @instance
-						*/
-						ScopeLogs.prototype.scope = null;
-						/**
-						* ScopeLogs logRecords.
-						* @member {Array.<opentelemetry.proto.logs.v1.ILogRecord>} logRecords
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @instance
-						*/
-						ScopeLogs.prototype.logRecords = $util.emptyArray;
-						/**
-						* ScopeLogs schemaUrl.
-						* @member {string|null|undefined} schemaUrl
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @instance
-						*/
-						ScopeLogs.prototype.schemaUrl = null;
-						/**
-						* Creates a new ScopeLogs instance using the specified properties.
-						* @function create
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {opentelemetry.proto.logs.v1.IScopeLogs=} [properties] Properties to set
-						* @returns {opentelemetry.proto.logs.v1.ScopeLogs} ScopeLogs instance
-						*/
-						ScopeLogs.create = function create(properties) {
-							return new ScopeLogs(properties);
-						};
-						/**
-						* Encodes the specified ScopeLogs message. Does not implicitly {@link opentelemetry.proto.logs.v1.ScopeLogs.verify|verify} messages.
-						* @function encode
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {opentelemetry.proto.logs.v1.IScopeLogs} message ScopeLogs message or plain object to encode
-						* @param {$protobuf.Writer} [writer] Writer to encode to
-						* @returns {$protobuf.Writer} Writer
-						*/
-						ScopeLogs.encode = function encode(message, writer) {
-							if (!writer) writer = $Writer.create();
-							if (message.scope != null && Object.hasOwnProperty.call(message, "scope")) $root.opentelemetry.proto.common.v1.InstrumentationScope.encode(message.scope, writer.uint32(10).fork()).ldelim();
-							if (message.logRecords != null && message.logRecords.length) for (var i = 0; i < message.logRecords.length; ++i) $root.opentelemetry.proto.logs.v1.LogRecord.encode(message.logRecords[i], writer.uint32(18).fork()).ldelim();
-							if (message.schemaUrl != null && Object.hasOwnProperty.call(message, "schemaUrl")) writer.uint32(26).string(message.schemaUrl);
-							return writer;
-						};
-						/**
-						* Encodes the specified ScopeLogs message, length delimited. Does not implicitly {@link opentelemetry.proto.logs.v1.ScopeLogs.verify|verify} messages.
-						* @function encodeDelimited
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {opentelemetry.proto.logs.v1.IScopeLogs} message ScopeLogs message or plain object to encode
-						* @param {$protobuf.Writer} [writer] Writer to encode to
-						* @returns {$protobuf.Writer} Writer
-						*/
-						ScopeLogs.encodeDelimited = function encodeDelimited(message, writer) {
-							return this.encode(message, writer).ldelim();
-						};
-						/**
-						* Decodes a ScopeLogs message from the specified reader or buffer.
-						* @function decode
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-						* @param {number} [length] Message length if known beforehand
-						* @returns {opentelemetry.proto.logs.v1.ScopeLogs} ScopeLogs
-						* @throws {Error} If the payload is not a reader or valid buffer
-						* @throws {$protobuf.util.ProtocolError} If required fields are missing
-						*/
-						ScopeLogs.decode = function decode(reader, length, error) {
-							if (!(reader instanceof $Reader)) reader = $Reader.create(reader);
-							var end = length === void 0 ? reader.len : reader.pos + length, message = new $root.opentelemetry.proto.logs.v1.ScopeLogs();
-							while (reader.pos < end) {
-								var tag = reader.uint32();
-								if (tag === error) break;
-								switch (tag >>> 3) {
-									case 1:
-										message.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.decode(reader, reader.uint32());
-										break;
-									case 2:
-										if (!(message.logRecords && message.logRecords.length)) message.logRecords = [];
-										message.logRecords.push($root.opentelemetry.proto.logs.v1.LogRecord.decode(reader, reader.uint32()));
-										break;
-									case 3:
-										message.schemaUrl = reader.string();
-										break;
-									default:
-										reader.skipType(tag & 7);
-										break;
-								}
-							}
-							return message;
-						};
-						/**
-						* Decodes a ScopeLogs message from the specified reader or buffer, length delimited.
-						* @function decodeDelimited
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-						* @returns {opentelemetry.proto.logs.v1.ScopeLogs} ScopeLogs
-						* @throws {Error} If the payload is not a reader or valid buffer
-						* @throws {$protobuf.util.ProtocolError} If required fields are missing
-						*/
-						ScopeLogs.decodeDelimited = function decodeDelimited(reader) {
-							if (!(reader instanceof $Reader)) reader = new $Reader(reader);
-							return this.decode(reader, reader.uint32());
-						};
-						/**
-						* Verifies a ScopeLogs message.
-						* @function verify
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {Object.<string,*>} message Plain object to verify
-						* @returns {string|null} `null` if valid, otherwise the reason why it is not
-						*/
-						ScopeLogs.verify = function verify(message) {
-							if (typeof message !== "object" || message === null) return "object expected";
-							if (message.scope != null && message.hasOwnProperty("scope")) {
-								var error = $root.opentelemetry.proto.common.v1.InstrumentationScope.verify(message.scope);
-								if (error) return "scope." + error;
-							}
-							if (message.logRecords != null && message.hasOwnProperty("logRecords")) {
-								if (!Array.isArray(message.logRecords)) return "logRecords: array expected";
-								for (var i = 0; i < message.logRecords.length; ++i) {
-									var error = $root.opentelemetry.proto.logs.v1.LogRecord.verify(message.logRecords[i]);
-									if (error) return "logRecords." + error;
-								}
-							}
-							if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl")) {
-								if (!$util.isString(message.schemaUrl)) return "schemaUrl: string expected";
-							}
-							return null;
-						};
-						/**
-						* Creates a ScopeLogs message from a plain object. Also converts values to their respective internal types.
-						* @function fromObject
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {Object.<string,*>} object Plain object
-						* @returns {opentelemetry.proto.logs.v1.ScopeLogs} ScopeLogs
-						*/
-						ScopeLogs.fromObject = function fromObject(object) {
-							if (object instanceof $root.opentelemetry.proto.logs.v1.ScopeLogs) return object;
-							var message = new $root.opentelemetry.proto.logs.v1.ScopeLogs();
-							if (object.scope != null) {
-								if (typeof object.scope !== "object") throw TypeError(".opentelemetry.proto.logs.v1.ScopeLogs.scope: object expected");
-								message.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.fromObject(object.scope);
-							}
-							if (object.logRecords) {
-								if (!Array.isArray(object.logRecords)) throw TypeError(".opentelemetry.proto.logs.v1.ScopeLogs.logRecords: array expected");
-								message.logRecords = [];
-								for (var i = 0; i < object.logRecords.length; ++i) {
-									if (typeof object.logRecords[i] !== "object") throw TypeError(".opentelemetry.proto.logs.v1.ScopeLogs.logRecords: object expected");
-									message.logRecords[i] = $root.opentelemetry.proto.logs.v1.LogRecord.fromObject(object.logRecords[i]);
-								}
-							}
-							if (object.schemaUrl != null) message.schemaUrl = String(object.schemaUrl);
-							return message;
-						};
-						/**
-						* Creates a plain object from a ScopeLogs message. Also converts values to other types if specified.
-						* @function toObject
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {opentelemetry.proto.logs.v1.ScopeLogs} message ScopeLogs
-						* @param {$protobuf.IConversionOptions} [options] Conversion options
-						* @returns {Object.<string,*>} Plain object
-						*/
-						ScopeLogs.toObject = function toObject(message, options) {
-							if (!options) options = {};
-							var object = {};
-							if (options.arrays || options.defaults) object.logRecords = [];
-							if (options.defaults) {
-								object.scope = null;
-								object.schemaUrl = "";
-							}
-							if (message.scope != null && message.hasOwnProperty("scope")) object.scope = $root.opentelemetry.proto.common.v1.InstrumentationScope.toObject(message.scope, options);
-							if (message.logRecords && message.logRecords.length) {
-								object.logRecords = [];
-								for (var j = 0; j < message.logRecords.length; ++j) object.logRecords[j] = $root.opentelemetry.proto.logs.v1.LogRecord.toObject(message.logRecords[j], options);
-							}
-							if (message.schemaUrl != null && message.hasOwnProperty("schemaUrl")) object.schemaUrl = message.schemaUrl;
-							return object;
-						};
-						/**
-						* Converts this ScopeLogs to JSON.
-						* @function toJSON
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @instance
-						* @returns {Object.<string,*>} JSON object
-						*/
-						ScopeLogs.prototype.toJSON = function toJSON() {
-							return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-						};
-						/**
-						* Gets the default type url for ScopeLogs
-						* @function getTypeUrl
-						* @memberof opentelemetry.proto.logs.v1.ScopeLogs
-						* @static
-						* @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-						* @returns {string} The default type url
-						*/
-						ScopeLogs.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-							if (typeUrlPrefix === void 0) typeUrlPrefix = "type.googleapis.com";
-							return typeUrlPrefix + "/opentelemetry.proto.logs.v1.ScopeLogs";
-						};
-						return ScopeLogs;
-					})();
-					/**
-					* SeverityNumber enum.
-					* @name opentelemetry.proto.logs.v1.SeverityNumber
-					* @enum {number}
-					* @property {number} SEVERITY_NUMBER_UNSPECIFIED=0 SEVERITY_NUMBER_UNSPECIFIED value
-					* @property {number} SEVERITY_NUMBER_TRACE=1 SEVERITY_NUMBER_TRACE value
-					* @property {number} SEVERITY_NUMBER_TRACE2=2 SEVERITY_NUMBER_TRACE2 value
-					* @property {number} SEVERITY_NUMBER_TRACE3=3 SEVERITY_NUMBER_TRACE3 value
-					* @property {number} SEVERITY_NUMBER_TRACE4=4 SEVERITY_NUMBER_TRACE4 value
-					* @property {number} SEVERITY_NUMBER_DEBUG=5 SEVERITY_NUMBER_DEBUG value
-					* @property {number} SEVERITY_NUMBER_DEBUG2=6 SEVERITY_NUMBER_DEBUG2 value
-					* @property {number} SEVERITY_NUMBER_DEBUG3=7 SEVERITY_NUMBER_DEBUG3 value
-					* @property {number} SEVERITY_NUMBER_DEBUG4=8 SEVERITY_NUMBER_DEBUG4 value
-					* @property {number} SEVERITY_NUMBER_INFO=9 SEVERITY_NUMBER_INFO value
-					* @property {number} SEVERITY_NUMBER_INFO2=10 SEVERITY_NUMBER_INFO2 value
-					* @property {number} SEVERITY_NUMBER_INFO3=11 SEVERITY_NUMBER_INFO3 value
-					* @property {number} SEVERITY_NUMBER_INFO4=12 SEVERITY_NUMBER_INFO4 value
-					* @property {number} SEVERITY_NUMBER_WARN=13 SEVERITY_NUMBER_WARN value
-					* @property {number} SEVERITY_NUMBER_WARN2=14 SEVERITY_NUMBER_WARN2 value
-					* @property {number} SEVERITY_NUMBER_WARN3=15 SEVERITY_NUMBER_WARN3 value
-					* @property {number} SEVERITY_NUMBER_WARN4=16 SEVERITY_NUMBER_WARN4 value
-					* @property {number} SEVERITY_NUMBER_ERROR=17 SEVERITY_NUMBER_ERROR value
-					* @property {number} SEVERITY_NUMBER_ERROR2=18 SEVERITY_NUMBER_ERROR2 value
-					* @property {number} SEVERITY_NUMBER_ERROR3=19 SEVERITY_NUMBER_ERROR3 value
-					* @property {number} SEVERITY_NUMBER_ERROR4=20 SEVERITY_NUMBER_ERROR4 value
-					* @property {number} SEVERITY_NUMBER_FATAL=21 SEVERITY_NUMBER_FATAL value
-					* @property {number} SEVERITY_NUMBER_FATAL2=22 SEVERITY_NUMBER_FATAL2 value
-					* @property {number} SEVERITY_NUMBER_FATAL3=23 SEVERITY_NUMBER_FATAL3 value
-					* @property {number} SEVERITY_NUMBER_FATAL4=24 SEVERITY_NUMBER_FATAL4 value
-					*/
-					v1.SeverityNumber = (function() {
-						var valuesById = {}, values = Object.create(valuesById);
-						values[valuesById[0] = "SEVERITY_NUMBER_UNSPECIFIED"] = 0;
-						values[valuesById[1] = "SEVERITY_NUMBER_TRACE"] = 1;
-						values[valuesById[2] = "SEVERITY_NUMBER_TRACE2"] = 2;
-						values[valuesById[3] = "SEVERITY_NUMBER_TRACE3"] = 3;
-						values[valuesById[4] = "SEVERITY_NUMBER_TRACE4"] = 4;
-						values[valuesById[5] = "SEVERITY_NUMBER_DEBUG"] = 5;
-						values[valuesById[6] = "SEVERITY_NUMBER_DEBUG2"] = 6;
-						values[valuesById[7] = "SEVERITY_NUMBER_DEBUG3"] = 7;
-						values[valuesById[8] = "SEVERITY_NUMBER_DEBUG4"] = 8;
-						values[valuesById[9] = "SEVERITY_NUMBER_INFO"] = 9;
-						values[valuesById[10] = "SEVERITY_NUMBER_INFO2"] = 10;
-						values[valuesById[11] = "SEVERITY_NUMBER_INFO3"] = 11;
-						values[valuesById[12] = "SEVERITY_NUMBER_INFO4"] = 12;
-						values[valuesById[13] = "SEVERITY_NUMBER_WARN"] = 13;
-						values[valuesById[14] = "SEVERITY_NUMBER_WARN2"] = 14;
-						values[valuesById[15] = "SEVERITY_NUMBER_WARN3"] = 15;
-						values[valuesById[16] = "SEVERITY_NUMBER_WARN4"] = 16;
-						values[valuesById[17] = "SEVERITY_NUMBER_ERROR"] = 17;
-						values[valuesById[18] = "SEVERITY_NUMBER_ERROR2"] = 18;
-						values[valuesById[19] = "SEVERITY_NUMBER_ERROR3"] = 19;
-						values[valuesById[20] = "SEVERITY_NUMBER_ERROR4"] = 20;
-						values[valuesById[21] = "SEVERITY_NUMBER_FATAL"] = 21;
-						values[valuesById[22] = "SEVERITY_NUMBER_FATAL2"] = 22;
-						values[valuesById[23] = "SEVERITY_NUMBER_FATAL3"] = 23;
-						values[valuesById[24] = "SEVERITY_NUMBER_FATAL4"] = 24;
-						return values;
-					})();
-					/**
-					* LogRecordFlags enum.
-					* @name opentelemetry.proto.logs.v1.LogRecordFlags
-					* @enum {number}
-					* @property {number} LOG_RECORD_FLAGS_DO_NOT_USE=0 LOG_RECORD_FLAGS_DO_NOT_USE value
-					* @property {number} LOG_RECORD_FLAGS_TRACE_FLAGS_MASK=255 LOG_RECORD_FLAGS_TRACE_FLAGS_MASK value
-					*/
-					v1.LogRecordFlags = (function() {
-						var valuesById = {}, values = Object.create(valuesById);
-						values[valuesById[0] = "LOG_RECORD_FLAGS_DO_NOT_USE"] = 0;
-						values[valuesById[255] = "LOG_RECORD_FLAGS_TRACE_FLAGS_MASK"] = 255;
-						return values;
-					})();
-					v1.LogRecord = (function() {
-						/**
-						* Properties of a LogRecord.
-						* @memberof opentelemetry.proto.logs.v1
-						* @interface ILogRecord
-						* @property {number|Long|null} [timeUnixNano] LogRecord timeUnixNano
-						* @property {number|Long|null} [observedTimeUnixNano] LogRecord observedTimeUnixNano
-						* @property {opentelemetry.proto.logs.v1.SeverityNumber|null} [severityNumber] LogRecord severityNumber
-						* @property {string|null} [severityText] LogRecord severityText
-						* @property {opentelemetry.proto.common.v1.IAnyValue|null} [body] LogRecord body
-						* @property {Array.<opentelemetry.proto.common.v1.IKeyValue>|null} [attributes] LogRecord attributes
-						* @property {number|null} [droppedAttributesCount] LogRecord droppedAttributesCount
-						* @property {number|null} [flags] LogRecord flags
-						* @property {Uint8Array|null} [traceId] LogRecord traceId
-						* @property {Uint8Array|null} [spanId] LogRecord spanId
-						* @property {string|null} [eventName] LogRecord eventName
-						*/
-						/**
-						* Constructs a new LogRecord.
-						* @memberof opentelemetry.proto.logs.v1
-						* @classdesc Represents a LogRecord.
-						* @implements ILogRecord
-						* @constructor
-						* @param {opentelemetry.proto.logs.v1.ILogRecord=} [properties] Properties to set
-						*/
-						function LogRecord(properties) {
-							this.attributes = [];
-							if (properties) {
-								for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) if (properties[keys[i]] != null) this[keys[i]] = properties[keys[i]];
-							}
-						}
-						/**
-						* LogRecord timeUnixNano.
-						* @member {number|Long|null|undefined} timeUnixNano
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.timeUnixNano = null;
-						/**
-						* LogRecord observedTimeUnixNano.
-						* @member {number|Long|null|undefined} observedTimeUnixNano
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.observedTimeUnixNano = null;
-						/**
-						* LogRecord severityNumber.
-						* @member {opentelemetry.proto.logs.v1.SeverityNumber|null|undefined} severityNumber
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.severityNumber = null;
-						/**
-						* LogRecord severityText.
-						* @member {string|null|undefined} severityText
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.severityText = null;
-						/**
-						* LogRecord body.
-						* @member {opentelemetry.proto.common.v1.IAnyValue|null|undefined} body
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.body = null;
-						/**
-						* LogRecord attributes.
-						* @member {Array.<opentelemetry.proto.common.v1.IKeyValue>} attributes
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.attributes = $util.emptyArray;
-						/**
-						* LogRecord droppedAttributesCount.
-						* @member {number|null|undefined} droppedAttributesCount
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.droppedAttributesCount = null;
-						/**
-						* LogRecord flags.
-						* @member {number|null|undefined} flags
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.flags = null;
-						/**
-						* LogRecord traceId.
-						* @member {Uint8Array|null|undefined} traceId
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.traceId = null;
-						/**
-						* LogRecord spanId.
-						* @member {Uint8Array|null|undefined} spanId
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.spanId = null;
-						/**
-						* LogRecord eventName.
-						* @member {string|null|undefined} eventName
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						*/
-						LogRecord.prototype.eventName = null;
-						/**
-						* Creates a new LogRecord instance using the specified properties.
-						* @function create
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {opentelemetry.proto.logs.v1.ILogRecord=} [properties] Properties to set
-						* @returns {opentelemetry.proto.logs.v1.LogRecord} LogRecord instance
-						*/
-						LogRecord.create = function create(properties) {
-							return new LogRecord(properties);
-						};
-						/**
-						* Encodes the specified LogRecord message. Does not implicitly {@link opentelemetry.proto.logs.v1.LogRecord.verify|verify} messages.
-						* @function encode
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {opentelemetry.proto.logs.v1.ILogRecord} message LogRecord message or plain object to encode
-						* @param {$protobuf.Writer} [writer] Writer to encode to
-						* @returns {$protobuf.Writer} Writer
-						*/
-						LogRecord.encode = function encode(message, writer) {
-							if (!writer) writer = $Writer.create();
-							if (message.timeUnixNano != null && Object.hasOwnProperty.call(message, "timeUnixNano")) writer.uint32(9).fixed64(message.timeUnixNano);
-							if (message.severityNumber != null && Object.hasOwnProperty.call(message, "severityNumber")) writer.uint32(16).int32(message.severityNumber);
-							if (message.severityText != null && Object.hasOwnProperty.call(message, "severityText")) writer.uint32(26).string(message.severityText);
-							if (message.body != null && Object.hasOwnProperty.call(message, "body")) $root.opentelemetry.proto.common.v1.AnyValue.encode(message.body, writer.uint32(42).fork()).ldelim();
-							if (message.attributes != null && message.attributes.length) for (var i = 0; i < message.attributes.length; ++i) $root.opentelemetry.proto.common.v1.KeyValue.encode(message.attributes[i], writer.uint32(50).fork()).ldelim();
-							if (message.droppedAttributesCount != null && Object.hasOwnProperty.call(message, "droppedAttributesCount")) writer.uint32(56).uint32(message.droppedAttributesCount);
-							if (message.flags != null && Object.hasOwnProperty.call(message, "flags")) writer.uint32(69).fixed32(message.flags);
-							if (message.traceId != null && Object.hasOwnProperty.call(message, "traceId")) writer.uint32(74).bytes(message.traceId);
-							if (message.spanId != null && Object.hasOwnProperty.call(message, "spanId")) writer.uint32(82).bytes(message.spanId);
-							if (message.observedTimeUnixNano != null && Object.hasOwnProperty.call(message, "observedTimeUnixNano")) writer.uint32(89).fixed64(message.observedTimeUnixNano);
-							if (message.eventName != null && Object.hasOwnProperty.call(message, "eventName")) writer.uint32(98).string(message.eventName);
-							return writer;
-						};
-						/**
-						* Encodes the specified LogRecord message, length delimited. Does not implicitly {@link opentelemetry.proto.logs.v1.LogRecord.verify|verify} messages.
-						* @function encodeDelimited
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {opentelemetry.proto.logs.v1.ILogRecord} message LogRecord message or plain object to encode
-						* @param {$protobuf.Writer} [writer] Writer to encode to
-						* @returns {$protobuf.Writer} Writer
-						*/
-						LogRecord.encodeDelimited = function encodeDelimited(message, writer) {
-							return this.encode(message, writer).ldelim();
-						};
-						/**
-						* Decodes a LogRecord message from the specified reader or buffer.
-						* @function decode
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-						* @param {number} [length] Message length if known beforehand
-						* @returns {opentelemetry.proto.logs.v1.LogRecord} LogRecord
-						* @throws {Error} If the payload is not a reader or valid buffer
-						* @throws {$protobuf.util.ProtocolError} If required fields are missing
-						*/
-						LogRecord.decode = function decode(reader, length, error) {
-							if (!(reader instanceof $Reader)) reader = $Reader.create(reader);
-							var end = length === void 0 ? reader.len : reader.pos + length, message = new $root.opentelemetry.proto.logs.v1.LogRecord();
-							while (reader.pos < end) {
-								var tag = reader.uint32();
-								if (tag === error) break;
-								switch (tag >>> 3) {
-									case 1:
-										message.timeUnixNano = reader.fixed64();
-										break;
-									case 11:
-										message.observedTimeUnixNano = reader.fixed64();
-										break;
-									case 2:
-										message.severityNumber = reader.int32();
-										break;
-									case 3:
-										message.severityText = reader.string();
-										break;
-									case 5:
-										message.body = $root.opentelemetry.proto.common.v1.AnyValue.decode(reader, reader.uint32());
-										break;
-									case 6:
-										if (!(message.attributes && message.attributes.length)) message.attributes = [];
-										message.attributes.push($root.opentelemetry.proto.common.v1.KeyValue.decode(reader, reader.uint32()));
-										break;
-									case 7:
-										message.droppedAttributesCount = reader.uint32();
-										break;
-									case 8:
-										message.flags = reader.fixed32();
-										break;
-									case 9:
-										message.traceId = reader.bytes();
-										break;
-									case 10:
-										message.spanId = reader.bytes();
-										break;
-									case 12:
-										message.eventName = reader.string();
-										break;
-									default:
-										reader.skipType(tag & 7);
-										break;
-								}
-							}
-							return message;
-						};
-						/**
-						* Decodes a LogRecord message from the specified reader or buffer, length delimited.
-						* @function decodeDelimited
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-						* @returns {opentelemetry.proto.logs.v1.LogRecord} LogRecord
-						* @throws {Error} If the payload is not a reader or valid buffer
-						* @throws {$protobuf.util.ProtocolError} If required fields are missing
-						*/
-						LogRecord.decodeDelimited = function decodeDelimited(reader) {
-							if (!(reader instanceof $Reader)) reader = new $Reader(reader);
-							return this.decode(reader, reader.uint32());
-						};
-						/**
-						* Verifies a LogRecord message.
-						* @function verify
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {Object.<string,*>} message Plain object to verify
-						* @returns {string|null} `null` if valid, otherwise the reason why it is not
-						*/
-						LogRecord.verify = function verify(message) {
-							if (typeof message !== "object" || message === null) return "object expected";
-							if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano")) {
-								if (!$util.isInteger(message.timeUnixNano) && !(message.timeUnixNano && $util.isInteger(message.timeUnixNano.low) && $util.isInteger(message.timeUnixNano.high))) return "timeUnixNano: integer|Long expected";
-							}
-							if (message.observedTimeUnixNano != null && message.hasOwnProperty("observedTimeUnixNano")) {
-								if (!$util.isInteger(message.observedTimeUnixNano) && !(message.observedTimeUnixNano && $util.isInteger(message.observedTimeUnixNano.low) && $util.isInteger(message.observedTimeUnixNano.high))) return "observedTimeUnixNano: integer|Long expected";
-							}
-							if (message.severityNumber != null && message.hasOwnProperty("severityNumber")) switch (message.severityNumber) {
-								default: return "severityNumber: enum value expected";
-								case 0:
-								case 1:
-								case 2:
-								case 3:
-								case 4:
-								case 5:
-								case 6:
-								case 7:
-								case 8:
-								case 9:
-								case 10:
-								case 11:
-								case 12:
-								case 13:
-								case 14:
-								case 15:
-								case 16:
-								case 17:
-								case 18:
-								case 19:
-								case 20:
-								case 21:
-								case 22:
-								case 23:
-								case 24: break;
-							}
-							if (message.severityText != null && message.hasOwnProperty("severityText")) {
-								if (!$util.isString(message.severityText)) return "severityText: string expected";
-							}
-							if (message.body != null && message.hasOwnProperty("body")) {
-								var error = $root.opentelemetry.proto.common.v1.AnyValue.verify(message.body);
-								if (error) return "body." + error;
-							}
-							if (message.attributes != null && message.hasOwnProperty("attributes")) {
-								if (!Array.isArray(message.attributes)) return "attributes: array expected";
-								for (var i = 0; i < message.attributes.length; ++i) {
-									var error = $root.opentelemetry.proto.common.v1.KeyValue.verify(message.attributes[i]);
-									if (error) return "attributes." + error;
-								}
-							}
-							if (message.droppedAttributesCount != null && message.hasOwnProperty("droppedAttributesCount")) {
-								if (!$util.isInteger(message.droppedAttributesCount)) return "droppedAttributesCount: integer expected";
-							}
-							if (message.flags != null && message.hasOwnProperty("flags")) {
-								if (!$util.isInteger(message.flags)) return "flags: integer expected";
-							}
-							if (message.traceId != null && message.hasOwnProperty("traceId")) {
-								if (!(message.traceId && typeof message.traceId.length === "number" || $util.isString(message.traceId))) return "traceId: buffer expected";
-							}
-							if (message.spanId != null && message.hasOwnProperty("spanId")) {
-								if (!(message.spanId && typeof message.spanId.length === "number" || $util.isString(message.spanId))) return "spanId: buffer expected";
-							}
-							if (message.eventName != null && message.hasOwnProperty("eventName")) {
-								if (!$util.isString(message.eventName)) return "eventName: string expected";
-							}
-							return null;
-						};
-						/**
-						* Creates a LogRecord message from a plain object. Also converts values to their respective internal types.
-						* @function fromObject
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {Object.<string,*>} object Plain object
-						* @returns {opentelemetry.proto.logs.v1.LogRecord} LogRecord
-						*/
-						LogRecord.fromObject = function fromObject(object) {
-							if (object instanceof $root.opentelemetry.proto.logs.v1.LogRecord) return object;
-							var message = new $root.opentelemetry.proto.logs.v1.LogRecord();
-							if (object.timeUnixNano != null) {
-								if ($util.Long) (message.timeUnixNano = $util.Long.fromValue(object.timeUnixNano)).unsigned = false;
-								else if (typeof object.timeUnixNano === "string") message.timeUnixNano = parseInt(object.timeUnixNano, 10);
-								else if (typeof object.timeUnixNano === "number") message.timeUnixNano = object.timeUnixNano;
-								else if (typeof object.timeUnixNano === "object") message.timeUnixNano = new $util.LongBits(object.timeUnixNano.low >>> 0, object.timeUnixNano.high >>> 0).toNumber();
-							}
-							if (object.observedTimeUnixNano != null) {
-								if ($util.Long) (message.observedTimeUnixNano = $util.Long.fromValue(object.observedTimeUnixNano)).unsigned = false;
-								else if (typeof object.observedTimeUnixNano === "string") message.observedTimeUnixNano = parseInt(object.observedTimeUnixNano, 10);
-								else if (typeof object.observedTimeUnixNano === "number") message.observedTimeUnixNano = object.observedTimeUnixNano;
-								else if (typeof object.observedTimeUnixNano === "object") message.observedTimeUnixNano = new $util.LongBits(object.observedTimeUnixNano.low >>> 0, object.observedTimeUnixNano.high >>> 0).toNumber();
-							}
-							switch (object.severityNumber) {
-								default:
-									if (typeof object.severityNumber === "number") {
-										message.severityNumber = object.severityNumber;
-										break;
-									}
-									break;
-								case "SEVERITY_NUMBER_UNSPECIFIED":
-								case 0:
-									message.severityNumber = 0;
-									break;
-								case "SEVERITY_NUMBER_TRACE":
-								case 1:
-									message.severityNumber = 1;
-									break;
-								case "SEVERITY_NUMBER_TRACE2":
-								case 2:
-									message.severityNumber = 2;
-									break;
-								case "SEVERITY_NUMBER_TRACE3":
-								case 3:
-									message.severityNumber = 3;
-									break;
-								case "SEVERITY_NUMBER_TRACE4":
-								case 4:
-									message.severityNumber = 4;
-									break;
-								case "SEVERITY_NUMBER_DEBUG":
-								case 5:
-									message.severityNumber = 5;
-									break;
-								case "SEVERITY_NUMBER_DEBUG2":
-								case 6:
-									message.severityNumber = 6;
-									break;
-								case "SEVERITY_NUMBER_DEBUG3":
-								case 7:
-									message.severityNumber = 7;
-									break;
-								case "SEVERITY_NUMBER_DEBUG4":
-								case 8:
-									message.severityNumber = 8;
-									break;
-								case "SEVERITY_NUMBER_INFO":
-								case 9:
-									message.severityNumber = 9;
-									break;
-								case "SEVERITY_NUMBER_INFO2":
-								case 10:
-									message.severityNumber = 10;
-									break;
-								case "SEVERITY_NUMBER_INFO3":
-								case 11:
-									message.severityNumber = 11;
-									break;
-								case "SEVERITY_NUMBER_INFO4":
-								case 12:
-									message.severityNumber = 12;
-									break;
-								case "SEVERITY_NUMBER_WARN":
-								case 13:
-									message.severityNumber = 13;
-									break;
-								case "SEVERITY_NUMBER_WARN2":
-								case 14:
-									message.severityNumber = 14;
-									break;
-								case "SEVERITY_NUMBER_WARN3":
-								case 15:
-									message.severityNumber = 15;
-									break;
-								case "SEVERITY_NUMBER_WARN4":
-								case 16:
-									message.severityNumber = 16;
-									break;
-								case "SEVERITY_NUMBER_ERROR":
-								case 17:
-									message.severityNumber = 17;
-									break;
-								case "SEVERITY_NUMBER_ERROR2":
-								case 18:
-									message.severityNumber = 18;
-									break;
-								case "SEVERITY_NUMBER_ERROR3":
-								case 19:
-									message.severityNumber = 19;
-									break;
-								case "SEVERITY_NUMBER_ERROR4":
-								case 20:
-									message.severityNumber = 20;
-									break;
-								case "SEVERITY_NUMBER_FATAL":
-								case 21:
-									message.severityNumber = 21;
-									break;
-								case "SEVERITY_NUMBER_FATAL2":
-								case 22:
-									message.severityNumber = 22;
-									break;
-								case "SEVERITY_NUMBER_FATAL3":
-								case 23:
-									message.severityNumber = 23;
-									break;
-								case "SEVERITY_NUMBER_FATAL4":
-								case 24:
-									message.severityNumber = 24;
-									break;
-							}
-							if (object.severityText != null) message.severityText = String(object.severityText);
-							if (object.body != null) {
-								if (typeof object.body !== "object") throw TypeError(".opentelemetry.proto.logs.v1.LogRecord.body: object expected");
-								message.body = $root.opentelemetry.proto.common.v1.AnyValue.fromObject(object.body);
-							}
-							if (object.attributes) {
-								if (!Array.isArray(object.attributes)) throw TypeError(".opentelemetry.proto.logs.v1.LogRecord.attributes: array expected");
-								message.attributes = [];
-								for (var i = 0; i < object.attributes.length; ++i) {
-									if (typeof object.attributes[i] !== "object") throw TypeError(".opentelemetry.proto.logs.v1.LogRecord.attributes: object expected");
-									message.attributes[i] = $root.opentelemetry.proto.common.v1.KeyValue.fromObject(object.attributes[i]);
-								}
-							}
-							if (object.droppedAttributesCount != null) message.droppedAttributesCount = object.droppedAttributesCount >>> 0;
-							if (object.flags != null) message.flags = object.flags >>> 0;
-							if (object.traceId != null) {
-								if (typeof object.traceId === "string") $util.base64.decode(object.traceId, message.traceId = $util.newBuffer($util.base64.length(object.traceId)), 0);
-								else if (object.traceId.length >= 0) message.traceId = object.traceId;
-							}
-							if (object.spanId != null) {
-								if (typeof object.spanId === "string") $util.base64.decode(object.spanId, message.spanId = $util.newBuffer($util.base64.length(object.spanId)), 0);
-								else if (object.spanId.length >= 0) message.spanId = object.spanId;
-							}
-							if (object.eventName != null) message.eventName = String(object.eventName);
-							return message;
-						};
-						/**
-						* Creates a plain object from a LogRecord message. Also converts values to other types if specified.
-						* @function toObject
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {opentelemetry.proto.logs.v1.LogRecord} message LogRecord
-						* @param {$protobuf.IConversionOptions} [options] Conversion options
-						* @returns {Object.<string,*>} Plain object
-						*/
-						LogRecord.toObject = function toObject(message, options) {
-							if (!options) options = {};
-							var object = {};
-							if (options.arrays || options.defaults) object.attributes = [];
-							if (options.defaults) {
-								if ($util.Long) {
-									var long = new $util.Long(0, 0, false);
-									object.timeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
-								} else object.timeUnixNano = options.longs === String ? "0" : 0;
-								object.severityNumber = options.enums === String ? "SEVERITY_NUMBER_UNSPECIFIED" : 0;
-								object.severityText = "";
-								object.body = null;
-								object.droppedAttributesCount = 0;
-								object.flags = 0;
-								if (options.bytes === String) object.traceId = "";
-								else {
-									object.traceId = [];
-									if (options.bytes !== Array) object.traceId = $util.newBuffer(object.traceId);
-								}
-								if (options.bytes === String) object.spanId = "";
-								else {
-									object.spanId = [];
-									if (options.bytes !== Array) object.spanId = $util.newBuffer(object.spanId);
-								}
-								if ($util.Long) {
-									var long = new $util.Long(0, 0, false);
-									object.observedTimeUnixNano = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
-								} else object.observedTimeUnixNano = options.longs === String ? "0" : 0;
-								object.eventName = "";
-							}
-							if (message.timeUnixNano != null && message.hasOwnProperty("timeUnixNano")) if (typeof message.timeUnixNano === "number") object.timeUnixNano = options.longs === String ? String(message.timeUnixNano) : message.timeUnixNano;
-							else object.timeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.timeUnixNano) : options.longs === Number ? new $util.LongBits(message.timeUnixNano.low >>> 0, message.timeUnixNano.high >>> 0).toNumber() : message.timeUnixNano;
-							if (message.severityNumber != null && message.hasOwnProperty("severityNumber")) object.severityNumber = options.enums === String ? $root.opentelemetry.proto.logs.v1.SeverityNumber[message.severityNumber] === void 0 ? message.severityNumber : $root.opentelemetry.proto.logs.v1.SeverityNumber[message.severityNumber] : message.severityNumber;
-							if (message.severityText != null && message.hasOwnProperty("severityText")) object.severityText = message.severityText;
-							if (message.body != null && message.hasOwnProperty("body")) object.body = $root.opentelemetry.proto.common.v1.AnyValue.toObject(message.body, options);
-							if (message.attributes && message.attributes.length) {
-								object.attributes = [];
-								for (var j = 0; j < message.attributes.length; ++j) object.attributes[j] = $root.opentelemetry.proto.common.v1.KeyValue.toObject(message.attributes[j], options);
-							}
-							if (message.droppedAttributesCount != null && message.hasOwnProperty("droppedAttributesCount")) object.droppedAttributesCount = message.droppedAttributesCount;
-							if (message.flags != null && message.hasOwnProperty("flags")) object.flags = message.flags;
-							if (message.traceId != null && message.hasOwnProperty("traceId")) object.traceId = options.bytes === String ? $util.base64.encode(message.traceId, 0, message.traceId.length) : options.bytes === Array ? Array.prototype.slice.call(message.traceId) : message.traceId;
-							if (message.spanId != null && message.hasOwnProperty("spanId")) object.spanId = options.bytes === String ? $util.base64.encode(message.spanId, 0, message.spanId.length) : options.bytes === Array ? Array.prototype.slice.call(message.spanId) : message.spanId;
-							if (message.observedTimeUnixNano != null && message.hasOwnProperty("observedTimeUnixNano")) if (typeof message.observedTimeUnixNano === "number") object.observedTimeUnixNano = options.longs === String ? String(message.observedTimeUnixNano) : message.observedTimeUnixNano;
-							else object.observedTimeUnixNano = options.longs === String ? $util.Long.prototype.toString.call(message.observedTimeUnixNano) : options.longs === Number ? new $util.LongBits(message.observedTimeUnixNano.low >>> 0, message.observedTimeUnixNano.high >>> 0).toNumber() : message.observedTimeUnixNano;
-							if (message.eventName != null && message.hasOwnProperty("eventName")) object.eventName = message.eventName;
-							return object;
-						};
-						/**
-						* Converts this LogRecord to JSON.
-						* @function toJSON
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @instance
-						* @returns {Object.<string,*>} JSON object
-						*/
-						LogRecord.prototype.toJSON = function toJSON() {
-							return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-						};
-						/**
-						* Gets the default type url for LogRecord
-						* @function getTypeUrl
-						* @memberof opentelemetry.proto.logs.v1.LogRecord
-						* @static
-						* @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-						* @returns {string} The default type url
-						*/
-						LogRecord.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-							if (typeUrlPrefix === void 0) typeUrlPrefix = "type.googleapis.com";
-							return typeUrlPrefix + "/opentelemetry.proto.logs.v1.LogRecord";
-						};
-						return LogRecord;
-					})();
-					return v1;
-				})();
-				return logs;
-			})();
 			return proto;
 		})();
 		return opentelemetry;
 	})();
 	module.exports = $root;
-}));
-//#endregion
-//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/internal.js
-var require_internal$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.toAnyValue = exports.toKeyValue = exports.toAttributes = exports.createInstrumentationScope = exports.createResource = void 0;
-	function createResource(resource, encoder) {
-		const result = {
-			attributes: toAttributes(resource.attributes, encoder),
-			droppedAttributesCount: 0
-		};
-		const schemaUrl = resource.schemaUrl;
-		if (schemaUrl && schemaUrl !== "") result.schemaUrl = schemaUrl;
-		return result;
-	}
-	exports.createResource = createResource;
-	function createInstrumentationScope(scope) {
-		return {
-			name: scope.name,
-			version: scope.version
-		};
-	}
-	exports.createInstrumentationScope = createInstrumentationScope;
-	function toAttributes(attributes, encoder) {
-		return Object.keys(attributes).map((key) => toKeyValue(key, attributes[key], encoder));
-	}
-	exports.toAttributes = toAttributes;
-	function toKeyValue(key, value, encoder) {
-		return {
-			key,
-			value: toAnyValue(value, encoder)
-		};
-	}
-	exports.toKeyValue = toKeyValue;
-	function toAnyValue(value, encoder) {
-		const t = typeof value;
-		if (t === "string") return { stringValue: value };
-		if (t === "number") {
-			if (!Number.isInteger(value)) return { doubleValue: value };
-			return { intValue: value };
-		}
-		if (t === "boolean") return { boolValue: value };
-		if (value instanceof Uint8Array) return { bytesValue: encoder.encodeUint8Array(value) };
-		if (Array.isArray(value)) {
-			const values = new Array(value.length);
-			for (let i = 0; i < value.length; i++) values[i] = toAnyValue(value[i], encoder);
-			return { arrayValue: { values } };
-		}
-		if (t === "object" && value != null) {
-			const keys = Object.keys(value);
-			const values = new Array(keys.length);
-			for (let i = 0; i < keys.length; i++) values[i] = {
-				key: keys[i],
-				value: toAnyValue(value[keys[i]], encoder)
-			};
-			return { kvlistValue: { values } };
-		}
-		return {};
-	}
-	exports.toAnyValue = toAnyValue;
-}));
-//#endregion
-//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/internal.js
-var require_internal$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.toLogAttributes = exports.createExportLogsServiceRequest = void 0;
-	const internal_1 = require_internal$3();
-	function createExportLogsServiceRequest(logRecords, encoder) {
-		return { resourceLogs: logRecordsToResourceLogs(logRecords, encoder) };
-	}
-	exports.createExportLogsServiceRequest = createExportLogsServiceRequest;
-	function createResourceMap(logRecords) {
-		const resourceMap = /* @__PURE__ */ new Map();
-		for (const record of logRecords) {
-			const { resource, instrumentationScope: { name, version = "", schemaUrl = "" } } = record;
-			let ismMap = resourceMap.get(resource);
-			if (!ismMap) {
-				ismMap = /* @__PURE__ */ new Map();
-				resourceMap.set(resource, ismMap);
-			}
-			const ismKey = `${name}@${version}:${schemaUrl}`;
-			let records = ismMap.get(ismKey);
-			if (!records) {
-				records = [];
-				ismMap.set(ismKey, records);
-			}
-			records.push(record);
-		}
-		return resourceMap;
-	}
-	function logRecordsToResourceLogs(logRecords, encoder) {
-		const resourceMap = createResourceMap(logRecords);
-		return Array.from(resourceMap, ([resource, ismMap]) => {
-			const processedResource = (0, internal_1.createResource)(resource, encoder);
-			return {
-				resource: processedResource,
-				scopeLogs: Array.from(ismMap, ([, scopeLogs]) => {
-					return {
-						scope: (0, internal_1.createInstrumentationScope)(scopeLogs[0].instrumentationScope),
-						logRecords: scopeLogs.map((log) => toLogRecord(log, encoder)),
-						schemaUrl: scopeLogs[0].instrumentationScope.schemaUrl
-					};
-				}),
-				schemaUrl: processedResource.schemaUrl
-			};
-		});
-	}
-	function toLogRecord(log, encoder) {
-		return {
-			timeUnixNano: encoder.encodeHrTime(log.hrTime),
-			observedTimeUnixNano: encoder.encodeHrTime(log.hrTimeObserved),
-			severityNumber: toSeverityNumber(log.severityNumber),
-			severityText: log.severityText,
-			body: (0, internal_1.toAnyValue)(log.body, encoder),
-			eventName: log.eventName,
-			attributes: toLogAttributes(log.attributes, encoder),
-			droppedAttributesCount: log.droppedAttributesCount,
-			flags: log.spanContext?.traceFlags,
-			traceId: encoder.encodeOptionalSpanContext(log.spanContext?.traceId),
-			spanId: encoder.encodeOptionalSpanContext(log.spanContext?.spanId)
-		};
-	}
-	function toSeverityNumber(severityNumber) {
-		return severityNumber;
-	}
-	function toLogAttributes(attributes, encoder) {
-		return Object.keys(attributes).map((key) => (0, internal_1.toKeyValue)(key, attributes[key], encoder));
-	}
-	exports.toLogAttributes = toLogAttributes;
-}));
-//#endregion
-//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/hex-to-binary.js
-var require_hex_to_binary = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.hexToBinary = void 0;
-	function intValue(charCode) {
-		if (charCode >= 48 && charCode <= 57) return charCode - 48;
-		if (charCode >= 97 && charCode <= 102) return charCode - 87;
-		return charCode - 55;
-	}
-	function hexToBinary(hexStr) {
-		const buf = new Uint8Array(hexStr.length / 2);
-		let offset = 0;
-		for (let i = 0; i < hexStr.length; i += 2) {
-			const hi = intValue(hexStr.charCodeAt(i));
-			const lo = intValue(hexStr.charCodeAt(i + 1));
-			buf[offset++] = hi << 4 | lo;
-		}
-		return buf;
-	}
-	exports.hexToBinary = hexToBinary;
-}));
-//#endregion
-//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/utils.js
-var require_utils$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.JSON_ENCODER = exports.PROTOBUF_ENCODER = exports.encodeAsString = exports.encodeAsLongBits = exports.toLongBits = exports.hrTimeToNanos = void 0;
-	const core_1 = require_src$28();
-	const hex_to_binary_1 = require_hex_to_binary();
-	function hrTimeToNanos(hrTime) {
-		const NANOSECONDS = BigInt(1e9);
-		return BigInt(Math.trunc(hrTime[0])) * NANOSECONDS + BigInt(Math.trunc(hrTime[1]));
-	}
-	exports.hrTimeToNanos = hrTimeToNanos;
-	function toLongBits(value) {
-		return {
-			low: Number(BigInt.asUintN(32, value)),
-			high: Number(BigInt.asUintN(32, value >> BigInt(32)))
-		};
-	}
-	exports.toLongBits = toLongBits;
-	function encodeAsLongBits(hrTime) {
-		return toLongBits(hrTimeToNanos(hrTime));
-	}
-	exports.encodeAsLongBits = encodeAsLongBits;
-	function encodeAsString(hrTime) {
-		return hrTimeToNanos(hrTime).toString();
-	}
-	exports.encodeAsString = encodeAsString;
-	const encodeTimestamp = typeof BigInt !== "undefined" ? encodeAsString : core_1.hrTimeToNanoseconds;
-	function identity(value) {
-		return value;
-	}
-	function optionalHexToBinary(str) {
-		if (str === void 0) return void 0;
-		return (0, hex_to_binary_1.hexToBinary)(str);
-	}
-	/**
-	* Encoder for protobuf format.
-	* Uses { high, low } timestamps and binary for span/trace IDs, leaves Uint8Array attributes as-is.
-	*/
-	exports.PROTOBUF_ENCODER = {
-		encodeHrTime: encodeAsLongBits,
-		encodeSpanContext: hex_to_binary_1.hexToBinary,
-		encodeOptionalSpanContext: optionalHexToBinary,
-		encodeUint8Array: identity
-	};
-	/**
-	* Encoder for JSON format.
-	* Uses string timestamps, hex for span/trace IDs, and base64 for Uint8Array.
-	*/
-	exports.JSON_ENCODER = {
-		encodeHrTime: encodeTimestamp,
-		encodeSpanContext: identity,
-		encodeOptionalSpanContext: identity,
-		encodeUint8Array: (bytes) => {
-			if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
-			const chars = new Array(bytes.length);
-			for (let i = 0; i < bytes.length; i++) chars[i] = String.fromCharCode(bytes[i]);
-			return btoa(chars.join(""));
-		}
-	};
-}));
-//#endregion
-//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/logs.js
-var require_logs$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.ProtobufLogsSerializer = void 0;
-	const root = require_root$1();
-	const internal_1 = require_internal$2();
-	const utils_1 = require_utils$8();
-	const logsResponseType = root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
-	const logsRequestType = root.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
-	exports.ProtobufLogsSerializer = {
-		serializeRequest: (arg) => {
-			const request = (0, internal_1.createExportLogsServiceRequest)(arg, utils_1.PROTOBUF_ENCODER);
-			return logsRequestType.encode(request).finish();
-		},
-		deserializeResponse: (arg) => {
-			return logsResponseType.decode(arg);
-		}
-	};
-}));
-//#endregion
-//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/protobuf/index.js
-var require_protobuf$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.ProtobufLogsSerializer = void 0;
-	var logs_1 = require_logs$2();
-	Object.defineProperty(exports, "ProtobufLogsSerializer", {
-		enumerable: true,
-		get: function() {
-			return logs_1.ProtobufLogsSerializer;
-		}
-	});
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-metrics/build/src/export/AggregationTemporality.js
@@ -18040,7 +16863,7 @@ var require_MetricData = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-metrics/build/src/utils.js
-var require_utils$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_utils$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.equalsCaseInsensitive = exports.binarySearchUB = exports.setEquals = exports.callWithTimeout = exports.TimeoutError = exports.instrumentationScopeId = exports.hashAttributes = void 0;
 	/**
@@ -18165,7 +16988,7 @@ var require_Histogram = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.HistogramAggregator = exports.HistogramAccumulation = void 0;
 	const types_1 = require_types$4();
 	const MetricData_1 = require_MetricData();
-	const utils_1 = require_utils$7();
+	const utils_1 = require_utils$8();
 	function createNewEmptyCheckpoint(boundaries) {
 		const counts = boundaries.map(() => 0);
 		counts.push(0);
@@ -19656,7 +18479,7 @@ var require_MetricReader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MetricReader = void 0;
 	const api = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const utils_1 = require_utils$7();
+	const utils_1 = require_utils$8();
 	const AggregationSelector_1 = require_AggregationSelector();
 	/**
 	* A registered reader of metrics that, when linked to a {@link MetricProducer}, offers global
@@ -19738,7 +18561,8 @@ var require_PeriodicExportingMetricReader = /* @__PURE__ */ __commonJSMin(((expo
 	const api = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const core_1 = require_src$28();
 	const MetricReader_1 = require_MetricReader();
-	const utils_1 = require_utils$7();
+	const utils_1 = require_utils$8();
+	const MetricData_1 = require_MetricData();
 	/**
 	* {@link MetricReader} which collects metrics based on a user-configurable time interval, and passes the metrics to
 	* the configured {@link PushMetricExporter}
@@ -19749,12 +18573,28 @@ var require_PeriodicExportingMetricReader = /* @__PURE__ */ __commonJSMin(((expo
 		_exportInterval;
 		_exportTimeout;
 		constructor(options) {
-			const { exporter, exportIntervalMillis = 6e4, metricProducers } = options;
+			const { exporter, exportIntervalMillis = 6e4, metricProducers, cardinalityLimits } = options;
 			let { exportTimeoutMillis = 3e4 } = options;
 			super({
 				aggregationSelector: exporter.selectAggregation?.bind(exporter),
 				aggregationTemporalitySelector: exporter.selectAggregationTemporality?.bind(exporter),
-				metricProducers
+				metricProducers,
+				cardinalitySelector: (instrumentType) => {
+					const limits = {
+						default: 2e3,
+						...cardinalityLimits
+					};
+					switch (instrumentType) {
+						case MetricData_1.InstrumentType.COUNTER: return limits.counter ?? limits.default;
+						case MetricData_1.InstrumentType.GAUGE: return limits.gauge ?? limits.default;
+						case MetricData_1.InstrumentType.HISTOGRAM: return limits.histogram ?? limits.default;
+						case MetricData_1.InstrumentType.OBSERVABLE_COUNTER: return limits.observableCounter ?? limits.default;
+						case MetricData_1.InstrumentType.OBSERVABLE_UP_DOWN_COUNTER: return limits.observableUpDownCounter ?? limits.default;
+						case MetricData_1.InstrumentType.OBSERVABLE_GAUGE: return limits.observableGauge ?? limits.default;
+						case MetricData_1.InstrumentType.UP_DOWN_COUNTER: return limits.upDownCounter ?? limits.default;
+						default: return limits.default;
+					}
+				}
 			});
 			if (exportIntervalMillis <= 0) throw Error("exportIntervalMillis must be greater than 0");
 			if (exportTimeoutMillis <= 0) throw Error("exportTimeoutMillis must be greater than 0");
@@ -19930,7 +18770,7 @@ var require_default_service_name = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/resources/build/src/utils.js
-var require_utils$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_utils$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isPromiseLike = void 0;
 	const isPromiseLike = (val) => {
@@ -19947,7 +18787,7 @@ var require_ResourceImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const core_1 = require_src$28();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
 	const default_service_name_1 = require_default_service_name();
-	const utils_1 = require_utils$6();
+	const utils_1 = require_utils$7();
 	var ResourceImpl = class ResourceImpl {
 		_rawAttributes;
 		_asyncAttributesPending = false;
@@ -20131,7 +18971,7 @@ var require_EnvDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 		_parseResourceAttributes(rawEnvAttributes) {
 			if (!rawEnvAttributes) return {};
 			const attributes = {};
-			const rawAttributes = rawEnvAttributes.split(this._COMMA_SEPARATOR);
+			const rawAttributes = rawEnvAttributes.split(this._COMMA_SEPARATOR).filter((attr) => attr.trim() !== "");
 			for (const rawAttribute of rawAttributes) {
 				const keyValuePair = rawAttribute.split(this._LABEL_KEY_VALUE_SPLITTER);
 				if (keyValuePair.length !== 2) throw new Error(`Invalid format for OTEL_RESOURCE_ATTRIBUTES: "${rawAttribute}". Expected format: key=value. The ',' and '=' characters must be percent-encoded in keys and values.`);
@@ -20158,7 +18998,7 @@ var require_EnvDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/resources/build/src/semconv.js
-var require_semconv$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_semconv$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ATTR_WEBENGINE_VERSION = exports.ATTR_WEBENGINE_NAME = exports.ATTR_WEBENGINE_DESCRIPTION = exports.ATTR_SERVICE_NAMESPACE = exports.ATTR_SERVICE_INSTANCE_ID = exports.ATTR_PROCESS_RUNTIME_VERSION = exports.ATTR_PROCESS_RUNTIME_NAME = exports.ATTR_PROCESS_RUNTIME_DESCRIPTION = exports.ATTR_PROCESS_PID = exports.ATTR_PROCESS_OWNER = exports.ATTR_PROCESS_EXECUTABLE_PATH = exports.ATTR_PROCESS_EXECUTABLE_NAME = exports.ATTR_PROCESS_COMMAND_ARGS = exports.ATTR_PROCESS_COMMAND = exports.ATTR_OS_VERSION = exports.ATTR_OS_TYPE = exports.ATTR_K8S_POD_NAME = exports.ATTR_K8S_NAMESPACE_NAME = exports.ATTR_K8S_DEPLOYMENT_NAME = exports.ATTR_K8S_CLUSTER_NAME = exports.ATTR_HOST_TYPE = exports.ATTR_HOST_NAME = exports.ATTR_HOST_IMAGE_VERSION = exports.ATTR_HOST_IMAGE_NAME = exports.ATTR_HOST_IMAGE_ID = exports.ATTR_HOST_ID = exports.ATTR_HOST_ARCH = exports.ATTR_CONTAINER_NAME = exports.ATTR_CONTAINER_IMAGE_TAGS = exports.ATTR_CONTAINER_IMAGE_NAME = exports.ATTR_CONTAINER_ID = exports.ATTR_CLOUD_REGION = exports.ATTR_CLOUD_PROVIDER = exports.ATTR_CLOUD_AVAILABILITY_ZONE = exports.ATTR_CLOUD_ACCOUNT_ID = void 0;
 	/**
@@ -20483,19 +19323,19 @@ var require_getMachineId = /* @__PURE__ */ __commonJSMin(((exports) => {
 	async function getMachineId() {
 		if (!getMachineIdImpl) switch (process$1.platform) {
 			case "darwin":
-				getMachineIdImpl = (await import("../../getMachineId-darwin-Cw-WnZ8l.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-darwin-CnKUZ_H0.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "linux":
-				getMachineIdImpl = (await import("../../getMachineId-linux-CapLuzyC.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-linux-DPAGKhGp.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "freebsd":
-				getMachineIdImpl = (await import("../../getMachineId-bsd-Dv0YPOKh.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-bsd-Bgr8_OW-.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "win32":
-				getMachineIdImpl = (await import("../../getMachineId-win-BwgHVziq.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-win-BamPY2qA.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			default:
-				getMachineIdImpl = (await import("../../getMachineId-unsupported-BhUMDYtw.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-unsupported-Gd3Ywl_5.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 		}
 		return getMachineIdImpl();
@@ -20504,7 +19344,7 @@ var require_getMachineId = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/utils.js
-var require_utils$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_utils$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.normalizeType = exports.normalizeArch = void 0;
 	const normalizeArch = (nodeArchString) => {
@@ -20530,10 +19370,10 @@ var require_utils$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_HostDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.hostDetector = void 0;
-	const semconv_1 = require_semconv$2();
+	const semconv_1 = require_semconv$3();
 	const os_1$1 = __require("os");
 	const getMachineId_1 = require_getMachineId();
-	const utils_1 = require_utils$5();
+	const utils_1 = require_utils$6();
 	/**
 	* HostDetector detects the resources related to the host current process is
 	* running on. Currently only non-cloud-based attributes are included.
@@ -20554,9 +19394,9 @@ var require_HostDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_OSDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.osDetector = void 0;
-	const semconv_1 = require_semconv$2();
+	const semconv_1 = require_semconv$3();
 	const os_1 = __require("os");
-	const utils_1 = require_utils$5();
+	const utils_1 = require_utils$6();
 	/**
 	* OSDetector detects the resources related to the operating system (OS) on
 	* which the process represented by this resource is running.
@@ -20577,7 +19417,7 @@ var require_ProcessDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.processDetector = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const semconv_1 = require_semconv$2();
+	const semconv_1 = require_semconv$3();
 	const os$2 = __require("os");
 	/**
 	* ProcessDetector will be used to detect the resources related current process running
@@ -20615,7 +19455,7 @@ var require_ProcessDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_ServiceInstanceIdDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.serviceInstanceIdDetector = void 0;
-	const semconv_1 = require_semconv$2();
+	const semconv_1 = require_semconv$3();
 	const crypto_1 = __require("crypto");
 	/**
 	* ServiceInstanceIdDetector detects the resources related to the service instance ID.
@@ -20755,7 +19595,7 @@ var require_detectors = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/resources/build/src/index.js
-var require_src$27 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$26 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.defaultServiceName = exports.emptyResource = exports.defaultResource = exports.resourceFromAttributes = exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = exports.envDetector = exports.detectResources = void 0;
 	var detect_resources_1 = require_detect_resources();
@@ -20853,7 +19693,7 @@ var require_InstrumentDescriptor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isValidName = exports.isDescriptorCompatibleWith = exports.createInstrumentDescriptorWithView = exports.createInstrumentDescriptor = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const utils_1 = require_utils$7();
+	const utils_1 = require_utils$8();
 	function createInstrumentDescriptor(name, type, options) {
 		if (!isValidName(name)) api_1.diag.warn(`Invalid metric name: "${name}". The metric name should be a ASCII string with a length no greater than 255 characters.`);
 		return {
@@ -21129,7 +19969,7 @@ var require_MetricStorage = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_HashMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AttributeHashMap = exports.HashMap = void 0;
-	const utils_1 = require_utils$7();
+	const utils_1 = require_utils$8();
 	var HashMap = class {
 		_valueMap = /* @__PURE__ */ new Map();
 		_keyMap = /* @__PURE__ */ new Map();
@@ -21195,7 +20035,7 @@ var require_HashMap = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_DeltaMetricProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.DeltaMetricProcessor = void 0;
-	const utils_1 = require_utils$7();
+	const utils_1 = require_utils$8();
 	const HashMap_1 = require_HashMap();
 	/**
 	* Internal interface.
@@ -21627,7 +20467,7 @@ var require_ObservableRegistry = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const Instruments_1 = require_Instruments();
 	const ObservableResult_1 = require_ObservableResult();
-	const utils_1 = require_utils$7();
+	const utils_1 = require_utils$8();
 	/**
 	* An internal interface for managing ObservableCallbacks.
 	*
@@ -21934,7 +20774,7 @@ var require_MeterSharedState = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_MeterProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MeterProviderSharedState = void 0;
-	const utils_1 = require_utils$7();
+	const utils_1 = require_utils$8();
 	const ViewRegistry_1 = require_ViewRegistry();
 	const MeterSharedState_1 = require_MeterSharedState();
 	const AggregationOption_1 = require_AggregationOption();
@@ -22243,7 +21083,7 @@ var require_MeterProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MeterProvider = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const resources_1 = require_src$27();
+	const resources_1 = require_src$26();
 	const MeterProviderSharedState_1 = require_MeterProviderSharedState();
 	const MetricCollector_1 = require_MetricCollector();
 	const View_1 = require_View();
@@ -22311,7 +21151,7 @@ var require_MeterProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-metrics/build/src/index.js
-var require_src$26 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$25 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TimeoutError = exports.createDenyListAttributesProcessor = exports.createAllowListAttributesProcessor = exports.AggregationType = exports.MeterProvider = exports.ConsoleMetricExporter = exports.InMemoryMetricExporter = exports.PeriodicExportingMetricReader = exports.MetricReader = exports.InstrumentType = exports.DataPointType = exports.AggregationTemporality = void 0;
 	var AggregationTemporality_1 = require_AggregationTemporality();
@@ -22389,7 +21229,7 @@ var require_src$26 = /* @__PURE__ */ __commonJSMin(((exports) => {
 			return AttributesProcessor_1.createDenyListAttributesProcessor;
 		}
 	});
-	var utils_1 = require_utils$7();
+	var utils_1 = require_utils$8();
 	Object.defineProperty(exports, "TimeoutError", {
 		enumerable: true,
 		get: function() {
@@ -22468,12 +21308,72 @@ var require_internal_types = /* @__PURE__ */ __commonJSMin(((exports) => {
 	})(exports.EAggregationTemporality || (exports.EAggregationTemporality = {}));
 }));
 //#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/internal.js
+var require_internal$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.toAnyValue = exports.toKeyValue = exports.toAttributes = exports.createInstrumentationScope = exports.createResource = void 0;
+	function createResource(resource, encoder) {
+		const result = {
+			attributes: toAttributes(resource.attributes, encoder),
+			droppedAttributesCount: 0
+		};
+		const schemaUrl = resource.schemaUrl;
+		if (schemaUrl && schemaUrl !== "") result.schemaUrl = schemaUrl;
+		return result;
+	}
+	exports.createResource = createResource;
+	function createInstrumentationScope(scope) {
+		return {
+			name: scope.name,
+			version: scope.version
+		};
+	}
+	exports.createInstrumentationScope = createInstrumentationScope;
+	function toAttributes(attributes, encoder) {
+		return Object.keys(attributes).map((key) => toKeyValue(key, attributes[key], encoder));
+	}
+	exports.toAttributes = toAttributes;
+	function toKeyValue(key, value, encoder) {
+		return {
+			key,
+			value: toAnyValue(value, encoder)
+		};
+	}
+	exports.toKeyValue = toKeyValue;
+	function toAnyValue(value, encoder) {
+		const t = typeof value;
+		if (t === "string") return { stringValue: value };
+		if (t === "number") {
+			if (!Number.isInteger(value)) return { doubleValue: value };
+			return { intValue: value };
+		}
+		if (t === "boolean") return { boolValue: value };
+		if (value instanceof Uint8Array) return { bytesValue: encoder.encodeUint8Array(value) };
+		if (Array.isArray(value)) {
+			const values = new Array(value.length);
+			for (let i = 0; i < value.length; i++) values[i] = toAnyValue(value[i], encoder);
+			return { arrayValue: { values } };
+		}
+		if (t === "object" && value != null) {
+			const keys = Object.keys(value);
+			const values = new Array(keys.length);
+			for (let i = 0; i < keys.length; i++) values[i] = {
+				key: keys[i],
+				value: toAnyValue(value[keys[i]], encoder)
+			};
+			return { kvlistValue: { values } };
+		}
+		return {};
+	}
+	exports.toAnyValue = toAnyValue;
+}));
+//#endregion
 //#region node_modules/@opentelemetry/otlp-transformer/build/src/metrics/internal.js
-var require_internal$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_internal$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createExportMetricsServiceRequest = exports.toMetric = exports.toScopeMetrics = exports.toResourceMetrics = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const sdk_metrics_1 = require_src$26();
+	const sdk_metrics_1 = require_src$25();
 	const internal_types_1 = require_internal_types();
 	const internal_1 = require_internal$3();
 	function toResourceMetrics(resourceMetrics, encoder) {
@@ -22600,13 +21500,74 @@ var require_internal$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.createExportMetricsServiceRequest = createExportMetricsServiceRequest;
 }));
 //#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/common/utils.js
+var require_utils$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.JSON_ENCODER = exports.PROTOBUF_ENCODER = exports.encodeAsString = exports.encodeAsLongBits = exports.toLongBits = exports.hrTimeToNanos = void 0;
+	const core_1 = require_src$28();
+	const hex_to_binary_1 = require_hex_to_binary();
+	function hrTimeToNanos(hrTime) {
+		const NANOSECONDS = BigInt(1e9);
+		return BigInt(Math.trunc(hrTime[0])) * NANOSECONDS + BigInt(Math.trunc(hrTime[1]));
+	}
+	exports.hrTimeToNanos = hrTimeToNanos;
+	function toLongBits(value) {
+		return {
+			low: Number(BigInt.asUintN(32, value)),
+			high: Number(BigInt.asUintN(32, value >> BigInt(32)))
+		};
+	}
+	exports.toLongBits = toLongBits;
+	function encodeAsLongBits(hrTime) {
+		return toLongBits(hrTimeToNanos(hrTime));
+	}
+	exports.encodeAsLongBits = encodeAsLongBits;
+	function encodeAsString(hrTime) {
+		return hrTimeToNanos(hrTime).toString();
+	}
+	exports.encodeAsString = encodeAsString;
+	const encodeTimestamp = typeof BigInt !== "undefined" ? encodeAsString : core_1.hrTimeToNanoseconds;
+	function identity(value) {
+		return value;
+	}
+	function optionalHexToBinary(str) {
+		if (str === void 0) return void 0;
+		return (0, hex_to_binary_1.hexToBinary)(str);
+	}
+	/**
+	* Encoder for protobuf format.
+	* Uses { high, low } timestamps and binary for span/trace IDs, leaves Uint8Array attributes as-is.
+	*/
+	exports.PROTOBUF_ENCODER = {
+		encodeHrTime: encodeAsLongBits,
+		encodeSpanContext: hex_to_binary_1.hexToBinary,
+		encodeOptionalSpanContext: optionalHexToBinary,
+		encodeUint8Array: identity
+	};
+	/**
+	* Encoder for JSON format.
+	* Uses string timestamps, hex for span/trace IDs, and base64 for Uint8Array.
+	*/
+	exports.JSON_ENCODER = {
+		encodeHrTime: encodeTimestamp,
+		encodeSpanContext: identity,
+		encodeOptionalSpanContext: identity,
+		encodeUint8Array: (bytes) => {
+			if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
+			const chars = new Array(bytes.length);
+			for (let i = 0; i < bytes.length; i++) chars[i] = String.fromCharCode(bytes[i]);
+			return btoa(chars.join(""));
+		}
+	};
+}));
+//#endregion
 //#region node_modules/@opentelemetry/otlp-transformer/build/src/metrics/protobuf/metrics.js
 var require_metrics$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProtobufMetricsSerializer = void 0;
 	const root = require_root$1();
-	const internal_1 = require_internal$1();
-	const utils_1 = require_utils$8();
+	const internal_1 = require_internal$2();
+	const utils_1 = require_utils$5();
 	const metricsResponseType = root.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 	const metricsRequestType = root.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 	exports.ProtobufMetricsSerializer = {
@@ -22634,7 +21595,7 @@ var require_protobuf$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/otlp-transformer/build/src/trace/internal.js
-var require_internal = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_internal$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createExportTraceServiceRequest = exports.toOtlpSpanEvent = exports.toOtlpLink = exports.sdkSpanToOtlpSpan = void 0;
 	const internal_1 = require_internal$3();
@@ -22758,8 +21719,8 @@ var require_trace$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ProtobufTraceSerializer = void 0;
 	const root = require_root$1();
-	const internal_1 = require_internal();
-	const utils_1 = require_utils$8();
+	const internal_1 = require_internal$1();
+	const utils_1 = require_utils$5();
 	const traceResponseType = root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
 	const traceRequestType = root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
 	exports.ProtobufTraceSerializer = {
@@ -22786,12 +21747,82 @@ var require_protobuf = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 }));
 //#endregion
+//#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/internal.js
+var require_internal = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.toLogAttributes = exports.createExportLogsServiceRequest = void 0;
+	const internal_1 = require_internal$3();
+	function createExportLogsServiceRequest(logRecords, encoder) {
+		return { resourceLogs: logRecordsToResourceLogs(logRecords, encoder) };
+	}
+	exports.createExportLogsServiceRequest = createExportLogsServiceRequest;
+	function createResourceMap(logRecords) {
+		const resourceMap = /* @__PURE__ */ new Map();
+		for (const record of logRecords) {
+			const { resource, instrumentationScope: { name, version = "", schemaUrl = "" } } = record;
+			let ismMap = resourceMap.get(resource);
+			if (!ismMap) {
+				ismMap = /* @__PURE__ */ new Map();
+				resourceMap.set(resource, ismMap);
+			}
+			const ismKey = `${name}@${version}:${schemaUrl}`;
+			let records = ismMap.get(ismKey);
+			if (!records) {
+				records = [];
+				ismMap.set(ismKey, records);
+			}
+			records.push(record);
+		}
+		return resourceMap;
+	}
+	function logRecordsToResourceLogs(logRecords, encoder) {
+		const resourceMap = createResourceMap(logRecords);
+		return Array.from(resourceMap, ([resource, ismMap]) => {
+			const processedResource = (0, internal_1.createResource)(resource, encoder);
+			return {
+				resource: processedResource,
+				scopeLogs: Array.from(ismMap, ([, scopeLogs]) => {
+					return {
+						scope: (0, internal_1.createInstrumentationScope)(scopeLogs[0].instrumentationScope),
+						logRecords: scopeLogs.map((log) => toLogRecord(log, encoder)),
+						schemaUrl: scopeLogs[0].instrumentationScope.schemaUrl
+					};
+				}),
+				schemaUrl: processedResource.schemaUrl
+			};
+		});
+	}
+	function toLogRecord(log, encoder) {
+		return {
+			timeUnixNano: encoder.encodeHrTime(log.hrTime),
+			observedTimeUnixNano: encoder.encodeHrTime(log.hrTimeObserved),
+			severityNumber: toSeverityNumber(log.severityNumber),
+			severityText: log.severityText,
+			body: (0, internal_1.toAnyValue)(log.body, encoder),
+			eventName: log.eventName,
+			attributes: toLogAttributes(log.attributes, encoder),
+			droppedAttributesCount: log.droppedAttributesCount,
+			flags: log.spanContext?.traceFlags,
+			traceId: encoder.encodeOptionalSpanContext(log.spanContext?.traceId),
+			spanId: encoder.encodeOptionalSpanContext(log.spanContext?.spanId)
+		};
+	}
+	function toSeverityNumber(severityNumber) {
+		return severityNumber;
+	}
+	function toLogAttributes(attributes, encoder) {
+		return Object.keys(attributes).map((key) => (0, internal_1.toKeyValue)(key, attributes[key], encoder));
+	}
+	exports.toLogAttributes = toLogAttributes;
+}));
+//#endregion
 //#region node_modules/@opentelemetry/otlp-transformer/build/src/logs/json/logs.js
-var require_logs$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_logs = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonLogsSerializer = void 0;
-	const internal_1 = require_internal$2();
-	const utils_1 = require_utils$8();
+	const internal_1 = require_internal();
+	const utils_1 = require_utils$5();
+	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	exports.JsonLogsSerializer = {
 		serializeRequest: (arg) => {
 			const request = (0, internal_1.createExportLogsServiceRequest)(arg, utils_1.JSON_ENCODER);
@@ -22800,7 +21831,12 @@ var require_logs$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 		deserializeResponse: (arg) => {
 			if (arg.length === 0) return {};
 			const decoder = new TextDecoder();
-			return JSON.parse(decoder.decode(arg));
+			try {
+				return JSON.parse(decoder.decode(arg));
+			} catch (err) {
+				api_1.diag.warn(`Failed to parse logs export response: ${err.message}. Returning empty response`);
+				return {};
+			}
 		}
 	};
 }));
@@ -22809,7 +21845,7 @@ var require_logs$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_json$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonLogsSerializer = void 0;
-	var logs_1 = require_logs$1();
+	var logs_1 = require_logs();
 	Object.defineProperty(exports, "JsonLogsSerializer", {
 		enumerable: true,
 		get: function() {
@@ -22822,8 +21858,9 @@ var require_json$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_metrics = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonMetricsSerializer = void 0;
-	const internal_1 = require_internal$1();
-	const utils_1 = require_utils$8();
+	const internal_1 = require_internal$2();
+	const utils_1 = require_utils$5();
+	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	exports.JsonMetricsSerializer = {
 		serializeRequest: (arg) => {
 			const request = (0, internal_1.createExportMetricsServiceRequest)([arg], utils_1.JSON_ENCODER);
@@ -22832,7 +21869,12 @@ var require_metrics = /* @__PURE__ */ __commonJSMin(((exports) => {
 		deserializeResponse: (arg) => {
 			if (arg.length === 0) return {};
 			const decoder = new TextDecoder();
-			return JSON.parse(decoder.decode(arg));
+			try {
+				return JSON.parse(decoder.decode(arg));
+			} catch (err) {
+				api_1.diag.warn(`Failed to parse metrics export response: ${err.message}. Returning empty response`);
+				return {};
+			}
 		}
 	};
 }));
@@ -22854,8 +21896,9 @@ var require_json$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_trace = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonTraceSerializer = void 0;
-	const internal_1 = require_internal();
-	const utils_1 = require_utils$8();
+	const internal_1 = require_internal$1();
+	const utils_1 = require_utils$5();
+	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	exports.JsonTraceSerializer = {
 		serializeRequest: (arg) => {
 			const request = (0, internal_1.createExportTraceServiceRequest)(arg, utils_1.JSON_ENCODER);
@@ -22864,7 +21907,12 @@ var require_trace = /* @__PURE__ */ __commonJSMin(((exports) => {
 		deserializeResponse: (arg) => {
 			if (arg.length === 0) return {};
 			const decoder = new TextDecoder();
-			return JSON.parse(decoder.decode(arg));
+			try {
+				return JSON.parse(decoder.decode(arg));
+			} catch (err) {
+				api_1.diag.warn(`Failed to parse trace export response: ${err.message}. Returning empty response`);
+				return {};
+			}
 		}
 	};
 }));
@@ -22883,7 +21931,7 @@ var require_json = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/otlp-transformer/build/src/index.js
-var require_src$25 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$24 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonTraceSerializer = exports.JsonMetricsSerializer = exports.JsonLogsSerializer = exports.ProtobufTraceSerializer = exports.ProtobufMetricsSerializer = exports.ProtobufLogsSerializer = void 0;
 	var protobuf_1 = require_protobuf$2();
@@ -23041,7 +22089,7 @@ var init_is_export_retryable = __esmMin((() => {}));
 //#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/version.js
 var VERSION;
 var init_version = __esmMin((() => {
-	VERSION = "0.214.0";
+	VERSION = "0.215.0";
 }));
 //#endregion
 //#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/transport/http-transport-utils.js
@@ -23070,7 +22118,19 @@ function sendWithHttp(request, url, headers, compression, userAgent, agent, data
 			agent
 		}, (res) => {
 			const responseData = [];
-			res.on("data", (chunk) => responseData.push(chunk));
+			let responseSize = 0;
+			res.on("data", (chunk) => {
+				responseSize += chunk.length;
+				if (responseSize > 4194304) {
+					resolve({
+						status: "failure",
+						error: /* @__PURE__ */ new Error(`OTLP export response body exceeded size limit of ${MAX_RESPONSE_BODY_SIZE} bytes`)
+					});
+					res.destroy();
+					return;
+				}
+				responseData.push(chunk);
+			});
 			res.on("end", () => {
 				if (res.statusCode && res.statusCode <= 299) resolve({
 					status: "success",
@@ -23151,12 +22211,13 @@ function isHttpTransportNetworkErrorRetryable(error) {
 	if ("code" in error && typeof error.code === "string") return RETRYABLE_NETWORK_ERROR_CODES.has(error.code);
 	return false;
 }
-var DEFAULT_USER_AGENT;
+var DEFAULT_USER_AGENT, MAX_RESPONSE_BODY_SIZE;
 var init_http_transport_utils = __esmMin((() => {
 	init_is_export_retryable();
 	init_types();
 	init_version();
 	DEFAULT_USER_AGENT = `OTel-OTLP-Exporter-JavaScript/${VERSION}`;
+	MAX_RESPONSE_BODY_SIZE = 4 * 1024 * 1024;
 }));
 //#endregion
 //#region node_modules/@opentelemetry/otlp-exporter-base/build/esm/transport/http-exporter-transport.js
@@ -23468,7 +22529,7 @@ var require_OTLPLogExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const otlp_transformer_1 = require_src$25();
+	const otlp_transformer_1 = require_src$24();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* OTLP Log Protobuf Exporter for Node.js
@@ -23508,7 +22569,7 @@ var require_platform$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/index.js
-var require_src$24 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$23 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	var platform_1 = require_platform$9();
@@ -23536,7 +22597,7 @@ var require_OTLPMetricExporterBase = /* @__PURE__ */ __commonJSMin(((exports) =>
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = void 0;
 	const core_1 = require_src$28();
-	const sdk_metrics_1 = require_src$26();
+	const sdk_metrics_1 = require_src$25();
 	const OTLPMetricExporterOptions_1 = require_OTLPMetricExporterOptions();
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
@@ -23609,7 +22670,7 @@ var require_OTLPMetricExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
 	const OTLPMetricExporterBase_1 = require_OTLPMetricExporterBase();
-	const otlp_transformer_1 = require_src$25();
+	const otlp_transformer_1 = require_src$24();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* OTLP Metric Exporter for Node.js
@@ -23649,7 +22710,7 @@ var require_platform$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/index.js
-var require_src$23 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$22 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = exports.AggregationTemporalityPreference = exports.OTLPMetricExporter = void 0;
 	var platform_1 = require_platform$8();
@@ -23697,8 +22758,8 @@ var require_src$23 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_OTLPMetricExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
-	const exporter_metrics_otlp_http_1 = require_src$23();
-	const otlp_transformer_1 = require_src$25();
+	const exporter_metrics_otlp_http_1 = require_src$22();
+	const otlp_transformer_1 = require_src$24();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	var OTLPMetricExporter = class extends exporter_metrics_otlp_http_1.OTLPMetricExporterBase {
 		constructor(config) {
@@ -23735,7 +22796,7 @@ var require_platform$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/index.js
-var require_src$22 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$21 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
 	var platform_1 = require_platform$7();
@@ -23752,7 +22813,7 @@ var require_OTLPTraceExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const otlp_transformer_1 = require_src$25();
+	const otlp_transformer_1 = require_src$24();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* Collector Trace Exporter for Node with protobuf
@@ -23792,7 +22853,7 @@ var require_platform$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/index.js
-var require_src$21 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$20 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	var platform_1 = require_platform$6();
@@ -23802,238 +22863,6 @@ var require_src$21 = /* @__PURE__ */ __commonJSMin(((exports) => {
 			return platform_1.OTLPTraceExporter;
 		}
 	});
-}));
-//#endregion
-//#region node_modules/@opentelemetry/api-logs/build/src/types/LogRecord.js
-var require_LogRecord = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.SeverityNumber = void 0;
-	(function(SeverityNumber) {
-		SeverityNumber[SeverityNumber["UNSPECIFIED"] = 0] = "UNSPECIFIED";
-		SeverityNumber[SeverityNumber["TRACE"] = 1] = "TRACE";
-		SeverityNumber[SeverityNumber["TRACE2"] = 2] = "TRACE2";
-		SeverityNumber[SeverityNumber["TRACE3"] = 3] = "TRACE3";
-		SeverityNumber[SeverityNumber["TRACE4"] = 4] = "TRACE4";
-		SeverityNumber[SeverityNumber["DEBUG"] = 5] = "DEBUG";
-		SeverityNumber[SeverityNumber["DEBUG2"] = 6] = "DEBUG2";
-		SeverityNumber[SeverityNumber["DEBUG3"] = 7] = "DEBUG3";
-		SeverityNumber[SeverityNumber["DEBUG4"] = 8] = "DEBUG4";
-		SeverityNumber[SeverityNumber["INFO"] = 9] = "INFO";
-		SeverityNumber[SeverityNumber["INFO2"] = 10] = "INFO2";
-		SeverityNumber[SeverityNumber["INFO3"] = 11] = "INFO3";
-		SeverityNumber[SeverityNumber["INFO4"] = 12] = "INFO4";
-		SeverityNumber[SeverityNumber["WARN"] = 13] = "WARN";
-		SeverityNumber[SeverityNumber["WARN2"] = 14] = "WARN2";
-		SeverityNumber[SeverityNumber["WARN3"] = 15] = "WARN3";
-		SeverityNumber[SeverityNumber["WARN4"] = 16] = "WARN4";
-		SeverityNumber[SeverityNumber["ERROR"] = 17] = "ERROR";
-		SeverityNumber[SeverityNumber["ERROR2"] = 18] = "ERROR2";
-		SeverityNumber[SeverityNumber["ERROR3"] = 19] = "ERROR3";
-		SeverityNumber[SeverityNumber["ERROR4"] = 20] = "ERROR4";
-		SeverityNumber[SeverityNumber["FATAL"] = 21] = "FATAL";
-		SeverityNumber[SeverityNumber["FATAL2"] = 22] = "FATAL2";
-		SeverityNumber[SeverityNumber["FATAL3"] = 23] = "FATAL3";
-		SeverityNumber[SeverityNumber["FATAL4"] = 24] = "FATAL4";
-	})(exports.SeverityNumber || (exports.SeverityNumber = {}));
-}));
-//#endregion
-//#region node_modules/@opentelemetry/api-logs/build/src/NoopLogger.js
-var require_NoopLogger = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.NOOP_LOGGER = exports.NoopLogger = void 0;
-	var NoopLogger = class {
-		emit(_logRecord) {}
-	};
-	exports.NoopLogger = NoopLogger;
-	exports.NOOP_LOGGER = new NoopLogger();
-}));
-//#endregion
-//#region node_modules/@opentelemetry/api-logs/build/src/internal/global-utils.js
-var require_global_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.API_BACKWARDS_COMPATIBILITY_VERSION = exports.makeGetter = exports._global = exports.GLOBAL_LOGS_API_KEY = void 0;
-	exports.GLOBAL_LOGS_API_KEY = Symbol.for("io.opentelemetry.js.api.logs");
-	exports._global = globalThis;
-	/**
-	* Make a function which accepts a version integer and returns the instance of an API if the version
-	* is compatible, or a fallback version (usually NOOP) if it is not.
-	*
-	* @param requiredVersion Backwards compatibility version which is required to return the instance
-	* @param instance Instance which should be returned if the required version is compatible
-	* @param fallback Fallback instance, usually NOOP, which will be returned if the required version is not compatible
-	*/
-	function makeGetter(requiredVersion, instance, fallback) {
-		return (version) => version === requiredVersion ? instance : fallback;
-	}
-	exports.makeGetter = makeGetter;
-	/**
-	* A number which should be incremented each time a backwards incompatible
-	* change is made to the API. This number is used when an API package
-	* attempts to access the global API to ensure it is getting a compatible
-	* version. If the global API is not compatible with the API package
-	* attempting to get it, a NOOP API implementation will be returned.
-	*/
-	exports.API_BACKWARDS_COMPATIBILITY_VERSION = 1;
-}));
-//#endregion
-//#region node_modules/@opentelemetry/api-logs/build/src/NoopLoggerProvider.js
-var require_NoopLoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.NOOP_LOGGER_PROVIDER = exports.NoopLoggerProvider = void 0;
-	const NoopLogger_1 = require_NoopLogger();
-	var NoopLoggerProvider = class {
-		getLogger(_name, _version, _options) {
-			return new NoopLogger_1.NoopLogger();
-		}
-	};
-	exports.NoopLoggerProvider = NoopLoggerProvider;
-	exports.NOOP_LOGGER_PROVIDER = new NoopLoggerProvider();
-}));
-//#endregion
-//#region node_modules/@opentelemetry/api-logs/build/src/ProxyLogger.js
-var require_ProxyLogger = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.ProxyLogger = void 0;
-	const NoopLogger_1 = require_NoopLogger();
-	var ProxyLogger = class {
-		constructor(provider, name, version, options) {
-			this._provider = provider;
-			this.name = name;
-			this.version = version;
-			this.options = options;
-		}
-		/**
-		* Emit a log record. This method should only be used by log appenders.
-		*
-		* @param logRecord
-		*/
-		emit(logRecord) {
-			this._getLogger().emit(logRecord);
-		}
-		/**
-		* Try to get a logger from the proxy logger provider.
-		* If the proxy logger provider has no delegate, return a noop logger.
-		*/
-		_getLogger() {
-			if (this._delegate) return this._delegate;
-			const logger = this._provider._getDelegateLogger(this.name, this.version, this.options);
-			if (!logger) return NoopLogger_1.NOOP_LOGGER;
-			this._delegate = logger;
-			return this._delegate;
-		}
-	};
-	exports.ProxyLogger = ProxyLogger;
-}));
-//#endregion
-//#region node_modules/@opentelemetry/api-logs/build/src/ProxyLoggerProvider.js
-var require_ProxyLoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.ProxyLoggerProvider = void 0;
-	const NoopLoggerProvider_1 = require_NoopLoggerProvider();
-	const ProxyLogger_1 = require_ProxyLogger();
-	var ProxyLoggerProvider = class {
-		getLogger(name, version, options) {
-			var _a;
-			return (_a = this._getDelegateLogger(name, version, options)) !== null && _a !== void 0 ? _a : new ProxyLogger_1.ProxyLogger(this, name, version, options);
-		}
-		/**
-		* Get the delegate logger provider.
-		* Used by tests only.
-		* @internal
-		*/
-		_getDelegate() {
-			var _a;
-			return (_a = this._delegate) !== null && _a !== void 0 ? _a : NoopLoggerProvider_1.NOOP_LOGGER_PROVIDER;
-		}
-		/**
-		* Set the delegate logger provider
-		* @internal
-		*/
-		_setDelegate(delegate) {
-			this._delegate = delegate;
-		}
-		/**
-		* @internal
-		*/
-		_getDelegateLogger(name, version, options) {
-			var _a;
-			return (_a = this._delegate) === null || _a === void 0 ? void 0 : _a.getLogger(name, version, options);
-		}
-	};
-	exports.ProxyLoggerProvider = ProxyLoggerProvider;
-}));
-//#endregion
-//#region node_modules/@opentelemetry/api-logs/build/src/api/logs.js
-var require_logs = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.LogsAPI = void 0;
-	const global_utils_1 = require_global_utils();
-	const NoopLoggerProvider_1 = require_NoopLoggerProvider();
-	const ProxyLoggerProvider_1 = require_ProxyLoggerProvider();
-	exports.LogsAPI = class LogsAPI {
-		constructor() {
-			this._proxyLoggerProvider = new ProxyLoggerProvider_1.ProxyLoggerProvider();
-		}
-		static getInstance() {
-			if (!this._instance) this._instance = new LogsAPI();
-			return this._instance;
-		}
-		setGlobalLoggerProvider(provider) {
-			if (global_utils_1._global[global_utils_1.GLOBAL_LOGS_API_KEY]) return this.getLoggerProvider();
-			global_utils_1._global[global_utils_1.GLOBAL_LOGS_API_KEY] = (0, global_utils_1.makeGetter)(global_utils_1.API_BACKWARDS_COMPATIBILITY_VERSION, provider, NoopLoggerProvider_1.NOOP_LOGGER_PROVIDER);
-			this._proxyLoggerProvider._setDelegate(provider);
-			return provider;
-		}
-		/**
-		* Returns the global logger provider.
-		*
-		* @returns LoggerProvider
-		*/
-		getLoggerProvider() {
-			var _a, _b;
-			return (_b = (_a = global_utils_1._global[global_utils_1.GLOBAL_LOGS_API_KEY]) === null || _a === void 0 ? void 0 : _a.call(global_utils_1._global, global_utils_1.API_BACKWARDS_COMPATIBILITY_VERSION)) !== null && _b !== void 0 ? _b : this._proxyLoggerProvider;
-		}
-		/**
-		* Returns a logger from the global logger provider.
-		*
-		* @returns Logger
-		*/
-		getLogger(name, version, options) {
-			return this.getLoggerProvider().getLogger(name, version, options);
-		}
-		/** Remove the global logger provider */
-		disable() {
-			delete global_utils_1._global[global_utils_1.GLOBAL_LOGS_API_KEY];
-			this._proxyLoggerProvider = new ProxyLoggerProvider_1.ProxyLoggerProvider();
-		}
-	};
-}));
-//#endregion
-//#region node_modules/@opentelemetry/api-logs/build/src/index.js
-var require_src$20 = /* @__PURE__ */ __commonJSMin(((exports) => {
-	Object.defineProperty(exports, "__esModule", { value: true });
-	exports.logs = exports.NoopLogger = exports.NOOP_LOGGER = exports.SeverityNumber = void 0;
-	var LogRecord_1 = require_LogRecord();
-	Object.defineProperty(exports, "SeverityNumber", {
-		enumerable: true,
-		get: function() {
-			return LogRecord_1.SeverityNumber;
-		}
-	});
-	var NoopLogger_1 = require_NoopLogger();
-	Object.defineProperty(exports, "NOOP_LOGGER", {
-		enumerable: true,
-		get: function() {
-			return NoopLogger_1.NOOP_LOGGER;
-		}
-	});
-	Object.defineProperty(exports, "NoopLogger", {
-		enumerable: true,
-		get: function() {
-			return NoopLogger_1.NoopLogger;
-		}
-	});
-	exports.logs = require_logs().LogsAPI.getInstance();
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-logs/build/src/utils/validation.js
@@ -24251,7 +23080,7 @@ var require_LogRecordImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_Logger = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Logger = void 0;
-	const api_logs_1 = require_src$20();
+	const api_logs_1 = require_src$27();
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const LogRecordImpl_1 = require_LogRecordImpl();
 	var Logger = class {
@@ -24283,6 +23112,7 @@ var require_Logger = /* @__PURE__ */ __commonJSMin(((exports) => {
 				context: currentContext,
 				...logRecord
 			});
+			this._sharedState.loggerMetrics.emitLog();
 			/**
 			* the explicitly passed Context,
 			* the current Context, or an empty Context if the Logger was obtained with include_trace_context=false
@@ -24293,6 +23123,27 @@ var require_Logger = /* @__PURE__ */ __commonJSMin(((exports) => {
 			* If logRecord is needed after OnEmit returns (i.e. for asynchronous processing) only reads are permitted.
 			*/
 			logRecordInstance._makeReadonly();
+		}
+		enabled(options) {
+			const loggerConfig = this._loggerConfig;
+			if (loggerConfig.disabled) return false;
+			const severityNumber = options?.severityNumber;
+			if (typeof severityNumber === "number" && severityNumber !== api_logs_1.SeverityNumber.UNSPECIFIED && severityNumber < loggerConfig.minimumSeverity) return false;
+			const currentContext = options?.context || api_1.context.active();
+			if (loggerConfig.traceBased) {
+				const spanContext = api_1.trace.getSpanContext(currentContext);
+				if (spanContext && (0, api_1.isSpanContextValid)(spanContext)) {
+					if (!((spanContext.traceFlags & api_1.TraceFlags.SAMPLED) === api_1.TraceFlags.SAMPLED)) return false;
+				}
+			}
+			const enabledOpts = {
+				context: currentContext,
+				instrumentationScope: this.instrumentationScope,
+				severityNumber: options?.severityNumber,
+				eventName: options?.eventName
+			};
+			for (const processor of this._sharedState.processors) if (!processor.enabled || processor.enabled(enabledOpts)) return true;
+			return false;
 		}
 	};
 	exports.Logger = Logger;
@@ -24309,6 +23160,9 @@ var require_NoopLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) =>
 		onEmit(_logRecord, _context) {}
 		shutdown() {
 			return Promise.resolve();
+		}
+		enabled(_options) {
+			return false;
 		}
 	};
 	exports.NoopLogRecordProcessor = NoopLogRecordProcessor;
@@ -24340,6 +23194,10 @@ var require_MultiLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) =
 		async shutdown() {
 			await Promise.all(this.processors.map((processor) => processor.shutdown()));
 		}
+		enabled(options) {
+			for (const processor of this.processors) if (!processor.enabled || processor.enabled(options)) return true;
+			return false;
+		}
 	};
 	exports.MultiLogRecordProcessor = MultiLogRecordProcessor;
 }));
@@ -24359,14 +23217,60 @@ var require_utils$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getInstrumentationScopeKey = getInstrumentationScopeKey;
 }));
 //#endregion
+//#region node_modules/@opentelemetry/sdk-logs/build/src/semconv.js
+var require_semconv$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.METRIC_OTEL_SDK_LOG_CREATED = void 0;
+	/**
+	* The number of logs submitted to enabled SDK Loggers.
+	*
+	* @experimental This metric is experimental and is subject to breaking changes in minor releases of `@opentelemetry/semantic-conventions`.
+	*/
+	exports.METRIC_OTEL_SDK_LOG_CREATED = "otel.sdk.log.created";
+}));
+//#endregion
+//#region node_modules/@opentelemetry/sdk-logs/build/src/LoggerMetrics.js
+var require_LoggerMetrics = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.LoggerMetrics = void 0;
+	const semconv_1 = require_semconv$2();
+	/**
+	* Generates `otel.sdk.log.*` metrics.
+	* https://opentelemetry.io/docs/specs/semconv/otel/sdk-metrics/#log-metrics
+	*/
+	var LoggerMetrics = class {
+		createdLogs;
+		constructor(meter) {
+			this.createdLogs = meter.createCounter(semconv_1.METRIC_OTEL_SDK_LOG_CREATED, {
+				unit: "{log_record}",
+				description: "The number of logs submitted to enabled SDK Loggers."
+			});
+		}
+		emitLog() {
+			this.createdLogs.add(1);
+		}
+	};
+	exports.LoggerMetrics = LoggerMetrics;
+}));
+//#endregion
+//#region node_modules/@opentelemetry/sdk-logs/build/src/version.js
+var require_version$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.VERSION = void 0;
+	exports.VERSION = "0.215.0";
+}));
+//#endregion
 //#region node_modules/@opentelemetry/sdk-logs/build/src/internal/LoggerProviderSharedState.js
 var require_LoggerProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LoggerProviderSharedState = exports.DEFAULT_LOGGER_CONFIGURATOR = void 0;
-	const api_logs_1 = require_src$20();
+	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
+	const api_logs_1 = require_src$27();
 	const NoopLogRecordProcessor_1 = require_NoopLogRecordProcessor();
 	const MultiLogRecordProcessor_1 = require_MultiLogRecordProcessor();
 	const utils_1 = require_utils$4();
+	const LoggerMetrics_1 = require_LoggerMetrics();
+	const version_1 = require_version$2();
 	const DEFAULT_LOGGER_CONFIG = {
 		disabled: false,
 		minimumSeverity: api_logs_1.SeverityNumber.UNSPECIFIED,
@@ -24385,9 +23289,10 @@ var require_LoggerProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports)
 		forceFlushTimeoutMillis;
 		logRecordLimits;
 		processors;
+		loggerMetrics;
 		_loggerConfigurator;
 		_loggerConfigs = /* @__PURE__ */ new Map();
-		constructor(resource, forceFlushTimeoutMillis, logRecordLimits, processors, loggerConfigurator) {
+		constructor(resource, forceFlushTimeoutMillis, logRecordLimits, processors, loggerConfigurator, meterProvider) {
 			this.resource = resource;
 			this.forceFlushTimeoutMillis = forceFlushTimeoutMillis;
 			this.logRecordLimits = logRecordLimits;
@@ -24397,6 +23302,8 @@ var require_LoggerProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports)
 				this.activeProcessor = new MultiLogRecordProcessor_1.MultiLogRecordProcessor(this.registeredLogRecordProcessors, this.forceFlushTimeoutMillis);
 			} else this.activeProcessor = new NoopLogRecordProcessor_1.NoopLogRecordProcessor();
 			this._loggerConfigurator = loggerConfigurator ?? exports.DEFAULT_LOGGER_CONFIGURATOR;
+			const meter = meterProvider ? meterProvider.getMeter("@opentelemetry/sdk-logs", version_1.VERSION) : (0, api_1.createNoopMeter)();
+			this.loggerMetrics = new LoggerMetrics_1.LoggerMetrics(meter);
 		}
 		/**
 		* Get the LoggerConfig for a given instrumentation scope.
@@ -24422,8 +23329,8 @@ var require_LoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LoggerProvider = exports.DEFAULT_LOGGER_NAME = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$20();
-	const resources_1 = require_src$27();
+	const api_logs_1 = require_src$27();
+	const resources_1 = require_src$26();
 	const core_1 = require_src$28();
 	const Logger_1 = require_Logger();
 	const LoggerProviderSharedState_1 = require_LoggerProviderSharedState();
@@ -24440,9 +23347,10 @@ var require_LoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 					attributeValueLengthLimit: config.logRecordLimits?.attributeValueLengthLimit ?? Infinity
 				},
 				loggerConfigurator: config.loggerConfigurator ?? LoggerProviderSharedState_1.DEFAULT_LOGGER_CONFIGURATOR,
-				processors: config.processors ?? []
+				processors: config.processors ?? [],
+				meterProvider: config.meterProvider
 			};
-			this._sharedState = new LoggerProviderSharedState_1.LoggerProviderSharedState(mergedConfig.resource, mergedConfig.forceFlushTimeoutMillis, mergedConfig.logRecordLimits, mergedConfig.processors, mergedConfig.loggerConfigurator);
+			this._sharedState = new LoggerProviderSharedState_1.LoggerProviderSharedState(mergedConfig.resource, mergedConfig.forceFlushTimeoutMillis, mergedConfig.logRecordLimits, mergedConfig.processors, mergedConfig.loggerConfigurator, mergedConfig.meterProvider);
 			this._shutdownOnce = new core_1.BindOnceFuture(this._shutdown, this);
 		}
 		/**
@@ -24516,11 +23424,14 @@ var require_ConsoleLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports) 
 			this._sendLogRecords(logs, resultCallback);
 		}
 		/**
+		* ForceFlush the exporter.
+		* No-op for {@link ConsoleLogRecordExporter}
+		*/
+		async forceFlush() {}
+		/**
 		* Shutdown the exporter.
 		*/
-		shutdown() {
-			return Promise.resolve();
-		}
+		async shutdown() {}
 		/**
 		* converts logRecord info into more readable format
 		* @param logRecord
@@ -24627,11 +23538,11 @@ var require_InMemoryLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports)
 			this._finishedLogRecords.push(...logs);
 			resultCallback({ code: core_1.ExportResultCode.SUCCESS });
 		}
-		shutdown() {
+		async shutdown() {
 			this._stopped = true;
 			this.reset();
-			return Promise.resolve();
 		}
+		async forceFlush() {}
 		getFinishedLogRecords() {
 			return this._finishedLogRecords;
 		}
@@ -24648,16 +23559,74 @@ var require_BatchLogRecordProcessorBase = /* @__PURE__ */ __commonJSMin(((export
 	exports.BatchLogRecordProcessorBase = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const core_1 = require_src$28();
+	/**
+	* Waits for all pending async resources in the log records to be resolved.
+	*/
+	async function waitForResources(logRecords) {
+		const pendingResources = [];
+		for (let i = 0, len = logRecords.length; i < len; i++) {
+			const logRecord = logRecords[i];
+			if (logRecord.resource.asyncAttributesPending && logRecord.resource.waitForAsyncAttributes) pendingResources.push(logRecord.resource.waitForAsyncAttributes());
+		}
+		if (pendingResources != null && pendingResources.length > 0) await Promise.all(pendingResources);
+	}
+	/**
+	* Represents an export operation that handles the entire export workflow.
+	*/
+	var ExportOperation = class {
+		_exportCompleted;
+		_exportScheduledPromise;
+		_exportScheduledResolve;
+		constructor(exporter, logRecords, exportTimeoutMillis) {
+			this._exportScheduledPromise = new Promise((resolve) => {
+				this._exportScheduledResolve = resolve;
+			});
+			this._exportCompleted = this._executeExport(exporter, logRecords, exportTimeoutMillis);
+		}
+		/** Get the promise that resolves when the export completes */
+		get exportCompleted() {
+			return this._exportCompleted;
+		}
+		/** Get the promise that resolves when exporter.export() has been called */
+		get exportScheduled() {
+			return this._exportScheduledPromise;
+		}
+		async _executeExport(exporter, logRecords, exportTimeoutMillis) {
+			try {
+				await waitForResources(logRecords);
+				await api_1.context.with((0, core_1.suppressTracing)(api_1.context.active()), async () => {
+					return this._exportWithTimeout(exporter, logRecords, exportTimeoutMillis);
+				});
+			} catch (e) {
+				(0, core_1.globalErrorHandler)(e);
+				this._exportScheduledResolve();
+			}
+		}
+		async _exportWithTimeout(exporter, logRecords, exportTimeoutMillis) {
+			return new Promise((resolve, reject) => {
+				const timer = setTimeout(() => {
+					reject(/* @__PURE__ */ new Error("Timeout"));
+				}, exportTimeoutMillis);
+				exporter.export(logRecords, (result) => {
+					clearTimeout(timer);
+					if (result.code === core_1.ExportResultCode.SUCCESS) resolve();
+					else reject(result.error ?? /* @__PURE__ */ new Error("BatchLogRecordProcessor: log record export failed"));
+				});
+				this._exportScheduledResolve();
+			});
+		}
+	};
 	var BatchLogRecordProcessorBase = class {
 		_maxExportBatchSize;
 		_maxQueueSize;
 		_scheduledDelayMillis;
 		_exportTimeoutMillis;
 		_exporter;
-		_isExporting = false;
+		_currentExport = null;
 		_finishedLogRecords = [];
 		_timer;
 		_shutdownOnce;
+		_flushing = false;
 		constructor(exporter, config) {
 			this._exporter = exporter;
 			this._maxExportBatchSize = config?.maxExportBatchSize ?? 512;
@@ -24678,6 +23647,12 @@ var require_BatchLogRecordProcessorBase = /* @__PURE__ */ __commonJSMin(((export
 			if (this._shutdownOnce.isCalled) return this._shutdownOnce.promise;
 			return this._flushAll();
 		}
+		/** Add a LogRecord in the buffer. */
+		_addToBuffer(logRecord) {
+			if (this._finishedLogRecords.length >= this._maxQueueSize) return;
+			this._finishedLogRecords.push(logRecord);
+			this._maybeStartTimer();
+		}
 		shutdown() {
 			return this._shutdownOnce.call();
 		}
@@ -24686,50 +23661,84 @@ var require_BatchLogRecordProcessorBase = /* @__PURE__ */ __commonJSMin(((export
 			await this._flushAll();
 			await this._exporter.shutdown();
 		}
-		/** Add a LogRecord in the buffer. */
-		_addToBuffer(logRecord) {
-			if (this._finishedLogRecords.length >= this._maxQueueSize) return;
-			this._finishedLogRecords.push(logRecord);
-			this._maybeStartTimer();
-		}
 		/**
 		* Send all LogRecords to the exporter respecting the batch size limit
 		* This function is used only on forceFlush or shutdown,
-		* for all other cases _flush should be used
+		* for all other cases _exportOneBatch should be used
 		* */
-		_flushAll() {
-			return new Promise((resolve, reject) => {
-				const promises = [];
-				const batchCount = Math.ceil(this._finishedLogRecords.length / this._maxExportBatchSize);
-				for (let i = 0; i < batchCount; i++) promises.push(this._flushOneBatch());
-				Promise.all(promises).then(() => {
-					resolve();
-				}).catch(reject);
+		async _flushAll() {
+			if (this._flushing) return;
+			this._flushing = true;
+			let toFlush = this._finishedLogRecords;
+			this._finishedLogRecords = [];
+			this._clearTimer();
+			if (this._currentExport !== null) {
+				await this._exporter.forceFlush();
+				await this._currentExport.exportCompleted;
+				this._currentExport = null;
+			}
+			while (toFlush.length > 0) {
+				let batch;
+				if (toFlush.length <= this._maxExportBatchSize) {
+					batch = toFlush;
+					toFlush = [];
+				} else batch = toFlush.splice(0, this._maxExportBatchSize);
+				const exportOp = new ExportOperation(this._exporter, batch, this._exportTimeoutMillis);
+				this._currentExport = exportOp;
+				try {
+					await exportOp.exportScheduled;
+					await this._exporter.forceFlush();
+					await exportOp.exportCompleted;
+				} catch (e) {
+					(0, core_1.globalErrorHandler)(e);
+				} finally {
+					this._currentExport = null;
+				}
+			}
+			this._flushing = false;
+			this._maybeStartTimer();
+		}
+		/**
+		* Extracts one batch from the buffer.
+		* Returns null if buffer is empty.
+		*/
+		_extractBatch() {
+			if (this._finishedLogRecords.length === 0) return null;
+			if (this._finishedLogRecords.length <= this._maxExportBatchSize) {
+				const batch = this._finishedLogRecords;
+				this._finishedLogRecords = [];
+				return batch;
+			} else return this._finishedLogRecords.splice(0, this._maxExportBatchSize);
+		}
+		_exportOneBatch() {
+			this._clearTimer();
+			const logRecords = this._extractBatch();
+			if (logRecords === null) return;
+			const exportOp = new ExportOperation(this._exporter, logRecords, this._exportTimeoutMillis);
+			this._currentExport = exportOp;
+			exportOp.exportCompleted.then(() => {
+				this._currentExport = null;
+				this._maybeStartTimer();
+			}).catch((error) => {
+				this._currentExport = null;
+				(0, core_1.globalErrorHandler)(error);
+				this._maybeStartTimer();
 			});
 		}
-		_flushOneBatch() {
-			this._clearTimer();
-			if (this._finishedLogRecords.length === 0) return Promise.resolve();
-			return (0, core_1.callWithTimeout)(this._export(this._finishedLogRecords.splice(0, this._maxExportBatchSize)), this._exportTimeoutMillis);
-		}
 		_maybeStartTimer() {
-			if (this._isExporting) return;
-			const flush = () => {
-				this._isExporting = true;
-				this._flushOneBatch().then(() => {
-					this._isExporting = false;
-					if (this._finishedLogRecords.length > 0) {
-						this._clearTimer();
-						this._maybeStartTimer();
-					}
-				}).catch((e) => {
-					this._isExporting = false;
-					(0, core_1.globalErrorHandler)(e);
-				});
-			};
-			if (this._finishedLogRecords.length >= this._maxExportBatchSize) return flush();
+			if (this._shutdownOnce.isCalled) return;
+			if (this._flushing) return;
+			if (this._finishedLogRecords.length === 0) return;
+			if (this._currentExport !== null) return;
+			if (this._finishedLogRecords.length >= this._maxExportBatchSize) {
+				this._exportOneBatch();
+				return;
+			}
 			if (this._timer !== void 0) return;
-			this._timer = setTimeout(() => flush(), this._scheduledDelayMillis);
+			this._timer = setTimeout(() => {
+				this._timer = void 0;
+				this._exportOneBatch();
+			}, this._scheduledDelayMillis);
 			if (typeof this._timer !== "number") this._timer.unref();
 		}
 		_clearTimer() {
@@ -24737,18 +23746,6 @@ var require_BatchLogRecordProcessorBase = /* @__PURE__ */ __commonJSMin(((export
 				clearTimeout(this._timer);
 				this._timer = void 0;
 			}
-		}
-		_export(logRecords) {
-			const doExport = () => core_1.internal._export(this._exporter, logRecords).then((result) => {
-				if (result.code !== core_1.ExportResultCode.SUCCESS) (0, core_1.globalErrorHandler)(result.error ?? /* @__PURE__ */ new Error(`BatchLogRecordProcessor: log record export failed (status ${result})`));
-			}).catch(core_1.globalErrorHandler);
-			const pendingResources = [];
-			for (let i = 0; i < logRecords.length; i++) {
-				const resource = logRecords[i].resource;
-				if (resource.asyncAttributesPending && typeof resource.waitForAsyncAttributes === "function") pendingResources.push(resource.waitForAsyncAttributes());
-			}
-			if (pendingResources.length === 0) return doExport();
-			else return Promise.all(pendingResources).then(doExport, core_1.globalErrorHandler);
 		}
 	};
 	exports.BatchLogRecordProcessorBase = BatchLogRecordProcessorBase;
@@ -24802,7 +23799,7 @@ var require_LoggerConfigurators = /* @__PURE__ */ __commonJSMin(((exports) => {
 	*/
 	const DEFAULT_LOGGER_CONFIG = {
 		disabled: false,
-		minimumSeverity: require_src$20().SeverityNumber.UNSPECIFIED,
+		minimumSeverity: require_src$27().SeverityNumber.UNSPECIFIED,
 		traceBased: false
 	};
 	/**
@@ -26058,7 +25055,7 @@ var require_TracerMetrics = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_version$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.VERSION = void 0;
-	exports.VERSION = "2.6.1";
+	exports.VERSION = "2.7.0";
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-trace-base/build/src/Tracer.js
@@ -26244,7 +25241,7 @@ var require_BasicTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BasicTracerProvider = exports.ForceFlushState = void 0;
 	const core_1 = require_src$28();
-	const resources_1 = require_src$27();
+	const resources_1 = require_src$26();
 	const Tracer_1 = require_Tracer();
 	const config_1 = require_config();
 	const MultiSpanProcessor_1 = require_MultiSpanProcessor();
@@ -26764,7 +25761,7 @@ var require_autoLoader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.registerInstrumentations = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$20();
+	const api_logs_1 = require_src$27();
 	const autoLoaderUtils_1 = require_autoLoaderUtils();
 	/**
 	* It will register instrumentations and plugins
@@ -27155,7 +26152,7 @@ var require_instrumentation$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InstrumentationAbstract = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$20();
+	const api_logs_1 = require_src$27();
 	const shimmer = require_shimmer();
 	/**
 	* Base abstract internal class for instrumenting node and web plugins
@@ -27334,12 +26331,12 @@ var require_require_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, mod
 				return mod && mod[this._kRitmExports];
 			}
 		}
-		set(filename, exports$5, isBuiltin) {
-			if (isBuiltin) this._localCache.set(filename, exports$5);
-			else if (filename in __require.cache) __require.cache[filename][this._kRitmExports] = exports$5;
+		set(filename, exports$8, isBuiltin) {
+			if (isBuiltin) this._localCache.set(filename, exports$8);
+			else if (filename in __require.cache) __require.cache[filename][this._kRitmExports] = exports$8;
 			else {
 				debug("non-core module is unexpectedly not in require.cache: \"%s\"", filename);
-				this._localCache.set(filename, exports$5);
+				this._localCache.set(filename, exports$8);
 			}
 		}
 	};
@@ -27410,16 +26407,16 @@ var require_require_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, mod
 			}
 			const isPatching = patching.has(filename);
 			if (isPatching === false) patching.add(filename);
-			const exports$6 = coreOnly ? self._origGetBuiltinModule.apply(this, args) : self._origRequire.apply(this, args);
+			const exports$9 = coreOnly ? self._origGetBuiltinModule.apply(this, args) : self._origRequire.apply(this, args);
 			if (isPatching === true) {
 				debug("module is in the process of being patched already - ignoring: %s", filename);
-				return exports$6;
+				return exports$9;
 			}
 			patching.delete(filename);
 			if (core === true) {
 				if (hasWhitelist === true && modules.includes(filename) === false) {
 					debug("ignoring core module not on whitelist: %s", filename);
-					return exports$6;
+					return exports$9;
 				}
 				moduleName = filename;
 			} else if (hasWhitelist === true && modules.includes(filename)) {
@@ -27430,7 +26427,7 @@ var require_require_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, mod
 				const stat = moduleDetailsFromPath(filename);
 				if (stat === void 0) {
 					debug("could not parse filename: %s", filename);
-					return exports$6;
+					return exports$9;
 				}
 				moduleName = stat.name;
 				basedir = stat.basedir;
@@ -27442,7 +26439,7 @@ var require_require_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, mod
 						moduleName = id;
 						matchFound = true;
 					}
-					if (!modules.includes(moduleName) && !modules.includes(fullModuleName)) return exports$6;
+					if (!modules.includes(moduleName) && !modules.includes(fullModuleName)) return exports$9;
 					if (modules.includes(fullModuleName) && fullModuleName !== moduleName) {
 						moduleName = fullModuleName;
 						matchFound = true;
@@ -27454,22 +26451,22 @@ var require_require_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, mod
 						res = __require.resolve(moduleName, { paths: [basedir] });
 					} catch (e) {
 						debug("could not resolve module: %s", moduleName);
-						self._cache.set(filename, exports$6, core);
-						return exports$6;
+						self._cache.set(filename, exports$9, core);
+						return exports$9;
 					}
 					if (res !== filename) if (internals === true) {
 						moduleName = moduleName + path$5.sep + path$5.relative(basedir, filename);
 						debug("preparing to process require of internal file: %s", moduleName);
 					} else {
 						debug("ignoring require of non-main module file: %s", res);
-						self._cache.set(filename, exports$6, core);
-						return exports$6;
+						self._cache.set(filename, exports$9, core);
+						return exports$9;
 					}
 				}
 			}
-			self._cache.set(filename, exports$6, core);
+			self._cache.set(filename, exports$9, core);
 			debug("calling require hook: %s", moduleName);
-			const patchedExports = onrequire(exports$6, moduleName, basedir);
+			const patchedExports = onrequire(exports$9, moduleName, basedir);
 			self._cache.set(filename, patchedExports, core);
 			debug("returning module: %s", moduleName);
 			return patchedExports;
@@ -27591,14 +26588,14 @@ var require_RequireInTheMiddleSingleton = /* @__PURE__ */ __commonJSMin(((export
 			this._initialize();
 		}
 		_initialize() {
-			new require_in_the_middle_1.Hook(null, { internals: true }, (exports$4, name, basedir) => {
+			new require_in_the_middle_1.Hook(null, { internals: true }, (exports$7, name, basedir) => {
 				const normalizedModuleName = normalizePathSeparators(name);
 				const matches = this._moduleNameTrie.search(normalizedModuleName, {
 					maintainInsertionOrder: true,
 					fullOnly: basedir === void 0
 				});
-				for (const { onRequire } of matches) exports$4 = onRequire(exports$4, name, basedir);
-				return exports$4;
+				for (const { onRequire } of matches) exports$7 = onRequire(exports$7, name, basedir);
+				return exports$7;
 			});
 		}
 		/**
@@ -27990,34 +26987,34 @@ var require_instrumentation = /* @__PURE__ */ __commonJSMin(((exports) => {
 				api_1.diag.warn("Failed extracting version", baseDir);
 			}
 		}
-		_onRequire(module$2, exports$1, name, baseDir) {
+		_onRequire(module$2, exports$4, name, baseDir) {
 			if (!baseDir) {
 				if (typeof module$2.patch === "function") {
-					module$2.moduleExports = exports$1;
+					module$2.moduleExports = exports$4;
 					if (this._enabled) {
 						this._diag.debug("Applying instrumentation patch for nodejs core module on require hook", { module: module$2.name });
-						return module$2.patch(exports$1);
+						return module$2.patch(exports$4);
 					}
 				}
-				return exports$1;
+				return exports$4;
 			}
 			const version = this._extractPackageVersion(baseDir);
 			module$2.moduleVersion = version;
 			if (module$2.name === name) {
 				if (isSupported(module$2.supportedVersions, version, module$2.includePrerelease)) {
 					if (typeof module$2.patch === "function") {
-						module$2.moduleExports = exports$1;
+						module$2.moduleExports = exports$4;
 						if (this._enabled) {
 							this._diag.debug("Applying instrumentation patch for module on require hook", {
 								module: module$2.name,
 								version: module$2.moduleVersion,
 								baseDir
 							});
-							return module$2.patch(exports$1, module$2.moduleVersion);
+							return module$2.patch(exports$4, module$2.moduleVersion);
 						}
 					}
 				}
-				return exports$1;
+				return exports$4;
 			}
 			const files = module$2.files ?? [];
 			const normalizedName = path$2.normalize(name);
@@ -28033,7 +27030,7 @@ var require_instrumentation = /* @__PURE__ */ __commonJSMin(((exports) => {
 					return file.patch(patchedExports, module$2.moduleVersion);
 				}
 				return patchedExports;
-			}, exports$1);
+			}, exports$4);
 		}
 		enable() {
 			if (this._enabled) return;
@@ -28060,16 +27057,16 @@ var require_instrumentation = /* @__PURE__ */ __commonJSMin(((exports) => {
 			}
 			this._warnOnPreloadedModules();
 			for (const module$4 of this._modules) {
-				const hookFn = (exports$2, name, baseDir) => {
+				const hookFn = (exports$5, name, baseDir) => {
 					if (!baseDir && path$2.isAbsolute(name)) {
 						const parsedPath = path$2.parse(name);
 						name = parsedPath.name;
 						baseDir = parsedPath.dir;
 					}
-					return this._onRequire(module$4, exports$2, name, baseDir);
+					return this._onRequire(module$4, exports$5, name, baseDir);
 				};
-				const onRequire = (exports$3, name, baseDir) => {
-					return this._onRequire(module$4, exports$3, name, baseDir);
+				const onRequire = (exports$6, name, baseDir) => {
+					return this._onRequire(module$4, exports$6, name, baseDir);
 				};
 				const hook = path$2.isAbsolute(module$4.name) ? new require_in_the_middle_1.Hook([module$4.name], { internals: true }, onRequire) : this._requireInTheMiddleSingleton.register(module$4.name, onRequire);
 				this._hooks.push(hook);
@@ -28346,7 +27343,7 @@ var require_OTLPLogExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const otlp_transformer_1 = require_src$25();
+	const otlp_transformer_1 = require_src$24();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* Collector Logs Exporter for Node
@@ -28402,7 +27399,7 @@ var require_src$14 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_version = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.VERSION = void 0;
-	exports.VERSION = "0.214.0";
+	exports.VERSION = "0.215.0";
 }));
 //#endregion
 //#region node_modules/@grpc/grpc-js/build/src/constants.js
@@ -33842,7 +32839,11 @@ var require_message = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	* @template T extends object = object
 	*/
 	function Message(properties) {
-		if (properties) for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) this[keys[i]] = properties[keys[i]];
+		if (properties) for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i) {
+			var key = keys[i];
+			if (key === "__proto__") continue;
+			this[key] = properties[key];
+		}
 	}
 	/**
 	* Reference to the reflected type.
@@ -34398,6 +33399,7 @@ var require_type$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	* @param {Object.<string,*>} [options] Declared options
 	*/
 	function Type(name, options) {
+		name = name.replace(/\W/g, "");
 		Namespace.call(this, name, options);
 		/**
 		* Message fields.
@@ -35594,7 +34596,7 @@ var require_field = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		* Whether this field's value should be treated as a long.
 		* @type {boolean}
 		*/
-		this.long = util.Long ? types.long[type] !== void 0 : false;
+		this.long = util.Long ? types.long[type] !== void 0 : 		/* istanbul ignore next */ false;
 		/**
 		* Whether this field's value is a buffer.
 		* @type {boolean}
@@ -37261,6 +36263,7 @@ var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 					case "reserved":
 						readRanges(type.reserved || (type.reserved = []), true);
 						break;
+					/* istanbul ignore next */
 					default: throw illegal(token);
 				}
 			});
@@ -40124,6 +39127,1482 @@ var require_util$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.addCommonProtos = addCommonProtos;
 }));
 //#endregion
+//#region node_modules/long/umd/index.js
+var require_umd = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	(function(global, factory) {
+		function preferDefault(exports$1) {
+			return exports$1.default || exports$1;
+		}
+		if (typeof define === "function" && define.amd) define([], function() {
+			var exports$2 = {};
+			factory(exports$2);
+			return preferDefault(exports$2);
+		});
+		else if (typeof exports === "object") {
+			factory(exports);
+			if (typeof module === "object") module.exports = preferDefault(exports);
+		} else (function() {
+			var exports$3 = {};
+			factory(exports$3);
+			global.Long = preferDefault(exports$3);
+		})();
+	})(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : exports, function(_exports) {
+		"use strict";
+		Object.defineProperty(_exports, "__esModule", { value: true });
+		_exports.default = void 0;
+		/**
+		* @license
+		* Copyright 2009 The Closure Library Authors
+		* Copyright 2020 Daniel Wirtz / The long.js Authors.
+		*
+		* Licensed under the Apache License, Version 2.0 (the "License");
+		* you may not use this file except in compliance with the License.
+		* You may obtain a copy of the License at
+		*
+		*     http://www.apache.org/licenses/LICENSE-2.0
+		*
+		* Unless required by applicable law or agreed to in writing, software
+		* distributed under the License is distributed on an "AS IS" BASIS,
+		* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+		* See the License for the specific language governing permissions and
+		* limitations under the License.
+		*
+		* SPDX-License-Identifier: Apache-2.0
+		*/
+		var wasm = null;
+		try {
+			wasm = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([
+				0,
+				97,
+				115,
+				109,
+				1,
+				0,
+				0,
+				0,
+				1,
+				13,
+				2,
+				96,
+				0,
+				1,
+				127,
+				96,
+				4,
+				127,
+				127,
+				127,
+				127,
+				1,
+				127,
+				3,
+				7,
+				6,
+				0,
+				1,
+				1,
+				1,
+				1,
+				1,
+				6,
+				6,
+				1,
+				127,
+				1,
+				65,
+				0,
+				11,
+				7,
+				50,
+				6,
+				3,
+				109,
+				117,
+				108,
+				0,
+				1,
+				5,
+				100,
+				105,
+				118,
+				95,
+				115,
+				0,
+				2,
+				5,
+				100,
+				105,
+				118,
+				95,
+				117,
+				0,
+				3,
+				5,
+				114,
+				101,
+				109,
+				95,
+				115,
+				0,
+				4,
+				5,
+				114,
+				101,
+				109,
+				95,
+				117,
+				0,
+				5,
+				8,
+				103,
+				101,
+				116,
+				95,
+				104,
+				105,
+				103,
+				104,
+				0,
+				0,
+				10,
+				191,
+				1,
+				6,
+				4,
+				0,
+				35,
+				0,
+				11,
+				36,
+				1,
+				1,
+				126,
+				32,
+				0,
+				173,
+				32,
+				1,
+				173,
+				66,
+				32,
+				134,
+				132,
+				32,
+				2,
+				173,
+				32,
+				3,
+				173,
+				66,
+				32,
+				134,
+				132,
+				126,
+				34,
+				4,
+				66,
+				32,
+				135,
+				167,
+				36,
+				0,
+				32,
+				4,
+				167,
+				11,
+				36,
+				1,
+				1,
+				126,
+				32,
+				0,
+				173,
+				32,
+				1,
+				173,
+				66,
+				32,
+				134,
+				132,
+				32,
+				2,
+				173,
+				32,
+				3,
+				173,
+				66,
+				32,
+				134,
+				132,
+				127,
+				34,
+				4,
+				66,
+				32,
+				135,
+				167,
+				36,
+				0,
+				32,
+				4,
+				167,
+				11,
+				36,
+				1,
+				1,
+				126,
+				32,
+				0,
+				173,
+				32,
+				1,
+				173,
+				66,
+				32,
+				134,
+				132,
+				32,
+				2,
+				173,
+				32,
+				3,
+				173,
+				66,
+				32,
+				134,
+				132,
+				128,
+				34,
+				4,
+				66,
+				32,
+				135,
+				167,
+				36,
+				0,
+				32,
+				4,
+				167,
+				11,
+				36,
+				1,
+				1,
+				126,
+				32,
+				0,
+				173,
+				32,
+				1,
+				173,
+				66,
+				32,
+				134,
+				132,
+				32,
+				2,
+				173,
+				32,
+				3,
+				173,
+				66,
+				32,
+				134,
+				132,
+				129,
+				34,
+				4,
+				66,
+				32,
+				135,
+				167,
+				36,
+				0,
+				32,
+				4,
+				167,
+				11,
+				36,
+				1,
+				1,
+				126,
+				32,
+				0,
+				173,
+				32,
+				1,
+				173,
+				66,
+				32,
+				134,
+				132,
+				32,
+				2,
+				173,
+				32,
+				3,
+				173,
+				66,
+				32,
+				134,
+				132,
+				130,
+				34,
+				4,
+				66,
+				32,
+				135,
+				167,
+				36,
+				0,
+				32,
+				4,
+				167,
+				11
+			])), {}).exports;
+		} catch {}
+		/**
+		* Constructs a 64 bit two's-complement integer, given its low and high 32 bit values as *signed* integers.
+		*  See the from* functions below for more convenient ways of constructing Longs.
+		* @exports Long
+		* @class A Long class for representing a 64 bit two's-complement integer value.
+		* @param {number} low The low (signed) 32 bits of the long
+		* @param {number} high The high (signed) 32 bits of the long
+		* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+		* @constructor
+		*/
+		function Long(low, high, unsigned) {
+			/**
+			* The low 32 bits as a signed value.
+			* @type {number}
+			*/
+			this.low = low | 0;
+			/**
+			* The high 32 bits as a signed value.
+			* @type {number}
+			*/
+			this.high = high | 0;
+			/**
+			* Whether unsigned or not.
+			* @type {boolean}
+			*/
+			this.unsigned = !!unsigned;
+		}
+		/**
+		* An indicator used to reliably determine if an object is a Long or not.
+		* @type {boolean}
+		* @const
+		* @private
+		*/
+		Long.prototype.__isLong__;
+		Object.defineProperty(Long.prototype, "__isLong__", { value: true });
+		/**
+		* @function
+		* @param {*} obj Object
+		* @returns {boolean}
+		* @inner
+		*/
+		function isLong(obj) {
+			return (obj && obj["__isLong__"]) === true;
+		}
+		/**
+		* @function
+		* @param {*} value number
+		* @returns {number}
+		* @inner
+		*/
+		function ctz32(value) {
+			var c = Math.clz32(value & -value);
+			return value ? 31 - c : c;
+		}
+		/**
+		* Tests if the specified object is a Long.
+		* @function
+		* @param {*} obj Object
+		* @returns {boolean}
+		*/
+		Long.isLong = isLong;
+		/**
+		* A cache of the Long representations of small integer values.
+		* @type {!Object}
+		* @inner
+		*/
+		var INT_CACHE = {};
+		/**
+		* A cache of the Long representations of small unsigned integer values.
+		* @type {!Object}
+		* @inner
+		*/
+		var UINT_CACHE = {};
+		/**
+		* @param {number} value
+		* @param {boolean=} unsigned
+		* @returns {!Long}
+		* @inner
+		*/
+		function fromInt(value, unsigned) {
+			var obj, cachedObj, cache;
+			if (unsigned) {
+				value >>>= 0;
+				if (cache = 0 <= value && value < 256) {
+					cachedObj = UINT_CACHE[value];
+					if (cachedObj) return cachedObj;
+				}
+				obj = fromBits(value, 0, true);
+				if (cache) UINT_CACHE[value] = obj;
+				return obj;
+			} else {
+				value |= 0;
+				if (cache = -128 <= value && value < 128) {
+					cachedObj = INT_CACHE[value];
+					if (cachedObj) return cachedObj;
+				}
+				obj = fromBits(value, value < 0 ? -1 : 0, false);
+				if (cache) INT_CACHE[value] = obj;
+				return obj;
+			}
+		}
+		/**
+		* Returns a Long representing the given 32 bit integer value.
+		* @function
+		* @param {number} value The 32 bit integer in question
+		* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+		* @returns {!Long} The corresponding Long value
+		*/
+		Long.fromInt = fromInt;
+		/**
+		* @param {number} value
+		* @param {boolean=} unsigned
+		* @returns {!Long}
+		* @inner
+		*/
+		function fromNumber(value, unsigned) {
+			if (isNaN(value)) return unsigned ? UZERO : ZERO;
+			if (unsigned) {
+				if (value < 0) return UZERO;
+				if (value >= TWO_PWR_64_DBL) return MAX_UNSIGNED_VALUE;
+			} else {
+				if (value <= -TWO_PWR_63_DBL) return MIN_VALUE;
+				if (value + 1 >= TWO_PWR_63_DBL) return MAX_VALUE;
+			}
+			if (value < 0) return fromNumber(-value, unsigned).neg();
+			return fromBits(value % TWO_PWR_32_DBL | 0, value / TWO_PWR_32_DBL | 0, unsigned);
+		}
+		/**
+		* Returns a Long representing the given value, provided that it is a finite number. Otherwise, zero is returned.
+		* @function
+		* @param {number} value The number in question
+		* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+		* @returns {!Long} The corresponding Long value
+		*/
+		Long.fromNumber = fromNumber;
+		/**
+		* @param {number} lowBits
+		* @param {number} highBits
+		* @param {boolean=} unsigned
+		* @returns {!Long}
+		* @inner
+		*/
+		function fromBits(lowBits, highBits, unsigned) {
+			return new Long(lowBits, highBits, unsigned);
+		}
+		/**
+		* Returns a Long representing the 64 bit integer that comes by concatenating the given low and high bits. Each is
+		*  assumed to use 32 bits.
+		* @function
+		* @param {number} lowBits The low 32 bits
+		* @param {number} highBits The high 32 bits
+		* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+		* @returns {!Long} The corresponding Long value
+		*/
+		Long.fromBits = fromBits;
+		/**
+		* @function
+		* @param {number} base
+		* @param {number} exponent
+		* @returns {number}
+		* @inner
+		*/
+		var pow_dbl = Math.pow;
+		/**
+		* @param {string} str
+		* @param {(boolean|number)=} unsigned
+		* @param {number=} radix
+		* @returns {!Long}
+		* @inner
+		*/
+		function fromString(str, unsigned, radix) {
+			if (str.length === 0) throw Error("empty string");
+			if (typeof unsigned === "number") {
+				radix = unsigned;
+				unsigned = false;
+			} else unsigned = !!unsigned;
+			if (str === "NaN" || str === "Infinity" || str === "+Infinity" || str === "-Infinity") return unsigned ? UZERO : ZERO;
+			radix = radix || 10;
+			if (radix < 2 || 36 < radix) throw RangeError("radix");
+			var p;
+			if ((p = str.indexOf("-")) > 0) throw Error("interior hyphen");
+			else if (p === 0) return fromString(str.substring(1), unsigned, radix).neg();
+			var radixToPower = fromNumber(pow_dbl(radix, 8));
+			var result = ZERO;
+			for (var i = 0; i < str.length; i += 8) {
+				var size = Math.min(8, str.length - i), value = parseInt(str.substring(i, i + size), radix);
+				if (size < 8) {
+					var power = fromNumber(pow_dbl(radix, size));
+					result = result.mul(power).add(fromNumber(value));
+				} else {
+					result = result.mul(radixToPower);
+					result = result.add(fromNumber(value));
+				}
+			}
+			result.unsigned = unsigned;
+			return result;
+		}
+		/**
+		* Returns a Long representation of the given string, written using the specified radix.
+		* @function
+		* @param {string} str The textual representation of the Long
+		* @param {(boolean|number)=} unsigned Whether unsigned or not, defaults to signed
+		* @param {number=} radix The radix in which the text is written (2-36), defaults to 10
+		* @returns {!Long} The corresponding Long value
+		*/
+		Long.fromString = fromString;
+		/**
+		* @function
+		* @param {!Long|number|string|!{low: number, high: number, unsigned: boolean}} val
+		* @param {boolean=} unsigned
+		* @returns {!Long}
+		* @inner
+		*/
+		function fromValue(val, unsigned) {
+			if (typeof val === "number") return fromNumber(val, unsigned);
+			if (typeof val === "string") return fromString(val, unsigned);
+			return fromBits(val.low, val.high, typeof unsigned === "boolean" ? unsigned : val.unsigned);
+		}
+		/**
+		* Converts the specified value to a Long using the appropriate from* function for its type.
+		* @function
+		* @param {!Long|number|bigint|string|!{low: number, high: number, unsigned: boolean}} val Value
+		* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+		* @returns {!Long}
+		*/
+		Long.fromValue = fromValue;
+		/**
+		* @type {number}
+		* @const
+		* @inner
+		*/
+		var TWO_PWR_16_DBL = 65536;
+		/**
+		* @type {number}
+		* @const
+		* @inner
+		*/
+		var TWO_PWR_24_DBL = 1 << 24;
+		/**
+		* @type {number}
+		* @const
+		* @inner
+		*/
+		var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
+		/**
+		* @type {number}
+		* @const
+		* @inner
+		*/
+		var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
+		/**
+		* @type {number}
+		* @const
+		* @inner
+		*/
+		var TWO_PWR_63_DBL = TWO_PWR_64_DBL / 2;
+		/**
+		* @type {!Long}
+		* @const
+		* @inner
+		*/
+		var TWO_PWR_24 = fromInt(TWO_PWR_24_DBL);
+		/**
+		* @type {!Long}
+		* @inner
+		*/
+		var ZERO = fromInt(0);
+		/**
+		* Signed zero.
+		* @type {!Long}
+		*/
+		Long.ZERO = ZERO;
+		/**
+		* @type {!Long}
+		* @inner
+		*/
+		var UZERO = fromInt(0, true);
+		/**
+		* Unsigned zero.
+		* @type {!Long}
+		*/
+		Long.UZERO = UZERO;
+		/**
+		* @type {!Long}
+		* @inner
+		*/
+		var ONE = fromInt(1);
+		/**
+		* Signed one.
+		* @type {!Long}
+		*/
+		Long.ONE = ONE;
+		/**
+		* @type {!Long}
+		* @inner
+		*/
+		var UONE = fromInt(1, true);
+		/**
+		* Unsigned one.
+		* @type {!Long}
+		*/
+		Long.UONE = UONE;
+		/**
+		* @type {!Long}
+		* @inner
+		*/
+		var NEG_ONE = fromInt(-1);
+		/**
+		* Signed negative one.
+		* @type {!Long}
+		*/
+		Long.NEG_ONE = NEG_ONE;
+		/**
+		* @type {!Long}
+		* @inner
+		*/
+		var MAX_VALUE = fromBits(-1, 2147483647, false);
+		/**
+		* Maximum signed value.
+		* @type {!Long}
+		*/
+		Long.MAX_VALUE = MAX_VALUE;
+		/**
+		* @type {!Long}
+		* @inner
+		*/
+		var MAX_UNSIGNED_VALUE = fromBits(-1, -1, true);
+		/**
+		* Maximum unsigned value.
+		* @type {!Long}
+		*/
+		Long.MAX_UNSIGNED_VALUE = MAX_UNSIGNED_VALUE;
+		/**
+		* @type {!Long}
+		* @inner
+		*/
+		var MIN_VALUE = fromBits(0, -2147483648, false);
+		/**
+		* Minimum signed value.
+		* @type {!Long}
+		*/
+		Long.MIN_VALUE = MIN_VALUE;
+		/**
+		* @alias Long.prototype
+		* @inner
+		*/
+		var LongPrototype = Long.prototype;
+		/**
+		* Converts the Long to a 32 bit integer, assuming it is a 32 bit integer.
+		* @this {!Long}
+		* @returns {number}
+		*/
+		LongPrototype.toInt = function toInt() {
+			return this.unsigned ? this.low >>> 0 : this.low;
+		};
+		/**
+		* Converts the Long to a the nearest floating-point representation of this value (double, 53 bit mantissa).
+		* @this {!Long}
+		* @returns {number}
+		*/
+		LongPrototype.toNumber = function toNumber() {
+			if (this.unsigned) return (this.high >>> 0) * TWO_PWR_32_DBL + (this.low >>> 0);
+			return this.high * TWO_PWR_32_DBL + (this.low >>> 0);
+		};
+		/**
+		* Converts the Long to a string written in the specified radix.
+		* @this {!Long}
+		* @param {number=} radix Radix (2-36), defaults to 10
+		* @returns {string}
+		* @override
+		* @throws {RangeError} If `radix` is out of range
+		*/
+		LongPrototype.toString = function toString(radix) {
+			radix = radix || 10;
+			if (radix < 2 || 36 < radix) throw RangeError("radix");
+			if (this.isZero()) return "0";
+			if (this.isNegative()) if (this.eq(MIN_VALUE)) {
+				var radixLong = fromNumber(radix), div = this.div(radixLong), rem1 = div.mul(radixLong).sub(this);
+				return div.toString(radix) + rem1.toInt().toString(radix);
+			} else return "-" + this.neg().toString(radix);
+			var radixToPower = fromNumber(pow_dbl(radix, 6), this.unsigned), rem = this;
+			var result = "";
+			while (true) {
+				var remDiv = rem.div(radixToPower), digits = (rem.sub(remDiv.mul(radixToPower)).toInt() >>> 0).toString(radix);
+				rem = remDiv;
+				if (rem.isZero()) return digits + result;
+				else {
+					while (digits.length < 6) digits = "0" + digits;
+					result = "" + digits + result;
+				}
+			}
+		};
+		/**
+		* Gets the high 32 bits as a signed integer.
+		* @this {!Long}
+		* @returns {number} Signed high bits
+		*/
+		LongPrototype.getHighBits = function getHighBits() {
+			return this.high;
+		};
+		/**
+		* Gets the high 32 bits as an unsigned integer.
+		* @this {!Long}
+		* @returns {number} Unsigned high bits
+		*/
+		LongPrototype.getHighBitsUnsigned = function getHighBitsUnsigned() {
+			return this.high >>> 0;
+		};
+		/**
+		* Gets the low 32 bits as a signed integer.
+		* @this {!Long}
+		* @returns {number} Signed low bits
+		*/
+		LongPrototype.getLowBits = function getLowBits() {
+			return this.low;
+		};
+		/**
+		* Gets the low 32 bits as an unsigned integer.
+		* @this {!Long}
+		* @returns {number} Unsigned low bits
+		*/
+		LongPrototype.getLowBitsUnsigned = function getLowBitsUnsigned() {
+			return this.low >>> 0;
+		};
+		/**
+		* Gets the number of bits needed to represent the absolute value of this Long.
+		* @this {!Long}
+		* @returns {number}
+		*/
+		LongPrototype.getNumBitsAbs = function getNumBitsAbs() {
+			if (this.isNegative()) return this.eq(MIN_VALUE) ? 64 : this.neg().getNumBitsAbs();
+			var val = this.high != 0 ? this.high : this.low;
+			for (var bit = 31; bit > 0; bit--) if ((val & 1 << bit) != 0) break;
+			return this.high != 0 ? bit + 33 : bit + 1;
+		};
+		/**
+		* Tests if this Long can be safely represented as a JavaScript number.
+		* @this {!Long}
+		* @returns {boolean}
+		*/
+		LongPrototype.isSafeInteger = function isSafeInteger() {
+			var top11Bits = this.high >> 21;
+			if (!top11Bits) return true;
+			if (this.unsigned) return false;
+			return top11Bits === -1 && !(this.low === 0 && this.high === -2097152);
+		};
+		/**
+		* Tests if this Long's value equals zero.
+		* @this {!Long}
+		* @returns {boolean}
+		*/
+		LongPrototype.isZero = function isZero() {
+			return this.high === 0 && this.low === 0;
+		};
+		/**
+		* Tests if this Long's value equals zero. This is an alias of {@link Long#isZero}.
+		* @returns {boolean}
+		*/
+		LongPrototype.eqz = LongPrototype.isZero;
+		/**
+		* Tests if this Long's value is negative.
+		* @this {!Long}
+		* @returns {boolean}
+		*/
+		LongPrototype.isNegative = function isNegative() {
+			return !this.unsigned && this.high < 0;
+		};
+		/**
+		* Tests if this Long's value is positive or zero.
+		* @this {!Long}
+		* @returns {boolean}
+		*/
+		LongPrototype.isPositive = function isPositive() {
+			return this.unsigned || this.high >= 0;
+		};
+		/**
+		* Tests if this Long's value is odd.
+		* @this {!Long}
+		* @returns {boolean}
+		*/
+		LongPrototype.isOdd = function isOdd() {
+			return (this.low & 1) === 1;
+		};
+		/**
+		* Tests if this Long's value is even.
+		* @this {!Long}
+		* @returns {boolean}
+		*/
+		LongPrototype.isEven = function isEven() {
+			return (this.low & 1) === 0;
+		};
+		/**
+		* Tests if this Long's value equals the specified's.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.equals = function equals(other) {
+			if (!isLong(other)) other = fromValue(other);
+			if (this.unsigned !== other.unsigned && this.high >>> 31 === 1 && other.high >>> 31 === 1) return false;
+			return this.high === other.high && this.low === other.low;
+		};
+		/**
+		* Tests if this Long's value equals the specified's. This is an alias of {@link Long#equals}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.eq = LongPrototype.equals;
+		/**
+		* Tests if this Long's value differs from the specified's.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.notEquals = function notEquals(other) {
+			return !this.eq(other);
+		};
+		/**
+		* Tests if this Long's value differs from the specified's. This is an alias of {@link Long#notEquals}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.neq = LongPrototype.notEquals;
+		/**
+		* Tests if this Long's value differs from the specified's. This is an alias of {@link Long#notEquals}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.ne = LongPrototype.notEquals;
+		/**
+		* Tests if this Long's value is less than the specified's.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.lessThan = function lessThan(other) {
+			return this.comp(other) < 0;
+		};
+		/**
+		* Tests if this Long's value is less than the specified's. This is an alias of {@link Long#lessThan}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.lt = LongPrototype.lessThan;
+		/**
+		* Tests if this Long's value is less than or equal the specified's.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.lessThanOrEqual = function lessThanOrEqual(other) {
+			return this.comp(other) <= 0;
+		};
+		/**
+		* Tests if this Long's value is less than or equal the specified's. This is an alias of {@link Long#lessThanOrEqual}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.lte = LongPrototype.lessThanOrEqual;
+		/**
+		* Tests if this Long's value is less than or equal the specified's. This is an alias of {@link Long#lessThanOrEqual}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.le = LongPrototype.lessThanOrEqual;
+		/**
+		* Tests if this Long's value is greater than the specified's.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.greaterThan = function greaterThan(other) {
+			return this.comp(other) > 0;
+		};
+		/**
+		* Tests if this Long's value is greater than the specified's. This is an alias of {@link Long#greaterThan}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.gt = LongPrototype.greaterThan;
+		/**
+		* Tests if this Long's value is greater than or equal the specified's.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.greaterThanOrEqual = function greaterThanOrEqual(other) {
+			return this.comp(other) >= 0;
+		};
+		/**
+		* Tests if this Long's value is greater than or equal the specified's. This is an alias of {@link Long#greaterThanOrEqual}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.gte = LongPrototype.greaterThanOrEqual;
+		/**
+		* Tests if this Long's value is greater than or equal the specified's. This is an alias of {@link Long#greaterThanOrEqual}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {boolean}
+		*/
+		LongPrototype.ge = LongPrototype.greaterThanOrEqual;
+		/**
+		* Compares this Long's value with the specified's.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {number} 0 if they are the same, 1 if the this is greater and -1
+		*  if the given one is greater
+		*/
+		LongPrototype.compare = function compare(other) {
+			if (!isLong(other)) other = fromValue(other);
+			if (this.eq(other)) return 0;
+			var thisNeg = this.isNegative(), otherNeg = other.isNegative();
+			if (thisNeg && !otherNeg) return -1;
+			if (!thisNeg && otherNeg) return 1;
+			if (!this.unsigned) return this.sub(other).isNegative() ? -1 : 1;
+			return other.high >>> 0 > this.high >>> 0 || other.high === this.high && other.low >>> 0 > this.low >>> 0 ? -1 : 1;
+		};
+		/**
+		* Compares this Long's value with the specified's. This is an alias of {@link Long#compare}.
+		* @function
+		* @param {!Long|number|bigint|string} other Other value
+		* @returns {number} 0 if they are the same, 1 if the this is greater and -1
+		*  if the given one is greater
+		*/
+		LongPrototype.comp = LongPrototype.compare;
+		/**
+		* Negates this Long's value.
+		* @this {!Long}
+		* @returns {!Long} Negated Long
+		*/
+		LongPrototype.negate = function negate() {
+			if (!this.unsigned && this.eq(MIN_VALUE)) return MIN_VALUE;
+			return this.not().add(ONE);
+		};
+		/**
+		* Negates this Long's value. This is an alias of {@link Long#negate}.
+		* @function
+		* @returns {!Long} Negated Long
+		*/
+		LongPrototype.neg = LongPrototype.negate;
+		/**
+		* Returns the sum of this and the specified Long.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} addend Addend
+		* @returns {!Long} Sum
+		*/
+		LongPrototype.add = function add(addend) {
+			if (!isLong(addend)) addend = fromValue(addend);
+			var a48 = this.high >>> 16;
+			var a32 = this.high & 65535;
+			var a16 = this.low >>> 16;
+			var a00 = this.low & 65535;
+			var b48 = addend.high >>> 16;
+			var b32 = addend.high & 65535;
+			var b16 = addend.low >>> 16;
+			var b00 = addend.low & 65535;
+			var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+			c00 += a00 + b00;
+			c16 += c00 >>> 16;
+			c00 &= 65535;
+			c16 += a16 + b16;
+			c32 += c16 >>> 16;
+			c16 &= 65535;
+			c32 += a32 + b32;
+			c48 += c32 >>> 16;
+			c32 &= 65535;
+			c48 += a48 + b48;
+			c48 &= 65535;
+			return fromBits(c16 << 16 | c00, c48 << 16 | c32, this.unsigned);
+		};
+		/**
+		* Returns the difference of this and the specified Long.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} subtrahend Subtrahend
+		* @returns {!Long} Difference
+		*/
+		LongPrototype.subtract = function subtract(subtrahend) {
+			if (!isLong(subtrahend)) subtrahend = fromValue(subtrahend);
+			return this.add(subtrahend.neg());
+		};
+		/**
+		* Returns the difference of this and the specified Long. This is an alias of {@link Long#subtract}.
+		* @function
+		* @param {!Long|number|bigint|string} subtrahend Subtrahend
+		* @returns {!Long} Difference
+		*/
+		LongPrototype.sub = LongPrototype.subtract;
+		/**
+		* Returns the product of this and the specified Long.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} multiplier Multiplier
+		* @returns {!Long} Product
+		*/
+		LongPrototype.multiply = function multiply(multiplier) {
+			if (this.isZero()) return this;
+			if (!isLong(multiplier)) multiplier = fromValue(multiplier);
+			if (wasm) return fromBits(wasm["mul"](this.low, this.high, multiplier.low, multiplier.high), wasm["get_high"](), this.unsigned);
+			if (multiplier.isZero()) return this.unsigned ? UZERO : ZERO;
+			if (this.eq(MIN_VALUE)) return multiplier.isOdd() ? MIN_VALUE : ZERO;
+			if (multiplier.eq(MIN_VALUE)) return this.isOdd() ? MIN_VALUE : ZERO;
+			if (this.isNegative()) if (multiplier.isNegative()) return this.neg().mul(multiplier.neg());
+			else return this.neg().mul(multiplier).neg();
+			else if (multiplier.isNegative()) return this.mul(multiplier.neg()).neg();
+			if (this.lt(TWO_PWR_24) && multiplier.lt(TWO_PWR_24)) return fromNumber(this.toNumber() * multiplier.toNumber(), this.unsigned);
+			var a48 = this.high >>> 16;
+			var a32 = this.high & 65535;
+			var a16 = this.low >>> 16;
+			var a00 = this.low & 65535;
+			var b48 = multiplier.high >>> 16;
+			var b32 = multiplier.high & 65535;
+			var b16 = multiplier.low >>> 16;
+			var b00 = multiplier.low & 65535;
+			var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+			c00 += a00 * b00;
+			c16 += c00 >>> 16;
+			c00 &= 65535;
+			c16 += a16 * b00;
+			c32 += c16 >>> 16;
+			c16 &= 65535;
+			c16 += a00 * b16;
+			c32 += c16 >>> 16;
+			c16 &= 65535;
+			c32 += a32 * b00;
+			c48 += c32 >>> 16;
+			c32 &= 65535;
+			c32 += a16 * b16;
+			c48 += c32 >>> 16;
+			c32 &= 65535;
+			c32 += a00 * b32;
+			c48 += c32 >>> 16;
+			c32 &= 65535;
+			c48 += a48 * b00 + a32 * b16 + a16 * b32 + a00 * b48;
+			c48 &= 65535;
+			return fromBits(c16 << 16 | c00, c48 << 16 | c32, this.unsigned);
+		};
+		/**
+		* Returns the product of this and the specified Long. This is an alias of {@link Long#multiply}.
+		* @function
+		* @param {!Long|number|bigint|string} multiplier Multiplier
+		* @returns {!Long} Product
+		*/
+		LongPrototype.mul = LongPrototype.multiply;
+		/**
+		* Returns this Long divided by the specified. The result is signed if this Long is signed or
+		*  unsigned if this Long is unsigned.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} divisor Divisor
+		* @returns {!Long} Quotient
+		*/
+		LongPrototype.divide = function divide(divisor) {
+			if (!isLong(divisor)) divisor = fromValue(divisor);
+			if (divisor.isZero()) throw Error("division by zero");
+			if (wasm) {
+				if (!this.unsigned && this.high === -2147483648 && divisor.low === -1 && divisor.high === -1) return this;
+				return fromBits((this.unsigned ? wasm["div_u"] : wasm["div_s"])(this.low, this.high, divisor.low, divisor.high), wasm["get_high"](), this.unsigned);
+			}
+			if (this.isZero()) return this.unsigned ? UZERO : ZERO;
+			var approx, rem, res;
+			if (!this.unsigned) {
+				if (this.eq(MIN_VALUE)) if (divisor.eq(ONE) || divisor.eq(NEG_ONE)) return MIN_VALUE;
+				else if (divisor.eq(MIN_VALUE)) return ONE;
+				else {
+					approx = this.shr(1).div(divisor).shl(1);
+					if (approx.eq(ZERO)) return divisor.isNegative() ? ONE : NEG_ONE;
+					else {
+						rem = this.sub(divisor.mul(approx));
+						res = approx.add(rem.div(divisor));
+						return res;
+					}
+				}
+				else if (divisor.eq(MIN_VALUE)) return this.unsigned ? UZERO : ZERO;
+				if (this.isNegative()) {
+					if (divisor.isNegative()) return this.neg().div(divisor.neg());
+					return this.neg().div(divisor).neg();
+				} else if (divisor.isNegative()) return this.div(divisor.neg()).neg();
+				res = ZERO;
+			} else {
+				if (!divisor.unsigned) divisor = divisor.toUnsigned();
+				if (divisor.gt(this)) return UZERO;
+				if (divisor.gt(this.shru(1))) return UONE;
+				res = UZERO;
+			}
+			rem = this;
+			while (rem.gte(divisor)) {
+				approx = Math.max(1, Math.floor(rem.toNumber() / divisor.toNumber()));
+				var log2 = Math.ceil(Math.log(approx) / Math.LN2), delta = log2 <= 48 ? 1 : pow_dbl(2, log2 - 48), approxRes = fromNumber(approx), approxRem = approxRes.mul(divisor);
+				while (approxRem.isNegative() || approxRem.gt(rem)) {
+					approx -= delta;
+					approxRes = fromNumber(approx, this.unsigned);
+					approxRem = approxRes.mul(divisor);
+				}
+				if (approxRes.isZero()) approxRes = ONE;
+				res = res.add(approxRes);
+				rem = rem.sub(approxRem);
+			}
+			return res;
+		};
+		/**
+		* Returns this Long divided by the specified. This is an alias of {@link Long#divide}.
+		* @function
+		* @param {!Long|number|bigint|string} divisor Divisor
+		* @returns {!Long} Quotient
+		*/
+		LongPrototype.div = LongPrototype.divide;
+		/**
+		* Returns this Long modulo the specified.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} divisor Divisor
+		* @returns {!Long} Remainder
+		*/
+		LongPrototype.modulo = function modulo(divisor) {
+			if (!isLong(divisor)) divisor = fromValue(divisor);
+			if (wasm) return fromBits((this.unsigned ? wasm["rem_u"] : wasm["rem_s"])(this.low, this.high, divisor.low, divisor.high), wasm["get_high"](), this.unsigned);
+			return this.sub(this.div(divisor).mul(divisor));
+		};
+		/**
+		* Returns this Long modulo the specified. This is an alias of {@link Long#modulo}.
+		* @function
+		* @param {!Long|number|bigint|string} divisor Divisor
+		* @returns {!Long} Remainder
+		*/
+		LongPrototype.mod = LongPrototype.modulo;
+		/**
+		* Returns this Long modulo the specified. This is an alias of {@link Long#modulo}.
+		* @function
+		* @param {!Long|number|bigint|string} divisor Divisor
+		* @returns {!Long} Remainder
+		*/
+		LongPrototype.rem = LongPrototype.modulo;
+		/**
+		* Returns the bitwise NOT of this Long.
+		* @this {!Long}
+		* @returns {!Long}
+		*/
+		LongPrototype.not = function not() {
+			return fromBits(~this.low, ~this.high, this.unsigned);
+		};
+		/**
+		* Returns count leading zeros of this Long.
+		* @this {!Long}
+		* @returns {!number}
+		*/
+		LongPrototype.countLeadingZeros = function countLeadingZeros() {
+			return this.high ? Math.clz32(this.high) : Math.clz32(this.low) + 32;
+		};
+		/**
+		* Returns count leading zeros. This is an alias of {@link Long#countLeadingZeros}.
+		* @function
+		* @param {!Long}
+		* @returns {!number}
+		*/
+		LongPrototype.clz = LongPrototype.countLeadingZeros;
+		/**
+		* Returns count trailing zeros of this Long.
+		* @this {!Long}
+		* @returns {!number}
+		*/
+		LongPrototype.countTrailingZeros = function countTrailingZeros() {
+			return this.low ? ctz32(this.low) : ctz32(this.high) + 32;
+		};
+		/**
+		* Returns count trailing zeros. This is an alias of {@link Long#countTrailingZeros}.
+		* @function
+		* @param {!Long}
+		* @returns {!number}
+		*/
+		LongPrototype.ctz = LongPrototype.countTrailingZeros;
+		/**
+		* Returns the bitwise AND of this Long and the specified.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other Long
+		* @returns {!Long}
+		*/
+		LongPrototype.and = function and(other) {
+			if (!isLong(other)) other = fromValue(other);
+			return fromBits(this.low & other.low, this.high & other.high, this.unsigned);
+		};
+		/**
+		* Returns the bitwise OR of this Long and the specified.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other Long
+		* @returns {!Long}
+		*/
+		LongPrototype.or = function or(other) {
+			if (!isLong(other)) other = fromValue(other);
+			return fromBits(this.low | other.low, this.high | other.high, this.unsigned);
+		};
+		/**
+		* Returns the bitwise XOR of this Long and the given one.
+		* @this {!Long}
+		* @param {!Long|number|bigint|string} other Other Long
+		* @returns {!Long}
+		*/
+		LongPrototype.xor = function xor(other) {
+			if (!isLong(other)) other = fromValue(other);
+			return fromBits(this.low ^ other.low, this.high ^ other.high, this.unsigned);
+		};
+		/**
+		* Returns this Long with bits shifted to the left by the given amount.
+		* @this {!Long}
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Shifted Long
+		*/
+		LongPrototype.shiftLeft = function shiftLeft(numBits) {
+			if (isLong(numBits)) numBits = numBits.toInt();
+			if ((numBits &= 63) === 0) return this;
+			else if (numBits < 32) return fromBits(this.low << numBits, this.high << numBits | this.low >>> 32 - numBits, this.unsigned);
+			else return fromBits(0, this.low << numBits - 32, this.unsigned);
+		};
+		/**
+		* Returns this Long with bits shifted to the left by the given amount. This is an alias of {@link Long#shiftLeft}.
+		* @function
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Shifted Long
+		*/
+		LongPrototype.shl = LongPrototype.shiftLeft;
+		/**
+		* Returns this Long with bits arithmetically shifted to the right by the given amount.
+		* @this {!Long}
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Shifted Long
+		*/
+		LongPrototype.shiftRight = function shiftRight(numBits) {
+			if (isLong(numBits)) numBits = numBits.toInt();
+			if ((numBits &= 63) === 0) return this;
+			else if (numBits < 32) return fromBits(this.low >>> numBits | this.high << 32 - numBits, this.high >> numBits, this.unsigned);
+			else return fromBits(this.high >> numBits - 32, this.high >= 0 ? 0 : -1, this.unsigned);
+		};
+		/**
+		* Returns this Long with bits arithmetically shifted to the right by the given amount. This is an alias of {@link Long#shiftRight}.
+		* @function
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Shifted Long
+		*/
+		LongPrototype.shr = LongPrototype.shiftRight;
+		/**
+		* Returns this Long with bits logically shifted to the right by the given amount.
+		* @this {!Long}
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Shifted Long
+		*/
+		LongPrototype.shiftRightUnsigned = function shiftRightUnsigned(numBits) {
+			if (isLong(numBits)) numBits = numBits.toInt();
+			if ((numBits &= 63) === 0) return this;
+			if (numBits < 32) return fromBits(this.low >>> numBits | this.high << 32 - numBits, this.high >>> numBits, this.unsigned);
+			if (numBits === 32) return fromBits(this.high, 0, this.unsigned);
+			return fromBits(this.high >>> numBits - 32, 0, this.unsigned);
+		};
+		/**
+		* Returns this Long with bits logically shifted to the right by the given amount. This is an alias of {@link Long#shiftRightUnsigned}.
+		* @function
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Shifted Long
+		*/
+		LongPrototype.shru = LongPrototype.shiftRightUnsigned;
+		/**
+		* Returns this Long with bits logically shifted to the right by the given amount. This is an alias of {@link Long#shiftRightUnsigned}.
+		* @function
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Shifted Long
+		*/
+		LongPrototype.shr_u = LongPrototype.shiftRightUnsigned;
+		/**
+		* Returns this Long with bits rotated to the left by the given amount.
+		* @this {!Long}
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Rotated Long
+		*/
+		LongPrototype.rotateLeft = function rotateLeft(numBits) {
+			var b;
+			if (isLong(numBits)) numBits = numBits.toInt();
+			if ((numBits &= 63) === 0) return this;
+			if (numBits === 32) return fromBits(this.high, this.low, this.unsigned);
+			if (numBits < 32) {
+				b = 32 - numBits;
+				return fromBits(this.low << numBits | this.high >>> b, this.high << numBits | this.low >>> b, this.unsigned);
+			}
+			numBits -= 32;
+			b = 32 - numBits;
+			return fromBits(this.high << numBits | this.low >>> b, this.low << numBits | this.high >>> b, this.unsigned);
+		};
+		/**
+		* Returns this Long with bits rotated to the left by the given amount. This is an alias of {@link Long#rotateLeft}.
+		* @function
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Rotated Long
+		*/
+		LongPrototype.rotl = LongPrototype.rotateLeft;
+		/**
+		* Returns this Long with bits rotated to the right by the given amount.
+		* @this {!Long}
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Rotated Long
+		*/
+		LongPrototype.rotateRight = function rotateRight(numBits) {
+			var b;
+			if (isLong(numBits)) numBits = numBits.toInt();
+			if ((numBits &= 63) === 0) return this;
+			if (numBits === 32) return fromBits(this.high, this.low, this.unsigned);
+			if (numBits < 32) {
+				b = 32 - numBits;
+				return fromBits(this.high << b | this.low >>> numBits, this.low << b | this.high >>> numBits, this.unsigned);
+			}
+			numBits -= 32;
+			b = 32 - numBits;
+			return fromBits(this.low << b | this.high >>> numBits, this.high << b | this.low >>> numBits, this.unsigned);
+		};
+		/**
+		* Returns this Long with bits rotated to the right by the given amount. This is an alias of {@link Long#rotateRight}.
+		* @function
+		* @param {number|!Long} numBits Number of bits
+		* @returns {!Long} Rotated Long
+		*/
+		LongPrototype.rotr = LongPrototype.rotateRight;
+		/**
+		* Converts this Long to signed.
+		* @this {!Long}
+		* @returns {!Long} Signed long
+		*/
+		LongPrototype.toSigned = function toSigned() {
+			if (!this.unsigned) return this;
+			return fromBits(this.low, this.high, false);
+		};
+		/**
+		* Converts this Long to unsigned.
+		* @this {!Long}
+		* @returns {!Long} Unsigned long
+		*/
+		LongPrototype.toUnsigned = function toUnsigned() {
+			if (this.unsigned) return this;
+			return fromBits(this.low, this.high, true);
+		};
+		/**
+		* Converts this Long to its byte representation.
+		* @param {boolean=} le Whether little or big endian, defaults to big endian
+		* @this {!Long}
+		* @returns {!Array.<number>} Byte representation
+		*/
+		LongPrototype.toBytes = function toBytes(le) {
+			return le ? this.toBytesLE() : this.toBytesBE();
+		};
+		/**
+		* Converts this Long to its little endian byte representation.
+		* @this {!Long}
+		* @returns {!Array.<number>} Little endian byte representation
+		*/
+		LongPrototype.toBytesLE = function toBytesLE() {
+			var hi = this.high, lo = this.low;
+			return [
+				lo & 255,
+				lo >>> 8 & 255,
+				lo >>> 16 & 255,
+				lo >>> 24,
+				hi & 255,
+				hi >>> 8 & 255,
+				hi >>> 16 & 255,
+				hi >>> 24
+			];
+		};
+		/**
+		* Converts this Long to its big endian byte representation.
+		* @this {!Long}
+		* @returns {!Array.<number>} Big endian byte representation
+		*/
+		LongPrototype.toBytesBE = function toBytesBE() {
+			var hi = this.high, lo = this.low;
+			return [
+				hi >>> 24,
+				hi >>> 16 & 255,
+				hi >>> 8 & 255,
+				hi & 255,
+				lo >>> 24,
+				lo >>> 16 & 255,
+				lo >>> 8 & 255,
+				lo & 255
+			];
+		};
+		/**
+		* Creates a Long from its byte representation.
+		* @param {!Array.<number>} bytes Byte representation
+		* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+		* @param {boolean=} le Whether little or big endian, defaults to big endian
+		* @returns {Long} The corresponding Long value
+		*/
+		Long.fromBytes = function fromBytes(bytes, unsigned, le) {
+			return le ? Long.fromBytesLE(bytes, unsigned) : Long.fromBytesBE(bytes, unsigned);
+		};
+		/**
+		* Creates a Long from its little endian byte representation.
+		* @param {!Array.<number>} bytes Little endian byte representation
+		* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+		* @returns {Long} The corresponding Long value
+		*/
+		Long.fromBytesLE = function fromBytesLE(bytes, unsigned) {
+			return new Long(bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24, bytes[4] | bytes[5] << 8 | bytes[6] << 16 | bytes[7] << 24, unsigned);
+		};
+		/**
+		* Creates a Long from its big endian byte representation.
+		* @param {!Array.<number>} bytes Big endian byte representation
+		* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+		* @returns {Long} The corresponding Long value
+		*/
+		Long.fromBytesBE = function fromBytesBE(bytes, unsigned) {
+			return new Long(bytes[4] << 24 | bytes[5] << 16 | bytes[6] << 8 | bytes[7], bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3], unsigned);
+		};
+		if (typeof BigInt === "function") {
+			/**
+			* Returns a Long representing the given big integer.
+			* @function
+			* @param {number} value The big integer value
+			* @param {boolean=} unsigned Whether unsigned or not, defaults to signed
+			* @returns {!Long} The corresponding Long value
+			*/
+			Long.fromBigInt = function fromBigInt(value, unsigned) {
+				return fromBits(Number(BigInt.asIntN(32, value)), Number(BigInt.asIntN(32, value >> BigInt(32))), unsigned);
+			};
+			Long.fromValue = function fromValueWithBigInt(value, unsigned) {
+				if (typeof value === "bigint") return Long.fromBigInt(value, unsigned);
+				return fromValue(value, unsigned);
+			};
+			/**
+			* Converts the Long to its big integer representation.
+			* @this {!Long}
+			* @returns {bigint}
+			*/
+			LongPrototype.toBigInt = function toBigInt() {
+				var lowBigInt = BigInt(this.low >>> 0);
+				return BigInt(this.unsigned ? this.high >>> 0 : this.high) << BigInt(32) | lowBigInt;
+			};
+		}
+		_exports.default = Long;
+	});
+}));
+//#endregion
 //#region node_modules/@grpc/proto-loader/build/src/index.js
 var require_src$12 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	/**
@@ -40149,7 +40628,7 @@ var require_src$12 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const Protobuf = require_protobufjs();
 	const descriptor = require_descriptor();
 	const util_1 = require_util$1();
-	exports.Long = __require("long");
+	exports.Long = require_umd();
 	function isAnyExtension(obj) {
 		return "@type" in obj && typeof obj["@type"] === "string";
 	}
@@ -41308,7 +41787,8 @@ var require_single_subchannel_channel = /* @__PURE__ */ __commonJSMin(((exports)
 			const splitPath = this.method.split("/");
 			let serviceName = "";
 			if (splitPath.length >= 2) serviceName = splitPath[1];
-			this.serviceUrl = `https://${(_b = (_a = (0, uri_parser_1.splitHostPort)(this.options.host)) === null || _a === void 0 ? void 0 : _a.host) !== null && _b !== void 0 ? _b : "localhost"}/${serviceName}`;
+			const hostname = (_b = (_a = (0, uri_parser_1.splitHostPort)(this.options.host)) === null || _a === void 0 ? void 0 : _a.host) !== null && _b !== void 0 ? _b : "localhost";
+			this.serviceUrl = `https://${hostname}/${serviceName}`;
 			const timeout = (0, deadline_1.getRelativeTimeout)(options.deadline);
 			if (timeout !== Infinity) if (timeout <= 0) this.cancelWithStatus(constants_1.Status.DEADLINE_EXCEEDED, "Deadline exceeded");
 			else setTimeout(() => {
@@ -41359,7 +41839,7 @@ var require_single_subchannel_channel = /* @__PURE__ */ __commonJSMin(((exports)
 				return;
 			}
 			credsMetadata.merge(filteredMetadata);
-			this.childCall = this.subchannel.createCall(credsMetadata, this.options.host, this.method, {
+			const childListener = {
 				onReceiveMetadata: async (metadata) => {
 					listener.onReceiveMetadata(await this.filterStack.receiveMetadata(metadata));
 				},
@@ -41375,7 +41855,8 @@ var require_single_subchannel_channel = /* @__PURE__ */ __commonJSMin(((exports)
 					if (this.readFilterPending) this.pendingStatus = filteredStatus;
 					else listener.onReceiveStatus(filteredStatus);
 				}
-			});
+			};
+			this.childCall = this.subchannel.createCall(credsMetadata, this.options.host, this.method, childListener);
 			if (this.readPending) this.childCall.startRead();
 			if (this.pendingMessage) this.childCall.sendMessageWithContext(this.pendingMessage.context, this.pendingMessage.message);
 			if (this.halfClosePending && !this.writeFilterPending) this.childCall.halfClose();
@@ -43242,7 +43723,8 @@ var require_load_balancing_call = /* @__PURE__ */ __commonJSMin(((exports) => {
 			const splitPath = this.methodName.split("/");
 			let serviceName = "";
 			if (splitPath.length >= 2) serviceName = splitPath[1];
-			this.serviceUrl = `https://${(_b = (_a = (0, uri_parser_1.splitHostPort)(this.host)) === null || _a === void 0 ? void 0 : _a.host) !== null && _b !== void 0 ? _b : "localhost"}/${serviceName}`;
+			const hostname = (_b = (_a = (0, uri_parser_1.splitHostPort)(this.host)) === null || _a === void 0 ? void 0 : _a.host) !== null && _b !== void 0 ? _b : "localhost";
+			this.serviceUrl = `https://${hostname}/${serviceName}`;
 			this.startTime = /* @__PURE__ */ new Date();
 		}
 		getDeadlineInfo() {
@@ -44440,7 +44922,7 @@ var require_internal_channel = /* @__PURE__ */ __commonJSMin(((exports) => {
 			this.retryBufferTracker = new retrying_call_1.MessageBufferTracker((_b = this.options["grpc.retry_buffer_size"]) !== null && _b !== void 0 ? _b : DEFAULT_RETRY_BUFFER_SIZE_BYTES, (_c = this.options["grpc.per_rpc_retry_buffer_size"]) !== null && _c !== void 0 ? _c : DEFAULT_PER_RPC_RETRY_BUFFER_SIZE_BYTES);
 			this.keepaliveTime = (_d = this.options["grpc.keepalive_time_ms"]) !== null && _d !== void 0 ? _d : -1;
 			this.idleTimeoutMs = Math.max((_e = this.options["grpc.client_idle_timeout_ms"]) !== null && _e !== void 0 ? _e : DEFAULT_IDLE_TIMEOUT_MS, MIN_IDLE_TIMEOUT_MS);
-			this.resolvingLoadBalancer = new resolving_load_balancer_1.ResolvingLoadBalancer(this.target, {
+			const channelControlHelper = {
 				createSubchannel: (subchannelAddress, subchannelArgs) => {
 					const finalSubchannelArgs = {};
 					for (const [key, value] of Object.entries(subchannelArgs)) if (!key.startsWith(exports.SUBCHANNEL_ARGS_EXCLUDE_KEY_PREFIX)) finalSubchannelArgs[key] = value;
@@ -44466,7 +44948,8 @@ var require_internal_channel = /* @__PURE__ */ __commonJSMin(((exports) => {
 				removeChannelzChild: (child) => {
 					if (this.channelzEnabled) this.channelzInfoTracker.childrenTracker.unrefChild(child);
 				}
-			}, this.options, (serviceConfig, configSelector) => {
+			};
+			this.resolvingLoadBalancer = new resolving_load_balancer_1.ResolvingLoadBalancer(this.target, channelControlHelper, this.options, (serviceConfig, configSelector) => {
 				var _a;
 				if (serviceConfig.retryThrottling) RETRY_THROTTLER_MAP.set(this.getTarget(), new retrying_call_1.RetryThrottler(serviceConfig.retryThrottling.maxTokens, serviceConfig.retryThrottling.tokenRatio, RETRY_THROTTLER_MAP.get(this.getTarget())));
 				else RETRY_THROTTLER_MAP.delete(this.getTarget());
@@ -45432,7 +45915,8 @@ var require_orca = /* @__PURE__ */ __commonJSMin(((exports) => {
 			this.currentInterval = Infinity;
 			this.backoffTimer = new backoff_timeout_1.BackoffTimeout(() => this.updateMetricsSubscription());
 			this.subchannelStateListener = () => this.updateMetricsSubscription();
-			this.client = createOrcaClient(subchannel.getChannel());
+			const channel = subchannel.getChannel();
+			this.client = createOrcaClient(channel);
 			subchannel.addConnectivityStateListener(this.subchannelStateListener);
 		}
 		addDataWatcher(dataWatcher) {
@@ -47859,11 +48343,12 @@ var require_load_balancer_pick_first = /* @__PURE__ */ __commonJSMin(((exports) 
 			this.options = options;
 			this.resolutionNote = resolutionNote;
 			this.latestState = connectivity_state_1.ConnectivityState.IDLE;
-			this.pickFirstBalancer = new PickFirstLoadBalancer((0, load_balancer_1.createChildChannelControlHelper)(channelControlHelper, { updateState: (connectivityState, picker, errorMessage) => {
+			const childChannelControlHelper = (0, load_balancer_1.createChildChannelControlHelper)(channelControlHelper, { updateState: (connectivityState, picker, errorMessage) => {
 				this.latestState = connectivityState;
 				this.latestPicker = picker;
 				channelControlHelper.updateState(connectivityState, picker, errorMessage);
-			} }));
+			} });
+			this.pickFirstBalancer = new PickFirstLoadBalancer(childChannelControlHelper);
 			this.latestPicker = new picker_1.QueuePicker(this.pickFirstBalancer);
 		}
 		startConnecting() {
@@ -49891,7 +50376,7 @@ var require_OTLPLogExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	const otlp_grpc_exporter_base_1 = require_src$10();
-	const otlp_transformer_1 = require_src$25();
+	const otlp_transformer_1 = require_src$24();
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
 	/**
 	* OTLP Logs Exporter for Node
@@ -49922,7 +50407,7 @@ var require_PrometheusSerializer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PrometheusSerializer = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const sdk_metrics_1 = require_src$26();
+	const sdk_metrics_1 = require_src$25();
 	const core_1 = require_src$28();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
 	const ATTR_OTEL_SCOPE_SCHEMA_URL = "otel.scope.schema_url";
@@ -50121,7 +50606,7 @@ var require_PrometheusExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.PrometheusExporter = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const core_1 = require_src$28();
-	const sdk_metrics_1 = require_src$26();
+	const sdk_metrics_1 = require_src$25();
 	const http_1 = __require("http");
 	const PrometheusSerializer_1 = require_PrometheusSerializer();
 	/** Node.js v8.x compat */
@@ -50284,7 +50769,7 @@ var require_OTLPTraceExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const otlp_transformer_1 = require_src$25();
+	const otlp_transformer_1 = require_src$24();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* Collector Trace Exporter for Node
@@ -50341,7 +50826,7 @@ var require_OTLPTraceExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	const otlp_grpc_exporter_base_1 = require_src$10();
-	const otlp_transformer_1 = require_src$25();
+	const otlp_transformer_1 = require_src$24();
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
 	/**
 	* OTLP Trace Exporter for Node
@@ -51061,9 +51546,9 @@ var require_src$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_OTLPMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
-	const exporter_metrics_otlp_http_1 = require_src$23();
+	const exporter_metrics_otlp_http_1 = require_src$22();
 	const otlp_grpc_exporter_base_1 = require_src$10();
-	const otlp_transformer_1 = require_src$25();
+	const otlp_transformer_1 = require_src$24();
 	/**
 	* OTLP-gRPC metric exporter
 	*/
@@ -51094,23 +51579,23 @@ var require_utils$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getInstanceID = exports.getMeterViewsFromConfiguration = exports.getAggregationType = exports.getInstrumentType = exports.getMeterReadersFromConfiguration = exports.getLogRecordProcessorsFromConfiguration = exports.getLogRecordExporter = exports.getBatchLogRecordProcessorFromEnv = exports.getBatchLogRecordProcessorConfigFromEnv = exports.getLoggerProviderConfigFromEnv = exports.getPeriodicMetricReaderFromConfiguration = exports.getOtlpMetricExporterFromEnv = exports.getPeriodicExportingMetricReaderFromEnv = exports.getNonNegativeNumberFromEnv = exports.getKeyListFromObjectArray = exports.setupPropagator = exports.setupContextManager = exports.getPropagatorFromConfiguration = exports.getPropagatorFromEnv = exports.getSpanProcessorsFromEnv = exports.getOtlpProtocolFromEnv = exports.getResourceDetectorsFromConfiguration = exports.getResourceDetectorsFromEnv = exports.getResourceFromConfiguration = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const core_1 = require_src$28();
-	const exporter_trace_otlp_proto_1 = require_src$21();
+	const exporter_trace_otlp_proto_1 = require_src$20();
 	const exporter_trace_otlp_http_1 = require_src$7();
 	const exporter_trace_otlp_grpc_1 = require_src$6();
 	const exporter_zipkin_1 = require_src$5();
-	const resources_1 = require_src$27();
+	const resources_1 = require_src$26();
 	const sdk_trace_base_1 = require_src$17();
 	const propagator_b3_1 = require_src$4();
 	const propagator_jaeger_1 = require_src$3();
 	const context_async_hooks_1 = require_src$18();
 	const exporter_logs_otlp_http_1 = require_src$14();
 	const exporter_logs_otlp_grpc_1 = require_src$9();
-	const exporter_logs_otlp_proto_1 = require_src$24();
+	const exporter_logs_otlp_proto_1 = require_src$23();
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const sdk_metrics_1 = require_src$26();
+	const sdk_metrics_1 = require_src$25();
 	const exporter_metrics_otlp_grpc_1 = require_src$2();
-	const exporter_metrics_otlp_http_1 = require_src$23();
-	const exporter_metrics_otlp_proto_1 = require_src$22();
+	const exporter_metrics_otlp_http_1 = require_src$22();
+	const exporter_metrics_otlp_proto_1 = require_src$21();
 	const sdk_logs_1 = require_src$19();
 	const RESOURCE_DETECTOR_ENVIRONMENT = "env";
 	const RESOURCE_DETECTOR_HOST = "host";
@@ -51516,15 +52001,15 @@ var require_sdk = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NodeSDK = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$20();
+	const api_logs_1 = require_src$27();
 	const instrumentation_1 = require_src$15();
-	const resources_1 = require_src$27();
+	const resources_1 = require_src$26();
 	const sdk_logs_1 = require_src$19();
 	const exporter_logs_otlp_http_1 = require_src$14();
 	const exporter_logs_otlp_grpc_1 = require_src$9();
-	const exporter_logs_otlp_proto_1 = require_src$24();
+	const exporter_logs_otlp_proto_1 = require_src$23();
 	const exporter_prometheus_1 = require_src$8();
-	const sdk_metrics_1 = require_src$26();
+	const sdk_metrics_1 = require_src$25();
 	const sdk_trace_base_1 = require_src$17();
 	const sdk_trace_node_1 = require_src$16();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
@@ -51611,9 +52096,10 @@ var require_sdk = /* @__PURE__ */ __commonJSMin(((exports) => {
 				if (configuration.idGenerator) tracerProviderConfig.idGenerator = configuration.idGenerator;
 				if (configuration.spanProcessor) api_1.diag.warn("The 'spanProcessor' option is deprecated. Please use 'spanProcessors' instead.");
 				const spanProcessor = configuration.spanProcessor ?? new sdk_trace_base_1.BatchSpanProcessor(configuration.traceExporter);
+				const spanProcessors = configuration.spanProcessors ?? [spanProcessor];
 				this._tracerProviderConfig = {
 					tracerConfig: tracerProviderConfig,
-					spanProcessors: configuration.spanProcessors ?? [spanProcessor]
+					spanProcessors
 				};
 			}
 			if (configuration.logRecordProcessors) this._loggerProviderConfig = { logRecordProcessors: configuration.logRecordProcessors };
@@ -51650,6 +52136,7 @@ var require_sdk = /* @__PURE__ */ __commonJSMin(((exports) => {
 				this._resource = this._resource.merge((0, resources_1.detectResources)(internalConfig));
 			}
 			this._resource = this._serviceName === void 0 ? this._resource : this._resource.merge((0, resources_1.resourceFromAttributes)({ [semantic_conventions_1.ATTR_SERVICE_NAME]: this._serviceName }));
+			const sdkMetricsEnabled = (0, core_1.getBooleanFromEnv)("OTEL_NODE_EXPERIMENTAL_SDK_METRICS");
 			if (this._meterProviderConfig?.readers && this._meterProviderConfig.readers.length > 0) {
 				const meterProvider = new sdk_metrics_1.MeterProvider({
 					resource: this._resource,
@@ -51662,7 +52149,6 @@ var require_sdk = /* @__PURE__ */ __commonJSMin(((exports) => {
 			}
 			const spanProcessors = this._tracerProviderConfig ? this._tracerProviderConfig.spanProcessors : (0, utils_1.getSpanProcessorsFromEnv)();
 			if (spanProcessors.length > 0) {
-				const sdkMetricsEnabled = (0, core_1.getBooleanFromEnv)("OTEL_NODE_EXPERIMENTAL_SDK_METRICS");
 				this._tracerProvider = new sdk_trace_node_1.NodeTracerProvider({
 					...this._configuration,
 					resource: this._resource,
@@ -51675,7 +52161,8 @@ var require_sdk = /* @__PURE__ */ __commonJSMin(((exports) => {
 				const loggerProvider = new sdk_logs_1.LoggerProvider({
 					...(0, utils_1.getLoggerProviderConfigFromEnv)(),
 					resource: this._resource,
-					processors: this._loggerProviderConfig.logRecordProcessors
+					processors: this._loggerProviderConfig.logRecordProcessors,
+					meterProvider: sdkMetricsEnabled ? this._meterProvider : void 0
 				});
 				this._loggerProvider = loggerProvider;
 				api_logs_1.logs.setGlobalLoggerProvider(loggerProvider);
@@ -52027,6 +52514,79 @@ var require_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.getHttpTlsConfig = getHttpTlsConfig;
 }));
 //#endregion
+//#region node_modules/@opentelemetry/configuration/build/src/EnvDefinition.js
+var require_EnvDefinition = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.ENV_DEFS = exports.SamplerType = void 0;
+	var SamplerType;
+	(function(SamplerType) {
+		SamplerType["AlwaysOn"] = "always_on";
+		SamplerType["AlwaysOff"] = "always_off";
+		SamplerType["TraceIdRatio"] = "traceidratio";
+		SamplerType["ParentBasedAlwaysOn"] = "parentbased_always_on";
+		SamplerType["ParentBasedAlwaysOff"] = "parentbased_always_off";
+		SamplerType["ParentBasedTraceIdRatio"] = "parentbased_traceidratio";
+	})(SamplerType = exports.SamplerType || (exports.SamplerType = {}));
+	exports.ENV_DEFS = {
+		OTEL_SDK_DISABLED: {
+			key: "OTEL_SDK_DISABLED",
+			type: "boolean",
+			description: "Disable the SDK",
+			defaultValue: false
+		},
+		OTEL_TRACES_SAMPLER: {
+			key: "OTEL_TRACES_SAMPLER",
+			type: "string",
+			description: "Traces sampler",
+			allowedValues: Object.values(SamplerType)
+		},
+		OTEL_TRACES_SAMPLER_ARG: {
+			key: "OTEL_TRACES_SAMPLER_ARG",
+			type: "string",
+			description: "Traces sampler argument"
+		}
+	};
+}));
+//#endregion
+//#region node_modules/@opentelemetry/configuration/build/src/EnvReader.js
+var require_EnvReader = /* @__PURE__ */ __commonJSMin(((exports) => {
+	Object.defineProperty(exports, "__esModule", { value: true });
+	exports.readAllEnvVars = exports.readEnvVar = void 0;
+	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
+	const core_1 = require_src$28();
+	const EnvDefinition_1 = require_EnvDefinition();
+	function readStringEnv(def) {
+		const value = (0, core_1.getStringFromEnv)(def.key);
+		if (value == null) return def.defaultValue;
+		if (def.allowedValues && !def.allowedValues.includes(value)) {
+			api_1.diag.warn(`Invalid value "${value}" for ${def.description} (env: ${def.key}). Expected one of: ${def.allowedValues.join(", ")}. ` + (def.defaultValue != null ? `Falling back to "${def.defaultValue}".` : "Value will be ignored."));
+			return def.defaultValue;
+		}
+		return value;
+	}
+	function readBooleanEnv(def) {
+		const raw = (0, core_1.getStringFromEnv)(def.key)?.trim().toLowerCase();
+		if (raw == null || raw === "") return def.defaultValue;
+		if (raw === "true") return true;
+		if (raw === "false") return false;
+		api_1.diag.warn(`Invalid value "${raw}" for ${def.description} (env: ${def.key}). Expected 'true' or 'false'. Falling back to "${def.defaultValue}".`);
+		return def.defaultValue;
+	}
+	function readEnvVar(def) {
+		switch (def.type) {
+			case "string": return readStringEnv(def);
+			case "boolean": return readBooleanEnv(def);
+		}
+	}
+	exports.readEnvVar = readEnvVar;
+	function readAllEnvVars() {
+		const result = {};
+		for (const [name, def] of Object.entries(EnvDefinition_1.ENV_DEFS)) result[name] = readEnvVar(def);
+		return result;
+	}
+	exports.readAllEnvVars = readAllEnvVars;
+}));
+//#endregion
 //#region node_modules/@opentelemetry/configuration/build/src/EnvironmentConfigFactory.js
 var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
@@ -52039,6 +52599,8 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 	const tracerProviderModel_1 = require_tracerProviderModel();
 	const loggerProviderModel_1 = require_loggerProviderModel();
 	const utils_1 = require_utils();
+	const EnvReader_1 = require_EnvReader();
+	const EnvDefinition_1 = require_EnvDefinition();
 	/**
 	* EnvironmentConfigProvider provides a configuration based on environment variables.
 	*/
@@ -52046,13 +52608,14 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 		_config;
 		constructor() {
 			this._config = (0, configModel_1.initializeDefaultConfiguration)();
-			this._config.disabled = (0, core_1.getBooleanFromEnv)("OTEL_SDK_DISABLED");
+			const envValues = (0, EnvReader_1.readAllEnvVars)();
+			this._config.disabled = envValues.OTEL_SDK_DISABLED;
 			const logLevel = (0, core_1.diagLogLevelFromString)((0, core_1.getStringFromEnv)("OTEL_LOG_LEVEL"));
 			if (logLevel) this._config.log_level = logLevel;
 			setResources(this._config);
 			setAttributeLimits(this._config);
 			setPropagators(this._config);
-			setTracerProvider(this._config);
+			setTracerProvider(this._config, envValues);
 			setMeterProvider(this._config);
 			setLoggerProvider(this._config);
 		}
@@ -52122,37 +52685,35 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 		if (compositeList) config.propagator.composite_list = compositeList;
 	}
 	exports.setPropagators = setPropagators;
-	function setSampler(config) {
-		const sampler = (0, core_1.getStringFromEnv)("OTEL_TRACES_SAMPLER");
-		const arg = (0, core_1.getStringFromEnv)("OTEL_TRACES_SAMPLER_ARG");
+	function setSampler(config, env) {
+		const sampler = env.OTEL_TRACES_SAMPLER;
+		const arg = env.OTEL_TRACES_SAMPLER_ARG;
 		if (!sampler || !config.tracer_provider) return;
 		const ratio = arg ? parseFloat(arg) : 1;
 		switch (sampler) {
-			case "always_on":
+			case EnvDefinition_1.SamplerType.AlwaysOn:
 				config.tracer_provider.sampler = { always_on: {} };
 				break;
-			case "always_off":
+			case EnvDefinition_1.SamplerType.AlwaysOff:
 				config.tracer_provider.sampler = { always_off: {} };
 				break;
-			case "traceidratio":
+			case EnvDefinition_1.SamplerType.TraceIdRatio:
 				config.tracer_provider.sampler = { trace_id_ratio_based: { ratio } };
 				break;
-			case "parentbased_always_on":
+			case EnvDefinition_1.SamplerType.ParentBasedAlwaysOn:
 				config.tracer_provider.sampler = { parent_based: { root: { always_on: {} } } };
 				break;
-			case "parentbased_always_off":
+			case EnvDefinition_1.SamplerType.ParentBasedAlwaysOff:
 				config.tracer_provider.sampler = { parent_based: { root: { always_off: {} } } };
 				break;
-			case "parentbased_traceidratio":
+			case EnvDefinition_1.SamplerType.ParentBasedTraceIdRatio:
 				config.tracer_provider.sampler = { parent_based: { root: { trace_id_ratio_based: { ratio } } } };
 				break;
-			default:
-				api_1.diag.warn(`Unknown sampler type: ${sampler}`);
-				break;
+			default: break;
 		}
 	}
 	exports.setSampler = setSampler;
-	function setTracerProvider(config) {
+	function setTracerProvider(config, env) {
 		const exportersType = Array.from(new Set((0, core_1.getStringListFromEnv)("OTEL_TRACES_EXPORTER")));
 		if (exportersType.length === 0) return;
 		if (exportersType.includes("none")) {
@@ -52160,7 +52721,7 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 			return;
 		}
 		config.tracer_provider = (0, tracerProviderModel_1.initializeDefaultTracerProviderConfiguration)();
-		setSampler(config);
+		setSampler(config, env);
 		const attributeValueLengthLimit = (0, core_1.getNumberFromEnv)("OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT");
 		if (attributeValueLengthLimit) config.tracer_provider.limits.attribute_value_length_limit = attributeValueLengthLimit;
 		const attributeCountLimit = (0, core_1.getNumberFromEnv)("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT");
@@ -53294,9 +53855,9 @@ var require_start = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const utils_1 = require_utils$1();
 	const instrumentation_1 = require_src$15();
 	const sdk_logs_1 = require_src$19();
-	const sdk_metrics_1 = require_src$26();
-	const api_logs_1 = require_src$20();
-	const resources_1 = require_src$27();
+	const sdk_metrics_1 = require_src$25();
+	const api_logs_1 = require_src$27();
+	const resources_1 = require_src$26();
 	const context_async_hooks_1 = require_src$18();
 	const semconv_1 = require_semconv();
 	/**
@@ -53376,9 +53937,9 @@ var require_src = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.contextBase = (init_esm$2(), __toCommonJS(esm_exports$2));
 	exports.core = require_src$28();
 	exports.logs = require_src$19();
-	exports.metrics = require_src$26();
+	exports.metrics = require_src$25();
 	exports.node = require_src$16();
-	exports.resources = require_src$27();
+	exports.resources = require_src$26();
 	exports.tracing = require_src$17();
 	var sdk_1 = require_sdk();
 	Object.defineProperty(exports, "NodeSDK", {
@@ -53398,16 +53959,48 @@ var require_src = /* @__PURE__ */ __commonJSMin(((exports) => {
 //#endregion
 //#region extensions/diagnostics-otel/src/service.ts
 init_esm$2();
-var import_src = require_src$24();
-var import_src$1 = require_src$22();
-var import_src$2 = require_src$21();
-var import_src$3 = require_src$27();
+var import_src = require_src$23();
+var import_src$1 = require_src$21();
+var import_src$2 = require_src$20();
+var import_src$3 = require_src$26();
 var import_src$4 = require_src$19();
-var import_src$5 = require_src$26();
+var import_src$5 = require_src$25();
 var import_src$6 = require_src();
 var import_src$7 = require_src$17();
 init_esm$1();
 const DEFAULT_SERVICE_NAME = "openclaw";
+const DROPPED_OTEL_ATTRIBUTE_KEYS = new Set([
+	"openclaw.callId",
+	"openclaw.parentSpanId",
+	"openclaw.runId",
+	"openclaw.sessionId",
+	"openclaw.sessionKey",
+	"openclaw.spanId",
+	"openclaw.toolCallId",
+	"openclaw.traceId"
+]);
+const LOW_CARDINALITY_VALUE_RE = /^[A-Za-z0-9_.:-]{1,120}$/u;
+const MAX_OTEL_CONTENT_ATTRIBUTE_CHARS = 4 * 1024;
+const MAX_OTEL_CONTENT_ARRAY_ITEMS = 16;
+const MAX_OTEL_LOG_BODY_CHARS = 4 * 1024;
+const MAX_OTEL_LOG_ATTRIBUTE_COUNT = 64;
+const MAX_OTEL_LOG_ATTRIBUTE_VALUE_CHARS = 4 * 1024;
+const LOG_RECORD_EXPORT_FAILURE_REPORT_INTERVAL_MS = 6e4;
+const OTEL_LOG_RAW_ATTRIBUTE_KEY_RE = /^[A-Za-z0-9_.:-]{1,64}$/u;
+const OTEL_LOG_ATTRIBUTE_KEY_RE = /^[A-Za-z0-9_.:-]{1,96}$/u;
+const BLOCKED_OTEL_LOG_ATTRIBUTE_KEYS = new Set([
+	"__proto__",
+	"prototype",
+	"constructor"
+]);
+const PRELOADED_OTEL_SDK_ENV = "OPENCLAW_OTEL_PRELOADED";
+const NO_CONTENT_CAPTURE = {
+	inputMessages: false,
+	outputMessages: false,
+	toolInputs: false,
+	toolOutputs: false,
+	systemPrompt: false
+};
 function normalizeEndpoint(endpoint) {
 	const trimmed = endpoint?.trim();
 	return trimmed ? trimmed.replace(/\/+$/, "") : void 0;
@@ -53434,17 +54027,150 @@ function formatError(err) {
 }
 function redactOtelAttributes(attributes) {
 	const redactedAttributes = {};
-	for (const [key, value] of Object.entries(attributes)) redactedAttributes[key] = typeof value === "string" ? redactSensitiveText(value) : value;
+	for (const [key, value] of Object.entries(attributes)) {
+		if (DROPPED_OTEL_ATTRIBUTE_KEYS.has(key)) continue;
+		redactedAttributes[key] = typeof value === "string" ? redactSensitiveText(value) : value;
+	}
 	return redactedAttributes;
+}
+function lowCardinalityAttr(value, fallback = "unknown") {
+	if (!value) return fallback;
+	const redacted = redactSensitiveText(value.trim());
+	return LOW_CARDINALITY_VALUE_RE.test(redacted) ? redacted : fallback;
+}
+function genAiOperationName(api) {
+	return api === "completions" ? "text_completion" : "chat";
+}
+function clampOtelLogText(value, maxChars) {
+	return value.length > maxChars ? `${value.slice(0, maxChars)}...(truncated)` : value;
+}
+function normalizeOtelLogString(value, maxChars) {
+	return clampOtelLogText(redactSensitiveText(value), maxChars);
+}
+function resolveContentCapturePolicy(value) {
+	if (value === true) return {
+		inputMessages: true,
+		outputMessages: true,
+		toolInputs: true,
+		toolOutputs: true,
+		systemPrompt: false
+	};
+	if (!value || typeof value !== "object" || Array.isArray(value)) return NO_CONTENT_CAPTURE;
+	const config = value;
+	if (config.enabled !== true) return NO_CONTENT_CAPTURE;
+	return {
+		inputMessages: config.inputMessages === true,
+		outputMessages: config.outputMessages === true,
+		toolInputs: config.toolInputs === true,
+		toolOutputs: config.toolOutputs === true,
+		systemPrompt: config.systemPrompt === true
+	};
+}
+function hasPreloadedOtelSdk() {
+	return process.env[PRELOADED_OTEL_SDK_ENV] === "1";
+}
+function normalizeOtelContentValue(value) {
+	if (typeof value === "string") return normalizeOtelLogString(value, MAX_OTEL_CONTENT_ATTRIBUTE_CHARS);
+	if (Array.isArray(value)) {
+		const items = [];
+		for (const item of value.slice(0, MAX_OTEL_CONTENT_ARRAY_ITEMS)) if (typeof item === "string") items.push(item);
+		if (items.length > 0) return normalizeOtelLogString(items.join("\n"), MAX_OTEL_CONTENT_ATTRIBUTE_CHARS);
+	}
+}
+function assignOtelContentAttribute(attributes, key, value) {
+	const normalized = normalizeOtelContentValue(value);
+	if (normalized) attributes[key] = normalized;
+}
+function assignOtelModelContentAttributes(attributes, event, policy) {
+	if (policy.inputMessages) assignOtelContentAttribute(attributes, "openclaw.content.input_messages", event.inputMessages);
+	if (policy.outputMessages) assignOtelContentAttribute(attributes, "openclaw.content.output_messages", event.outputMessages);
+	if (policy.systemPrompt) assignOtelContentAttribute(attributes, "openclaw.content.system_prompt", event.systemPrompt);
+}
+function assignOtelToolContentAttributes(attributes, event, policy) {
+	if (policy.toolInputs) assignOtelContentAttribute(attributes, "openclaw.content.tool_input", event.toolInput);
+	if (policy.toolOutputs) assignOtelContentAttribute(attributes, "openclaw.content.tool_output", event.toolOutput);
+}
+function assignOtelLogAttribute(attributes, key, value) {
+	if (Object.keys(attributes).length >= MAX_OTEL_LOG_ATTRIBUTE_COUNT) return;
+	if (BLOCKED_OTEL_LOG_ATTRIBUTE_KEYS.has(key)) return;
+	if (redactSensitiveText(key) !== key) return;
+	if (!OTEL_LOG_ATTRIBUTE_KEY_RE.test(key)) return;
+	if (typeof value === "string") {
+		attributes[key] = normalizeOtelLogString(value, MAX_OTEL_LOG_ATTRIBUTE_VALUE_CHARS);
+		return;
+	}
+	if (typeof value === "number" && Number.isFinite(value)) {
+		attributes[key] = value;
+		return;
+	}
+	if (typeof value === "boolean") attributes[key] = value;
+}
+function normalizeTraceContext(value) {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return;
+	const candidate = value;
+	if (!isValidDiagnosticTraceId(candidate.traceId)) return;
+	if (candidate.spanId !== void 0 && !isValidDiagnosticSpanId(candidate.spanId)) return;
+	if (candidate.parentSpanId !== void 0 && !isValidDiagnosticSpanId(candidate.parentSpanId)) return;
+	if (candidate.traceFlags !== void 0 && !isValidDiagnosticTraceFlags(candidate.traceFlags)) return;
+	return {
+		traceId: candidate.traceId,
+		...candidate.spanId ? { spanId: candidate.spanId } : {},
+		...candidate.parentSpanId ? { parentSpanId: candidate.parentSpanId } : {},
+		...candidate.traceFlags ? { traceFlags: candidate.traceFlags } : {}
+	};
+}
+function assignOtelLogEventAttributes(attributes, eventAttributes) {
+	if (!eventAttributes) return;
+	for (const rawKey in eventAttributes) {
+		if (Object.keys(attributes).length >= MAX_OTEL_LOG_ATTRIBUTE_COUNT) break;
+		if (!Object.hasOwn(eventAttributes, rawKey)) continue;
+		const key = rawKey.trim();
+		if (BLOCKED_OTEL_LOG_ATTRIBUTE_KEYS.has(key)) continue;
+		if (redactSensitiveText(key) !== key) continue;
+		if (!OTEL_LOG_RAW_ATTRIBUTE_KEY_RE.test(key)) continue;
+		assignOtelLogAttribute(attributes, `openclaw.${key}`, eventAttributes[rawKey]);
+	}
+}
+function traceFlagsToOtel(traceFlags) {
+	return (Number.parseInt(traceFlags ?? "00", 16) & TraceFlags.SAMPLED) !== 0 ? TraceFlags.SAMPLED : TraceFlags.NONE;
+}
+function contextForTraceContext(traceContext) {
+	const normalized = normalizeTraceContext(traceContext);
+	if (!normalized?.spanId) return;
+	return trace.setSpanContext(context.active(), {
+		traceId: normalized.traceId,
+		spanId: normalized.spanId,
+		traceFlags: traceFlagsToOtel(normalized.traceFlags),
+		isRemote: true
+	});
+}
+function addTraceAttributes(attributes, traceContext) {
+	const normalized = normalizeTraceContext(traceContext);
+	if (!normalized) return;
+	attributes["openclaw.traceId"] = normalized.traceId;
+	if (normalized.spanId) attributes["openclaw.spanId"] = normalized.spanId;
+	if (normalized.parentSpanId) attributes["openclaw.parentSpanId"] = normalized.parentSpanId;
+	if (normalized.traceFlags) attributes["openclaw.traceFlags"] = normalized.traceFlags;
 }
 function createDiagnosticsOtelService() {
 	let sdk = null;
 	let logProvider = null;
-	let stopLogTransport = null;
 	let unsubscribe = null;
+	const stopStarted = async () => {
+		const currentUnsubscribe = unsubscribe;
+		const currentLogProvider = logProvider;
+		const currentSdk = sdk;
+		unsubscribe = null;
+		logProvider = null;
+		sdk = null;
+		currentUnsubscribe?.();
+		if (currentLogProvider) await currentLogProvider.shutdown().catch(() => void 0);
+		if (currentSdk) await currentSdk.shutdown().catch(() => void 0);
+	};
 	return {
 		id: "diagnostics-otel",
 		async start(ctx) {
+			await stopStarted();
 			const cfg = ctx.config.diagnostics;
 			const otel = cfg?.otel;
 			if (!cfg?.enabled || !otel?.enabled) return;
@@ -53457,27 +54183,29 @@ function createDiagnosticsOtelService() {
 			const headers = otel.headers ?? void 0;
 			const serviceName = otel.serviceName?.trim() || process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
 			const sampleRate = resolveSampleRate(otel.sampleRate);
+			const contentCapturePolicy = resolveContentCapturePolicy(otel.captureContent);
 			const tracesEnabled = otel.traces !== false;
 			const metricsEnabled = otel.metrics !== false;
 			const logsEnabled = otel.logs === true;
 			if (!tracesEnabled && !metricsEnabled && !logsEnabled) return;
+			const sdkPreloaded = hasPreloadedOtelSdk();
 			const resource = (0, import_src$3.resourceFromAttributes)({ [ATTR_SERVICE_NAME]: serviceName });
-			const traceUrl = resolveOtelUrl(endpoint, "v1/traces");
-			const metricUrl = resolveOtelUrl(endpoint, "v1/metrics");
 			const logUrl = resolveOtelUrl(endpoint, "v1/logs");
-			const traceExporter = tracesEnabled ? new import_src$2.OTLPTraceExporter({
-				...traceUrl ? { url: traceUrl } : {},
-				...headers ? { headers } : {}
-			}) : void 0;
-			const metricExporter = metricsEnabled ? new import_src$1.OTLPMetricExporter({
-				...metricUrl ? { url: metricUrl } : {},
-				...headers ? { headers } : {}
-			}) : void 0;
-			const metricReader = metricExporter ? new import_src$5.PeriodicExportingMetricReader({
-				exporter: metricExporter,
-				...typeof otel.flushIntervalMs === "number" ? { exportIntervalMillis: Math.max(1e3, otel.flushIntervalMs) } : {}
-			}) : void 0;
-			if (tracesEnabled || metricsEnabled) {
+			if (!sdkPreloaded && (tracesEnabled || metricsEnabled)) {
+				const traceUrl = resolveOtelUrl(endpoint, "v1/traces");
+				const metricUrl = resolveOtelUrl(endpoint, "v1/metrics");
+				const traceExporter = tracesEnabled ? new import_src$2.OTLPTraceExporter({
+					...traceUrl ? { url: traceUrl } : {},
+					...headers ? { headers } : {}
+				}) : void 0;
+				const metricExporter = metricsEnabled ? new import_src$1.OTLPMetricExporter({
+					...metricUrl ? { url: metricUrl } : {},
+					...headers ? { headers } : {}
+				}) : void 0;
+				const metricReader = metricExporter ? new import_src$5.PeriodicExportingMetricReader({
+					exporter: metricExporter,
+					...typeof otel.flushIntervalMs === "number" ? { exportIntervalMillis: Math.max(1e3, otel.flushIntervalMs) } : {}
+				}) : void 0;
 				sdk = new import_src$6.NodeSDK({
 					resource,
 					...traceExporter ? { traceExporter } : {},
@@ -53487,10 +54215,11 @@ function createDiagnosticsOtelService() {
 				try {
 					sdk.start();
 				} catch (err) {
+					await stopStarted();
 					ctx.logger.error(`diagnostics-otel: failed to start SDK: ${formatError(err)}`);
 					throw err;
 				}
-			}
+			} else if (sdkPreloaded && (tracesEnabled || metricsEnabled)) ctx.logger.info("diagnostics-otel: using preloaded OpenTelemetry SDK");
 			const logSeverityMap = {
 				TRACE: 1,
 				DEBUG: 5,
@@ -53573,7 +54302,21 @@ function createDiagnosticsOtelService() {
 				unit: "1",
 				description: "Run attempts"
 			});
+			const modelCallDurationHistogram = meter.createHistogram("openclaw.model_call.duration_ms", {
+				unit: "ms",
+				description: "Model call duration"
+			});
+			const toolExecutionDurationHistogram = meter.createHistogram("openclaw.tool.execution.duration_ms", {
+				unit: "ms",
+				description: "Tool execution duration"
+			});
+			const execProcessDurationHistogram = meter.createHistogram("openclaw.exec.duration_ms", {
+				unit: "ms",
+				description: "Exec process duration"
+			});
+			let recordLogRecord;
 			if (logsEnabled) {
+				let logRecordExportFailureLastReportedAt = Number.NEGATIVE_INFINITY;
 				logProvider = new import_src$4.LoggerProvider({
 					resource,
 					processors: [new import_src$4.BatchLogRecordProcessor(new import_src.OTLPLogExporter({
@@ -53582,64 +54325,58 @@ function createDiagnosticsOtelService() {
 					}), typeof otel.flushIntervalMs === "number" ? { scheduledDelayMillis: Math.max(1e3, otel.flushIntervalMs) } : {})]
 				});
 				const otelLogger = logProvider.getLogger("openclaw");
-				stopLogTransport = registerLogTransport((logObj) => {
+				recordLogRecord = (evt) => {
 					try {
-						const safeStringify = (value) => {
-							try {
-								return JSON.stringify(value);
-							} catch {
-								return String(value);
-							}
-						};
-						const meta = logObj._meta;
-						const logLevelName = meta?.logLevelName ?? "INFO";
+						const logLevelName = evt.level || "INFO";
 						const severityNumber = logSeverityMap[logLevelName] ?? 9;
-						const numericArgs = Object.entries(logObj).filter(([key]) => /^\d+$/.test(key)).toSorted((a, b) => Number(a[0]) - Number(b[0])).map(([, value]) => value);
-						let bindings;
-						if (typeof numericArgs[0] === "string" && numericArgs[0].trim().startsWith("{")) try {
-							const parsed = JSON.parse(numericArgs[0]);
-							if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-								bindings = parsed;
-								numericArgs.shift();
-							}
-						} catch {}
-						let message = "";
-						if (numericArgs.length > 0 && typeof numericArgs[numericArgs.length - 1] === "string") message = String(numericArgs.pop());
-						else if (numericArgs.length === 1) {
-							message = safeStringify(numericArgs[0]);
-							numericArgs.length = 0;
-						}
-						if (!message) message = "log";
-						const attributes = { "openclaw.log.level": logLevelName };
-						if (meta?.name) attributes["openclaw.logger"] = meta.name;
-						if (meta?.parentNames?.length) attributes["openclaw.logger.parents"] = meta.parentNames.join(".");
-						if (bindings) {
-							for (const [key, value] of Object.entries(bindings)) if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") attributes[`openclaw.${key}`] = value;
-							else if (value != null) attributes[`openclaw.${key}`] = safeStringify(value);
-						}
-						if (numericArgs.length > 0) attributes["openclaw.log.args"] = safeStringify(numericArgs);
-						if (meta?.path?.filePath) attributes["code.filepath"] = meta.path.filePath;
-						if (meta?.path?.fileLine) attributes["code.lineno"] = Number(meta.path.fileLine);
-						if (meta?.path?.method) attributes["code.function"] = meta.path.method;
-						if (meta?.path?.filePathWithLine) attributes["openclaw.code.location"] = meta.path.filePathWithLine;
-						otelLogger.emit({
-							body: redactSensitiveText(message),
+						const attributes = Object.create(null);
+						assignOtelLogAttribute(attributes, "openclaw.log.level", logLevelName);
+						if (evt.loggerName) assignOtelLogAttribute(attributes, "openclaw.logger", evt.loggerName);
+						if (evt.loggerParents?.length) assignOtelLogAttribute(attributes, "openclaw.logger.parents", evt.loggerParents.join("."));
+						assignOtelLogEventAttributes(attributes, evt.attributes);
+						if (evt.code?.line) assignOtelLogAttribute(attributes, "code.lineno", evt.code.line);
+						if (evt.code?.functionName) assignOtelLogAttribute(attributes, "code.function", evt.code.functionName);
+						addTraceAttributes(attributes, evt.trace);
+						const logRecord = {
+							body: normalizeOtelLogString(evt.message || "log", MAX_OTEL_LOG_BODY_CHARS),
 							severityText: logLevelName,
 							severityNumber,
 							attributes: redactOtelAttributes(attributes),
-							timestamp: meta?.date ?? /* @__PURE__ */ new Date()
-						});
+							timestamp: evt.ts
+						};
+						const logContext = contextForTraceContext(evt.trace);
+						if (logContext) logRecord.context = logContext;
+						otelLogger.emit(logRecord);
 					} catch (err) {
-						ctx.logger.error(`diagnostics-otel: log transport failed: ${formatError(err)}`);
+						const now = Date.now();
+						if (now - logRecordExportFailureLastReportedAt >= LOG_RECORD_EXPORT_FAILURE_REPORT_INTERVAL_MS) {
+							logRecordExportFailureLastReportedAt = now;
+							ctx.logger.error(`diagnostics-otel: log record export failed: ${formatError(err)}`);
+						}
 					}
-				});
+				};
 			}
-			const spanWithDuration = (name, attributes, durationMs) => {
-				const startTime = typeof durationMs === "number" ? Date.now() - Math.max(0, durationMs) : void 0;
+			const spanWithDuration = (name, attributes, durationMs, options = {}) => {
+				const endTimeMs = options.endTimeMs ?? Date.now();
+				const startTime = typeof durationMs === "number" ? endTimeMs - Math.max(0, durationMs) : void 0;
+				const parentContext = "parentContext" in options ? options.parentContext ?? void 0 : void 0;
 				return tracer.startSpan(name, {
-					attributes,
-					...startTime ? { startTime } : {}
-				});
+					attributes: redactOtelAttributes(attributes),
+					...startTime !== void 0 ? { startTime } : {}
+				}, parentContext);
+			};
+			const addRunAttrs = (spanAttrs, evt) => {
+				if (evt.provider) spanAttrs["openclaw.provider"] = evt.provider;
+				if (evt.model) spanAttrs["openclaw.model"] = evt.model;
+				if (evt.channel) spanAttrs["openclaw.channel"] = evt.channel;
+				if (evt.trigger) spanAttrs["openclaw.trigger"] = evt.trigger;
+			};
+			const paramsSummaryAttrs = (summary) => {
+				if (!summary) return {};
+				return {
+					"openclaw.tool.params.kind": summary.kind,
+					..."length" in summary ? { "openclaw.tool.params.length": summary.length } : {}
+				};
 			};
 			const recordModelUsage = (evt) => {
 				const attrs = {
@@ -53685,8 +54422,6 @@ function createDiagnosticsOtelService() {
 				if (!tracesEnabled) return;
 				spanWithDuration("openclaw.model.usage", {
 					...attrs,
-					"openclaw.sessionKey": evt.sessionKey ?? "",
-					"openclaw.sessionId": evt.sessionId ?? "",
 					"openclaw.tokens.input": usage.input ?? 0,
 					"openclaw.tokens.output": usage.output ?? 0,
 					"openclaw.tokens.cache_read": usage.cacheRead ?? 0,
@@ -53740,10 +54475,6 @@ function createDiagnosticsOtelService() {
 				messageQueuedCounter.add(1, attrs);
 				if (typeof evt.queueDepth === "number") queueDepthHistogram.record(evt.queueDepth, attrs);
 			};
-			const addSessionIdentityAttrs = (spanAttrs, evt) => {
-				if (evt.sessionKey) spanAttrs["openclaw.sessionKey"] = evt.sessionKey;
-				if (evt.sessionId) spanAttrs["openclaw.sessionId"] = evt.sessionId;
-			};
 			const recordMessageProcessed = (evt) => {
 				const attrs = {
 					"openclaw.channel": evt.channel ?? "unknown",
@@ -53753,7 +54484,6 @@ function createDiagnosticsOtelService() {
 				if (typeof evt.durationMs === "number") messageDurationHistogram.record(evt.durationMs, attrs);
 				if (!tracesEnabled) return;
 				const spanAttrs = { ...attrs };
-				addSessionIdentityAttrs(spanAttrs, evt);
 				if (evt.chatId !== void 0) spanAttrs["openclaw.chatId"] = String(evt.chatId);
 				if (evt.messageId !== void 0) spanAttrs["openclaw.messageId"] = String(evt.messageId);
 				if (evt.reason) spanAttrs["openclaw.reason"] = redactSensitiveText(evt.reason);
@@ -53786,7 +54516,6 @@ function createDiagnosticsOtelService() {
 				if (typeof evt.ageMs === "number") sessionStuckAgeHistogram.record(evt.ageMs, attrs);
 				if (!tracesEnabled) return;
 				const spanAttrs = { ...attrs };
-				addSessionIdentityAttrs(spanAttrs, evt);
 				spanAttrs["openclaw.queueDepth"] = evt.queueDepth ?? 0;
 				spanAttrs["openclaw.ageMs"] = evt.ageMs;
 				const span = tracer.startSpan("openclaw.session.stuck", { attributes: spanAttrs });
@@ -53799,10 +54528,137 @@ function createDiagnosticsOtelService() {
 			const recordRunAttempt = (evt) => {
 				runAttemptCounter.add(1, { "openclaw.attempt": evt.attempt });
 			};
+			const recordRunCompleted = (evt) => {
+				const attrs = {
+					"openclaw.outcome": evt.outcome,
+					"openclaw.provider": evt.provider ?? "unknown",
+					"openclaw.model": evt.model ?? "unknown"
+				};
+				if (evt.channel) attrs["openclaw.channel"] = evt.channel;
+				durationHistogram.record(evt.durationMs, attrs);
+				if (!tracesEnabled) return;
+				const spanAttrs = { "openclaw.outcome": evt.outcome };
+				addRunAttrs(spanAttrs, evt);
+				if (evt.errorCategory) spanAttrs["openclaw.errorCategory"] = lowCardinalityAttr(evt.errorCategory, "other");
+				const span = spanWithDuration("openclaw.run", spanAttrs, evt.durationMs, { endTimeMs: evt.ts });
+				if (evt.outcome === "error") span.setStatus({
+					code: SpanStatusCode.ERROR,
+					...evt.errorCategory ? { message: redactSensitiveText(evt.errorCategory) } : {}
+				});
+				span.end(evt.ts);
+			};
+			const modelCallMetricAttrs = (evt) => ({
+				"openclaw.provider": evt.provider,
+				"openclaw.model": evt.model,
+				"openclaw.api": lowCardinalityAttr(evt.api),
+				"openclaw.transport": lowCardinalityAttr(evt.transport)
+			});
+			const recordModelCallCompleted = (evt) => {
+				modelCallDurationHistogram.record(evt.durationMs, modelCallMetricAttrs(evt));
+				if (!tracesEnabled) return;
+				const spanAttrs = {
+					"openclaw.provider": evt.provider,
+					"openclaw.model": evt.model,
+					"gen_ai.system": evt.provider,
+					"gen_ai.request.model": evt.model,
+					"gen_ai.operation.name": genAiOperationName(evt.api)
+				};
+				if (evt.api) spanAttrs["openclaw.api"] = evt.api;
+				if (evt.transport) spanAttrs["openclaw.transport"] = evt.transport;
+				assignOtelModelContentAttributes(spanAttrs, evt, contentCapturePolicy);
+				spanWithDuration("openclaw.model.call", spanAttrs, evt.durationMs, { endTimeMs: evt.ts }).end(evt.ts);
+			};
+			const recordModelCallError = (evt) => {
+				modelCallDurationHistogram.record(evt.durationMs, {
+					...modelCallMetricAttrs(evt),
+					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other")
+				});
+				if (!tracesEnabled) return;
+				const spanAttrs = {
+					"openclaw.provider": evt.provider,
+					"openclaw.model": evt.model,
+					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other"),
+					"gen_ai.system": evt.provider,
+					"gen_ai.request.model": evt.model,
+					"gen_ai.operation.name": genAiOperationName(evt.api)
+				};
+				if (evt.api) spanAttrs["openclaw.api"] = evt.api;
+				if (evt.transport) spanAttrs["openclaw.transport"] = evt.transport;
+				assignOtelModelContentAttributes(spanAttrs, evt, contentCapturePolicy);
+				const span = spanWithDuration("openclaw.model.call", spanAttrs, evt.durationMs, { endTimeMs: evt.ts });
+				span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: redactSensitiveText(evt.errorCategory)
+				});
+				span.end(evt.ts);
+			};
+			const recordToolExecutionCompleted = (evt) => {
+				const attrs = {
+					"openclaw.toolName": evt.toolName,
+					...paramsSummaryAttrs(evt.paramsSummary)
+				};
+				toolExecutionDurationHistogram.record(evt.durationMs, attrs);
+				if (!tracesEnabled) return;
+				const spanAttrs = {
+					"openclaw.toolName": evt.toolName,
+					"gen_ai.tool.name": evt.toolName,
+					...paramsSummaryAttrs(evt.paramsSummary)
+				};
+				addRunAttrs(spanAttrs, evt);
+				assignOtelToolContentAttributes(spanAttrs, evt, contentCapturePolicy);
+				spanWithDuration("openclaw.tool.execution", spanAttrs, evt.durationMs, { endTimeMs: evt.ts }).end(evt.ts);
+			};
+			const recordToolExecutionError = (evt) => {
+				const attrs = {
+					"openclaw.toolName": evt.toolName,
+					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other"),
+					...paramsSummaryAttrs(evt.paramsSummary)
+				};
+				toolExecutionDurationHistogram.record(evt.durationMs, attrs);
+				if (!tracesEnabled) return;
+				const spanAttrs = {
+					"openclaw.toolName": evt.toolName,
+					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other"),
+					"gen_ai.tool.name": evt.toolName,
+					...paramsSummaryAttrs(evt.paramsSummary)
+				};
+				addRunAttrs(spanAttrs, evt);
+				if (evt.errorCode) spanAttrs["openclaw.errorCode"] = lowCardinalityAttr(evt.errorCode, "other");
+				assignOtelToolContentAttributes(spanAttrs, evt, contentCapturePolicy);
+				const span = spanWithDuration("openclaw.tool.execution", spanAttrs, evt.durationMs, { endTimeMs: evt.ts });
+				span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: redactSensitiveText(evt.errorCategory)
+				});
+				span.end(evt.ts);
+			};
+			const recordExecProcessCompleted = (evt) => {
+				const attrs = {
+					"openclaw.exec.target": evt.target,
+					"openclaw.exec.mode": evt.mode,
+					"openclaw.outcome": evt.outcome
+				};
+				if (evt.failureKind) attrs["openclaw.failureKind"] = evt.failureKind;
+				execProcessDurationHistogram.record(evt.durationMs, attrs);
+				if (!tracesEnabled) return;
+				const spanAttrs = {
+					...attrs,
+					"openclaw.exec.command_length": evt.commandLength
+				};
+				if (typeof evt.exitCode === "number") spanAttrs["openclaw.exec.exit_code"] = evt.exitCode;
+				if (evt.exitSignal) spanAttrs["openclaw.exec.exit_signal"] = lowCardinalityAttr(evt.exitSignal, "other");
+				if (evt.timedOut !== void 0) spanAttrs["openclaw.exec.timed_out"] = evt.timedOut;
+				const span = spanWithDuration("openclaw.exec", spanAttrs, evt.durationMs, { endTimeMs: evt.ts });
+				if (evt.outcome === "failed") span.setStatus({
+					code: SpanStatusCode.ERROR,
+					...evt.failureKind ? { message: evt.failureKind } : {}
+				});
+				span.end(evt.ts);
+			};
 			const recordHeartbeat = (evt) => {
 				queueDepthHistogram.record(evt.queued, { "openclaw.channel": "heartbeat" });
 			};
-			unsubscribe = onDiagnosticEvent((evt) => {
+			unsubscribe = onInternalDiagnosticEvent((evt) => {
 				try {
 					switch (evt.type) {
 						case "model.usage":
@@ -53841,6 +54697,34 @@ function createDiagnosticsOtelService() {
 						case "diagnostic.heartbeat":
 							recordHeartbeat(evt);
 							return;
+						case "run.completed":
+							recordRunCompleted(evt);
+							return;
+						case "model.call.completed":
+							recordModelCallCompleted(evt);
+							return;
+						case "model.call.error":
+							recordModelCallError(evt);
+							return;
+						case "tool.execution.completed":
+							recordToolExecutionCompleted(evt);
+							return;
+						case "tool.execution.error":
+							recordToolExecutionError(evt);
+							return;
+						case "exec.process.completed":
+							recordExecProcessCompleted(evt);
+							return;
+						case "log.record":
+							recordLogRecord?.(evt);
+							return;
+						case "tool.loop":
+						case "tool.execution.started":
+						case "run.started":
+						case "model.call.started":
+						case "diagnostic.memory.sample":
+						case "diagnostic.memory.pressure":
+						case "payload.large": return;
 					}
 				} catch (err) {
 					ctx.logger.error(`diagnostics-otel: event handler failed (${evt.type}): ${formatError(err)}`);
@@ -53849,18 +54733,7 @@ function createDiagnosticsOtelService() {
 			if (logsEnabled) ctx.logger.info("diagnostics-otel: logs exporter enabled (OTLP/Protobuf)");
 		},
 		async stop() {
-			unsubscribe?.();
-			unsubscribe = null;
-			stopLogTransport?.();
-			stopLogTransport = null;
-			if (logProvider) {
-				await logProvider.shutdown().catch(() => void 0);
-				logProvider = null;
-			}
-			if (sdk) {
-				await sdk.shutdown().catch(() => void 0);
-				sdk = null;
-			}
+			await stopStarted();
 		}
 	};
 }

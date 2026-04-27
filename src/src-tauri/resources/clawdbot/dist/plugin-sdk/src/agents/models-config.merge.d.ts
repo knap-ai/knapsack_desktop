@@ -13,5 +13,4 @@ export declare function mergeWithExistingProviderSecrets(params: {
     nextProviders: Record<string, ProviderConfig>;
     existingProviders: Record<string, ExistingProviderConfig>;
     secretRefManagedProviders: ReadonlySet<string>;
-    explicitBaseUrlProviders: ReadonlySet<string>;
 }): Record<string, ProviderConfig>;

@@ -1,9 +1,12 @@
-import { t as createSubsystemLogger } from "../../subsystem-Cgmckbux.js";
-import { t as CUSTOM_LOCAL_AUTH_MARKER } from "../../model-auth-markers-ve-OgG6R.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../provider-auth-DWLaZig-.js";
-import "../../logging-core-CqXBUxbp.js";
-import { C as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, M as LMSTUDIO_PROVIDER_LABEL, c as resolveLmstudioRuntimeApiKey, f as shouldUseLmstudioSyntheticAuth, g as normalizeLmstudioConfiguredCatalogEntries, j as LMSTUDIO_PROVIDER_ID, n as ensureLmstudioModelLoaded, o as resolveLmstudioProviderHeaders, v as normalizeLmstudioProviderConfig, y as resolveLmstudioInferenceBase } from "../../models.fetch-C_ezffQd.js";
+import { t as createSubsystemLogger } from "../../subsystem-CWI_MDy_.js";
+import { t as CUSTOM_LOCAL_AUTH_MARKER } from "../../model-auth-markers-CZrGSAU9.js";
+import { _ as ssrfPolicyFromHttpBaseUrlAllowedHostname } from "../../ssrf-MkDHylX_.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../provider-auth-B7ecZcum.js";
+import "../../ssrf-runtime-DjO5-xxH.js";
+import "../../logging-core-BqHYYeyJ.js";
+import { C as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, M as LMSTUDIO_PROVIDER_LABEL, c as resolveLmstudioRuntimeApiKey, f as shouldUseLmstudioSyntheticAuth, g as normalizeLmstudioConfiguredCatalogEntries, j as LMSTUDIO_PROVIDER_ID, n as ensureLmstudioModelLoaded, o as resolveLmstudioProviderHeaders, v as normalizeLmstudioProviderConfig, y as resolveLmstudioInferenceBase } from "../../models.fetch-rYikvgVG.js";
+import { t as lmstudioMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-DAs0qe-O.js";
 import { streamSimple } from "@mariozechner/pi-ai";
 //#region extensions/lmstudio/src/stream.ts
 const log = createSubsystemLogger("extensions/lmstudio/stream");
@@ -55,17 +58,6 @@ function resolveModelHeaders(model) {
 function createPreloadKey(params) {
 	return `${params.baseUrl}::${params.modelKey}::${params.requestedContextLength ?? "default"}`;
 }
-function buildLmstudioPreloadSsrFPolicy(baseUrl) {
-	const trimmed = baseUrl.trim();
-	if (!trimmed) return;
-	try {
-		const parsed = new URL(trimmed);
-		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;
-		return { allowedHostnames: [parsed.hostname] };
-	} catch {
-		return;
-	}
-}
 async function ensureLmstudioModelLoadedBestEffort(params) {
 	const providerHeaders = {
 		...(params.ctx.config?.models?.providers?.[LMSTUDIO_PROVIDER_ID])?.headers,
@@ -85,7 +77,7 @@ async function ensureLmstudioModelLoadedBestEffort(params) {
 		baseUrl: params.baseUrl,
 		apiKey: runtimeApiKey ?? configuredApiKey,
 		headers,
-		ssrfPolicy: buildLmstudioPreloadSsrFPolicy(params.baseUrl),
+		ssrfPolicy: ssrfPolicyFromHttpBaseUrlAllowedHostname(params.baseUrl),
 		modelKey: params.modelKey,
 		requestedContextLength: params.requestedContextLength
 	});
@@ -176,6 +168,7 @@ var lmstudio_default = definePluginEntry({
 	name: "LM Studio Provider",
 	description: "Bundled LM Studio provider plugin",
 	register(api) {
+		api.registerMemoryEmbeddingProvider(lmstudioMemoryEmbeddingProviderAdapter);
 		api.registerProvider({
 			id: PROVIDER_ID,
 			label: "LM Studio",

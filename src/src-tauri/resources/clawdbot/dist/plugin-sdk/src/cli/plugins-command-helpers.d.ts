@@ -1,5 +1,4 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export { extractInstalledNpmHookPackageName, extractInstalledNpmPackageName, } from "./plugins-install-records.js";
 export declare function resolveFileNpmSpecToLocalPath(raw: string): {
     ok: true;
     path: string;

@@ -4,6 +4,7 @@ import type { OpenClawPluginToolContext } from "../tool-types.js";
 import type { PluginRuntimeTaskFlow } from "./runtime-taskflow.types.js";
 import type { TaskFlowDetail, TaskFlowView, TaskRunAggregateSummary, TaskRunCancelResult, TaskRunDetail, TaskRunView } from "./task-domain-types.js";
 export type { TaskFlowDetail, TaskFlowView, TaskRunAggregateSummary, TaskRunCancelResult, TaskRunDetail, TaskRunView, } from "./task-domain-types.js";
+export type { DetachedTaskLifecycleRuntime } from "../../tasks/detached-task-runtime-contract.js";
 export type BoundTaskRunsRuntime = {
     readonly sessionKey: string;
     readonly requesterOrigin?: TaskDeliveryState["requesterOrigin"];

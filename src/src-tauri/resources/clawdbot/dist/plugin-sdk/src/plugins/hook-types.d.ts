@@ -4,9 +4,10 @@ import type { ReplyDispatchKind, ReplyDispatcher } from "../auto-reply/reply/rep
 import type { FinalizedMsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { TtsAutoMode } from "../config/types.tts.js";
+import type { DiagnosticTraceContext } from "../infra/diagnostic-trace-context.js";
 import type { PluginHookBeforeAgentStartEvent, PluginHookBeforeAgentStartResult, PluginHookBeforeModelResolveEvent, PluginHookBeforeModelResolveResult, PluginHookBeforePromptBuildEvent, PluginHookBeforePromptBuildResult } from "./hook-before-agent-start.types.js";
 import type { PluginHookInboundClaimContext, PluginHookInboundClaimEvent, PluginHookMessageContext, PluginHookMessageReceivedEvent, PluginHookMessageSendingEvent, PluginHookMessageSendingResult, PluginHookMessageSentEvent } from "./hook-message.types.js";
-export type { PluginHookBeforeAgentStartEvent, PluginHookBeforeAgentStartOverrideResult, PluginHookBeforeAgentStartResult, PluginHookBeforeModelResolveEvent, PluginHookBeforeModelResolveResult, PluginHookBeforePromptBuildEvent, PluginHookBeforePromptBuildResult, } from "./hook-before-agent-start.types.js";
+export type { PluginHookBeforeAgentStartEvent, PluginHookBeforeAgentStartOverrideResult, PluginHookBeforeAgentStartResult, PluginHookBeforeModelResolveAttachment, PluginHookBeforeModelResolveEvent, PluginHookBeforeModelResolveResult, PluginHookBeforePromptBuildEvent, PluginHookBeforePromptBuildResult, } from "./hook-before-agent-start.types.js";
 export { PLUGIN_PROMPT_MUTATION_RESULT_FIELDS, stripPromptMutationFieldsFromLegacyHookResult, } from "./hook-before-agent-start.types.js";
 export type { PluginHookInboundClaimContext, PluginHookInboundClaimEvent, PluginHookMessageContext, PluginHookMessageReceivedEvent, PluginHookMessageSendingEvent, PluginHookMessageSendingResult, PluginHookMessageSentEvent, } from "./hook-message.types.js";
 export type PluginHookName = "before_model_resolve" | "before_prompt_build" | "before_agent_start" | "before_agent_reply" | "llm_input" | "llm_output" | "agent_end" | "before_compaction" | "after_compaction" | "before_reset" | "inbound_claim" | "message_received" | "message_sending" | "message_sent" | "before_tool_call" | "after_tool_call" | "tool_result_persist" | "before_message_write" | "session_start" | "session_end" | "subagent_spawning" | "subagent_delivery_target" | "subagent_spawned" | "subagent_ended" | "gateway_start" | "gateway_stop" | "before_dispatch" | "reply_dispatch" | "before_install";
@@ -15,8 +16,12 @@ export declare const isPluginHookName: (hookName: unknown) => hookName is Plugin
 export declare const PROMPT_INJECTION_HOOK_NAMES: readonly ["before_prompt_build", "before_agent_start"];
 export type PromptInjectionHookName = (typeof PROMPT_INJECTION_HOOK_NAMES)[number];
 export declare const isPromptInjectionHookName: (hookName: PluginHookName) => boolean;
+export declare const CONVERSATION_HOOK_NAMES: readonly ["llm_input", "llm_output", "agent_end"];
+export type ConversationHookName = (typeof CONVERSATION_HOOK_NAMES)[number];
+export declare const isConversationHookName: (hookName: PluginHookName) => boolean;
 export type PluginHookAgentContext = {
     runId?: string;
+    trace?: DiagnosticTraceContext;
     agentId?: string;
     sessionKey?: string;
     sessionId?: string;
@@ -50,6 +55,19 @@ export type PluginHookLlmOutputEvent = {
     sessionId: string;
     provider: string;
     model: string;
+    /**
+     * Fully resolved provider/model ref used for the call.
+     *
+     * This intentionally keeps the provider prefix so operator tooling can
+     * distinguish e.g. openai-codex/gpt-5.4 from codex/gpt-5.4 even when display
+     * names collapse to just the model id.
+     */
+    resolvedRef?: string;
+    /**
+     * Harness/backend responsible for the model loop. Kept separate from
+     * `resolvedRef` so provider/model consumers keep a stable parse contract.
+     */
+    harnessId?: string;
     assistantTexts: string[];
     lastAssistant?: unknown;
     usage?: {
@@ -61,6 +79,7 @@ export type PluginHookLlmOutputEvent = {
     };
 };
 export type PluginHookAgentEndEvent = {
+    runId?: string;
     messages: unknown[];
     success: boolean;
     error?: string;
@@ -86,6 +105,7 @@ export type PluginHookAfterCompactionEvent = {
 };
 export type PluginHookInboundClaimResult = {
     handled: boolean;
+    reply?: ReplyPayload;
 };
 export type PluginHookBeforeDispatchEvent = {
     content: string;
@@ -111,6 +131,10 @@ export type PluginHookReplyDispatchEvent = {
     ctx: FinalizedMsgContext;
     runId?: string;
     sessionKey?: string;
+    images?: Array<{
+        data: string;
+        mimeType: string;
+    }>;
     inboundAudio: boolean;
     sessionTtsAuto?: TtsAutoMode;
     ttsChannel?: string;
@@ -143,6 +167,7 @@ export type PluginHookToolContext = {
     sessionKey?: string;
     sessionId?: string;
     runId?: string;
+    trace?: DiagnosticTraceContext;
     toolName: string;
     toolCallId?: string;
 };
@@ -252,6 +277,12 @@ export type PluginHookSubagentSpawningEvent = PluginHookSubagentSpawnBase;
 export type PluginHookSubagentSpawningResult = {
     status: "ok";
     threadBindingReady?: boolean;
+    deliveryOrigin?: {
+        channel?: string;
+        accountId?: string;
+        to?: string;
+        threadId?: string | number;
+    };
 } | {
     status: "error";
     error: string;
@@ -293,12 +324,61 @@ export type PluginHookSubagentEndedEvent = {
 };
 export type PluginHookGatewayContext = {
     port?: number;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    getCron?: () => PluginHookGatewayCronService | undefined;
 };
 export type PluginHookGatewayStartEvent = {
     port: number;
 };
 export type PluginHookGatewayStopEvent = {
     reason?: string;
+};
+export type PluginHookGatewayCronJob = {
+    id: string;
+    name?: string;
+    description?: string;
+    enabled?: boolean;
+    schedule?: {
+        kind?: string;
+        expr?: string;
+        tz?: string;
+    };
+    sessionTarget?: string;
+    wakeMode?: string;
+    payload?: {
+        kind?: string;
+        text?: string;
+    };
+    createdAtMs?: number;
+};
+export type PluginHookGatewayCronCreateInput = {
+    name: string;
+    description: string;
+    enabled: boolean;
+    schedule: {
+        kind: string;
+        expr: string;
+        tz?: string;
+    };
+    sessionTarget: string;
+    wakeMode: string;
+    payload: {
+        kind: string;
+        text?: string;
+    };
+};
+export type PluginHookGatewayCronUpdateInput = Partial<PluginHookGatewayCronCreateInput>;
+export type PluginHookGatewayCronRemoveResult = {
+    removed?: boolean;
+};
+export type PluginHookGatewayCronService = {
+    list: (opts?: {
+        includeDisabled?: boolean;
+    }) => Promise<PluginHookGatewayCronJob[]>;
+    add: (input: PluginHookGatewayCronCreateInput) => Promise<unknown>;
+    update: (id: string, patch: PluginHookGatewayCronUpdateInput) => Promise<unknown>;
+    remove: (id: string) => Promise<PluginHookGatewayCronRemoveResult>;
 };
 export type PluginInstallTargetType = "skill" | "plugin";
 export type PluginInstallRequestKind = "skill-install" | "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm";

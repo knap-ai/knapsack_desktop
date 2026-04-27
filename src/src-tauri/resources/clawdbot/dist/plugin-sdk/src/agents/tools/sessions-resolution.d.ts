@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { callGateway } from "../../gateway/call.js";
+import { listSpawnedSessionKeys } from "../../plugin-sdk/session-visibility.js";
 import { looksLikeSessionId } from "../../sessions/session-id.js";
 type GatewayCaller = typeof callGateway;
 export declare function resolveMainSessionAlias(cfg: OpenClawConfig): {
@@ -18,10 +19,7 @@ export declare function resolveInternalSessionKey(params: {
     mainKey: string;
     requesterInternalKey?: string;
 }): string;
-export declare function listSpawnedSessionKeys(params: {
-    requesterSessionKey: string;
-    limit?: number;
-}): Promise<Set<string>>;
+export { listSpawnedSessionKeys };
 export declare function isRequesterSpawnedSessionVisible(params: {
     requesterSessionKey: string;
     targetSessionKey: string;

@@ -10,7 +10,7 @@ export type TypingModeContext = {
     suppressTyping?: boolean;
 };
 export declare const DEFAULT_GROUP_TYPING_MODE: TypingMode;
-export declare function resolveTypingMode({ configured, isGroupChat, wasMentioned, isHeartbeat, typingPolicy, suppressTyping, }: TypingModeContext): TypingMode;
+export declare function resolveTypingMode({ configured, isGroupChat, wasMentioned, isHeartbeat, typingPolicy, suppressTyping }: TypingModeContext): TypingMode;
 export type TypingSignaler = {
     mode: TypingMode;
     shouldStartImmediately: boolean;

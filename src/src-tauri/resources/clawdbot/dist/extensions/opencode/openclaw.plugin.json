@@ -25,6 +25,21 @@
       "cliDescription": "OpenCode API key (Zen catalog)"
     }
   ],
+  "contracts": {
+    "mediaUnderstandingProviders": [
+      "opencode"
+    ]
+  },
+  "mediaUnderstandingProviderMetadata": {
+    "opencode": {
+      "capabilities": [
+        "image"
+      ],
+      "defaultModels": {
+        "image": "gpt-5-nano"
+      }
+    }
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

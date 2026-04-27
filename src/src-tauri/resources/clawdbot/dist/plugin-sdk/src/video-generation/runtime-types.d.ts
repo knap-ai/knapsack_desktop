@@ -19,6 +19,8 @@ export type GenerateVideoParams = {
     inputAudios?: VideoGenerationSourceAsset[];
     /** Arbitrary provider-specific options forwarded as-is to provider.generateVideo. */
     providerOptions?: Record<string, unknown>;
+    /** Optional per-request provider timeout in milliseconds. */
+    timeoutMs?: number;
 };
 export type GenerateVideoRuntimeResult = {
     videos: GeneratedVideoAsset[];

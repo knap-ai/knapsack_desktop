@@ -1,6 +1,5 @@
-import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
+import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 //#region extensions/acpx/setup-api.ts
 var setup_api_default = definePluginEntry({
 	id: "acpx",

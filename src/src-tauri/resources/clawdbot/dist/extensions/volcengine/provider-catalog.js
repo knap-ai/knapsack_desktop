@@ -1,2 +1,2 @@
-import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-Ci9-exCJ.js";
+import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-1c5_xr2j.js";
 export { buildDoubaoCodingProvider, buildDoubaoProvider };

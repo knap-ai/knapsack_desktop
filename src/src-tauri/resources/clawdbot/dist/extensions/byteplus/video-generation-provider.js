@@ -1,2 +1,2 @@
-import { t as buildBytePlusVideoGenerationProvider } from "../../video-generation-provider-CL3UvB9n.js";
+import { t as buildBytePlusVideoGenerationProvider } from "../../video-generation-provider-hG_yT3QN.js";
 export { buildBytePlusVideoGenerationProvider };

@@ -1,5 +1,5 @@
 import { type QueueDropPolicy, type QueueMode } from "../auto-reply/reply/queue.js";
-import { type DeliveryContext } from "../utils/delivery-context.js";
+import type { DeliveryContext } from "../utils/delivery-context.types.js";
 import type { AgentInternalEvent } from "./internal-events.js";
 export type AnnounceQueueItem = {
     announceId?: string;

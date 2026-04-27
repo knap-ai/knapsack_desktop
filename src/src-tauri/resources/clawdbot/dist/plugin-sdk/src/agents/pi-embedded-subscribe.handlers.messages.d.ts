@@ -1,4 +1,5 @@
 import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
+import { type ReplyDirectiveParseResult } from "../auto-reply/reply/reply-directives.js";
 import { type AssistantPhase } from "../shared/chat-message-content.js";
 import type { BlockReplyPayload } from "./pi-embedded-payloads.js";
 import type { EmbeddedPiSubscribeContext, EmbeddedPiSubscribeState } from "./pi-embedded-subscribe.handlers.types.js";
@@ -6,8 +7,10 @@ export declare function resolveSilentReplyFallbackText(params: {
     text: unknown;
     messagingToolSentTexts: string[];
 }): string;
-export declare function consumePendingToolMediaIntoReply(state: Pick<EmbeddedPiSubscribeState, "pendingToolMediaUrls" | "pendingToolAudioAsVoice">, payload: BlockReplyPayload): BlockReplyPayload;
-export declare function consumePendingToolMediaReply(state: Pick<EmbeddedPiSubscribeState, "pendingToolMediaUrls" | "pendingToolAudioAsVoice">): BlockReplyPayload | null;
+export declare function consumePendingToolMediaIntoReply(state: Pick<EmbeddedPiSubscribeState, "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "pendingToolTrustedLocalMedia">, payload: BlockReplyPayload): BlockReplyPayload;
+export declare function consumePendingToolMediaReply(state: Pick<EmbeddedPiSubscribeState, "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "pendingToolTrustedLocalMedia">): BlockReplyPayload | null;
+export declare function recordPendingAssistantReplyDirectives(state: Pick<EmbeddedPiSubscribeState, "pendingAssistantReplyDirectives">, parsed: ReplyDirectiveParseResult | null | undefined): void;
+export declare function consumePendingAssistantReplyDirectivesIntoReply(state: Pick<EmbeddedPiSubscribeState, "pendingAssistantReplyDirectives">, payload: BlockReplyPayload): BlockReplyPayload;
 export declare function hasAssistantVisibleReply(params: {
     text?: string;
     mediaUrls?: string[];

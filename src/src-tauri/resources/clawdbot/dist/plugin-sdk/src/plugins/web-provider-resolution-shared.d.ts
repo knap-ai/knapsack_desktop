@@ -39,11 +39,11 @@ export declare function buildWebProviderSnapshotCacheKey(params: {
 }): string;
 export declare function mapRegistryProviders<TProvider extends {
     id: string;
-}, TEntry extends {
-    pluginId: string;
-    provider: TProvider;
 }>(params: {
-    entries: readonly TEntry[];
+    entries: readonly {
+        pluginId: string;
+        provider: TProvider;
+    }[];
     onlyPluginIds?: readonly string[];
     sortProviders: (providers: Array<TProvider & {
         pluginId: string;

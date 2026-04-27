@@ -1,2 +1,2 @@
-import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-ovZX_eBU.js";
+import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-CRRp0vbN.js";
 export { createFirecrawlWebFetchProvider };

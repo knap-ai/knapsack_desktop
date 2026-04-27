@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/document-extract-plugin",
+  "version": "2026.4.24",
+  "private": true,
+  "description": "OpenClaw local document extraction plugin",
+  "type": "module",
+  "dependencies": {
+    "pdfjs-dist": "^5.6.205"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

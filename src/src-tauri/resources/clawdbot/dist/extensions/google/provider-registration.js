@@ -1,12 +1,13 @@
 import { GOOGLE_GEMINI_PROVIDER_HOOKS } from "./provider-hooks.js";
 import { isModernGoogleModel, resolveGoogleGeminiForwardCompatModel } from "./provider-models.js";
 import { normalizeGoogleModelId } from "./model-id.js";
+import { GOOGLE_GEMINI_DEFAULT_MODEL, applyGoogleGeminiModelDefault } from "./onboard.js";
 import { normalizeGoogleProviderConfig, resolveGoogleGenerativeAiTransport } from "./provider-policy.js";
-import { GOOGLE_GEMINI_DEFAULT_MODEL, applyGoogleGeminiModelDefault } from "./api.js";
+import { createGoogleGenerativeAiTransportStreamFn } from "./transport-stream.js";
 import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
 //#region extensions/google/provider-registration.ts
-function registerGoogleProvider(api) {
-	api.registerProvider({
+function buildGoogleProvider() {
+	return {
 		id: "google",
 		label: "Google AI Studio",
 		docsPath: "/providers/models",
@@ -42,9 +43,13 @@ function registerGoogleProvider(api) {
 			providerId: ctx.provider,
 			ctx
 		}),
+		createStreamFn: ({ model }) => model.api === "google-generative-ai" ? createGoogleGenerativeAiTransportStreamFn() : void 0,
 		...GOOGLE_GEMINI_PROVIDER_HOOKS,
 		isModernModelRef: ({ modelId }) => isModernGoogleModel(modelId)
-	});
+	};
+}
+function registerGoogleProvider(api) {
+	api.registerProvider(buildGoogleProvider());
 }
 //#endregion
-export { registerGoogleProvider };
+export { buildGoogleProvider, registerGoogleProvider };

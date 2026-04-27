@@ -1,4 +1,4 @@
-import { t as createBaseWebSearchProviderContractFields } from "../../provider-web-search-contract-fields-BNSdd2mW.js";
+import { t as createBaseWebSearchProviderContractFields } from "../../provider-web-search-contract-fields-SYSI7qZL.js";
 //#region extensions/minimax/web-search-contract-api.ts
 const MINIMAX_CODING_PLAN_ENV_VARS = ["MINIMAX_CODE_PLAN_KEY", "MINIMAX_CODING_API_KEY"];
 function createMiniMaxWebSearchProvider() {

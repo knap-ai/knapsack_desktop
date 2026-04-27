@@ -14,4 +14,10 @@ export declare function updateSessionStoreAfterAgentRun(params: {
     fallbackModel?: string;
     result: RunResult;
 }): Promise<void>;
+export declare function clearCliSessionInStore(params: {
+    provider: string;
+    sessionKey: string;
+    sessionStore: Record<string, SessionEntry>;
+    storePath: string;
+}): Promise<SessionEntry | undefined>;
 export {};

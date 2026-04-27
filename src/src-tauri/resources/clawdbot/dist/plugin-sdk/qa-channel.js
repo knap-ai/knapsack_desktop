@@ -1,4 +1,4 @@
-import { i as loadBundledPluginPublicSurfaceModuleSync, n as createLazyFacadeObjectValue } from "../facade-loader-CGu7k8Om.js";
+import { i as loadBundledPluginPublicSurfaceModuleSync, n as createLazyFacadeObjectValue } from "../facade-loader-2P4UQTnv.js";
 //#region src/plugin-sdk/qa-channel.ts
 function loadFacadeModule() {
 	return loadBundledPluginPublicSurfaceModuleSync({

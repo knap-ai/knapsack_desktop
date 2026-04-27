@@ -1,7 +1,14 @@
-import type { AuthProfileCredential } from "./types.js";
+import type { AuthProfileCredential, OAuthCredential } from "./types.js";
 export type AuthCredentialReasonCode = "ok" | "missing_credential" | "invalid_expires" | "expired" | "unresolved_ref";
-export type TokenExpiryState = "missing" | "valid" | "expired" | "invalid_expires";
-export declare function resolveTokenExpiryState(expires: unknown, now?: number): TokenExpiryState;
+export declare const DEFAULT_OAUTH_REFRESH_MARGIN_MS: number;
+export type TokenExpiryState = "missing" | "valid" | "expiring" | "expired" | "invalid_expires";
+export declare function resolveTokenExpiryState(expires: unknown, now?: number, opts?: {
+    expiringWithinMs?: number;
+}): TokenExpiryState;
+export declare function hasUsableOAuthCredential(credential: OAuthCredential | undefined, opts?: {
+    now?: number;
+    refreshMarginMs?: number;
+}): boolean;
 export declare function evaluateStoredCredentialEligibility(params: {
     credential: AuthProfileCredential;
     now?: number;

@@ -1,2 +1,2 @@
-import { t as buildXaiProvider } from "../../provider-catalog-CAjZQu79.js";
+import { t as buildXaiProvider } from "../../provider-catalog-oV-TSPvb.js";
 export { buildXaiProvider };

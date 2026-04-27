@@ -14,4 +14,7 @@ export declare function registerPluginInteractiveHandler(pluginId: string, regis
     pluginRoot?: string;
 }): InteractiveRegistrationResult;
 export declare function clearPluginInteractiveHandlers(): void;
+export declare function clearPluginInteractiveHandlerRegistrations(): void;
 export declare function clearPluginInteractiveHandlersForPlugin(pluginId: string): void;
+export declare function listPluginInteractiveHandlers(): RegisteredInteractiveHandler[];
+export declare function restorePluginInteractiveHandlers(registrations: readonly RegisteredInteractiveHandler[]): void;

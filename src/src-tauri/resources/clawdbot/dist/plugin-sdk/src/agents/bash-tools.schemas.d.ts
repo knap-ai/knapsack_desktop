@@ -1,28 +1,29 @@
-export declare const execSchema: import("@sinclair/typebox").TObject<{
-    command: import("@sinclair/typebox").TString;
-    workdir: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    env: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-    yieldMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-    background: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    timeout: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-    pty: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    elevated: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    host: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    node: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+import { Type } from "typebox";
+export declare const execSchema: Type.TObject<{
+    command: Type.TString;
+    workdir: Type.TOptional<Type.TString>;
+    env: Type.TOptional<Type.TRecord<"^.*$", Type.TString>>;
+    yieldMs: Type.TOptional<Type.TNumber>;
+    background: Type.TOptional<Type.TBoolean>;
+    timeout: Type.TOptional<Type.TNumber>;
+    pty: Type.TOptional<Type.TBoolean>;
+    elevated: Type.TOptional<Type.TBoolean>;
+    host: Type.TOptional<Type.TString>;
+    security: Type.TOptional<Type.TString>;
+    ask: Type.TOptional<Type.TString>;
+    node: Type.TOptional<Type.TString>;
 }>;
-export declare const processSchema: import("@sinclair/typebox").TObject<{
-    action: import("@sinclair/typebox").TString;
-    sessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    data: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    keys: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    hex: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    literal: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    bracketed: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    eof: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    offset: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-    limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-    timeout: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+export declare const processSchema: Type.TObject<{
+    action: Type.TString;
+    sessionId: Type.TOptional<Type.TString>;
+    data: Type.TOptional<Type.TString>;
+    keys: Type.TOptional<Type.TArray<Type.TString>>;
+    hex: Type.TOptional<Type.TArray<Type.TString>>;
+    literal: Type.TOptional<Type.TString>;
+    text: Type.TOptional<Type.TString>;
+    bracketed: Type.TOptional<Type.TBoolean>;
+    eof: Type.TOptional<Type.TBoolean>;
+    offset: Type.TOptional<Type.TNumber>;
+    limit: Type.TOptional<Type.TNumber>;
+    timeout: Type.TOptional<Type.TNumber>;
 }>;

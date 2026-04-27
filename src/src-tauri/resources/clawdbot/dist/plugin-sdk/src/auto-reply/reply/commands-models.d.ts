@@ -10,13 +10,14 @@ export type ModelsProviderData = {
         provider: string;
         model: string;
     };
-    /** Map from provider/model to human-readable display name (when different from model ID). */
     modelNames: Map<string, string>;
+    runtimeChoicesByProvider?: Map<string, ModelsRuntimeChoice[]>;
 };
-/**
- * Build provider/model data from config and catalog.
- * Exported for reuse by callback handlers.
- */
+export type ModelsRuntimeChoice = {
+    id: string;
+    label: string;
+    description: string;
+};
 export declare function buildModelsProviderData(cfg: OpenClawConfig, agentId?: string): Promise<ModelsProviderData>;
 export declare function formatModelsAvailableHeader(params: {
     provider: string;

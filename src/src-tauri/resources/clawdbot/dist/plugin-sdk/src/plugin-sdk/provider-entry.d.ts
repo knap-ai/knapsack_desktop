@@ -9,13 +9,17 @@ export type SingleProviderPluginApiKeyAuthOptions = Omit<ApiKeyAuthMethodOptions
 };
 export type SingleProviderPluginCatalogOptions = {
     buildProvider: Parameters<typeof buildSingleProviderApiKeyCatalog>[0]["buildProvider"];
+    buildStaticProvider?: Parameters<typeof buildSingleProviderApiKeyCatalog>[0]["buildProvider"];
     allowExplicitBaseUrl?: boolean;
     run?: never;
     order?: never;
+    staticRun?: never;
 } | {
     run: ProviderPluginCatalog["run"];
+    staticRun?: ProviderPluginCatalog["run"];
     order?: ProviderPluginCatalog["order"];
     buildProvider?: never;
+    buildStaticProvider?: never;
     allowExplicitBaseUrl?: never;
 };
 export type SingleProviderPluginOptions = {
@@ -32,7 +36,7 @@ export type SingleProviderPluginOptions = {
         envVars?: string[];
         auth?: SingleProviderPluginApiKeyAuthOptions[];
         catalog: SingleProviderPluginCatalogOptions;
-    } & Omit<ProviderPlugin, "id" | "label" | "docsPath" | "aliases" | "envVars" | "auth" | "catalog">;
+    } & Omit<ProviderPlugin, "id" | "label" | "docsPath" | "aliases" | "envVars" | "auth" | "catalog" | "staticCatalog">;
     register?: (api: OpenClawPluginApi) => void;
 };
 export declare function defineSingleProviderPluginEntry(options: SingleProviderPluginOptions): {
@@ -41,5 +45,5 @@ export declare function defineSingleProviderPluginEntry(options: SingleProviderP
     description: string;
     configSchema: OpenClawPluginConfigSchema;
     register: NonNullable<OpenClawPluginDefinition["register"]>;
-} & Pick<OpenClawPluginDefinition, "kind" | "reload" | "nodeHostCommands" | "securityAuditCollectors">;
+} & Pick<OpenClawPluginDefinition, "kind" | "nodeHostCommands" | "reload" | "securityAuditCollectors">;
 export {};

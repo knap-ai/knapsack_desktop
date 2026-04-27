@@ -5,6 +5,7 @@ export declare function buildReplyPromptBodies(params: {
     sessionCtx: TemplateContext;
     effectiveBaseBody: string;
     prefixedBody: string;
+    transcriptBody?: string;
     threadContextNote?: string;
     systemEventBlocks?: string[];
 }): {
@@ -12,4 +13,5 @@ export declare function buildReplyPromptBodies(params: {
     mediaReplyHint?: string;
     prefixedCommandBody: string;
     queuedBody: string;
+    transcriptCommandBody: string;
 };

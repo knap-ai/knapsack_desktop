@@ -73,10 +73,7 @@ function normalizeProviderModels(provider, normalizeId) {
 		const nextId = normalizeId(model.id);
 		if (nextId === model.id) return model;
 		mutated = true;
-		return {
-			...model,
-			id: nextId
-		};
+		return Object.assign({}, model, { id: nextId });
 	});
 	return mutated ? {
 		...provider,

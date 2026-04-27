@@ -7,7 +7,7 @@ export declare const MAX_ANNOUNCE_RETRY_DELAY_MS = 8000;
 export declare const MAX_ANNOUNCE_RETRY_COUNT = 3;
 export declare const ANNOUNCE_EXPIRY_MS: number;
 export declare const ANNOUNCE_COMPLETION_HARD_EXPIRY_MS: number;
-export type SubagentRunOrphanReason = "missing-session-entry" | "missing-session-id";
+export type SubagentRunOrphanReason = "missing-session-entry" | "missing-session-id" | "stale-unended-run";
 export declare function capFrozenResultText(resultText: string): string;
 export declare function resolveAnnounceRetryDelayMs(retryCount: number): number;
 export declare function logAnnounceGiveUp(entry: SubagentRunRecord, reason: "retry-limit" | "expiry"): void;
@@ -15,6 +15,8 @@ export declare function persistSubagentSessionTiming(entry: SubagentRunRecord): 
 export declare function resolveSubagentRunOrphanReason(params: {
     entry: SubagentRunRecord;
     storeCache?: Map<string, Record<string, SessionEntry>>;
+    includeStaleUnended?: boolean;
+    now?: number;
 }): SubagentRunOrphanReason | null;
 export declare function safeRemoveAttachmentsDir(entry: SubagentRunRecord): Promise<void>;
 export declare function reconcileOrphanedRun(params: {

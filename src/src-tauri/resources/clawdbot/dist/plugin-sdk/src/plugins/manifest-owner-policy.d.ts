@@ -12,6 +12,7 @@ export declare function passesManifestOwnerBasePolicy(params: {
     plugin: Pick<PluginManifestRecord, "id">;
     normalizedConfig: NormalizedPluginsConfig;
     allowExplicitlyDisabled?: boolean;
+    allowRestrictiveAllowlistBypass?: boolean;
 }): boolean;
 export declare function isActivatedManifestOwner(params: {
     plugin: OwnerPlugin;

@@ -1,8 +1,8 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
-import { n as PROVIDER_LABELS } from "../../provider-usage.shared-B28ujaJI.js";
-import "../../provider-usage-G4no-csD.js";
-import { n as buildXiaomiProvider } from "../../provider-catalog-zu5S9rrp.js";
-import { n as applyXiaomiConfig, t as XIAOMI_DEFAULT_MODEL_REF } from "../../onboard-xiuWh8pT.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
+import { n as PROVIDER_LABELS } from "../../provider-usage.shared-CcKpxFl6.js";
+import "../../provider-usage-Bi4CRsxy.js";
+import { n as buildXiaomiProvider } from "../../provider-catalog-CSIByH6I.js";
+import { n as applyXiaomiConfig, t as XIAOMI_DEFAULT_MODEL_REF } from "../../onboard-CLH2_hRz.js";
 var xiaomi_default = defineSingleProviderPluginEntry({
 	id: "xiaomi",
 	name: "Xiaomi Provider",

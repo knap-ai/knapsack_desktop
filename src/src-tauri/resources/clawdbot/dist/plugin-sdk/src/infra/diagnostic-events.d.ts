@@ -1,8 +1,10 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { DiagnosticTraceContext } from "./diagnostic-trace-context.js";
 export type DiagnosticSessionState = "idle" | "processing" | "waiting";
 type DiagnosticBaseEvent = {
     ts: number;
     seq: number;
+    trace?: DiagnosticTraceContext;
 };
 export type DiagnosticUsageEvent = DiagnosticBaseEvent & {
     type: "model.usage";
@@ -131,10 +133,143 @@ export type DiagnosticToolLoopEvent = DiagnosticBaseEvent & {
     message: string;
     pairedToolName?: string;
 };
-export type DiagnosticEventPayload = DiagnosticUsageEvent | DiagnosticWebhookReceivedEvent | DiagnosticWebhookProcessedEvent | DiagnosticWebhookErrorEvent | DiagnosticMessageQueuedEvent | DiagnosticMessageProcessedEvent | DiagnosticSessionStateEvent | DiagnosticSessionStuckEvent | DiagnosticLaneEnqueueEvent | DiagnosticLaneDequeueEvent | DiagnosticRunAttemptEvent | DiagnosticHeartbeatEvent | DiagnosticToolLoopEvent;
+export type DiagnosticToolParamsSummary = {
+    kind: "object";
+} | {
+    kind: "array";
+    length: number;
+} | {
+    kind: "string";
+    length: number;
+} | {
+    kind: "number" | "boolean" | "null" | "undefined" | "other";
+};
+type DiagnosticToolExecutionBaseEvent = DiagnosticBaseEvent & {
+    runId?: string;
+    sessionKey?: string;
+    sessionId?: string;
+    toolName: string;
+    toolCallId?: string;
+    paramsSummary?: DiagnosticToolParamsSummary;
+};
+export type DiagnosticToolExecutionStartedEvent = DiagnosticToolExecutionBaseEvent & {
+    type: "tool.execution.started";
+};
+export type DiagnosticToolExecutionCompletedEvent = DiagnosticToolExecutionBaseEvent & {
+    type: "tool.execution.completed";
+    durationMs: number;
+};
+export type DiagnosticToolExecutionErrorEvent = DiagnosticToolExecutionBaseEvent & {
+    type: "tool.execution.error";
+    durationMs: number;
+    errorCategory: string;
+    errorCode?: string;
+};
+export type DiagnosticExecProcessCompletedEvent = DiagnosticBaseEvent & {
+    type: "exec.process.completed";
+    sessionKey?: string;
+    target: "host" | "sandbox";
+    mode: "child" | "pty";
+    outcome: "completed" | "failed";
+    durationMs: number;
+    commandLength: number;
+    exitCode?: number;
+    exitSignal?: string;
+    timedOut?: boolean;
+    failureKind?: "shell-command-not-found" | "shell-not-executable" | "overall-timeout" | "no-output-timeout" | "signal" | "aborted" | "runtime-error";
+};
+type DiagnosticRunBaseEvent = DiagnosticBaseEvent & {
+    runId: string;
+    sessionKey?: string;
+    sessionId?: string;
+    provider?: string;
+    model?: string;
+    trigger?: string;
+    channel?: string;
+};
+export type DiagnosticRunStartedEvent = DiagnosticRunBaseEvent & {
+    type: "run.started";
+};
+export type DiagnosticRunCompletedEvent = DiagnosticRunBaseEvent & {
+    type: "run.completed";
+    durationMs: number;
+    outcome: "completed" | "aborted" | "error";
+    errorCategory?: string;
+};
+type DiagnosticModelCallBaseEvent = DiagnosticBaseEvent & {
+    type: "model.call.started" | "model.call.completed" | "model.call.error";
+    runId: string;
+    callId: string;
+    sessionKey?: string;
+    sessionId?: string;
+    provider: string;
+    model: string;
+    api?: string;
+    transport?: string;
+};
+export type DiagnosticModelCallStartedEvent = DiagnosticModelCallBaseEvent & {
+    type: "model.call.started";
+};
+export type DiagnosticModelCallCompletedEvent = DiagnosticModelCallBaseEvent & {
+    type: "model.call.completed";
+    durationMs: number;
+};
+export type DiagnosticModelCallErrorEvent = DiagnosticModelCallBaseEvent & {
+    type: "model.call.error";
+    durationMs: number;
+    errorCategory: string;
+};
+export type DiagnosticMemoryUsage = {
+    rssBytes: number;
+    heapTotalBytes: number;
+    heapUsedBytes: number;
+    externalBytes: number;
+    arrayBuffersBytes: number;
+};
+export type DiagnosticMemorySampleEvent = DiagnosticBaseEvent & {
+    type: "diagnostic.memory.sample";
+    memory: DiagnosticMemoryUsage;
+    uptimeMs?: number;
+};
+export type DiagnosticMemoryPressureEvent = DiagnosticBaseEvent & {
+    type: "diagnostic.memory.pressure";
+    level: "warning" | "critical";
+    reason: "rss_threshold" | "heap_threshold" | "rss_growth";
+    memory: DiagnosticMemoryUsage;
+    thresholdBytes?: number;
+    rssGrowthBytes?: number;
+    windowMs?: number;
+};
+export type DiagnosticPayloadLargeEvent = DiagnosticBaseEvent & {
+    type: "payload.large";
+    surface: string;
+    action: "rejected" | "truncated" | "chunked";
+    bytes?: number;
+    limitBytes?: number;
+    count?: number;
+    channel?: string;
+    pluginId?: string;
+    reason?: string;
+};
+export type DiagnosticLogRecordEvent = DiagnosticBaseEvent & {
+    type: "log.record";
+    level: string;
+    message: string;
+    loggerName?: string;
+    loggerParents?: string[];
+    attributes?: Record<string, string | number | boolean>;
+    code?: {
+        line?: number;
+        functionName?: string;
+    };
+};
+export type DiagnosticEventPayload = DiagnosticUsageEvent | DiagnosticWebhookReceivedEvent | DiagnosticWebhookProcessedEvent | DiagnosticWebhookErrorEvent | DiagnosticMessageQueuedEvent | DiagnosticMessageProcessedEvent | DiagnosticSessionStateEvent | DiagnosticSessionStuckEvent | DiagnosticLaneEnqueueEvent | DiagnosticLaneDequeueEvent | DiagnosticRunAttemptEvent | DiagnosticHeartbeatEvent | DiagnosticToolLoopEvent | DiagnosticToolExecutionStartedEvent | DiagnosticToolExecutionCompletedEvent | DiagnosticToolExecutionErrorEvent | DiagnosticExecProcessCompletedEvent | DiagnosticRunStartedEvent | DiagnosticRunCompletedEvent | DiagnosticModelCallStartedEvent | DiagnosticModelCallCompletedEvent | DiagnosticModelCallErrorEvent | DiagnosticMemorySampleEvent | DiagnosticMemoryPressureEvent | DiagnosticPayloadLargeEvent | DiagnosticLogRecordEvent;
 export type DiagnosticEventInput = DiagnosticEventPayload extends infer Event ? Event extends DiagnosticEventPayload ? Omit<Event, "seq" | "ts"> : never : never;
 export declare function isDiagnosticsEnabled(config?: OpenClawConfig): boolean;
+export declare function setDiagnosticsEnabledForProcess(enabled: boolean): void;
+export declare function areDiagnosticsEnabledForProcess(): boolean;
 export declare function emitDiagnosticEvent(event: DiagnosticEventInput): void;
+export declare function onInternalDiagnosticEvent(listener: (evt: DiagnosticEventPayload) => void): () => void;
 export declare function onDiagnosticEvent(listener: (evt: DiagnosticEventPayload) => void): () => void;
 export declare function resetDiagnosticEventsForTest(): void;
 export {};

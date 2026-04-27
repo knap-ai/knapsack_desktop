@@ -1,14 +1,7 @@
-import type { PluginManifestRecord } from "../plugins/manifest-registry.js";
 import { type FacadeModuleLocation } from "./facade-loader.js";
+import { resolveRegistryPluginModuleLocationFromRecords } from "./facade-resolution-shared.js";
 export { createLazyFacadeArrayValue, createLazyFacadeObjectValue, listImportedBundledPluginFacadeIds, } from "./facade-loader.js";
-declare function resolveRegistryPluginModuleLocationFromRegistry(params: {
-    registry: readonly Pick<PluginManifestRecord, "id" | "rootDir" | "channels">[];
-    dirName: string;
-    artifactBasename: string;
-}): {
-    modulePath: string;
-    boundaryRoot: string;
-} | null;
+export declare function createLazyFacadeValue<TFacade extends object, K extends keyof TFacade>(loadFacadeModule: () => TFacade, key: K): TFacade[K];
 declare function resolveFacadeModuleLocation(params: {
     dirName: string;
     artifactBasename: string;
@@ -47,7 +40,7 @@ export declare function tryLoadActivatedBundledPluginPublicSurfaceModuleSync<T e
 export declare function resetFacadeRuntimeStateForTest(): void;
 export declare const __testing: {
     loadFacadeModuleAtLocationSync: typeof loadFacadeModuleAtLocationSync;
-    resolveRegistryPluginModuleLocationFromRegistry: typeof resolveRegistryPluginModuleLocationFromRegistry;
+    resolveRegistryPluginModuleLocationFromRegistry: typeof resolveRegistryPluginModuleLocationFromRecords;
     resolveFacadeModuleLocation: typeof resolveFacadeModuleLocation;
     evaluateBundledPluginPublicSurfaceAccess: FacadeActivationCheckRuntimeModule["evaluateBundledPluginPublicSurfaceAccess"];
     throwForBundledPluginPublicSurfaceAccess: FacadeActivationCheckRuntimeModule["throwForBundledPluginPublicSurfaceAccess"];

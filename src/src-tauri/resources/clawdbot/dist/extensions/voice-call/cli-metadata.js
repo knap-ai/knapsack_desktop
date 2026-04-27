@@ -1,4 +1,4 @@
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
 //#region extensions/voice-call/cli-metadata.ts
 var cli_metadata_default = definePluginEntry({
 	id: "voice-call",

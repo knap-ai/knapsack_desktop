@@ -4,6 +4,10 @@
  * initial user+assistant exchange to disk.
  */
 export declare function sessionFileHasContent(sessionFile: string | undefined): Promise<boolean>;
+export declare function claudeCliSessionTranscriptHasContent(params: {
+    sessionId: string | undefined;
+    homeDir?: string;
+}): Promise<boolean>;
 export declare function resolveFallbackRetryPrompt(params: {
     body: string;
     isFallbackRetry: boolean;

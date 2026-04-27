@@ -1,2 +1,2 @@
-import { t as SignalChannelConfigSchema } from "../../config-schema-CUH_8O8b.js";
+import { t as SignalChannelConfigSchema } from "../../config-schema-BZ2VyPrR.js";
 export { SignalChannelConfigSchema };

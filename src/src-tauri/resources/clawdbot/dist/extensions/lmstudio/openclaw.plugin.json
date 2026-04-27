@@ -4,6 +4,9 @@
   "providers": [
     "lmstudio"
   ],
+  "nonSecretAuthMarkers": [
+    "lmstudio-local"
+  ],
   "providerAuthEnvVars": {
     "lmstudio": [
       "LM_API_TOKEN"
@@ -25,6 +28,11 @@
       "groupHint": "Self-hosted open-weight models"
     }
   ],
+  "contracts": {
+    "memoryEmbeddingProviders": [
+      "lmstudio"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

@@ -1,7 +1,7 @@
-import { r as buildChannelConfigSchema } from "../config-schema-sgVTuroC.js";
-import { t as clearAccountEntryFields } from "../config-helpers-BnrSrKhR.js";
-import { r as parseOptionalDelimitedEntries } from "../helpers-D33sU6YZ.js";
-import { i as tryReadSecretFileSync } from "../secret-file-BlBf_gtc.js";
-import { a as defineSetupPluginEntry, c as stripTargetKindPrefix, i as defineChannelPluginEntry, r as createChatChannelPlugin, s as stripChannelTargetPrefix, t as buildChannelOutboundSessionRoute } from "../core-Dh0sB0kj.js";
-import { t as createChannelPluginBase } from "../channel-core-3hub9E3l.js";
-export { buildChannelConfigSchema, buildChannelOutboundSessionRoute, clearAccountEntryFields, createChannelPluginBase, createChatChannelPlugin, defineChannelPluginEntry, defineSetupPluginEntry, parseOptionalDelimitedEntries, stripChannelTargetPrefix, stripTargetKindPrefix, tryReadSecretFileSync };
+import { r as buildChannelConfigSchema } from "../config-schema-BEuj464I.js";
+import { t as clearAccountEntryFields } from "../config-helpers-CsJ8cmDG.js";
+import { r as parseOptionalDelimitedEntries } from "../helpers-TGDlD7dJ.js";
+import { o as tryReadSecretFileSync } from "../secret-file-CTXjHVQf.js";
+import { a as defineChannelPluginEntry, d as stripTargetKindPrefix, i as createChatChannelPlugin, l as recoverCurrentThreadSessionId, n as buildThreadAwareOutboundSessionRoute, o as defineSetupPluginEntry, t as buildChannelOutboundSessionRoute, u as stripChannelTargetPrefix } from "../core-C7AkvHZx.js";
+import { t as createChannelPluginBase } from "../channel-core-CBrgVn3z.js";
+export { buildChannelConfigSchema, buildChannelOutboundSessionRoute, buildThreadAwareOutboundSessionRoute, clearAccountEntryFields, createChannelPluginBase, createChatChannelPlugin, defineChannelPluginEntry, defineSetupPluginEntry, parseOptionalDelimitedEntries, recoverCurrentThreadSessionId, stripChannelTargetPrefix, stripTargetKindPrefix, tryReadSecretFileSync };

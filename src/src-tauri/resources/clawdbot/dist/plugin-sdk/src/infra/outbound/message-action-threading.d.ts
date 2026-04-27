@@ -10,6 +10,10 @@ export declare function resolveAndApplyOutboundThreadId(actionParams: Record<str
     toolContext?: ChannelThreadingToolContext;
     resolveAutoThreadId?: ResolveAutoThreadId;
 }): string | undefined;
+export declare function resolveAndApplyOutboundReplyToId(actionParams: Record<string, unknown>, context: {
+    channel: ChannelId;
+    toolContext?: ChannelThreadingToolContext;
+}): string | undefined;
 export declare function prepareOutboundMirrorRoute(params: {
     cfg: OpenClawConfig;
     channel: ChannelId;

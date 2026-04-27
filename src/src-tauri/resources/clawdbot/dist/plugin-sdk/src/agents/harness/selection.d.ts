@@ -14,6 +14,7 @@ export declare function selectAgentHarness(params: {
     config?: OpenClawConfig;
     agentId?: string;
     sessionKey?: string;
+    agentHarnessId?: string;
 }): AgentHarness;
 export declare function runAgentHarnessAttemptWithFallback(params: EmbeddedRunAttemptParams): Promise<EmbeddedRunAttemptResult>;
 export declare function maybeCompactAgentHarnessSession(params: CompactEmbeddedPiSessionParams): Promise<EmbeddedPiCompactResult | undefined>;

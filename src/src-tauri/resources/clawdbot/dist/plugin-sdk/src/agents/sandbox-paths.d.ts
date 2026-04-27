@@ -18,6 +18,7 @@ export declare function assertSandboxPath(params: {
     relative: string;
 }>;
 export declare function assertMediaNotDataUrl(media: string): void;
+export declare function resolveAllowedManagedMediaPath(candidate: string): Promise<string | undefined>;
 export declare function resolveSandboxedMediaSource(params: {
     media: string;
     sandboxRoot: string;

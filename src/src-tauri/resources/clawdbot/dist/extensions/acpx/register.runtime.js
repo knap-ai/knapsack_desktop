@@ -1,2 +1,2 @@
-import { t as createAcpxRuntimeService } from "../../register.runtime-CHt9wXwu.js";
+import { t as createAcpxRuntimeService } from "./register.runtime-b8kSOZpz.js";
 export { createAcpxRuntimeService };

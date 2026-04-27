@@ -1,5 +1,7 @@
 import type { ChannelConfigSchema } from "../channels/plugins/types.config.js";
+import type { ChannelLegacyStateMigrationPlan } from "../channels/plugins/types.core.js";
 import type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { PluginRuntime } from "../plugins/runtime/types.js";
 import type { AnyAgentTool, OpenClawPluginApi, PluginCommandContext } from "../plugins/types.js";
 export type { AnyAgentTool, OpenClawPluginApi, PluginCommandContext };
@@ -27,6 +29,8 @@ type DefineBundledChannelSetupEntryOptions = {
     plugin: BundledEntryModuleRef;
     secrets?: BundledEntryModuleRef;
     runtime?: BundledEntryModuleRef;
+    legacyStateMigrations?: BundledEntryModuleRef;
+    legacySessionSurface?: BundledEntryModuleRef;
     features?: BundledChannelSetupEntryFeatures;
 };
 export type BundledChannelSetupEntryFeatures = {
@@ -36,6 +40,19 @@ export type BundledChannelSetupEntryFeatures = {
 export type BundledChannelEntryFeatures = {
     accountInspect?: boolean;
 };
+export type BundledChannelLegacySessionSurface = {
+    isLegacyGroupSessionKey?: (key: string) => boolean;
+    canonicalizeLegacySessionKey?: (params: {
+        key: string;
+        agentId: string;
+    }) => string | null | undefined;
+};
+export type BundledChannelLegacyStateMigrationDetector = (params: {
+    cfg: OpenClawConfig;
+    env: NodeJS.ProcessEnv;
+    stateDir: string;
+    oauthDir: string;
+}) => ChannelLegacyStateMigrationPlan[] | Promise<ChannelLegacyStateMigrationPlan[] | null | undefined> | null | undefined;
 export type BundledChannelEntryContract<TPlugin = ChannelPlugin> = {
     kind: "bundled-channel-entry";
     id: string;
@@ -51,11 +68,16 @@ export type BundledChannelEntryContract<TPlugin = ChannelPlugin> = {
 };
 export type BundledChannelSetupEntryContract<TPlugin = ChannelPlugin> = {
     kind: "bundled-channel-setup-entry";
-    loadSetupPlugin: () => TPlugin;
-    loadSetupSecrets?: () => ChannelPlugin["secrets"] | undefined;
+    loadSetupPlugin: (options?: BundledEntryModuleLoadOptions) => TPlugin;
+    loadSetupSecrets?: (options?: BundledEntryModuleLoadOptions) => ChannelPlugin["secrets"] | undefined;
+    loadLegacyStateMigrationDetector?: (options?: BundledEntryModuleLoadOptions) => BundledChannelLegacyStateMigrationDetector;
+    loadLegacySessionSurface?: (options?: BundledEntryModuleLoadOptions) => BundledChannelLegacySessionSurface;
     setChannelRuntime?: (runtime: PluginRuntime) => void;
     features?: BundledChannelSetupEntryFeatures;
 };
-export declare function loadBundledEntryExportSync<T>(importMetaUrl: string, reference: BundledEntryModuleRef): T;
-export declare function defineBundledChannelEntry<TPlugin = ChannelPlugin>({ id, name, description, importMetaUrl, plugin, secrets, configSchema, runtime, accountInspect, features, registerCliMetadata, registerFull, }: DefineBundledChannelEntryOptions<TPlugin>): BundledChannelEntryContract<TPlugin>;
-export declare function defineBundledChannelSetupEntry<TPlugin = ChannelPlugin>({ importMetaUrl, plugin, secrets, runtime, features, }: DefineBundledChannelSetupEntryOptions): BundledChannelSetupEntryContract<TPlugin>;
+export type BundledEntryModuleLoadOptions = {
+    installRuntimeDeps?: boolean;
+};
+export declare function loadBundledEntryExportSync<T>(importMetaUrl: string, reference: BundledEntryModuleRef, options?: BundledEntryModuleLoadOptions): T;
+export declare function defineBundledChannelEntry<TPlugin = ChannelPlugin>({ id, name, description, importMetaUrl, plugin, secrets, configSchema, runtime, accountInspect, features, registerCliMetadata, registerFull }: DefineBundledChannelEntryOptions<TPlugin>): BundledChannelEntryContract<TPlugin>;
+export declare function defineBundledChannelSetupEntry<TPlugin = ChannelPlugin>({ importMetaUrl, plugin, secrets, runtime, legacyStateMigrations, legacySessionSurface, features }: DefineBundledChannelSetupEntryOptions): BundledChannelSetupEntryContract<TPlugin>;

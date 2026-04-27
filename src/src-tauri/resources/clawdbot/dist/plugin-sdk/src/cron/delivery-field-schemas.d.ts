@@ -1,10 +1,10 @@
 import { z, type ZodType } from "zod";
 export declare const DeliveryModeFieldSchema: z.ZodPipe<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodEnum<{
-    none: "none";
     announce: "announce";
-    webhook: "webhook";
     deliver: "deliver";
-}>>, z.ZodTransform<"none" | "announce" | "webhook", "none" | "announce" | "webhook" | "deliver">>;
+    none: "none";
+    webhook: "webhook";
+}>>, z.ZodTransform<"announce" | "none" | "webhook", "announce" | "deliver" | "none" | "webhook">>;
 export declare const LowercaseNonEmptyStringFieldSchema: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodString>;
 export declare const TrimmedNonEmptyStringFieldSchema: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodString>;
 export declare const DeliveryThreadIdFieldSchema: z.ZodUnion<readonly [z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodString>, z.ZodNumber]>;

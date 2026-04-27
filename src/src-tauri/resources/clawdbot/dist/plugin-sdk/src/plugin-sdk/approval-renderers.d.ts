@@ -1,6 +1,6 @@
-import type { ReplyPayload } from "../auto-reply/reply-payload.js";
 import { type ExecApprovalReplyDecision } from "../infra/exec-approval-reply.js";
 import { type PluginApprovalRequest, type PluginApprovalResolved } from "../infra/plugin-approvals.js";
+import type { ReplyPayload } from "./reply-payload.js";
 export declare function buildApprovalPendingReplyPayload(params: {
     approvalKind?: "exec" | "plugin";
     approvalId: string;

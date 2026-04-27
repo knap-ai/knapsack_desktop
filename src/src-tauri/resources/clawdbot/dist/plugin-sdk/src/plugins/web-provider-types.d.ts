@@ -1,3 +1,4 @@
+import type { TSchema } from "typebox";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { RuntimeWebFetchMetadata, RuntimeWebSearchMetadata } from "../secrets/runtime-web-tools.types.js";
@@ -7,12 +8,12 @@ export type WebSearchProviderId = string;
 export type WebFetchProviderId = string;
 export type WebSearchProviderToolDefinition = {
     description: string;
-    parameters: Record<string, unknown>;
+    parameters: TSchema;
     execute: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
 };
 export type WebFetchProviderToolDefinition = {
     description: string;
-    parameters: Record<string, unknown>;
+    parameters: TSchema;
     execute: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
 };
 export type WebSearchProviderContext = {

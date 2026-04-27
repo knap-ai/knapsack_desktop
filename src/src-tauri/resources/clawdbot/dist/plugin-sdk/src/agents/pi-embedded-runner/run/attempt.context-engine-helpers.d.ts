@@ -1,23 +1,25 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { AssistantMessage } from "@mariozechner/pi-ai";
-import type { MemoryCitationsMode } from "../../../config/types.memory.js";
-import type { ContextEngine, ContextEngineRuntimeContext } from "../../../context-engine/types.js";
+import type { ContextEngine } from "../../../context-engine/types.js";
+import type { BootstrapMode } from "../../bootstrap-mode.js";
 import { type NormalizedUsage } from "../../usage.js";
 import type { PromptCacheChange } from "../prompt-cache-observability.js";
 import type { EmbeddedRunAttemptResult } from "./types.js";
+export { assembleHarnessContextEngine as assembleAttemptContextEngine, bootstrapHarnessContextEngine as runAttemptContextEngineBootstrap, finalizeHarnessContextEngineTurn as finalizeAttemptContextEngineTurn, } from "../../harness/context-engine-lifecycle.js";
 export type AttemptContextEngine = ContextEngine;
-export type AttemptBootstrapContext = {
-    bootstrapFiles: unknown[];
-    contextFiles: unknown[];
+export type AttemptBootstrapContext<TBootstrapFile = unknown, TContextFile = unknown> = {
+    bootstrapFiles: TBootstrapFile[];
+    contextFiles: TContextFile[];
 };
-export declare function resolveAttemptBootstrapContext<TContext extends AttemptBootstrapContext>(params: {
-    contextInjectionMode: "always" | "continuation-skip";
+export declare function resolveAttemptBootstrapContext<TBootstrapFile, TContextFile>(params: {
+    contextInjectionMode: "always" | "continuation-skip" | "never";
     bootstrapContextMode?: string;
     bootstrapContextRunKind?: string;
+    bootstrapMode?: BootstrapMode;
     sessionFile: string;
     hasCompletedBootstrapTurn: (sessionFile: string) => Promise<boolean>;
-    resolveBootstrapContextForRun: () => Promise<TContext>;
-}): Promise<TContext & {
+    resolveBootstrapContextForRun: () => Promise<AttemptBootstrapContext<TBootstrapFile, TContextFile>>;
+}): Promise<AttemptBootstrapContext<TBootstrapFile, TContextFile> & {
     isContinuationTurn: boolean;
     shouldRecordCompletedBootstrapTurn: boolean;
 }>;
@@ -48,59 +50,3 @@ export declare function buildLoopPromptCacheInfo(params: {
     retention?: "none" | "short" | "long";
     fallbackLastCacheTouchAt?: number | null;
 }): EmbeddedRunAttemptResult["promptCache"];
-export declare function runAttemptContextEngineBootstrap(params: {
-    hadSessionFile: boolean;
-    contextEngine?: AttemptContextEngine;
-    sessionId: string;
-    sessionKey?: string;
-    sessionFile: string;
-    sessionManager: unknown;
-    runtimeContext?: ContextEngineRuntimeContext;
-    runMaintenance: (params: {
-        contextEngine?: unknown;
-        sessionId: string;
-        sessionKey?: string;
-        sessionFile: string;
-        reason: "bootstrap";
-        sessionManager: unknown;
-        runtimeContext?: ContextEngineRuntimeContext;
-    }) => Promise<unknown>;
-    warn: (message: string) => void;
-}): Promise<void>;
-export declare function assembleAttemptContextEngine(params: {
-    contextEngine?: AttemptContextEngine;
-    sessionId: string;
-    sessionKey?: string;
-    messages: AgentMessage[];
-    tokenBudget?: number;
-    availableTools?: Set<string>;
-    citationsMode?: MemoryCitationsMode;
-    modelId: string;
-    prompt?: string;
-}): Promise<import("../../../context-engine/types.js").AssembleResult | undefined>;
-export declare function finalizeAttemptContextEngineTurn(params: {
-    contextEngine?: AttemptContextEngine;
-    promptError: boolean;
-    aborted: boolean;
-    yieldAborted: boolean;
-    sessionIdUsed: string;
-    sessionKey?: string;
-    sessionFile: string;
-    messagesSnapshot: AgentMessage[];
-    prePromptMessageCount: number;
-    tokenBudget?: number;
-    runtimeContext?: ContextEngineRuntimeContext;
-    runMaintenance: (params: {
-        contextEngine?: unknown;
-        sessionId: string;
-        sessionKey?: string;
-        sessionFile: string;
-        reason: "turn";
-        sessionManager: unknown;
-        runtimeContext?: ContextEngineRuntimeContext;
-    }) => Promise<unknown>;
-    sessionManager: unknown;
-    warn: (message: string) => void;
-}): Promise<{
-    postTurnFinalizationSucceeded: boolean;
-}>;

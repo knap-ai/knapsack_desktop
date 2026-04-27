@@ -7,7 +7,7 @@ export type ResolvedHeartbeatVisibility = {
 };
 /**
  * Resolve heartbeat visibility settings for a channel.
- * Supports both deliverable channels (telegram, signal, etc.) and webchat.
+ * Supports both deliverable channels and webchat.
  * For webchat, uses channels.defaults.heartbeat since webchat doesn't have per-channel config.
  */
 export declare function resolveHeartbeatVisibility(params: {

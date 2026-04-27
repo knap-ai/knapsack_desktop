@@ -4,6 +4,11 @@
   "providers": [
     "amazon-bedrock"
   ],
+  "contracts": {
+    "memoryEmbeddingProviders": [
+      "bedrock"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

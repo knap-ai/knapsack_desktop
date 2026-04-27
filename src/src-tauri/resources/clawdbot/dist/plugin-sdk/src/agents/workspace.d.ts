@@ -8,8 +8,8 @@ export declare const DEFAULT_USER_FILENAME = "USER.md";
 export declare const DEFAULT_HEARTBEAT_FILENAME = "HEARTBEAT.md";
 export declare const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md";
 export declare const DEFAULT_MEMORY_FILENAME = "MEMORY.md";
-export declare const DEFAULT_MEMORY_ALT_FILENAME = "memory.md";
-export type WorkspaceBootstrapFileName = typeof DEFAULT_AGENTS_FILENAME | typeof DEFAULT_SOUL_FILENAME | typeof DEFAULT_TOOLS_FILENAME | typeof DEFAULT_IDENTITY_FILENAME | typeof DEFAULT_USER_FILENAME | typeof DEFAULT_HEARTBEAT_FILENAME | typeof DEFAULT_BOOTSTRAP_FILENAME | typeof DEFAULT_MEMORY_FILENAME | typeof DEFAULT_MEMORY_ALT_FILENAME;
+declare const WORKSPACE_STATE_VERSION = 1;
+export type WorkspaceBootstrapFileName = typeof DEFAULT_AGENTS_FILENAME | typeof DEFAULT_SOUL_FILENAME | typeof DEFAULT_TOOLS_FILENAME | typeof DEFAULT_IDENTITY_FILENAME | typeof DEFAULT_USER_FILENAME | typeof DEFAULT_HEARTBEAT_FILENAME | typeof DEFAULT_BOOTSTRAP_FILENAME | typeof DEFAULT_MEMORY_FILENAME;
 export type WorkspaceBootstrapFile = {
     name: WorkspaceBootstrapFileName;
     path: string;
@@ -22,7 +22,20 @@ export type ExtraBootstrapLoadDiagnostic = {
     reason: ExtraBootstrapLoadDiagnosticCode;
     detail: string;
 };
+type WorkspaceSetupState = {
+    version: typeof WORKSPACE_STATE_VERSION;
+    bootstrapSeededAt?: string;
+    setupCompletedAt?: string;
+};
+type WorkspaceBootstrapCompletionReconcileResult = {
+    repaired: boolean;
+    bootstrapExists: boolean;
+    state: WorkspaceSetupState;
+};
 export declare function isWorkspaceSetupCompleted(dir: string): Promise<boolean>;
+export declare function resolveWorkspaceBootstrapStatus(dir: string): Promise<"pending" | "complete">;
+export declare function isWorkspaceBootstrapPending(dir: string): Promise<boolean>;
+export declare function reconcileWorkspaceBootstrapCompletion(dir: string): Promise<WorkspaceBootstrapCompletionReconcileResult>;
 export declare function ensureAgentWorkspace(params?: {
     dir?: string;
     ensureBootstrapFiles?: boolean;
@@ -44,3 +57,4 @@ export declare function loadExtraBootstrapFilesWithDiagnostics(dir: string, extr
     files: WorkspaceBootstrapFile[];
     diagnostics: ExtraBootstrapLoadDiagnostic[];
 }>;
+export {};

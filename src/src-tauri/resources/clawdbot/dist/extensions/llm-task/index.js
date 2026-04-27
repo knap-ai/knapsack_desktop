@@ -1,16 +1,15 @@
-import { s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-eyAoWbVe.js";
-import { c as normalizeThinkLevel, n as formatXHighModelHint } from "../../thinking.shared-CAbk7EZs.js";
-import { i as supportsXHighThinking } from "../../thinking-CtJu90cp.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../api-Cik8UajV.js";
+import { c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-CoGSA-7K.js";
+import { f as normalizeThinkLevel, n as isThinkingLevelSupported, t as formatThinkingLevels } from "../../thinking-C1TCb8El.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../api-CDjUtQ3s.js";
 import path from "node:path";
 import fs from "node:fs/promises";
-import AjvPkg from "ajv";
-import { Type } from "@sinclair/typebox";
+import Ajv from "ajv";
+import { Type } from "typebox";
 //#region extensions/llm-task/src/llm-task-tool.ts
-const AjvCtor = AjvPkg;
+const AjvCtor = Ajv;
 function stripCodeFences(s) {
 	const trimmed = s.trim();
 	const m = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
@@ -26,7 +25,7 @@ function toModelKey(provider, model) {
 	if (!p || !m) return;
 	return `${p}/${m}`;
 }
-const INVALID_THINKING_LEVELS_HINT = "off, minimal, low, medium, high, adaptive, and xhigh where supported";
+const INVALID_THINKING_LEVELS_HINT = "off, minimal, low, medium, high, adaptive, xhigh where supported, and max where supported";
 function createLlmTaskTool(api) {
 	return {
 		name: "llm-task",
@@ -62,7 +61,12 @@ function createLlmTaskTool(api) {
 			const thinkingRaw = typeof params.thinking === "string" && params.thinking.trim() ? params.thinking : void 0;
 			const thinkLevel = thinkingRaw ? normalizeThinkLevel(thinkingRaw) : void 0;
 			if (thinkingRaw && !thinkLevel) throw new Error(`Invalid thinking level "${thinkingRaw}". Use one of: ${INVALID_THINKING_LEVELS_HINT}.`);
-			if (thinkLevel === "xhigh" && !supportsXHighThinking(provider, model)) throw new Error(`Thinking level "xhigh" is only supported for ${formatXHighModelHint()}.`);
+			let resolvedThinkLevel = thinkLevel;
+			if (thinkLevel && !isThinkingLevelSupported({
+				provider,
+				model,
+				level: thinkLevel
+			})) throw new Error(`Thinking level "${thinkLevel}" is not supported for ${provider}/${model}. Use one of: ${formatThinkingLevels(provider, model)}.`);
 			const timeoutMs = (typeof params.timeoutMs === "number" && params.timeoutMs > 0 ? params.timeoutMs : void 0) || (typeof pluginCfg.timeoutMs === "number" && pluginCfg.timeoutMs > 0 ? pluginCfg.timeoutMs : void 0) || 3e4;
 			const streamParams = {
 				temperature: typeof params.temperature === "number" ? params.temperature : void 0,
@@ -99,7 +103,7 @@ function createLlmTaskTool(api) {
 					model,
 					authProfileId,
 					authProfileIdSource: authProfileId ? "user" : "auto",
-					thinkLevel,
+					thinkLevel: resolvedThinkLevel,
 					streamParams,
 					disableTools: true
 				});

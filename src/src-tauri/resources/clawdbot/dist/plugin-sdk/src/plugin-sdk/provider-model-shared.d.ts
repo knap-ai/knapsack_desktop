@@ -7,6 +7,7 @@ export type { ProviderEndpointClass, ProviderEndpointResolution, } from "../agen
 export type { ProviderPlugin } from "../plugins/types.js";
 export type { KilocodeModelCatalogEntry } from "../plugins/provider-model-kilocode.js";
 export { DEFAULT_CONTEXT_TOKENS } from "../agents/defaults.js";
+export { GPT5_BEHAVIOR_CONTRACT, GPT5_FRIENDLY_PROMPT_OVERLAY, isGpt5ModelId, normalizeGpt5PromptOverlayMode, renderGpt5PromptOverlay, resolveGpt5PromptOverlayMode, resolveGpt5SystemPromptContribution, type Gpt5PromptOverlayMode, } from "../agents/gpt5-prompt-overlay.js";
 export { resolveProviderEndpoint } from "../agents/provider-attribution.js";
 export { applyModelCompatPatch, hasToolSchemaProfile, hasNativeWebSearchTool, normalizeModelCompat, resolveUnsupportedToolSchemaKeywords, resolveToolCallArgumentsEncoding, } from "../plugins/provider-model-compat.js";
 export { normalizeProviderId } from "../agents/provider-id.js";
@@ -20,6 +21,7 @@ export type ProviderReplayFamily = "openai-compatible" | "anthropic-by-model" | 
 type ProviderReplayFamilyHooks = Pick<ProviderPlugin, "buildReplayPolicy" | "sanitizeReplayHistory" | "resolveReasoningOutputMode">;
 type BuildProviderReplayFamilyHooksOptions = {
     family: "openai-compatible";
+    sanitizeToolCallIds?: boolean;
 } | {
     family: "anthropic-by-model";
 } | {

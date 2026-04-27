@@ -3,6 +3,7 @@ import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ProviderRuntimeModel } from "../../plugins/provider-runtime-model.types.js";
 import type { TranscriptPolicy } from "../transcript-policy.js";
+export declare function normalizeAssistantReplayContent(messages: AgentMessage[]): AgentMessage[];
 /**
  * Applies the generic replay-history cleanup pipeline before provider-owned
  * replay hooks run.

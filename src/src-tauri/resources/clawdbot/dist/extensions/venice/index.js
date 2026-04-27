@@ -1,10 +1,10 @@
-import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
-import { i as applyXaiModelCompat } from "../../provider-tools-Z_yR2St8.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
-import { i as VENICE_DEFAULT_MODEL_REF } from "../../models-CjZsUNMw.js";
-import { t as buildVeniceProvider } from "../../provider-catalog-D3YYc_IN.js";
-import { t as applyVeniceConfig } from "../../onboard-D4bkTlHg.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
+import { i as applyXaiModelCompat } from "../../provider-tools-VpDDhpdz.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
+import { i as VENICE_DEFAULT_MODEL_REF } from "../../models-CSjDQ74B.js";
+import { t as buildVeniceProvider } from "../../provider-catalog-BZCHXQ06.js";
+import { t as applyVeniceConfig } from "../../onboard-D97vAVfb.js";
 //#region extensions/venice/index.ts
 const PROVIDER_ID = "venice";
 function isXaiBackedVeniceModel(modelId) {

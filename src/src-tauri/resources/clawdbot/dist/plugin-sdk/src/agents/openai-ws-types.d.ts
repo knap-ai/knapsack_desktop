@@ -15,6 +15,11 @@ export type ContentPart = {
         media_type: string;
         data: string;
     };
+} | {
+    type: "image_url";
+    image_url: {
+        url: string;
+    };
 };
 export type InputItem = {
     type: "message";

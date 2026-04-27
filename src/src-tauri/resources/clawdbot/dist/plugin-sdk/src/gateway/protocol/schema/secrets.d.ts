@@ -1,23 +1,23 @@
-import { type Static } from "@sinclair/typebox";
-export declare const SecretsReloadParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const SecretsResolveParamsSchema: import("@sinclair/typebox").TObject<{
-    commandName: import("@sinclair/typebox").TString;
-    targetIds: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
+import { Type, type Static } from "typebox";
+export declare const SecretsReloadParamsSchema: Type.TObject<{}>;
+export declare const SecretsResolveParamsSchema: Type.TObject<{
+    commandName: Type.TString;
+    targetIds: Type.TArray<Type.TString>;
 }>;
 export type SecretsResolveParams = Static<typeof SecretsResolveParamsSchema>;
-export declare const SecretsResolveAssignmentSchema: import("@sinclair/typebox").TObject<{
-    path: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    pathSegments: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
-    value: import("@sinclair/typebox").TUnknown;
+export declare const SecretsResolveAssignmentSchema: Type.TObject<{
+    path: Type.TOptional<Type.TString>;
+    pathSegments: Type.TArray<Type.TString>;
+    value: Type.TUnknown;
 }>;
-export declare const SecretsResolveResultSchema: import("@sinclair/typebox").TObject<{
-    ok: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    assignments: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        path: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        pathSegments: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
-        value: import("@sinclair/typebox").TUnknown;
+export declare const SecretsResolveResultSchema: Type.TObject<{
+    ok: Type.TOptional<Type.TBoolean>;
+    assignments: Type.TOptional<Type.TArray<Type.TObject<{
+        path: Type.TOptional<Type.TString>;
+        pathSegments: Type.TArray<Type.TString>;
+        value: Type.TUnknown;
     }>>>;
-    diagnostics: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    inactiveRefPaths: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    diagnostics: Type.TOptional<Type.TArray<Type.TString>>;
+    inactiveRefPaths: Type.TOptional<Type.TArray<Type.TString>>;
 }>;
 export type SecretsResolveResult = Static<typeof SecretsResolveResultSchema>;

@@ -5,4 +5,7 @@ export declare function resolvePluginDiscoveryProvidersRuntime(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     onlyPluginIds?: string[];
+    includeUntrustedWorkspacePlugins?: boolean;
+    requireCompleteDiscoveryEntryCoverage?: boolean;
+    discoveryEntriesOnly?: boolean;
 }): ProviderPlugin[];

@@ -1,7 +1,7 @@
-import { s as normalizeStringEntries } from "../string-normalization-xm3f27dv.js";
-import { t as collectProviderDangerousNameMatchingScopes } from "../dangerous-name-matching-C88BNn_A.js";
-import { n as formatPluginInstallPathIssue, t as detectPluginInstallPathIssue } from "../plugin-install-path-warnings-DcDQdIb1.js";
-import { t as removePluginFromConfig } from "../uninstall-ZvkoimDi.js";
+import { s as normalizeStringEntries } from "../string-normalization-Bvcn03I9.js";
+import { t as collectProviderDangerousNameMatchingScopes } from "../dangerous-name-matching-wQgGIYE0.js";
+import { n as formatPluginInstallPathIssue, t as detectPluginInstallPathIssue } from "../plugin-install-path-warnings-D4XV4arg.js";
+import { t as removePluginFromConfig } from "../uninstall-D4E4tLKL.js";
 //#region src/config/channel-compat-normalization.ts
 function asObjectRecord(value) {
 	return value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -157,10 +157,88 @@ function normalizeLegacyStreamingAliases(params) {
 		changed
 	};
 }
+function normalizeLegacyChannelAliases(params) {
+	let updated = params.entry;
+	let changed = false;
+	if (params.normalizeDm === true) {
+		const dm = normalizeLegacyDmAliases({
+			entry: updated,
+			pathPrefix: params.pathPrefix,
+			changes: params.changes,
+			promoteAllowFrom: params.rootDmPromoteAllowFrom
+		});
+		updated = dm.entry;
+		changed = dm.changed;
+	}
+	const streaming = normalizeLegacyStreamingAliases({
+		entry: updated,
+		pathPrefix: params.pathPrefix,
+		changes: params.changes,
+		...params.resolveStreamingOptions(updated)
+	});
+	updated = streaming.entry;
+	changed = changed || streaming.changed;
+	const rawAccounts = asObjectRecord(updated.accounts);
+	if (!rawAccounts) return {
+		entry: updated,
+		changed
+	};
+	let accountsChanged = false;
+	const accounts = { ...rawAccounts };
+	for (const [accountId, rawAccount] of Object.entries(rawAccounts)) {
+		const account = asObjectRecord(rawAccount);
+		if (!account) continue;
+		let accountEntry = account;
+		let accountChanged = false;
+		const accountPathPrefix = `${params.pathPrefix}.accounts.${accountId}`;
+		if (params.normalizeAccountDm === true) {
+			const accountDm = normalizeLegacyDmAliases({
+				entry: accountEntry,
+				pathPrefix: accountPathPrefix,
+				changes: params.changes
+			});
+			accountEntry = accountDm.entry;
+			accountChanged = accountDm.changed;
+		}
+		const accountStreaming = normalizeLegacyStreamingAliases({
+			entry: accountEntry,
+			pathPrefix: accountPathPrefix,
+			changes: params.changes,
+			...params.resolveStreamingOptions(accountEntry)
+		});
+		accountEntry = accountStreaming.entry;
+		accountChanged = accountChanged || accountStreaming.changed;
+		const accountExtra = params.normalizeAccountExtra?.({
+			account: accountEntry,
+			accountId,
+			pathPrefix: accountPathPrefix,
+			changes: params.changes
+		});
+		if (accountExtra) {
+			accountEntry = accountExtra.entry;
+			accountChanged = accountChanged || accountExtra.changed;
+		}
+		if (accountChanged) {
+			accounts[accountId] = accountEntry;
+			accountsChanged = true;
+		}
+	}
+	if (accountsChanged) {
+		updated = {
+			...updated,
+			accounts
+		};
+		changed = true;
+	}
+	return {
+		entry: updated,
+		changed
+	};
+}
 function hasLegacyStreamingAliases(value, options) {
 	const entry = asObjectRecord(value);
 	if (!entry) return false;
 	return entry.streamMode !== void 0 || typeof entry.streaming === "boolean" || typeof entry.streaming === "string" || entry.chunkMode !== void 0 || entry.blockStreaming !== void 0 || entry.blockStreamingCoalesce !== void 0 || options?.includePreviewChunk === true && entry.draftChunk !== void 0 || options?.includeNativeTransport === true && entry.nativeStreaming !== void 0;
 }
 //#endregion
-export { asObjectRecord, collectProviderDangerousNameMatchingScopes, detectPluginInstallPathIssue, formatPluginInstallPathIssue, hasLegacyAccountStreamingAliases, hasLegacyStreamingAliases, normalizeLegacyDmAliases, normalizeLegacyStreamingAliases, removePluginFromConfig };
+export { asObjectRecord, collectProviderDangerousNameMatchingScopes, detectPluginInstallPathIssue, formatPluginInstallPathIssue, hasLegacyAccountStreamingAliases, hasLegacyStreamingAliases, normalizeLegacyChannelAliases, normalizeLegacyDmAliases, normalizeLegacyStreamingAliases, removePluginFromConfig };

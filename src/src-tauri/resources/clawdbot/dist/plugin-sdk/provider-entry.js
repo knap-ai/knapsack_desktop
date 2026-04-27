@@ -1,2 +1,2 @@
-import { t as defineSingleProviderPluginEntry } from "../provider-entry-ILplGnFF.js";
+import { t as defineSingleProviderPluginEntry } from "../provider-entry-CVsaqhfb.js";
 export { defineSingleProviderPluginEntry };

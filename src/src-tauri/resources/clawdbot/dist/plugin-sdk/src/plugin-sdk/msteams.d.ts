@@ -2,7 +2,7 @@ export type { ChunkMode } from "../auto-reply/chunk.js";
 export type { HistoryEntry } from "../auto-reply/reply/history.js";
 export { buildPendingHistoryContextFromMap, clearHistoryEntriesIfEnabled, DEFAULT_GROUP_HISTORY_LIMIT, recordPendingHistoryEntryIfEnabled, } from "../auto-reply/reply/history.js";
 export { isSilentReplyText, SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
-export type { ReplyPayload } from "../auto-reply/reply-payload.js";
+export type { ReplyPayload } from "./reply-payload.js";
 export { mergeAllowlist, summarizeMapping } from "../channels/allowlists/resolve-utils.js";
 export { resolveControlCommandGate, resolveDualTextControlCommandGate, } from "../channels/command-gating.js";
 export { logInboundDrop, logTypingFailure } from "../channels/logging.js";

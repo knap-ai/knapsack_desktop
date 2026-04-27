@@ -1,33 +1,22 @@
-import { i as normalizeLowercaseStringOrEmpty, s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-eyAoWbVe.js";
-import { u as resolveGatewayPort } from "../../paths-Dvv9VRAc.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { n as resolveGatewayBindUrl, t as resolveTailnetHostWithRunner } from "../../tailscale-status-CR9Damf4.js";
-import { t as runPluginCommandWithTimeout } from "../../run-command-Bn39d2ZV.js";
-import { o as renderQrPngBase64 } from "../../media-runtime-M1ED8IU3.js";
-import { t as PAIRING_SETUP_BOOTSTRAP_PROFILE } from "../../device-bootstrap-profile-TTjBZgaz.js";
-import { c as listDevicePairing } from "../../device-pairing-CItl9tqB.js";
-import { i as issueDeviceBootstrapToken, o as revokeDeviceBootstrapToken, t as clearDeviceBootstrapTokens } from "../../device-bootstrap-kDmW6U4r.js";
-import "../../api-DBU_JI9w.js";
-import { i as registerPairingNotifierService, n as formatPendingRequests, r as handleNotifyCommand, t as armPairNotifyOnce } from "../../notify-B4aX9C_9.js";
-import { n as selectPendingApprovalRequest, t as approvePendingPairingRequest } from "../../pair-command-approve-P7PTHcNn.js";
-import { n as resolvePairingCommandAuthState, t as buildMissingPairingScopeReply } from "../../pair-command-auth-CO39_KJx.js";
+import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-CoGSA-7K.js";
+import { u as resolveGatewayPort } from "../../paths-BG0ad0P6.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { n as resolveGatewayBindUrl, t as resolveTailnetHostWithRunner } from "../../tailscale-status-Ca9OERuf.js";
+import { t as runPluginCommandWithTimeout } from "../../run-command-hPKcADK4.js";
+import { c as renderQrPngDataUrl, l as writeQrPngTempFile } from "../../media-runtime-CaqK85Sx.js";
+import { t as PAIRING_SETUP_BOOTSTRAP_PROFILE } from "../../device-bootstrap-profile-G_w2eTHB.js";
+import { l as listDevicePairing } from "../../device-pairing-DFwfBQIP.js";
+import { i as issueDeviceBootstrapToken, o as revokeDeviceBootstrapToken, t as clearDeviceBootstrapTokens } from "../../device-bootstrap-JSLx_Ss2.js";
+import "../../api-CHSuTlKx.js";
+import { i as registerPairingNotifierService, n as formatPendingRequests, r as handleNotifyCommand, t as armPairNotifyOnce } from "../../notify-DjxoFZzI.js";
+import { n as selectPendingApprovalRequest, t as approvePendingPairingRequest } from "../../pair-command-approve-VtAYTcDI.js";
+import { n as resolvePairingCommandAuthState, t as buildMissingPairingScopeReply } from "../../pair-command-auth-Bpj1uMz9.js";
 import path from "node:path";
 import os from "node:os";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 //#region extensions/device-pair/index.ts
-async function renderQrDataUrl(data) {
-	return `data:image/png;base64,${await renderQrPngBase64(data)}`;
-}
-async function writeQrPngTempFile(data) {
-	const pngBase64 = await renderQrPngBase64(data);
-	const tmpRoot = resolvePreferredOpenClawTmpDir();
-	const qrDir = await mkdtemp(path.join(tmpRoot, "device-pair-qr-"));
-	const filePath = path.join(qrDir, "pair-qr.png");
-	await writeFile(filePath, Buffer.from(pngBase64, "base64"));
-	return filePath;
-}
 function formatDurationMinutes(expiresAtMs) {
 	const msRemaining = Math.max(0, expiresAtMs - Date.now());
 	const minutes = Math.max(1, Math.ceil(msRemaining / 6e4));
@@ -419,7 +408,11 @@ var device_pair_default = definePluginEntry({
 					if (target && canSendQrPngToChannel(channel)) {
 						let qrFilePath;
 						try {
-							qrFilePath = await writeQrPngTempFile(setupCode);
+							qrFilePath = (await writeQrPngTempFile(setupCode, {
+								tmpRoot: resolvePreferredOpenClawTmpDir(),
+								dirPrefix: "device-pair-qr-",
+								fileName: "pair-qr.png"
+							})).filePath;
 							if (await sendQrPngToSupportedChannel({
 								api,
 								ctx,
@@ -447,25 +440,27 @@ var device_pair_default = definePluginEntry({
 					if (channel === "webchat") {
 						let qrDataUrl;
 						try {
-							qrDataUrl = await renderQrDataUrl(setupCode);
+							qrDataUrl = await renderQrPngDataUrl(setupCode);
 						} catch (err) {
 							api.logger.warn?.(`device-pair: webchat QR render failed, falling back (${err?.message ?? err})`);
 							await revokeDeviceBootstrapToken({ token: payload.bootstrapToken }).catch(() => {});
 							payload = await issueSetupPayload(urlResult.url);
 							return { text: "QR image delivery is not available on this channel right now, so I generated a pasteable setup code instead.\n\n" + formatSetupReply(payload, authLabel) };
 						}
-						return { text: [
-							"Scan this QR code with the OpenClaw iOS app:",
-							"",
-							formatQrInfoMarkdown({
-								payload,
-								authLabel,
-								autoNotifyArmed,
-								expiresAtMs: payload.expiresAtMs
-							}),
-							"",
-							`![OpenClaw pairing QR](${qrDataUrl})`
-						].join("\n") };
+						return {
+							text: [
+								"Scan this QR code with the OpenClaw iOS app:",
+								"",
+								formatQrInfoMarkdown({
+									payload,
+									authLabel,
+									autoNotifyArmed,
+									expiresAtMs: payload.expiresAtMs
+								})
+							].join("\n"),
+							mediaUrl: qrDataUrl,
+							sensitiveMedia: true
+						};
 					}
 					return { text: "QR image delivery is not available on this channel, so I generated a pasteable setup code instead.\n\n" + formatSetupReply(payload, authLabel) };
 				}

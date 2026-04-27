@@ -1,14 +1,17 @@
 import { buildGoogleGeminiCliBackend } from "./cli-backend.js";
 import { registerGoogleGeminiCliProvider } from "./gemini-cli-provider.js";
-import { buildGoogleMusicGenerationProvider } from "./music-generation-provider.js";
+import { createGoogleMusicGenerationProviderMetadata, createGoogleVideoGenerationProviderMetadata } from "./generation-provider-metadata.js";
+import { geminiMemoryEmbeddingProviderAdapter } from "./memory-embedding-adapter.js";
 import { registerGoogleProvider } from "./provider-registration.js";
+import { buildGoogleRealtimeVoiceProvider } from "./realtime-voice-provider.js";
 import { buildGoogleSpeechProvider } from "./speech-provider.js";
-import { t as createGeminiWebSearchProvider } from "./gemini-web-search-provider-D7-4VZrQ.js";
-import { buildGoogleVideoGenerationProvider } from "./video-generation-provider.js";
+import { t as createGeminiWebSearchProvider } from "./gemini-web-search-provider-CWp2pm3X.js";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 //#region extensions/google/index.ts
 let googleImageGenerationProviderPromise = null;
 let googleMediaUnderstandingProviderPromise = null;
+let googleMusicGenerationProviderPromise = null;
+let googleVideoGenerationProviderPromise = null;
 async function loadGoogleImageGenerationProvider() {
 	if (!googleImageGenerationProviderPromise) googleImageGenerationProviderPromise = import("./image-generation-provider.js").then((mod) => mod.buildGoogleImageGenerationProvider());
 	return await googleImageGenerationProviderPromise;
@@ -16,6 +19,14 @@ async function loadGoogleImageGenerationProvider() {
 async function loadGoogleMediaUnderstandingProvider() {
 	if (!googleMediaUnderstandingProviderPromise) googleMediaUnderstandingProviderPromise = import("./media-understanding-provider.js").then((mod) => mod.googleMediaUnderstandingProvider);
 	return await googleMediaUnderstandingProviderPromise;
+}
+async function loadGoogleMusicGenerationProvider() {
+	if (!googleMusicGenerationProviderPromise) googleMusicGenerationProviderPromise = import("./music-generation-provider.js").then((mod) => mod.buildGoogleMusicGenerationProvider());
+	return await googleMusicGenerationProviderPromise;
+}
+async function loadGoogleVideoGenerationProvider() {
+	if (!googleVideoGenerationProviderPromise) googleVideoGenerationProviderPromise = import("./video-generation-provider.js").then((mod) => mod.buildGoogleVideoGenerationProvider());
+	return await googleVideoGenerationProviderPromise;
 }
 async function loadGoogleRequiredMediaUnderstandingProvider() {
 	const provider = await loadGoogleMediaUnderstandingProvider();
@@ -98,6 +109,18 @@ function createLazyGoogleMediaUnderstandingProvider() {
 		describeVideo: async (...args) => await (await loadGoogleRequiredMediaUnderstandingProvider()).describeVideo(...args)
 	};
 }
+function createLazyGoogleMusicGenerationProvider() {
+	return {
+		...createGoogleMusicGenerationProviderMetadata(),
+		generateMusic: async (...args) => await (await loadGoogleMusicGenerationProvider()).generateMusic(...args)
+	};
+}
+function createLazyGoogleVideoGenerationProvider() {
+	return {
+		...createGoogleVideoGenerationProviderMetadata(),
+		generateVideo: async (...args) => await (await loadGoogleVideoGenerationProvider()).generateVideo(...args)
+	};
+}
 var google_default = definePluginEntry({
 	id: "google",
 	name: "Google Plugin",
@@ -106,11 +129,13 @@ var google_default = definePluginEntry({
 		api.registerCliBackend(buildGoogleGeminiCliBackend());
 		registerGoogleGeminiCliProvider(api);
 		registerGoogleProvider(api);
+		api.registerMemoryEmbeddingProvider(geminiMemoryEmbeddingProviderAdapter);
 		api.registerImageGenerationProvider(createLazyGoogleImageGenerationProvider());
 		api.registerMediaUnderstandingProvider(createLazyGoogleMediaUnderstandingProvider());
-		api.registerMusicGenerationProvider(buildGoogleMusicGenerationProvider());
+		api.registerMusicGenerationProvider(createLazyGoogleMusicGenerationProvider());
+		api.registerRealtimeVoiceProvider(buildGoogleRealtimeVoiceProvider());
 		api.registerSpeechProvider(buildGoogleSpeechProvider());
-		api.registerVideoGenerationProvider(buildGoogleVideoGenerationProvider());
+		api.registerVideoGenerationProvider(createLazyGoogleVideoGenerationProvider());
 		api.registerWebSearchProvider(createGeminiWebSearchProvider());
 	}
 });

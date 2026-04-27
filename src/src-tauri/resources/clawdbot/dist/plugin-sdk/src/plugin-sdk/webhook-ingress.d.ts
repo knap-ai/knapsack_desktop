@@ -3,4 +3,6 @@ export { applyBasicWebhookRequestGuards, beginWebhookRequestPipelineOrReject, cr
 export { registerPluginHttpRoute, registerWebhookTarget, registerWebhookTargetWithPluginRoute, resolveSingleWebhookTarget, resolveSingleWebhookTargetAsync, resolveWebhookTargetWithAuthOrReject, resolveWebhookTargetWithAuthOrRejectSync, resolveWebhookTargets, withResolvedWebhookRequestPipeline, type RegisterWebhookPluginRouteOptions, type RegisterWebhookTargetOptions, type RegisteredWebhookTarget, type WebhookTargetMatchResult, } from "./webhook-targets.js";
 export { normalizeWebhookPath, resolveWebhookPath } from "./webhook-path.js";
 export { resolveRequestClientIp } from "../gateway/net.js";
+export { createAuthRateLimiter } from "../gateway/auth-rate-limit.js";
+export type { AuthRateLimiter, RateLimitConfig } from "../gateway/auth-rate-limit.js";
 export { normalizePluginHttpPath } from "../plugins/http-path.js";

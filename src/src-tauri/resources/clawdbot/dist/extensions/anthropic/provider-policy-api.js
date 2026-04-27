@@ -1,7 +1,7 @@
-import { n as normalizeAnthropicProviderConfig, t as applyAnthropicConfigDefaults } from "../../config-defaults-BTfbVwym.js";
+import { applyAnthropicConfigDefaults, normalizeAnthropicProviderConfigForProvider } from "./config-defaults.js";
 //#region extensions/anthropic/provider-policy-api.ts
 function normalizeConfig(params) {
-	return normalizeAnthropicProviderConfig(params.providerConfig);
+	return normalizeAnthropicProviderConfigForProvider(params);
 }
 function applyConfigDefaults(params) {
 	return applyAnthropicConfigDefaults(params);

@@ -1,128 +1,129 @@
-export declare const ConfigGetParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const ConfigSetParamsSchema: import("@sinclair/typebox").TObject<{
-    raw: import("@sinclair/typebox").TString;
-    baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+import { Type } from "typebox";
+export declare const ConfigGetParamsSchema: Type.TObject<{}>;
+export declare const ConfigSetParamsSchema: Type.TObject<{
+    raw: Type.TString;
+    baseHash: Type.TOptional<Type.TString>;
 }>;
-export declare const ConfigApplyParamsSchema: import("@sinclair/typebox").TObject<{
-    raw: import("@sinclair/typebox").TString;
-    baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+export declare const ConfigApplyParamsSchema: Type.TObject<{
+    raw: Type.TString;
+    baseHash: Type.TOptional<Type.TString>;
+    sessionKey: Type.TOptional<Type.TString>;
+    deliveryContext: Type.TOptional<Type.TObject<{
+        channel: Type.TOptional<Type.TString>;
+        to: Type.TOptional<Type.TString>;
+        accountId: Type.TOptional<Type.TString>;
+        threadId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber]>>;
     }>>;
-    note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    note: Type.TOptional<Type.TString>;
+    restartDelayMs: Type.TOptional<Type.TInteger>;
 }>;
-export declare const ConfigPatchParamsSchema: import("@sinclair/typebox").TObject<{
-    raw: import("@sinclair/typebox").TString;
-    baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+export declare const ConfigPatchParamsSchema: Type.TObject<{
+    raw: Type.TString;
+    baseHash: Type.TOptional<Type.TString>;
+    sessionKey: Type.TOptional<Type.TString>;
+    deliveryContext: Type.TOptional<Type.TObject<{
+        channel: Type.TOptional<Type.TString>;
+        to: Type.TOptional<Type.TString>;
+        accountId: Type.TOptional<Type.TString>;
+        threadId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber]>>;
     }>>;
-    note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    note: Type.TOptional<Type.TString>;
+    restartDelayMs: Type.TOptional<Type.TInteger>;
 }>;
-export declare const ConfigSchemaParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const ConfigSchemaLookupParamsSchema: import("@sinclair/typebox").TObject<{
-    path: import("@sinclair/typebox").TString;
+export declare const ConfigSchemaParamsSchema: Type.TObject<{}>;
+export declare const ConfigSchemaLookupParamsSchema: Type.TObject<{
+    path: Type.TString;
 }>;
-export declare const UpdateRunParamsSchema: import("@sinclair/typebox").TObject<{
-    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    deliveryContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
+export declare const UpdateRunParamsSchema: Type.TObject<{
+    sessionKey: Type.TOptional<Type.TString>;
+    deliveryContext: Type.TOptional<Type.TObject<{
+        channel: Type.TOptional<Type.TString>;
+        to: Type.TOptional<Type.TString>;
+        accountId: Type.TOptional<Type.TString>;
+        threadId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber]>>;
     }>>;
-    note: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    restartDelayMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    note: Type.TOptional<Type.TString>;
+    restartDelayMs: Type.TOptional<Type.TInteger>;
+    timeoutMs: Type.TOptional<Type.TInteger>;
 }>;
-export declare const ConfigUiHintSchema: import("@sinclair/typebox").TObject<{
-    label: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    help: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    group: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    order: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    advanced: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    sensitive: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    placeholder: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    itemTemplate: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+export declare const ConfigUiHintSchema: Type.TObject<{
+    label: Type.TOptional<Type.TString>;
+    help: Type.TOptional<Type.TString>;
+    tags: Type.TOptional<Type.TArray<Type.TString>>;
+    group: Type.TOptional<Type.TString>;
+    order: Type.TOptional<Type.TInteger>;
+    advanced: Type.TOptional<Type.TBoolean>;
+    sensitive: Type.TOptional<Type.TBoolean>;
+    placeholder: Type.TOptional<Type.TString>;
+    itemTemplate: Type.TOptional<Type.TUnknown>;
 }>;
-export declare const ConfigSchemaResponseSchema: import("@sinclair/typebox").TObject<{
-    schema: import("@sinclair/typebox").TUnknown;
-    uiHints: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TObject<{
-        label: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        help: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-        group: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        order: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        advanced: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        sensitive: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        placeholder: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        itemTemplate: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+export declare const ConfigSchemaResponseSchema: Type.TObject<{
+    schema: Type.TUnknown;
+    uiHints: Type.TRecord<"^.*$", Type.TObject<{
+        label: Type.TOptional<Type.TString>;
+        help: Type.TOptional<Type.TString>;
+        tags: Type.TOptional<Type.TArray<Type.TString>>;
+        group: Type.TOptional<Type.TString>;
+        order: Type.TOptional<Type.TInteger>;
+        advanced: Type.TOptional<Type.TBoolean>;
+        sensitive: Type.TOptional<Type.TBoolean>;
+        placeholder: Type.TOptional<Type.TString>;
+        itemTemplate: Type.TOptional<Type.TUnknown>;
     }>>;
-    version: import("@sinclair/typebox").TString;
-    generatedAt: import("@sinclair/typebox").TString;
+    version: Type.TString;
+    generatedAt: Type.TString;
 }>;
-export declare const ConfigSchemaLookupChildSchema: import("@sinclair/typebox").TObject<{
-    key: import("@sinclair/typebox").TString;
-    path: import("@sinclair/typebox").TString;
-    type: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>]>>;
-    required: import("@sinclair/typebox").TBoolean;
-    hasChildren: import("@sinclair/typebox").TBoolean;
-    hint: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        label: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        help: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-        group: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        order: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        advanced: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        sensitive: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        placeholder: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        itemTemplate: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+export declare const ConfigSchemaLookupChildSchema: Type.TObject<{
+    key: Type.TString;
+    path: Type.TString;
+    type: Type.TOptional<Type.TUnion<[Type.TString, Type.TArray<Type.TString>]>>;
+    required: Type.TBoolean;
+    hasChildren: Type.TBoolean;
+    hint: Type.TOptional<Type.TObject<{
+        label: Type.TOptional<Type.TString>;
+        help: Type.TOptional<Type.TString>;
+        tags: Type.TOptional<Type.TArray<Type.TString>>;
+        group: Type.TOptional<Type.TString>;
+        order: Type.TOptional<Type.TInteger>;
+        advanced: Type.TOptional<Type.TBoolean>;
+        sensitive: Type.TOptional<Type.TBoolean>;
+        placeholder: Type.TOptional<Type.TString>;
+        itemTemplate: Type.TOptional<Type.TUnknown>;
     }>>;
-    hintPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    hintPath: Type.TOptional<Type.TString>;
 }>;
-export declare const ConfigSchemaLookupResultSchema: import("@sinclair/typebox").TObject<{
-    path: import("@sinclair/typebox").TString;
-    schema: import("@sinclair/typebox").TUnknown;
-    hint: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        label: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        help: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-        group: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        order: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        advanced: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        sensitive: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        placeholder: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        itemTemplate: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+export declare const ConfigSchemaLookupResultSchema: Type.TObject<{
+    path: Type.TString;
+    schema: Type.TUnknown;
+    hint: Type.TOptional<Type.TObject<{
+        label: Type.TOptional<Type.TString>;
+        help: Type.TOptional<Type.TString>;
+        tags: Type.TOptional<Type.TArray<Type.TString>>;
+        group: Type.TOptional<Type.TString>;
+        order: Type.TOptional<Type.TInteger>;
+        advanced: Type.TOptional<Type.TBoolean>;
+        sensitive: Type.TOptional<Type.TBoolean>;
+        placeholder: Type.TOptional<Type.TString>;
+        itemTemplate: Type.TOptional<Type.TUnknown>;
     }>>;
-    hintPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    children: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        key: import("@sinclair/typebox").TString;
-        path: import("@sinclair/typebox").TString;
-        type: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>]>>;
-        required: import("@sinclair/typebox").TBoolean;
-        hasChildren: import("@sinclair/typebox").TBoolean;
-        hint: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            label: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            help: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-            group: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            order: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-            advanced: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            sensitive: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            placeholder: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            itemTemplate: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
+    hintPath: Type.TOptional<Type.TString>;
+    children: Type.TArray<Type.TObject<{
+        key: Type.TString;
+        path: Type.TString;
+        type: Type.TOptional<Type.TUnion<[Type.TString, Type.TArray<Type.TString>]>>;
+        required: Type.TBoolean;
+        hasChildren: Type.TBoolean;
+        hint: Type.TOptional<Type.TObject<{
+            label: Type.TOptional<Type.TString>;
+            help: Type.TOptional<Type.TString>;
+            tags: Type.TOptional<Type.TArray<Type.TString>>;
+            group: Type.TOptional<Type.TString>;
+            order: Type.TOptional<Type.TInteger>;
+            advanced: Type.TOptional<Type.TBoolean>;
+            sensitive: Type.TOptional<Type.TBoolean>;
+            placeholder: Type.TOptional<Type.TString>;
+            itemTemplate: Type.TOptional<Type.TUnknown>;
         }>>;
-        hintPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+        hintPath: Type.TOptional<Type.TString>;
     }>>;
 }>;

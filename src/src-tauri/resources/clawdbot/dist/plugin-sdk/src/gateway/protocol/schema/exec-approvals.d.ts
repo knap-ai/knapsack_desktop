@@ -1,192 +1,193 @@
-export declare const ExecApprovalsAllowlistEntrySchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    pattern: import("@sinclair/typebox").TString;
-    argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+import { Type } from "typebox";
+export declare const ExecApprovalsAllowlistEntrySchema: Type.TObject<{
+    id: Type.TOptional<Type.TString>;
+    pattern: Type.TString;
+    argPattern: Type.TOptional<Type.TString>;
+    lastUsedAt: Type.TOptional<Type.TInteger>;
+    lastUsedCommand: Type.TOptional<Type.TString>;
+    lastResolvedPath: Type.TOptional<Type.TString>;
 }>;
-export declare const ExecApprovalsDefaultsSchema: import("@sinclair/typebox").TObject<{
-    security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+export declare const ExecApprovalsDefaultsSchema: Type.TObject<{
+    security: Type.TOptional<Type.TString>;
+    ask: Type.TOptional<Type.TString>;
+    askFallback: Type.TOptional<Type.TString>;
+    autoAllowSkills: Type.TOptional<Type.TBoolean>;
 }>;
-export declare const ExecApprovalsAgentSchema: import("@sinclair/typebox").TObject<{
-    allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        pattern: import("@sinclair/typebox").TString;
-        argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    }>>>;
-    security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-}>;
-export declare const ExecApprovalsFileSchema: import("@sinclair/typebox").TObject<{
-    version: import("@sinclair/typebox").TLiteral<1>;
-    socket: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        path: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        token: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    }>>;
-    defaults: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    }>>;
-    agents: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TObject<{
-        allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-            id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            pattern: import("@sinclair/typebox").TString;
-            argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-            lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        }>>>;
-        security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+export declare const ExecApprovalsAgentSchema: Type.TObject<{
+    security: Type.TOptional<Type.TString>;
+    ask: Type.TOptional<Type.TString>;
+    askFallback: Type.TOptional<Type.TString>;
+    autoAllowSkills: Type.TOptional<Type.TBoolean>;
+    allowlist: Type.TOptional<Type.TArray<Type.TObject<{
+        id: Type.TOptional<Type.TString>;
+        pattern: Type.TString;
+        argPattern: Type.TOptional<Type.TString>;
+        lastUsedAt: Type.TOptional<Type.TInteger>;
+        lastUsedCommand: Type.TOptional<Type.TString>;
+        lastResolvedPath: Type.TOptional<Type.TString>;
     }>>>;
 }>;
-export declare const ExecApprovalsSnapshotSchema: import("@sinclair/typebox").TObject<{
-    path: import("@sinclair/typebox").TString;
-    exists: import("@sinclair/typebox").TBoolean;
-    hash: import("@sinclair/typebox").TString;
-    file: import("@sinclair/typebox").TObject<{
-        version: import("@sinclair/typebox").TLiteral<1>;
-        socket: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            path: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            token: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        }>>;
-        defaults: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        }>>;
-        agents: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TObject<{
-            allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-                id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                pattern: import("@sinclair/typebox").TString;
-                argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-                lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            }>>>;
-            security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        }>>>;
-    }>;
-}>;
-export declare const ExecApprovalsGetParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const ExecApprovalsSetParamsSchema: import("@sinclair/typebox").TObject<{
-    file: import("@sinclair/typebox").TObject<{
-        version: import("@sinclair/typebox").TLiteral<1>;
-        socket: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            path: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            token: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        }>>;
-        defaults: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        }>>;
-        agents: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TObject<{
-            allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-                id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                pattern: import("@sinclair/typebox").TString;
-                argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-                lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            }>>>;
-            security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        }>>>;
-    }>;
-    baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-}>;
-export declare const ExecApprovalsNodeGetParamsSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-}>;
-export declare const ExecApprovalsNodeSetParamsSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-    file: import("@sinclair/typebox").TObject<{
-        version: import("@sinclair/typebox").TLiteral<1>;
-        socket: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            path: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            token: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        }>>;
-        defaults: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        }>>;
-        agents: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TObject<{
-            allowlist: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-                id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                pattern: import("@sinclair/typebox").TString;
-                argPattern: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                lastUsedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-                lastUsedCommand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                lastResolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            }>>>;
-            security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            askFallback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            autoAllowSkills: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        }>>>;
-    }>;
-    baseHash: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-}>;
-export declare const ExecApprovalGetParamsSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-}>;
-export declare const ExecApprovalRequestParamsSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    command: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    commandArgv: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    systemRunPlan: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        argv: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
-        cwd: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>;
-        commandText: import("@sinclair/typebox").TString;
-        commandPreview: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-        agentId: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>;
-        sessionKey: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>;
-        mutableFileOperand: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-            argvIndex: import("@sinclair/typebox").TInteger;
-            path: import("@sinclair/typebox").TString;
-            sha256: import("@sinclair/typebox").TString;
-        }>, import("@sinclair/typebox").TNull]>>;
+export declare const ExecApprovalsFileSchema: Type.TObject<{
+    version: Type.TLiteral<1>;
+    socket: Type.TOptional<Type.TObject<{
+        path: Type.TOptional<Type.TString>;
+        token: Type.TOptional<Type.TString>;
     }>>;
-    env: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-    cwd: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    nodeId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    host: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    security: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    ask: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    resolvedPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    turnSourceChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    turnSourceTo: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    turnSourceAccountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    turnSourceThreadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber, import("@sinclair/typebox").TNull]>>;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    twoPhase: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    defaults: Type.TOptional<Type.TObject<{
+        security: Type.TOptional<Type.TString>;
+        ask: Type.TOptional<Type.TString>;
+        askFallback: Type.TOptional<Type.TString>;
+        autoAllowSkills: Type.TOptional<Type.TBoolean>;
+    }>>;
+    agents: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
+        security: Type.TOptional<Type.TString>;
+        ask: Type.TOptional<Type.TString>;
+        askFallback: Type.TOptional<Type.TString>;
+        autoAllowSkills: Type.TOptional<Type.TBoolean>;
+        allowlist: Type.TOptional<Type.TArray<Type.TObject<{
+            id: Type.TOptional<Type.TString>;
+            pattern: Type.TString;
+            argPattern: Type.TOptional<Type.TString>;
+            lastUsedAt: Type.TOptional<Type.TInteger>;
+            lastUsedCommand: Type.TOptional<Type.TString>;
+            lastResolvedPath: Type.TOptional<Type.TString>;
+        }>>>;
+    }>>>;
 }>;
-export declare const ExecApprovalResolveParamsSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    decision: import("@sinclair/typebox").TString;
+export declare const ExecApprovalsSnapshotSchema: Type.TObject<{
+    path: Type.TString;
+    exists: Type.TBoolean;
+    hash: Type.TString;
+    file: Type.TObject<{
+        version: Type.TLiteral<1>;
+        socket: Type.TOptional<Type.TObject<{
+            path: Type.TOptional<Type.TString>;
+            token: Type.TOptional<Type.TString>;
+        }>>;
+        defaults: Type.TOptional<Type.TObject<{
+            security: Type.TOptional<Type.TString>;
+            ask: Type.TOptional<Type.TString>;
+            askFallback: Type.TOptional<Type.TString>;
+            autoAllowSkills: Type.TOptional<Type.TBoolean>;
+        }>>;
+        agents: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
+            security: Type.TOptional<Type.TString>;
+            ask: Type.TOptional<Type.TString>;
+            askFallback: Type.TOptional<Type.TString>;
+            autoAllowSkills: Type.TOptional<Type.TBoolean>;
+            allowlist: Type.TOptional<Type.TArray<Type.TObject<{
+                id: Type.TOptional<Type.TString>;
+                pattern: Type.TString;
+                argPattern: Type.TOptional<Type.TString>;
+                lastUsedAt: Type.TOptional<Type.TInteger>;
+                lastUsedCommand: Type.TOptional<Type.TString>;
+                lastResolvedPath: Type.TOptional<Type.TString>;
+            }>>>;
+        }>>>;
+    }>;
+}>;
+export declare const ExecApprovalsGetParamsSchema: Type.TObject<{}>;
+export declare const ExecApprovalsSetParamsSchema: Type.TObject<{
+    file: Type.TObject<{
+        version: Type.TLiteral<1>;
+        socket: Type.TOptional<Type.TObject<{
+            path: Type.TOptional<Type.TString>;
+            token: Type.TOptional<Type.TString>;
+        }>>;
+        defaults: Type.TOptional<Type.TObject<{
+            security: Type.TOptional<Type.TString>;
+            ask: Type.TOptional<Type.TString>;
+            askFallback: Type.TOptional<Type.TString>;
+            autoAllowSkills: Type.TOptional<Type.TBoolean>;
+        }>>;
+        agents: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
+            security: Type.TOptional<Type.TString>;
+            ask: Type.TOptional<Type.TString>;
+            askFallback: Type.TOptional<Type.TString>;
+            autoAllowSkills: Type.TOptional<Type.TBoolean>;
+            allowlist: Type.TOptional<Type.TArray<Type.TObject<{
+                id: Type.TOptional<Type.TString>;
+                pattern: Type.TString;
+                argPattern: Type.TOptional<Type.TString>;
+                lastUsedAt: Type.TOptional<Type.TInteger>;
+                lastUsedCommand: Type.TOptional<Type.TString>;
+                lastResolvedPath: Type.TOptional<Type.TString>;
+            }>>>;
+        }>>>;
+    }>;
+    baseHash: Type.TOptional<Type.TString>;
+}>;
+export declare const ExecApprovalsNodeGetParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
+}>;
+export declare const ExecApprovalsNodeSetParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
+    file: Type.TObject<{
+        version: Type.TLiteral<1>;
+        socket: Type.TOptional<Type.TObject<{
+            path: Type.TOptional<Type.TString>;
+            token: Type.TOptional<Type.TString>;
+        }>>;
+        defaults: Type.TOptional<Type.TObject<{
+            security: Type.TOptional<Type.TString>;
+            ask: Type.TOptional<Type.TString>;
+            askFallback: Type.TOptional<Type.TString>;
+            autoAllowSkills: Type.TOptional<Type.TBoolean>;
+        }>>;
+        agents: Type.TOptional<Type.TRecord<"^.*$", Type.TObject<{
+            security: Type.TOptional<Type.TString>;
+            ask: Type.TOptional<Type.TString>;
+            askFallback: Type.TOptional<Type.TString>;
+            autoAllowSkills: Type.TOptional<Type.TBoolean>;
+            allowlist: Type.TOptional<Type.TArray<Type.TObject<{
+                id: Type.TOptional<Type.TString>;
+                pattern: Type.TString;
+                argPattern: Type.TOptional<Type.TString>;
+                lastUsedAt: Type.TOptional<Type.TInteger>;
+                lastUsedCommand: Type.TOptional<Type.TString>;
+                lastResolvedPath: Type.TOptional<Type.TString>;
+            }>>>;
+        }>>>;
+    }>;
+    baseHash: Type.TOptional<Type.TString>;
+}>;
+export declare const ExecApprovalGetParamsSchema: Type.TObject<{
+    id: Type.TString;
+}>;
+export declare const ExecApprovalRequestParamsSchema: Type.TObject<{
+    id: Type.TOptional<Type.TString>;
+    command: Type.TOptional<Type.TString>;
+    commandArgv: Type.TOptional<Type.TArray<Type.TString>>;
+    systemRunPlan: Type.TOptional<Type.TObject<{
+        argv: Type.TArray<Type.TString>;
+        cwd: Type.TUnion<[Type.TString, Type.TNull]>;
+        commandText: Type.TString;
+        commandPreview: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+        agentId: Type.TUnion<[Type.TString, Type.TNull]>;
+        sessionKey: Type.TUnion<[Type.TString, Type.TNull]>;
+        mutableFileOperand: Type.TOptional<Type.TUnion<[Type.TObject<{
+            argvIndex: Type.TInteger;
+            path: Type.TString;
+            sha256: Type.TString;
+        }>, Type.TNull]>>;
+    }>>;
+    env: Type.TOptional<Type.TRecord<"^.*$", Type.TString>>;
+    cwd: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    nodeId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    host: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    security: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    ask: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    agentId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    resolvedPath: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    sessionKey: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    turnSourceChannel: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    turnSourceTo: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    turnSourceAccountId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    turnSourceThreadId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber, Type.TNull]>>;
+    timeoutMs: Type.TOptional<Type.TInteger>;
+    twoPhase: Type.TOptional<Type.TBoolean>;
+}>;
+export declare const ExecApprovalResolveParamsSchema: Type.TObject<{
+    id: Type.TString;
+    decision: Type.TString;
 }>;

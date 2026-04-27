@@ -1,7 +1,9 @@
-import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-CQPCLokR.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
-import { t as buildDeepSeekProvider } from "../../provider-catalog-DLeaHNLa.js";
-import { n as applyDeepSeekConfig, t as DEEPSEEK_DEFAULT_MODEL_REF } from "../../onboard-CKqBpCXc.js";
+import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-D-iKoymz.js";
+import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-BIM0n3KJ.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
+import { t as buildDeepSeekProvider } from "../../provider-catalog-DXv0pK8e.js";
+import { t as createDeepSeekV4ThinkingWrapper } from "../../stream-BUfum08N.js";
+import { n as applyDeepSeekConfig, t as DEEPSEEK_DEFAULT_MODEL_REF } from "../../onboard-Cu6zM9DK.js";
 //#region extensions/deepseek/index.ts
 const PROVIDER_ID = "deepseek";
 var deepseek_default = defineSingleProviderPluginEntry({
@@ -34,7 +36,13 @@ var deepseek_default = defineSingleProviderPluginEntry({
 			config,
 			providerId: PROVIDER_ID
 		}),
-		matchesContextOverflowError: ({ errorMessage }) => /\bdeepseek\b.*(?:input.*too long|context.*exceed)/i.test(errorMessage)
+		matchesContextOverflowError: ({ errorMessage }) => /\bdeepseek\b.*(?:input.*too long|context.*exceed)/i.test(errorMessage),
+		...buildProviderReplayFamilyHooks({ family: "openai-compatible" }),
+		wrapStreamFn: (ctx) => createDeepSeekV4ThinkingWrapper(ctx.streamFn, ctx.thinkingLevel),
+		isModernModelRef: ({ modelId }) => {
+			const lower = modelId.toLowerCase();
+			return lower === "deepseek-v4-flash" || lower === "deepseek-v4-pro";
+		}
 	}
 });
 //#endregion

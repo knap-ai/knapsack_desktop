@@ -1,390 +1,26 @@
-import { F as initApiConfig, K as sendGroupImageMessage, N as getAccessToken, R as sendC2CImageMessage, X as sendProactiveC2CMessage, Z as sendProactiveGroupMessage, a as recordMessageReply, c as sendMedia, d as sendText, f as sendVideoMsg, l as sendPhoto, lt as debugError, n as getMessageReplyConfig, o as sendCronMessage, p as sendVoice, r as getMessageReplyStats, s as sendDocument, t as checkMessageReplyLimit, u as sendProactiveMessage, ut as debugLog } from "./outbound-Nkg_Sn0w.js";
-import { _ as listQQBotAccountIds, a as recordKnownUser, f as qqbotConfigAdapter, g as applyQQBotAccountConfig, h as DEFAULT_ACCOUNT_ID, i as listKnownUsers$1, m as qqbotSetupAdapterShared, n as flushKnownUsers, o as removeKnownUser$1, p as qqbotMeta, r as getKnownUser$1, s as getFrameworkCommands, t as clearKnownUsers$1, v as resolveDefaultQQBotAccountId, y as resolveQQBotAccount } from "./known-users-CX1XBPSa.js";
-import { t as getQQBotRuntime } from "./runtime-B2Qn21pE.js";
-import { formatErrorMessage } from "openclaw/plugin-sdk/error-runtime";
-import { normalizeLowercaseStringOrEmpty, normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
-import { buildSecretInputSchema } from "openclaw/plugin-sdk/secret-input";
-import { AllowFromListSchema, buildChannelConfigSchema } from "openclaw/plugin-sdk/channel-config-schema";
-import { z } from "zod";
-import { createStandardChannelSetupStatus, hasConfiguredSecretInput as hasConfiguredSecretInput$1, setSetupChannelEnabled } from "openclaw/plugin-sdk/setup";
-import { formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
-//#region extensions/qqbot/src/config-schema.ts
-const AudioFormatPolicySchema = z.object({
-	sttDirectFormats: z.array(z.string()).optional(),
-	uploadDirectFormats: z.array(z.string()).optional(),
-	transcodeEnabled: z.boolean().optional()
-}).optional();
-const QQBotSpeechQueryParamsSchema = z.record(z.string(), z.string()).optional();
-const QQBotTtsSchema = z.object({
-	enabled: z.boolean().optional(),
-	provider: z.string().optional(),
-	baseUrl: z.string().optional(),
-	apiKey: z.string().optional(),
-	model: z.string().optional(),
-	voice: z.string().optional(),
-	authStyle: z.enum(["bearer", "api-key"]).optional(),
-	queryParams: QQBotSpeechQueryParamsSchema,
-	speed: z.number().optional()
-}).strict().optional();
-const QQBotSttSchema = z.object({
-	enabled: z.boolean().optional(),
-	provider: z.string().optional(),
-	baseUrl: z.string().optional(),
-	apiKey: z.string().optional(),
-	model: z.string().optional()
-}).strict().optional();
-const QQBotStreamingSchema = z.union([z.boolean(), z.object({ mode: z.enum(["off", "partial"]).default("partial") }).passthrough()]).optional();
-const QQBotAccountSchema = z.object({
-	enabled: z.boolean().optional(),
-	name: z.string().optional(),
-	appId: z.string().optional(),
-	clientSecret: buildSecretInputSchema().optional(),
-	clientSecretFile: z.string().optional(),
-	allowFrom: AllowFromListSchema,
-	systemPrompt: z.string().optional(),
-	markdownSupport: z.boolean().optional(),
-	voiceDirectUploadFormats: z.array(z.string()).optional(),
-	audioFormatPolicy: AudioFormatPolicySchema,
-	urlDirectUpload: z.boolean().optional(),
-	upgradeUrl: z.string().optional(),
-	upgradeMode: z.enum(["doc", "hot-reload"]).optional(),
-	streaming: QQBotStreamingSchema
-}).passthrough();
-const qqbotChannelConfigSchema = buildChannelConfigSchema(QQBotAccountSchema.extend({
-	tts: QQBotTtsSchema,
-	stt: QQBotSttSchema,
-	accounts: z.object({}).catchall(QQBotAccountSchema.passthrough()).optional(),
-	defaultAccount: z.string().optional()
-}).passthrough());
-//#endregion
-//#region extensions/qqbot/src/setup-surface.ts
-const channel = "qqbot";
+import { a as recordMessageReply, c as sendCronMessage, d as sendPhoto, f as sendProactiveMessage, h as sendVoice, l as sendDocument, m as sendVideoMsg, n as getMessageReplyConfig, o as registerOutboundAudioAdapter, p as sendText, r as getMessageReplyStats, s as registerOutboundAudioAdapterFactory, t as checkMessageReplyLimit, u as sendMedia } from "./outbound-CNhvemR8.js";
+import { n as getBridgeLogger } from "./bootstrap-DP2UpEF-.js";
+import { a as resolveQQBotAccount, i as resolveDefaultQQBotAccountId, n as applyQQBotAccountConfig, r as listQQBotAccountIds, t as DEFAULT_ACCOUNT_ID } from "./config--Jdei9fe.js";
+import { t as qqbotPlugin } from "./channel-IJ1hgwOJ.js";
+import { O as formatErrorMessage, T as debugLog, o as getAccessToken, w as debugError } from "./sender-BZ_TJkxQ.js";
+import { t as qqbotSetupPlugin } from "./channel.setup-CW7WojiA.js";
+import { r as getFrameworkCommands, t as getRequestContext } from "./request-context-DM5_RNBD.js";
+//#region extensions/qqbot/src/engine/tools/channel-api.ts
 /**
-* Clear only the credential fields owned by the setup prompt that switched to
-* env-backed resolution. This preserves mixed-source setups such as config
-* AppID + env AppSecret.
+* QQ Channel API proxy tool core logic.
+* QQ 频道 API 代理工具核心逻辑。
+*
+* Provides an authenticated HTTP proxy for the QQ Open Platform channel
+* APIs. The caller (old tools/channel.ts shell) resolves the access
+* token and passes it in; this module handles URL building, path
+* validation, fetch, and structured response formatting.
 */
-function clearQQBotCredentialField(cfg, accountId, field) {
-	const next = { ...cfg };
-	const qqbot = { ...next.channels?.qqbot };
-	const clearField = (entry) => {
-		if (field === "appId") {
-			delete entry.appId;
-			return;
-		}
-		delete entry.clientSecret;
-		delete entry.clientSecretFile;
-	};
-	if (accountId === "default") clearField(qqbot);
-	else {
-		const accounts = { ...qqbot.accounts };
-		if (accounts[accountId]) {
-			const entry = { ...accounts[accountId] };
-			clearField(entry);
-			accounts[accountId] = entry;
-			qqbot.accounts = accounts;
-		}
-	}
-	next.channels = {
-		...next.channels,
-		qqbot
-	};
-	return next;
-}
-const QQBOT_SETUP_HELP_LINES = [
-	"To create a QQ Bot, visit the QQ Open Platform:",
-	`  ${formatDocsLink("https://q.qq.com", "q.qq.com")}`,
-	"",
-	"1. Create an application and note the AppID.",
-	"2. Go to development settings to find the AppSecret."
-];
-const qqbotSetupWizard = {
-	channel,
-	status: createStandardChannelSetupStatus({
-		channelLabel: "QQ Bot",
-		configuredLabel: "configured",
-		unconfiguredLabel: "needs AppID + AppSecret",
-		configuredHint: "configured",
-		unconfiguredHint: "needs AppID + AppSecret",
-		configuredScore: 1,
-		unconfiguredScore: 6,
-		resolveConfigured: ({ cfg, accountId }) => (accountId ? [accountId] : listQQBotAccountIds(cfg)).some((resolvedAccountId) => {
-			const account = resolveQQBotAccount(cfg, resolvedAccountId, { allowUnresolvedSecretRef: true });
-			return Boolean(account.appId && (Boolean(account.clientSecret) || hasConfiguredSecretInput$1(account.config.clientSecret) || Boolean(account.config.clientSecretFile?.trim())));
-		})
-	}),
-	credentials: [{
-		inputKey: "token",
-		providerHint: channel,
-		credentialLabel: "AppID",
-		preferredEnvVar: "QQBOT_APP_ID",
-		helpTitle: "QQ Bot AppID",
-		helpLines: QQBOT_SETUP_HELP_LINES,
-		envPrompt: "QQBOT_APP_ID detected. Use env var?",
-		keepPrompt: "QQ Bot AppID already configured. Keep it?",
-		inputPrompt: "Enter QQ Bot AppID",
-		allowEnv: ({ accountId }) => accountId === DEFAULT_ACCOUNT_ID,
-		inspect: ({ cfg, accountId }) => {
-			const resolved = resolveQQBotAccount(cfg, accountId, { allowUnresolvedSecretRef: true });
-			const hasConfiguredValue = Boolean(hasConfiguredSecretInput$1(resolved.config.clientSecret) || normalizeOptionalString(resolved.config.clientSecretFile) || resolved.clientSecret);
-			return {
-				accountConfigured: Boolean(resolved.appId && hasConfiguredValue),
-				hasConfiguredValue: Boolean(resolved.appId),
-				resolvedValue: resolved.appId || void 0,
-				envValue: accountId === "default" ? normalizeOptionalString(process.env.QQBOT_APP_ID) : void 0
-			};
-		},
-		applyUseEnv: ({ cfg, accountId }) => clearQQBotCredentialField(applyQQBotAccountConfig(cfg, accountId, {}), accountId, "appId"),
-		applySet: ({ cfg, accountId, resolvedValue }) => applyQQBotAccountConfig(cfg, accountId, { appId: resolvedValue })
-	}, {
-		inputKey: "password",
-		providerHint: "qqbot-secret",
-		credentialLabel: "AppSecret",
-		preferredEnvVar: "QQBOT_CLIENT_SECRET",
-		helpTitle: "QQ Bot AppSecret",
-		helpLines: QQBOT_SETUP_HELP_LINES,
-		envPrompt: "QQBOT_CLIENT_SECRET detected. Use env var?",
-		keepPrompt: "QQ Bot AppSecret already configured. Keep it?",
-		inputPrompt: "Enter QQ Bot AppSecret",
-		allowEnv: ({ accountId }) => accountId === DEFAULT_ACCOUNT_ID,
-		inspect: ({ cfg, accountId }) => {
-			const resolved = resolveQQBotAccount(cfg, accountId, { allowUnresolvedSecretRef: true });
-			const hasConfiguredValue = Boolean(hasConfiguredSecretInput$1(resolved.config.clientSecret) || normalizeOptionalString(resolved.config.clientSecretFile) || resolved.clientSecret);
-			return {
-				accountConfigured: Boolean(resolved.appId && hasConfiguredValue),
-				hasConfiguredValue,
-				resolvedValue: resolved.clientSecret || void 0,
-				envValue: accountId === "default" ? normalizeOptionalString(process.env.QQBOT_CLIENT_SECRET) : void 0
-			};
-		},
-		applyUseEnv: ({ cfg, accountId }) => clearQQBotCredentialField(applyQQBotAccountConfig(cfg, accountId, {}), accountId, "clientSecret"),
-		applySet: ({ cfg, accountId, resolvedValue }) => applyQQBotAccountConfig(cfg, accountId, { clientSecret: resolvedValue })
-	}],
-	disable: (cfg) => setSetupChannelEnabled(cfg, channel, false)
-};
-//#endregion
-//#region extensions/qqbot/src/channel.ts
-let _gatewayModulePromise;
-function loadGatewayModule() {
-	_gatewayModulePromise ??= import("./gateway-BZwNq797.js");
-	return _gatewayModulePromise;
-}
-const qqbotPlugin = {
-	id: "qqbot",
-	setupWizard: qqbotSetupWizard,
-	meta: { ...qqbotMeta },
-	capabilities: {
-		chatTypes: ["direct", "group"],
-		media: true,
-		reactions: false,
-		threads: false,
-		blockStreaming: true
-	},
-	reload: { configPrefixes: ["channels.qqbot"] },
-	configSchema: qqbotChannelConfigSchema,
-	config: { ...qqbotConfigAdapter },
-	setup: { ...qqbotSetupAdapterShared },
-	messaging: {
-		normalizeTarget: (target) => {
-			const id = target.replace(/^qqbot:/i, "");
-			if (id.startsWith("c2c:") || id.startsWith("group:") || id.startsWith("channel:")) return `qqbot:${id}`;
-			if (/^[0-9a-fA-F]{32}$/.test(id)) return `qqbot:c2c:${id}`;
-			if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id)) return `qqbot:c2c:${id}`;
-		},
-		targetResolver: {
-			looksLikeId: (id) => {
-				if (/^qqbot:(c2c|group|channel):/i.test(id)) return true;
-				if (/^(c2c|group|channel):/i.test(id)) return true;
-				if (/^[0-9a-fA-F]{32}$/.test(id)) return true;
-				return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
-			},
-			hint: "QQ Bot target format: qqbot:c2c:openid (direct) or qqbot:group:groupid (group)"
-		}
-	},
-	outbound: {
-		deliveryMode: "direct",
-		chunker: (text, limit) => getQQBotRuntime().channel.text.chunkMarkdownText(text, limit),
-		chunkerMode: "markdown",
-		textChunkLimit: 5e3,
-		sendText: async ({ to, text, accountId, replyToId, cfg }) => {
-			const account = resolveQQBotAccount(cfg, accountId);
-			const { sendText } = await import("./outbound-Nkg_Sn0w.js").then((n) => n.i);
-			initApiConfig(account.appId, { markdownSupport: account.markdownSupport });
-			const result = await sendText({
-				to,
-				text,
-				accountId,
-				replyToId,
-				account
-			});
-			return {
-				channel: "qqbot",
-				messageId: result.messageId ?? "",
-				meta: result.error ? { error: result.error } : void 0
-			};
-		},
-		sendMedia: async ({ to, text, mediaUrl, accountId, replyToId, cfg }) => {
-			const account = resolveQQBotAccount(cfg, accountId);
-			const { sendMedia } = await import("./outbound-Nkg_Sn0w.js").then((n) => n.i);
-			initApiConfig(account.appId, { markdownSupport: account.markdownSupport });
-			const result = await sendMedia({
-				to,
-				text: text ?? "",
-				mediaUrl: mediaUrl ?? "",
-				accountId,
-				replyToId,
-				account
-			});
-			return {
-				channel: "qqbot",
-				messageId: result.messageId ?? "",
-				meta: result.error ? { error: result.error } : void 0
-			};
-		}
-	},
-	gateway: {
-		startAccount: async (ctx) => {
-			const { account } = ctx;
-			const { abortSignal, log, cfg } = ctx;
-			const { startGateway } = await loadGatewayModule();
-			log?.info(`[qqbot:${account.accountId}] Starting gateway — appId=${account.appId}, enabled=${account.enabled}, name=${account.name ?? "unnamed"}`);
-			await startGateway({
-				account,
-				abortSignal,
-				cfg,
-				log,
-				onReady: () => {
-					log?.info(`[qqbot:${account.accountId}] Gateway ready`);
-					ctx.setStatus({
-						...ctx.getStatus(),
-						running: true,
-						connected: true,
-						lastConnectedAt: Date.now()
-					});
-				},
-				onError: (error) => {
-					log?.error(`[qqbot:${account.accountId}] Gateway error: ${error.message}`);
-					ctx.setStatus({
-						...ctx.getStatus(),
-						lastError: error.message
-					});
-				}
-			});
-		},
-		logoutAccount: async ({ accountId, cfg }) => {
-			const nextCfg = { ...cfg };
-			const nextQQBot = cfg.channels?.qqbot ? { ...cfg.channels.qqbot } : void 0;
-			let cleared = false;
-			let changed = false;
-			if (nextQQBot) {
-				const qqbot = nextQQBot;
-				if (accountId === "default") {
-					if (qqbot.clientSecret) {
-						delete qqbot.clientSecret;
-						cleared = true;
-						changed = true;
-					}
-					if (qqbot.clientSecretFile) {
-						delete qqbot.clientSecretFile;
-						cleared = true;
-						changed = true;
-					}
-				}
-				const accounts = qqbot.accounts;
-				if (accounts && accountId in accounts) {
-					const entry = accounts[accountId];
-					if (entry && "clientSecret" in entry) {
-						delete entry.clientSecret;
-						cleared = true;
-						changed = true;
-					}
-					if (entry && "clientSecretFile" in entry) {
-						delete entry.clientSecretFile;
-						cleared = true;
-						changed = true;
-					}
-					if (entry && Object.keys(entry).length === 0) {
-						delete accounts[accountId];
-						changed = true;
-					}
-				}
-			}
-			if (changed && nextQQBot) {
-				nextCfg.channels = {
-					...nextCfg.channels,
-					qqbot: nextQQBot
-				};
-				await getQQBotRuntime().config.writeConfigFile(nextCfg);
-			}
-			const loggedOut = resolveQQBotAccount(changed ? nextCfg : cfg, accountId).secretSource === "none";
-			const envToken = Boolean(process.env.QQBOT_CLIENT_SECRET);
-			return {
-				ok: true,
-				cleared,
-				envToken,
-				loggedOut
-			};
-		}
-	},
-	status: {
-		defaultRuntime: {
-			accountId: DEFAULT_ACCOUNT_ID,
-			running: false,
-			connected: false,
-			lastConnectedAt: null,
-			lastError: null,
-			lastInboundAt: null,
-			lastOutboundAt: null
-		},
-		buildChannelSummary: ({ snapshot }) => ({
-			configured: snapshot.configured ?? false,
-			tokenSource: snapshot.tokenSource ?? "none",
-			running: snapshot.running ?? false,
-			connected: snapshot.connected ?? false,
-			lastConnectedAt: snapshot.lastConnectedAt ?? null,
-			lastError: snapshot.lastError ?? null
-		}),
-		buildAccountSnapshot: ({ account, runtime }) => ({
-			accountId: account?.accountId ?? "default",
-			name: account?.name,
-			enabled: account?.enabled ?? false,
-			configured: Boolean(account?.appId && account?.clientSecret),
-			tokenSource: account?.secretSource,
-			running: runtime?.running ?? false,
-			connected: runtime?.connected ?? false,
-			lastConnectedAt: runtime?.lastConnectedAt ?? null,
-			lastError: runtime?.lastError ?? null,
-			lastInboundAt: runtime?.lastInboundAt ?? null,
-			lastOutboundAt: runtime?.lastOutboundAt ?? null
-		})
-	}
-};
-//#endregion
-//#region extensions/qqbot/src/channel.setup.ts
-/**
-* Setup-only QQBot plugin — lightweight subset used during `openclaw onboard`
-* and `openclaw configure` without pulling the full runtime dependencies.
-*/
-const qqbotSetupPlugin = {
-	id: "qqbot",
-	setupWizard: qqbotSetupWizard,
-	meta: { ...qqbotMeta },
-	capabilities: {
-		chatTypes: ["direct", "group"],
-		media: true,
-		reactions: false,
-		threads: false,
-		blockStreaming: true
-	},
-	reload: { configPrefixes: ["channels.qqbot"] },
-	configSchema: qqbotChannelConfigSchema,
-	config: { ...qqbotConfigAdapter },
-	setup: { ...qqbotSetupAdapterShared }
-};
-//#endregion
-//#region extensions/qqbot/src/tools/channel.ts
 const API_BASE = "https://api.sgroup.qq.com";
 const DEFAULT_TIMEOUT_MS = 3e4;
+/**
+* JSON Schema for AI tool parameters (used by framework registration).
+* AI Tool 参数的 JSON Schema 定义（供框架注册使用）。
+*/
 const ChannelApiSchema = {
 	type: "object",
 	properties: {
@@ -415,15 +51,10 @@ const ChannelApiSchema = {
 	},
 	required: ["method", "path"]
 };
-function json$1(data) {
-	return {
-		content: [{
-			type: "text",
-			text: JSON.stringify(data, null, 2)
-		}],
-		details: data
-	};
-}
+/**
+* Build the full API URL from base + path + query params.
+* 拼接 API 基地址 + 路径 + 查询参数。
+*/
 function buildUrl(path, query) {
 	let url = `${API_BASE}${path}`;
 	if (query && Object.keys(query).length > 0) {
@@ -434,33 +65,153 @@ function buildUrl(path, query) {
 	}
 	return url;
 }
+/**
+* Validate API path format; returns an error string or null if valid.
+* 校验 API 路径格式，返回错误描述或 null（合法）。
+*/
 function validatePath(path) {
 	if (!path.startsWith("/")) return "path must start with /";
 	if (path.includes("..") || path.includes("//")) return "path must not contain .. or //";
 	if (!/^\/[a-zA-Z0-9\-._~:@!$&'()*+,;=/%]+$/.test(path) && path !== "/") return "path contains unsupported characters";
 	return null;
 }
+function json$1(data) {
+	return {
+		content: [{
+			type: "text",
+			text: JSON.stringify(data, null, 2)
+		}],
+		details: data
+	};
+}
+/**
+* Execute a channel API proxy request.
+* 执行频道 API 代理请求。
+*
+* The caller provides the access token; this function handles
+* URL building, path validation, HTTP fetch, and structured
+* response formatting suitable for AI tool output.
+*/
+async function executeChannelApi(params, options) {
+	if (!params.method) return json$1({ error: "method is required" });
+	if (!params.path) return json$1({ error: "path is required" });
+	const method = params.method.toUpperCase();
+	if (![
+		"GET",
+		"POST",
+		"PUT",
+		"PATCH",
+		"DELETE"
+	].includes(method)) return json$1({ error: `Unsupported HTTP method: ${method}. Allowed values: GET, POST, PUT, PATCH, DELETE` });
+	const pathError = validatePath(params.path);
+	if (pathError) return json$1({ error: pathError });
+	if ((method === "GET" || method === "DELETE") && params.body && Object.keys(params.body).length > 0) debugLog(`[qqbot-channel-api] ${method} request with body, body will be ignored`);
+	try {
+		const url = buildUrl(params.path, params.query);
+		const headers = {
+			Authorization: `QQBot ${options.accessToken}`,
+			"Content-Type": "application/json"
+		};
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+		const fetchOptions = {
+			method,
+			headers,
+			signal: controller.signal
+		};
+		if (params.body && [
+			"POST",
+			"PUT",
+			"PATCH"
+		].includes(method)) fetchOptions.body = JSON.stringify(params.body);
+		debugLog(`[qqbot-channel-api] >>> ${method} ${url} (timeout: ${DEFAULT_TIMEOUT_MS}ms)`);
+		let res;
+		try {
+			res = await fetch(url, fetchOptions);
+		} catch (err) {
+			clearTimeout(timeoutId);
+			if (err instanceof Error && err.name === "AbortError") {
+				debugError(`[qqbot-channel-api] <<< Request timeout after ${DEFAULT_TIMEOUT_MS}ms`);
+				return json$1({
+					error: `Request timed out after ${DEFAULT_TIMEOUT_MS}ms`,
+					path: params.path
+				});
+			}
+			debugError("[qqbot-channel-api] <<< Network error:", err);
+			return json$1({
+				error: `Network error: ${formatErrorMessage(err)}`,
+				path: params.path
+			});
+		} finally {
+			clearTimeout(timeoutId);
+		}
+		debugLog(`[qqbot-channel-api] <<< Status: ${res.status} ${res.statusText}`);
+		const rawBody = await res.text();
+		if (!rawBody || rawBody.trim() === "") {
+			if (res.ok) return json$1({
+				success: true,
+				status: res.status,
+				path: params.path
+			});
+			return json$1({
+				error: `API returned ${res.status} ${res.statusText}`,
+				status: res.status,
+				path: params.path
+			});
+		}
+		let parsed;
+		try {
+			parsed = JSON.parse(rawBody);
+		} catch {
+			parsed = rawBody;
+		}
+		if (!res.ok) {
+			const errMsg = typeof parsed === "object" && parsed && "message" in parsed ? String(parsed.message) : `${res.status} ${res.statusText}`;
+			debugError(`[qqbot-channel-api] Error [${method} ${params.path}]: ${errMsg}`);
+			return json$1({
+				error: errMsg,
+				status: res.status,
+				path: params.path,
+				details: parsed
+			});
+		}
+		return json$1({
+			success: true,
+			status: res.status,
+			path: params.path,
+			data: parsed
+		});
+	} catch (err) {
+		return json$1({
+			error: formatErrorMessage(err),
+			path: params.path
+		});
+	}
+}
+//#endregion
+//#region extensions/qqbot/src/bridge/tools/channel.ts
 /**
 * Register the QQ channel API proxy tool.
 *
-* The tool acts as an authenticated HTTP proxy for the QQ Open Platform channel APIs.
-* Agents learn endpoint details from the skill docs and send requests through this proxy.
+* The tool acts as an authenticated HTTP proxy for the QQ Open Platform
+* channel APIs. Agents learn endpoint details from the skill docs and
+* send requests through this proxy.
 */
 function registerChannelTool(api) {
 	const cfg = api.config;
 	if (!cfg) {
-		debugLog("[qqbot-channel-api] No config available, skipping");
+		getBridgeLogger().debug?.("[qqbot-channel-api] No config available, skipping");
 		return;
 	}
 	const accountIds = listQQBotAccountIds(cfg);
 	if (accountIds.length === 0) {
-		debugLog("[qqbot-channel-api] No QQBot accounts configured, skipping");
+		getBridgeLogger().debug?.("[qqbot-channel-api] No QQBot accounts configured, skipping");
 		return;
 	}
 	const firstAccountId = accountIds[0];
 	const account = resolveQQBotAccount(cfg, firstAccountId);
 	if (!account.appId || !account.clientSecret) {
-		debugLog("[qqbot-channel-api] Account not fully configured, skipping");
+		getBridgeLogger().debug?.("[qqbot-channel-api] Account not fully configured, skipping");
 		return;
 	}
 	api.registerTool({
@@ -469,107 +220,16 @@ function registerChannelTool(api) {
 		description: "Authenticated HTTP proxy for QQ Open Platform channel APIs. Common endpoints: list guilds GET /users/@me/guilds | list channels GET /guilds/{guild_id}/channels | get channel GET /channels/{channel_id} | create channel POST /guilds/{guild_id}/channels | list members GET /guilds/{guild_id}/members?after=0&limit=100 | get member GET /guilds/{guild_id}/members/{user_id} | list threads GET /channels/{channel_id}/threads | create thread PUT /channels/{channel_id}/threads | create announce POST /guilds/{guild_id}/announces | create schedule POST /channels/{channel_id}/schedules. See the qqbot-channel skill for full endpoint details.",
 		parameters: ChannelApiSchema,
 		async execute(_toolCallId, params) {
-			const p = params;
-			if (!p.method) return json$1({ error: "method is required" });
-			if (!p.path) return json$1({ error: "path is required" });
-			const method = p.method.toUpperCase();
-			if (![
-				"GET",
-				"POST",
-				"PUT",
-				"PATCH",
-				"DELETE"
-			].includes(method)) return json$1({ error: `Unsupported HTTP method: ${method}. Allowed values: GET, POST, PUT, PATCH, DELETE` });
-			const pathError = validatePath(p.path);
-			if (pathError) return json$1({ error: pathError });
-			if ((method === "GET" || method === "DELETE") && p.body && Object.keys(p.body).length > 0) debugLog(`[qqbot-channel-api] ${method} request with body, body will be ignored`);
-			try {
-				const accessToken = await getAccessToken(account.appId, account.clientSecret);
-				const url = buildUrl(p.path, p.query);
-				const headers = {
-					Authorization: `QQBot ${accessToken}`,
-					"Content-Type": "application/json"
-				};
-				const controller = new AbortController();
-				const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-				const fetchOptions = {
-					method,
-					headers,
-					signal: controller.signal
-				};
-				if (p.body && [
-					"POST",
-					"PUT",
-					"PATCH"
-				].includes(method)) fetchOptions.body = JSON.stringify(p.body);
-				debugLog(`[qqbot-channel-api] >>> ${method} ${url} (timeout: ${DEFAULT_TIMEOUT_MS}ms)`);
-				let res;
-				try {
-					res = await fetch(url, fetchOptions);
-				} catch (err) {
-					clearTimeout(timeoutId);
-					if (err instanceof Error && err.name === "AbortError") {
-						debugError(`[qqbot-channel-api] <<< Request timeout after ${DEFAULT_TIMEOUT_MS}ms`);
-						return json$1({
-							error: `Request timed out after ${DEFAULT_TIMEOUT_MS}ms`,
-							path: p.path
-						});
-					}
-					debugError("[qqbot-channel-api] <<< Network error:", err);
-					return json$1({
-						error: `Network error: ${formatErrorMessage(err)}`,
-						path: p.path
-					});
-				} finally {
-					clearTimeout(timeoutId);
-				}
-				debugLog(`[qqbot-channel-api] <<< Status: ${res.status} ${res.statusText}`);
-				const rawBody = await res.text();
-				if (!rawBody || rawBody.trim() === "") {
-					if (res.ok) return json$1({
-						success: true,
-						status: res.status,
-						path: p.path
-					});
-					return json$1({
-						error: `API returned ${res.status} ${res.statusText}`,
-						status: res.status,
-						path: p.path
-					});
-				}
-				let parsed;
-				try {
-					parsed = JSON.parse(rawBody);
-				} catch {
-					parsed = rawBody;
-				}
-				if (!res.ok) {
-					const errMsg = typeof parsed === "object" && parsed && "message" in parsed ? String(parsed.message) : `${res.status} ${res.statusText}`;
-					debugError(`[qqbot-channel-api] Error [${method} ${p.path}]: ${errMsg}`);
-					return json$1({
-						error: errMsg,
-						status: res.status,
-						path: p.path,
-						details: parsed
-					});
-				}
-				return json$1({
-					success: true,
-					status: res.status,
-					path: p.path,
-					data: parsed
-				});
-			} catch (err) {
-				return json$1({
-					error: formatErrorMessage(err),
-					path: p.path
-				});
-			}
+			return executeChannelApi(params, { accessToken: await getAccessToken(account.appId, account.clientSecret) });
 		}
 	}, { name: "qqbot_channel_api" });
 }
 //#endregion
-//#region extensions/qqbot/src/tools/remind.ts
+//#region extensions/qqbot/src/engine/tools/remind-logic.ts
+/**
+* JSON Schema for AI tool parameters (used by framework registration).
+* AI Tool 参数的 JSON Schema 定义（供框架注册使用）。
+*/
 const RemindSchema = {
 	type: "object",
 	properties: {
@@ -588,7 +248,7 @@ const RemindSchema = {
 		},
 		to: {
 			type: "string",
-			description: "Delivery target from the `[QQBot] to=` context value. Direct-message format: qqbot:c2c:user_openid. Group format: qqbot:group:group_openid. Required when action=add."
+			description: "Optional delivery target. The runtime automatically resolves the current conversation target, so you usually do not need to supply this. Direct-message format: qqbot:c2c:user_openid. Group format: qqbot:group:group_openid."
 		},
 		time: {
 			type: "string",
@@ -609,25 +269,24 @@ const RemindSchema = {
 	},
 	required: ["action"]
 };
-function json(data) {
-	return {
-		content: [{
-			type: "text",
-			text: JSON.stringify(data, null, 2)
-		}],
-		details: data
-	};
-}
+/**
+* Parse a relative time string into milliseconds.
+* 解析相对时间字符串为毫秒数。
+*
+* Supports: "5m", "1h", "1h30m", "2d", "45s", plain number (as minutes).
+*
+* @returns Milliseconds or null if unparseable.
+*/
 function parseRelativeTime(timeStr) {
-	const s = normalizeLowercaseStringOrEmpty(timeStr);
-	if (/^\d+$/.test(s)) return parseInt(s, 10) * 6e4;
+	const s = timeStr.toLowerCase();
+	if (/^\d+$/.test(s)) return Number.parseInt(s, 10) * 6e4;
 	let totalMs = 0;
 	let matched = false;
 	const regex = /(\d+(?:\.\d+)?)\s*(d|h|m|s)/g;
 	let match;
 	while ((match = regex.exec(s)) !== null) {
 		matched = true;
-		const value = parseFloat(match[1]);
+		const value = Number.parseFloat(match[1]);
 		switch (match[2]) {
 			case "d":
 				totalMs += value * 864e5;
@@ -645,21 +304,30 @@ function parseRelativeTime(timeStr) {
 	}
 	return matched ? Math.round(totalMs) : null;
 }
+/**
+* Check whether a time string is a cron expression (3–6 space-separated fields).
+* 判断时间字符串是否为 cron 表达式。
+*/
 function isCronExpression(timeStr) {
 	const parts = timeStr.trim().split(/\s+/);
 	if (parts.length < 3 || parts.length > 6) return false;
 	return parts.every((p) => /^[0-9*?/,LW#-]/.test(p));
 }
+/**
+* Generate a cron job name from reminder content (first 20 chars).
+* 根据提醒内容生成 cron job 名称。
+*/
 function generateJobName(content) {
 	const trimmed = content.trim();
 	return `Reminder: ${trimmed.length > 20 ? `${trimmed.slice(0, 20)}…` : trimmed}`;
 }
+/** Build the reminder system prompt sent to the AI. */
 function buildReminderPrompt(content) {
 	return `You are a warm reminder assistant. Please remind the user about: ${content}. Requirements: (1) do not reply with HEARTBEAT_OK (2) do not explain who you are (3) output a direct and caring reminder message (4) you may add a short encouraging line (5) keep it within 2-3 sentences (6) use a small amount of emoji.`;
 }
-function buildOnceJob(params, delayMs) {
+/** Build cron job params for a one-shot delayed reminder. */
+function buildOnceJob(params, delayMs, to, accountId) {
 	const atMs = Date.now() + delayMs;
-	const to = params.to;
 	const content = params.content;
 	return {
 		action: "add",
@@ -674,16 +342,19 @@ function buildOnceJob(params, delayMs) {
 			deleteAfterRun: true,
 			payload: {
 				kind: "agentTurn",
-				message: buildReminderPrompt(content),
-				deliver: true,
+				message: buildReminderPrompt(content)
+			},
+			delivery: {
+				mode: "announce",
 				channel: "qqbot",
-				to
+				to,
+				accountId
 			}
 		}
 	};
 }
-function buildCronJob(params) {
-	const to = params.to;
+/** Build cron job params for a recurring cron reminder. */
+function buildCronJob(params, to, accountId) {
 	const content = params.content;
 	const name = params.name || generateJobName(content);
 	const tz = params.timezone || "Asia/Shanghai";
@@ -700,14 +371,18 @@ function buildCronJob(params) {
 			wakeMode: "now",
 			payload: {
 				kind: "agentTurn",
-				message: buildReminderPrompt(content),
-				deliver: true,
+				message: buildReminderPrompt(content)
+			},
+			delivery: {
+				mode: "announce",
 				channel: "qqbot",
-				to
+				to,
+				accountId
 			}
 		}
 	};
 }
+/** Format a delay in milliseconds as a short string (e.g. "5m", "1h30m"). */
 function formatDelay(ms) {
 	const totalSeconds = Math.round(ms / 1e3);
 	if (totalSeconds < 60) return `${totalSeconds}s`;
@@ -718,215 +393,209 @@ function formatDelay(ms) {
 	if (minutes === 0) return `${hours}h`;
 	return `${hours}h${minutes}m`;
 }
+function json(data) {
+	return {
+		content: [{
+			type: "text",
+			text: JSON.stringify(data, null, 2)
+		}],
+		details: data
+	};
+}
+/**
+* Execute the reminder tool logic.
+* 执行提醒工具逻辑。
+*
+* Validates params, parses time, and returns a structured result
+* containing cron job params that the framework shell passes back
+* as the tool output.
+*
+* When the AI omits `to` / `accountId`, the bridge layer can supply
+* `ctx.fallbackTo` / `ctx.fallbackAccountId` (typically resolved from
+* the request-scoped AsyncLocalStorage) to fill them in.
+*/
+function executeRemind(params, ctx = {}) {
+	if (params.action === "list") return json({
+		_instruction: "Use the cron tool immediately with the following parameters.",
+		cronParams: { action: "list" }
+	});
+	if (params.action === "remove") {
+		if (!params.jobId) return json({ error: "jobId is required when action=remove. Use action=list first." });
+		return json({
+			_instruction: "Use the cron tool immediately with the following parameters.",
+			cronParams: {
+				action: "remove",
+				jobId: params.jobId
+			}
+		});
+	}
+	if (!params.content) return json({ error: "content is required when action=add" });
+	const resolvedTo = params.to || ctx.fallbackTo;
+	if (!resolvedTo) return json({ error: "Unable to determine delivery target for action=add. The reminder can only be scheduled from within an active conversation." });
+	if (!params.time) return json({ error: "time is required when action=add" });
+	const resolvedAccountId = ctx.fallbackAccountId || "default";
+	if (isCronExpression(params.time)) return json({
+		_instruction: "Use the cron tool immediately with the following parameters. Pass cronParams verbatim — do not modify or omit any field, especially delivery.accountId — then tell the user the reminder has been scheduled.",
+		cronParams: buildCronJob(params, resolvedTo, resolvedAccountId),
+		summary: `⏰ Recurring reminder: "${params.content}" (${params.time}, tz=${params.timezone || "Asia/Shanghai"})`
+	});
+	const delayMs = parseRelativeTime(params.time);
+	if (delayMs == null) return json({ error: `Could not parse time format: ${params.time}. Use values like 5m, 1h, 1h30m, or a cron expression.` });
+	if (delayMs < 3e4) return json({ error: "Reminder delay must be at least 30 seconds" });
+	return json({
+		_instruction: "Use the cron tool immediately with the following parameters. Pass cronParams verbatim — do not modify or omit any field, especially delivery.accountId — then tell the user the reminder has been scheduled.",
+		cronParams: buildOnceJob(params, delayMs, resolvedTo, resolvedAccountId),
+		summary: `⏰ Reminder in ${formatDelay(delayMs)}: "${params.content}"`
+	});
+}
+//#endregion
+//#region extensions/qqbot/src/bridge/tools/remind.ts
 function registerRemindTool(api) {
 	api.registerTool({
 		name: "qqbot_remind",
 		label: "QQBot Reminder",
-		description: "Create, list, and remove QQ reminders. Use simple parameters without manually building cron JSON.\nCreate: action=add, content=message, to=target, time=schedule\nList: action=list\nRemove: action=remove, jobId=job id from list\nTime examples: \"5m\", \"1h\", \"0 8 * * *\"",
+		description: "Create, list, and remove QQ reminders. Use simple parameters without manually building cron JSON.\nCreate: action=add, content=message, time=schedule (to is optional, resolved automatically from the current conversation)\nList: action=list\nRemove: action=remove, jobId=job id from list\nTime examples: \"5m\", \"1h\", \"0 8 * * *\"",
 		parameters: RemindSchema,
 		async execute(_toolCallId, params) {
-			const p = params;
-			if (p.action === "list") return json({
-				_instruction: "Use the cron tool immediately with the following parameters.",
-				cronParams: { action: "list" }
-			});
-			if (p.action === "remove") {
-				if (!p.jobId) return json({ error: "jobId is required when action=remove. Use action=list first." });
-				return json({
-					_instruction: "Use the cron tool immediately with the following parameters.",
-					cronParams: {
-						action: "remove",
-						jobId: p.jobId
-					}
-				});
-			}
-			if (!p.content) return json({ error: "content is required when action=add" });
-			if (!p.to) return json({ error: "to is required when action=add" });
-			if (!p.time) return json({ error: "time is required when action=add" });
-			if (isCronExpression(p.time)) return json({
-				_instruction: "Use the cron tool immediately with the following parameters, then tell the user the reminder has been scheduled.",
-				cronParams: buildCronJob(p),
-				summary: `⏰ Recurring reminder: "${p.content}" (${p.time}, tz=${p.timezone || "Asia/Shanghai"})`
-			});
-			const delayMs = parseRelativeTime(p.time);
-			if (delayMs == null) return json({ error: `Could not parse time format: ${p.time}. Use values like 5m, 1h, 1h30m, or a cron expression.` });
-			if (delayMs < 3e4) return json({ error: "Reminder delay must be at least 30 seconds" });
-			return json({
-				_instruction: "Use the cron tool immediately with the following parameters, then tell the user the reminder has been scheduled.",
-				cronParams: buildOnceJob(p, delayMs),
-				summary: `⏰ Reminder in ${formatDelay(delayMs)}: "${p.content}"`
+			const ctx = getRequestContext();
+			return executeRemind(params, {
+				fallbackTo: ctx?.target,
+				fallbackAccountId: ctx?.accountId
 			});
 		}
 	}, { name: "qqbot_remind" });
 }
 //#endregion
-//#region extensions/qqbot/src/proactive.ts
-/** Look up a known user entry (adapter for the old proactive API shape). */
-function getKnownUser(type, openid, accountId) {
-	return getKnownUser$1(accountId, openid, type);
+//#region extensions/qqbot/src/bridge/tools/index.ts
+function registerQQBotTools(api) {
+	registerChannelTool(api);
+	registerRemindTool(api);
 }
-/** List known users with optional filtering and sorting (adapter). */
-function listKnownUsers(options) {
-	const type = options?.type;
-	return listKnownUsers$1({
-		type: type === "channel" ? void 0 : type,
-		accountId: options?.accountId,
-		limit: options?.limit,
-		sortBy: options?.sortByLastInteraction !== false ? "lastSeenAt" : void 0,
-		sortOrder: "desc"
-	});
-}
-/** Remove one known user entry (adapter). */
-function removeKnownUser(type, openid, accountId) {
-	return removeKnownUser$1(accountId, openid, type);
-}
-/** Clear all known users, optionally scoped to a single account (adapter). */
-function clearKnownUsers(accountId) {
-	return clearKnownUsers$1(accountId);
-}
-/** Resolve account config and send a proactive message. */
-async function sendProactive(options, cfg) {
-	const { to, text, type = "c2c", imageUrl, accountId = resolveDefaultQQBotAccountId(cfg) } = options;
-	const account = resolveQQBotAccount(cfg, accountId);
-	if (!account.appId || !account.clientSecret) return {
-		success: false,
-		error: "QQBot not configured (missing appId or clientSecret)"
-	};
-	try {
-		const accessToken = await getAccessToken(account.appId, account.clientSecret);
-		if (imageUrl) try {
-			if (type === "c2c") await sendC2CImageMessage(account.appId, accessToken, to, imageUrl, void 0, void 0);
-			else if (type === "group") await sendGroupImageMessage(account.appId, accessToken, to, imageUrl, void 0, void 0);
-			debugLog(`[qqbot:proactive] Sent image to ${type}:${to}`);
-		} catch (err) {
-			debugError(`[qqbot:proactive] Failed to send image: ${String(err)}`);
-		}
-		let result;
-		if (type === "c2c") result = await sendProactiveC2CMessage(account.appId, accessToken, to, text);
-		else if (type === "group") result = await sendProactiveGroupMessage(account.appId, accessToken, to, text);
-		else if (type === "channel") return {
-			success: false,
-			error: "Channel proactive messages are not supported. Please use group or c2c."
-		};
-		else return {
-			success: false,
-			error: `Unknown message type: ${String(type)}`
-		};
-		debugLog(`[qqbot:proactive] Sent message to ${type}:${to}, id: ${result.id}`);
-		return {
-			success: true,
-			messageId: result.id,
-			timestamp: result.timestamp
-		};
-	} catch (err) {
-		const message = formatErrorMessage(err);
-		debugError(`[qqbot:proactive] Failed to send message: ${message}`);
-		return {
-			success: false,
-			error: message
-		};
-	}
-}
-/** Send one proactive message to each recipient. */
-async function sendBulkProactiveMessage(recipients, text, type, cfg, accountId = resolveDefaultQQBotAccountId(cfg)) {
-	const results = [];
-	for (const to of recipients) {
-		const result = await sendProactive({
-			to,
-			text,
-			type,
-			accountId
-		}, cfg);
-		results.push({
-			to,
-			result
-		});
-		await new Promise((resolve) => setTimeout(resolve, 500));
-	}
-	return results;
-}
+//#endregion
+//#region extensions/qqbot/src/bridge/commands/framework-context-adapter.ts
 /**
-* Send a message to all known users.
+* Default queue snapshot used for framework-registered commands.
 *
-* @param text Message content.
-* @param cfg OpenClaw config.
-* @param options Optional filters.
-* @returns Aggregate send statistics.
+* Framework-side command dispatch runs outside the per-sender queue, so
+* handlers observe an empty snapshot by design.
 */
-async function broadcastMessage(text, cfg, options) {
-	const validUsers = listKnownUsers({
-		type: options?.type,
-		accountId: options?.accountId,
-		limit: options?.limit,
-		sortByLastInteraction: true
-	}).filter((u) => u.type === "c2c" || u.type === "group");
-	const results = [];
-	let success = 0;
-	let failed = 0;
-	for (const user of validUsers) {
-		const targetId = user.type === "group" ? user.groupOpenid ?? user.openid : user.openid;
-		const result = await sendProactive({
-			to: targetId,
-			text,
-			type: user.type,
-			accountId: user.accountId
-		}, cfg);
-		results.push({
-			to: targetId,
-			result
-		});
-		if (result.success) success++;
-		else failed++;
-		await new Promise((resolve) => setTimeout(resolve, 500));
-	}
+const DEFAULT_QUEUE_SNAPSHOT = {
+	totalPending: 0,
+	activeUsers: 0,
+	maxConcurrentUsers: 10,
+	senderPending: 0
+};
+function buildFrameworkSlashContext({ ctx, account, from, commandName }) {
+	const args = ctx.args ?? "";
+	const rawContent = args ? `/${commandName} ${args}` : `/${commandName}`;
 	return {
-		total: validUsers.length,
-		success,
-		failed,
-		results
-	};
-}
-/**
-* Send a proactive message using a resolved account without a full config object.
-*
-* @param account Resolved account configuration.
-* @param to Target openid.
-* @param text Message content.
-* @param type Message type.
-*/
-async function sendProactiveMessageDirect(account, to, text, type = "c2c") {
-	if (!account.appId || !account.clientSecret) return {
-		success: false,
-		error: "QQBot not configured (missing appId or clientSecret)"
-	};
-	try {
-		const accessToken = await getAccessToken(account.appId, account.clientSecret);
-		let result;
-		if (type === "c2c") result = await sendProactiveC2CMessage(account.appId, accessToken, to, text);
-		else result = await sendProactiveGroupMessage(account.appId, accessToken, to, text);
-		return {
-			success: true,
-			messageId: result.id,
-			timestamp: result.timestamp
-		};
-	} catch (err) {
-		return {
-			success: false,
-			error: formatErrorMessage(err)
-		};
-	}
-}
-/**
-* Return known-user counts for the selected account.
-*/
-function getKnownUsersStats(accountId) {
-	const users = listKnownUsers({ accountId });
-	return {
-		total: users.length,
-		c2c: users.filter((u) => u.type === "c2c").length,
-		group: users.filter((u) => u.type === "group").length,
-		channel: 0
+		type: from.msgType,
+		senderId: ctx.senderId ?? "",
+		messageId: "",
+		eventTimestamp: (/* @__PURE__ */ new Date()).toISOString(),
+		receivedAt: Date.now(),
+		rawContent,
+		args,
+		accountId: account.accountId,
+		appId: account.appId,
+		accountConfig: account.config,
+		commandAuthorized: true,
+		queueSnapshot: { ...DEFAULT_QUEUE_SNAPSHOT }
 	};
 }
 //#endregion
-export { DEFAULT_ACCOUNT_ID, applyQQBotAccountConfig, broadcastMessage, checkMessageReplyLimit, clearKnownUsers, clearKnownUsers$1 as clearKnownUsersFromStore, flushKnownUsers, getFrameworkCommands, getKnownUser, getKnownUser$1 as getKnownUserFromStore, getKnownUsersStats, getMessageReplyConfig, getMessageReplyStats, listKnownUsers, listKnownUsers$1 as listKnownUsersFromStore, listQQBotAccountIds, qqbotPlugin, qqbotSetupPlugin, recordKnownUser, recordMessageReply, registerChannelTool, registerRemindTool, removeKnownUser, removeKnownUser$1 as removeKnownUserFromStore, resolveDefaultQQBotAccountId, resolveQQBotAccount, sendBulkProactiveMessage, sendCronMessage, sendDocument, sendMedia, sendPhoto, sendProactive, sendProactiveMessage, sendProactiveMessageDirect, sendText, sendVideoMsg, sendVoice };
+//#region extensions/qqbot/src/bridge/commands/from-parser.ts
+const MSG_TYPE_MAP = {
+	c2c: "c2c",
+	dm: "dm",
+	group: "group",
+	channel: "guild"
+};
+const TARGET_TYPE_MAP = {
+	c2c: "c2c",
+	dm: "dm",
+	group: "group",
+	channel: "channel"
+};
+function isFromKind(value) {
+	return value === "c2c" || value === "dm" || value === "group" || value === "channel";
+}
+/**
+* Parse `ctx.from` into the structured fields the QQBot bridge expects.
+*
+* Unknown or missing prefixes fall back to c2c. The remainder after the first
+* `:` is returned verbatim as the target id, matching what the previous inline
+* implementation did.
+*/
+function parseQQBotFrom(from) {
+	const stripped = (from ?? "").replace(/^qqbot:/iu, "");
+	const colonIdx = stripped.indexOf(":");
+	const rawPrefix = colonIdx === -1 ? stripped : stripped.slice(0, colonIdx);
+	const targetId = colonIdx === -1 ? stripped : stripped.slice(colonIdx + 1);
+	const kind = isFromKind(rawPrefix) ? rawPrefix : "c2c";
+	return {
+		msgType: MSG_TYPE_MAP[kind],
+		targetType: TARGET_TYPE_MAP[kind],
+		targetId
+	};
+}
+//#endregion
+//#region extensions/qqbot/src/bridge/commands/result-dispatcher.ts
+const UNEXPECTED_RESULT_TEXT = "⚠️ 命令返回了意外结果。";
+function hasFilePath(value) {
+	return typeof value === "object" && value !== null && "filePath" in value && typeof value.filePath === "string";
+}
+function buildMediaTarget(account, from) {
+	return {
+		targetType: from.targetType,
+		targetId: from.targetId,
+		account
+	};
+}
+async function dispatchFrameworkSlashResult({ result, account, from, logger }) {
+	if (typeof result === "string") return { text: result };
+	if (hasFilePath(result)) {
+		const mediaCtx = buildMediaTarget(account, from);
+		try {
+			await sendDocument(mediaCtx, result.filePath, { allowQQBotDataDownloads: true });
+		} catch (err) {
+			logger?.warn(`framework slash file send failed: ${String(err)}`);
+		}
+		return { text: result.text };
+	}
+	return { text: UNEXPECTED_RESULT_TEXT };
+}
+//#endregion
+//#region extensions/qqbot/src/bridge/commands/framework-registration.ts
+function registerQQBotFrameworkCommands(api) {
+	for (const cmd of getFrameworkCommands()) api.registerCommand({
+		name: cmd.name,
+		description: cmd.description,
+		requireAuth: true,
+		acceptsArgs: true,
+		handler: async (ctx) => {
+			const from = parseQQBotFrom(ctx.from);
+			const account = resolveQQBotAccount(ctx.config, ctx.accountId ?? void 0);
+			const slashCtx = buildFrameworkSlashContext({
+				ctx,
+				account,
+				from,
+				commandName: cmd.name
+			});
+			return await dispatchFrameworkSlashResult({
+				result: await cmd.handler(slashCtx),
+				account,
+				from,
+				logger: api.logger
+			});
+		}
+	});
+}
+//#endregion
+//#region extensions/qqbot/src/bridge/channel-entry.ts
+function registerQQBotFull(api) {
+	registerQQBotTools(api);
+	registerQQBotFrameworkCommands(api);
+}
+//#endregion
+export { DEFAULT_ACCOUNT_ID, applyQQBotAccountConfig, checkMessageReplyLimit, getFrameworkCommands, getMessageReplyConfig, getMessageReplyStats, listQQBotAccountIds, qqbotPlugin, qqbotSetupPlugin, recordMessageReply, registerChannelTool, registerOutboundAudioAdapter, registerOutboundAudioAdapterFactory, registerQQBotFull, registerQQBotTools, registerRemindTool, resolveDefaultQQBotAccountId, resolveQQBotAccount, sendCronMessage, sendDocument, sendMedia, sendPhoto, sendProactiveMessage, sendText, sendVideoMsg, sendVoice };

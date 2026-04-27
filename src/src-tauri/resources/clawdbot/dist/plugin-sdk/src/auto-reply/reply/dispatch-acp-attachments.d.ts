@@ -8,3 +8,7 @@ export declare function resolveAcpAttachments(params: {
     cfg: OpenClawConfig;
     runtime?: DispatchAcpAttachmentRuntime;
 }): Promise<AcpTurnAttachment[]>;
+export declare function resolveAcpInlineImageAttachments(images: Array<{
+    data: string;
+    mimeType: string;
+}> | undefined): AcpTurnAttachment[];

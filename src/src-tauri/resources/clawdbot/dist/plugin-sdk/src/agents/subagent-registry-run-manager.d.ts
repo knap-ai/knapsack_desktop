@@ -1,11 +1,30 @@
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { callGateway } from "../gateway/call.js";
-import { type DeliveryContext } from "../utils/delivery-context.js";
+import type { DeliveryContext } from "../utils/delivery-context.types.js";
 import type { ensureRuntimePluginsLoaded as ensureRuntimePluginsLoadedFn } from "./runtime-plugins.js";
-import type { SubagentRunOutcome } from "./subagent-announce-output.js";
+import { type SubagentRunOutcome } from "./subagent-announce-output.js";
 import { type SubagentLifecycleEndedReason } from "./subagent-lifecycle-events.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
+export type RegisterSubagentRunParams = {
+    runId: string;
+    childSessionKey: string;
+    controllerSessionKey?: string;
+    requesterSessionKey: string;
+    requesterOrigin?: DeliveryContext;
+    requesterDisplayKey: string;
+    task: string;
+    cleanup: "delete" | "keep";
+    label?: string;
+    model?: string;
+    workspaceDir?: string;
+    runTimeoutSeconds?: number;
+    expectsCompletionMessage?: boolean;
+    spawnMode?: "run" | "session";
+    attachmentsDir?: string;
+    attachmentsRootDir?: string;
+    retainAttachmentsOnKeep?: boolean;
+};
 export declare function createSubagentRunManager(params: {
     runs: Map<string, SubagentRunRecord>;
     resumedRuns: Set<string>;
@@ -24,6 +43,10 @@ export declare function createSubagentRunManager(params: {
     resumeSubagentRun(runId: string): void;
     clearPendingLifecycleError(runId: string): void;
     resolveSubagentWaitTimeoutMs(cfg: OpenClawConfig, runTimeoutSeconds?: number): number;
+    scheduleOrphanRecovery(args?: {
+        delayMs?: number;
+        maxRetries?: number;
+    }): void;
     notifyContextEngineSubagentEnded(args: {
         childSessionKey: string;
         reason: "completed" | "deleted" | "released";
@@ -52,25 +75,7 @@ export declare function createSubagentRunManager(params: {
         childSessionKey?: string;
         reason?: string;
     }) => number;
-    registerSubagentRun: (registerParams: {
-        runId: string;
-        childSessionKey: string;
-        controllerSessionKey?: string;
-        requesterSessionKey: string;
-        requesterOrigin?: DeliveryContext;
-        requesterDisplayKey: string;
-        task: string;
-        cleanup: "delete" | "keep";
-        label?: string;
-        model?: string;
-        workspaceDir?: string;
-        runTimeoutSeconds?: number;
-        expectsCompletionMessage?: boolean;
-        spawnMode?: "run" | "session";
-        attachmentsDir?: string;
-        attachmentsRootDir?: string;
-        retainAttachmentsOnKeep?: boolean;
-    }) => void;
+    registerSubagentRun: (registerParams: RegisterSubagentRunParams) => void;
     releaseSubagentRun: (runId: string) => void;
     replaceSubagentRunAfterSteer: (replaceParams: {
         previousRunId: string;

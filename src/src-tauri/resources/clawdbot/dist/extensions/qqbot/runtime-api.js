@@ -1,2 +1,2 @@
-import { n as setQQBotRuntime, t as getQQBotRuntime } from "./runtime-B2Qn21pE.js";
+import { r as setQQBotRuntime, t as getQQBotRuntime } from "./runtime-BWC3dtWO.js";
 export { getQQBotRuntime, setQQBotRuntime };

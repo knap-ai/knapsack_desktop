@@ -1,2 +1,2 @@
-import { t as buildOpenAIRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-Go1TEQlr.js";
+import { t as buildOpenAIRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-DS6PLcFC.js";
 export { buildOpenAIRealtimeTranscriptionProvider };

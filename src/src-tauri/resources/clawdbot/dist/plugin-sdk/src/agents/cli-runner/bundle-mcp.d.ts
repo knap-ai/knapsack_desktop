@@ -6,6 +6,7 @@ type PreparedCliBundleMcpConfig = {
     backend: CliBackendConfig;
     cleanup?: () => Promise<void>;
     mcpConfigHash?: string;
+    mcpResumeHash?: string;
     env?: Record<string, string>;
 };
 export declare function prepareCliBundleMcpConfig(params: {

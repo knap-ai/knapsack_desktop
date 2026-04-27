@@ -1,10 +1,10 @@
-import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-nkL4zxbI.js";
-import "../../provider-auth-api-key-F-AGqwyB.js";
-import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-CQPCLokR.js";
-import { a as buildArceeProvider, i as buildArceeOpenRouterProvider, o as isArceeOpenRouterBaseUrl, s as toArceeOpenRouterModelId } from "../../provider-catalog-DqeehucC.js";
-import { i as applyArceeOpenRouterConfig, n as ARCEE_OPENROUTER_DEFAULT_MODEL_REF, r as applyArceeConfig, t as ARCEE_DEFAULT_MODEL_REF } from "../../onboard-BwoOjGFg.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
+import "../../provider-auth-api-key-BVwjjhIk.js";
+import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-BIM0n3KJ.js";
+import { a as buildArceeProvider, c as toArceeOpenRouterModelId, i as buildArceeOpenRouterProvider, s as normalizeArceeOpenRouterBaseUrl } from "../../provider-catalog-B9bu47IL.js";
+import { i as applyArceeOpenRouterConfig, n as ARCEE_OPENROUTER_DEFAULT_MODEL_REF, r as applyArceeConfig, t as ARCEE_DEFAULT_MODEL_REF } from "../../onboard-CEJv36G8.js";
 //#region extensions/arcee/index.ts
 const PROVIDER_ID = "arcee";
 const ARCEE_WIZARD_GROUP = {
@@ -52,12 +52,6 @@ function buildArceeAuthMethods() {
 		}
 	})];
 }
-function readConfiguredArceeCatalogEntries(config) {
-	return readConfiguredProviderCatalogEntries({
-		config,
-		providerId: PROVIDER_ID
-	});
-}
 async function resolveArceeCatalog(ctx) {
 	const directKey = ctx.resolveProviderApiKey(PROVIDER_ID).apiKey;
 	if (directKey) return { provider: {
@@ -72,10 +66,14 @@ async function resolveArceeCatalog(ctx) {
 	return null;
 }
 function normalizeArceeResolvedModel(model) {
-	if (!isArceeOpenRouterBaseUrl(model.baseUrl)) return;
+	const normalizedBaseUrl = normalizeArceeOpenRouterBaseUrl(model.baseUrl);
+	if (!normalizedBaseUrl) return;
+	const normalizedId = toArceeOpenRouterModelId(model.id);
+	if (normalizedId === model.id && normalizedBaseUrl === model.baseUrl) return;
 	return {
 		...model,
-		id: toArceeOpenRouterModelId(model.id)
+		id: normalizedId,
+		baseUrl: normalizedBaseUrl
 	};
 }
 var arcee_default = definePluginEntry({
@@ -90,8 +88,25 @@ var arcee_default = definePluginEntry({
 			envVars: ["ARCEEAI_API_KEY", "OPENROUTER_API_KEY"],
 			auth: buildArceeAuthMethods(),
 			catalog: { run: resolveArceeCatalog },
-			augmentModelCatalog: ({ config }) => readConfiguredArceeCatalogEntries(config),
+			augmentModelCatalog: ({ config }) => readConfiguredProviderCatalogEntries({
+				config,
+				providerId: PROVIDER_ID
+			}),
+			normalizeConfig: ({ providerConfig }) => {
+				const normalizedBaseUrl = normalizeArceeOpenRouterBaseUrl(providerConfig.baseUrl);
+				return normalizedBaseUrl && normalizedBaseUrl !== providerConfig.baseUrl ? {
+					...providerConfig,
+					baseUrl: normalizedBaseUrl
+				} : void 0;
+			},
 			normalizeResolvedModel: ({ model }) => normalizeArceeResolvedModel(model),
+			normalizeTransport: ({ api, baseUrl }) => {
+				const normalizedBaseUrl = normalizeArceeOpenRouterBaseUrl(baseUrl);
+				return normalizedBaseUrl && normalizedBaseUrl !== baseUrl ? {
+					api,
+					baseUrl: normalizedBaseUrl
+				} : void 0;
+			},
 			...OPENAI_COMPATIBLE_REPLAY_HOOKS
 		});
 	}

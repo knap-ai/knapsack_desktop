@@ -12,4 +12,5 @@ export declare function resolveCronSession(params: {
     sessionEntry: SessionEntry;
     systemSent: boolean;
     isNewSession: boolean;
+    previousSessionId: string | undefined;
 };

@@ -39,6 +39,7 @@ export type InlineDirectives = {
     hasModelDirective: boolean;
     rawModelDirective?: string;
     rawModelProfile?: string;
+    rawModelRuntime?: string;
     hasQueueDirective: boolean;
     queueMode?: QueueMode;
     queueReset: boolean;

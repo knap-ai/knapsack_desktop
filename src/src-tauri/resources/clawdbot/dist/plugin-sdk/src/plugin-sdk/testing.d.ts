@@ -1,5 +1,6 @@
 export { removeAckReactionAfterReply, shouldAckReaction } from "../channels/ack-reactions.js";
 export { expectChannelInboundContextContract, primeChannelOutboundSendMock, } from "../channels/plugins/contracts/test-helpers.js";
+export { installChannelOutboundPayloadContractSuite, type OutboundPayloadHarnessParams, } from "../channels/plugins/contracts/outbound-payload-testkit.js";
 export { buildDispatchInboundCaptureMock } from "../channels/plugins/contracts/inbound-testkit.js";
 export { createCliRuntimeCapture, firstWrittenJsonArg, spyRuntimeErrors, spyRuntimeJson, spyRuntimeLogs, } from "../cli/test-runtime-capture.js";
 export type { CliMockOutputRuntime, CliRuntimeCapture } from "../cli/test-runtime-capture.js";
@@ -32,7 +33,6 @@ export { installCommonResolveTargetErrorCases } from "../test-helpers/resolve-ta
 export { sanitizeTerminalText } from "../terminal/safe-text.js";
 export { withStateDirEnv } from "../test-helpers/state-dir-env.js";
 export { countLines, hasBalancedFences } from "../test-utils/chunk-test-helpers.js";
-export { loadBundledPluginPublicSurfaceSync, loadBundledPluginTestApiSync, resolveRelativeBundledPluginPublicModuleId, } from "../test-utils/bundled-plugin-public-surface.js";
 export { expectGeneratedTokenPersistedToGatewayAuth } from "../test-utils/auth-token-assertions.js";
 export { captureEnv, withEnv, withEnvAsync } from "../test-utils/env.js";
 export { withFetchPreconnect, type FetchMock } from "../test-utils/fetch-mock.js";

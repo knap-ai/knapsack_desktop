@@ -1,17 +1,18 @@
-import { i as formatErrorMessage } from "../../errors-D8p6rxH8.js";
+import { i as formatErrorMessage } from "../../errors-Jbvi20TW.js";
 import { n as defaultRuntime } from "../../runtime-Dx7oeLYq.js";
-import { t as createSubsystemLogger } from "../../subsystem-Cgmckbux.js";
-import { u as resolveAgentIdFromSessionKey } from "../../session-key-Bh1lMwK5.js";
-import { b as resolveAgentWorkspaceDir, g as listAgentIds } from "../../agent-scope-KFH9bkHi.js";
-import { o as isGatewayStartupEvent } from "../../internal-hooks-4i4Rq3Qq.js";
-import { c as updateSessionStore } from "../../store-DFXcceZJ.js";
-import { i as resolveMainSessionKey, n as resolveAgentMainSessionKey } from "../../main-session-DtefsIzj.js";
-import { u as resolveStorePath } from "../../paths-CZMxg3hs.js";
-import { t as loadSessionStore } from "../../store-load-DjLNEIy9.js";
-import { n as SILENT_REPLY_TOKEN } from "../../tokens-CKM4Lddu.js";
-import { t as createDefaultDeps } from "../../deps-wxTK-yVM.js";
-import { n as agentCommand } from "../../agent-command-BExkctFj.js";
-import "../../agent-di24oUD8.js";
+import { t as createSubsystemLogger } from "../../subsystem-CWI_MDy_.js";
+import { u as resolveAgentIdFromSessionKey } from "../../session-key-EpIbK3Oz.js";
+import { b as resolveAgentWorkspaceDir, g as listAgentIds } from "../../agent-scope-_6dFncNS.js";
+import { o as isGatewayStartupEvent } from "../../internal-hooks-BxzYnhn4.js";
+import { i as resolveMainSessionKey, n as resolveAgentMainSessionKey } from "../../main-session-BzfGEj6I.js";
+import { u as resolveStorePath } from "../../paths-DvU8Tgvw.js";
+import { t as loadSessionStore } from "../../store-load-Cf3NDflc.js";
+import { o as updateSessionStore } from "../../store-Bm25Mivo.js";
+import { n as SILENT_REPLY_TOKEN } from "../../tokens-C_v_J0E7.js";
+import { n as agentCommand } from "../../agent-command-jyqmBJy2.js";
+import { t as createDefaultDeps } from "../../deps-DWoMp43P.js";
+import "../../agent-CUupwmHt.js";
+import { t as runStartupTasks } from "../../startup-tasks-CLXvXc0W.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
@@ -154,29 +155,23 @@ const runBootChecklist = async (event) => {
 	if (!event.context.cfg) return;
 	const cfg = event.context.cfg;
 	const deps = event.context.deps ?? createDefaultDeps();
-	const agentIds = listAgentIds(cfg);
-	for (const agentId of agentIds) {
-		const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
-		const result = await runBootOnce({
-			cfg,
-			deps,
-			workspaceDir,
-			agentId
-		});
-		if (result.status === "failed") {
-			log.warn("boot-md failed for agent startup run", {
+	await runStartupTasks({
+		tasks: listAgentIds(cfg).map((agentId) => {
+			const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+			return {
+				source: "boot-md",
 				agentId,
 				workspaceDir,
-				reason: result.reason
-			});
-			continue;
-		}
-		if (result.status === "skipped") log.debug("boot-md skipped for agent startup run", {
-			agentId,
-			workspaceDir,
-			reason: result.reason
-		});
-	}
+				run: () => runBootOnce({
+					cfg,
+					deps,
+					workspaceDir,
+					agentId
+				})
+			};
+		}),
+		log
+	});
 };
 //#endregion
 export { runBootChecklist as default };

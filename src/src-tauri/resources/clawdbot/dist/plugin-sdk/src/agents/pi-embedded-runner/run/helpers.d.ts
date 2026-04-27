@@ -57,6 +57,7 @@ export declare function buildErrorAgentMeta(params: {
     sessionId: string;
     provider: string;
     model: string;
+    contextTokens?: number;
     usageAccumulator: UsageAccumulator;
     lastRunPromptUsage: UsageSnapshot | undefined;
     lastAssistant?: {

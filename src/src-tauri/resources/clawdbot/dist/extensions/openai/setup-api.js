@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { t as buildOpenAICodexCliBackend } from "../../cli-backend-gBOMQFPa.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as buildOpenAICodexCliBackend } from "../../cli-backend-JwVjPiHZ.js";
 //#region extensions/openai/setup-api.ts
 var setup_api_default = definePluginEntry({
 	id: "openai",

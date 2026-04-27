@@ -12,6 +12,7 @@ const DEFAULT_COST = {
 const DEFAULT_CONTEXT_WINDOW = 32e3;
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
+const MANTLE_IAM_TOKEN_MARKER = "__amazon_bedrock_mantle_iam__";
 const MANTLE_SUPPORTED_REGIONS = [
 	"us-east-1",
 	"us-east-2",
@@ -32,6 +33,10 @@ function mantleEndpoint(region) {
 function isSupportedRegion(region) {
 	return MANTLE_SUPPORTED_REGIONS.includes(region);
 }
+async function loadMantleBearerTokenProviderFactory() {
+	const { getTokenProvider } = await import("@aws/bedrock-token-generator");
+	return getTokenProvider;
+}
 /**
 * Resolve a bearer token for Mantle authentication.
 *
@@ -45,7 +50,14 @@ function resolveMantleBearerToken(env = process.env) {
 }
 /** Token cache for IAM-derived bearer tokens, keyed by region. */
 const iamTokenCache = /* @__PURE__ */ new Map();
-const IAM_TOKEN_TTL_MS = 36e5;
+const IAM_TOKEN_TTL_MS = 72e5;
+function resolveMantleRegion(env) {
+	return env.AWS_REGION ?? env.AWS_DEFAULT_REGION ?? "us-east-1";
+}
+function getCachedIamTokenEntry(region, now = Date.now()) {
+	const cached = iamTokenCache.get(region);
+	if (cached && cached.expiresAt > now) return cached;
+}
 /**
 * Generate a bearer token from IAM credentials using `@aws/bedrock-token-generator`.
 *
@@ -54,11 +66,10 @@ const IAM_TOKEN_TTL_MS = 36e5;
 */
 async function generateBearerTokenFromIam(params) {
 	const now = params.now?.() ?? Date.now();
-	const cached = iamTokenCache.get(params.region);
-	if (cached && cached.expiresAt > now) return cached.token;
+	const cached = getCachedIamTokenEntry(params.region, now);
+	if (cached) return cached.token;
 	try {
-		const { getTokenProvider } = await import("@aws/bedrock-token-generator");
-		const token = await getTokenProvider({
+		const token = await (params.tokenProviderFactory ?? await loadMantleBearerTokenProviderFactory())({
 			region: params.region,
 			expiresInSeconds: 7200
 		})();
@@ -74,6 +85,36 @@ async function generateBearerTokenFromIam(params) {
 		});
 		return;
 	}
+}
+/**
+* Read a cached IAM bearer token for the given region (sync, no generation).
+*
+* Returns the token if it exists and has not expired, undefined otherwise.
+* Used by Mantle runtime auth and tests to inspect the current cache.
+*/
+function getCachedIamToken(region) {
+	return getCachedIamTokenEntry(region)?.token;
+}
+async function resolveMantleRuntimeBearerToken(params) {
+	if (params.apiKey !== "__amazon_bedrock_mantle_iam__") return { apiKey: params.apiKey };
+	const now = params.now?.() ?? Date.now();
+	const region = resolveMantleRegion(params.env ?? process.env);
+	const cached = getCachedIamTokenEntry(region, now);
+	if (cached) return {
+		apiKey: cached.token,
+		expiresAt: cached.expiresAt
+	};
+	const token = await generateBearerTokenFromIam({
+		region,
+		now: params.now,
+		tokenProviderFactory: params.tokenProviderFactory
+	});
+	if (!token) return;
+	const refreshed = getCachedIamTokenEntry(region, now);
+	return {
+		apiKey: refreshed?.token ?? token,
+		expiresAt: refreshed?.expiresAt ?? now + IAM_TOKEN_TTL_MS
+	};
 }
 /** Reset the IAM token cache (for testing). */
 function resetIamTokenCacheForTest() {
@@ -159,13 +200,16 @@ async function discoverMantleModels(params) {
 */
 async function resolveImplicitMantleProvider(params) {
 	const env = params.env ?? process.env;
-	const region = env.AWS_REGION ?? env.AWS_DEFAULT_REGION ?? "us-east-1";
+	const region = resolveMantleRegion(env);
 	const explicitBearerToken = resolveMantleBearerToken(env);
 	if (!isSupportedRegion(region)) {
 		log.debug?.("Mantle not available in region", { region });
 		return null;
 	}
-	const bearerToken = explicitBearerToken ?? await generateBearerTokenFromIam({ region });
+	const bearerToken = explicitBearerToken ?? await generateBearerTokenFromIam({
+		region,
+		tokenProviderFactory: params.tokenProviderFactory
+	});
 	if (!bearerToken) return null;
 	const models = await discoverMantleModels({
 		region,
@@ -177,12 +221,28 @@ async function resolveImplicitMantleProvider(params) {
 		region,
 		modelCount: models.length
 	});
+	const claudeModels = [{
+		id: "anthropic.claude-opus-4-7",
+		name: "Claude Opus 4.7",
+		api: "anthropic-messages",
+		reasoning: false,
+		input: ["text", "image"],
+		cost: {
+			input: 5,
+			output: 25,
+			cacheRead: .5,
+			cacheWrite: 6.25
+		},
+		contextWindow: 1e6,
+		maxTokens: 128e3
+	}];
+	const allModels = [...models, ...claudeModels];
 	return {
 		baseUrl: `${mantleEndpoint(region)}/v1`,
 		api: "openai-completions",
 		auth: "api-key",
-		apiKey: explicitBearerToken ? "env:AWS_BEARER_TOKEN_BEDROCK" : bearerToken,
-		models
+		apiKey: explicitBearerToken ? "env:AWS_BEARER_TOKEN_BEDROCK" : MANTLE_IAM_TOKEN_MARKER,
+		models: allModels
 	};
 }
 function mergeImplicitMantleProvider(params) {
@@ -195,4 +255,4 @@ function mergeImplicitMantleProvider(params) {
 	};
 }
 //#endregion
-export { discoverMantleModels, generateBearerTokenFromIam, mergeImplicitMantleProvider, resetIamTokenCacheForTest, resetMantleDiscoveryCacheForTest, resolveImplicitMantleProvider, resolveMantleBearerToken };
+export { MANTLE_IAM_TOKEN_MARKER, discoverMantleModels, generateBearerTokenFromIam, getCachedIamToken, mergeImplicitMantleProvider, resetIamTokenCacheForTest, resetMantleDiscoveryCacheForTest, resolveImplicitMantleProvider, resolveMantleBearerToken, resolveMantleRuntimeBearerToken };

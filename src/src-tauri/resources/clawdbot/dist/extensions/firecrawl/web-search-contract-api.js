@@ -1,4 +1,4 @@
-import { t as createWebSearchProviderContractFields } from "../../provider-web-search-contract-DOpaloH2.js";
+import { t as createWebSearchProviderContractFields } from "../../provider-web-search-contract-TmT6tVtk.js";
 //#region extensions/firecrawl/web-search-contract-api.ts
 function createFirecrawlWebSearchProvider() {
 	const credentialPath = "plugins.entries.firecrawl.config.webSearch.apiKey";

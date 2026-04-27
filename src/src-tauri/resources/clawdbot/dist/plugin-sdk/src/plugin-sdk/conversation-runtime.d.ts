@@ -1,5 +1,5 @@
 export { createConversationBindingRecord, getConversationBindingCapabilities, listSessionBindingRecords, resolveConversationBindingRecord, touchConversationBindingRecord, unbindConversationBindingRecord, } from "../bindings/records.js";
-export { ensureConfiguredBindingRouteReady, resolveConfiguredBindingRoute, type ConfiguredBindingRouteResult, } from "../channels/plugins/binding-routing.js";
+export { ensureConfiguredBindingRouteReady, resolveConfiguredBindingRoute, type ConfiguredBindingRouteResult, resolveRuntimeConversationBindingRoute, type RuntimeConversationBindingRouteResult, } from "../channels/plugins/binding-routing.js";
 export { primeConfiguredBindingRegistry, resolveConfiguredBinding, resolveConfiguredBindingRecord, resolveConfiguredBindingRecordBySessionKey, resolveConfiguredBindingRecordForConversation, } from "../channels/plugins/binding-registry.js";
 export { ensureConfiguredBindingTargetReady, ensureConfiguredBindingTargetSession, resetConfiguredBindingTargetInPlace, } from "../channels/plugins/binding-targets.js";
 export { resolveConversationLabel } from "../channels/conversation-label.js";

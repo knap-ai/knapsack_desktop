@@ -11,6 +11,19 @@
       "groq"
     ]
   },
+  "mediaUnderstandingProviderMetadata": {
+    "groq": {
+      "capabilities": [
+        "audio"
+      ],
+      "defaultModels": {
+        "audio": "whisper-large-v3-turbo"
+      },
+      "autoPriority": {
+        "audio": 20
+      }
+    }
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

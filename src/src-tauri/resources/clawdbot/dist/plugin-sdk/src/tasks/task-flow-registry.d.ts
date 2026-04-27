@@ -10,12 +10,9 @@ type FlowRecordPatch = Omit<Partial<Pick<TaskFlowRecord, "status" | "notifyPolic
     cancelRequestedAt?: number | null;
     endedAt?: number | null;
 };
-export type CreateFlowRecordParams = {
-    syncMode?: TaskFlowSyncMode;
+type FlowRecordCreateFields = {
     ownerKey: string;
     requesterOrigin?: TaskFlowRecord["requesterOrigin"];
-    controllerId?: string | null;
-    revision?: number;
     status?: TaskFlowStatus;
     notifyPolicy?: TaskNotifyPolicy;
     goal: string;
@@ -28,6 +25,11 @@ export type CreateFlowRecordParams = {
     createdAt?: number;
     updatedAt?: number;
     endedAt?: number | null;
+};
+export type CreateFlowRecordParams = FlowRecordCreateFields & {
+    syncMode?: TaskFlowSyncMode;
+    controllerId?: string | null;
+    revision?: number;
 };
 export type TaskFlowUpdateResult = {
     applied: true;
@@ -40,22 +42,8 @@ export type TaskFlowUpdateResult = {
 export declare function deriveTaskFlowStatusFromTask(task: Pick<TaskRecord, "status" | "terminalOutcome">): TaskFlowStatus;
 export declare function getTaskFlowRegistryRestoreFailure(): string | null;
 export declare function createFlowRecord(params: CreateFlowRecordParams): TaskFlowRecord;
-export declare function createManagedTaskFlow(params: {
-    ownerKey: string;
+export declare function createManagedTaskFlow(params: FlowRecordCreateFields & {
     controllerId: string;
-    requesterOrigin?: TaskFlowRecord["requesterOrigin"];
-    status?: TaskFlowStatus;
-    notifyPolicy?: TaskNotifyPolicy;
-    goal: string;
-    currentStep?: string | null;
-    blockedTaskId?: string | null;
-    blockedSummary?: string | null;
-    stateJson?: JsonValue | null;
-    waitJson?: JsonValue | null;
-    cancelRequestedAt?: number | null;
-    createdAt?: number;
-    updatedAt?: number;
-    endedAt?: number | null;
 }): TaskFlowRecord;
 export declare function createTaskFlowForTask(params: {
     task: Pick<TaskRecord, "ownerKey" | "taskId" | "notifyPolicy" | "status" | "terminalOutcome" | "label" | "task" | "createdAt" | "lastEventAt" | "endedAt" | "terminalSummary" | "progressSummary">;

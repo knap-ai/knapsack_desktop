@@ -5,3 +5,8 @@ export declare function generatePkceVerifierChallenge(): {
     verifier: string;
     challenge: string;
 };
+/** Generate a PKCE verifier/challenge pair with a 64-character hex verifier. */
+export declare function generateHexPkceVerifierChallenge(): {
+    verifier: string;
+    challenge: string;
+};

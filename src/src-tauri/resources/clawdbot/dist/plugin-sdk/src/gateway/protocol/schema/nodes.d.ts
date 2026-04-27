@@ -1,111 +1,112 @@
-export declare const NodePairRequestParamsSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-    displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    platform: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    version: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    coreVersion: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    uiVersion: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    deviceFamily: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    modelIdentifier: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    caps: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    commands: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    remoteIp: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    silent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+import { Type } from "typebox";
+export declare const NodePairRequestParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
+    displayName: Type.TOptional<Type.TString>;
+    platform: Type.TOptional<Type.TString>;
+    version: Type.TOptional<Type.TString>;
+    coreVersion: Type.TOptional<Type.TString>;
+    uiVersion: Type.TOptional<Type.TString>;
+    deviceFamily: Type.TOptional<Type.TString>;
+    modelIdentifier: Type.TOptional<Type.TString>;
+    caps: Type.TOptional<Type.TArray<Type.TString>>;
+    commands: Type.TOptional<Type.TArray<Type.TString>>;
+    remoteIp: Type.TOptional<Type.TString>;
+    silent: Type.TOptional<Type.TBoolean>;
 }>;
-export declare const NodePairListParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const NodePairApproveParamsSchema: import("@sinclair/typebox").TObject<{
-    requestId: import("@sinclair/typebox").TString;
+export declare const NodePairListParamsSchema: Type.TObject<{}>;
+export declare const NodePairApproveParamsSchema: Type.TObject<{
+    requestId: Type.TString;
 }>;
-export declare const NodePairRejectParamsSchema: import("@sinclair/typebox").TObject<{
-    requestId: import("@sinclair/typebox").TString;
+export declare const NodePairRejectParamsSchema: Type.TObject<{
+    requestId: Type.TString;
 }>;
-export declare const NodePairVerifyParamsSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-    token: import("@sinclair/typebox").TString;
+export declare const NodePairVerifyParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
+    token: Type.TString;
 }>;
-export declare const NodeRenameParamsSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-    displayName: import("@sinclair/typebox").TString;
+export declare const NodeRenameParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
+    displayName: Type.TString;
 }>;
-export declare const NodeListParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const NodePendingAckParamsSchema: import("@sinclair/typebox").TObject<{
-    ids: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
+export declare const NodeListParamsSchema: Type.TObject<{}>;
+export declare const NodePendingAckParamsSchema: Type.TObject<{
+    ids: Type.TArray<Type.TString>;
 }>;
-export declare const NodeDescribeParamsSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
+export declare const NodeDescribeParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
 }>;
-export declare const NodeInvokeParamsSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-    command: import("@sinclair/typebox").TString;
-    params: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    idempotencyKey: import("@sinclair/typebox").TString;
+export declare const NodeInvokeParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
+    command: Type.TString;
+    params: Type.TOptional<Type.TUnknown>;
+    timeoutMs: Type.TOptional<Type.TInteger>;
+    idempotencyKey: Type.TString;
 }>;
-export declare const NodeInvokeResultParamsSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    nodeId: import("@sinclair/typebox").TString;
-    ok: import("@sinclair/typebox").TBoolean;
-    payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
-    payloadJSON: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    error: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        code: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const NodeInvokeResultParamsSchema: Type.TObject<{
+    id: Type.TString;
+    nodeId: Type.TString;
+    ok: Type.TBoolean;
+    payload: Type.TOptional<Type.TUnknown>;
+    payloadJSON: Type.TOptional<Type.TString>;
+    error: Type.TOptional<Type.TObject<{
+        code: Type.TOptional<Type.TString>;
+        message: Type.TOptional<Type.TString>;
     }>>;
 }>;
-export declare const NodeEventParamsSchema: import("@sinclair/typebox").TObject<{
-    event: import("@sinclair/typebox").TString;
-    payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
-    payloadJSON: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const NodeEventParamsSchema: Type.TObject<{
+    event: Type.TString;
+    payload: Type.TOptional<Type.TUnknown>;
+    payloadJSON: Type.TOptional<Type.TString>;
 }>;
-export declare const NodePendingDrainParamsSchema: import("@sinclair/typebox").TObject<{
-    maxItems: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+export declare const NodePendingDrainParamsSchema: Type.TObject<{
+    maxItems: Type.TOptional<Type.TInteger>;
 }>;
-export declare const NodePendingDrainItemSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    type: import("@sinclair/typebox").TString;
-    priority: import("@sinclair/typebox").TString;
-    createdAtMs: import("@sinclair/typebox").TInteger;
-    expiresAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TInteger, import("@sinclair/typebox").TNull]>>;
-    payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>>;
+export declare const NodePendingDrainItemSchema: Type.TObject<{
+    id: Type.TString;
+    type: Type.TString;
+    priority: Type.TString;
+    createdAtMs: Type.TInteger;
+    expiresAtMs: Type.TOptional<Type.TUnion<[Type.TInteger, Type.TNull]>>;
+    payload: Type.TOptional<Type.TRecord<"^.*$", Type.TUnknown>>;
 }>;
-export declare const NodePendingDrainResultSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-    revision: import("@sinclair/typebox").TInteger;
-    items: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TString;
-        type: import("@sinclair/typebox").TString;
-        priority: import("@sinclair/typebox").TString;
-        createdAtMs: import("@sinclair/typebox").TInteger;
-        expiresAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TInteger, import("@sinclair/typebox").TNull]>>;
-        payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>>;
+export declare const NodePendingDrainResultSchema: Type.TObject<{
+    nodeId: Type.TString;
+    revision: Type.TInteger;
+    items: Type.TArray<Type.TObject<{
+        id: Type.TString;
+        type: Type.TString;
+        priority: Type.TString;
+        createdAtMs: Type.TInteger;
+        expiresAtMs: Type.TOptional<Type.TUnion<[Type.TInteger, Type.TNull]>>;
+        payload: Type.TOptional<Type.TRecord<"^.*$", Type.TUnknown>>;
     }>>;
-    hasMore: import("@sinclair/typebox").TBoolean;
+    hasMore: Type.TBoolean;
 }>;
-export declare const NodePendingEnqueueParamsSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-    type: import("@sinclair/typebox").TString;
-    priority: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    expiresInMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    wake: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+export declare const NodePendingEnqueueParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
+    type: Type.TString;
+    priority: Type.TOptional<Type.TString>;
+    expiresInMs: Type.TOptional<Type.TInteger>;
+    wake: Type.TOptional<Type.TBoolean>;
 }>;
-export declare const NodePendingEnqueueResultSchema: import("@sinclair/typebox").TObject<{
-    nodeId: import("@sinclair/typebox").TString;
-    revision: import("@sinclair/typebox").TInteger;
-    queued: import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TString;
-        type: import("@sinclair/typebox").TString;
-        priority: import("@sinclair/typebox").TString;
-        createdAtMs: import("@sinclair/typebox").TInteger;
-        expiresAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TInteger, import("@sinclair/typebox").TNull]>>;
-        payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>>;
+export declare const NodePendingEnqueueResultSchema: Type.TObject<{
+    nodeId: Type.TString;
+    revision: Type.TInteger;
+    queued: Type.TObject<{
+        id: Type.TString;
+        type: Type.TString;
+        priority: Type.TString;
+        createdAtMs: Type.TInteger;
+        expiresAtMs: Type.TOptional<Type.TUnion<[Type.TInteger, Type.TNull]>>;
+        payload: Type.TOptional<Type.TRecord<"^.*$", Type.TUnknown>>;
     }>;
-    wakeTriggered: import("@sinclair/typebox").TBoolean;
+    wakeTriggered: Type.TBoolean;
 }>;
-export declare const NodeInvokeRequestEventSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    nodeId: import("@sinclair/typebox").TString;
-    command: import("@sinclair/typebox").TString;
-    paramsJSON: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    idempotencyKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const NodeInvokeRequestEventSchema: Type.TObject<{
+    id: Type.TString;
+    nodeId: Type.TString;
+    command: Type.TString;
+    paramsJSON: Type.TOptional<Type.TString>;
+    timeoutMs: Type.TOptional<Type.TInteger>;
+    idempotencyKey: Type.TOptional<Type.TString>;
 }>;

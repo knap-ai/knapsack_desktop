@@ -21,4 +21,5 @@ export declare function buildAccountScopedDmSecurityPolicy(params: {
     approveChannelId?: string;
     approveHint?: string;
     normalizeEntry?: (raw: string) => string;
+    inheritSharedDefaultsFromDefaultAccount?: boolean;
 }): ChannelSecurityDmPolicy;

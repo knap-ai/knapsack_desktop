@@ -33,7 +33,9 @@ export declare function resolveSessionEntryForKey(params: {
     key: string;
     cache: Map<string, Record<string, SessionEntry>>;
 }): SessionEntryResolution;
-export declare function buildLatestSubagentRunIndex(runs: Map<string, SubagentRunRecord>): {
+export declare function buildLatestSubagentRunIndex(runs: Map<string, SubagentRunRecord>, options?: {
+    now?: number;
+}): {
     latestByChildSessionKey: Map<string, SubagentRunRecord>;
     childSessionsByController: Map<string, string[]>;
 };

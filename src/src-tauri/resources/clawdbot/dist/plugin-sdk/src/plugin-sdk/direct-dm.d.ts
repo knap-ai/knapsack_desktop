@@ -1,78 +1,9 @@
 import type { DispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.types.js";
 import type { FinalizedMsgContext } from "../auto-reply/templating.js";
-import type { ChannelId } from "../channels/plugins/types.public.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { type DmGroupAccessReasonCode } from "../security/dm-policy-shared.js";
 import type { OutboundReplyPayload } from "./reply-payload.js";
-export type DirectDmCommandAuthorizationRuntime = {
-    shouldComputeCommandAuthorized: (rawBody: string, cfg: OpenClawConfig) => boolean;
-    resolveCommandAuthorizedFromAuthorizers: (params: {
-        useAccessGroups: boolean;
-        authorizers: Array<{
-            configured: boolean;
-            allowed: boolean;
-        }>;
-        modeWhenAccessGroupsOff?: "allow" | "deny" | "configured";
-    }) => boolean;
-};
-export type ResolvedInboundDirectDmAccess = {
-    access: {
-        decision: "allow" | "block" | "pairing";
-        reasonCode: DmGroupAccessReasonCode;
-        reason: string;
-        effectiveAllowFrom: string[];
-    };
-    shouldComputeAuth: boolean;
-    senderAllowedForCommands: boolean;
-    commandAuthorized: boolean | undefined;
-};
-/** Resolve direct-DM policy, effective allowlists, and optional command auth in one place. */
-export declare function resolveInboundDirectDmAccessWithRuntime(params: {
-    cfg: OpenClawConfig;
-    channel: ChannelId;
-    accountId: string;
-    dmPolicy?: string | null;
-    allowFrom?: Array<string | number> | null;
-    senderId: string;
-    rawBody: string;
-    isSenderAllowed: (senderId: string, allowFrom: string[]) => boolean;
-    runtime: DirectDmCommandAuthorizationRuntime;
-    modeWhenAccessGroupsOff?: "allow" | "deny" | "configured";
-    readStoreAllowFrom?: (provider: ChannelId, accountId: string) => Promise<string[]>;
-}): Promise<ResolvedInboundDirectDmAccess>;
-/** Convert resolved DM policy into a pre-crypto allow/block/pairing callback. */
-export declare function createPreCryptoDirectDmAuthorizer(params: {
-    resolveAccess: (senderId: string) => Promise<Pick<ResolvedInboundDirectDmAccess, "access"> | ResolvedInboundDirectDmAccess>;
-    issuePairingChallenge?: (params: {
-        senderId: string;
-        reply: (text: string) => Promise<void>;
-    }) => Promise<void>;
-    onBlocked?: (params: {
-        senderId: string;
-        reason: string;
-        reasonCode: DmGroupAccessReasonCode;
-    }) => void;
-}): (input: {
-    senderId: string;
-    reply: (text: string) => Promise<void>;
-}) => Promise<"allow" | "block" | "pairing">;
-export type DirectDmPreCryptoGuardPolicy = {
-    allowedKinds: readonly number[];
-    maxFutureSkewSec: number;
-    maxCiphertextBytes: number;
-    maxPlaintextBytes: number;
-    rateLimit: {
-        windowMs: number;
-        maxPerSenderPerWindow: number;
-        maxGlobalPerWindow: number;
-        maxTrackedSenderKeys: number;
-    };
-};
-export type DirectDmPreCryptoGuardPolicyOverrides = Partial<Omit<DirectDmPreCryptoGuardPolicy, "rateLimit">> & {
-    rateLimit?: Partial<DirectDmPreCryptoGuardPolicy["rateLimit"]>;
-};
-/** Shared policy object for DM-style pre-crypto guardrails. */
-export declare function createDirectDmPreCryptoGuardPolicy(overrides?: DirectDmPreCryptoGuardPolicyOverrides): DirectDmPreCryptoGuardPolicy;
+export { createPreCryptoDirectDmAuthorizer, resolveInboundDirectDmAccessWithRuntime, type DirectDmCommandAuthorizationRuntime, type ResolvedInboundDirectDmAccess, } from "./direct-dm-access.js";
+export { createDirectDmPreCryptoGuardPolicy, type DirectDmPreCryptoGuardPolicy, type DirectDmPreCryptoGuardPolicyOverrides, } from "./direct-dm-guard-policy.js";
 type DirectDmRoutePeer = {
     kind: "direct";
     id: string;
@@ -141,4 +72,3 @@ export declare function dispatchInboundDirectDmWithRuntime(params: {
     storePath: string;
     ctxPayload: FinalizedMsgContext;
 }>;
-export {};

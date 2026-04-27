@@ -1,159 +1,163 @@
-export declare const AgentInternalEventSchema: import("@sinclair/typebox").TObject<{
-    type: import("@sinclair/typebox").TLiteral<"task_completion">;
-    source: import("@sinclair/typebox").TString;
-    childSessionKey: import("@sinclair/typebox").TString;
-    childSessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    announceType: import("@sinclair/typebox").TString;
-    taskLabel: import("@sinclair/typebox").TString;
-    status: import("@sinclair/typebox").TString;
-    statusLabel: import("@sinclair/typebox").TString;
-    result: import("@sinclair/typebox").TString;
-    mediaUrls: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    statsLine: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    replyInstruction: import("@sinclair/typebox").TString;
+import { Type } from "typebox";
+export declare const AgentInternalEventSchema: Type.TObject<{
+    type: Type.TLiteral<"task_completion">;
+    source: Type.TString;
+    childSessionKey: Type.TString;
+    childSessionId: Type.TOptional<Type.TString>;
+    announceType: Type.TString;
+    taskLabel: Type.TString;
+    status: Type.TString;
+    statusLabel: Type.TString;
+    result: Type.TString;
+    mediaUrls: Type.TOptional<Type.TArray<Type.TString>>;
+    statsLine: Type.TOptional<Type.TString>;
+    replyInstruction: Type.TString;
 }>;
-export declare const AgentEventSchema: import("@sinclair/typebox").TObject<{
-    runId: import("@sinclair/typebox").TString;
-    seq: import("@sinclair/typebox").TInteger;
-    stream: import("@sinclair/typebox").TString;
-    ts: import("@sinclair/typebox").TInteger;
-    data: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>;
+export declare const AgentEventSchema: Type.TObject<{
+    runId: Type.TString;
+    seq: Type.TInteger;
+    stream: Type.TString;
+    ts: Type.TInteger;
+    data: Type.TRecord<"^.*$", Type.TUnknown>;
 }>;
-export declare const MessageActionToolContextSchema: import("@sinclair/typebox").TObject<{
-    currentChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    currentGraphChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    currentChannelProvider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    currentThreadTs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    currentMessageId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
-    replyToMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"off">, import("@sinclair/typebox").TLiteral<"first">, import("@sinclair/typebox").TLiteral<"all">, import("@sinclair/typebox").TLiteral<"batched">]>>;
-    hasRepliedRef: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        value: import("@sinclair/typebox").TBoolean;
+export declare const MessageActionToolContextSchema: Type.TObject<{
+    currentChannelId: Type.TOptional<Type.TString>;
+    currentGraphChannelId: Type.TOptional<Type.TString>;
+    currentChannelProvider: Type.TOptional<Type.TString>;
+    currentThreadTs: Type.TOptional<Type.TString>;
+    currentMessageId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber]>>;
+    replyToMode: Type.TOptional<Type.TUnion<[Type.TLiteral<"off">, Type.TLiteral<"first">, Type.TLiteral<"all">, Type.TLiteral<"batched">]>>;
+    hasRepliedRef: Type.TOptional<Type.TObject<{
+        value: Type.TBoolean;
     }>>;
-    skipCrossContextDecoration: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    skipCrossContextDecoration: Type.TOptional<Type.TBoolean>;
 }>;
-export declare const MessageActionParamsSchema: import("@sinclair/typebox").TObject<{
-    channel: import("@sinclair/typebox").TString;
-    action: import("@sinclair/typebox").TString;
-    params: import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TUnknown>;
-    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    requesterSenderId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    senderIsOwner: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    sessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    toolContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        currentChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        currentGraphChannelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        currentChannelProvider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        currentThreadTs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        currentMessageId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNumber]>>;
-        replyToMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"off">, import("@sinclair/typebox").TLiteral<"first">, import("@sinclair/typebox").TLiteral<"all">, import("@sinclair/typebox").TLiteral<"batched">]>>;
-        hasRepliedRef: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            value: import("@sinclair/typebox").TBoolean;
+export declare const MessageActionParamsSchema: Type.TObject<{
+    channel: Type.TString;
+    action: Type.TString;
+    params: Type.TRecord<"^.*$", Type.TUnknown>;
+    accountId: Type.TOptional<Type.TString>;
+    requesterSenderId: Type.TOptional<Type.TString>;
+    senderIsOwner: Type.TOptional<Type.TBoolean>;
+    sessionKey: Type.TOptional<Type.TString>;
+    sessionId: Type.TOptional<Type.TString>;
+    agentId: Type.TOptional<Type.TString>;
+    toolContext: Type.TOptional<Type.TObject<{
+        currentChannelId: Type.TOptional<Type.TString>;
+        currentGraphChannelId: Type.TOptional<Type.TString>;
+        currentChannelProvider: Type.TOptional<Type.TString>;
+        currentThreadTs: Type.TOptional<Type.TString>;
+        currentMessageId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber]>>;
+        replyToMode: Type.TOptional<Type.TUnion<[Type.TLiteral<"off">, Type.TLiteral<"first">, Type.TLiteral<"all">, Type.TLiteral<"batched">]>>;
+        hasRepliedRef: Type.TOptional<Type.TObject<{
+            value: Type.TBoolean;
         }>>;
-        skipCrossContextDecoration: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+        skipCrossContextDecoration: Type.TOptional<Type.TBoolean>;
     }>>;
-    idempotencyKey: import("@sinclair/typebox").TString;
+    idempotencyKey: Type.TString;
 }>;
-export declare const SendParamsSchema: import("@sinclair/typebox").TObject<{
-    to: import("@sinclair/typebox").TString;
-    message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    mediaUrl: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    mediaUrls: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    gifPlayback: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const SendParamsSchema: Type.TObject<{
+    to: Type.TString;
+    message: Type.TOptional<Type.TString>;
+    mediaUrl: Type.TOptional<Type.TString>;
+    mediaUrls: Type.TOptional<Type.TArray<Type.TString>>;
+    gifPlayback: Type.TOptional<Type.TBoolean>;
+    channel: Type.TOptional<Type.TString>;
+    accountId: Type.TOptional<Type.TString>;
     /** Optional agent id for per-agent media root resolution on gateway sends. */
-    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    agentId: Type.TOptional<Type.TString>;
+    /** Reply target message id for native quoted/threaded sends where supported. */
+    replyToId: Type.TOptional<Type.TString>;
     /** Thread id (channel-specific meaning, e.g. Telegram forum topic id). */
-    threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    threadId: Type.TOptional<Type.TString>;
     /** Optional session key for mirroring delivered output back into the transcript. */
-    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    idempotencyKey: import("@sinclair/typebox").TString;
+    sessionKey: Type.TOptional<Type.TString>;
+    idempotencyKey: Type.TString;
 }>;
-export declare const PollParamsSchema: import("@sinclair/typebox").TObject<{
-    to: import("@sinclair/typebox").TString;
-    question: import("@sinclair/typebox").TString;
-    options: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
-    maxSelections: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+export declare const PollParamsSchema: Type.TObject<{
+    to: Type.TString;
+    question: Type.TString;
+    options: Type.TArray<Type.TString>;
+    maxSelections: Type.TOptional<Type.TInteger>;
     /** Poll duration in seconds (channel-specific limits may apply). */
-    durationSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    durationHours: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+    durationSeconds: Type.TOptional<Type.TInteger>;
+    durationHours: Type.TOptional<Type.TInteger>;
     /** Send silently (no notification) where supported. */
-    silent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    silent: Type.TOptional<Type.TBoolean>;
     /** Poll anonymity where supported (e.g. Telegram polls default to anonymous). */
-    isAnonymous: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+    isAnonymous: Type.TOptional<Type.TBoolean>;
     /** Thread id (channel-specific meaning, e.g. Telegram forum topic id). */
-    threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    idempotencyKey: import("@sinclair/typebox").TString;
+    threadId: Type.TOptional<Type.TString>;
+    channel: Type.TOptional<Type.TString>;
+    accountId: Type.TOptional<Type.TString>;
+    idempotencyKey: Type.TString;
 }>;
-export declare const AgentParamsSchema: import("@sinclair/typebox").TObject<{
-    message: import("@sinclair/typebox").TString;
-    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    provider: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    replyTo: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    sessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    attachments: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnknown>>;
-    channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    replyChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    replyAccountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    threadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    groupId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    groupChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    groupSpace: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    timeout: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    bestEffortDeliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    lane: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    extraSystemPrompt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    bootstrapContextMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"full">, import("@sinclair/typebox").TLiteral<"lightweight">]>>;
-    bootstrapContextRunKind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"default">, import("@sinclair/typebox").TLiteral<"heartbeat">, import("@sinclair/typebox").TLiteral<"cron">]>>;
-    internalEvents: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        type: import("@sinclair/typebox").TLiteral<"task_completion">;
-        source: import("@sinclair/typebox").TString;
-        childSessionKey: import("@sinclair/typebox").TString;
-        childSessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        announceType: import("@sinclair/typebox").TString;
-        taskLabel: import("@sinclair/typebox").TString;
-        status: import("@sinclair/typebox").TString;
-        statusLabel: import("@sinclair/typebox").TString;
-        result: import("@sinclair/typebox").TString;
-        mediaUrls: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-        statsLine: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        replyInstruction: import("@sinclair/typebox").TString;
+export declare const AgentParamsSchema: Type.TObject<{
+    message: Type.TString;
+    agentId: Type.TOptional<Type.TString>;
+    provider: Type.TOptional<Type.TString>;
+    model: Type.TOptional<Type.TString>;
+    to: Type.TOptional<Type.TString>;
+    replyTo: Type.TOptional<Type.TString>;
+    sessionId: Type.TOptional<Type.TString>;
+    sessionKey: Type.TOptional<Type.TString>;
+    thinking: Type.TOptional<Type.TString>;
+    deliver: Type.TOptional<Type.TBoolean>;
+    attachments: Type.TOptional<Type.TArray<Type.TUnknown>>;
+    channel: Type.TOptional<Type.TString>;
+    replyChannel: Type.TOptional<Type.TString>;
+    accountId: Type.TOptional<Type.TString>;
+    replyAccountId: Type.TOptional<Type.TString>;
+    threadId: Type.TOptional<Type.TString>;
+    groupId: Type.TOptional<Type.TString>;
+    groupChannel: Type.TOptional<Type.TString>;
+    groupSpace: Type.TOptional<Type.TString>;
+    timeout: Type.TOptional<Type.TInteger>;
+    bestEffortDeliver: Type.TOptional<Type.TBoolean>;
+    lane: Type.TOptional<Type.TString>;
+    cleanupBundleMcpOnRunEnd: Type.TOptional<Type.TBoolean>;
+    extraSystemPrompt: Type.TOptional<Type.TString>;
+    bootstrapContextMode: Type.TOptional<Type.TUnion<[Type.TLiteral<"full">, Type.TLiteral<"lightweight">]>>;
+    bootstrapContextRunKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"default">, Type.TLiteral<"heartbeat">, Type.TLiteral<"cron">]>>;
+    internalEvents: Type.TOptional<Type.TArray<Type.TObject<{
+        type: Type.TLiteral<"task_completion">;
+        source: Type.TString;
+        childSessionKey: Type.TString;
+        childSessionId: Type.TOptional<Type.TString>;
+        announceType: Type.TString;
+        taskLabel: Type.TString;
+        status: Type.TString;
+        statusLabel: Type.TString;
+        result: Type.TString;
+        mediaUrls: Type.TOptional<Type.TArray<Type.TString>>;
+        statsLine: Type.TOptional<Type.TString>;
+        replyInstruction: Type.TString;
     }>>>;
-    inputProvenance: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        kind: import("@sinclair/typebox").TString;
-        originSessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        sourceSessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        sourceChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        sourceTool: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    inputProvenance: Type.TOptional<Type.TObject<{
+        kind: Type.TString;
+        originSessionId: Type.TOptional<Type.TString>;
+        sourceSessionKey: Type.TOptional<Type.TString>;
+        sourceChannel: Type.TOptional<Type.TString>;
+        sourceTool: Type.TOptional<Type.TString>;
     }>>;
-    idempotencyKey: import("@sinclair/typebox").TString;
-    label: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    idempotencyKey: Type.TString;
+    label: Type.TOptional<Type.TString>;
 }>;
-export declare const AgentIdentityParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentIdentityParamsSchema: Type.TObject<{
+    agentId: Type.TOptional<Type.TString>;
+    sessionKey: Type.TOptional<Type.TString>;
 }>;
-export declare const AgentIdentityResultSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentIdentityResultSchema: Type.TObject<{
+    agentId: Type.TString;
+    name: Type.TOptional<Type.TString>;
+    avatar: Type.TOptional<Type.TString>;
+    emoji: Type.TOptional<Type.TString>;
 }>;
-export declare const AgentWaitParamsSchema: import("@sinclair/typebox").TObject<{
-    runId: import("@sinclair/typebox").TString;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+export declare const AgentWaitParamsSchema: Type.TObject<{
+    runId: Type.TString;
+    timeoutMs: Type.TOptional<Type.TInteger>;
 }>;
-export declare const WakeParamsSchema: import("@sinclair/typebox").TObject<{
-    mode: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"now">, import("@sinclair/typebox").TLiteral<"next-heartbeat">]>;
-    text: import("@sinclair/typebox").TString;
+export declare const WakeParamsSchema: Type.TObject<{
+    mode: Type.TUnion<[Type.TLiteral<"now">, Type.TLiteral<"next-heartbeat">]>;
+    text: Type.TString;
 }>;

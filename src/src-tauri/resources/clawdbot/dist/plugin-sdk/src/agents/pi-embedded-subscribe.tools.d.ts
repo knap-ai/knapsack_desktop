@@ -18,6 +18,7 @@ export declare function filterToolResultMediaUrls(toolName: string | undefined, 
 export type ToolResultMediaArtifact = {
     mediaUrls: string[];
     audioAsVoice?: boolean;
+    trustedLocalMedia?: boolean;
 };
 export declare function extractToolResultMediaArtifact(result: unknown): ToolResultMediaArtifact | undefined;
 export declare function extractToolResultMediaPaths(result: unknown): string[];

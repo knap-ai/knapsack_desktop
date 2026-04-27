@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { t as isMainModule } from "./is-main-C_eE8dOT.js";
-import { N as isRootHelpInvocation, P as isRootVersionInvocation } from "./logger-D8OnBgBc.js";
-import { t as resolveCliArgvInvocation } from "./argv-invocation-DloX2c7c.js";
-import { a as parseCliContainerArgs, n as applyCliProfileEnv, o as resolveCliContainerTarget, r as parseCliProfileArgs, t as normalizeWindowsArgv } from "./windows-argv-BnjBN14p.js";
+import { I as isRootHelpInvocation, L as isRootVersionInvocation } from "./logger-x0IvPL2B.js";
+import { t as resolveCliArgvInvocation } from "./argv-invocation-BgdldYWV.js";
+import { a as parseCliContainerArgs, n as applyCliProfileEnv, o as resolveCliContainerTarget, r as parseCliProfileArgs, t as normalizeWindowsArgv } from "./windows-argv-EWRb4fAz.js";
 import { t as resolveNodeStartupTlsEnvironment } from "./node-startup-env-BRa4mYVi.js";
-import { r as normalizeEnv, t as isTruthyEnvValue } from "./env-BiSxzotM.js";
-import { t as ensureOpenClawExecMarkerOnProcess } from "./openclaw-exec-env-5MQ0wyS5.js";
-import { t as installProcessWarningFilter } from "./warning-filter-DGa1PXl5.js";
+import { i as normalizeEnv, t as isTruthyEnvValue } from "./env-BgREcPbG.js";
+import { t as ensureOpenClawExecMarkerOnProcess } from "./openclaw-exec-env-B_Z1z9iZ.js";
+import { t as installProcessWarningFilter } from "./warning-filter-w4E2lbpW.js";
+import { t as attachChildProcessBridge } from "./child-process-bridge-nB7wOx7V.js";
 import { enableCompileCache } from "node:module";
 import process$1 from "node:process";
 import { fileURLToPath } from "node:url";
@@ -61,38 +62,28 @@ function buildCliRespawnPlan(params = {}) {
 	};
 }
 //#endregion
-//#region src/process/child-process-bridge.ts
-const defaultSignals = process$1.platform === "win32" ? [
-	"SIGTERM",
-	"SIGINT",
-	"SIGBREAK"
-] : [
-	"SIGTERM",
-	"SIGINT",
-	"SIGHUP",
-	"SIGQUIT"
-];
-function attachChildProcessBridge(child, { signals = defaultSignals, onSignal } = {}) {
-	const listeners = /* @__PURE__ */ new Map();
-	for (const signal of signals) {
-		const listener = () => {
-			onSignal?.(signal);
-			try {
-				child.kill(signal);
-			} catch {}
+//#region src/entry.version-fast-path.ts
+function tryHandleRootVersionFastPath(argv, deps = {}) {
+	if (resolveCliContainerTarget(argv, deps.env)) return false;
+	if (!isRootVersionInvocation(argv)) return false;
+	const output = deps.output ?? ((message) => console.log(message));
+	const exit = deps.exit ?? ((code) => process.exit(code));
+	const onError = deps.onError ?? ((error) => {
+		console.error("[openclaw] Failed to resolve version:", error instanceof Error ? error.stack ?? error.message : error);
+		process.exitCode = 1;
+	});
+	(deps.resolveVersion ?? (async () => {
+		const [{ VERSION }, { resolveCommitHash }] = await Promise.all([import("./version-LMlsBH_W.js"), import("./git-commit-Dp6P7NY7.js")]);
+		return {
+			VERSION,
+			resolveCommitHash
 		};
-		try {
-			process$1.on(signal, listener);
-			listeners.set(signal, listener);
-		} catch {}
-	}
-	const detach = () => {
-		for (const [signal, listener] of listeners) process$1.off(signal, listener);
-		listeners.clear();
-	};
-	child.once("exit", detach);
-	child.once("error", detach);
-	return { detach };
+	}))().then(({ VERSION, resolveCommitHash }) => {
+		const commit = resolveCommitHash({ moduleUrl: deps.moduleUrl ?? import.meta.url });
+		output(commit ? `OpenClaw ${VERSION} (${commit})` : `OpenClaw ${VERSION}`);
+		exit(0);
+	}).catch(onError);
+	return true;
 }
 //#endregion
 //#region src/entry.ts
@@ -112,8 +103,6 @@ if (!isMainModule({
 	currentFile: fileURLToPath(import.meta.url),
 	wrapperEntryPairs: [...ENTRY_WRAPPER_PAIRS]
 })) {} else {
-	const { installGaxiosFetchCompat } = await import("./gaxios-fetch-compat-BYDnSgma.js");
-	await installGaxiosFetchCompat();
 	process$1.title = "openclaw";
 	ensureOpenClawExecMarkerOnProcess();
 	installProcessWarningFilter();
@@ -144,19 +133,6 @@ if (!isMainModule({
 		child.once("error", (error) => {
 			console.error("[openclaw] Failed to respawn CLI:", error instanceof Error ? error.stack ?? error.message : error);
 			process$1.exit(1);
-		});
-		return true;
-	}
-	function tryHandleRootVersionFastPath(argv) {
-		if (resolveCliContainerTarget(argv)) return false;
-		if (!isRootVersionInvocation(argv)) return false;
-		Promise.all([import("./version-Dmlp9Fs8.js"), import("./git-commit-CYDgPGAN.js")]).then(([{ VERSION }, { resolveCommitHash }]) => {
-			const commit = resolveCommitHash({ moduleUrl: import.meta.url });
-			console.log(commit ? `OpenClaw ${VERSION} (${commit})` : `OpenClaw ${VERSION}`);
-			process$1.exit(0);
-		}).catch((error) => {
-			console.error("[openclaw] Failed to resolve version:", error instanceof Error ? error.stack ?? error.message : error);
-			process$1.exitCode = 1;
 		});
 		return true;
 	}
@@ -194,16 +170,16 @@ function tryHandleRootHelpFastPath(argv, deps = {}) {
 		Promise.resolve().then(() => deps.outputRootHelp?.()).catch(handleError);
 		return true;
 	}
-	import("./root-help-metadata-Bdp_mx6b.js").then(async ({ outputPrecomputedRootHelpText }) => {
+	import("./root-help-metadata-DIazjtzI.js").then(async ({ outputPrecomputedRootHelpText }) => {
 		if (outputPrecomputedRootHelpText()) return;
-		const { outputRootHelp } = await import("./root-help-ZjsEyxbi.js");
+		const { outputRootHelp } = await import("./root-help-id3SfIWm.js");
 		await outputRootHelp();
 	}).catch(handleError);
 	return true;
 }
 function runMainOrRootHelp(argv) {
 	if (tryHandleRootHelpFastPath(argv)) return;
-	import("./run-main-BBeVm29G.js").then(({ runCli }) => runCli(argv)).catch((error) => {
+	import("./run-main-bbWXFk-0.js").then(({ runCli }) => runCli(argv)).catch((error) => {
 		console.error("[openclaw] Failed to start CLI:", error instanceof Error ? error.stack ?? error.message : error);
 		process$1.exitCode = 1;
 	});

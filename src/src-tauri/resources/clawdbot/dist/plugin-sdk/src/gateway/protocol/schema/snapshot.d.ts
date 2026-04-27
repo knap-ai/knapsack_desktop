@@ -1,69 +1,70 @@
-export declare const PresenceEntrySchema: import("@sinclair/typebox").TObject<{
-    host: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    ip: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    version: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    platform: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    deviceFamily: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    modelIdentifier: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    lastInputSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    reason: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    ts: import("@sinclair/typebox").TInteger;
-    deviceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    roles: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    scopes: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-    instanceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+import { Type } from "typebox";
+export declare const PresenceEntrySchema: Type.TObject<{
+    host: Type.TOptional<Type.TString>;
+    ip: Type.TOptional<Type.TString>;
+    version: Type.TOptional<Type.TString>;
+    platform: Type.TOptional<Type.TString>;
+    deviceFamily: Type.TOptional<Type.TString>;
+    modelIdentifier: Type.TOptional<Type.TString>;
+    mode: Type.TOptional<Type.TString>;
+    lastInputSeconds: Type.TOptional<Type.TInteger>;
+    reason: Type.TOptional<Type.TString>;
+    tags: Type.TOptional<Type.TArray<Type.TString>>;
+    text: Type.TOptional<Type.TString>;
+    ts: Type.TInteger;
+    deviceId: Type.TOptional<Type.TString>;
+    roles: Type.TOptional<Type.TArray<Type.TString>>;
+    scopes: Type.TOptional<Type.TArray<Type.TString>>;
+    instanceId: Type.TOptional<Type.TString>;
 }>;
-export declare const HealthSnapshotSchema: import("@sinclair/typebox").TAny;
-export declare const SessionDefaultsSchema: import("@sinclair/typebox").TObject<{
-    defaultAgentId: import("@sinclair/typebox").TString;
-    mainKey: import("@sinclair/typebox").TString;
-    mainSessionKey: import("@sinclair/typebox").TString;
-    scope: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const HealthSnapshotSchema: Type.TAny;
+export declare const SessionDefaultsSchema: Type.TObject<{
+    defaultAgentId: Type.TString;
+    mainKey: Type.TString;
+    mainSessionKey: Type.TString;
+    scope: Type.TOptional<Type.TString>;
 }>;
-export declare const StateVersionSchema: import("@sinclair/typebox").TObject<{
-    presence: import("@sinclair/typebox").TInteger;
-    health: import("@sinclair/typebox").TInteger;
+export declare const StateVersionSchema: Type.TObject<{
+    presence: Type.TInteger;
+    health: Type.TInteger;
 }>;
-export declare const SnapshotSchema: import("@sinclair/typebox").TObject<{
-    presence: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        host: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        ip: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        version: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        platform: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        deviceFamily: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        modelIdentifier: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        lastInputSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        reason: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-        text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        ts: import("@sinclair/typebox").TInteger;
-        deviceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        roles: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-        scopes: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-        instanceId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const SnapshotSchema: Type.TObject<{
+    presence: Type.TArray<Type.TObject<{
+        host: Type.TOptional<Type.TString>;
+        ip: Type.TOptional<Type.TString>;
+        version: Type.TOptional<Type.TString>;
+        platform: Type.TOptional<Type.TString>;
+        deviceFamily: Type.TOptional<Type.TString>;
+        modelIdentifier: Type.TOptional<Type.TString>;
+        mode: Type.TOptional<Type.TString>;
+        lastInputSeconds: Type.TOptional<Type.TInteger>;
+        reason: Type.TOptional<Type.TString>;
+        tags: Type.TOptional<Type.TArray<Type.TString>>;
+        text: Type.TOptional<Type.TString>;
+        ts: Type.TInteger;
+        deviceId: Type.TOptional<Type.TString>;
+        roles: Type.TOptional<Type.TArray<Type.TString>>;
+        scopes: Type.TOptional<Type.TArray<Type.TString>>;
+        instanceId: Type.TOptional<Type.TString>;
     }>>;
-    health: import("@sinclair/typebox").TAny;
-    stateVersion: import("@sinclair/typebox").TObject<{
-        presence: import("@sinclair/typebox").TInteger;
-        health: import("@sinclair/typebox").TInteger;
+    health: Type.TAny;
+    stateVersion: Type.TObject<{
+        presence: Type.TInteger;
+        health: Type.TInteger;
     }>;
-    uptimeMs: import("@sinclair/typebox").TInteger;
-    configPath: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    stateDir: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    sessionDefaults: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        defaultAgentId: import("@sinclair/typebox").TString;
-        mainKey: import("@sinclair/typebox").TString;
-        mainSessionKey: import("@sinclair/typebox").TString;
-        scope: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+    uptimeMs: Type.TInteger;
+    configPath: Type.TOptional<Type.TString>;
+    stateDir: Type.TOptional<Type.TString>;
+    sessionDefaults: Type.TOptional<Type.TObject<{
+        defaultAgentId: Type.TString;
+        mainKey: Type.TString;
+        mainSessionKey: Type.TString;
+        scope: Type.TOptional<Type.TString>;
     }>>;
-    authMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"none">, import("@sinclair/typebox").TLiteral<"token">, import("@sinclair/typebox").TLiteral<"password">, import("@sinclair/typebox").TLiteral<"trusted-proxy">]>>;
-    updateAvailable: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        currentVersion: import("@sinclair/typebox").TString;
-        latestVersion: import("@sinclair/typebox").TString;
-        channel: import("@sinclair/typebox").TString;
+    authMode: Type.TOptional<Type.TUnion<[Type.TLiteral<"none">, Type.TLiteral<"token">, Type.TLiteral<"password">, Type.TLiteral<"trusted-proxy">]>>;
+    updateAvailable: Type.TOptional<Type.TObject<{
+        currentVersion: Type.TString;
+        latestVersion: Type.TString;
+        channel: Type.TString;
     }>>;
 }>;

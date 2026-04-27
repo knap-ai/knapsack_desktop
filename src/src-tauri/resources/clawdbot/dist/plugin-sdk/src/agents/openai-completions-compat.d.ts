@@ -13,7 +13,8 @@ export type OpenAICompletionsCompatDefaults = {
     supportsReasoningEffort: boolean;
     supportsUsageInStreaming: boolean;
     maxTokensField: "max_completion_tokens" | "max_tokens";
-    thinkingFormat: "openai" | "openrouter" | "zai";
+    thinkingFormat: "openai" | "openrouter" | "deepseek" | "zai";
+    visibleReasoningDetailTypes: string[];
     supportsStrictMode: boolean;
 };
 export type DetectedOpenAICompletionsCompat = {
@@ -24,5 +25,9 @@ export declare function resolveOpenAICompletionsCompatDefaults(input: OpenAIComp
 export declare function resolveOpenAICompletionsCompatDefaultsFromCapabilities(input: Pick<ProviderRequestCapabilities, "endpointClass" | "knownProviderFamily" | "supportsNativeStreamingUsageCompat" | "usesExplicitProxyLikeEndpoint"> & {
     provider?: string;
 }): OpenAICompletionsCompatDefaults;
-export declare function detectOpenAICompletionsCompat(model: Pick<Model<"openai-completions">, "provider" | "baseUrl" | "id" | "compat">): DetectedOpenAICompletionsCompat;
+export declare function detectOpenAICompletionsCompat(model: Pick<Model<"openai-completions">, "provider" | "baseUrl" | "id"> & {
+    compat?: {
+        supportsStore?: boolean;
+    } | null;
+}): DetectedOpenAICompletionsCompat;
 export {};

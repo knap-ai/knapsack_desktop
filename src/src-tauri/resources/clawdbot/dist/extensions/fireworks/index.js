@@ -1,11 +1,11 @@
-import "../../defaults-CiQa3xnX.js";
-import { i as normalizeModelCompat } from "../../provider-model-compat-Dsxuyzi4.js";
-import { c as cloneFirstTemplateModel, r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
-import { t as isFireworksKimiModelId } from "../../model-id-ClS94MSD.js";
-import { o as buildFireworksProvider } from "../../provider-catalog-B4goqFBu.js";
-import { n as applyFireworksConfig, t as FIREWORKS_DEFAULT_MODEL_REF } from "../../onboard-C2gsaEGv.js";
-import { n as wrapFireworksProviderStream } from "../../stream-CW0dwuN5.js";
+import "../../defaults-DM8yIn8C.js";
+import { a as normalizeModelCompat } from "../../provider-model-compat-C_Djlg3U.js";
+import { c as cloneFirstTemplateModel, r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
+import { t as isFireworksKimiModelId } from "../../model-id-DqDH1GWn.js";
+import { l as buildFireworksProvider } from "../../provider-catalog-CQEINnoa.js";
+import { n as applyFireworksConfig, t as FIREWORKS_DEFAULT_MODEL_REF } from "../../onboard-bFPFXzfg.js";
+import { n as wrapFireworksProviderStream } from "../../stream-B-bVcOIh.js";
 //#region extensions/fireworks/index.ts
 const PROVIDER_ID = "fireworks";
 function resolveFireworksDynamicModel(ctx) {

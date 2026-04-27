@@ -1,16 +1,19 @@
-import { c as jsonResult, d as readNumberParam, h as readStringParam } from "../../common-BWtun2If.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../provider-web-search-B6Xg-MPv.js";
-import { n as runTavilyExtract, r as runTavilySearch, t as createTavilyWebSearchProvider } from "../../tavily-search-provider-CNirQyY9.js";
-import { Type } from "@sinclair/typebox";
-//#region extensions/tavily/src/tavily-extract-tool.ts
-function optionalStringEnum$1(values, options = {}) {
+import { f as readNumberParam, g as readStringParam, l as jsonResult } from "../../common-B4WrK_Ib.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../provider-web-search-DiAvE6oC.js";
+import { n as runTavilyExtract, r as runTavilySearch } from "../../tavily-client-B1ZYE6dU.js";
+import { t as createTavilyWebSearchProvider } from "../../tavily-search-provider-fsQ5ulgM.js";
+import { Type } from "typebox";
+//#region extensions/tavily/src/tavily-tool-schema.ts
+function optionalStringEnum(values, options = {}) {
 	return Type.Optional(Type.Unsafe({
 		type: "string",
 		enum: [...values],
 		...options
 	}));
 }
+//#endregion
+//#region extensions/tavily/src/tavily-extract-tool.ts
 const TavilyExtractToolSchema = Type.Object({
 	urls: Type.Array(Type.String(), {
 		description: "One or more URLs to extract content from (max 20).",
@@ -18,7 +21,7 @@ const TavilyExtractToolSchema = Type.Object({
 		maxItems: 20
 	}),
 	query: Type.Optional(Type.String({ description: "Rerank extracted chunks by relevance to this query." })),
-	extract_depth: optionalStringEnum$1(["basic", "advanced"], { description: "\"basic\" (default) or \"advanced\" (for JS-heavy pages)." }),
+	extract_depth: optionalStringEnum(["basic", "advanced"], { description: "\"basic\" (default) or \"advanced\" (for JS-heavy pages)." }),
 	chunks_per_source: Type.Optional(Type.Number({
 		description: "Chunks per URL (1-5, requires query).",
 		minimum: 1,
@@ -53,13 +56,6 @@ function createTavilyExtractTool(api) {
 }
 //#endregion
 //#region extensions/tavily/src/tavily-search-tool.ts
-function optionalStringEnum(values, options = {}) {
-	return Type.Optional(Type.Unsafe({
-		type: "string",
-		enum: [...values],
-		...options
-	}));
-}
 const TavilySearchToolSchema = Type.Object({
 	query: Type.String({ description: "Search query string." }),
 	search_depth: optionalStringEnum(["basic", "advanced"], { description: "Search depth: \"basic\" (default, faster) or \"advanced\" (more thorough)." }),

@@ -1,16 +1,18 @@
-import { a as markdownToWhatsApp, c as __exportAll, i as jidToE164, l as __reExport, n as assertWebChannel, o as resolveJidToE164, r as isSelfChatMode, s as toWhatsappJid, t as text_runtime_exports } from "./text-runtime-Daz12Pek.js";
-import { a as listWhatsAppAuthDirs, c as resolveWhatsAppAuthDir, i as listWhatsAppAccountIds, l as resolveWhatsAppMediaMaxBytes, n as hasAnyWhatsAppAuth, o as resolveDefaultWhatsAppAccountId, r as listEnabledWhatsAppAccounts, s as resolveWhatsAppAccount, t as DEFAULT_WHATSAPP_MEDIA_MAX_MB } from "./accounts-DgAsOTS-.js";
-import { a as normalizeWhatsAppMessagingTarget, i as normalizeWhatsAppAllowFromEntries, n as isWhatsAppUserTarget, o as normalizeWhatsAppTarget, r as looksLikeWhatsAppTargetId, t as isWhatsAppGroupJid } from "./normalize-target-DzehiMvp.js";
-import { t as resolveWhatsAppOutboundTarget } from "./resolve-outbound-target-CbM5UJum.js";
-import { t as whatsappPlugin } from "./channel-DB5pERiT.js";
-import { r as WHATSAPP_LEGACY_OUTBOUND_SEND_DEP_KEYS } from "./heartbeat-recipients-DZfPzRUS.js";
-import { t as whatsappCommandPolicy } from "./command-policy-DylLtVOg.js";
-import { n as resolveWhatsAppGroupToolPolicy, r as resolveWhatsAppGroupIntroHint, t as resolveWhatsAppGroupRequireMention } from "./group-policy-sF_4utMT.js";
-import { t as whatsappSetupPlugin } from "./channel.setup-ngXlQBTA.js";
-import { t as DEFAULT_WEB_MEDIA_BYTES } from "./constants-f5LlBu0G.js";
-import { n as listWhatsAppDirectoryGroupsFromConfig, r as listWhatsAppDirectoryPeersFromConfig } from "./directory-config-BUOWZJW_.js";
-import "./runtime-api-vb71a5Kp.js";
-import { t as __testing } from "./access-control-D0WpKaWO.js";
+import { n as __reExport, t as __exportAll } from "./rolldown-runtime-RkAeH_Qm.js";
+import { r as resolveDefaultWhatsAppAccountId, t as listAccountIds } from "./account-ids-DG18xddX.js";
+import { a as resolveWhatsAppAccount, i as listWhatsAppAuthDirs, n as hasAnyWhatsAppAuth, o as resolveWhatsAppAuthDir, r as listEnabledWhatsAppAccounts, s as resolveWhatsAppMediaMaxBytes, t as DEFAULT_WHATSAPP_MEDIA_MAX_MB } from "./accounts-BDqgpFEB.js";
+import { a as normalizeWhatsAppMessagingTarget, i as normalizeWhatsAppAllowFromEntries, n as isWhatsAppUserTarget, o as normalizeWhatsAppTarget, r as looksLikeWhatsAppTargetId, t as isWhatsAppGroupJid } from "./normalize-target-BSx79XmS.js";
+import { t as resolveWhatsAppOutboundTarget } from "./resolve-outbound-target-muaeoILm.js";
+import { a as markdownToWhatsApp, i as jidToE164, n as assertWebChannel, o as resolveJidToE164, r as isSelfChatMode, s as toWhatsappJid, t as text_runtime_exports } from "./text-runtime-BvOFWrFo.js";
+import { t as whatsappPlugin } from "./channel-Q9B_RJru.js";
+import { n as WHATSAPP_LEGACY_OUTBOUND_SEND_DEP_KEYS } from "./outbound-base-BOeFzRJ3.js";
+import { t as whatsappCommandPolicy } from "./command-policy-O8sRnqUV.js";
+import { n as resolveWhatsAppGroupToolPolicy, r as resolveWhatsAppGroupIntroHint, t as resolveWhatsAppGroupRequireMention } from "./group-policy-BDmO10Lm.js";
+import { t as whatsappSetupPlugin } from "./channel.setup-CfqAuFD3.js";
+import { t as DEFAULT_WEB_MEDIA_BYTES } from "./constants-w1BoViXF.js";
+import { n as listWhatsAppDirectoryGroupsFromConfig, r as listWhatsAppDirectoryPeersFromConfig } from "./directory-config-CiANMx84.js";
+import "./runtime-api-hCCQAzxB.js";
+import { t as __testing } from "./access-control-D3uf0CqN.js";
 export * from "openclaw/plugin-sdk/text-runtime";
 __reExport(/* @__PURE__ */ __exportAll({
 	DEFAULT_WEB_MEDIA_BYTES: () => DEFAULT_WEB_MEDIA_BYTES,
@@ -23,7 +25,7 @@ __reExport(/* @__PURE__ */ __exportAll({
 	isWhatsAppUserTarget: () => isWhatsAppUserTarget,
 	jidToE164: () => jidToE164,
 	listEnabledWhatsAppAccounts: () => listEnabledWhatsAppAccounts,
-	listWhatsAppAccountIds: () => listWhatsAppAccountIds,
+	listWhatsAppAccountIds: () => listAccountIds,
 	listWhatsAppAuthDirs: () => listWhatsAppAuthDirs,
 	listWhatsAppDirectoryGroupsFromConfig: () => listWhatsAppDirectoryGroupsFromConfig,
 	listWhatsAppDirectoryPeersFromConfig: () => listWhatsAppDirectoryPeersFromConfig,
@@ -48,4 +50,4 @@ __reExport(/* @__PURE__ */ __exportAll({
 	whatsappSetupPlugin: () => whatsappSetupPlugin
 }), text_runtime_exports);
 //#endregion
-export { DEFAULT_WEB_MEDIA_BYTES, DEFAULT_WHATSAPP_MEDIA_MAX_MB, WHATSAPP_LEGACY_OUTBOUND_SEND_DEP_KEYS, assertWebChannel, hasAnyWhatsAppAuth, isSelfChatMode, isWhatsAppGroupJid, isWhatsAppUserTarget, jidToE164, listEnabledWhatsAppAccounts, listWhatsAppAccountIds, listWhatsAppAuthDirs, listWhatsAppDirectoryGroupsFromConfig, listWhatsAppDirectoryPeersFromConfig, looksLikeWhatsAppTargetId, markdownToWhatsApp, normalizeWhatsAppAllowFromEntries, normalizeWhatsAppMessagingTarget, normalizeWhatsAppTarget, resolveDefaultWhatsAppAccountId, resolveJidToE164, resolveWhatsAppAccount, resolveWhatsAppAuthDir, resolveWhatsAppGroupIntroHint, resolveWhatsAppGroupRequireMention, resolveWhatsAppGroupToolPolicy, resolveWhatsAppMediaMaxBytes, resolveWhatsAppOutboundTarget, toWhatsappJid, __testing as whatsappAccessControlTesting, whatsappCommandPolicy, whatsappPlugin, whatsappSetupPlugin };
+export { DEFAULT_WEB_MEDIA_BYTES, DEFAULT_WHATSAPP_MEDIA_MAX_MB, WHATSAPP_LEGACY_OUTBOUND_SEND_DEP_KEYS, assertWebChannel, hasAnyWhatsAppAuth, isSelfChatMode, isWhatsAppGroupJid, isWhatsAppUserTarget, jidToE164, listEnabledWhatsAppAccounts, listAccountIds as listWhatsAppAccountIds, listWhatsAppAuthDirs, listWhatsAppDirectoryGroupsFromConfig, listWhatsAppDirectoryPeersFromConfig, looksLikeWhatsAppTargetId, markdownToWhatsApp, normalizeWhatsAppAllowFromEntries, normalizeWhatsAppMessagingTarget, normalizeWhatsAppTarget, resolveDefaultWhatsAppAccountId, resolveJidToE164, resolveWhatsAppAccount, resolveWhatsAppAuthDir, resolveWhatsAppGroupIntroHint, resolveWhatsAppGroupRequireMention, resolveWhatsAppGroupToolPolicy, resolveWhatsAppMediaMaxBytes, resolveWhatsAppOutboundTarget, toWhatsappJid, __testing as whatsappAccessControlTesting, whatsappCommandPolicy, whatsappPlugin, whatsappSetupPlugin };

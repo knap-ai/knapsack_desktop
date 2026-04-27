@@ -1,4 +1,4 @@
-export type { ReplyPayload } from "../auto-reply/reply-payload.js";
+export type { ReplyPayload } from "./reply-payload.js";
 export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";
 export type { ChannelGatewayContext, ChannelOutboundAdapter, ChannelOutboundContext, ChannelResolveKind, ChannelResolveResult, ChannelStatusAdapter, } from "../channels/plugins/types.adapters.js";
 export type { BaseProbeResult, ChannelAccountSnapshot, ChannelCapabilities, ChannelLogSink, ChannelMessageActionAdapter, ChannelMessageActionContext, ChannelMeta, ChannelStatusIssue, } from "../channels/plugins/types.public.js";

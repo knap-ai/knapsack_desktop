@@ -1,2 +1,22 @@
-import { n as handleDiscordSubagentEnded, r as handleDiscordSubagentSpawning, t as handleDiscordSubagentDeliveryTarget } from "./subagent-hooks-CNegolKO.js";
-export { handleDiscordSubagentDeliveryTarget, handleDiscordSubagentEnded, handleDiscordSubagentSpawning };
+//#region extensions/discord/subagent-hooks-api.ts
+let discordSubagentHooksPromise = null;
+function loadDiscordSubagentHooksModule() {
+	discordSubagentHooksPromise ??= import("./subagent-hooks-BJ7pe8E_.js").then((n) => n.i);
+	return discordSubagentHooksPromise;
+}
+function registerDiscordSubagentHooks(api) {
+	api.on("subagent_spawning", async (event) => {
+		const { handleDiscordSubagentSpawning } = await loadDiscordSubagentHooksModule();
+		return await handleDiscordSubagentSpawning(api, event);
+	});
+	api.on("subagent_ended", async (event) => {
+		const { handleDiscordSubagentEnded } = await loadDiscordSubagentHooksModule();
+		handleDiscordSubagentEnded(event);
+	});
+	api.on("subagent_delivery_target", async (event) => {
+		const { handleDiscordSubagentDeliveryTarget } = await loadDiscordSubagentHooksModule();
+		return handleDiscordSubagentDeliveryTarget(event);
+	});
+}
+//#endregion
+export { registerDiscordSubagentHooks };

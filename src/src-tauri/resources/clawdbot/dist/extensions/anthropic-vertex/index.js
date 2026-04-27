@@ -1,9 +1,11 @@
-import { n as NATIVE_ANTHROPIC_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { i as resolveAnthropicVertexConfigApiKey } from "../../region-CanK2Bay.js";
-import { n as resolveImplicitAnthropicVertexProvider, t as mergeImplicitAnthropicVertexProvider } from "../../api-D6COr16I.js";
+import { hasAnthropicVertexAvailableAuth, resolveAnthropicVertexConfigApiKey } from "./region.js";
+import { mergeImplicitAnthropicVertexProvider, resolveImplicitAnthropicVertexProvider } from "./api.js";
+import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+import { readConfiguredProviderCatalogEntries } from "openclaw/plugin-sdk/provider-catalog-shared";
+import { NATIVE_ANTHROPIC_REPLAY_HOOKS } from "openclaw/plugin-sdk/provider-model-shared";
 //#region extensions/anthropic-vertex/index.ts
 const PROVIDER_ID = "anthropic-vertex";
+const GCP_VERTEX_CREDENTIALS_MARKER = "gcp-vertex-credentials";
 var anthropic_vertex_default = definePluginEntry({
 	id: PROVIDER_ID,
 	name: "Anthropic Vertex Provider",
@@ -26,7 +28,19 @@ var anthropic_vertex_default = definePluginEntry({
 				}
 			},
 			resolveConfigApiKey: ({ env }) => resolveAnthropicVertexConfigApiKey(env),
-			...NATIVE_ANTHROPIC_REPLAY_HOOKS
+			...NATIVE_ANTHROPIC_REPLAY_HOOKS,
+			resolveSyntheticAuth: () => {
+				if (!hasAnthropicVertexAvailableAuth()) return;
+				return {
+					apiKey: GCP_VERTEX_CREDENTIALS_MARKER,
+					source: "gcp-vertex-credentials (ADC)",
+					mode: "api-key"
+				};
+			},
+			augmentModelCatalog: ({ config }) => readConfiguredProviderCatalogEntries({
+				config,
+				providerId: PROVIDER_ID
+			})
 		});
 	}
 });

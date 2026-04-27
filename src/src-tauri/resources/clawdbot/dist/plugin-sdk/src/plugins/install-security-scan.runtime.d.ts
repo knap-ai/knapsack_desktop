@@ -3,6 +3,21 @@ type InstallScanLogger = {
     warn?: (message: string) => void;
 };
 type PluginInstallRequestKind = "skill-install" | "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm";
+type SkillInstallSpec = {
+    id?: string;
+    kind: "brew" | "node" | "go" | "uv" | "download";
+    label?: string;
+    bins?: string[];
+    os?: string[];
+    formula?: string;
+    package?: string;
+    module?: string;
+    url?: string;
+    archive?: string;
+    extract?: boolean;
+    stripComponents?: number;
+    targetDir?: string;
+};
 export type InstallSecurityScanResult = {
     blocked?: {
         code?: "security_scan_blocked" | "security_scan_failed";
@@ -45,21 +60,7 @@ export declare function scanFileInstallSourceRuntime(params: InstallSafetyOverri
 export declare function scanSkillInstallSourceRuntime(params: {
     dangerouslyForceUnsafeInstall?: boolean;
     installId: string;
-    installSpec?: {
-        id?: string;
-        kind: "brew" | "node" | "go" | "uv" | "download";
-        label?: string;
-        bins?: string[];
-        os?: string[];
-        formula?: string;
-        package?: string;
-        module?: string;
-        url?: string;
-        archive?: string;
-        extract?: boolean;
-        stripComponents?: number;
-        targetDir?: string;
-    };
+    installSpec?: SkillInstallSpec;
     logger: InstallScanLogger;
     origin: string;
     skillName: string;

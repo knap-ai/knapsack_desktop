@@ -14,7 +14,14 @@ export type AgentWaitResult = {
 export type SubagentRunOutcome = {
     status: "ok" | "error" | "timeout" | "unknown";
     error?: string;
+    startedAt?: number;
+    endedAt?: number;
+    elapsedMs?: number;
 };
+export declare function withSubagentOutcomeTiming(outcome: SubagentRunOutcome, timing: {
+    startedAt?: number;
+    endedAt?: number;
+}): SubagentRunOutcome;
 export declare function readSubagentOutput(sessionKey: string, outcome?: SubagentRunOutcome): Promise<string | undefined>;
 export declare function readLatestSubagentOutputWithRetry(params: {
     sessionKey: string;
@@ -34,6 +41,7 @@ export declare function applySubagentWaitOutcome(params: {
 };
 export declare function captureSubagentCompletionReply(sessionKey: string, options?: {
     waitForReply?: boolean;
+    outcome?: SubagentRunOutcome;
 }): Promise<string | undefined>;
 export declare function buildChildCompletionFindings(children: Array<{
     childSessionKey: string;

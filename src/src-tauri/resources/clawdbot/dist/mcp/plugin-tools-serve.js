@@ -1,23 +1,15 @@
-import { i as formatErrorMessage } from "../errors-D8p6rxH8.js";
-import { c as routeLogsToStderr } from "../subsystem-Cgmckbux.js";
-import { n as VERSION } from "../version-Bk5OW-rN.js";
-import { a as loadConfig } from "../io-5pxHCi7V.js";
-import "../config-Q9XZc_2I.js";
-import { d as resolvePluginTools } from "../channel-tools-DdZyHuyK.js";
-import { a as wrapToolWithBeforeToolCallHook, r as isToolWrappedWithBeforeToolCallHook } from "../pi-tools.before-tool-call-C0me_HAs.js";
+import { i as formatErrorMessage } from "../errors-Jbvi20TW.js";
+import { c as routeLogsToStderr } from "../subsystem-CWI_MDy_.js";
+import { n as VERSION } from "../version-DZq9J0ei.js";
+import { a as loadConfig } from "../io-Dv_xNAZB.js";
+import "../config-yDDhhyz6.js";
+import { r as resolvePluginTools } from "../tools-CZr3orc0.js";
+import { a as wrapToolWithBeforeToolCallHook, r as isToolWrappedWithBeforeToolCallHook } from "../pi-tools.before-tool-call-Tbtq2-gG.js";
 import { pathToFileURL } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-//#region src/mcp/plugin-tools-serve.ts
-/**
-* Standalone MCP server that exposes OpenClaw plugin-registered tools
-* (e.g. memory-lancedb's memory_recall, memory_store, memory_forget)
-* so ACP sessions running Claude Code can use them.
-*
-* Run via: node --import tsx src/mcp/plugin-tools-serve.ts
-* Or: bun src/mcp/plugin-tools-serve.ts
-*/
+//#region src/mcp/plugin-tools-handlers.ts
 function resolveJsonSchemaForTool(tool) {
 	const params = tool.parameters;
 	if (params && typeof params === "object" && "type" in params) return params;
@@ -26,65 +18,62 @@ function resolveJsonSchemaForTool(tool) {
 		properties: {}
 	};
 }
-function resolveTools(config) {
-	return resolvePluginTools({
-		context: { config },
-		suppressNameConflicts: true
-	});
-}
-function createPluginToolsMcpServer(params = {}) {
-	const cfg = params.config ?? loadConfig();
-	const tools = (params.tools ?? resolveTools(cfg)).map((tool) => {
+function createPluginToolsMcpHandlers(tools) {
+	const wrappedTools = tools.filter((tool) => !tool.ownerOnly).map((tool) => {
 		if (isToolWrappedWithBeforeToolCallHook(tool)) return tool;
 		return wrapToolWithBeforeToolCallHook(tool);
 	});
 	const toolMap = /* @__PURE__ */ new Map();
-	for (const tool of tools) toolMap.set(tool.name, tool);
-	const server = new Server({
-		name: "openclaw-plugin-tools",
-		version: VERSION
-	}, { capabilities: { tools: {} } });
-	server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map((tool) => ({
-		name: tool.name,
-		description: tool.description ?? "",
-		inputSchema: resolveJsonSchemaForTool(tool)
-	})) }));
-	server.setRequestHandler(CallToolRequestSchema, async (request) => {
-		const tool = toolMap.get(request.params.name);
-		if (!tool) return {
-			content: [{
-				type: "text",
-				text: `Unknown tool: ${request.params.name}`
-			}],
-			isError: true
-		};
-		try {
-			const result = await tool.execute(`mcp-${Date.now()}`, request.params.arguments ?? {});
-			return { content: Array.isArray(result.content) ? result.content : [{
-				type: "text",
-				text: String(result.content)
-			}] };
-		} catch (err) {
-			return {
+	for (const tool of wrappedTools) toolMap.set(tool.name, tool);
+	return {
+		listTools: async () => ({ tools: wrappedTools.map((tool) => ({
+			name: tool.name,
+			description: tool.description ?? "",
+			inputSchema: resolveJsonSchemaForTool(tool)
+		})) }),
+		callTool: async (params) => {
+			const tool = toolMap.get(params.name);
+			if (!tool) return {
 				content: [{
 					type: "text",
-					text: `Tool error: ${formatErrorMessage(err)}`
+					text: `Unknown tool: ${params.name}`
 				}],
 				isError: true
 			};
+			try {
+				const result = await tool.execute(`mcp-${Date.now()}`, params.arguments ?? {});
+				return { content: Array.isArray(result.content) ? result.content : [{
+					type: "text",
+					text: String(result.content)
+				}] };
+			} catch (err) {
+				return {
+					content: [{
+						type: "text",
+						text: `Tool error: ${formatErrorMessage(err)}`
+					}],
+					isError: true
+				};
+			}
 		}
+	};
+}
+//#endregion
+//#region src/mcp/tools-stdio-server.ts
+function createToolsMcpServer(params) {
+	const handlers = createPluginToolsMcpHandlers(params.tools);
+	const server = new Server({
+		name: params.name,
+		version: VERSION
+	}, { capabilities: { tools: {} } });
+	server.setRequestHandler(ListToolsRequestSchema, handlers.listTools);
+	server.setRequestHandler(CallToolRequestSchema, async (request) => {
+		return await handlers.callTool(request.params);
 	});
 	return server;
 }
-async function servePluginToolsMcp() {
+async function connectToolsMcpServerToStdio(server) {
 	routeLogsToStderr();
-	const config = loadConfig();
-	const tools = resolveTools(config);
-	const server = createPluginToolsMcpServer({
-		config,
-		tools
-	});
-	if (tools.length === 0) process.stderr.write("plugin-tools-serve: no plugin tools found\n");
 	const transport = new StdioServerTransport();
 	let shuttingDown = false;
 	const shutdown = () => {
@@ -101,6 +90,39 @@ async function servePluginToolsMcp() {
 	process.once("SIGINT", shutdown);
 	process.once("SIGTERM", shutdown);
 	await server.connect(transport);
+}
+//#endregion
+//#region src/mcp/plugin-tools-serve.ts
+/**
+* Standalone MCP server that exposes OpenClaw plugin-registered tools
+* (e.g. memory-lancedb's memory_recall, memory_store, memory_forget)
+* so ACP sessions running Claude Code can use them.
+*
+* Run via: node --import tsx src/mcp/plugin-tools-serve.ts
+* Or: bun src/mcp/plugin-tools-serve.ts
+*/
+function resolveTools(config) {
+	return resolvePluginTools({
+		context: { config },
+		suppressNameConflicts: true
+	});
+}
+function createPluginToolsMcpServer(params = {}) {
+	const cfg = params.config ?? loadConfig();
+	return createToolsMcpServer({
+		name: "openclaw-plugin-tools",
+		tools: params.tools ?? resolveTools(cfg)
+	});
+}
+async function servePluginToolsMcp() {
+	const config = loadConfig();
+	const tools = resolveTools(config);
+	const server = createPluginToolsMcpServer({
+		config,
+		tools
+	});
+	if (tools.length === 0) process.stderr.write("plugin-tools-serve: no plugin tools found\n");
+	await connectToolsMcpServerToStdio(server);
 }
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) servePluginToolsMcp().catch((err) => {
 	process.stderr.write(`plugin-tools-serve: ${formatErrorMessage(err)}\n`);

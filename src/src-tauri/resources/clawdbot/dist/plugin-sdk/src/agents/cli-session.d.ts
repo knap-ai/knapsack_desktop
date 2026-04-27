@@ -10,8 +10,10 @@ export declare function resolveCliSessionReuse(params: {
     binding?: CliSessionBinding;
     authProfileId?: string;
     authEpoch?: string;
+    authEpochVersion: number;
     extraSystemPromptHash?: string;
     mcpConfigHash?: string;
+    mcpResumeHash?: string;
 }): {
     sessionId?: string;
     invalidatedReason?: "auth-profile" | "auth-epoch" | "system-prompt" | "mcp";

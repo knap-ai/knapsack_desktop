@@ -1,7 +1,7 @@
 import { loadConfig } from "../config/io.js";
 import { resolveConfigPath as resolveConfigPathFromPaths, resolveGatewayPort as resolveGatewayPortFromPaths, resolveStateDir as resolveStateDirFromPaths } from "../config/paths.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
+import { loadOrCreateDeviceIdentity, type DeviceIdentity } from "../infra/device-identity.js";
 import { loadGatewayTlsRuntime } from "../infra/tls/gateway.js";
 import { type GatewayClientMode, type GatewayClientName } from "../utils/message-channel.js";
 import { GatewayClient, type GatewayClientOptions } from "./client.js";
@@ -25,6 +25,7 @@ type CallGatewayBaseOptions = {
     clientVersion?: string;
     platform?: string;
     mode?: GatewayClientMode;
+    deviceIdentity?: DeviceIdentity | null;
     instanceId?: string;
     minProtocol?: number;
     maxProtocol?: number;

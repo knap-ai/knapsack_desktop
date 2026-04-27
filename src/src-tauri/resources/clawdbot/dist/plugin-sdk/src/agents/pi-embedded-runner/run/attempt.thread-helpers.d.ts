@@ -15,6 +15,7 @@ export declare function resolveAttemptSpawnWorkspaceDir(params: {
 export declare function shouldUseOpenAIWebSocketTransport(params: {
     provider: string;
     modelApi?: string | null;
+    modelBaseUrl?: string | null;
 }): boolean;
 export declare function shouldAppendAttemptCacheTtl(params: {
     timedOutDuringCompaction: boolean;

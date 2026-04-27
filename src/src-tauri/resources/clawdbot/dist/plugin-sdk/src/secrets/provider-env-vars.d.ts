@@ -25,6 +25,9 @@ export declare const PROVIDER_AUTH_ENV_VAR_CANDIDATES: Record<string, readonly s
  * overrides where generic onboarding wants a different preferred env var.
  */
 export declare const PROVIDER_ENV_VARS: Record<string, readonly string[]>;
+export declare const __testing: {
+    resetProviderEnvVarCachesForTests(): void;
+};
 export declare function getProviderEnvVars(providerId: string, params?: ProviderEnvVarLookupParams): string[];
 export declare function listKnownProviderAuthEnvVarNames(params?: ProviderEnvVarLookupParams): string[];
 export declare function listKnownSecretEnvVarNames(params?: ProviderEnvVarLookupParams): string[];

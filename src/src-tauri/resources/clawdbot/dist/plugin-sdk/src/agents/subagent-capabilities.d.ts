@@ -3,12 +3,18 @@ export declare const SUBAGENT_SESSION_ROLES: readonly ["main", "orchestrator", "
 export type SubagentSessionRole = (typeof SUBAGENT_SESSION_ROLES)[number];
 export declare const SUBAGENT_CONTROL_SCOPES: readonly ["children", "none"];
 export type SubagentControlScope = (typeof SUBAGENT_CONTROL_SCOPES)[number];
-type SessionCapabilityEntry = {
+export type SessionCapabilityEntry = {
     sessionId?: unknown;
     spawnDepth?: unknown;
     subagentRole?: unknown;
     subagentControlScope?: unknown;
+    spawnedBy?: unknown;
 };
+export type SessionCapabilityStore = Record<string, SessionCapabilityEntry>;
+export declare function resolveSubagentCapabilityStore(sessionKey: string | undefined | null, opts?: {
+    cfg?: OpenClawConfig;
+    store?: SessionCapabilityStore;
+}): SessionCapabilityStore | undefined;
 export declare function resolveSubagentRoleForDepth(params: {
     depth: number;
     maxSpawnDepth?: number;
@@ -19,19 +25,23 @@ export declare function resolveSubagentCapabilities(params: {
     maxSpawnDepth?: number;
 }): {
     depth: number;
-    role: "main" | "orchestrator" | "leaf";
-    controlScope: "none" | "children";
+    role: "leaf" | "main" | "orchestrator";
+    controlScope: "children" | "none";
     canSpawn: boolean;
     canControlChildren: boolean;
 };
+export declare function isSubagentEnvelopeSession(sessionKey: string | undefined | null, opts?: {
+    cfg?: OpenClawConfig;
+    store?: SessionCapabilityStore;
+    entry?: SessionCapabilityEntry;
+}): boolean;
 export declare function resolveStoredSubagentCapabilities(sessionKey: string | undefined | null, opts?: {
     cfg?: OpenClawConfig;
-    store?: Record<string, SessionCapabilityEntry>;
+    store?: SessionCapabilityStore;
 }): {
     depth: number;
-    role: "main" | "orchestrator" | "leaf";
-    controlScope: "none" | "children";
+    role: "leaf" | "main" | "orchestrator";
+    controlScope: "children" | "none";
     canSpawn: boolean;
     canControlChildren: boolean;
 };
-export {};

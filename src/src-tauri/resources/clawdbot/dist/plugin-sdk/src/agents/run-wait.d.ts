@@ -15,6 +15,7 @@ export type AgentRunsDrainResult = {
     pendingRunIds: string[];
     deadlineAtMs: number;
 };
+export declare function isRecoverableAgentWaitError(error: string | undefined): boolean;
 export declare function readLatestAssistantReplySnapshot(params: {
     sessionKey: string;
     limit?: number;

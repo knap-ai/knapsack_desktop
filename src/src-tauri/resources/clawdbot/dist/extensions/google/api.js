@@ -1,20 +1,14 @@
-import { parseGoogleOauthApiKey } from "./oauth-token-shared.js";
+import { createGoogleThinkingPayloadWrapper, createGoogleThinkingStreamWrapper, isGoogleGemini3FlashModel, isGoogleGemini3ProModel, isGoogleGemini3ThinkingLevelModel, isGoogleThinkingRequiredModel, resolveGoogleGemini3ThinkingLevel, sanitizeGoogleThinkingPayload, stripInvalidGoogleThinkingBudget } from "./thinking.js";
+import "./thinking-api.js";
+import { buildGoogleGeminiCliProvider } from "./gemini-cli-provider.js";
 import { normalizeAntigravityModelId, normalizeGoogleModelId } from "./model-id.js";
+import { GOOGLE_GEMINI_DEFAULT_MODEL, applyGoogleGeminiModelDefault } from "./onboard.js";
 import { DEFAULT_GOOGLE_API_BASE_URL, isGoogleGenerativeAiApi, normalizeGoogleApiBaseUrl, normalizeGoogleGenerativeAiBaseUrl, normalizeGoogleProviderConfig, resolveGoogleGenerativeAiApiOrigin, resolveGoogleGenerativeAiTransport, shouldNormalizeGoogleGenerativeAiProviderConfig, shouldNormalizeGoogleProviderConfig } from "./provider-policy.js";
+import { parseGeminiAuth } from "./gemini-auth.js";
+import { buildGoogleGenerativeAiParams, createGoogleGenerativeAiTransportStreamFn } from "./transport-stream.js";
+import { buildGoogleProvider } from "./provider-registration.js";
 import { resolveProviderHttpRequestConfig } from "openclaw/plugin-sdk/provider-http";
-import { applyAgentDefaultModelPrimary } from "openclaw/plugin-sdk/provider-onboard";
 //#region extensions/google/api.ts
-function parseGeminiAuth(apiKey) {
-	const parsed = apiKey.startsWith("{") ? parseGoogleOauthApiKey(apiKey) : null;
-	if (parsed?.token) return { headers: {
-		Authorization: `Bearer ${parsed.token}`,
-		"Content-Type": "application/json"
-	} };
-	return { headers: {
-		"x-goog-api-key": apiKey,
-		"Content-Type": "application/json"
-	} };
-}
 function resolveTrustedGoogleGenerativeAiBaseUrl(baseUrl) {
 	const normalized = normalizeGoogleGenerativeAiBaseUrl(baseUrl ?? "https://generativelanguage.googleapis.com/v1beta") ?? "https://generativelanguage.googleapis.com/v1beta";
 	let url;
@@ -30,7 +24,7 @@ function resolveGoogleGenerativeAiHttpRequestConfig(params) {
 	return resolveProviderHttpRequestConfig({
 		baseUrl: resolveTrustedGoogleGenerativeAiBaseUrl(params.baseUrl),
 		defaultBaseUrl: DEFAULT_GOOGLE_API_BASE_URL,
-		allowPrivateNetwork: false,
+		allowPrivateNetwork: params.request?.allowPrivateNetwork,
 		headers: params.headers,
 		request: params.request,
 		defaultHeaders: parseGeminiAuth(params.apiKey).headers,
@@ -40,17 +34,5 @@ function resolveGoogleGenerativeAiHttpRequestConfig(params) {
 		transport: params.transport
 	});
 }
-const GOOGLE_GEMINI_DEFAULT_MODEL = "google/gemini-3.1-pro-preview";
-function applyGoogleGeminiModelDefault(cfg) {
-	const current = cfg.agents?.defaults?.model;
-	if ((typeof current === "string" ? current.trim() || void 0 : current && typeof current === "object" && typeof current.primary === "string" ? (current.primary || "").trim() || void 0 : void 0) === "google/gemini-3.1-pro-preview") return {
-		next: cfg,
-		changed: false
-	};
-	return {
-		next: applyAgentDefaultModelPrimary(cfg, GOOGLE_GEMINI_DEFAULT_MODEL),
-		changed: true
-	};
-}
 //#endregion
-export { DEFAULT_GOOGLE_API_BASE_URL, GOOGLE_GEMINI_DEFAULT_MODEL, applyGoogleGeminiModelDefault, isGoogleGenerativeAiApi, normalizeAntigravityModelId, normalizeGoogleApiBaseUrl, normalizeGoogleGenerativeAiBaseUrl, normalizeGoogleModelId, normalizeGoogleProviderConfig, parseGeminiAuth, resolveGoogleGenerativeAiApiOrigin, resolveGoogleGenerativeAiHttpRequestConfig, resolveGoogleGenerativeAiTransport, shouldNormalizeGoogleGenerativeAiProviderConfig, shouldNormalizeGoogleProviderConfig };
+export { DEFAULT_GOOGLE_API_BASE_URL, GOOGLE_GEMINI_DEFAULT_MODEL, applyGoogleGeminiModelDefault, buildGoogleGeminiCliProvider, buildGoogleGenerativeAiParams, buildGoogleProvider, createGoogleGenerativeAiTransportStreamFn, createGoogleThinkingPayloadWrapper, createGoogleThinkingStreamWrapper, isGoogleGemini3FlashModel, isGoogleGemini3ProModel, isGoogleGemini3ThinkingLevelModel, isGoogleGenerativeAiApi, isGoogleThinkingRequiredModel, normalizeAntigravityModelId, normalizeGoogleApiBaseUrl, normalizeGoogleGenerativeAiBaseUrl, normalizeGoogleModelId, normalizeGoogleProviderConfig, parseGeminiAuth, resolveGoogleGemini3ThinkingLevel, resolveGoogleGenerativeAiApiOrigin, resolveGoogleGenerativeAiHttpRequestConfig, resolveGoogleGenerativeAiTransport, sanitizeGoogleThinkingPayload, shouldNormalizeGoogleGenerativeAiProviderConfig, shouldNormalizeGoogleProviderConfig, stripInvalidGoogleThinkingBudget };

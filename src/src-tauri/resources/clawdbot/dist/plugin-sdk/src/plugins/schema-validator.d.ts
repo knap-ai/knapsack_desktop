@@ -1,3 +1,4 @@
+import type { JsonSchemaObject } from "../shared/json-schema.types.js";
 export type JsonSchemaValidationError = {
     path: string;
     message: string;
@@ -6,7 +7,7 @@ export type JsonSchemaValidationError = {
     allowedValuesHiddenCount?: number;
 };
 export declare function validateJsonSchemaValue(params: {
-    schema: Record<string, unknown>;
+    schema: JsonSchemaObject;
     cacheKey: string;
     value: unknown;
     applyDefaults?: boolean;

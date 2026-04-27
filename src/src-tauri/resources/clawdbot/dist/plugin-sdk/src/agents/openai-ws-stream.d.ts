@@ -7,11 +7,15 @@ type OpenAIWsStreamDeps = {
     createHttpFallbackStreamFn: (model: ProviderRuntimeModel) => StreamFn | undefined;
     streamSimple: typeof piAi.streamSimple;
 };
+type ReleaseWsSessionOptions = {
+    allowPool?: boolean;
+    env?: NodeJS.ProcessEnv;
+};
 /**
  * Release and close the WebSocket session for the given sessionId.
  * Call this after the agent run completes to free the connection.
  */
-export declare function releaseWsSession(sessionId: string): void;
+export declare function releaseWsSession(sessionId: string, options?: ReleaseWsSessionOptions): void;
 /**
  * Returns true if a live WebSocket session exists for the given sessionId.
  */

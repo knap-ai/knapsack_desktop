@@ -1,8 +1,8 @@
-import type { ReplyPayload } from "../auto-reply/reply-payload.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { TtsAutoMode, TtsProvider } from "../config/types.tts.js";
 import type { SpeechProviderConfig, SpeechVoiceOption, TtsDirectiveOverrides, TtsDirectiveParseResult } from "../tts/provider-types.js";
 import type { ResolvedTtsConfig, ResolvedTtsModelOverrides } from "../tts/tts-types.js";
+import type { ReplyPayload } from "./reply-payload.js";
 export type { ResolvedTtsConfig, ResolvedTtsModelOverrides };
 export type { TtsDirectiveOverrides, TtsDirectiveParseResult };
 export type TtsAttemptReasonCode = "success" | "no_provider_registered" | "not_configured" | "unsupported_for_telephony" | "timeout" | "provider_error";
@@ -50,6 +50,7 @@ export type TtsRequestParams = {
     channel?: string;
     overrides?: TtsDirectiveOverrides;
     disableFallback?: boolean;
+    timeoutMs?: number;
 };
 export type TtsTelephonyRequestParams = {
     text: string;

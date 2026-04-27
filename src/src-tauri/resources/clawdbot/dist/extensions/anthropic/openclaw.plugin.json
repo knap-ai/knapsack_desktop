@@ -12,6 +12,9 @@
   "cliBackends": [
     "claude-cli"
   ],
+  "syntheticAuthRefs": [
+    "claude-cli"
+  ],
   "providerAuthEnvVars": {
     "anthropic": [
       "ANTHROPIC_OAUTH_TOKEN",
@@ -35,6 +38,17 @@
     },
     {
       "provider": "anthropic",
+      "method": "setup-token",
+      "choiceId": "setup-token",
+      "choiceLabel": "Anthropic setup-token",
+      "choiceHint": "Manual token path",
+      "assistantPriority": 40,
+      "groupId": "anthropic",
+      "groupLabel": "Anthropic",
+      "groupHint": "Claude CLI + API key + token"
+    },
+    {
+      "provider": "anthropic",
       "method": "api-key",
       "choiceId": "apiKey",
       "choiceLabel": "Anthropic API key",
@@ -51,6 +65,22 @@
     "mediaUnderstandingProviders": [
       "anthropic"
     ]
+  },
+  "mediaUnderstandingProviderMetadata": {
+    "anthropic": {
+      "capabilities": [
+        "image"
+      ],
+      "defaultModels": {
+        "image": "claude-opus-4-7"
+      },
+      "autoPriority": {
+        "image": 20
+      },
+      "nativeDocumentInputs": [
+        "pdf"
+      ]
+    }
   },
   "configSchema": {
     "type": "object",

@@ -50,10 +50,10 @@ export declare function resolveExtensionApiAlias(params?: LoaderModuleResolvePar
 export declare function buildPluginLoaderAliasMap(modulePath: string, argv1?: string | undefined, moduleUrl?: string, pluginSdkResolution?: PluginSdkResolutionPreference): Record<string, string>;
 export declare function resolvePluginRuntimeModulePath(params?: LoaderModuleResolveParams): string | null;
 export declare function buildPluginLoaderJitiOptions(aliasMap: Record<string, string>): {
-    alias?: Record<string, string> | undefined;
     interopDefault: boolean;
     tryNative: boolean;
     extensions: string[];
+    alias?: Record<string, string> | undefined;
 };
 export declare function shouldPreferNativeJiti(modulePath: string): boolean;
 export declare function resolvePluginLoaderJitiTryNative(modulePath: string, options?: {
@@ -68,6 +68,7 @@ export declare function resolvePluginLoaderJitiConfig(params: {
     argv1?: string;
     moduleUrl: string;
     preferBuiltDist?: boolean;
+    pluginSdkResolution?: PluginSdkResolutionPreference;
 }): {
     tryNative: boolean;
     aliasMap: Record<string, string>;

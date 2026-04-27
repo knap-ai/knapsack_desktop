@@ -1,21 +1,15 @@
 import { type VerboseLevel } from "../auto-reply/thinking.js";
-import { type CliDeps } from "../cli/deps.js";
+import type { CliDeps } from "../cli/deps.types.js";
 import type { SessionEntry } from "../config/sessions/types.js";
-import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type RuntimeEnv } from "../runtime.js";
+import { resolveAgentRuntimeConfig } from "./agent-runtime-config.js";
 import type { AgentCommandIngressOpts, AgentCommandOpts } from "./command/types.js";
-declare function resolveAgentRuntimeConfig(runtime: RuntimeEnv, params?: {
-    runtimeTargetsChannelSecrets?: boolean;
-}): Promise<{
-    loadedRaw: OpenClawConfig;
-    sourceConfig: OpenClawConfig;
-    cfg: OpenClawConfig;
-}>;
 declare function prepareAgentCommandExecution(opts: AgentCommandOpts & {
     senderIsOwner: boolean;
 }, runtime: RuntimeEnv): Promise<{
     body: string;
-    cfg: OpenClawConfig;
+    transcriptBody: string;
+    cfg: import("openclaw/plugin-sdk").OpenClawConfig;
     normalizedSpawned: import("./spawned-context.js").NormalizedSpawnedRunMetadata;
     agentCfg: import("../config/types.agent-defaults.ts").AgentDefaultsConfig | undefined;
     thinkOverride: import("../auto-reply/thinking.shared.ts").ThinkLevel | undefined;
@@ -40,11 +34,11 @@ declare function prepareAgentCommandExecution(opts: AgentCommandOpts & {
 }>;
 export declare function agentCommand(opts: AgentCommandOpts, runtime?: RuntimeEnv, deps?: CliDeps): Promise<{
     payloads: import("../infra/outbound/payloads.ts").OutboundPayloadJson[];
-    meta: import("./pi-embedded-runner.ts").EmbeddedAgentRunMeta;
+    meta: import("./pi-embedded-runner.ts").EmbeddedPiRunMeta;
 }>;
 export declare function agentCommandFromIngress(opts: AgentCommandIngressOpts, runtime?: RuntimeEnv, deps?: CliDeps): Promise<{
     payloads: import("../infra/outbound/payloads.ts").OutboundPayloadJson[];
-    meta: import("./pi-embedded-runner.ts").EmbeddedAgentRunMeta;
+    meta: import("./pi-embedded-runner.ts").EmbeddedPiRunMeta;
 }>;
 export declare const __testing: {
     resolveAgentRuntimeConfig: typeof resolveAgentRuntimeConfig;

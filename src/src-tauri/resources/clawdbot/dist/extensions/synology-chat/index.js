@@ -1,4 +1,4 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
 //#region extensions/synology-chat/index.ts
 var synology_chat_default = defineBundledChannelEntry({
 	id: "synology-chat",
@@ -6,7 +6,7 @@ var synology_chat_default = defineBundledChannelEntry({
 	description: "Native Synology Chat channel plugin for OpenClaw",
 	importMetaUrl: import.meta.url,
 	plugin: {
-		specifier: "./api.js",
+		specifier: "./channel-plugin-api.js",
 		exportName: "synologyChatPlugin"
 	},
 	runtime: {

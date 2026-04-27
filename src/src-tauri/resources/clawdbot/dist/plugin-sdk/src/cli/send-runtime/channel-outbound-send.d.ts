@@ -8,7 +8,10 @@ type RuntimeSendOpts = {
     mediaLocalRoots?: readonly string[];
     mediaReadFile?: (filePath: string) => Promise<Buffer>;
     accountId?: string;
+    threadId?: string | number | null;
     messageThreadId?: string | number;
+    threadTs?: string | number;
+    replyToId?: string | number | null;
     replyToMessageId?: string | number;
     silent?: boolean;
     forceDocument?: boolean;
@@ -19,6 +22,6 @@ export declare function createChannelOutboundRuntimeSend(params: {
     channelId: ChannelId;
     unavailableMessage: string;
 }): {
-    sendMessage: (to: string, text: string, opts?: RuntimeSendOpts) => Promise<import("../../plugin-sdk/twitch.ts").OutboundDeliveryResult>;
+    sendMessage: (to: string, text: string, opts?: RuntimeSendOpts) => Promise<import("openclaw/plugin-sdk/outbound-runtime").OutboundDeliveryResult>;
 };
 export {};

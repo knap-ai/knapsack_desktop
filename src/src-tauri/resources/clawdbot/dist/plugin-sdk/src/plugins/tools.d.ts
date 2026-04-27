@@ -1,9 +1,10 @@
 import type { AnyAgentTool } from "../agents/tools/common.js";
 import type { OpenClawPluginToolContext } from "./types.js";
-type PluginToolMeta = {
+export type PluginToolMeta = {
     pluginId: string;
     optional: boolean;
 };
+export declare function setPluginToolMeta(tool: AnyAgentTool, meta: PluginToolMeta): void;
 export declare function getPluginToolMeta(tool: AnyAgentTool): PluginToolMeta | undefined;
 export declare function copyPluginToolMeta(source: AnyAgentTool, target: AnyAgentTool): void;
 export declare function resolvePluginTools(params: {
@@ -14,4 +15,3 @@ export declare function resolvePluginTools(params: {
     allowGatewaySubagentBinding?: boolean;
     env?: NodeJS.ProcessEnv;
 }): AnyAgentTool[];
-export {};

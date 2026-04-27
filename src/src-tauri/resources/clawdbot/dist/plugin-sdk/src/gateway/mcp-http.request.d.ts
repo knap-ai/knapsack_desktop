@@ -4,12 +4,17 @@ export type McpRequestContext = {
     sessionKey: string;
     messageProvider: string | undefined;
     accountId: string | undefined;
-    senderIsOwner: boolean | undefined;
+    senderIsOwner: boolean;
 };
 export declare function validateMcpLoopbackRequest(params: {
     req: IncomingMessage;
     res: ServerResponse;
-    token: string;
-}): boolean;
+    ownerToken: string;
+    nonOwnerToken: string;
+}): {
+    senderIsOwner: boolean;
+} | null;
 export declare function readMcpHttpBody(req: IncomingMessage): Promise<string>;
-export declare function resolveMcpRequestContext(req: IncomingMessage, cfg: OpenClawConfig): McpRequestContext;
+export declare function resolveMcpRequestContext(req: IncomingMessage, cfg: OpenClawConfig, auth: {
+    senderIsOwner: boolean;
+}): McpRequestContext;

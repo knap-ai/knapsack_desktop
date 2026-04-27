@@ -5,7 +5,7 @@ import type { DispatchFromConfigResult } from "./dispatch-from-config.types.js";
 import type { GetReplyFromConfig } from "./get-reply.types.js";
 import type { ReplyDispatcherOptions, ReplyDispatcherWithTypingOptions } from "./reply-dispatcher.js";
 type DispatchReplyContext = MsgContext | FinalizedMsgContext;
-type DispatchReplyOptions = Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
+type DispatchReplyOptions = Omit<GetReplyOptions, "onBlockReply">;
 export type DispatchReplyWithBufferedBlockDispatcher = (params: {
     ctx: DispatchReplyContext;
     cfg: OpenClawConfig;

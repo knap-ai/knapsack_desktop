@@ -37,6 +37,10 @@ export type RestartDeferralHooks = {
     onTimeout?: (pending: number, elapsedMs: number) => void;
     onCheckError?: (err: unknown) => void;
 };
+export type RestartEmitHooks = {
+    beforeEmit?: () => Promise<void>;
+    afterEmitRejected?: () => Promise<void>;
+};
 /**
  * Poll pending work until it drains (or times out), then emit one restart signal.
  * Shared by both the direct RPC restart path and the config watcher path.
@@ -44,6 +48,7 @@ export type RestartDeferralHooks = {
 export declare function deferGatewayRestartUntilIdle(opts: {
     getPendingCount: () => number;
     hooks?: RestartDeferralHooks;
+    emitHooks?: RestartEmitHooks;
     pollMs?: number;
     maxWaitMs?: number;
 }): void;
@@ -62,6 +67,7 @@ export declare function scheduleGatewaySigusr1Restart(opts?: {
     delayMs?: number;
     reason?: string;
     audit?: RestartAuditInfo;
+    emitHooks?: RestartEmitHooks;
 }): ScheduledRestart;
 export declare const __testing: {
     resetSigusr1State(): void;

@@ -1,4 +1,4 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
 //#region extensions/imessage/index.ts
 var imessage_default = defineBundledChannelEntry({
 	id: "imessage",
@@ -6,7 +6,7 @@ var imessage_default = defineBundledChannelEntry({
 	description: "iMessage channel plugin",
 	importMetaUrl: import.meta.url,
 	plugin: {
-		specifier: "./api.js",
+		specifier: "./channel-plugin-api.js",
 		exportName: "imessagePlugin"
 	},
 	runtime: {

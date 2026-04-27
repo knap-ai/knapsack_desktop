@@ -1,6 +1,6 @@
 import type { SsrFPolicy } from "../../infra/net/ssrf.js";
 import type { EmbeddingProviderOptions } from "./embeddings.types.js";
-export type RemoteEmbeddingProviderId = "openai" | "voyage" | "mistral";
+export type RemoteEmbeddingProviderId = string;
 export declare function resolveRemoteEmbeddingBearerClient(params: {
     provider: RemoteEmbeddingProviderId;
     options: EmbeddingProviderOptions;

@@ -1,2 +1,2 @@
-export { resolveAuthStatePath, resolveAuthStatePathForDisplay, resolveAuthStorePath, resolveAuthStorePathForDisplay, resolveLegacyAuthStorePath, } from "./path-resolve.js";
+export { resolveAuthStatePath, resolveAuthStatePathForDisplay, resolveAuthStorePath, resolveAuthStorePathForDisplay, resolveLegacyAuthStorePath, resolveOAuthRefreshLockPath, } from "./path-resolve.js";
 export declare function ensureAuthStoreFile(pathname: string): void;

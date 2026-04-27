@@ -1,15 +1,15 @@
-import { d as readStringValue, s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
-import { g as resolveOAuthApiKeyMarker } from "../../model-auth-markers-ve-OgG6R.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-nkL4zxbI.js";
-import { t as buildOauthProviderAuthResult } from "../../provider-auth-result-4Yd6Tgrg.js";
-import "../../provider-auth-DWLaZig-.js";
-import "../../provider-auth-api-key-F-AGqwyB.js";
-import { n as loginChutes } from "../../provider-auth-login-Bp_Z7B2H.js";
-import { r as CHUTES_DEFAULT_MODEL_REF } from "../../models-BjK9jMKY.js";
-import { r as applyChutesProviderConfig, t as applyChutesApiKeyConfig } from "../../onboard-DIDLC6fu.js";
-import { t as buildChutesProvider } from "../../provider-catalog-DZRdGyiQ.js";
+import { c as normalizeOptionalString, f as readStringValue } from "../../string-coerce-C1IzJjqi.js";
+import { _ as resolveOAuthApiKeyMarker } from "../../model-auth-markers-CZrGSAU9.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
+import { t as buildOauthProviderAuthResult } from "../../provider-auth-result-BxJ0mvCl.js";
+import "../../provider-auth-B7ecZcum.js";
+import "../../provider-auth-api-key-BVwjjhIk.js";
+import { n as loginChutes } from "../../provider-auth-login-CRY7Rv8w.js";
+import { r as CHUTES_DEFAULT_MODEL_REF } from "../../models-Bm8RwzUh.js";
+import { r as applyChutesProviderConfig, t as applyChutesApiKeyConfig } from "../../onboard--IypoO0_.js";
+import { n as buildStaticChutesProvider, t as buildChutesProvider } from "../../provider-catalog-Ciyeiyue.js";
 //#region extensions/chutes/index.ts
 const PROVIDER_ID = "chutes";
 async function runChutesOAuth(ctx) {
@@ -138,6 +138,10 @@ var chutes_default = definePluginEntry({
 						apiKey
 					} };
 				}
+			},
+			staticCatalog: {
+				order: "profile",
+				run: async () => ({ provider: buildStaticChutesProvider() })
 			}
 		});
 	}

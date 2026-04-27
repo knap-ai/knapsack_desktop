@@ -1,2 +1,7 @@
-import { t as ensureAuthProfileStore } from "../auth-profiles.runtime-CXlKjhye.js";
+import { n as ensureAuthProfileStore$1 } from "../store-CfHec0eX.js";
+//#region src/agents/auth-profiles.runtime.ts
+function ensureAuthProfileStore(...args) {
+	return ensureAuthProfileStore$1(...args);
+}
+//#endregion
 export { ensureAuthProfileStore };

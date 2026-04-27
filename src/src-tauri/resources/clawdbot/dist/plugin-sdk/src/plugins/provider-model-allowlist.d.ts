@@ -1,6 +1,1 @@
-import type { OpenClawConfig } from "../config/types.openclaw.js";
-export declare function ensureModelAllowlistEntry(params: {
-    cfg: OpenClawConfig;
-    modelRef: string;
-    defaultProvider?: string;
-}): OpenClawConfig;
+export { ensureStaticModelAllowlistEntry as ensureModelAllowlistEntry } from "../agents/model-allowlist-entry.js";

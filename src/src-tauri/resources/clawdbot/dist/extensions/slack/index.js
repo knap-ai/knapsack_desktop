@@ -2,7 +2,7 @@ import { defineBundledChannelEntry, loadBundledEntryExportSync } from "openclaw/
 //#region extensions/slack/index.ts
 function registerSlackPluginHttpRoutes(api) {
 	loadBundledEntryExportSync(import.meta.url, {
-		specifier: "./runtime-api.js",
+		specifier: "./http-routes-api.js",
 		exportName: "registerSlackPluginHttpRoutes"
 	})(api);
 }
@@ -20,7 +20,7 @@ var slack_default = defineBundledChannelEntry({
 		exportName: "channelSecrets"
 	},
 	runtime: {
-		specifier: "./runtime-api.js",
+		specifier: "./runtime-setter-api.js",
 		exportName: "setSlackRuntime"
 	},
 	accountInspect: {

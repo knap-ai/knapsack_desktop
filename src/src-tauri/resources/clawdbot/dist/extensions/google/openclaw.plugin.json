@@ -58,10 +58,16 @@
     "mediaUnderstandingProviders": [
       "google"
     ],
+    "memoryEmbeddingProviders": [
+      "gemini"
+    ],
     "imageGenerationProviders": [
       "google"
     ],
     "musicGenerationProviders": [
+      "google"
+    ],
+    "realtimeVoiceProviders": [
       "google"
     ],
     "speechProviders": [
@@ -72,6 +78,33 @@
     ],
     "webSearchProviders": [
       "gemini"
+    ]
+  },
+  "mediaUnderstandingProviderMetadata": {
+    "google": {
+      "capabilities": [
+        "image",
+        "audio",
+        "video"
+      ],
+      "defaultModels": {
+        "image": "gemini-3-flash-preview",
+        "audio": "gemini-3-flash-preview",
+        "video": "gemini-3-flash-preview"
+      },
+      "autoPriority": {
+        "image": 30,
+        "audio": 40,
+        "video": 10
+      },
+      "nativeDocumentInputs": [
+        "pdf"
+      ]
+    }
+  },
+  "configContracts": {
+    "compatibilityRuntimePaths": [
+      "tools.web.search.apiKey"
     ]
   },
   "configSchema": {

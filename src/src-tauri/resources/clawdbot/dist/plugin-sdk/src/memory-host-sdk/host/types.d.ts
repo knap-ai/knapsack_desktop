@@ -4,6 +4,8 @@ export type MemorySearchResult = {
     startLine: number;
     endLine: number;
     score: number;
+    vectorScore?: number;
+    textScore?: number;
     snippet: string;
     source: MemorySource;
     citation?: string;
@@ -89,6 +91,7 @@ export interface MemorySearchManager {
         sessionKey?: string;
         qmdSearchModeOverride?: "query" | "search" | "vsearch";
         onDebug?: (debug: MemorySearchRuntimeDebug) => void;
+        sources?: MemorySource[];
     }): Promise<MemorySearchResult[]>;
     readFile(params: {
         relPath: string;

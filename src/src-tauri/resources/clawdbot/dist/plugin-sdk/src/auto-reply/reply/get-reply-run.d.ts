@@ -2,6 +2,7 @@ import type { ExecToolDefaults } from "../../agents/bash-tools.js";
 import type { EmbeddedFullAccessBlockedReason } from "../../agents/pi-embedded-runner/types.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { SilentReplyConversationType } from "../../shared/silent-reply-policy.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
 import { type ElevatedLevel, type ReasoningLevel, type ThinkLevel, type VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
@@ -12,6 +13,10 @@ import type { createModelSelectionState } from "./model-selection.js";
 import type { TypingController } from "./typing.js";
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;
+export declare function resolvePromptSilentReplyConversationType(params: {
+    ctx: Pick<MsgContext, "ChatType" | "CommandSource" | "CommandTargetSessionKey" | "SessionKey">;
+    inboundSessionKey?: string;
+}): SilentReplyConversationType | undefined;
 export declare function buildExecOverridePromptHint(params: {
     execOverrides?: ExecOverrides;
     elevatedLevel: ElevatedLevel;

@@ -1,10 +1,10 @@
-import { t as resolveBundledPluginsDir } from "./bundled-dir-D4Wk35JT.js";
-import { o as resolveConfigPath } from "./paths-Dvv9VRAc.js";
-import { n as normalizeBundledPluginArtifactSubpath, t as PUBLIC_SURFACE_SOURCE_EXTENSIONS } from "./public-surface-runtime-nilbjlrn.js";
-import { t as loadPluginManifestRegistry } from "./manifest-registry-Bd3A4lqx.js";
-import { r as getRuntimeConfigSnapshot } from "./runtime-snapshot-BwqEmc6G.js";
-import { a as normalizePluginsConfig, n as createPluginActivationSource, s as resolveEffectivePluginActivationState } from "./config-state-CcN3bZ9D.js";
-import { n as configMayNeedPluginAutoEnable, t as applyPluginAutoEnable } from "./plugin-auto-enable-BbVfCcz-.js";
+import { t as resolveBundledPluginsDir } from "./bundled-dir-DXKS8sgC.js";
+import { o as resolveConfigPath } from "./paths-BG0ad0P6.js";
+import { t as loadPluginManifestRegistry } from "./manifest-registry-pYrbrdHJ.js";
+import { c as resolveEffectivePluginActivationState, n as createPluginActivationSource, o as normalizePluginsConfig } from "./config-state-UvzNc3si.js";
+import { a as getRuntimeConfigSourceSnapshot, r as getRuntimeConfigSnapshot } from "./runtime-snapshot-C5PRsFS9.js";
+import { i as configMayNeedPluginAutoEnable, t as applyPluginAutoEnable } from "./plugin-auto-enable-BKDUQLPR.js";
+import { i as resolveRegistryPluginModuleLocationFromRecords } from "./facade-resolution-shared-D6EBhHse.js";
 import fs from "node:fs";
 import path from "node:path";
 import JSON5 from "json5";
@@ -24,6 +24,8 @@ const cachedFacadeManifestRecordsByKey = /* @__PURE__ */ new Map();
 const cachedFacadePublicSurfaceAccessByKey = /* @__PURE__ */ new Map();
 function readFacadeBoundaryConfigSafely() {
 	try {
+		const sourceSnapshot = getRuntimeConfigSourceSnapshot();
+		if (sourceSnapshot) return { rawConfig: sourceSnapshot };
 		const runtimeSnapshot = getRuntimeConfigSnapshot();
 		if (runtimeSnapshot) return { rawConfig: runtimeSnapshot };
 		const configPath = resolveConfigPath();
@@ -89,33 +91,14 @@ function getFacadeManifestRegistry(params) {
 	return loaded;
 }
 function resolveRegistryPluginModuleLocation(params) {
-	const registry = getFacadeManifestRegistry({
-		cacheKey: params.resolutionKey,
-		...params.env ? { env: params.env } : {}
+	return resolveRegistryPluginModuleLocationFromRecords({
+		registry: getFacadeManifestRegistry({
+			cacheKey: params.resolutionKey,
+			...params.env ? { env: params.env } : {}
+		}),
+		dirName: params.dirName,
+		artifactBasename: params.artifactBasename
 	});
-	const tiers = [
-		(plugin) => plugin.id === params.dirName,
-		(plugin) => path.basename(plugin.rootDir) === params.dirName,
-		(plugin) => plugin.channels.includes(params.dirName)
-	];
-	const artifactBasename = normalizeBundledPluginArtifactSubpath(params.artifactBasename);
-	const sourceBaseName = artifactBasename.replace(/\.js$/u, "");
-	for (const matchFn of tiers) for (const record of registry.filter(matchFn)) {
-		const rootDir = path.resolve(record.rootDir);
-		const builtCandidate = path.join(rootDir, artifactBasename);
-		if (fs.existsSync(builtCandidate)) return {
-			modulePath: builtCandidate,
-			boundaryRoot: rootDir
-		};
-		for (const ext of PUBLIC_SURFACE_SOURCE_EXTENSIONS) {
-			const sourceCandidate = path.join(rootDir, `${sourceBaseName}${ext}`);
-			if (fs.existsSync(sourceCandidate)) return {
-				modulePath: sourceCandidate,
-				boundaryRoot: rootDir
-			};
-		}
-	}
-	return null;
 }
 function readBundledPluginManifestRecordFromDir(params) {
 	const manifestPath = path.join(params.pluginsRoot, params.resolvedDirName, "openclaw.plugin.json");

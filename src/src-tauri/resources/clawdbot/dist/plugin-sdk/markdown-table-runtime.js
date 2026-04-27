@@ -1,2 +1,3 @@
-import { t as resolveMarkdownTableMode } from "../markdown-tables-zB1bGV-D.js";
-export { resolveMarkdownTableMode };
+import { t as convertMarkdownTables } from "../tables-BHEdR14m.js";
+import { t as resolveMarkdownTableMode } from "../markdown-tables-DPeXG03j.js";
+export { convertMarkdownTables, resolveMarkdownTableMode };

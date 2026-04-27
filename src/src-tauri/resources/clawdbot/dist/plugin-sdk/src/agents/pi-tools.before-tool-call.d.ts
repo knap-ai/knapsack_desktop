@@ -1,4 +1,5 @@
 import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
+import { type DiagnosticTraceContext } from "../infra/diagnostic-trace-context.js";
 import { isPlainObject } from "../utils.js";
 import type { AnyAgentTool } from "./tools/common.js";
 export type HookContext = {
@@ -7,6 +8,7 @@ export type HookContext = {
     /** Ephemeral session UUID — regenerated on /new and /reset. */
     sessionId?: string;
     runId?: string;
+    trace?: DiagnosticTraceContext;
     loopDetection?: ToolLoopDetectionConfig;
 };
 type HookOutcome = {

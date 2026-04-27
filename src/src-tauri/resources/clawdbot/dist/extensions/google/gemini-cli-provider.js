@@ -7,7 +7,7 @@ import { fetchGeminiUsage } from "openclaw/plugin-sdk/provider-usage";
 //#region extensions/google/gemini-cli-provider.ts
 const PROVIDER_ID = "google-gemini-cli";
 const PROVIDER_LABEL = "Gemini CLI OAuth";
-const DEFAULT_MODEL = "google-gemini-cli/gemini-3.1-pro-preview";
+const DEFAULT_MODEL = "google/gemini-3.1-pro-preview";
 const ENV_VARS = [
 	"OPENCLAW_GEMINI_OAUTH_CLIENT_ID",
 	"OPENCLAW_GEMINI_OAUTH_CLIENT_SECRET",
@@ -21,8 +21,8 @@ const GOOGLE_GEMINI_CLI_PROVIDER_HOOKS = {
 async function fetchGeminiCliUsage(ctx) {
 	return await fetchGeminiUsage(ctx.token, ctx.timeoutMs, ctx.fetchFn, PROVIDER_ID);
 }
-function registerGoogleGeminiCliProvider(api) {
-	api.registerProvider({
+function buildGoogleGeminiCliProvider() {
+	return {
 		id: PROVIDER_ID,
 		label: PROVIDER_LABEL,
 		docsPath: "/providers/models",
@@ -65,6 +65,10 @@ function registerGoogleGeminiCliProvider(api) {
 						refresh: result.refresh,
 						expires: result.expires,
 						email: result.email,
+						configPatch: { agents: { defaults: {
+							embeddedHarness: { runtime: PROVIDER_ID },
+							models: { [DEFAULT_MODEL]: {} }
+						} } },
 						...result.projectId ? { credentialExtra: { projectId: result.projectId } } : {},
 						...result.projectId ? { notes: ["If requests fail, set GOOGLE_CLOUD_PROJECT or GOOGLE_CLOUD_PROJECT_ID."] } : {}
 					});
@@ -97,7 +101,10 @@ function registerGoogleGeminiCliProvider(api) {
 			};
 		},
 		fetchUsageSnapshot: async (ctx) => await fetchGeminiCliUsage(ctx)
-	});
+	};
+}
+function registerGoogleGeminiCliProvider(api) {
+	api.registerProvider(buildGoogleGeminiCliProvider());
 }
 //#endregion
-export { registerGoogleGeminiCliProvider };
+export { buildGoogleGeminiCliProvider, registerGoogleGeminiCliProvider };

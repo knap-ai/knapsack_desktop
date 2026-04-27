@@ -6,6 +6,9 @@ export declare function resolvePluginDiscoveryProviders(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     onlyPluginIds?: string[];
+    includeUntrustedWorkspacePlugins?: boolean;
+    requireCompleteDiscoveryEntryCoverage?: boolean;
+    discoveryEntriesOnly?: boolean;
 }): Promise<ProviderPlugin[]>;
 export declare function groupPluginDiscoveryProvidersByOrder(providers: ProviderPlugin[]): Record<ProviderDiscoveryOrder, ProviderPlugin[]>;
 export declare function normalizePluginDiscoveryResult(params: {
@@ -35,4 +38,11 @@ export declare function runProviderCatalog(params: {
         source: "env" | "profile" | "none";
         profileId?: string;
     };
+}): Promise<import("./types.js").ProviderCatalogResult> | undefined;
+export declare function runProviderStaticCatalog(params: {
+    provider: ProviderPlugin;
+    config: OpenClawConfig;
+    agentDir?: string;
+    workspaceDir?: string;
+    env: NodeJS.ProcessEnv;
 }): Promise<import("./types.js").ProviderCatalogResult> | undefined;

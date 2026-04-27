@@ -3496,7 +3496,7 @@ function parseSingleV8Stack(raw) {
 function parseStacktrace(stack, options = {}) {
 	const { ignoreStackEntries = stackIgnorePatterns } = options;
 	let stacks = !CHROME_IE_STACK_REGEXP.test(stack) ? parseFFOrSafariStackTrace(stack) : parseV8Stacktrace(stack);
-	const helperIndex = stacks.findLastIndex((s) => s.method === "__VITEST_HELPER__" || s.method === "async*__VITEST_HELPER__" || s.method === "async __VITEST_HELPER__");
+	const helperIndex = stacks.findLastIndex((s) => s.method.includes("__VITEST_HELPER__"));
 	if (helperIndex >= 0) stacks = stacks.slice(helperIndex + 1);
 	return stacks.map((stack) => {
 		if (options.getUrlId) stack.file = options.getUrlId(stack.file);
@@ -10060,7 +10060,7 @@ function memo(fn) {
 	};
 }
 async function saveInlineSnapshots(environment, snapshots) {
-	const MagicString = (await import("./magic-string.es-C2xt9QDH.js")).default;
+	const MagicString = (await import("./magic-string.es-CK08sfyv.js")).default;
 	const files = new Set(snapshots.map((i) => i.file));
 	await Promise.all(Array.from(files).map(async (file) => {
 		const snaps = snapshots.filter((i) => i.file === file);
@@ -10235,6 +10235,7 @@ var SnapshotState = class SnapshotState {
 		this._snapshotFormat = {
 			printBasicPrototype: false,
 			escapeString: false,
+			maxOutputLength: 2 ** 27,
 			...options.snapshotFormat
 		};
 		this._environment = options.snapshotEnvironment;
@@ -10768,7 +10769,7 @@ function raceWith(promise, other) {
 	}))]);
 }
 //#endregion
-//#region node_modules/vitest/dist/chunks/test.D1JkM1w4.js
+//#region node_modules/vitest/dist/chunks/test.DNmyFkvJ.js
 var fakeTimersSrc = {};
 var global$1;
 var hasRequiredGlobal;
@@ -12962,7 +12963,7 @@ function createVitest() {
 		waitUntil,
 		defineHelper: (fn) => {
 			return function __VITEST_HELPER__(...args) {
-				const result = fn(...args);
+				const result = fn.apply(this, args);
 				if (result && typeof result === "object" && typeof result.then === "function") return (async function __VITEST_HELPER__() {
 					return await result;
 				})();

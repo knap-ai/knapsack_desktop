@@ -63,6 +63,8 @@ export type EmbeddedPiSubscribeState = {
     assistantTextBaseline: number;
     suppressBlockChunks: boolean;
     lastReasoningSent?: string;
+    pendingAssistantUsage?: NormalizedUsage;
+    assistantUsageCommitted: boolean;
     compactionInFlight: boolean;
     pendingCompactionRetry: number;
     compactionRetryResolve?: () => void;
@@ -82,6 +84,8 @@ export type EmbeddedPiSubscribeState = {
     pendingMessagingMediaUrls: Map<string, string[]>;
     pendingToolMediaUrls: string[];
     pendingToolAudioAsVoice: boolean;
+    pendingToolTrustedLocalMedia: boolean;
+    pendingAssistantReplyDirectives?: Pick<BlockReplyPayload, "mediaUrls" | "audioAsVoice" | "replyToId" | "replyToTag" | "replyToCurrent">;
     deterministicApprovalPromptPending: boolean;
     deterministicApprovalPromptSent: boolean;
     lastAssistant?: AgentMessage;
@@ -130,6 +134,7 @@ export type EmbeddedPiSubscribeContext = {
     resolveCompactionRetry: () => void;
     maybeResolveCompactionWait: () => void;
     recordAssistantUsage: (usage: unknown) => void;
+    commitAssistantUsage: () => void;
     incrementCompactionCount: () => void;
     getUsageTotals: () => NormalizedUsage | undefined;
     getCompactionCount: () => number;
@@ -141,7 +146,7 @@ export type EmbeddedPiSubscribeContext = {
  * without needing the full `EmbeddedPiSubscribeContext`.
  */
 export type ToolHandlerParams = Pick<SubscribeEmbeddedPiSessionParams, "runId" | "onBlockReplyFlush" | "onAgentEvent" | "onToolResult" | "sessionKey" | "sessionId" | "agentId" | "toolResultFormat">;
-export type ToolHandlerState = Pick<EmbeddedPiSubscribeState, "toolMetaById" | "toolMetas" | "toolSummaryById" | "itemActiveIds" | "itemStartedCount" | "itemCompletedCount" | "lastToolError" | "pendingMessagingTargets" | "pendingMessagingTexts" | "pendingMessagingMediaUrls" | "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "deterministicApprovalPromptPending" | "replayState" | "messagingToolSentTexts" | "messagingToolSentTextsNormalized" | "messagingToolSentMediaUrls" | "messagingToolSentTargets" | "successfulCronAdds" | "deterministicApprovalPromptSent">;
+export type ToolHandlerState = Pick<EmbeddedPiSubscribeState, "toolMetaById" | "toolMetas" | "toolSummaryById" | "itemActiveIds" | "itemStartedCount" | "itemCompletedCount" | "lastToolError" | "pendingMessagingTargets" | "pendingMessagingTexts" | "pendingMessagingMediaUrls" | "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "pendingToolTrustedLocalMedia" | "deterministicApprovalPromptPending" | "replayState" | "messagingToolSentTexts" | "messagingToolSentTextsNormalized" | "messagingToolSentMediaUrls" | "messagingToolSentTargets" | "successfulCronAdds" | "deterministicApprovalPromptSent">;
 export type ToolHandlerContext = {
     params: ToolHandlerParams;
     state: ToolHandlerState;

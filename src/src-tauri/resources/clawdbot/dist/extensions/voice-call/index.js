@@ -1,18 +1,18 @@
-import { i as formatErrorMessage } from "../../errors-D8p6rxH8.js";
-import { o as normalizeOptionalLowercaseString, s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
-import { v as sleep } from "../../utils-D5DtWkEu.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../error-runtime-CgBDklBz.js";
-import "../../api-Bp0lE5j9.js";
-import { i as validateProviderConfig, r as resolveVoiceCallConfig } from "../../config-u-yK0fdI.js";
-import { a as resolveUserPath, i as setupTailscaleExposureRoute, n as cleanupTailscaleExposureRoute, r as getTailscaleSelfInfo, t as createVoiceCallRuntime } from "../../runtime-entry-B3XWUJcF.js";
-import { i as parseVoiceCallPluginConfig, r as normalizeVoiceCallLegacyConfigInput, t as formatVoiceCallLegacyConfigWarnings } from "../../config-compat-jRRoF70f.js";
+import { i as formatErrorMessage } from "../../errors-Jbvi20TW.js";
+import { c as normalizeOptionalString, s as normalizeOptionalLowercaseString } from "../../string-coerce-C1IzJjqi.js";
+import { v as sleep } from "../../utils-BMRcljdi.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../error-runtime-D8vVwCEz.js";
+import "../../api-D3GSNK7X.js";
+import { i as validateProviderConfig, r as resolveVoiceCallConfig } from "../../config-ClpQmXwG.js";
+import { a as resolveUserPath, i as setupTailscaleExposureRoute, n as cleanupTailscaleExposureRoute, r as getTailscaleSelfInfo, t as createVoiceCallRuntime } from "../../runtime-entry-L-Xdz4WH.js";
+import { i as parseVoiceCallPluginConfig, r as normalizeVoiceCallLegacyConfigInput, t as formatVoiceCallLegacyConfigWarnings } from "../../config-compat-CdfQZUWZ.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { format } from "node:util";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 //#region extensions/voice-call/src/cli.ts
 function writeStdoutLine(...values) {
 	process.stdout.write(`${format(...values)}\n`);
@@ -66,6 +66,47 @@ function summarizeSeries(values) {
 function resolveCallMode(mode) {
 	return mode === "notify" || mode === "conversation" ? mode : void 0;
 }
+function hasPublicExposure(config) {
+	return Boolean(config.publicUrl || config.tunnel?.provider && config.tunnel.provider !== "none" || config.tailscale?.mode && config.tailscale.mode !== "off");
+}
+function buildSetupStatus(config) {
+	const validation = validateProviderConfig(config);
+	const checks = [
+		{
+			id: "plugin-enabled",
+			ok: config.enabled,
+			message: config.enabled ? "Voice Call plugin is enabled" : "Enable plugins.entries.voice-call.enabled"
+		},
+		{
+			id: "provider",
+			ok: Boolean(config.provider),
+			message: config.provider ? `Provider configured: ${config.provider}` : "Set plugins.entries.voice-call.config.provider"
+		},
+		{
+			id: "provider-config",
+			ok: validation.valid,
+			message: validation.valid ? "Provider credentials/config look complete" : validation.errors.join("; ")
+		},
+		{
+			id: "webhook-exposure",
+			ok: config.provider === "mock" || hasPublicExposure(config),
+			message: config.provider === "mock" ? "Mock provider does not need a public webhook" : hasPublicExposure(config) ? config.publicUrl ? `Public webhook URL configured: ${config.publicUrl}` : "Webhook exposure configured through tunnel or Tailscale" : "Set publicUrl or configure tunnel/tailscale so the provider can reach webhooks"
+		},
+		{
+			id: "mode",
+			ok: !(config.streaming.enabled && config.realtime.enabled),
+			message: config.streaming.enabled && config.realtime.enabled ? "streaming.enabled and realtime.enabled cannot both be true" : config.realtime.enabled ? `Realtime voice enabled (${config.realtime.provider ?? "first registered provider"})` : config.streaming.enabled ? `Streaming transcription enabled (${config.streaming.provider ?? "first registered provider"})` : "Notify/conversation calls use normal TTS/STT flow"
+		}
+	];
+	return {
+		ok: checks.every((check) => check.ok),
+		checks
+	};
+}
+function writeSetupStatus(status) {
+	writeStdoutLine("Voice Call setup: %s", status.ok ? "OK" : "needs attention");
+	for (const check of status.checks) writeStdoutLine("%s %s: %s", check.ok ? "OK" : "FAIL", check.id, check.message);
+}
 async function initiateCallAndPrintId(params) {
 	const result = await params.runtime.manager.initiateCall(params.to, void 0, {
 		message: params.message,
@@ -77,6 +118,67 @@ async function initiateCallAndPrintId(params) {
 function registerVoiceCallCli(params) {
 	const { program, config, ensureRuntime, logger } = params;
 	const root = program.command("voicecall").description("Voice call utilities").addHelpText("after", () => `\nDocs: https://docs.openclaw.ai/cli/voicecall\n`);
+	root.command("setup").description("Show Voice Call provider and webhook setup status").option("--json", "Print machine-readable JSON").action((options) => {
+		const status = buildSetupStatus(config);
+		if (options.json) {
+			writeStdoutJson(status);
+			return;
+		}
+		writeSetupStatus(status);
+	});
+	root.command("smoke").description("Check Voice Call readiness and optionally place a short outbound test call").option("-t, --to <phone>", "Phone number to call for a live smoke").option("--message <text>", "Message to speak during the smoke call", "OpenClaw voice call smoke test.").option("--mode <mode>", "Call mode: notify or conversation", "notify").option("--yes", "Actually place the live outbound call").option("--json", "Print machine-readable JSON").action(async (options) => {
+		const setup = buildSetupStatus(config);
+		if (!setup.ok) {
+			if (options.json) writeStdoutJson({
+				ok: false,
+				setup
+			});
+			else writeSetupStatus(setup);
+			process.exitCode = 1;
+			return;
+		}
+		if (!options.to) {
+			if (options.json) writeStdoutJson({
+				ok: true,
+				setup,
+				liveCall: false
+			});
+			else {
+				writeSetupStatus(setup);
+				writeStdoutLine("live-call: skipped (pass --to and --yes to place one)");
+			}
+			return;
+		}
+		if (!options.yes) {
+			if (options.json) writeStdoutJson({
+				ok: true,
+				setup,
+				liveCall: false,
+				wouldCall: options.to
+			});
+			else {
+				writeSetupStatus(setup);
+				writeStdoutLine("live-call: dry run for %s (add --yes to place it)", options.to);
+			}
+			return;
+		}
+		const result = await (await ensureRuntime()).manager.initiateCall(options.to, void 0, {
+			message: options.message,
+			mode: resolveCallMode(options.mode) ?? "notify"
+		});
+		if (!result.success) throw new Error(result.error || "smoke call failed");
+		if (options.json) {
+			writeStdoutJson({
+				ok: true,
+				setup,
+				liveCall: true,
+				callId: result.callId
+			});
+			return;
+		}
+		writeSetupStatus(setup);
+		writeStdoutLine("live-call: started %s", result.callId);
+	});
 	root.command("call").description("Initiate an outbound voice call").requiredOption("-m, --message <text>", "Message to speak when call connects").option("-t, --to <phone>", "Phone number to call (E.164 format, uses config toNumber if not set)").option("--mode <mode>", "Call mode: notify (hangup after message) or conversation (stay open)", "conversation").action(async (options) => {
 		const rt = await ensureRuntime();
 		const to = options.to ?? rt.config.toNumber;
@@ -104,6 +206,11 @@ function registerVoiceCallCli(params) {
 	root.command("speak").description("Speak a message without waiting for response").requiredOption("--call-id <id>", "Call ID").requiredOption("--message <text>", "Message to speak").action(async (options) => {
 		const result = await (await ensureRuntime()).manager.speak(options.callId, options.message);
 		if (!result.success) throw new Error(result.error || "speak failed");
+		writeStdoutJson(result);
+	});
+	root.command("dtmf").description("Send DTMF digits to an active call").requiredOption("--call-id <id>", "Call ID").requiredOption("--digits <digits>", "DTMF digits").action(async (options) => {
+		const result = await (await ensureRuntime()).manager.sendDtmf(options.callId, options.digits);
+		if (!result.success) throw new Error(result.error || "dtmf failed");
 		writeStdoutJson(result);
 	});
 	root.command("end").description("Hang up an active call").requiredOption("--call-id <id>", "Call ID").action(async (options) => {
@@ -320,6 +427,11 @@ const voiceCallConfigSchema = {
 			label: "Realtime Instructions",
 			advanced: true
 		},
+		"realtime.toolPolicy": {
+			label: "Realtime Tool Policy",
+			help: "Controls the shared openclaw_agent_consult tool.",
+			advanced: true
+		},
 		"realtime.providers": {
 			label: "Realtime Provider Config",
 			advanced: true
@@ -343,6 +455,11 @@ const voiceCallConfigSchema = {
 		},
 		store: {
 			label: "Call Log Store Path",
+			advanced: true
+		},
+		agentId: {
+			label: "Response Agent ID",
+			help: "Agent workspace used for voice response generation. Defaults to \"main\".",
 			advanced: true
 		},
 		responseModel: {
@@ -378,6 +495,11 @@ const VoiceCallToolSchema = Type.Union([
 		message: Type.String({ description: "Message to speak" })
 	}),
 	Type.Object({
+		action: Type.Literal("send_dtmf"),
+		callId: Type.String({ description: "Call ID" }),
+		digits: Type.String({ description: "DTMF digits to send" })
+	}),
+	Type.Object({
 		action: Type.Literal("end_call"),
 		callId: Type.String({ description: "Call ID" })
 	}),
@@ -392,6 +514,19 @@ const VoiceCallToolSchema = Type.Union([
 		message: Type.Optional(Type.String({ description: "Optional intro message" }))
 	})
 ]);
+function asParamRecord(params) {
+	return params && typeof params === "object" && !Array.isArray(params) ? params : {};
+}
+const VOICE_CALL_RUNTIME_KEY = Symbol.for("openclaw.voice-call.runtime");
+const VOICE_CALL_RUNTIME_PROMISE_KEY = Symbol.for("openclaw.voice-call.runtimePromise");
+const VOICE_CALL_RUNTIME_STOP_PROMISE_KEY = Symbol.for("openclaw.voice-call.runtimeStopPromise");
+function getVoiceCallRuntimeGlobalState() {
+	const state = globalThis;
+	state[VOICE_CALL_RUNTIME_KEY] ??= null;
+	state[VOICE_CALL_RUNTIME_PROMISE_KEY] ??= null;
+	state[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY] ??= null;
+	return state;
+}
 var voice_call_default = definePluginEntry({
 	id: "voice-call",
 	name: "Voice Call",
@@ -405,27 +540,43 @@ var voice_call_default = definePluginEntry({
 			configPathPrefix: "plugins.entries.voice-call.config",
 			doctorFixCommand: "openclaw doctor --fix"
 		})) api.logger.warn(warning);
-		let runtimePromise = null;
-		let runtime = null;
+		const runtimeState = getVoiceCallRuntimeGlobalState();
 		const ensureRuntime = async () => {
 			if (!config.enabled) throw new Error("Voice call disabled in plugin config");
 			if (!validation.valid) throw new Error(validation.errors.join("; "));
-			if (runtime) return runtime;
-			if (!runtimePromise) runtimePromise = createVoiceCallRuntime({
-				config,
-				coreConfig: api.config,
-				fullConfig: api.config,
-				agentRuntime: api.runtime.agent,
-				ttsRuntime: api.runtime.tts,
-				logger: api.logger
-			});
-			try {
-				runtime = await runtimePromise;
-			} catch (err) {
-				runtimePromise = null;
-				throw err;
+			while (true) {
+				if (runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY]) {
+					await runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY];
+					continue;
+				}
+				const runtime = runtimeState[VOICE_CALL_RUNTIME_KEY];
+				if (runtime) return runtime;
+				let runtimePromise = runtimeState[VOICE_CALL_RUNTIME_PROMISE_KEY];
+				if (!runtimePromise) {
+					runtimePromise = createVoiceCallRuntime({
+						config,
+						coreConfig: api.config,
+						fullConfig: api.config,
+						agentRuntime: api.runtime.agent,
+						ttsRuntime: api.runtime.tts,
+						logger: api.logger
+					});
+					runtimeState[VOICE_CALL_RUNTIME_PROMISE_KEY] = runtimePromise;
+				}
+				try {
+					const createdRuntime = await runtimePromise;
+					if (runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY]) continue;
+					if (runtimeState[VOICE_CALL_RUNTIME_PROMISE_KEY] !== runtimePromise) continue;
+					runtimeState[VOICE_CALL_RUNTIME_KEY] = createdRuntime;
+					return createdRuntime;
+				} catch (err) {
+					if (runtimeState[VOICE_CALL_RUNTIME_PROMISE_KEY] === runtimePromise) {
+						runtimeState[VOICE_CALL_RUNTIME_PROMISE_KEY] = null;
+						runtimeState[VOICE_CALL_RUNTIME_KEY] = null;
+					}
+					throw err;
+				}
 			}
-			return runtime;
 		};
 		const sendError = (respond, err) => {
 			respond(false, { error: formatErrorMessage(err) });
@@ -519,6 +670,24 @@ var voice_call_default = definePluginEntry({
 				sendError(respond, err);
 			}
 		});
+		api.registerGatewayMethod("voicecall.dtmf", async ({ params, respond }) => {
+			try {
+				const callId = normalizeOptionalString(params?.callId) ?? "";
+				const digits = normalizeOptionalString(params?.digits) ?? "";
+				if (!callId || !digits) {
+					respond(false, { error: "callId and digits required" });
+					return;
+				}
+				const result = await (await ensureRuntime()).manager.sendDtmf(callId, digits);
+				if (!result.success) {
+					respond(false, { error: result.error || "dtmf failed" });
+					return;
+				}
+				respond(true, { success: true });
+			} catch (err) {
+				sendError(respond, err);
+			}
+		});
 		api.registerGatewayMethod("voicecall.end", async ({ params, respond }) => {
 			try {
 				const callId = normalizeOptionalString(params?.callId) ?? "";
@@ -581,6 +750,7 @@ var voice_call_default = definePluginEntry({
 			description: "Make phone calls and have voice conversations via the voice-call plugin.",
 			parameters: VoiceCallToolSchema,
 			async execute(_toolCallId, params) {
+				const rawParams = asParamRecord(params);
 				const json = (payload) => ({
 					content: [{
 						type: "text",
@@ -590,15 +760,15 @@ var voice_call_default = definePluginEntry({
 				});
 				try {
 					const rt = await ensureRuntime();
-					if (typeof params?.action === "string") switch (params.action) {
+					if (typeof rawParams.action === "string") switch (rawParams.action) {
 						case "initiate_call": {
-							const message = normalizeOptionalString(params.message) ?? "";
+							const message = normalizeOptionalString(rawParams.message) ?? "";
 							if (!message) throw new Error("message required");
-							const to = normalizeOptionalString(params.to) ?? rt.config.toNumber;
+							const to = normalizeOptionalString(rawParams.to) ?? rt.config.toNumber;
 							if (!to) throw new Error("to required");
 							const result = await rt.manager.initiateCall(to, void 0, {
 								message,
-								mode: params.mode === "notify" || params.mode === "conversation" ? params.mode : void 0
+								mode: rawParams.mode === "notify" || rawParams.mode === "conversation" ? rawParams.mode : void 0
 							});
 							if (!result.success) throw new Error(result.error || "initiate failed");
 							return json({
@@ -607,8 +777,8 @@ var voice_call_default = definePluginEntry({
 							});
 						}
 						case "continue_call": {
-							const callId = normalizeOptionalString(params.callId) ?? "";
-							const message = normalizeOptionalString(params.message) ?? "";
+							const callId = normalizeOptionalString(rawParams.callId) ?? "";
+							const message = normalizeOptionalString(rawParams.message) ?? "";
 							if (!callId || !message) throw new Error("callId and message required");
 							const result = await rt.manager.continueCall(callId, message);
 							if (!result.success) throw new Error(result.error || "continue failed");
@@ -618,22 +788,30 @@ var voice_call_default = definePluginEntry({
 							});
 						}
 						case "speak_to_user": {
-							const callId = normalizeOptionalString(params.callId) ?? "";
-							const message = normalizeOptionalString(params.message) ?? "";
+							const callId = normalizeOptionalString(rawParams.callId) ?? "";
+							const message = normalizeOptionalString(rawParams.message) ?? "";
 							if (!callId || !message) throw new Error("callId and message required");
 							const result = await rt.manager.speak(callId, message);
 							if (!result.success) throw new Error(result.error || "speak failed");
 							return json({ success: true });
 						}
+						case "send_dtmf": {
+							const callId = normalizeOptionalString(rawParams.callId) ?? "";
+							const digits = normalizeOptionalString(rawParams.digits) ?? "";
+							if (!callId || !digits) throw new Error("callId and digits required");
+							const result = await rt.manager.sendDtmf(callId, digits);
+							if (!result.success) throw new Error(result.error || "dtmf failed");
+							return json({ success: true });
+						}
 						case "end_call": {
-							const callId = normalizeOptionalString(params.callId) ?? "";
+							const callId = normalizeOptionalString(rawParams.callId) ?? "";
 							if (!callId) throw new Error("callId required");
 							const result = await rt.manager.endCall(callId);
 							if (!result.success) throw new Error(result.error || "end failed");
 							return json({ success: true });
 						}
 						case "get_status": {
-							const callId = normalizeOptionalString(params.callId) ?? "";
+							const callId = normalizeOptionalString(rawParams.callId) ?? "";
 							if (!callId) throw new Error("callId required");
 							const call = rt.manager.getCall(callId) || rt.manager.getCallByProviderCallId(callId);
 							return json(call ? {
@@ -642,8 +820,8 @@ var voice_call_default = definePluginEntry({
 							} : { found: false });
 						}
 					}
-					if ((params?.mode ?? "call") === "status") {
-						const sid = normalizeOptionalString(params.sid) ?? "";
+					if ((rawParams.mode ?? "call") === "status") {
+						const sid = normalizeOptionalString(rawParams.sid) ?? "";
 						if (!sid) throw new Error("sid required for status");
 						const call = rt.manager.getCall(sid) || rt.manager.getCallByProviderCallId(sid);
 						return json(call ? {
@@ -651,9 +829,9 @@ var voice_call_default = definePluginEntry({
 							call
 						} : { found: false });
 					}
-					const to = normalizeOptionalString(params.to) ?? rt.config.toNumber;
+					const to = normalizeOptionalString(rawParams.to) ?? rt.config.toNumber;
 					if (!to) throw new Error("to required for call");
-					const result = await rt.manager.initiateCall(to, void 0, { message: normalizeOptionalString(params.message) });
+					const result = await rt.manager.initiateCall(to, void 0, { message: normalizeOptionalString(rawParams.message) });
 					if (!result.success) throw new Error(result.error || "initiate failed");
 					return json({
 						callId: result.callId,
@@ -681,12 +859,23 @@ var voice_call_default = definePluginEntry({
 				}
 			},
 			stop: async () => {
-				if (!runtimePromise) return;
+				if (runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY]) {
+					await runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY];
+					return;
+				}
+				const runtime = runtimeState[VOICE_CALL_RUNTIME_KEY];
+				const runtimePromise = runtimeState[VOICE_CALL_RUNTIME_PROMISE_KEY];
+				if (!runtime && !runtimePromise) return;
+				runtimeState[VOICE_CALL_RUNTIME_KEY] = null;
+				runtimeState[VOICE_CALL_RUNTIME_PROMISE_KEY] = null;
+				const stopPromise = (async () => {
+					await (runtime ?? await runtimePromise).stop();
+				})();
+				runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY] = stopPromise;
 				try {
-					await (await runtimePromise).stop();
+					await stopPromise;
 				} finally {
-					runtimePromise = null;
-					runtime = null;
+					if (runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY] === stopPromise) runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY] = null;
 				}
 			}
 		});

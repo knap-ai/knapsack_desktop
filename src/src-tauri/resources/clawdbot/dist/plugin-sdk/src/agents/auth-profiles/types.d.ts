@@ -1,7 +1,6 @@
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { SecretRef } from "../../config/types.secrets.js";
 export type OAuthProvider = string;
-export type ExternalOAuthManager = "codex-cli" | "minimax-cli";
 export type OAuthCredentials = {
     access: string;
     refresh: string;
@@ -11,6 +10,7 @@ export type OAuthCredentials = {
     enterpriseUrl?: string;
     projectId?: string;
     accountId?: string;
+    idToken?: string;
 };
 export type ApiKeyCredential = {
     type: "api_key";
@@ -42,14 +42,6 @@ export type OAuthCredential = OAuthCredentials & {
     clientId?: string;
     email?: string;
     displayName?: string;
-    /**
-     * Compatibility/runtime metadata for CLI-managed OAuth entries.
-     *
-     * Core routing should prefer external-auth overlay contracts over direct
-     * branching on this field. Persisted stores may still carry it while older
-     * CLI sync paths remain supported.
-     */
-    managedBy?: ExternalOAuthManager;
 };
 export type AuthProfileCredential = ApiKeyCredential | TokenCredential | OAuthCredential;
 export type AuthProfileFailureReason = "auth" | "auth_permanent" | "format" | "overloaded" | "rate_limit" | "billing" | "timeout" | "model_not_found" | "session_expired" | "unknown";

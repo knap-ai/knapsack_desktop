@@ -16,6 +16,7 @@ export declare function cleanStaleGatewayProcessesSync(portOverride?: number): n
 export declare const __testing: {
     setSleepSyncOverride(fn: ((ms: number) => void) | null): void;
     setDateNowOverride(fn: (() => number) | null): void;
+    setParentPidOverride(fn: (() => number) | null): void;
     /** Invoke sleepSync directly (bypasses the override) for unit-testing the real Atomics path. */
     callSleepSyncRaw: typeof sleepSync;
 };

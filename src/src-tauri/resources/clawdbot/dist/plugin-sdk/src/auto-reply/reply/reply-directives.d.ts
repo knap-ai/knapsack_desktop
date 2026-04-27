@@ -3,7 +3,7 @@ export type ReplyDirectiveParseResult = {
     mediaUrls?: string[];
     mediaUrl?: string;
     replyToId?: string;
-    replyToCurrent: boolean;
+    replyToCurrent?: boolean;
     replyToTag: boolean;
     audioAsVoice?: boolean;
     isSilent: boolean;

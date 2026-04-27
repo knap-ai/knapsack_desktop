@@ -1,7 +1,12 @@
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { SilentReplyConversationType } from "../../shared/silent-reply-policy.js";
 export type OutboundSessionContext = {
     /** Canonical session key used for internal hook dispatch. */
     key?: string;
+    /** Session key used for policy resolution when delivery differs from the control session. */
+    policyKey?: string;
+    /** Explicit conversation type for policy resolution when a session key is generic. */
+    conversationType?: SilentReplyConversationType;
     /** Active agent id used for workspace-scoped media roots. */
     agentId?: string;
     /** Originating account id used for requester-scoped group policy resolution. */
@@ -18,6 +23,9 @@ export type OutboundSessionContext = {
 export declare function buildOutboundSessionContext(params: {
     cfg: OpenClawConfig;
     sessionKey?: string | null;
+    policySessionKey?: string | null;
+    conversationType?: string | null;
+    isGroup?: boolean | null;
     agentId?: string | null;
     requesterAccountId?: string | null;
     requesterSenderId?: string | null;

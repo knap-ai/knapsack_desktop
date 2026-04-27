@@ -1,7 +1,9 @@
-import { cleanupBrowserSessionsForLifecycleEnd } from "../browser-lifecycle-cleanup.js";
-import { captureSubagentCompletionReply, runSubagentAnnounceFlow, type SubagentRunOutcome } from "./subagent-announce.js";
+import type { cleanupBrowserSessionsForLifecycleEnd } from "../browser-lifecycle-cleanup.js";
+import { type SubagentRunOutcome } from "./subagent-announce-output.js";
 import { type SubagentLifecycleEndedReason } from "./subagent-lifecycle-events.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
+type CaptureSubagentCompletionReply = (typeof import("./subagent-announce.js"))["captureSubagentCompletionReply"];
+type RunSubagentAnnounceFlow = (typeof import("./subagent-announce.js"))["runSubagentAnnounceFlow"];
 export declare function createSubagentRegistryLifecycleController(params: {
     runs: Map<string, SubagentRunRecord>;
     resumedRuns: Set<string>;
@@ -26,9 +28,9 @@ export declare function createSubagentRegistryLifecycleController(params: {
         workspaceDir?: string;
     }): Promise<void>;
     resumeSubagentRun(runId: string): void;
-    captureSubagentCompletionReply: typeof captureSubagentCompletionReply;
+    captureSubagentCompletionReply: CaptureSubagentCompletionReply;
     cleanupBrowserSessionsForLifecycleEnd?: typeof cleanupBrowserSessionsForLifecycleEnd;
-    runSubagentAnnounceFlow: typeof runSubagentAnnounceFlow;
+    runSubagentAnnounceFlow: RunSubagentAnnounceFlow;
     warn(message: string, meta?: Record<string, unknown>): void;
 }): {
     clearScheduledResumeTimers: () => void;
@@ -55,3 +57,4 @@ export declare function createSubagentRegistryLifecycleController(params: {
     refreshFrozenResultFromSession: (sessionKey: string) => Promise<boolean>;
     startSubagentAnnounceCleanupFlow: (runId: string, entry: SubagentRunRecord) => boolean;
 };
+export {};

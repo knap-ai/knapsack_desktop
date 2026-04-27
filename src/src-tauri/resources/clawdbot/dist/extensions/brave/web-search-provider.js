@@ -1,2 +1,2 @@
-import { n as createBraveWebSearchProvider, t as __testing } from "../../brave-web-search-provider-DrLBIpIG.js";
-export { __testing, createBraveWebSearchProvider };
+import { t as createBraveWebSearchProvider } from "../../brave-web-search-provider-BpcHSF9K.js";
+export { createBraveWebSearchProvider };

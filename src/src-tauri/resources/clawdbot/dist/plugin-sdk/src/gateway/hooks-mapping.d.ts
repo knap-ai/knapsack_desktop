@@ -41,6 +41,7 @@ export type HookAction = {
     agentId?: string;
     wakeMode: "now" | "next-heartbeat";
     sessionKey?: string;
+    sessionKeySource?: "static" | "templated";
     deliver?: boolean;
     allowUnsafeExternalContent?: boolean;
     channel?: HookMessageChannel;
@@ -49,6 +50,7 @@ export type HookAction = {
     thinking?: string;
     timeoutSeconds?: number;
 };
+export type HookSessionKeyTemplateSource = "static" | "templated";
 export type HookMappingResult = {
     ok: true;
     action: HookAction;
@@ -64,3 +66,4 @@ export declare function resolveHookMappings(hooks?: HooksConfig, opts?: {
     configDir?: string;
 }): HookMappingResolved[];
 export declare function applyHookMappings(mappings: HookMappingResolved[], ctx: HookMappingContext): Promise<HookMappingResult | null>;
+export declare function hasHookTemplateExpressions(template: string): boolean;

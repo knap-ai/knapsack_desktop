@@ -1,15 +1,12 @@
+import { createGoogleMusicGenerationProviderMetadata } from "./generation-provider-metadata.js";
 import { normalizeGoogleApiBaseUrl } from "./provider-policy.js";
+import { createGoogleGenAI } from "./google-genai-runtime.js";
 import "./api.js";
 import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
-import { GoogleGenAI } from "@google/genai";
-import { extensionForMime } from "openclaw/plugin-sdk/media-mime";
-import { isProviderApiKeyConfigured } from "openclaw/plugin-sdk/provider-auth";
 import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
+import { extensionForMime } from "openclaw/plugin-sdk/media-mime";
 //#region extensions/google/music-generation-provider.ts
-const DEFAULT_GOOGLE_MUSIC_MODEL = "lyria-3-clip-preview";
-const GOOGLE_PRO_MUSIC_MODEL = "lyria-3-pro-preview";
 const DEFAULT_TIMEOUT_MS = 18e4;
-const GOOGLE_MAX_INPUT_IMAGES = 10;
 function resolveConfiguredGoogleMusicBaseUrl(req) {
 	const configured = normalizeOptionalString(req.cfg?.models?.providers?.google?.baseUrl);
 	return configured ? normalizeGoogleApiBaseUrl(configured) : void 0;
@@ -22,10 +19,10 @@ function buildMusicPrompt(req) {
 	return parts.join("\n\n");
 }
 function resolveSupportedFormats(model) {
-	return model === GOOGLE_PRO_MUSIC_MODEL ? ["mp3", "wav"] : ["mp3"];
+	return model === "lyria-3-pro-preview" ? ["mp3", "wav"] : ["mp3"];
 }
 function resolveTrackFileName(params) {
-	const ext = extensionForMime(params.mimeType)?.replace(/^\./u, "") || (params.model === GOOGLE_PRO_MUSIC_MODEL ? "wav" : "mp3");
+	const ext = extensionForMime(params.mimeType)?.replace(/^\./u, "") || (params.model === "lyria-3-pro-preview" ? "wav" : "mp3");
 	return `track-${params.index + 1}.${ext}`;
 }
 function extractTracks(params) {
@@ -58,40 +55,9 @@ function extractTracks(params) {
 }
 function buildGoogleMusicGenerationProvider() {
 	return {
-		id: "google",
-		label: "Google",
-		defaultModel: DEFAULT_GOOGLE_MUSIC_MODEL,
-		models: [DEFAULT_GOOGLE_MUSIC_MODEL, GOOGLE_PRO_MUSIC_MODEL],
-		isConfigured: ({ agentDir }) => isProviderApiKeyConfigured({
-			provider: "google",
-			agentDir
-		}),
-		capabilities: {
-			generate: {
-				maxTracks: 1,
-				supportsLyrics: true,
-				supportsInstrumental: true,
-				supportsFormat: true,
-				supportedFormatsByModel: {
-					[DEFAULT_GOOGLE_MUSIC_MODEL]: ["mp3"],
-					[GOOGLE_PRO_MUSIC_MODEL]: ["mp3", "wav"]
-				}
-			},
-			edit: {
-				enabled: true,
-				maxTracks: 1,
-				maxInputImages: GOOGLE_MAX_INPUT_IMAGES,
-				supportsLyrics: true,
-				supportsInstrumental: true,
-				supportsFormat: true,
-				supportedFormatsByModel: {
-					[DEFAULT_GOOGLE_MUSIC_MODEL]: ["mp3"],
-					[GOOGLE_PRO_MUSIC_MODEL]: ["mp3", "wav"]
-				}
-			}
-		},
+		...createGoogleMusicGenerationProviderMetadata(),
 		async generateMusic(req) {
-			if ((req.inputImages?.length ?? 0) > GOOGLE_MAX_INPUT_IMAGES) throw new Error(`Google music generation supports at most ${GOOGLE_MAX_INPUT_IMAGES} reference images.`);
+			if ((req.inputImages?.length ?? 0) > 10) throw new Error(`Google music generation supports at most 10 reference images.`);
 			const auth = await resolveApiKeyForProvider({
 				provider: "google",
 				cfg: req.cfg,
@@ -99,13 +65,13 @@ function buildGoogleMusicGenerationProvider() {
 				store: req.authStore
 			});
 			if (!auth.apiKey) throw new Error("Google API key missing");
-			const model = normalizeOptionalString(req.model) || DEFAULT_GOOGLE_MUSIC_MODEL;
+			const model = normalizeOptionalString(req.model) || "lyria-3-clip-preview";
 			if (req.format) {
 				const supportedFormats = resolveSupportedFormats(model);
 				if (!supportedFormats.includes(req.format)) throw new Error(`Google music generation model ${model} supports ${supportedFormats.join(", ")} output.`);
 			}
 			const { tracks, lyrics } = extractTracks({
-				payload: await new GoogleGenAI({
+				payload: await createGoogleGenAI({
 					apiKey: auth.apiKey,
 					httpOptions: {
 						...resolveConfiguredGoogleMusicBaseUrl(req) ? { baseUrl: resolveConfiguredGoogleMusicBaseUrl(req) } : {},

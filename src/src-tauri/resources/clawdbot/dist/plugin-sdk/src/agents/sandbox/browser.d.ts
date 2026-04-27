@@ -1,3 +1,4 @@
+import { type SsrFPolicy } from "../../infra/net/ssrf.js";
 import type { SandboxBrowserContext, SandboxConfig } from "./types.js";
 export declare function ensureSandboxBrowser(params: {
     scopeKey: string;
@@ -9,4 +10,5 @@ export declare function ensureSandboxBrowser(params: {
         token?: string;
         password?: string;
     };
+    ssrfPolicy?: SsrFPolicy;
 }): Promise<SandboxBrowserContext | null>;

@@ -1,21 +1,9 @@
 import type { IncomingMessage } from "node:http";
-import type { GatewayAuthConfig, GatewayTailscaleMode, GatewayTrustedProxyConfig } from "../config/config.js";
+import type { GatewayAuthConfig } from "../config/config.js";
 import { type TailscaleWhoisIdentity } from "../infra/tailscale.js";
 import { type AuthRateLimiter } from "./auth-rate-limit.js";
-export type ResolvedGatewayAuthMode = "none" | "token" | "password" | "trusted-proxy";
-export type ResolvedGatewayAuthModeSource = "override" | "config" | "password" | "token" | "default";
-export type ResolvedGatewayAuth = {
-    mode: ResolvedGatewayAuthMode;
-    modeSource?: ResolvedGatewayAuthModeSource;
-    token?: string;
-    password?: string;
-    allowTailscale: boolean;
-    trustedProxy?: GatewayTrustedProxyConfig;
-};
-export type EffectiveSharedGatewayAuth = {
-    mode: "token" | "password";
-    secret: string | undefined;
-};
+import { type ResolvedGatewayAuth } from "./auth-resolve.js";
+export { resolveEffectiveSharedGatewayAuth, resolveGatewayAuth, type EffectiveSharedGatewayAuth, type ResolvedGatewayAuth, type ResolvedGatewayAuthMode, type ResolvedGatewayAuthModeSource, } from "./auth-resolve.js";
 export type GatewayAuthResult = {
     ok: boolean;
     method?: "none" | "token" | "password" | "tailscale" | "device-token" | "bootstrap-token" | "trusted-proxy";
@@ -59,21 +47,9 @@ export type AuthorizeGatewayConnectParams = {
     };
 };
 type TailscaleWhoisLookup = (ip: string) => Promise<TailscaleWhoisIdentity | null>;
+export declare function hasForwardedRequestHeaders(req?: IncomingMessage): boolean;
 export declare function isLocalDirectRequest(req?: IncomingMessage, _trustedProxies?: string[], _allowRealIpFallback?: boolean): boolean;
-export declare function resolveGatewayAuth(params: {
-    authConfig?: GatewayAuthConfig | null;
-    authOverride?: GatewayAuthConfig | null;
-    env?: NodeJS.ProcessEnv;
-    tailscaleMode?: GatewayTailscaleMode;
-}): ResolvedGatewayAuth;
-export declare function resolveEffectiveSharedGatewayAuth(params: {
-    authConfig?: GatewayAuthConfig | null;
-    authOverride?: GatewayAuthConfig | null;
-    env?: NodeJS.ProcessEnv;
-    tailscaleMode?: GatewayTailscaleMode;
-}): EffectiveSharedGatewayAuth | null;
 export declare function assertGatewayAuthConfigured(auth: ResolvedGatewayAuth, rawAuthConfig?: GatewayAuthConfig | null): void;
 export declare function authorizeGatewayConnect(params: AuthorizeGatewayConnectParams): Promise<GatewayAuthResult>;
 export declare function authorizeHttpGatewayConnect(params: Omit<AuthorizeGatewayConnectParams, "authSurface">): Promise<GatewayAuthResult>;
 export declare function authorizeWsControlUiGatewayConnect(params: Omit<AuthorizeGatewayConnectParams, "authSurface">): Promise<GatewayAuthResult>;
-export {};

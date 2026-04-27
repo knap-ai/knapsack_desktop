@@ -1,0 +1,36 @@
+import type { RealtimeVoiceProviderPlugin } from "../plugins/types.js";
+import type { RealtimeVoiceBridge, RealtimeVoiceCloseReason, RealtimeVoiceProviderConfig, RealtimeVoiceRole, RealtimeVoiceTool, RealtimeVoiceToolCallEvent } from "./provider-types.js";
+export type RealtimeVoiceAudioSink = {
+    isOpen?: () => boolean;
+    sendAudio: (muLaw: Buffer) => void;
+    clearAudio?: () => void;
+    sendMark?: (markName: string) => void;
+};
+export type RealtimeVoiceMarkStrategy = "transport" | "ack-immediately" | "ignore";
+export type RealtimeVoiceBridgeSession = {
+    bridge: RealtimeVoiceBridge;
+    acknowledgeMark(): void;
+    close(): void;
+    connect(): Promise<void>;
+    sendAudio(audio: Buffer): void;
+    sendUserMessage(text: string): void;
+    setMediaTimestamp(ts: number): void;
+    submitToolResult(callId: string, result: unknown): void;
+    triggerGreeting(instructions?: string): void;
+};
+export type RealtimeVoiceBridgeSessionParams = {
+    provider: RealtimeVoiceProviderPlugin;
+    providerConfig: RealtimeVoiceProviderConfig;
+    audioSink: RealtimeVoiceAudioSink;
+    instructions?: string;
+    initialGreetingInstructions?: string;
+    markStrategy?: RealtimeVoiceMarkStrategy;
+    triggerGreetingOnReady?: boolean;
+    tools?: RealtimeVoiceTool[];
+    onTranscript?: (role: RealtimeVoiceRole, text: string, isFinal: boolean) => void;
+    onToolCall?: (event: RealtimeVoiceToolCallEvent, session: RealtimeVoiceBridgeSession) => void;
+    onReady?: (session: RealtimeVoiceBridgeSession) => void;
+    onError?: (error: Error) => void;
+    onClose?: (reason: RealtimeVoiceCloseReason) => void;
+};
+export declare function createRealtimeVoiceBridgeSession(params: RealtimeVoiceBridgeSessionParams): RealtimeVoiceBridgeSession;

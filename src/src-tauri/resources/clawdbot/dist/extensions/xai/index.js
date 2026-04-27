@@ -1,24 +1,38 @@
-import { r as normalizeNativeXaiModelId } from "../../provider-model-id-normalize-C-aZ6pzm.js";
-import { f as resolveXaiModelCompatPatch, i as applyXaiModelCompat } from "../../provider-tools-Z_yR2St8.js";
-import { c as jsonResult } from "../../common-BWtun2If.js";
-import { p as readProviderEnvValue } from "../../web-search-provider-common-EFbs_Gas.js";
-import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
-import { i as defaultToolStreamExtraParams } from "../../provider-stream-shared-DisAYlnl.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
-import "../../provider-web-search-B6Xg-MPv.js";
-import { t as buildXaiProvider } from "../../provider-catalog-CAjZQu79.js";
-import { n as applyXaiConfig, t as XAI_DEFAULT_MODEL_REF } from "../../onboard-MTq3iaV4.js";
-import { n as resolveXaiForwardCompatModel, t as isModernXaiModel } from "../../provider-models-DBZIiLTe.js";
-import { n as resolveXaiTransport, r as shouldContributeXaiCompat } from "../../api-Bhpm0opl.js";
-import { n as resolveFallbackXaiAuth } from "../../tool-auth-shared-DmJqYRaL.js";
-import { s as resolveEffectiveXSearchConfig } from "../../x-search-shared-CY_pbvbF.js";
-import { i as wrapXaiProviderStream } from "../../stream-DaJo9aJo.js";
-import { t as buildXaiVideoGenerationProvider } from "../../video-generation-provider-C11fnQYb.js";
-import { n as createXaiWebSearchProvider } from "../../web-search-BW-cZmyj.js";
-import { n as createXSearchToolDefinition, t as buildMissingXSearchApiKeyPayload } from "../../x-search-tool-shared-DYRZooJs.js";
-import { Type } from "@sinclair/typebox";
+import { r as normalizeNativeXaiModelId } from "../../provider-model-id-normalize-vfRYFO9c.js";
+import { f as resolveXaiModelCompatPatch, i as applyXaiModelCompat } from "../../provider-tools-VpDDhpdz.js";
+import { l as jsonResult } from "../../common-B4WrK_Ib.js";
+import { p as readProviderEnvValue } from "../../web-search-provider-common-R-M-_9hO.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
+import { s as defaultToolStreamExtraParams } from "../../provider-stream-shared-BYe_GyIX.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
+import "../../provider-web-search-DiAvE6oC.js";
+import { t as buildXaiProvider } from "../../provider-catalog-oV-TSPvb.js";
+import { n as applyXaiConfig, t as XAI_DEFAULT_MODEL_REF } from "../../onboard-BYJxF_K-.js";
+import { t as buildXaiImageGenerationProvider } from "../../image-generation-provider-B2DDn0O2.js";
+import { n as resolveXaiForwardCompatModel, t as isModernXaiModel } from "../../provider-models-Csmq2YGt.js";
+import { i as shouldContributeXaiCompat, r as resolveXaiTransport } from "../../api-DDq9gHc9.js";
+import { t as buildXaiRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-B-enXECf.js";
+import { t as buildXaiSpeechProvider } from "../../speech-provider-Bzu6BGuo.js";
+import { n as resolveFallbackXaiAuth } from "../../tool-auth-shared-Dt03rBiU.js";
+import { t as resolveEffectiveXSearchConfig } from "../../x-search-config-BoH5v_CJ.js";
+import { i as wrapXaiProviderStream } from "../../stream-yglynnHW.js";
+import { n as buildXaiMediaUnderstandingProvider } from "../../stt-LzYtVaRT.js";
+import { t as buildXaiVideoGenerationProvider } from "../../video-generation-provider-DXVNBWsv.js";
+import { t as createXaiWebSearchProvider } from "../../web-search-DN7nSeMN.js";
+import { n as createXSearchToolDefinition, t as buildMissingXSearchApiKeyPayload } from "../../x-search-tool-shared-CeioiFc5.js";
+import { Type } from "typebox";
 //#region extensions/xai/index.ts
 const PROVIDER_ID = "xai";
+let codeExecutionModulePromise;
+let xSearchModulePromise;
+function loadCodeExecutionModule() {
+	codeExecutionModulePromise ??= import("./code-execution.js");
+	return codeExecutionModulePromise;
+}
+function loadXSearchModule() {
+	xSearchModulePromise ??= import("./x-search.js");
+	return xSearchModulePromise;
+}
 function hasResolvableXaiApiKey(config) {
 	return Boolean(resolveFallbackXaiAuth(config)?.apiKey || readProviderEnvValue(["XAI_API_KEY"]));
 }
@@ -43,7 +57,7 @@ function createLazyCodeExecutionTool(ctx) {
 		description: "Run sandboxed Python analysis with xAI. Use for calculations, tabulation, summaries, and chart-style analysis without local machine access.",
 		parameters: Type.Object({ task: Type.String({ description: "The full analysis task for xAI's remote Python sandbox. Include any data to analyze directly in the task." }) }),
 		execute: async (toolCallId, args) => {
-			const { createCodeExecutionTool } = await import("./code-execution.js");
+			const { createCodeExecutionTool } = await loadCodeExecutionModule();
 			const tool = createCodeExecutionTool({
 				config: ctx.config,
 				runtimeConfig: ctx.runtimeConfig ?? null
@@ -60,7 +74,7 @@ function createLazyCodeExecutionTool(ctx) {
 function createLazyXSearchTool(ctx) {
 	if (!isXSearchEnabled(ctx.runtimeConfig ?? ctx.config)) return null;
 	return createXSearchToolDefinition(async (toolCallId, args) => {
-		const { createXSearchTool } = await import("./x-search.js");
+		const { createXSearchTool } = await loadXSearchModule();
 		const tool = createXSearchTool({
 			config: ctx.config,
 			runtimeConfig: ctx.runtimeConfig ?? null
@@ -117,11 +131,19 @@ var xai_default = defineSingleProviderPluginEntry({
 			providerId: PROVIDER_ID,
 			ctx
 		}),
+		resolveThinkingProfile: () => ({
+			levels: [{ id: "off" }],
+			defaultLevel: "off"
+		}),
 		isModernModelRef: ({ modelId }) => isModernXaiModel(modelId)
 	},
 	register(api) {
 		api.registerWebSearchProvider(createXaiWebSearchProvider());
+		api.registerMediaUnderstandingProvider(buildXaiMediaUnderstandingProvider());
 		api.registerVideoGenerationProvider(buildXaiVideoGenerationProvider());
+		api.registerImageGenerationProvider(buildXaiImageGenerationProvider());
+		api.registerSpeechProvider(buildXaiSpeechProvider());
+		api.registerRealtimeTranscriptionProvider(buildXaiRealtimeTranscriptionProvider());
 		api.registerTool((ctx) => createLazyCodeExecutionTool(ctx), { name: "code_execution" });
 		api.registerTool((ctx) => createLazyXSearchTool(ctx), { name: "x_search" });
 	}

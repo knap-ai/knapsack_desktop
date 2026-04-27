@@ -1,3 +1,4 @@
+import type { SsrFPolicy } from "../infra/net/ssrf.js";
 import type { MediaAttachment } from "./types.js";
 type MediaBufferResult = {
     buffer: Buffer;
@@ -12,11 +13,13 @@ type MediaPathResult = {
 export type MediaAttachmentCacheOptions = {
     localPathRoots?: readonly string[];
     includeDefaultLocalPathRoots?: boolean;
+    ssrfPolicy?: SsrFPolicy;
 };
 export declare class MediaAttachmentCache {
     private readonly entries;
     private readonly attachments;
     private readonly localPathRoots;
+    private readonly ssrfPolicy;
     private canonicalLocalPathRoots?;
     constructor(attachments: MediaAttachment[], options?: MediaAttachmentCacheOptions);
     getBuffer(params: {

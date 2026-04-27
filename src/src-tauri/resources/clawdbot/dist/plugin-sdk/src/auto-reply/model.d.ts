@@ -4,5 +4,6 @@ export declare function extractModelDirective(body?: string, options?: {
     cleaned: string;
     rawModel?: string;
     rawProfile?: string;
+    rawRuntime?: string;
     hasDirective: boolean;
 };

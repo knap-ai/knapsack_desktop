@@ -1,2 +1,2 @@
-import { t as collectSynologyChatSecurityAuditFindings } from "../../security-audit-DEov8yv-.js";
+import { t as collectSynologyChatSecurityAuditFindings } from "../../security-audit-BwFfuAhu.js";
 export { collectSynologyChatSecurityAuditFindings };

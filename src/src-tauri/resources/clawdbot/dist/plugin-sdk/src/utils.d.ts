@@ -1,5 +1,4 @@
 import { isPlainObject } from "./infra/plain-object.js";
-import { formatTerminalLink } from "./terminal/terminal-link.js";
 export declare function ensureDir(dir: string): Promise<void>;
 /**
  * Check if a file or directory exists at the given path.
@@ -17,7 +16,7 @@ export declare function escapeRegExp(value: string): string;
  * Safely parse JSON, returning null on error instead of throwing.
  */
 export declare function safeParseJson<T>(raw: string): T | null;
-export { formatTerminalLink, isPlainObject };
+export { isPlainObject };
 /**
  * Type guard for Record<string, unknown> (less strict than isPlainObject).
  * Accepts any non-null object that isn't an array.

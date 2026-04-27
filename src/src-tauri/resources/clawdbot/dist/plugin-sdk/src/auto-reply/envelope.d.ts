@@ -51,10 +51,3 @@ export declare function formatInboundFromLabel(params: {
     directId?: string;
     groupFallback?: string;
 }): string;
-export declare function formatThreadStarterEnvelope(params: {
-    channel: string;
-    author?: string;
-    timestamp?: number | Date;
-    body: string;
-    envelope?: EnvelopeFormatOptions;
-}): string;

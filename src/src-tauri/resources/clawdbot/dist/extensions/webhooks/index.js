@@ -1,5 +1,5 @@
 import { definePluginEntry } from "./api.js";
-import { WEBHOOK_IN_FLIGHT_DEFAULTS, WEBHOOK_RATE_LIMIT_DEFAULTS, createFixedWindowRateLimiter, createWebhookInFlightLimiter, normalizeWebhookPath, readJsonWebhookBodyOrReject, resolveConfiguredSecretInputString, resolveRequestClientIp, resolveWebhookTargetWithAuthOrRejectSync, withResolvedWebhookRequestPipeline } from "./runtime-api.js";
+import { WEBHOOK_IN_FLIGHT_DEFAULTS, WEBHOOK_RATE_LIMIT_DEFAULTS, createFixedWindowRateLimiter, createWebhookInFlightLimiter, normalizeWebhookPath, readJsonWebhookBodyOrReject, resolveConfiguredSecretInputString, resolveRequestClientIp, resolveWebhookTargetWithAuthOrReject, withResolvedWebhookRequestPipeline } from "./runtime-api.js";
 import { z } from "zod";
 import { safeEqualSecret } from "openclaw/plugin-sdk/browser-security-runtime";
 import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
@@ -23,37 +23,26 @@ const webhookRouteConfigSchema = z.object({
 	description: z.string().trim().min(1).optional()
 }).strict();
 const webhooksPluginConfigSchema = z.object({ routes: z.record(z.string().trim().min(1), webhookRouteConfigSchema).default({}) }).strict();
-async function resolveWebhooksPluginConfig(params) {
+function resolveWebhooksPluginConfig(params) {
 	const parsed = webhooksPluginConfigSchema.parse(params.pluginConfig ?? {});
-	const resolvedRoutes = [];
+	const configuredRoutes = [];
 	const seenPaths = /* @__PURE__ */ new Map();
 	for (const [routeId, route] of Object.entries(parsed.routes)) {
 		if (!route.enabled) continue;
 		const path = normalizeWebhookPath(route.path ?? `/plugins/webhooks/${routeId}`);
 		const existingRouteId = seenPaths.get(path);
 		if (existingRouteId) throw new Error(`webhooks.routes.${routeId}.path conflicts with routes.${existingRouteId}.path (${path}).`);
-		const secretResolution = await resolveConfiguredSecretInputString({
-			config: params.cfg,
-			env: params.env,
-			value: route.secret,
-			path: `plugins.entries.webhooks.routes.${routeId}.secret`
-		});
-		const secret = secretResolution.value?.trim();
-		if (!secret) {
-			params.logger?.warn?.(`[webhooks] skipping route ${routeId}: ${secretResolution.unresolvedRefReason ?? "secret is empty or unresolved"}`);
-			continue;
-		}
 		seenPaths.set(path, routeId);
-		resolvedRoutes.push({
+		configuredRoutes.push({
 			routeId,
 			path,
 			sessionKey: route.sessionKey,
-			secret,
+			secret: route.secret,
 			controllerId: route.controllerId ?? `webhooks/${routeId}`,
 			...route.description ? { description: route.description } : {}
 		});
 	}
-	return resolvedRoutes;
+	return configuredRoutes;
 }
 //#endregion
 //#region extensions/webhooks/src/http.ts
@@ -493,6 +482,15 @@ function createTaskFlowWebhookRequestHandler(params) {
 		maxInFlightPerKey: WEBHOOK_IN_FLIGHT_DEFAULTS.maxInFlightPerKey,
 		maxTrackedKeys: WEBHOOK_IN_FLIGHT_DEFAULTS.maxTrackedKeys
 	});
+	const resolveTargetSecret = async (target) => {
+		if (typeof target.secretInput === "string") return target.secretInput;
+		return (await resolveConfiguredSecretInputString({
+			config: params.cfg,
+			env: process.env,
+			value: target.secretInput,
+			path: target.secretConfigPath
+		})).value;
+	};
 	return async (req, res) => {
 		return await withResolvedWebhookRequestPipeline({
 			req,
@@ -508,10 +506,14 @@ function createTaskFlowWebhookRequestHandler(params) {
 			inFlightLimiter,
 			handle: async ({ targets }) => {
 				const presentedSecret = extractSharedSecret(req);
-				const target = resolveWebhookTargetWithAuthOrRejectSync({
+				const target = await resolveWebhookTargetWithAuthOrReject({
 					targets,
 					res,
-					isMatch: (candidate) => presentedSecret.length > 0 && timingSafeEquals(candidate.secret, presentedSecret)
+					isMatch: async (candidate) => {
+						if (presentedSecret.length === 0) return false;
+						const resolvedSecret = await resolveTargetSecret(candidate);
+						return Boolean(resolvedSecret && timingSafeEquals(resolvedSecret, presentedSecret));
+					}
 				});
 				if (!target) return true;
 				const body = await readJsonWebhookBodyOrReject({
@@ -560,42 +562,41 @@ function createTaskFlowWebhookRequestHandler(params) {
 }
 //#endregion
 //#region extensions/webhooks/index.ts
+function registerWebhookRoutes(api) {
+	const routes = resolveWebhooksPluginConfig({ pluginConfig: api.pluginConfig });
+	if (routes.length === 0) return;
+	const targetsByPath = /* @__PURE__ */ new Map();
+	const handler = createTaskFlowWebhookRequestHandler({
+		cfg: api.config,
+		targetsByPath
+	});
+	for (const route of routes) {
+		const taskFlow = api.runtime.taskFlow.bindSession({ sessionKey: route.sessionKey });
+		const target = {
+			routeId: route.routeId,
+			path: route.path,
+			secretInput: route.secret,
+			secretConfigPath: `plugins.entries.webhooks.routes.${route.routeId}.secret`,
+			defaultControllerId: route.controllerId,
+			taskFlow
+		};
+		targetsByPath.set(target.path, [...targetsByPath.get(target.path) ?? [], target]);
+		api.registerHttpRoute({
+			path: target.path,
+			auth: "plugin",
+			match: "exact",
+			replaceExisting: true,
+			handler
+		});
+		api.logger.info?.(`[webhooks] registered route ${route.routeId} on ${route.path} for session ${route.sessionKey}`);
+	}
+}
 var webhooks_default = definePluginEntry({
 	id: "webhooks",
 	name: "Webhooks",
 	description: "Authenticated inbound webhooks that bind external automation to OpenClaw TaskFlows.",
-	async register(api) {
-		const routes = await resolveWebhooksPluginConfig({
-			pluginConfig: api.pluginConfig,
-			cfg: api.config,
-			env: process.env,
-			logger: api.logger
-		});
-		if (routes.length === 0) return;
-		const targetsByPath = /* @__PURE__ */ new Map();
-		const handler = createTaskFlowWebhookRequestHandler({
-			cfg: api.config,
-			targetsByPath
-		});
-		for (const route of routes) {
-			const taskFlow = api.runtime.taskFlow.bindSession({ sessionKey: route.sessionKey });
-			const target = {
-				routeId: route.routeId,
-				path: route.path,
-				secret: route.secret,
-				defaultControllerId: route.controllerId,
-				taskFlow
-			};
-			targetsByPath.set(target.path, [...targetsByPath.get(target.path) ?? [], target]);
-			api.registerHttpRoute({
-				path: target.path,
-				auth: "plugin",
-				match: "exact",
-				replaceExisting: true,
-				handler
-			});
-			api.logger.info?.(`[webhooks] registered route ${route.routeId} on ${route.path} for session ${route.sessionKey}`);
-		}
+	register(api) {
+		registerWebhookRoutes(api);
 	}
 });
 //#endregion

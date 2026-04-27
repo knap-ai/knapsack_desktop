@@ -1,2 +1,2 @@
-import { t as buildSyntheticProvider } from "../../provider-catalog-BMecgcH8.js";
+import { t as buildSyntheticProvider } from "../../provider-catalog-Bdg8tPqL.js";
 export { buildSyntheticProvider };

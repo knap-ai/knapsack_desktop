@@ -30,6 +30,8 @@ export declare function createFinalizableDraftStreamControls(params: {
     loop: import("./draft-stream-loop.js").DraftStreamLoop;
     update: (text: string) => void;
     stop: () => Promise<void>;
+    seal: () => Promise<void>;
+    discardPending: () => Promise<void>;
     stopForClear: () => Promise<void>;
 };
 export declare function createFinalizableDraftStreamControlsForState(params: {
@@ -40,15 +42,19 @@ export declare function createFinalizableDraftStreamControlsForState(params: {
     loop: import("./draft-stream-loop.js").DraftStreamLoop;
     update: (text: string) => void;
     stop: () => Promise<void>;
+    seal: () => Promise<void>;
+    discardPending: () => Promise<void>;
     stopForClear: () => Promise<void>;
 };
 export declare function takeMessageIdAfterStop<T>(params: StopAndClearMessageIdParams<T>): Promise<T | undefined>;
 export declare function clearFinalizableDraftMessage<T>(params: ClearFinalizableDraftMessageParams<T>): Promise<void>;
 export declare function createFinalizableDraftLifecycle<T>(params: FinalizableDraftLifecycleParams<T>): {
-    clear: () => Promise<void>;
     loop: import("./draft-stream-loop.js").DraftStreamLoop;
     update: (text: string) => void;
     stop: () => Promise<void>;
+    seal: () => Promise<void>;
+    discardPending: () => Promise<void>;
     stopForClear: () => Promise<void>;
+    clear: () => Promise<void>;
 };
 export {};

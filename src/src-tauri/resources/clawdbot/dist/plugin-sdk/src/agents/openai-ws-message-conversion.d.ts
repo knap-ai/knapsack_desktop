@@ -3,6 +3,7 @@ import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { FunctionToolDefinition, InputItem, ResponseObject } from "./openai-ws-connection.js";
 export type ReplayModelInfo = {
     input?: ReadonlyArray<string>;
+    api?: string;
 };
 export type PlannedTurnInput = {
     inputItems: InputItem[];
@@ -24,3 +25,9 @@ export declare function buildAssistantMessageFromResponse(response: ResponseObje
     provider: string;
     id: string;
 }): AssistantMessage;
+export declare function convertResponseToInputItems(response: ResponseObject, modelInfo: {
+    api: string;
+    provider: string;
+    id: string;
+    input?: ReadonlyArray<string>;
+}): InputItem[];

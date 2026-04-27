@@ -1,15 +1,10 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { type NormalizePluginId, type NormalizedPluginsConfig as SharedNormalizedPluginsConfig } from "./config-normalization-shared.js";
+import { type PluginActivationSource, type PluginActivationStateLike } from "./config-activation-shared.js";
+import { hasExplicitPluginConfig as hasExplicitPluginConfigShared, isBundledChannelEnabledByChannelConfig as isBundledChannelEnabledByChannelConfigShared, type NormalizePluginId, type NormalizedPluginsConfig as SharedNormalizedPluginsConfig } from "./config-normalization-shared.js";
 import type { PluginKind } from "./plugin-kind.types.js";
 import type { PluginOrigin } from "./plugin-origin.types.js";
-export type PluginActivationSource = "disabled" | "explicit" | "auto" | "default";
-export type PluginActivationState = {
-    enabled: boolean;
-    activated: boolean;
-    explicitlyEnabled: boolean;
-    source: PluginActivationSource;
-    reason?: string;
-};
+export type { PluginActivationSource };
+export type PluginActivationState = PluginActivationStateLike;
 export type NormalizedPluginsConfig = SharedNormalizedPluginsConfig;
 export declare function normalizePluginsConfigWithResolver(config?: OpenClawConfig["plugins"], normalizePluginId?: NormalizePluginId): NormalizedPluginsConfig;
 export declare function resolvePluginActivationState(params: {
@@ -22,13 +17,13 @@ export declare function resolvePluginActivationState(params: {
     sourceRootConfig?: OpenClawConfig;
     autoEnabledReason?: string;
 }): PluginActivationState;
-export declare function hasExplicitPluginConfig(plugins?: OpenClawConfig["plugins"]): boolean;
-export declare function resolveEnableState(id: string, origin: PluginOrigin, config: NormalizedPluginsConfig, enabledByDefault?: boolean): {
+export declare const hasExplicitPluginConfig: typeof hasExplicitPluginConfigShared;
+export declare const resolveEnableState: (id: string, origin: PluginOrigin, config: SharedNormalizedPluginsConfig, enabledByDefault?: boolean) => {
     enabled: boolean;
     reason?: string;
 };
-export declare function isBundledChannelEnabledByChannelConfig(cfg: OpenClawConfig | undefined, pluginId: string): boolean;
-export declare function resolveEffectiveEnableState(params: {
+export declare const isBundledChannelEnabledByChannelConfig: typeof isBundledChannelEnabledByChannelConfigShared;
+type PolicyEffectiveActivationParams = {
     id: string;
     origin: PluginOrigin;
     config: NormalizedPluginsConfig;
@@ -37,20 +32,12 @@ export declare function resolveEffectiveEnableState(params: {
     sourceConfig?: NormalizedPluginsConfig;
     sourceRootConfig?: OpenClawConfig;
     autoEnabledReason?: string;
-}): {
+};
+export declare const resolveEffectiveEnableState: (params: PolicyEffectiveActivationParams) => {
     enabled: boolean;
     reason?: string;
 };
-export declare function resolveEffectivePluginActivationState(params: {
-    id: string;
-    origin: PluginOrigin;
-    config: NormalizedPluginsConfig;
-    rootConfig?: OpenClawConfig;
-    enabledByDefault?: boolean;
-    sourceConfig?: NormalizedPluginsConfig;
-    sourceRootConfig?: OpenClawConfig;
-    autoEnabledReason?: string;
-}): PluginActivationState;
+export declare function resolveEffectivePluginActivationState(params: PolicyEffectiveActivationParams): PluginActivationState;
 export declare function resolveMemorySlotDecision(params: {
     id: string;
     kind?: PluginKind | PluginKind[];

@@ -1,2 +1,2 @@
-import { t as buildOpenAIVideoGenerationProvider } from "../../video-generation-provider-iBkMhHn-.js";
+import { t as buildOpenAIVideoGenerationProvider } from "../../video-generation-provider-Duwz-JjX.js";
 export { buildOpenAIVideoGenerationProvider };

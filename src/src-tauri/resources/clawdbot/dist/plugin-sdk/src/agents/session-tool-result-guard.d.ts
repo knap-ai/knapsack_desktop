@@ -24,6 +24,7 @@ export declare function installSessionToolResultGuard(sessionManager: SessionMan
      * Defaults to true.
      */
     allowSyntheticToolResults?: boolean;
+    missingToolResultText?: string;
     /**
      * Optional set/list of tool names accepted for assistant toolCall/toolUse blocks.
      * When set, tool calls with unknown names are dropped before persistence.

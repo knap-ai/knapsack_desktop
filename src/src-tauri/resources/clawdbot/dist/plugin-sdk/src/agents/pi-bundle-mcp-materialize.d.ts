@@ -9,4 +9,9 @@ export declare function createBundleMcpToolRuntime(params: {
     workspaceDir: string;
     cfg?: OpenClawConfig;
     reservedToolNames?: Iterable<string>;
+    createRuntime?: (params: {
+        sessionId: string;
+        workspaceDir: string;
+        cfg?: OpenClawConfig;
+    }) => SessionMcpRuntime;
 }): Promise<BundleMcpToolRuntime>;

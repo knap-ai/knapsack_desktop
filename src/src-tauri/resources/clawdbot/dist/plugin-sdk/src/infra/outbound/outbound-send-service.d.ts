@@ -29,6 +29,8 @@ export type OutboundSendContext = {
     mediaAccess?: OutboundMediaAccess;
     mediaReadFile?: OutboundMediaReadFile;
     accountId?: string | null;
+    senderIsOwner?: boolean;
+    sessionId?: string;
     gateway?: OutboundGatewayContext;
     toolContext?: ChannelThreadingToolContext;
     deps?: OutboundSendDeps;

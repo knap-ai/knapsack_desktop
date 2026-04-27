@@ -7,18 +7,23 @@
  * across multiple providers.
  */
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { SilentReplyConversationType } from "../../shared/silent-reply-policy.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import type { OriginatingChannelType } from "../templating.js";
 import type { ReplyPayload } from "../types.js";
 export type RouteReplyParams = {
     /** The reply payload to send. */
     payload: ReplyPayload;
-    /** The originating channel type (telegram, slack, etc). */
+    /** The originating channel type. */
     channel: OriginatingChannelType;
     /** The destination chat/channel/user ID. */
     to: string;
     /** Session key for deriving agent identity defaults (multi-agent). */
     sessionKey?: string;
+    /** Session key for policy resolution when native-command delivery targets a different session. */
+    policySessionKey?: string;
+    /** Explicit conversation type for policy resolution when the policy key is generic. */
+    policyConversationType?: SilentReplyConversationType;
     /** Provider account id (multi-account). */
     accountId?: string;
     /** Originating sender id for sender-scoped outbound media policy. */

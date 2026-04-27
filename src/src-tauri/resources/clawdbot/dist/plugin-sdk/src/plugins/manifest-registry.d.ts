@@ -2,10 +2,10 @@ import type { OpenClawConfig } from "../config/types.js";
 import { type PluginCandidate } from "./discovery.js";
 import type { PluginManifestCommandAlias } from "./manifest-command-aliases.js";
 import type { PluginBundleFormat, PluginConfigUiHint, PluginDiagnostic, PluginFormat } from "./manifest-types.js";
-import { type PluginManifestActivation, type PluginManifestConfigContracts, type PluginManifest, type PluginManifestChannelConfig, type PluginManifestContracts, type PluginManifestModelSupport, type PluginManifestQaRunner, type PluginManifestSetup } from "./manifest.js";
+import { type PluginManifestActivation, type PluginManifestConfigContracts, type PluginManifest, type PluginManifestChannelConfig, type PluginManifestContracts, type PluginManifestMediaUnderstandingProviderMetadata, type PluginManifestModelCatalog, type PluginManifestModelSupport, type PluginManifestProviderEndpoint, type PluginManifestQaRunner, type PluginManifestSetup } from "./manifest.js";
 import type { PluginKind } from "./plugin-kind.types.js";
 import type { PluginOrigin } from "./plugin-origin.types.js";
-type PluginManifestContractListKey = "speechProviders" | "mediaUnderstandingProviders" | "realtimeVoiceProviders" | "realtimeTranscriptionProviders" | "imageGenerationProviders" | "videoGenerationProviders" | "musicGenerationProviders" | "memoryEmbeddingProviders" | "webFetchProviders" | "webSearchProviders";
+type PluginManifestContractListKey = "speechProviders" | "externalAuthProviders" | "mediaUnderstandingProviders" | "documentExtractors" | "realtimeVoiceProviders" | "realtimeTranscriptionProviders" | "imageGenerationProviders" | "videoGenerationProviders" | "musicGenerationProviders" | "memoryEmbeddingProviders" | "webContentExtractors" | "webFetchProviders" | "webSearchProviders";
 export type PluginManifestRecord = {
     id: string;
     name?: string;
@@ -22,7 +22,11 @@ export type PluginManifestRecord = {
     providers: string[];
     providerDiscoverySource?: string;
     modelSupport?: PluginManifestModelSupport;
+    modelCatalog?: PluginManifestModelCatalog;
+    providerEndpoints?: PluginManifestProviderEndpoint[];
     cliBackends: string[];
+    syntheticAuthRefs?: string[];
+    nonSecretAuthMarkers?: string[];
     commandAliases?: PluginManifestCommandAlias[];
     providerAuthEnvVars?: Record<string, string[]>;
     providerAuthAliases?: Record<string, string>;
@@ -45,6 +49,7 @@ export type PluginManifestRecord = {
     configSchema?: Record<string, unknown>;
     configUiHints?: Record<string, PluginConfigUiHint>;
     contracts?: PluginManifestContracts;
+    mediaUnderstandingProviderMetadata?: Record<string, PluginManifestMediaUnderstandingProviderMetadata>;
     configContracts?: PluginManifestConfigContracts;
     channelConfigs?: Record<string, PluginManifestChannelConfig>;
     channelCatalogMeta?: {

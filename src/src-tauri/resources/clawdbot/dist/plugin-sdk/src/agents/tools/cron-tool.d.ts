@@ -1,108 +1,108 @@
-import { type TSchema } from "@sinclair/typebox";
+import { Type, type TSchema } from "typebox";
 import { type AnyAgentTool } from "./common.js";
 import { callGatewayTool } from "./gateway.js";
-export declare const CronToolSchema: import("@sinclair/typebox").TObject<{
-    action: import("@sinclair/typebox").TUnsafe<"status" | "list" | "wake" | "add" | "update" | "run" | "remove" | "runs">;
-    gatewayUrl: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    gatewayToken: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-    includeDisabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    job: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        schedule: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            kind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"every" | "at" | "cron">>;
-            at: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            everyMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-            anchorMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-            expr: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            tz: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            staggerMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+export declare const CronToolSchema: Type.TObject<{
+    action: Type.TUnsafe<"add" | "list" | "remove" | "run" | "runs" | "status" | "update" | "wake">;
+    gatewayUrl: Type.TOptional<Type.TString>;
+    gatewayToken: Type.TOptional<Type.TString>;
+    timeoutMs: Type.TOptional<Type.TNumber>;
+    includeDisabled: Type.TOptional<Type.TBoolean>;
+    job: Type.TOptional<Type.TObject<{
+        name: Type.TOptional<Type.TString>;
+        schedule: Type.TOptional<Type.TObject<{
+            kind: Type.TOptional<Type.TUnsafe<"at" | "cron" | "every">>;
+            at: Type.TOptional<Type.TString>;
+            everyMs: Type.TOptional<Type.TNumber>;
+            anchorMs: Type.TOptional<Type.TNumber>;
+            expr: Type.TOptional<Type.TString>;
+            tz: Type.TOptional<Type.TString>;
+            staggerMs: Type.TOptional<Type.TNumber>;
         }>>;
-        sessionTarget: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        wakeMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"now" | "next-heartbeat">>;
-        payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            kind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"agentTurn" | "systemEvent">>;
-            text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-            lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+        sessionTarget: Type.TOptional<Type.TString>;
+        wakeMode: Type.TOptional<Type.TUnsafe<"next-heartbeat" | "now">>;
+        payload: Type.TOptional<Type.TObject<{
+            kind: Type.TOptional<Type.TUnsafe<"agentTurn" | "systemEvent">>;
+            text: Type.TOptional<Type.TString>;
+            message: Type.TOptional<Type.TString>;
+            model: Type.TOptional<Type.TString>;
+            thinking: Type.TOptional<Type.TString>;
+            timeoutSeconds: Type.TOptional<Type.TNumber>;
+            lightContext: Type.TOptional<Type.TBoolean>;
+            allowUnsafeExternalContent: Type.TOptional<Type.TBoolean>;
+            fallbacks: Type.TOptional<Type.TArray<Type.TString>>;
             toolsAllow: TSchema;
         }>>;
-        delivery: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"none" | "announce" | "webhook">>;
-            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-                channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"announce" | "webhook">>;
+        delivery: Type.TOptional<Type.TObject<{
+            mode: Type.TOptional<Type.TUnsafe<"announce" | "none" | "webhook">>;
+            channel: Type.TOptional<Type.TString>;
+            to: Type.TOptional<Type.TString>;
+            bestEffort: Type.TOptional<Type.TBoolean>;
+            accountId: Type.TOptional<Type.TString>;
+            failureDestination: Type.TOptional<Type.TObject<{
+                channel: Type.TOptional<Type.TString>;
+                to: Type.TOptional<Type.TString>;
+                accountId: Type.TOptional<Type.TString>;
+                mode: Type.TOptional<Type.TUnsafe<"announce" | "webhook">>;
             }>>;
         }>>;
-        agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        description: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        deleteAfterRun: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        failureAlert: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<false | Record<string, unknown>>>;
+        agentId: Type.TOptional<Type.TString>;
+        description: Type.TOptional<Type.TString>;
+        enabled: Type.TOptional<Type.TBoolean>;
+        deleteAfterRun: Type.TOptional<Type.TBoolean>;
+        sessionKey: Type.TOptional<Type.TString>;
+        failureAlert: Type.TOptional<Type.TUnsafe<false | Record<string, unknown>>>;
     }>>;
-    jobId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    patch: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        schedule: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            kind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"every" | "at" | "cron">>;
-            at: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            everyMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-            anchorMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-            expr: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            tz: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            staggerMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+    jobId: Type.TOptional<Type.TString>;
+    id: Type.TOptional<Type.TString>;
+    patch: Type.TOptional<Type.TObject<{
+        name: Type.TOptional<Type.TString>;
+        schedule: Type.TOptional<Type.TObject<{
+            kind: Type.TOptional<Type.TUnsafe<"at" | "cron" | "every">>;
+            at: Type.TOptional<Type.TString>;
+            everyMs: Type.TOptional<Type.TNumber>;
+            anchorMs: Type.TOptional<Type.TNumber>;
+            expr: Type.TOptional<Type.TString>;
+            tz: Type.TOptional<Type.TString>;
+            staggerMs: Type.TOptional<Type.TNumber>;
         }>>;
-        sessionTarget: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        wakeMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"now" | "next-heartbeat">>;
-        payload: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            kind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"agentTurn" | "systemEvent">>;
-            text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            timeoutSeconds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-            lightContext: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            allowUnsafeExternalContent: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+        sessionTarget: Type.TOptional<Type.TString>;
+        wakeMode: Type.TOptional<Type.TUnsafe<"next-heartbeat" | "now">>;
+        payload: Type.TOptional<Type.TObject<{
+            kind: Type.TOptional<Type.TUnsafe<"agentTurn" | "systemEvent">>;
+            text: Type.TOptional<Type.TString>;
+            message: Type.TOptional<Type.TString>;
+            model: Type.TOptional<Type.TString>;
+            thinking: Type.TOptional<Type.TString>;
+            timeoutSeconds: Type.TOptional<Type.TNumber>;
+            lightContext: Type.TOptional<Type.TBoolean>;
+            allowUnsafeExternalContent: Type.TOptional<Type.TBoolean>;
+            fallbacks: Type.TOptional<Type.TArray<Type.TString>>;
             toolsAllow: TSchema;
         }>>;
-        delivery: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"none" | "announce" | "webhook">>;
-            channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            bestEffort: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            failureDestination: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-                channel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                to: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                accountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-                mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"announce" | "webhook">>;
+        delivery: Type.TOptional<Type.TObject<{
+            mode: Type.TOptional<Type.TUnsafe<"announce" | "none" | "webhook">>;
+            channel: Type.TOptional<Type.TString>;
+            to: Type.TOptional<Type.TString>;
+            bestEffort: Type.TOptional<Type.TBoolean>;
+            accountId: Type.TOptional<Type.TString>;
+            failureDestination: Type.TOptional<Type.TObject<{
+                channel: Type.TOptional<Type.TString>;
+                to: Type.TOptional<Type.TString>;
+                accountId: Type.TOptional<Type.TString>;
+                mode: Type.TOptional<Type.TUnsafe<"announce" | "webhook">>;
             }>>;
         }>>;
-        description: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        deleteAfterRun: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        sessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        failureAlert: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<false | Record<string, unknown>>>;
+        description: Type.TOptional<Type.TString>;
+        enabled: Type.TOptional<Type.TBoolean>;
+        deleteAfterRun: Type.TOptional<Type.TBoolean>;
+        agentId: Type.TOptional<Type.TString>;
+        sessionKey: Type.TOptional<Type.TString>;
+        failureAlert: Type.TOptional<Type.TUnsafe<false | Record<string, unknown>>>;
     }>>;
-    text: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    mode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"now" | "next-heartbeat">>;
-    runMode: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnsafe<"force" | "due">>;
-    contextMessages: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
+    text: Type.TOptional<Type.TString>;
+    mode: Type.TOptional<Type.TUnsafe<"next-heartbeat" | "now">>;
+    runMode: Type.TOptional<Type.TUnsafe<"due" | "force">>;
+    contextMessages: Type.TOptional<Type.TNumber>;
 }>;
 type CronToolOptions = {
     agentSessionKey?: string;

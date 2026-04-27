@@ -1,2 +1,2 @@
-import { t as buildMicrosoftFoundryProvider } from "../../provider-sZmIMU7b.js";
+import { t as buildMicrosoftFoundryProvider } from "../../provider-B-dkVmHy.js";
 export { buildMicrosoftFoundryProvider };

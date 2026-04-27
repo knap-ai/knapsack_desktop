@@ -5,4 +5,4 @@ export { scheduleCleanup, summarizeText, normalizeApplyTextNormalization, normal
 export { parseTtsDirectives } from "../tts/directives.js";
 export { canonicalizeSpeechProviderId, getSpeechProvider, listSpeechProviders, normalizeSpeechProviderId, } from "../tts/provider-registry.js";
 export { normalizeTtsAutoMode, TTS_AUTO_MODES } from "../tts/tts-auto-mode.js";
-export { asBoolean, asFiniteNumber, asObject, readResponseTextLimited, trimToUndefined, truncateErrorDetail, } from "../tts/provider-error-utils.js";
+export { asBoolean, asFiniteNumber, asObject, assertOkOrThrowProviderError, createProviderHttpError, extractProviderErrorDetail, extractProviderRequestId, formatProviderErrorPayload, formatProviderHttpErrorMessage, readResponseTextLimited, trimToUndefined, truncateErrorDetail, } from "../agents/provider-http-errors.js";

@@ -1,6 +1,6 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
-import { n as applyVercelAiGatewayConfig, t as VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF } from "../../onboard-Db3DTA-Q.js";
-import { t as buildVercelAiGatewayProvider } from "../../provider-catalog-Dy_7GoPv.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
+import { n as applyVercelAiGatewayConfig, t as VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF } from "../../onboard-B-NHeWrY.js";
+import { n as buildVercelAiGatewayProvider, t as buildStaticVercelAiGatewayProvider } from "../../provider-catalog-BpJ-z30G2.js";
 var vercel_ai_gateway_default = defineSingleProviderPluginEntry({
 	id: "vercel-ai-gateway",
 	name: "Vercel AI Gateway Provider",
@@ -23,7 +23,10 @@ var vercel_ai_gateway_default = defineSingleProviderPluginEntry({
 				groupId: "ai-gateway"
 			}
 		}],
-		catalog: { buildProvider: buildVercelAiGatewayProvider }
+		catalog: {
+			buildProvider: buildVercelAiGatewayProvider,
+			buildStaticProvider: buildStaticVercelAiGatewayProvider
+		}
 	}
 });
 //#endregion

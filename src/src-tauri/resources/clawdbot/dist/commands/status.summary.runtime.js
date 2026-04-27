@@ -1,9 +1,9 @@
-import { i as normalizeLowercaseStringOrEmpty, o as normalizeOptionalLowercaseString, s as normalizeOptionalString } from "../string-coerce-BUSzWgUA.js";
-import { r as normalizeProviderId } from "../provider-id-KaStHhRz.js";
-import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "../defaults-CiQa3xnX.js";
-import { n as resolveAgentModelPrimaryValue } from "../model-input-DFbXtnkw.js";
-import { g as resolveConfiguredProviderFallback, m as parseModelRef } from "../model-selection-cli-_3Gn8Wcd.js";
-import { _ as resolvePersistedSelectedModelRef } from "../model-selection-CTdyYoio.js";
+import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, s as normalizeOptionalLowercaseString } from "../string-coerce-C1IzJjqi.js";
+import { r as normalizeProviderId } from "../provider-id-BLh32HP1.js";
+import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "../defaults-DM8yIn8C.js";
+import { n as resolveAgentModelPrimaryValue } from "../model-input-BkKFdMSQ.js";
+import { _ as resolveConfiguredProviderFallback, x as parseModelRef } from "../model-selection-shared-grYiFZof.js";
+import { l as resolvePersistedSelectedModelRef } from "../model-selection-hTT37jzm.js";
 //#region src/commands/status.summary.runtime.ts
 function resolveStatusModelRefFromRaw(params) {
 	const trimmed = params.rawModel.trim();
@@ -85,7 +85,8 @@ function resolveSessionModelRef(cfg, entry, agentId) {
 		runtimeProvider: entry?.modelProvider,
 		runtimeModel: entry?.model,
 		overrideProvider: entry?.providerOverride,
-		overrideModel: entry?.modelOverride
+		overrideModel: entry?.modelOverride,
+		allowPluginNormalization: false
 	}) ?? resolved;
 }
 function resolveContextTokensForModel(params) {

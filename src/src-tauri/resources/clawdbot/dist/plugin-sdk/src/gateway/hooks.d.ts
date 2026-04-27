@@ -21,6 +21,7 @@ export type HookSessionPolicyResolved = {
     allowRequestSessionKey: boolean;
     allowedSessionKeyPrefixes?: string[];
 };
+export type HookSessionKeySource = "request" | "mapping-static" | "mapping-templated";
 export declare function resolveHooksConfig(cfg: OpenClawConfig): HooksConfigResolved | null;
 export declare function isSessionKeyAllowedByPrefix(sessionKey: string, prefixes: string[]): boolean;
 export declare function extractHookToken(req: IncomingMessage): string | undefined;
@@ -76,7 +77,7 @@ export declare const getHookSessionKeyRequestPolicyError: () => string;
 export declare const getHookSessionKeyPrefixError: (prefixes: string[]) => string;
 export declare function resolveHookSessionKey(params: {
     hooksConfig: HooksConfigResolved;
-    source: "request" | "mapping";
+    source: HookSessionKeySource;
     sessionKey?: string;
     idFactory?: () => string;
 }): {

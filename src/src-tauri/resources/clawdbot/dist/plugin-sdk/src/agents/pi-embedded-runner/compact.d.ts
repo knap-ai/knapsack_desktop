@@ -3,6 +3,7 @@ import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ProviderRuntimeModel } from "../../plugins/provider-runtime-model.types.js";
 import { hasMeaningfulConversationContent } from "../compaction-real-conversation.js";
+import type { AgentRuntimePlan } from "../runtime-plan/types.js";
 import type { CompactEmbeddedPiSessionParams } from "./compact.types.js";
 import { buildBeforeCompactionHookMetrics, estimateTokensAfterCompaction, runAfterCompactionHooks, runBeforeCompactionHooks, runPostCompactionSideEffects } from "./compaction-hooks.js";
 import { hardenManualCompactionBoundary } from "./manual-compaction-boundary.js";
@@ -30,6 +31,7 @@ declare function prepareCompactionSessionAgent(params: {
     sessionAgentId: string;
     effectiveWorkspace: string;
     agentDir: string;
+    runtimePlan?: AgentRuntimePlan;
 }): {
     effectiveExtraParams: Record<string, unknown>;
 };
