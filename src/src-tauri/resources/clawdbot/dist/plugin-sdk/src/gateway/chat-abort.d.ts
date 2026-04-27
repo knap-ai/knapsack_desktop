@@ -6,6 +6,19 @@ export type ChatAbortControllerEntry = {
     expiresAtMs: number;
     ownerConnId?: string;
     ownerDeviceId?: string;
+    /**
+     * Which RPC owns this registration. Absent (undefined) is treated as
+     * `"chat-send"` so pre-existing callers that constructed entries without
+     * a kind keep their behavior. Consumers that need "chat.send specifically
+     * is active" must check `kind !== "agent"`, not just `.has(runId)`.
+     */
+    kind?: "chat-send" | "agent";
+};
+export type RegisteredChatAbortController = {
+    controller: AbortController;
+    registered: boolean;
+    entry?: ChatAbortControllerEntry;
+    cleanup: () => void;
 };
 export declare function isChatStopCommandText(text: string): boolean;
 export declare function resolveChatRunExpiresAtMs(params: {
@@ -15,6 +28,23 @@ export declare function resolveChatRunExpiresAtMs(params: {
     minMs?: number;
     maxMs?: number;
 }): number;
+export declare function resolveAgentRunExpiresAtMs(params: {
+    now: number;
+    timeoutMs: number;
+    graceMs?: number;
+}): number;
+export declare function registerChatAbortController(params: {
+    chatAbortControllers: Map<string, ChatAbortControllerEntry>;
+    runId: string;
+    sessionId: string;
+    sessionKey?: string | null;
+    timeoutMs: number;
+    ownerConnId?: string;
+    ownerDeviceId?: string;
+    kind?: ChatAbortControllerEntry["kind"];
+    now?: number;
+    expiresAtMs?: number;
+}): RegisteredChatAbortController;
 export type ChatAbortOps = {
     chatAbortControllers: Map<string, ChatAbortControllerEntry>;
     chatRunBuffers: Map<string, string>;

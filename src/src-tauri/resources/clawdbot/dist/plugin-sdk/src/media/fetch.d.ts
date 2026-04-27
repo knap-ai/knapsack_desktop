@@ -27,6 +27,7 @@ type FetchMediaOptions = {
     readIdleTimeoutMs?: number;
     ssrfPolicy?: SsrFPolicy;
     lookupFn?: LookupFn;
+    dispatcherPolicy?: PinnedDispatcherPolicy;
     dispatcherAttempts?: FetchDispatcherAttempt[];
     shouldRetryFetchError?: (error: unknown) => boolean;
     /**

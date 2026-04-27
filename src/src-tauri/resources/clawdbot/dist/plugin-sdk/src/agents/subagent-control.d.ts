@@ -1,4 +1,6 @@
+import type { ClearSessionQueueResult } from "../auto-reply/reply/queue.js";
 import { type SubagentTargetResolution } from "../auto-reply/reply/subagents-utils.js";
+import { updateSessionStore } from "../config/sessions/store.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { callGateway } from "../gateway/call.js";
 import { buildSubagentList, createPendingDescendantCounter, isActiveSubagentRun, resolveSessionEntryForKey, type BuiltSubagentList, type SessionEntryResolution, type SubagentListItem } from "./subagent-list.js";
@@ -9,6 +11,9 @@ export declare const MAX_STEER_MESSAGE_CHARS = 4000;
 export declare const STEER_RATE_LIMIT_MS = 2000;
 export declare const STEER_ABORT_SETTLE_TIMEOUT_MS = 5000;
 type GatewayCaller = typeof callGateway;
+type UpdateSessionStore = typeof updateSessionStore;
+type AbortEmbeddedPiRun = (sessionId: string) => boolean;
+type ClearSessionQueues = (keys: Array<string | undefined>) => ClearSessionQueueResult;
 export type ResolvedSubagentController = {
     controllerSessionKey: string;
     callerSessionKey: string;
@@ -32,34 +37,35 @@ export declare function killAllControlledSubagentRuns(params: {
     killed: number;
     labels: never[];
 } | {
+    error?: undefined;
     status: "ok";
     killed: number;
     labels: string[];
-    error?: undefined;
 }>;
 export declare function killControlledSubagentRun(params: {
     cfg: OpenClawConfig;
     controller: ResolvedSubagentController;
     entry: SubagentRunRecord;
 }): Promise<{
+    text?: undefined;
     status: "forbidden";
     runId: string;
     sessionKey: string;
     error: string;
     label?: undefined;
-    text?: undefined;
     cascadeKilled?: undefined;
     cascadeLabels?: undefined;
 } | {
+    error?: undefined;
     status: "done";
     runId: string;
     sessionKey: string;
     label: string;
     text: string;
-    error?: undefined;
     cascadeKilled?: undefined;
     cascadeLabels?: undefined;
 } | {
+    error?: undefined;
     status: "ok";
     runId: string;
     sessionKey: string;
@@ -67,18 +73,17 @@ export declare function killControlledSubagentRun(params: {
     cascadeKilled: number;
     cascadeLabels: string[] | undefined;
     text: string;
-    error?: undefined;
 }>;
 export declare function killSubagentRunAdmin(params: {
     cfg: OpenClawConfig;
     sessionKey: string;
 }): Promise<{
-    found: false;
-    killed: boolean;
-    runId?: undefined;
     sessionKey?: undefined;
     cascadeKilled?: undefined;
     cascadeLabels?: undefined;
+    found: false;
+    killed: boolean;
+    runId?: undefined;
 } | {
     found: true;
     killed: boolean;
@@ -114,35 +119,35 @@ export declare function sendControlledSubagentMessage(params: {
     entry: SubagentRunRecord;
     message: string;
 }): Promise<{
+    text?: undefined;
+    runId?: undefined;
     status: "forbidden";
     error: string;
-    runId?: undefined;
-    text?: undefined;
     replyText?: undefined;
 } | {
+    error?: undefined;
     status: "done";
     runId: string;
     text: string;
-    error?: undefined;
     replyText?: undefined;
 } | {
+    text?: undefined;
+    error?: undefined;
     status: "timeout";
     runId: string;
-    error?: undefined;
-    text?: undefined;
     replyText?: undefined;
 } | {
+    text?: undefined;
     status: "error";
     runId: string;
     error: string;
-    text?: undefined;
     replyText?: undefined;
 } | {
+    text?: undefined;
+    error?: undefined;
     status: "ok";
     runId: string;
     replyText: string | undefined;
-    error?: undefined;
-    text?: undefined;
 }>;
 export declare function resolveControlledSubagentTarget(runs: SubagentRunRecord[], token: string | undefined, options?: {
     recentMinutes?: number;
@@ -151,5 +156,8 @@ export declare function resolveControlledSubagentTarget(runs: SubagentRunRecord[
 export declare const __testing: {
     setDepsForTest(overrides?: Partial<{
         callGateway: GatewayCaller;
+        updateSessionStore: UpdateSessionStore;
+        abortEmbeddedPiRun: AbortEmbeddedPiRun;
+        clearSessionQueues: ClearSessionQueues;
     }>): void;
 };

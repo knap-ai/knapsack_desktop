@@ -2,10 +2,12 @@ import type { AuthProfileCredential, OAuthCredential } from "../agents/auth-prof
 import type { ProviderSystemPromptContribution } from "../agents/system-prompt-contribution.js";
 import type { ModelProviderConfig } from "../config/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { clearProviderRuntimeHookCache, prepareProviderExtraParams, resetProviderRuntimeHookCacheForTest, resolveProviderRuntimePlugin, wrapProviderStreamFn } from "./provider-hook-runtime.js";
+import { clearProviderRuntimeHookCache, prepareProviderExtraParams, resetProviderRuntimeHookCacheForTest, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resolveProviderRuntimePlugin, wrapProviderStreamFn } from "./provider-hook-runtime.js";
 import type { ProviderRuntimeModel } from "./provider-runtime-model.types.js";
+import type { ProviderThinkingProfile } from "./provider-thinking.types.js";
 import type { ProviderAuthDoctorHintContext, ProviderAugmentModelCatalogContext, ProviderExternalAuthProfile, ProviderBuildMissingAuthMessageContext, ProviderBuildUnknownModelHintContext, ProviderBuiltInModelSuppressionContext, ProviderCacheTtlEligibilityContext, ProviderCreateEmbeddingProviderContext, ProviderDeferSyntheticProfileAuthContext, ProviderResolveSyntheticAuthContext, ProviderCreateStreamFnContext, ProviderDefaultThinkingPolicyContext, ProviderFetchUsageSnapshotContext, ProviderFailoverErrorContext, ProviderNormalizeToolSchemasContext, ProviderNormalizeConfigContext, ProviderNormalizeModelIdContext, ProviderReasoningOutputMode, ProviderReasoningOutputModeContext, ProviderReplayPolicy, ProviderReplayPolicyContext, ProviderNormalizeResolvedModelContext, ProviderNormalizeTransportContext, ProviderModernModelPolicyContext, ProviderPrepareDynamicModelContext, ProviderPreferRuntimeResolvedModelContext, ProviderResolveExternalAuthProfilesContext, ProviderResolveExternalOAuthProfilesContext, ProviderPrepareRuntimeAuthContext, ProviderApplyConfigDefaultsContext, ProviderResolveConfigApiKeyContext, ProviderSanitizeReplayHistoryContext, ProviderResolveUsageAuthContext, ProviderResolveDynamicModelContext, ProviderResolveTransportTurnStateContext, ProviderResolveWebSocketSessionPolicyContext, ProviderSystemPromptContributionContext, ProviderTransformSystemPromptContext, ProviderThinkingPolicyContext, ProviderTransportTurnState, ProviderValidateReplayTurnsContext, ProviderWebSocketSessionPolicy, PluginTextTransforms } from "./types.js";
-export { clearProviderRuntimeHookCache, prepareProviderExtraParams, resetProviderRuntimeHookCacheForTest, resolveProviderRuntimePlugin, wrapProviderStreamFn, };
+declare function resetExternalAuthFallbackWarningCacheForTest(): void;
+export { clearProviderRuntimeHookCache, prepareProviderExtraParams, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resetProviderRuntimeHookCacheForTest, resolveProviderRuntimePlugin, wrapProviderStreamFn, };
 export declare const __testing: {
     readonly buildHookProviderCacheKey: (params: {
         config?: OpenClawConfig;
@@ -14,6 +16,7 @@ export declare const __testing: {
         providerRefs?: string[];
         env?: NodeJS.ProcessEnv;
     }) => string;
+    readonly resetExternalAuthFallbackWarningCacheForTest: typeof resetExternalAuthFallbackWarningCacheForTest;
 };
 export declare function runProviderDynamicModel(params: {
     provider: string;
@@ -212,7 +215,7 @@ export declare function resolveProviderUsageSnapshotWithPlugin(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderFetchUsageSnapshotContext;
-}): Promise<import("../infra/provider-usage.types.ts").ProviderUsageSnapshot | null | undefined>;
+}): Promise<import("openclaw/plugin-sdk/core").ProviderUsageSnapshot | null | undefined>;
 export declare function matchesProviderContextOverflowWithPlugin(params: {
     provider?: string;
     config?: OpenClawConfig;
@@ -269,13 +272,20 @@ export declare function resolveProviderXHighThinking(params: {
     env?: NodeJS.ProcessEnv;
     context: ProviderThinkingPolicyContext;
 }): boolean | undefined;
+export declare function resolveProviderThinkingProfile(params: {
+    provider: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+    context: ProviderDefaultThinkingPolicyContext;
+}): ProviderThinkingProfile | null | undefined;
 export declare function resolveProviderDefaultThinkingLevel(params: {
     provider: string;
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderDefaultThinkingPolicyContext;
-}): "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "adaptive" | null | undefined;
+}): "adaptive" | "high" | "low" | "medium" | "minimal" | "off" | "xhigh" | null | undefined;
 export declare function applyProviderConfigDefaultsWithPlugin(params: {
     provider: string;
     config?: OpenClawConfig;
@@ -310,7 +320,7 @@ export declare function resolveProviderSyntheticAuthWithPlugin(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderResolveSyntheticAuthContext;
-}): import("./provider-external-auth.types.ts").ProviderSyntheticAuthResult | undefined;
+}): import("./provider-external-auth.types.ts").ProviderSyntheticAuthResult | null | undefined;
 export declare function resolveExternalAuthProfilesWithPlugins(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;
@@ -341,4 +351,4 @@ export declare function augmentModelCatalogWithProviderPlugins(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderAugmentModelCatalogContext;
-}): Promise<import("../agents/model-catalog.types.ts").ModelCatalogEntry[]>;
+}): Promise<import("openclaw/plugin-sdk/agent-runtime").ModelCatalogEntry[]>;

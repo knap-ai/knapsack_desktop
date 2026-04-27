@@ -1,2 +1,2 @@
-import { t as openrouterMediaUnderstandingProvider } from "../../media-understanding-provider-DUpQFXzG.js";
+import { t as openrouterMediaUnderstandingProvider } from "../../media-understanding-provider-By27N0V5.js";
 export { openrouterMediaUnderstandingProvider };

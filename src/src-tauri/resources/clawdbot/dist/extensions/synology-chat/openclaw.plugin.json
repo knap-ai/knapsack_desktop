@@ -17,5 +17,24 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {}
+  },
+  "channelConfigs": {
+    "synology-chat": {
+      "schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "dangerouslyAllowNameMatching": {
+            "type": "boolean"
+          },
+          "dangerouslyAllowInheritedWebhookPath": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": {}
+      },
+      "label": "Synology Chat",
+      "description": "Connect your Synology NAS Chat to OpenClaw with full agent capabilities."
+    }
   }
 }

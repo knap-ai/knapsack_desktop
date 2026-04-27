@@ -12,6 +12,8 @@ export type SsrFPolicy = {
     allowedHostnames?: string[];
     hostnameAllowlist?: string[];
 };
+export declare function isSameSsrFPolicy(a?: SsrFPolicy, b?: SsrFPolicy): boolean;
+export declare function ssrfPolicyFromHttpBaseUrlAllowedHostname(baseUrl: string): SsrFPolicy | undefined;
 export declare function normalizeHostnameAllowlist(values?: string[]): string[];
 export declare function isPrivateNetworkAllowedByPolicy(policy?: SsrFPolicy): boolean;
 export declare function isHostnameAllowedByPattern(hostname: string, pattern: string): boolean;
@@ -55,6 +57,6 @@ export declare function resolvePinnedHostnameWithPolicy(hostname: string, params
 }): Promise<PinnedHostname>;
 export declare function assertHostnameAllowedWithPolicy(hostname: string, policy?: SsrFPolicy): string;
 export declare function resolvePinnedHostname(hostname: string, lookupFn?: LookupFn): Promise<PinnedHostname>;
-export declare function createPinnedDispatcher(pinned: PinnedHostname, policy?: PinnedDispatcherPolicy, ssrfPolicy?: SsrFPolicy): Dispatcher;
+export declare function createPinnedDispatcher(pinned: PinnedHostname, policy?: PinnedDispatcherPolicy, ssrfPolicy?: SsrFPolicy, timeoutMs?: number): Dispatcher;
 export declare function closeDispatcher(dispatcher?: Dispatcher | null): Promise<void>;
 export declare function assertPublicHostname(hostname: string, lookupFn?: LookupFn): Promise<void>;

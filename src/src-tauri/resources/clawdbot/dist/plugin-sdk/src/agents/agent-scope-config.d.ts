@@ -28,6 +28,6 @@ export declare function listAgentIds(cfg: OpenClawConfig): string[];
 export declare function resolveDefaultAgentId(cfg: OpenClawConfig): string;
 export declare function resolveAgentConfig(cfg: OpenClawConfig, agentId: string): ResolvedAgentConfig | undefined;
 export declare function resolveAgentContextLimits(cfg: OpenClawConfig | undefined, agentId?: string | null): AgentContextLimitsConfig | undefined;
-export declare function resolveAgentWorkspaceDir(cfg: OpenClawConfig, agentId: string): string;
+export declare function resolveAgentWorkspaceDir(cfg: OpenClawConfig, agentId: string, env?: NodeJS.ProcessEnv): string;
 export declare function resolveAgentDir(cfg: OpenClawConfig, agentId: string, env?: NodeJS.ProcessEnv): string;
 export {};

@@ -1,10 +1,11 @@
-import { s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
-import { n as asNullableRecord } from "../../record-coerce-Bls3blVy.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as note } from "../../note-BuYL4ixE.js";
-import "../../browser-setup-tools-B1frXn0-.js";
-import "../../record-shared-DQoQZOFY.js";
-import { i as resolveGoogleChromeExecutableForPlatform, n as readBrowserVersion, t as parseBrowserMajorVersion } from "../../chrome.executables-WqX45Anh.js";
+import { c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
+import { n as asNullableRecord } from "../../record-coerce-BpObaVhi.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as note } from "../../note-D_Kkgdi2.js";
+import "../../browser-setup-tools-9t-AQFbh.js";
+import { t as resolveBrowserConfig } from "../../config-M802LKai.js";
+import "../../record-shared-_bRL1BgQ.js";
+import { i as resolveGoogleChromeExecutableForPlatform, n as readBrowserVersion, r as resolveBrowserExecutableForPlatform, t as parseBrowserMajorVersion } from "../../chrome.executables-D4vvPgJr.js";
 //#region extensions/browser/src/doctor-browser.ts
 const CHROME_MCP_MIN_MAJOR = 144;
 const REMOTE_DEBUGGING_PAGES = [
@@ -28,13 +29,44 @@ function collectChromeMcpProfiles(cfg) {
 	}
 	return [...profiles.values()].toSorted((a, b) => a.name.localeCompare(b.name));
 }
+function collectManagedProfiles(cfg) {
+	const browser = asNullableRecord(cfg.browser);
+	if (!browser) return [];
+	const profiles = /* @__PURE__ */ new Map();
+	const defaultProfile = normalizeOptionalString(browser.defaultProfile) ?? "";
+	if (defaultProfile && defaultProfile !== "user") profiles.set(defaultProfile, { name: defaultProfile });
+	const configuredProfiles = asNullableRecord(browser.profiles);
+	if (!configuredProfiles) return [...profiles.values()].toSorted((a, b) => a.name.localeCompare(b.name));
+	for (const [profileName, rawProfile] of Object.entries(configuredProfiles)) if ((normalizeOptionalString(asNullableRecord(rawProfile)?.driver) ?? "openclaw") !== "existing-session") profiles.set(profileName, { name: profileName });
+	return [...profiles.values()].toSorted((a, b) => a.name.localeCompare(b.name));
+}
 async function noteChromeMcpBrowserReadiness(cfg, deps) {
-	const profiles = collectChromeMcpProfiles(cfg);
-	if (profiles.length === 0) return;
 	const noteFn = deps?.noteFn ?? note;
 	const platform = deps?.platform ?? process.platform;
+	const env = deps?.env ?? process.env;
+	const getUid = deps?.getUid ?? (() => process.getuid?.() ?? -1);
+	const resolveManagedExecutable = deps?.resolveManagedExecutable ?? resolveBrowserExecutableForPlatform;
 	const resolveChromeExecutable = deps?.resolveChromeExecutable ?? resolveGoogleChromeExecutableForPlatform;
 	const readVersion = deps?.readVersion ?? readBrowserVersion;
+	const managedProfiles = collectManagedProfiles(cfg);
+	const managedProfileLabel = managedProfiles.map((profile) => profile.name).join(", ");
+	const resolved = resolveBrowserConfig(cfg.browser, cfg);
+	const browserExecutable = managedProfiles.length > 0 ? resolveManagedExecutable(resolved, platform) : null;
+	const missingDisplay = platform === "linux" && managedProfiles.length > 0 && !resolved.headless && !normalizeOptionalString(env.DISPLAY) && !normalizeOptionalString(env.WAYLAND_DISPLAY);
+	const shouldWarnRootNoSandbox = platform === "linux" && managedProfiles.length > 0 && !resolved.noSandbox && getUid() === 0;
+	if (!browserExecutable && managedProfiles.length > 0) noteFn([
+		`- OpenClaw-managed browser profile(s) are configured: ${managedProfileLabel}.`,
+		"- No Chromium-based browser executable was found on this host for OpenClaw-managed launch.",
+		"- Install Chrome, Chromium, Brave, Edge, or set browser.executablePath explicitly."
+	].join("\n"), "Browser");
+	if (missingDisplay || shouldWarnRootNoSandbox) {
+		const lines = [`- OpenClaw-managed browser profile(s) are configured: ${managedProfileLabel}.`];
+		if (missingDisplay) lines.push("- No DISPLAY or WAYLAND_DISPLAY is set, and browser.headless is false. Managed browser launch needs a desktop session, Xvfb, or browser.headless: true.");
+		if (shouldWarnRootNoSandbox) lines.push("- The Gateway is running as root and browser.noSandbox is false. Chromium commonly requires browser.noSandbox: true in container/root runtimes.");
+		noteFn(lines.join("\n"), "Browser");
+	}
+	const profiles = collectChromeMcpProfiles(cfg);
+	if (profiles.length === 0) return;
 	const explicitProfiles = profiles.filter((profile) => profile.userDataDir);
 	const autoConnectProfiles = profiles.filter((profile) => !profile.userDataDir);
 	const profileLabel = profiles.map((profile) => profile.name).join(", ");

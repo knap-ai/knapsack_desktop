@@ -1,5 +1,4 @@
 import { type HttpMcpTransportType } from "./mcp-http.js";
-export type McpTransportType = "stdio" | HttpMcpTransportType;
 type ResolvedBaseMcpTransportConfig = {
     description: string;
     connectionTimeoutMs: number;

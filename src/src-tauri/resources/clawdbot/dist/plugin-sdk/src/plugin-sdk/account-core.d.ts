@@ -5,6 +5,7 @@ export { normalizeChatType } from "../channels/chat-type.js";
 export { resolveAccountEntry, resolveNormalizedAccountEntry } from "../routing/account-lookup.js";
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId, normalizeOptionalAccountId, } from "../routing/session-key.js";
 export { normalizeE164, pathExists, resolveUserPath } from "../utils.js";
+export { listConfiguredAccountIds } from "./account-configured-ids.js";
 /** Resolve an account by id, then fall back to the default account when the primary lacks credentials. */
 export declare function resolveAccountWithDefaultFallback<TAccount>(params: {
     accountId?: string | null;
@@ -13,8 +14,3 @@ export declare function resolveAccountWithDefaultFallback<TAccount>(params: {
     hasCredential: (account: TAccount) => boolean;
     resolveDefaultAccountId: () => string;
 }): TAccount;
-/** List normalized configured account ids from a raw channel account record map. */
-export declare function listConfiguredAccountIds(params: {
-    accounts: Record<string, unknown> | undefined;
-    normalizeAccountId: (accountId: string) => string;
-}): string[];

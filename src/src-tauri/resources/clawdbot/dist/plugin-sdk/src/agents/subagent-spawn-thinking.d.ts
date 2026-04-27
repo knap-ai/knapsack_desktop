@@ -16,10 +16,10 @@ export declare function resolveSubagentThinkingOverride(params: {
     thinkingOverride?: undefined;
     initialSessionPatch?: undefined;
 } | {
+    thinkingCandidateRaw?: undefined;
     status: "ok";
     thinkingOverride: import("../auto-reply/thinking.shared.js").ThinkLevel;
     initialSessionPatch: {
-        thinkingLevel: "minimal" | "low" | "medium" | "high" | "xhigh" | "adaptive" | null;
+        thinkingLevel: "adaptive" | "high" | "low" | "max" | "medium" | "minimal" | "xhigh" | null;
     };
-    thinkingCandidateRaw?: undefined;
 };

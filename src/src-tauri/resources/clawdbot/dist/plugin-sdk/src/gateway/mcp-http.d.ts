@@ -1,4 +1,4 @@
-export { createMcpLoopbackServerConfig, getActiveMcpLoopbackRuntime, } from "./mcp-http.loopback-runtime.js";
+export { createMcpLoopbackServerConfig, getActiveMcpLoopbackRuntime, resolveMcpLoopbackBearerToken, } from "./mcp-http.loopback-runtime.js";
 type McpLoopbackServer = {
     port: number;
     close: () => Promise<void>;

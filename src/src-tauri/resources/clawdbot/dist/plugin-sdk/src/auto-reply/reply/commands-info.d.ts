@@ -6,3 +6,4 @@ export declare const handleCommandsListCommand: CommandHandler;
 export declare const handleToolsCommand: CommandHandler;
 export declare const handleStatusCommand: CommandHandler;
 export declare const handleExportSessionCommand: CommandHandler;
+export declare const handleExportTrajectoryCommand: CommandHandler;

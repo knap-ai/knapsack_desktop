@@ -1,4 +1,4 @@
-import type { ChatCommandDefinition, CommandCategory, CommandScope } from "./commands-registry.types.js";
+import type { ChatCommandDefinition, CommandCategory, CommandScope, CommandTier } from "./commands-registry.types.js";
 type DefineChatCommandInput = {
     key: string;
     nativeName?: string;
@@ -12,6 +12,8 @@ type DefineChatCommandInput = {
     textAliases?: string[];
     scope?: CommandScope;
     category?: CommandCategory;
+    /** Progressive disclosure tier. Defaults to "standard". */
+    tier?: CommandTier;
 };
 export declare function defineChatCommand(command: DefineChatCommandInput): ChatCommandDefinition;
 export declare function registerAlias(commands: ChatCommandDefinition[], key: string, ...aliases: string[]): void;

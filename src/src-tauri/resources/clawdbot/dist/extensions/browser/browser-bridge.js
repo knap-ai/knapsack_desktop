@@ -1,2 +1,2 @@
-import { n as stopBrowserBridgeServer, t as startBrowserBridgeServer } from "../../bridge-server-BMEyg4Hw.js";
+import { n as stopBrowserBridgeServer, t as startBrowserBridgeServer } from "../../bridge-server-BSn0j56i.js";
 export { startBrowserBridgeServer, stopBrowserBridgeServer };

@@ -1,6 +1,6 @@
 import { isRecord, normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
-import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { homedir } from "node:os";
 //#region extensions/google/oauth.settings.ts
 const defaultFs = {

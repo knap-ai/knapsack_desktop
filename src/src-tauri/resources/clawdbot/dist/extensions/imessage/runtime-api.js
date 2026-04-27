@@ -1,19 +1,20 @@
-import { r as buildChannelConfigSchema } from "../../config-schema-sgVTuroC.js";
-import { t as DEFAULT_ACCOUNT_ID } from "../../account-id-j7GeQlaZ.js";
-import { r as IMessageConfigSchema } from "../../zod-schema.providers-core-BxvvQH1c.js";
-import { m as formatTrimmedAllowFromEntries } from "../../channel-config-helpers-9F9ZxFrZ.js";
-import { o as getChatChannelMeta } from "../../core-Dh0sB0kj.js";
-import { t as createPluginRuntimeStore } from "../../runtime-store-Cvr8bl0h.js";
-import { t as resolveChannelMediaMaxBytes } from "../../media-limits-CdCXl04b.js";
-import { t as PAIRING_APPROVED_MESSAGE } from "../../pairing-message-DXbuAoem.js";
-import { c as collectStatusIssuesFromLastError, r as buildComputedAccountStatusSnapshot } from "../../status-helpers-BEDVo_4L.js";
-import "../../media-runtime-M1ED8IU3.js";
-import { t as chunkTextForOutbound } from "../../text-chunking-CtENq2zv.js";
-import "../../channel-status-CnINozhH.js";
-import { _ as resolveIMessageConfigAllowFrom, g as normalizeIMessageMessagingTarget, h as looksLikeIMessageTargetId, t as probeIMessage, v as resolveIMessageConfigDefaultTo } from "../../probe-DMJ26cNa.js";
-import { n as resolveIMessageGroupToolPolicy, t as resolveIMessageGroupRequireMention } from "../../group-policy-DMWywzQV.js";
-import "../../config-api-C35kSSd0.js";
-import { n as sendMessageIMessage, t as monitorIMessageProvider } from "../../monitor-D2Mv4hKV.js";
+import { r as buildChannelConfigSchema } from "../../config-schema-BEuj464I.js";
+import { t as DEFAULT_ACCOUNT_ID } from "../../account-id-C3j_3_su.js";
+import { r as IMessageConfigSchema } from "../../zod-schema.providers-core-Bl_XI-8U.js";
+import { p as formatTrimmedAllowFromEntries } from "../../channel-config-helpers-D7luFLJH.js";
+import { c as getChatChannelMeta } from "../../core-C7AkvHZx.js";
+import { t as createPluginRuntimeStore } from "../../runtime-store-CURt34XU.js";
+import { t as resolveChannelMediaMaxBytes } from "../../media-limits-DYln5NHj.js";
+import { t as PAIRING_APPROVED_MESSAGE } from "../../pairing-message-D_jmgW5W.js";
+import { c as collectStatusIssuesFromLastError, r as buildComputedAccountStatusSnapshot } from "../../status-helpers-Jbf-oZqp.js";
+import "../../media-runtime-CaqK85Sx.js";
+import { t as chunkTextForOutbound } from "../../text-chunking-CnW9V_2f.js";
+import "../../channel-status-DcDrNBsU.js";
+import { f as looksLikeIMessageTargetId, h as resolveIMessageConfigDefaultTo, m as resolveIMessageConfigAllowFrom, p as normalizeIMessageMessagingTarget } from "../../conversation-id-D4vg4q7Z.js";
+import { n as resolveIMessageGroupToolPolicy, t as resolveIMessageGroupRequireMention } from "../../group-policy-hmDMo498.js";
+import "../../config-api-CBSdmomi.js";
+import { t as probeIMessage } from "../../probe-CyrEswXv.js";
+import { n as sendMessageIMessage, t as monitorIMessageProvider } from "../../monitor-VMXY94Ns.js";
 //#region extensions/imessage/src/runtime.ts
 const { setRuntime: setIMessageRuntime, getRuntime: getIMessageRuntime } = createPluginRuntimeStore({
 	pluginId: "imessage",

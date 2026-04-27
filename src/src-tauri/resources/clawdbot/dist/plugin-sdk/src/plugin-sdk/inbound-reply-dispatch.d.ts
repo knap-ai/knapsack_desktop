@@ -5,9 +5,9 @@ import type { ReplyDispatcher } from "../auto-reply/reply/reply-dispatcher.types
 import type { FinalizedMsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type OutboundReplyPayload } from "./reply-payload.js";
-type ReplyOptionsWithoutModelSelected = Omit<Omit<GetReplyOptions, "onToolResult" | "onBlockReply">, "onModelSelected">;
+type ReplyOptionsWithoutModelSelected = Omit<Omit<GetReplyOptions, "onBlockReply">, "onModelSelected">;
 type RecordInboundSessionFn = typeof import("../channels/session.js").recordInboundSession;
-type ReplyDispatchFromConfigOptions = Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
+type ReplyDispatchFromConfigOptions = Omit<GetReplyOptions, "onBlockReply">;
 /** Run `dispatchReplyFromConfig` with a dispatcher that always gets its settled callback. */
 export declare function dispatchReplyFromConfigWithSettledDispatcher(params: {
     cfg: OpenClawConfig;

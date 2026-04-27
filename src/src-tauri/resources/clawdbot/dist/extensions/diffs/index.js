@@ -1,15 +1,17 @@
 import { t as api_exports } from "./api.js";
 import { resolveRequestClientIp } from "./runtime-api.js";
 import { createRequire } from "node:module";
+import { mapPluginConfigIssues } from "openclaw/plugin-sdk/extension-shared";
 import { buildPluginConfigSchema } from "openclaw/plugin-sdk/plugin-entry";
 import { z } from "openclaw/plugin-sdk/zod";
 import path from "node:path";
+import { resolveLivePluginConfigObject } from "openclaw/plugin-sdk/config-runtime";
 import { normalizeLowercaseStringOrEmpty, normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { Type } from "@sinclair/typebox";
 import { formatErrorMessage } from "openclaw/plugin-sdk/error-runtime";
+import { Type } from "typebox";
 import { constants } from "node:fs";
 import { chromium } from "playwright-core";
 import { RegisteredCustomThemes, ResolvedThemes, ResolvingThemes, parsePatchFiles, resolveLanguage } from "@pierre/diffs";
@@ -157,13 +159,7 @@ const diffsPluginConfigSchemaBase = buildPluginConfigSchema(DiffsPluginJsonSchem
 	};
 	return {
 		success: false,
-		error: { issues: result.error.issues.map((issue) => ({
-			path: issue.path.filter((segment) => {
-				const kind = typeof segment;
-				return kind === "string" || kind === "number";
-			}),
-			message: issue.message
-		})) }
+		error: { issues: mapPluginConfigIssues(result.error.issues) }
 	};
 } });
 const diffsPluginConfigSchema = {
@@ -375,11 +371,16 @@ function createDiffsHttpHandler(params) {
 		if (!parsed) return false;
 		if (parsed.pathname.startsWith("/plugins/diffs/assets/")) return await serveAsset(req, res, parsed.pathname, params.logger);
 		if (!parsed.pathname.startsWith(VIEW_PREFIX)) return false;
-		const access = resolveViewerAccess(req, {
+		const accessConfig = params.resolveAccessConfig?.() ?? {
+			allowRemoteViewer: params.allowRemoteViewer,
 			trustedProxies: params.trustedProxies,
 			allowRealIpFallback: params.allowRealIpFallback
+		};
+		const access = resolveViewerAccess(req, {
+			trustedProxies: accessConfig.trustedProxies,
+			allowRealIpFallback: accessConfig.allowRealIpFallback
 		});
-		if (!access.localRequest && params.allowRemoteViewer !== true) {
+		if (!access.localRequest && accessConfig.allowRemoteViewer !== true) {
 			respondText(res, 404, "Diff not found");
 			return true;
 		}
@@ -2019,20 +2020,30 @@ var PluginToolInputError = class extends Error {
 //#endregion
 //#region extensions/diffs/src/plugin.ts
 function registerDiffsPlugin(api) {
-	const defaults = resolveDiffsPluginDefaults(api.pluginConfig);
-	const security = resolveDiffsPluginSecurity(api.pluginConfig);
-	const viewerBaseUrl = resolveDiffsPluginViewerBaseUrl(api.pluginConfig);
 	const store = new DiffArtifactStore({
 		rootDir: path.join((0, api_exports.resolvePreferredOpenClawTmpDir)(), "openclaw-diffs"),
 		logger: api.logger
 	});
-	api.registerTool((ctx) => createDiffsTool({
-		api,
-		store,
-		defaults,
-		viewerBaseUrl,
-		context: ctx
-	}), { name: "diffs" });
+	const resolveCurrentPluginConfig = () => resolveLivePluginConfigObject(api.runtime.config?.loadConfig, "diffs", api.pluginConfig) ?? {};
+	const resolveCurrentAccessConfig = () => {
+		const currentConfig = api.runtime.config?.loadConfig?.() ?? api.config;
+		return {
+			allowRemoteViewer: resolveDiffsPluginSecurity(resolveCurrentPluginConfig()).allowRemoteViewer,
+			trustedProxies: currentConfig.gateway?.trustedProxies,
+			allowRealIpFallback: currentConfig.gateway?.allowRealIpFallback === true
+		};
+	};
+	const initialAccessConfig = resolveCurrentAccessConfig();
+	api.registerTool((ctx) => {
+		const pluginConfig = resolveCurrentPluginConfig();
+		return createDiffsTool({
+			api,
+			store,
+			defaults: resolveDiffsPluginDefaults(pluginConfig),
+			viewerBaseUrl: resolveDiffsPluginViewerBaseUrl(pluginConfig),
+			context: ctx
+		});
+	}, { name: "diffs" });
 	api.registerHttpRoute({
 		path: "/plugins/diffs",
 		auth: "plugin",
@@ -2040,9 +2051,10 @@ function registerDiffsPlugin(api) {
 		handler: createDiffsHttpHandler({
 			store,
 			logger: api.logger,
-			allowRemoteViewer: security.allowRemoteViewer,
-			trustedProxies: api.config.gateway?.trustedProxies,
-			allowRealIpFallback: api.config.gateway?.allowRealIpFallback === true
+			allowRemoteViewer: initialAccessConfig.allowRemoteViewer,
+			trustedProxies: initialAccessConfig.trustedProxies,
+			allowRealIpFallback: initialAccessConfig.allowRealIpFallback,
+			resolveAccessConfig: resolveCurrentAccessConfig
 		})
 	});
 	api.on("before_prompt_build", async () => ({ prependSystemContext: DIFFS_AGENT_GUIDANCE }));

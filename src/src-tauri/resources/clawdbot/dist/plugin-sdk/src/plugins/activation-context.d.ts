@@ -23,6 +23,22 @@ export type BundledPluginCompatibleActivationInputs = PluginActivationInputs & {
     compatPluginIds: string[];
 };
 export type BundledPluginCompatibleLoadValues = Pick<BundledPluginCompatibleActivationInputs, "rawConfig" | "config" | "activationSourceConfig" | "autoEnabledReasons" | "compatPluginIds">;
+type BundledPluginCompatibleActivationParams = {
+    rawConfig?: OpenClawConfig;
+    resolvedConfig?: OpenClawConfig;
+    autoEnabledReasons?: Record<string, string[]>;
+    env?: NodeJS.ProcessEnv;
+    workspaceDir?: string;
+    onlyPluginIds?: readonly string[];
+    applyAutoEnable?: boolean;
+    compatMode: PluginActivationBundledCompatMode;
+    resolveCompatPluginIds: (params: {
+        config?: OpenClawConfig;
+        workspaceDir?: string;
+        env?: NodeJS.ProcessEnv;
+        onlyPluginIds?: readonly string[];
+    }) => string[];
+};
 export declare function withActivatedPluginIds(params: {
     config?: OpenClawConfig;
     pluginIds: readonly string[];
@@ -49,35 +65,6 @@ export declare function resolvePluginActivationInputs(params: {
     compat?: PluginActivationCompatConfig;
     applyAutoEnable?: boolean;
 }): PluginActivationInputs;
-export declare function resolveBundledPluginCompatibleActivationInputs(params: {
-    rawConfig?: OpenClawConfig;
-    resolvedConfig?: OpenClawConfig;
-    autoEnabledReasons?: Record<string, string[]>;
-    env?: NodeJS.ProcessEnv;
-    workspaceDir?: string;
-    onlyPluginIds?: readonly string[];
-    applyAutoEnable?: boolean;
-    compatMode: PluginActivationBundledCompatMode;
-    resolveCompatPluginIds: (params: {
-        config?: OpenClawConfig;
-        workspaceDir?: string;
-        env?: NodeJS.ProcessEnv;
-        onlyPluginIds?: readonly string[];
-    }) => string[];
-}): BundledPluginCompatibleActivationInputs;
-export declare function resolveBundledPluginCompatibleLoadValues(params: {
-    rawConfig?: OpenClawConfig;
-    resolvedConfig?: OpenClawConfig;
-    autoEnabledReasons?: Record<string, string[]>;
-    env?: NodeJS.ProcessEnv;
-    workspaceDir?: string;
-    onlyPluginIds?: readonly string[];
-    applyAutoEnable?: boolean;
-    compatMode: PluginActivationBundledCompatMode;
-    resolveCompatPluginIds: (params: {
-        config?: OpenClawConfig;
-        workspaceDir?: string;
-        env?: NodeJS.ProcessEnv;
-        onlyPluginIds?: readonly string[];
-    }) => string[];
-}): BundledPluginCompatibleLoadValues;
+export declare function resolveBundledPluginCompatibleActivationInputs(params: BundledPluginCompatibleActivationParams): BundledPluginCompatibleActivationInputs;
+export declare function resolveBundledPluginCompatibleLoadValues(params: BundledPluginCompatibleActivationParams): BundledPluginCompatibleLoadValues;
+export {};

@@ -8,6 +8,90 @@ const log = createSubsystemLogger("bedrock-discovery");
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
 const DEFAULT_CONTEXT_WINDOW = 32e3;
 const DEFAULT_MAX_TOKENS = 4096;
+/**
+* Bedrock's ListFoundationModels and GetFoundationModel APIs return no token
+* limit information — only model ID, name, modalities, and lifecycle status.
+* There is currently no Bedrock API to discover context windows or max output
+* tokens programmatically.
+*
+* This map provides correct context window values for known models so that
+* session management, compaction thresholds, and context overflow detection
+* work correctly. If AWS adds token metadata to the API in the future, this
+* table should become a fallback rather than the primary source.
+*
+* Inference profile prefixes (us., eu., ap., global.) are stripped before lookup.
+*
+* Sources: https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
+*          https://platform.claude.com/docs/en/about-claude/models
+*/
+const KNOWN_CONTEXT_WINDOWS = {
+	"anthropic.claude-3-7-sonnet-20250219-v1:0": 2e5,
+	"anthropic.claude-opus-4-7": 1e6,
+	"anthropic.claude-opus-4-6-v1": 1e6,
+	"anthropic.claude-opus-4-6-v1:0": 1e6,
+	"anthropic.claude-sonnet-4-6": 1e6,
+	"anthropic.claude-sonnet-4-6-v1:0": 1e6,
+	"anthropic.claude-sonnet-4-5-20250929-v1:0": 2e5,
+	"anthropic.claude-sonnet-4-20250514-v1:0": 2e5,
+	"anthropic.claude-opus-4-5-20251101-v1:0": 2e5,
+	"anthropic.claude-opus-4-1-20250805-v1:0": 2e5,
+	"anthropic.claude-haiku-4-5-20251001-v1:0": 2e5,
+	"anthropic.claude-3-5-haiku-20241022-v1:0": 2e5,
+	"anthropic.claude-3-haiku-20240307-v1:0": 2e5,
+	"amazon.nova-premier-v1:0": 1e6,
+	"amazon.nova-pro-v1:0": 3e5,
+	"amazon.nova-lite-v1:0": 3e5,
+	"amazon.nova-micro-v1:0": 128e3,
+	"amazon.nova-2-lite-v1:0": 3e5,
+	"minimax.minimax-m2.5": 1e6,
+	"minimax.minimax-m2.1": 1e6,
+	"minimax.minimax-m2": 1e6,
+	"meta.llama4-maverick-17b-instruct-v1:0": 1e6,
+	"meta.llama4-scout-17b-instruct-v1:0": 512e3,
+	"meta.llama3-3-70b-instruct-v1:0": 128e3,
+	"meta.llama3-2-90b-instruct-v1:0": 128e3,
+	"meta.llama3-2-11b-instruct-v1:0": 128e3,
+	"meta.llama3-2-3b-instruct-v1:0": 128e3,
+	"meta.llama3-2-1b-instruct-v1:0": 128e3,
+	"meta.llama3-1-405b-instruct-v1:0": 128e3,
+	"meta.llama3-1-70b-instruct-v1:0": 128e3,
+	"meta.llama3-1-8b-instruct-v1:0": 128e3,
+	"nvidia.nemotron-super-3-120b": 256e3,
+	"nvidia.nemotron-nano-3-30b": 128e3,
+	"nvidia.nemotron-nano-12b-v2": 128e3,
+	"nvidia.nemotron-nano-9b-v2": 128e3,
+	"mistral.mistral-large-3-675b-instruct": 128e3,
+	"mistral.mistral-large-2407-v1:0": 128e3,
+	"mistral.mistral-small-2402-v1:0": 32e3,
+	"deepseek.r1-v1:0": 128e3,
+	"deepseek.v3.2": 128e3,
+	"cohere.command-r-plus-v1:0": 128e3,
+	"cohere.command-r-v1:0": 128e3,
+	"ai21.jamba-1-5-large-v1:0": 256e3,
+	"ai21.jamba-1-5-mini-v1:0": 256e3,
+	"google.gemma-3-27b-it": 128e3,
+	"google.gemma-3-12b-it": 128e3,
+	"google.gemma-3-4b-it": 128e3,
+	"zai.glm-5": 128e3,
+	"zai.glm-4.7": 128e3,
+	"zai.glm-4.7-flash": 128e3,
+	"qwen.qwen3-coder-next": 256e3,
+	"qwen.qwen3-coder-30b-a3b-v1:0": 256e3,
+	"qwen.qwen3-32b-v1:0": 128e3,
+	"qwen.qwen3-vl-235b-a22b": 128e3
+};
+/**
+* Resolve the real context window for a Bedrock model ID.
+* Strips inference profile prefixes (us., eu., ap., global.) before lookup.
+*/
+function resolveKnownContextWindow(modelId) {
+	const candidates = [modelId, modelId.replace(/^(?:us|eu|ap|apac|au|jp|global)\./, "")];
+	for (const candidate of candidates) {
+		if (KNOWN_CONTEXT_WINDOWS[candidate] !== void 0) return KNOWN_CONTEXT_WINDOWS[candidate];
+		const withoutVersionSuffix = candidate.replace(/:0$/, "");
+		if (withoutVersionSuffix !== candidate && KNOWN_CONTEXT_WINDOWS[withoutVersionSuffix] !== void 0) return KNOWN_CONTEXT_WINDOWS[withoutVersionSuffix];
+	}
+}
 const DEFAULT_COST = {
 	input: 0,
 	output: 0,
@@ -76,7 +160,7 @@ function toModelDefinition(summary, defaults) {
 		reasoning: inferReasoningSupport(summary),
 		input: mapInputModalities(summary),
 		cost: DEFAULT_COST,
-		contextWindow: defaults.contextWindow,
+		contextWindow: resolveKnownContextWindow(id) ?? defaults.contextWindow,
 		maxTokens: defaults.maxTokens
 	};
 }
@@ -98,7 +182,7 @@ function resolveBaseModelId(profile) {
 	}
 	if (profile.type === "SYSTEM_DEFINED") {
 		const id = profile.inferenceProfileId ?? "";
-		const prefixMatch = /^(?:us|eu|ap|jp|global)\.(.+)$/i.exec(id);
+		const prefixMatch = /^(?:us|eu|ap|apac|au|jp|global)\.(.+)$/i.exec(id);
 		if (prefixMatch) return prefixMatch[1];
 	}
 }
@@ -153,7 +237,7 @@ function resolveInferenceProfiles(profiles, defaults, providerFilter, foundation
 			reasoning: baseModel?.reasoning ?? false,
 			input: baseModel?.input ?? ["text"],
 			cost: baseModel?.cost ?? DEFAULT_COST,
-			contextWindow: baseModel?.contextWindow ?? defaults.contextWindow,
+			contextWindow: baseModel?.contextWindow ?? resolveKnownContextWindow(baseModelId ?? profile.inferenceProfileId ?? "") ?? defaults.contextWindow,
 			maxTokens: baseModel?.maxTokens ?? defaults.maxTokens
 		});
 	}

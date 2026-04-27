@@ -1,10 +1,10 @@
-import type { ReplyPayload } from "../auto-reply/reply-payload.js";
 import type { ExecApprovalForwardTarget } from "../config/types.approvals.js";
 import { matchesApprovalRequestFilters } from "../infra/approval-request-filters.js";
 import { getExecApprovalReplyMetadata } from "../infra/exec-approval-reply.js";
 import type { ExecApprovalRequest } from "../infra/exec-approvals.js";
 import type { PluginApprovalRequest } from "../infra/plugin-approvals.js";
 import type { OpenClawConfig } from "./config-runtime.js";
+import type { ReplyPayload } from "./reply-payload.js";
 type ApprovalRequest = ExecApprovalRequest | PluginApprovalRequest;
 type ApprovalTarget = "dm" | "channel" | "both";
 type ChannelExecApprovalEnableMode = boolean | "auto";

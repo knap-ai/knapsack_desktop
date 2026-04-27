@@ -49,11 +49,11 @@ export declare function cleanupSessionBeforeMutation(params: {
     canonicalKey?: string;
     reason: "session-reset" | "session-delete";
 }): Promise<{
+    code: string;
+    message: string;
     details?: unknown;
     retryable?: boolean | undefined;
     retryAfterMs?: number | undefined;
-    message: string;
-    code: string;
 } | undefined>;
 export declare function performGatewaySessionReset(params: {
     key: string;

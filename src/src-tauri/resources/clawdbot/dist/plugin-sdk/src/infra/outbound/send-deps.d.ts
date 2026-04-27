@@ -6,6 +6,7 @@
 export type OutboundSendDeps = {
     [channelId: string]: unknown;
 };
+export declare function resolveLegacyOutboundSendDepKeys(channelId: string): string[];
 export type ResolveOutboundSendDepOptions = {
     legacyKeys?: readonly string[];
 };

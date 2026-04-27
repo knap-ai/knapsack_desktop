@@ -9,9 +9,10 @@ export declare function getScopedChannelsCommandSecretTargets(params: {
 };
 export declare function getQrRemoteCommandSecretTargetIds(): Set<string>;
 export declare function getChannelsCommandSecretTargetIds(): Set<string>;
+export declare function getConfiguredChannelsCommandSecretTargetIds(config: OpenClawConfig, env?: NodeJS.ProcessEnv): Set<string>;
 export declare function getModelsCommandSecretTargetIds(): Set<string>;
 export declare function getAgentRuntimeCommandSecretTargetIds(params?: {
     includeChannelTargets?: boolean;
 }): Set<string>;
-export declare function getStatusCommandSecretTargetIds(): Set<string>;
+export declare function getStatusCommandSecretTargetIds(config?: OpenClawConfig, env?: NodeJS.ProcessEnv): Set<string>;
 export declare function getSecurityAuditCommandSecretTargetIds(): Set<string>;

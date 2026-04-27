@@ -28,9 +28,4 @@ export declare function getMemoryMultimodalExtensions(modality: MemoryMultimodal
 export declare function buildMemoryMultimodalLabel(modality: MemoryMultimodalModality, normalizedPath: string): string;
 export declare function buildCaseInsensitiveExtensionGlob(extension: string): string;
 export declare function classifyMemoryMultimodalPath(filePath: string, settings: MemoryMultimodalSettings): MemoryMultimodalModality | null;
-export declare function normalizeGeminiEmbeddingModelForMemory(model: string): string;
-export declare function supportsMemoryMultimodalEmbeddings(params: {
-    provider: string;
-    model: string;
-}): boolean;
 export {};

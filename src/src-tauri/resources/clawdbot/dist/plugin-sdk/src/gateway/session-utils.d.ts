@@ -6,6 +6,12 @@ export { archiveFileOnDisk, archiveSessionTranscripts, attachOpenClawTranscriptM
 export { canonicalizeSpawnedByForAgent, resolveSessionStoreKey } from "./session-store-key.js";
 export type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult, SessionsPatchResult, SessionsPreviewEntry, SessionsPreviewResult, } from "./session-utils.types.js";
 export declare function deriveSessionTitle(entry: SessionEntry | undefined, firstUserMessage?: string | null): string | undefined;
+/**
+ * Returns the owning agent id if the session key belongs to an agent that is no
+ * longer present in config (deleted). Returns null for non-agent legacy/global
+ * keys, or when the owning agent still exists (#65524).
+ */
+export declare function resolveDeletedAgentIdFromSessionKey(cfg: OpenClawConfig, sessionKey: string): string | null;
 export declare function loadSessionEntry(sessionKey: string): {
     cfg: OpenClawConfig;
     storePath: string;
@@ -70,10 +76,7 @@ export declare function resolveGatewaySessionStoreTarget(params: {
     canonicalKey: string;
     storeKeys: string[];
 };
-export declare function loadCombinedSessionStoreForGateway(cfg: OpenClawConfig): {
-    storePath: string;
-    store: Record<string, SessionEntry>;
-};
+export { loadCombinedSessionStoreForGateway } from "../config/sessions/combined-store-gateway.js";
 export declare function getSessionDefaults(cfg: OpenClawConfig): GatewaySessionsDefaults;
 export declare function resolveSessionModelRef(cfg: OpenClawConfig, entry?: SessionEntry | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">, agentId?: string): {
     provider: string;

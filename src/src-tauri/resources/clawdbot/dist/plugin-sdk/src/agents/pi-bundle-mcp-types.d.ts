@@ -1,4 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { TSchema } from "typebox";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { AnyAgentTool } from "./tools/common.js";
 export type BundleMcpToolRuntime = {
@@ -16,7 +17,7 @@ export type McpCatalogTool = {
     toolName: string;
     title?: string;
     description?: string;
-    inputSchema: unknown;
+    inputSchema: TSchema;
     fallbackDescription: string;
 };
 export type McpToolCatalog = {
@@ -32,6 +33,8 @@ export type SessionMcpRuntime = {
     configFingerprint: string;
     createdAt: number;
     lastUsedAt: number;
+    activeLeases?: number;
+    acquireLease?: () => () => void;
     getCatalog: () => Promise<McpToolCatalog>;
     markUsed: () => void;
     callTool: (serverName: string, toolName: string, input: unknown) => Promise<CallToolResult>;
@@ -48,5 +51,6 @@ export type SessionMcpRuntimeManager = {
     resolveSessionId: (sessionKey: string) => string | undefined;
     disposeSession: (sessionId: string) => Promise<void>;
     disposeAll: () => Promise<void>;
+    sweepIdleRuntimes: () => Promise<number>;
     listSessionIds: () => string[];
 };

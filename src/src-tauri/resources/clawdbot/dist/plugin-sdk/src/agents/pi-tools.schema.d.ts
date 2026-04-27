@@ -1,15 +1,7 @@
-import type { ModelCompatConfig } from "../config/types.models.js";
+import { normalizeToolParameterSchema, type ToolParameterSchemaOptions } from "./pi-tools-parameter-schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
-export declare function normalizeToolParameterSchema(schema: unknown, options?: {
-    modelProvider?: string;
-    modelId?: string;
-    modelCompat?: ModelCompatConfig;
-}): unknown;
-export declare function normalizeToolParameters(tool: AnyAgentTool, options?: {
-    modelProvider?: string;
-    modelId?: string;
-    modelCompat?: ModelCompatConfig;
-}): AnyAgentTool;
+export { normalizeToolParameterSchema };
+export declare function normalizeToolParameters(tool: AnyAgentTool, options?: ToolParameterSchemaOptions): AnyAgentTool;
 /**
  * @deprecated Use normalizeToolParameters with modelProvider instead.
  * This function should only be used for Gemini providers.

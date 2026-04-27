@@ -1,5 +1,5 @@
 export { jsonResult, readStringParam } from "../agents/tools/common.js";
-export type { ReplyPayload } from "../auto-reply/reply-payload.js";
+export type { ReplyPayload } from "./reply-payload.js";
 export { deleteAccountFromConfigSection, setAccountEnabledInConfigSection, } from "../channels/plugins/config-helpers.js";
 export { listDirectoryUserEntriesFromAllowFrom } from "../channels/plugins/directory-config-helpers.js";
 export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";

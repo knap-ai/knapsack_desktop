@@ -23,6 +23,7 @@ export type ExecuteNodeHostCommandParams = {
     approvalRunningNoticeMs: number;
     warnings: string[];
     notifySessionKey?: string;
+    notifyOnExit?: boolean;
     trustedSafeBinDirs?: ReadonlySet<string>;
 };
 export declare function executeNodeHostCommand(params: ExecuteNodeHostCommandParams): Promise<AgentToolResult<ExecToolDetails>>;

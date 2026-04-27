@@ -40,6 +40,7 @@ export declare function runPreflightCompactionIfNeeded(params: {
     sessionEntry?: SessionEntry;
     sessionStore?: Record<string, SessionEntry>;
     sessionKey?: string;
+    runtimePolicySessionKey?: string;
     storePath?: string;
     isHeartbeat: boolean;
     replyOperation: ReplyOperation;
@@ -56,6 +57,7 @@ export declare function runMemoryFlushIfNeeded(params: {
     sessionEntry?: SessionEntry;
     sessionStore?: Record<string, SessionEntry>;
     sessionKey?: string;
+    runtimePolicySessionKey?: string;
     storePath?: string;
     isHeartbeat: boolean;
     replyOperation: ReplyOperation;

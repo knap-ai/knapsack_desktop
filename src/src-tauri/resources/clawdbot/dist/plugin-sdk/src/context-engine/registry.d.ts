@@ -34,6 +34,7 @@ export declare function getContextEngineFactory(id: string): ContextEngineFactor
  * List all registered engine ids.
  */
 export declare function listContextEngineIds(): string[];
+export declare function clearContextEnginesForOwner(owner: string): void;
 /**
  * Resolve which ContextEngine to use based on plugin slot configuration.
  *

@@ -16,7 +16,7 @@ export declare function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSe
     isCompactionInFlight: () => boolean;
     getMessagingToolSentTexts: () => string[];
     getMessagingToolSentMediaUrls: () => string[];
-    getMessagingToolSentTargets: () => import("./pi-embedded-messaging.types.ts").MessagingToolSend[];
+    getMessagingToolSentTargets: () => import("openclaw/plugin-sdk/agent-harness-runtime").MessagingToolSend[];
     getSuccessfulCronAdds: () => number;
     getReplayState: () => {
         replayInvalid: boolean;

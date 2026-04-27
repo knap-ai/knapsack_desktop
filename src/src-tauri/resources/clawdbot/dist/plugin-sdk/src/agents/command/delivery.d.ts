@@ -27,6 +27,6 @@ export declare function deliverAgentCommandResult(params: {
     payloads: RunResult["payloads"];
 }): Promise<{
     payloads: import("../../infra/outbound/payloads.js").OutboundPayloadJson[];
-    meta: import("../pi-embedded.js").EmbeddedAgentRunMeta;
+    meta: import("../pi-embedded.js").EmbeddedPiRunMeta;
 }>;
 export {};

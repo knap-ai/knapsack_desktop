@@ -1,6 +1,6 @@
-import type { ReplyPayload } from "../auto-reply/reply-payload.js";
 import { createReplyPrefixContext, createReplyPrefixOptions, type ReplyPrefixContextBundle, type ReplyPrefixOptions } from "../channels/reply-prefix.js";
 import { createTypingCallbacks, type CreateTypingCallbacksParams, type TypingCallbacks } from "../channels/typing.js";
+import type { ReplyPayload } from "./reply-payload.js";
 export type ReplyPrefixContext = ReplyPrefixContextBundle["prefixContext"];
 export type { ReplyPrefixContextBundle, ReplyPrefixOptions };
 export type { CreateTypingCallbacksParams, TypingCallbacks };

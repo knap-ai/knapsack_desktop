@@ -17,6 +17,16 @@ export interface PlannedWsTurnInput {
     inputItems: InputItem[];
     previousResponseId?: string;
 }
+export type PlannedWsRequestPayload = {
+    mode: "full_context" | "incremental";
+    payload: ResponseCreateEvent;
+};
+export declare function planOpenAIWebSocketRequestPayload(params: {
+    fullPayload: ResponseCreateEvent;
+    previousRequestPayload?: ResponseCreateEvent;
+    previousResponseId?: string | null;
+    previousResponseInputItems?: InputItem[];
+}): PlannedWsRequestPayload;
 export declare function buildOpenAIWebSocketWarmUpPayload(params: {
     model: string;
     tools?: FunctionToolDefinition[];

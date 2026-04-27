@@ -7,7 +7,7 @@ type ProviderWithCredential = {
     envVars: string[];
     requiresCredential?: boolean;
 };
-export declare function resolveWebProviderConfig<TKind extends "search" | "fetch", TConfig extends Record<string, unknown>>(cfg: OpenClawConfig | undefined, kind: TKind): TConfig | undefined;
+export declare function resolveWebProviderConfig(cfg: OpenClawConfig | undefined, kind: "search" | "fetch"): Record<string, unknown> | undefined;
 export declare function readWebProviderEnvValue(envVars: string[], processEnv?: NodeJS.ProcessEnv): string | undefined;
 export declare function providerRequiresCredential(provider: Pick<ProviderWithCredential, "requiresCredential">): boolean;
 export declare function hasWebProviderEntryCredential<TProvider extends ProviderWithCredential, TConfig extends Record<string, unknown> | undefined>(params: {

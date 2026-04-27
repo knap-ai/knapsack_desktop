@@ -28,6 +28,7 @@ export type ResolvedMemorySearchConfig = {
     local: {
         modelPath?: string;
         modelCacheDir?: string;
+        contextSize?: number | "auto";
     };
     store: {
         driver: "sqlite";

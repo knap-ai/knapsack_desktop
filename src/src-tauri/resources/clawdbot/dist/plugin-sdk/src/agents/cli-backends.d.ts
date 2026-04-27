@@ -2,7 +2,7 @@ import type { CliBackendConfig } from "../config/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { resolveRuntimeCliBackends } from "../plugins/cli-backends.runtime.js";
 import { resolvePluginSetupCliBackend } from "../plugins/setup-registry.js";
-import type { CliBundleMcpMode, CliBackendPlugin, PluginTextTransforms } from "../plugins/types.js";
+import type { CliBackendAuthEpochMode, CliBundleMcpMode, CliBackendPlugin, PluginTextTransforms } from "../plugins/types.js";
 type CliBackendsDeps = {
     resolvePluginSetupCliBackend: typeof resolvePluginSetupCliBackend;
     resolveRuntimeCliBackends: typeof resolveRuntimeCliBackends;
@@ -15,6 +15,9 @@ export type ResolvedCliBackend = {
     pluginId?: string;
     transformSystemPrompt?: CliBackendPlugin["transformSystemPrompt"];
     textTransforms?: PluginTextTransforms;
+    defaultAuthProfileId?: string;
+    authEpochMode?: CliBackendAuthEpochMode;
+    prepareExecution?: CliBackendPlugin["prepareExecution"];
 };
 export type ResolvedCliBackendLiveTest = {
     defaultModelRef?: string;
@@ -23,12 +26,12 @@ export type ResolvedCliBackendLiveTest = {
     dockerNpmPackage?: string;
     dockerBinaryName?: string;
 };
-export declare function normalizeClaudeBackendConfig(config: CliBackendConfig): CliBackendConfig;
-export declare function resolveCliBackendIds(cfg?: OpenClawConfig): Set<string>;
 export declare function resolveCliBackendLiveTest(provider: string): ResolvedCliBackendLiveTest | null;
-export declare function resolveCliBackendConfig(provider: string, cfg?: OpenClawConfig): ResolvedCliBackend | null;
+export declare function resolveCliBackendConfig(provider: string, cfg?: OpenClawConfig, options?: {
+    agentId?: string;
+}): ResolvedCliBackend | null;
 export declare const __testing: {
-    readonly resetDepsForTest: () => void;
-    readonly setDepsForTest: (deps: Partial<CliBackendsDeps>) => void;
+    resetDepsForTest(): void;
+    setDepsForTest(deps: Partial<CliBackendsDeps>): void;
 };
 export {};

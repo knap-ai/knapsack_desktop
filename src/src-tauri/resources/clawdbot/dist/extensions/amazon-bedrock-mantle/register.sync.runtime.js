@@ -1,4 +1,5 @@
-import { mergeImplicitMantleProvider, resolveImplicitMantleProvider, resolveMantleBearerToken } from "./discovery.js";
+import { mergeImplicitMantleProvider, resolveImplicitMantleProvider, resolveMantleBearerToken, resolveMantleRuntimeBearerToken } from "./discovery.js";
+import { createMantleAnthropicStreamFn } from "./mantle-anthropic.runtime.js";
 //#region extensions/amazon-bedrock-mantle/register.sync.runtime.ts
 function registerBedrockMantlePlugin(api) {
 	const providerId = "amazon-bedrock-mantle";
@@ -18,11 +19,16 @@ function registerBedrockMantlePlugin(api) {
 				}) };
 			}
 		},
-		resolveConfigApiKey: ({ env }) => resolveMantleBearerToken(env) ? "AWS_BEARER_TOKEN_BEDROCK" : void 0,
+		resolveConfigApiKey: ({ env }) => resolveMantleBearerToken(env) ? "env:AWS_BEARER_TOKEN_BEDROCK" : void 0,
+		prepareRuntimeAuth: async ({ apiKey, env }) => await resolveMantleRuntimeBearerToken({
+			apiKey,
+			env
+		}),
+		createStreamFn: ({ model }) => model.api === "anthropic-messages" ? createMantleAnthropicStreamFn() : void 0,
 		matchesContextOverflowError: ({ errorMessage }) => /context_length_exceeded|max.*tokens.*exceeded/i.test(errorMessage),
 		classifyFailoverReason: ({ errorMessage }) => {
 			if (/rate_limit|too many requests|429/i.test(errorMessage)) return "rate_limit";
-			if (/overloaded|503/i.test(errorMessage)) return "overloaded";
+			if (/overloaded|503|service.*unavailable/i.test(errorMessage)) return "overloaded";
 		}
 	});
 }

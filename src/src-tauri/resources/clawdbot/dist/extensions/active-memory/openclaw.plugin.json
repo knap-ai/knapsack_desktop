@@ -53,7 +53,8 @@
       },
       "timeoutMs": {
         "type": "integer",
-        "minimum": 250
+        "minimum": 250,
+        "maximum": 120000
       },
       "queryMode": {
         "type": "string",

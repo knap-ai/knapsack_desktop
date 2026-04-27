@@ -20,13 +20,14 @@ export declare function resolveSubagentModelAndThinkingPlan(params: {
     modelOverride?: string;
     thinkingOverrideRaw?: string;
 }): {
+    thinkingOverride?: undefined;
+    initialSessionPatch?: undefined;
     status: "error";
     resolvedModel: string;
     error: string;
     modelApplied?: undefined;
-    thinkingOverride?: undefined;
-    initialSessionPatch?: undefined;
 } | {
+    error?: undefined;
     status: "ok";
     resolvedModel: string;
     modelApplied: boolean;
@@ -35,8 +36,7 @@ export declare function resolveSubagentModelAndThinkingPlan(params: {
         thinkingLevel?: undefined;
         model?: string | undefined;
     } | {
-        thinkingLevel: "minimal" | "low" | "medium" | "high" | "xhigh" | "adaptive" | null;
+        thinkingLevel: "adaptive" | "high" | "low" | "max" | "medium" | "minimal" | "xhigh" | null;
         model?: string | undefined;
     };
-    error?: undefined;
 };

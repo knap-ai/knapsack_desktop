@@ -1,15 +1,15 @@
-import { s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
-import { l as isRecord } from "../../utils-D5DtWkEu.js";
-import { r as normalizeProviderId } from "../../provider-id-KaStHhRz.js";
-import "../../provider-model-shared-DyDnBaDe.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-nkL4zxbI.js";
-import "../../provider-auth-api-key-F-AGqwyB.js";
-import { c as buildKimiCodingProvider } from "../../provider-catalog-CaSQZfIN.js";
-import { r as applyKimiCodeConfig, t as KIMI_CODING_MODEL_REF } from "../../onboard-BaSVGAVm.js";
-import { t as KIMI_REPLAY_POLICY } from "../../replay-policy-CQPCxqyz.js";
-import { n as wrapKimiProviderStream } from "../../stream-DR31mZrI.js";
+import { c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
+import { l as isRecord } from "../../utils-BMRcljdi.js";
+import { r as normalizeProviderId } from "../../provider-id-BLh32HP1.js";
+import "../../provider-model-shared-D-iKoymz.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
+import "../../provider-auth-api-key-BVwjjhIk.js";
+import { c as buildKimiCodingProvider } from "../../provider-catalog-B9V1lk3L.js";
+import { r as applyKimiCodeConfig, t as KIMI_CODING_MODEL_REF } from "../../onboard-BT8SO4GV.js";
+import { t as KIMI_REPLAY_POLICY } from "../../replay-policy-Cy_BYNiO.js";
+import { i as wrapKimiProviderStream } from "../../stream-kP_5xN-p.js";
 //#region extensions/kimi-coding/index.ts
 const PLUGIN_ID = "kimi";
 const PROVIDER_ID = "kimi";
@@ -34,7 +34,7 @@ var kimi_coding_default = definePluginEntry({
 				providerId: PROVIDER_ID,
 				methodId: "api-key",
 				label: "Kimi Code API key (subscription)",
-				hint: "Kimi K2.5 + Kimi",
+				hint: "Kimi K2.6 + Kimi",
 				optionKey: "kimiCodeApiKey",
 				flagName: "--kimi-code-api-key",
 				envVar: "KIMI_API_KEY",
@@ -52,8 +52,8 @@ var kimi_coding_default = definePluginEntry({
 					choiceId: "kimi-code-api-key",
 					choiceLabel: "Kimi Code API key (subscription)",
 					groupId: "moonshot",
-					groupLabel: "Moonshot AI (Kimi K2.5)",
-					groupHint: "Kimi K2.5"
+					groupLabel: "Moonshot AI (Kimi K2.6)",
+					groupHint: "Kimi K2.6"
 				}
 			})],
 			catalog: {
@@ -77,6 +77,16 @@ var kimi_coding_default = definePluginEntry({
 				}
 			},
 			buildReplayPolicy: () => KIMI_REPLAY_POLICY,
+			resolveThinkingProfile: () => ({
+				levels: [{
+					id: "off",
+					label: "off"
+				}, {
+					id: "low",
+					label: "on"
+				}],
+				defaultLevel: "off"
+			}),
 			wrapStreamFn: wrapKimiProviderStream
 		});
 	}

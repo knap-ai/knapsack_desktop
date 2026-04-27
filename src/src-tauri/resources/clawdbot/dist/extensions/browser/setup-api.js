@@ -1,8 +1,8 @@
-import { o as normalizeOptionalLowercaseString } from "../../string-coerce-BUSzWgUA.js";
-import { l as isRecord } from "../../utils-D5DtWkEu.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../record-shared-DQoQZOFY.js";
+import { s as normalizeOptionalLowercaseString } from "../../string-coerce-C1IzJjqi.js";
+import { l as isRecord } from "../../utils-BMRcljdi.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../record-shared-_bRL1BgQ.js";
 //#region extensions/browser/setup-api.ts
 function listContainsBrowser(value) {
 	return Array.isArray(value) && value.some((entry) => normalizeOptionalLowercaseString(entry) === "browser");

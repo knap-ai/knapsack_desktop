@@ -2,7 +2,7 @@ export { formatInboundFromLabel } from "../auto-reply/envelope.js";
 export type { HistoryEntry } from "../auto-reply/reply/history.js";
 export { buildPendingHistoryContextFromMap, clearHistoryEntriesIfEnabled, DEFAULT_GROUP_HISTORY_LIMIT, recordPendingHistoryEntryIfEnabled, } from "../auto-reply/reply/history.js";
 export { listSkillCommandsForAgents } from "../auto-reply/skill-commands.js";
-export type { ReplyPayload } from "../auto-reply/reply-payload.js";
+export type { ReplyPayload } from "./reply-payload.js";
 export type { ChatType } from "../channels/chat-type.js";
 export { resolveControlCommandGate } from "../channels/command-gating.js";
 export { logInboundDrop, logTypingFailure } from "../channels/logging.js";

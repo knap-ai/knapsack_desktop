@@ -1,11 +1,18 @@
-import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { TSchema } from "@sinclair/typebox";
+import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "@mariozechner/pi-agent-core";
+import type { TSchema } from "typebox";
 import type { ImageSanitizationLimits } from "../image-sanitization.js";
 export type AgentToolWithMeta<TParameters extends TSchema, TResult> = AgentTool<TParameters, TResult> & {
     ownerOnly?: boolean;
     displaySummary?: string;
 };
-export type AnyAgentTool = AgentToolWithMeta<any, unknown>;
+type ErasedAgentToolExecute = {
+    execute(this: void, toolCallId: string, params: unknown, signal?: AbortSignal, onUpdate?: AgentToolUpdateCallback<unknown>): Promise<AgentToolResult<unknown>>;
+};
+export type AnyAgentTool = Omit<AgentTool<TSchema, unknown>, "execute"> & ErasedAgentToolExecute & {
+    ownerOnly?: boolean;
+    displaySummary?: string;
+};
+export declare function asToolParamsRecord(params: unknown): Record<string, unknown>;
 export type StringParamOptions = {
     required?: boolean;
     trim?: boolean;
@@ -88,3 +95,4 @@ export type AvailableTag = {
  * Entries that lack a string `name` are silently dropped.
  */
 export declare function parseAvailableTags(raw: unknown): AvailableTag[] | undefined;
+export {};

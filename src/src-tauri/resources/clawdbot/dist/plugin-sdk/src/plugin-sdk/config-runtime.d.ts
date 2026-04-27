@@ -1,5 +1,9 @@
+import type { OpenClawConfig } from "../config/types.js";
+export declare function requireRuntimeConfig(config: OpenClawConfig, context: string): OpenClawConfig;
+export declare function resolvePluginConfigObject(config: OpenClawConfig | undefined, pluginId: string): Record<string, unknown> | undefined;
+export declare function resolveLivePluginConfigObject(runtimeConfigLoader: (() => OpenClawConfig | undefined) | undefined, pluginId: string, startupPluginConfig?: Record<string, unknown>): Record<string, unknown> | undefined;
 export { resolveDefaultAgentId } from "../agents/agent-scope.js";
-export { clearRuntimeConfigSnapshot, getRuntimeConfigSnapshot, loadConfig, readConfigFileSnapshotForWrite, setRuntimeConfigSnapshot, writeConfigFile, } from "../config/io.js";
+export { clearRuntimeConfigSnapshot, getRuntimeConfigSourceSnapshot, getRuntimeConfigSnapshot, loadConfig, readConfigFileSnapshotForWrite, setRuntimeConfigSnapshot, writeConfigFile, } from "../config/io.js";
 export { logConfigUpdated } from "../config/logging.js";
 export { updateConfig } from "../commands/models/shared.js";
 export { resolveChannelModelOverride } from "../channels/model-overrides.js";

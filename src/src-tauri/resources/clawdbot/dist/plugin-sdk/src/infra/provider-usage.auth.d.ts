@@ -11,4 +11,5 @@ export declare function resolveProviderAuths(params: {
     agentDir?: string;
     config?: OpenClawConfig;
     env?: NodeJS.ProcessEnv;
+    skipPluginAuthWithoutCredentialSource?: boolean;
 }): Promise<ProviderAuth[]>;

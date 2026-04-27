@@ -1,4 +1,8 @@
-type FacadeModule = typeof import("@openclaw/line/runtime-api.js");
+import type { BaseProbeResult } from "../channels/plugins/types.public.js";
+type FacadeFunction = (...args: unknown[]) => unknown;
+type FacadeModule = Record<"createActionCard" | "createAgendaCard" | "createAppleTvRemoteCard" | "createDeviceControlCard" | "createEventCard" | "createImageCard" | "createInfoCard" | "createListCard" | "createMediaPlayerCard" | "createReceiptCard" | "listLineAccountIds" | "normalizeAccountId" | "processLineMessage" | "resolveDefaultLineAccountId" | "resolveExactLineGroupConfigKey" | "resolveLineAccount", FacadeFunction> & {
+    LineConfigSchema: object;
+};
 export declare const createActionCard: FacadeModule["createActionCard"];
 export declare const createAgendaCard: FacadeModule["createAgendaCard"];
 export declare const createAppleTvRemoteCard: FacadeModule["createAppleTvRemoteCard"];
@@ -16,10 +20,80 @@ export declare const processLineMessage: FacadeModule["processLineMessage"];
 export declare const resolveDefaultLineAccountId: FacadeModule["resolveDefaultLineAccountId"];
 export declare const resolveExactLineGroupConfigKey: FacadeModule["resolveExactLineGroupConfigKey"];
 export declare const resolveLineAccount: FacadeModule["resolveLineAccount"];
-export type CardAction = import("@openclaw/line/runtime-api.js").CardAction;
-export type LineChannelData = import("@openclaw/line/runtime-api.js").LineChannelData;
-export type LineConfig = import("@openclaw/line/runtime-api.js").LineConfig;
-export type LineProbeResult = import("@openclaw/line/runtime-api.js").LineProbeResult;
-export type ListItem = import("@openclaw/line/runtime-api.js").ListItem;
-export type ResolvedLineAccount = import("@openclaw/line/runtime-api.js").ResolvedLineAccount;
+export type Action = Record<string, unknown>;
+export interface ListItem {
+    title: string;
+    subtitle?: string;
+    action?: Action;
+}
+export interface CardAction {
+    label: string;
+    action: Action;
+}
+export interface LineThreadBindingsConfig {
+    enabled?: boolean;
+    idleHours?: number;
+    maxAgeHours?: number;
+    spawnSubagentSessions?: boolean;
+    spawnAcpSessions?: boolean;
+}
+interface LineAccountBaseConfig {
+    enabled?: boolean;
+    channelAccessToken?: string;
+    channelSecret?: string;
+    tokenFile?: string;
+    secretFile?: string;
+    name?: string;
+    allowFrom?: Array<string | number>;
+    groupAllowFrom?: Array<string | number>;
+    dmPolicy?: "open" | "allowlist" | "pairing" | "disabled";
+    groupPolicy?: "open" | "allowlist" | "disabled";
+    responsePrefix?: string;
+    mediaMaxMb?: number;
+    webhookPath?: string;
+    threadBindings?: LineThreadBindingsConfig;
+    groups?: Record<string, LineGroupConfig>;
+}
+export interface LineConfig extends LineAccountBaseConfig {
+    accounts?: Record<string, LineAccountBaseConfig>;
+    defaultAccount?: string;
+}
+export interface LineGroupConfig {
+    enabled?: boolean;
+    allowFrom?: Array<string | number>;
+    requireMention?: boolean;
+    systemPrompt?: string;
+    skills?: string[];
+}
+export interface ResolvedLineAccount {
+    accountId: string;
+    name?: string;
+    enabled: boolean;
+    channelAccessToken: string;
+    channelSecret: string;
+    tokenSource: "config" | "env" | "file" | "none";
+    config: LineConfig & LineAccountBaseConfig;
+}
+export type LineProbeResult = BaseProbeResult<string> & {
+    bot?: {
+        displayName?: string;
+        userId?: string;
+        basicId?: string;
+        pictureUrl?: string;
+    };
+};
+export type LineChannelData = {
+    quickReplies?: string[];
+    location?: {
+        title: string;
+        address: string;
+        latitude: number;
+        longitude: number;
+    };
+    flexMessage?: {
+        altText: string;
+        contents: unknown;
+    };
+    templateMessage?: unknown;
+};
 export {};

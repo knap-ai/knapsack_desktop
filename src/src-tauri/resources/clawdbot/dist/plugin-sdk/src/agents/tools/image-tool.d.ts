@@ -3,11 +3,12 @@ import { resolveAutoMediaKeyProviders, resolveDefaultMediaModel } from "../../me
 import { getMediaUnderstandingProvider } from "../../media-understanding/provider-registry.js";
 import { buildProviderRegistry } from "../../media-understanding/runner.js";
 import { describeImageWithModel, describeImagesWithModel } from "../../plugin-sdk/media-understanding.js";
-import { coerceImageAssistantText, decodeDataUrl, type ImageModelConfig } from "./image-tool.helpers.js";
+import { coerceImageAssistantText, decodeDataUrl, hasImageReasoningOnlyResponse, type ImageModelConfig } from "./image-tool.helpers.js";
 import { type AnyAgentTool, type SandboxFsBridge, type ToolFsPolicy } from "./tool-runtime.helpers.js";
 export declare const __testing: {
     readonly decodeDataUrl: typeof decodeDataUrl;
     readonly coerceImageAssistantText: typeof coerceImageAssistantText;
+    readonly hasImageReasoningOnlyResponse: typeof hasImageReasoningOnlyResponse;
     readonly resolveImageToolMaxTokens: typeof resolveImageToolMaxTokens;
     readonly setProviderDepsForTest: (overrides?: {
         buildProviderRegistry?: typeof buildProviderRegistry;

@@ -1,2 +1,2 @@
-import { t as buildVeniceProvider } from "../../provider-catalog-D3YYc_IN.js";
+import { t as buildVeniceProvider } from "../../provider-catalog-BZCHXQ06.js";
 export { buildVeniceProvider };

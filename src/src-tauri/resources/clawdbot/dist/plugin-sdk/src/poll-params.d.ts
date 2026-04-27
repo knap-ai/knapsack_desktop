@@ -16,24 +16,9 @@ declare const SHARED_POLL_CREATION_PARAM_DEFS: {
         kind: "boolean";
     };
 };
-declare const TELEGRAM_POLL_CREATION_PARAM_DEFS: {
-    pollDurationSeconds: {
-        kind: "number";
-    };
-    pollAnonymous: {
-        kind: "boolean";
-    };
-    pollPublic: {
-        kind: "boolean";
-    };
-};
 export declare const POLL_CREATION_PARAM_DEFS: Record<string, PollCreationParamDef>;
-export type SharedPollCreationParamName = keyof typeof SHARED_POLL_CREATION_PARAM_DEFS;
-export type TelegramPollCreationParamName = keyof typeof TELEGRAM_POLL_CREATION_PARAM_DEFS;
-export type PollCreationParamName = keyof typeof POLL_CREATION_PARAM_DEFS;
-export declare const POLL_CREATION_PARAM_NAMES: string[];
+type SharedPollCreationParamName = keyof typeof SHARED_POLL_CREATION_PARAM_DEFS;
 export declare const SHARED_POLL_CREATION_PARAM_NAMES: SharedPollCreationParamName[];
-export declare const TELEGRAM_POLL_CREATION_PARAM_NAMES: TelegramPollCreationParamName[];
 export declare function resolveTelegramPollVisibility(params: {
     pollAnonymous?: boolean;
     pollPublic?: boolean;

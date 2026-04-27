@@ -44,10 +44,7 @@ export type ProviderRequestPolicyResolution = {
 };
 export type ProviderRequestCapabilitiesInput = ProviderRequestPolicyInput & {
     modelId?: string | null;
-    compat?: {
-        supportsStore?: boolean;
-        supportsPromptCacheKey?: boolean;
-    } | null;
+    compat?: unknown;
 };
 export type ProviderRequestCompatibilityFamily = "moonshot";
 export type ProviderRequestCapabilities = ProviderRequestPolicyResolution & {
@@ -62,6 +59,7 @@ export type ProviderRequestCapabilities = ProviderRequestPolicyResolution & {
     compatibilityFamily?: ProviderRequestCompatibilityFamily;
 };
 export declare function resolveProviderEndpoint(baseUrl: string | null | undefined): ProviderEndpointResolution;
+export declare function isOpenAIResponsesApi(api: string | null | undefined): boolean;
 export declare function resolveProviderAttributionIdentity(env?: RuntimeVersionEnv): ProviderAttributionIdentity;
 export declare function listProviderAttributionPolicies(env?: RuntimeVersionEnv): ProviderAttributionPolicy[];
 export declare function resolveProviderAttributionPolicy(provider?: string | null, env?: RuntimeVersionEnv): ProviderAttributionPolicy | undefined;

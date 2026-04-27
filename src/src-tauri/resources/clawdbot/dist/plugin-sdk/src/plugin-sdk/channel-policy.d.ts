@@ -48,4 +48,5 @@ export declare function createRestrictSendersChannelSecurity<ResolvedAccount ext
     approveChannelId?: string;
     approveHint?: string;
     normalizeDmEntry?: (raw: string) => string;
+    inheritSharedDefaultsFromDefaultAccount?: boolean;
 }): ChannelSecurityAdapter<ResolvedAccount>;

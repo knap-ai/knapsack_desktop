@@ -1,14 +1,14 @@
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-DqcJmob1.js";
-import { i as removeProviderAuthProfilesWithLock } from "../../profiles-CVErLX2C.js";
-import { t as ensureApiKeyFromEnvOrPrompt } from "../../provider-auth-input-fye6IC_1.js";
-import { n as buildApiKeyCredential } from "../../provider-auth-helpers-DKL5bJRR.js";
-import "../../provider-auth-DWLaZig-.js";
-import { n as configureOpenAICompatibleSelfHostedProviderNonInteractive, t as applyProviderDefaultModel } from "../../provider-self-hosted-setup-7ndHtLKG.js";
-import "../../provider-setup-CeDi3hga.js";
-import { t as WizardCancelledError } from "../../prompts-CKJesNrH.js";
-import "../../setup-Ben3xLZg.js";
-import { h as withAgentModelAliases } from "../../provider-onboard-CghzCQ2p.js";
-import { A as LMSTUDIO_MODEL_PLACEHOLDER, C as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, D as LMSTUDIO_DEFAULT_LOAD_CONTEXT_LENGTH, E as LMSTUDIO_DEFAULT_INFERENCE_BASE_URL, M as LMSTUDIO_PROVIDER_LABEL, O as LMSTUDIO_DEFAULT_MODEL_ID, S as resolveLoadedContextWindow, T as LMSTUDIO_DEFAULT_EMBEDDING_MODEL, _ as normalizeLmstudioConfiguredCatalogEntry, a as resolveLmstudioConfiguredApiKey, b as resolveLmstudioReasoningCapability, c as resolveLmstudioRuntimeApiKey, d as shouldUseLmstudioApiKeyPlaceholder, g as normalizeLmstudioConfiguredCatalogEntries, h as mapLmstudioWireModelsToConfig, i as buildLmstudioAuthHeaders, j as LMSTUDIO_PROVIDER_ID, k as LMSTUDIO_LOCAL_API_KEY_PLACEHOLDER, l as hasLmstudioAuthorizationHeader, m as mapLmstudioWireEntry, o as resolveLmstudioProviderHeaders, p as buildLmstudioModelName, r as fetchLmstudioModels, s as resolveLmstudioRequestContext, t as discoverLmstudioModels, u as resolveLmstudioProviderAuthMode, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_BASE_URL, x as resolveLmstudioServerBase, y as resolveLmstudioInferenceBase } from "../../models.fetch-C_ezffQd.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CkOd5v2f.js";
+import { n as removeProviderAuthProfilesWithLock } from "../../profiles-RuCKjoVP.js";
+import { t as ensureApiKeyFromEnvOrPrompt } from "../../provider-auth-input-BHhtM4mz.js";
+import { n as buildApiKeyCredential } from "../../provider-auth-helpers-BIVX-4NW.js";
+import "../../provider-auth-B7ecZcum.js";
+import { n as configureOpenAICompatibleSelfHostedProviderNonInteractive, t as applyProviderDefaultModel } from "../../provider-self-hosted-setup-Ck8tsJYW.js";
+import "../../provider-setup-JN9x1Jdc.js";
+import { t as WizardCancelledError } from "../../prompts-ocoL7LgP.js";
+import "../../setup-Bk02jGjc.js";
+import { h as withAgentModelAliases } from "../../provider-onboard-VLZPCYnL.js";
+import { A as LMSTUDIO_MODEL_PLACEHOLDER, C as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, D as LMSTUDIO_DEFAULT_LOAD_CONTEXT_LENGTH, E as LMSTUDIO_DEFAULT_INFERENCE_BASE_URL, M as LMSTUDIO_PROVIDER_LABEL, O as LMSTUDIO_DEFAULT_MODEL_ID, S as resolveLoadedContextWindow, T as LMSTUDIO_DEFAULT_EMBEDDING_MODEL, _ as normalizeLmstudioConfiguredCatalogEntry, a as resolveLmstudioConfiguredApiKey, b as resolveLmstudioReasoningCapability, c as resolveLmstudioRuntimeApiKey, d as shouldUseLmstudioApiKeyPlaceholder, g as normalizeLmstudioConfiguredCatalogEntries, h as mapLmstudioWireModelsToConfig, i as buildLmstudioAuthHeaders, j as LMSTUDIO_PROVIDER_ID, k as LMSTUDIO_LOCAL_API_KEY_PLACEHOLDER, l as hasLmstudioAuthorizationHeader, m as mapLmstudioWireEntry, o as resolveLmstudioProviderHeaders, p as buildLmstudioModelName, r as fetchLmstudioModels, s as resolveLmstudioRequestContext, t as discoverLmstudioModels, u as resolveLmstudioProviderAuthMode, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_BASE_URL, x as resolveLmstudioServerBase, y as resolveLmstudioInferenceBase } from "../../models.fetch-rYikvgVG.js";
 //#region extensions/lmstudio/src/setup.ts
 function stripLmstudioStoredAuthConfig(cfg) {
 	const { profiles: _profiles, order: _order, ...restAuth } = cfg.auth ?? {};
@@ -492,10 +492,9 @@ async function prepareLmstudioDynamicModels(ctx) {
 		apiKey: apiKey ?? "",
 		headers,
 		quiet: true
-	})).map((model) => ({
-		...model,
+	})).map((model) => Object.assign({}, model, {
 		provider: LMSTUDIO_PROVIDER_ID,
-		api: ctx.providerConfig?.api ?? "openai-completions",
+		api: ctx.providerConfig?.api ?? `openai-completions`,
 		baseUrl
 	}));
 }

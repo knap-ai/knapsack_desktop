@@ -1,318 +1,319 @@
-export declare const ModelChoiceSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    name: import("@sinclair/typebox").TString;
-    provider: import("@sinclair/typebox").TString;
-    alias: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    contextWindow: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    reasoning: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+import { Type } from "typebox";
+export declare const ModelChoiceSchema: Type.TObject<{
+    id: Type.TString;
+    name: Type.TString;
+    provider: Type.TString;
+    alias: Type.TOptional<Type.TString>;
+    contextWindow: Type.TOptional<Type.TInteger>;
+    reasoning: Type.TOptional<Type.TBoolean>;
 }>;
-export declare const AgentSummarySchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    identity: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        theme: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        avatarUrl: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentSummarySchema: Type.TObject<{
+    id: Type.TString;
+    name: Type.TOptional<Type.TString>;
+    identity: Type.TOptional<Type.TObject<{
+        name: Type.TOptional<Type.TString>;
+        theme: Type.TOptional<Type.TString>;
+        emoji: Type.TOptional<Type.TString>;
+        avatar: Type.TOptional<Type.TString>;
+        avatarUrl: Type.TOptional<Type.TString>;
     }>>;
-    workspace: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        primary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+    workspace: Type.TOptional<Type.TString>;
+    model: Type.TOptional<Type.TObject<{
+        primary: Type.TOptional<Type.TString>;
+        fallbacks: Type.TOptional<Type.TArray<Type.TString>>;
     }>>;
 }>;
-export declare const AgentsListParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const AgentsListResultSchema: import("@sinclair/typebox").TObject<{
-    defaultId: import("@sinclair/typebox").TString;
-    mainKey: import("@sinclair/typebox").TString;
-    scope: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"per-sender">, import("@sinclair/typebox").TLiteral<"global">]>;
-    agents: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TString;
-        name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        identity: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            theme: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            avatarUrl: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentsListParamsSchema: Type.TObject<{}>;
+export declare const AgentsListResultSchema: Type.TObject<{
+    defaultId: Type.TString;
+    mainKey: Type.TString;
+    scope: Type.TUnion<[Type.TLiteral<"per-sender">, Type.TLiteral<"global">]>;
+    agents: Type.TArray<Type.TObject<{
+        id: Type.TString;
+        name: Type.TOptional<Type.TString>;
+        identity: Type.TOptional<Type.TObject<{
+            name: Type.TOptional<Type.TString>;
+            theme: Type.TOptional<Type.TString>;
+            emoji: Type.TOptional<Type.TString>;
+            avatar: Type.TOptional<Type.TString>;
+            avatarUrl: Type.TOptional<Type.TString>;
         }>>;
-        workspace: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-            primary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            fallbacks: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
+        workspace: Type.TOptional<Type.TString>;
+        model: Type.TOptional<Type.TObject<{
+            primary: Type.TOptional<Type.TString>;
+            fallbacks: Type.TOptional<Type.TArray<Type.TString>>;
         }>>;
     }>>;
 }>;
-export declare const AgentsCreateParamsSchema: import("@sinclair/typebox").TObject<{
-    name: import("@sinclair/typebox").TString;
-    workspace: import("@sinclair/typebox").TString;
-    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentsCreateParamsSchema: Type.TObject<{
+    name: Type.TString;
+    workspace: Type.TString;
+    model: Type.TOptional<Type.TString>;
+    emoji: Type.TOptional<Type.TString>;
+    avatar: Type.TOptional<Type.TString>;
 }>;
-export declare const AgentsCreateResultSchema: import("@sinclair/typebox").TObject<{
-    ok: import("@sinclair/typebox").TLiteral<true>;
-    agentId: import("@sinclair/typebox").TString;
-    name: import("@sinclair/typebox").TString;
-    workspace: import("@sinclair/typebox").TString;
-    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentsCreateResultSchema: Type.TObject<{
+    ok: Type.TLiteral<true>;
+    agentId: Type.TString;
+    name: Type.TString;
+    workspace: Type.TString;
+    model: Type.TOptional<Type.TString>;
 }>;
-export declare const AgentsUpdateParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    name: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    workspace: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    model: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    emoji: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    avatar: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentsUpdateParamsSchema: Type.TObject<{
+    agentId: Type.TString;
+    name: Type.TOptional<Type.TString>;
+    workspace: Type.TOptional<Type.TString>;
+    model: Type.TOptional<Type.TString>;
+    emoji: Type.TOptional<Type.TString>;
+    avatar: Type.TOptional<Type.TString>;
 }>;
-export declare const AgentsUpdateResultSchema: import("@sinclair/typebox").TObject<{
-    ok: import("@sinclair/typebox").TLiteral<true>;
-    agentId: import("@sinclair/typebox").TString;
+export declare const AgentsUpdateResultSchema: Type.TObject<{
+    ok: Type.TLiteral<true>;
+    agentId: Type.TString;
 }>;
-export declare const AgentsDeleteParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    deleteFiles: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+export declare const AgentsDeleteParamsSchema: Type.TObject<{
+    agentId: Type.TString;
+    deleteFiles: Type.TOptional<Type.TBoolean>;
 }>;
-export declare const AgentsDeleteResultSchema: import("@sinclair/typebox").TObject<{
-    ok: import("@sinclair/typebox").TLiteral<true>;
-    agentId: import("@sinclair/typebox").TString;
-    removedBindings: import("@sinclair/typebox").TInteger;
+export declare const AgentsDeleteResultSchema: Type.TObject<{
+    ok: Type.TLiteral<true>;
+    agentId: Type.TString;
+    removedBindings: Type.TInteger;
 }>;
-export declare const AgentsFileEntrySchema: import("@sinclair/typebox").TObject<{
-    name: import("@sinclair/typebox").TString;
-    path: import("@sinclair/typebox").TString;
-    missing: import("@sinclair/typebox").TBoolean;
-    size: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    updatedAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    content: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentsFileEntrySchema: Type.TObject<{
+    name: Type.TString;
+    path: Type.TString;
+    missing: Type.TBoolean;
+    size: Type.TOptional<Type.TInteger>;
+    updatedAtMs: Type.TOptional<Type.TInteger>;
+    content: Type.TOptional<Type.TString>;
 }>;
-export declare const AgentsFilesListParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
+export declare const AgentsFilesListParamsSchema: Type.TObject<{
+    agentId: Type.TString;
 }>;
-export declare const AgentsFilesListResultSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    workspace: import("@sinclair/typebox").TString;
-    files: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        name: import("@sinclair/typebox").TString;
-        path: import("@sinclair/typebox").TString;
-        missing: import("@sinclair/typebox").TBoolean;
-        size: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        updatedAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        content: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentsFilesListResultSchema: Type.TObject<{
+    agentId: Type.TString;
+    workspace: Type.TString;
+    files: Type.TArray<Type.TObject<{
+        name: Type.TString;
+        path: Type.TString;
+        missing: Type.TBoolean;
+        size: Type.TOptional<Type.TInteger>;
+        updatedAtMs: Type.TOptional<Type.TInteger>;
+        content: Type.TOptional<Type.TString>;
     }>>;
 }>;
-export declare const AgentsFilesGetParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    name: import("@sinclair/typebox").TString;
+export declare const AgentsFilesGetParamsSchema: Type.TObject<{
+    agentId: Type.TString;
+    name: Type.TString;
 }>;
-export declare const AgentsFilesGetResultSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    workspace: import("@sinclair/typebox").TString;
-    file: import("@sinclair/typebox").TObject<{
-        name: import("@sinclair/typebox").TString;
-        path: import("@sinclair/typebox").TString;
-        missing: import("@sinclair/typebox").TBoolean;
-        size: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        updatedAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        content: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentsFilesGetResultSchema: Type.TObject<{
+    agentId: Type.TString;
+    workspace: Type.TString;
+    file: Type.TObject<{
+        name: Type.TString;
+        path: Type.TString;
+        missing: Type.TBoolean;
+        size: Type.TOptional<Type.TInteger>;
+        updatedAtMs: Type.TOptional<Type.TInteger>;
+        content: Type.TOptional<Type.TString>;
     }>;
 }>;
-export declare const AgentsFilesSetParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    name: import("@sinclair/typebox").TString;
-    content: import("@sinclair/typebox").TString;
+export declare const AgentsFilesSetParamsSchema: Type.TObject<{
+    agentId: Type.TString;
+    name: Type.TString;
+    content: Type.TString;
 }>;
-export declare const AgentsFilesSetResultSchema: import("@sinclair/typebox").TObject<{
-    ok: import("@sinclair/typebox").TLiteral<true>;
-    agentId: import("@sinclair/typebox").TString;
-    workspace: import("@sinclair/typebox").TString;
-    file: import("@sinclair/typebox").TObject<{
-        name: import("@sinclair/typebox").TString;
-        path: import("@sinclair/typebox").TString;
-        missing: import("@sinclair/typebox").TBoolean;
-        size: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        updatedAtMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        content: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const AgentsFilesSetResultSchema: Type.TObject<{
+    ok: Type.TLiteral<true>;
+    agentId: Type.TString;
+    workspace: Type.TString;
+    file: Type.TObject<{
+        name: Type.TString;
+        path: Type.TString;
+        missing: Type.TBoolean;
+        size: Type.TOptional<Type.TInteger>;
+        updatedAtMs: Type.TOptional<Type.TInteger>;
+        content: Type.TOptional<Type.TString>;
     }>;
 }>;
-export declare const ModelsListParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const ModelsListResultSchema: import("@sinclair/typebox").TObject<{
-    models: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TString;
-        name: import("@sinclair/typebox").TString;
-        provider: import("@sinclair/typebox").TString;
-        alias: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        contextWindow: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-        reasoning: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+export declare const ModelsListParamsSchema: Type.TObject<{}>;
+export declare const ModelsListResultSchema: Type.TObject<{
+    models: Type.TArray<Type.TObject<{
+        id: Type.TString;
+        name: Type.TString;
+        provider: Type.TString;
+        alias: Type.TOptional<Type.TString>;
+        contextWindow: Type.TOptional<Type.TInteger>;
+        reasoning: Type.TOptional<Type.TBoolean>;
     }>>;
 }>;
-export declare const SkillsStatusParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const SkillsStatusParamsSchema: Type.TObject<{
+    agentId: Type.TOptional<Type.TString>;
 }>;
-export declare const SkillsBinsParamsSchema: import("@sinclair/typebox").TObject<{}>;
-export declare const SkillsBinsResultSchema: import("@sinclair/typebox").TObject<{
-    bins: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
+export declare const SkillsBinsParamsSchema: Type.TObject<{}>;
+export declare const SkillsBinsResultSchema: Type.TObject<{
+    bins: Type.TArray<Type.TString>;
 }>;
-export declare const SkillsInstallParamsSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-    name: import("@sinclair/typebox").TString;
-    installId: import("@sinclair/typebox").TString;
-    dangerouslyForceUnsafeInstall: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-}>, import("@sinclair/typebox").TObject<{
-    source: import("@sinclair/typebox").TLiteral<"clawhub">;
-    slug: import("@sinclair/typebox").TString;
-    version: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    force: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+export declare const SkillsInstallParamsSchema: Type.TUnion<[Type.TObject<{
+    name: Type.TString;
+    installId: Type.TString;
+    dangerouslyForceUnsafeInstall: Type.TOptional<Type.TBoolean>;
+    timeoutMs: Type.TOptional<Type.TInteger>;
+}>, Type.TObject<{
+    source: Type.TLiteral<"clawhub">;
+    slug: Type.TString;
+    version: Type.TOptional<Type.TString>;
+    force: Type.TOptional<Type.TBoolean>;
+    timeoutMs: Type.TOptional<Type.TInteger>;
 }>]>;
-export declare const SkillsUpdateParamsSchema: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-    skillKey: import("@sinclair/typebox").TString;
-    enabled: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    apiKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    env: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-}>, import("@sinclair/typebox").TObject<{
-    source: import("@sinclair/typebox").TLiteral<"clawhub">;
-    slug: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    all: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+export declare const SkillsUpdateParamsSchema: Type.TUnion<[Type.TObject<{
+    skillKey: Type.TString;
+    enabled: Type.TOptional<Type.TBoolean>;
+    apiKey: Type.TOptional<Type.TString>;
+    env: Type.TOptional<Type.TRecord<"^.*$", Type.TString>>;
+}>, Type.TObject<{
+    source: Type.TLiteral<"clawhub">;
+    slug: Type.TOptional<Type.TString>;
+    all: Type.TOptional<Type.TBoolean>;
 }>]>;
-export declare const SkillsSearchParamsSchema: import("@sinclair/typebox").TObject<{
-    query: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+export declare const SkillsSearchParamsSchema: Type.TObject<{
+    query: Type.TOptional<Type.TString>;
+    limit: Type.TOptional<Type.TInteger>;
 }>;
-export declare const SkillsSearchResultSchema: import("@sinclair/typebox").TObject<{
-    results: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        score: import("@sinclair/typebox").TNumber;
-        slug: import("@sinclair/typebox").TString;
-        displayName: import("@sinclair/typebox").TString;
-        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        version: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        updatedAt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+export declare const SkillsSearchResultSchema: Type.TObject<{
+    results: Type.TArray<Type.TObject<{
+        score: Type.TNumber;
+        slug: Type.TString;
+        displayName: Type.TString;
+        summary: Type.TOptional<Type.TString>;
+        version: Type.TOptional<Type.TString>;
+        updatedAt: Type.TOptional<Type.TInteger>;
     }>>;
 }>;
-export declare const SkillsDetailParamsSchema: import("@sinclair/typebox").TObject<{
-    slug: import("@sinclair/typebox").TString;
+export declare const SkillsDetailParamsSchema: Type.TObject<{
+    slug: Type.TString;
 }>;
-export declare const SkillsDetailResultSchema: import("@sinclair/typebox").TObject<{
-    skill: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-        slug: import("@sinclair/typebox").TString;
-        displayName: import("@sinclair/typebox").TString;
-        summary: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        tags: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TRecord<import("@sinclair/typebox").TString, import("@sinclair/typebox").TString>>;
-        createdAt: import("@sinclair/typebox").TInteger;
-        updatedAt: import("@sinclair/typebox").TInteger;
-    }>, import("@sinclair/typebox").TNull]>;
-    latestVersion: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-        version: import("@sinclair/typebox").TString;
-        createdAt: import("@sinclair/typebox").TInteger;
-        changelog: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    }>, import("@sinclair/typebox").TNull]>>;
-    metadata: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-        os: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>, import("@sinclair/typebox").TNull]>>;
-        systems: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>, import("@sinclair/typebox").TNull]>>;
-    }>, import("@sinclair/typebox").TNull]>>;
-    owner: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TObject<{
-        handle: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-        displayName: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-        image: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TString, import("@sinclair/typebox").TNull]>>;
-    }>, import("@sinclair/typebox").TNull]>>;
+export declare const SkillsDetailResultSchema: Type.TObject<{
+    skill: Type.TUnion<[Type.TObject<{
+        slug: Type.TString;
+        displayName: Type.TString;
+        summary: Type.TOptional<Type.TString>;
+        tags: Type.TOptional<Type.TRecord<"^.*$", Type.TString>>;
+        createdAt: Type.TInteger;
+        updatedAt: Type.TInteger;
+    }>, Type.TNull]>;
+    latestVersion: Type.TOptional<Type.TUnion<[Type.TObject<{
+        version: Type.TString;
+        createdAt: Type.TInteger;
+        changelog: Type.TOptional<Type.TString>;
+    }>, Type.TNull]>>;
+    metadata: Type.TOptional<Type.TUnion<[Type.TObject<{
+        os: Type.TOptional<Type.TUnion<[Type.TArray<Type.TString>, Type.TNull]>>;
+        systems: Type.TOptional<Type.TUnion<[Type.TArray<Type.TString>, Type.TNull]>>;
+    }>, Type.TNull]>>;
+    owner: Type.TOptional<Type.TUnion<[Type.TObject<{
+        handle: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+        displayName: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+        image: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    }>, Type.TNull]>>;
 }>;
-export declare const ToolsCatalogParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    includePlugins: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+export declare const ToolsCatalogParamsSchema: Type.TObject<{
+    agentId: Type.TOptional<Type.TString>;
+    includePlugins: Type.TOptional<Type.TBoolean>;
 }>;
-export declare const ToolsEffectiveParamsSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    sessionKey: import("@sinclair/typebox").TString;
+export declare const ToolsEffectiveParamsSchema: Type.TObject<{
+    agentId: Type.TOptional<Type.TString>;
+    sessionKey: Type.TString;
 }>;
-export declare const ToolCatalogProfileSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"minimal">, import("@sinclair/typebox").TLiteral<"coding">, import("@sinclair/typebox").TLiteral<"messaging">, import("@sinclair/typebox").TLiteral<"full">]>;
-    label: import("@sinclair/typebox").TString;
+export declare const ToolCatalogProfileSchema: Type.TObject<{
+    id: Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>;
+    label: Type.TString;
 }>;
-export declare const ToolCatalogEntrySchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    label: import("@sinclair/typebox").TString;
-    description: import("@sinclair/typebox").TString;
-    source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">]>;
-    pluginId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    optional: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    defaultProfiles: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"minimal">, import("@sinclair/typebox").TLiteral<"coding">, import("@sinclair/typebox").TLiteral<"messaging">, import("@sinclair/typebox").TLiteral<"full">]>>;
+export declare const ToolCatalogEntrySchema: Type.TObject<{
+    id: Type.TString;
+    label: Type.TString;
+    description: Type.TString;
+    source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">]>;
+    pluginId: Type.TOptional<Type.TString>;
+    optional: Type.TOptional<Type.TBoolean>;
+    defaultProfiles: Type.TArray<Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>>;
 }>;
-export declare const ToolCatalogGroupSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    label: import("@sinclair/typebox").TString;
-    source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">]>;
-    pluginId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    tools: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TString;
-        label: import("@sinclair/typebox").TString;
-        description: import("@sinclair/typebox").TString;
-        source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">]>;
-        pluginId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        optional: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-        defaultProfiles: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"minimal">, import("@sinclair/typebox").TLiteral<"coding">, import("@sinclair/typebox").TLiteral<"messaging">, import("@sinclair/typebox").TLiteral<"full">]>>;
+export declare const ToolCatalogGroupSchema: Type.TObject<{
+    id: Type.TString;
+    label: Type.TString;
+    source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">]>;
+    pluginId: Type.TOptional<Type.TString>;
+    tools: Type.TArray<Type.TObject<{
+        id: Type.TString;
+        label: Type.TString;
+        description: Type.TString;
+        source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">]>;
+        pluginId: Type.TOptional<Type.TString>;
+        optional: Type.TOptional<Type.TBoolean>;
+        defaultProfiles: Type.TArray<Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>>;
     }>>;
 }>;
-export declare const ToolsCatalogResultSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    profiles: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"minimal">, import("@sinclair/typebox").TLiteral<"coding">, import("@sinclair/typebox").TLiteral<"messaging">, import("@sinclair/typebox").TLiteral<"full">]>;
-        label: import("@sinclair/typebox").TString;
+export declare const ToolsCatalogResultSchema: Type.TObject<{
+    agentId: Type.TString;
+    profiles: Type.TArray<Type.TObject<{
+        id: Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>;
+        label: Type.TString;
     }>>;
-    groups: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TString;
-        label: import("@sinclair/typebox").TString;
-        source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">]>;
-        pluginId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        tools: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-            id: import("@sinclair/typebox").TString;
-            label: import("@sinclair/typebox").TString;
-            description: import("@sinclair/typebox").TString;
-            source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">]>;
-            pluginId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            optional: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-            defaultProfiles: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"minimal">, import("@sinclair/typebox").TLiteral<"coding">, import("@sinclair/typebox").TLiteral<"messaging">, import("@sinclair/typebox").TLiteral<"full">]>>;
+    groups: Type.TArray<Type.TObject<{
+        id: Type.TString;
+        label: Type.TString;
+        source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">]>;
+        pluginId: Type.TOptional<Type.TString>;
+        tools: Type.TArray<Type.TObject<{
+            id: Type.TString;
+            label: Type.TString;
+            description: Type.TString;
+            source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">]>;
+            pluginId: Type.TOptional<Type.TString>;
+            optional: Type.TOptional<Type.TBoolean>;
+            defaultProfiles: Type.TArray<Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>>;
         }>>;
     }>>;
 }>;
-export declare const ToolsEffectiveEntrySchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TString;
-    label: import("@sinclair/typebox").TString;
-    description: import("@sinclair/typebox").TString;
-    rawDescription: import("@sinclair/typebox").TString;
-    source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">, import("@sinclair/typebox").TLiteral<"channel">]>;
-    pluginId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    channelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const ToolsEffectiveEntrySchema: Type.TObject<{
+    id: Type.TString;
+    label: Type.TString;
+    description: Type.TString;
+    rawDescription: Type.TString;
+    source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
+    pluginId: Type.TOptional<Type.TString>;
+    channelId: Type.TOptional<Type.TString>;
 }>;
-export declare const ToolsEffectiveGroupSchema: import("@sinclair/typebox").TObject<{
-    id: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">, import("@sinclair/typebox").TLiteral<"channel">]>;
-    label: import("@sinclair/typebox").TString;
-    source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">, import("@sinclair/typebox").TLiteral<"channel">]>;
-    tools: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TString;
-        label: import("@sinclair/typebox").TString;
-        description: import("@sinclair/typebox").TString;
-        rawDescription: import("@sinclair/typebox").TString;
-        source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">, import("@sinclair/typebox").TLiteral<"channel">]>;
-        pluginId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        channelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const ToolsEffectiveGroupSchema: Type.TObject<{
+    id: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
+    label: Type.TString;
+    source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
+    tools: Type.TArray<Type.TObject<{
+        id: Type.TString;
+        label: Type.TString;
+        description: Type.TString;
+        rawDescription: Type.TString;
+        source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
+        pluginId: Type.TOptional<Type.TString>;
+        channelId: Type.TOptional<Type.TString>;
     }>>;
 }>;
-export declare const ToolsEffectiveResultSchema: import("@sinclair/typebox").TObject<{
-    agentId: import("@sinclair/typebox").TString;
-    profile: import("@sinclair/typebox").TString;
-    groups: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-        id: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">, import("@sinclair/typebox").TLiteral<"channel">]>;
-        label: import("@sinclair/typebox").TString;
-        source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">, import("@sinclair/typebox").TLiteral<"channel">]>;
-        tools: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TObject<{
-            id: import("@sinclair/typebox").TString;
-            label: import("@sinclair/typebox").TString;
-            description: import("@sinclair/typebox").TString;
-            rawDescription: import("@sinclair/typebox").TString;
-            source: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"core">, import("@sinclair/typebox").TLiteral<"plugin">, import("@sinclair/typebox").TLiteral<"channel">]>;
-            pluginId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-            channelId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const ToolsEffectiveResultSchema: Type.TObject<{
+    agentId: Type.TString;
+    profile: Type.TString;
+    groups: Type.TArray<Type.TObject<{
+        id: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
+        label: Type.TString;
+        source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
+        tools: Type.TArray<Type.TObject<{
+            id: Type.TString;
+            label: Type.TString;
+            description: Type.TString;
+            rawDescription: Type.TString;
+            source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
+            pluginId: Type.TOptional<Type.TString>;
+            channelId: Type.TOptional<Type.TString>;
         }>>;
     }>>;
 }>;

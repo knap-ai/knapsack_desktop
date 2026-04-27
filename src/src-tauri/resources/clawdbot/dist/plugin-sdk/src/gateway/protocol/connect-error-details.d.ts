@@ -27,12 +27,58 @@ export declare const ConnectErrorDetailCodes: {
     readonly PAIRING_REQUIRED: "PAIRING_REQUIRED";
 };
 export type ConnectErrorDetailCode = (typeof ConnectErrorDetailCodes)[keyof typeof ConnectErrorDetailCodes];
+export declare const ConnectPairingRequiredReasons: {
+    readonly NOT_PAIRED: "not-paired";
+    readonly ROLE_UPGRADE: "role-upgrade";
+    readonly SCOPE_UPGRADE: "scope-upgrade";
+    readonly METADATA_UPGRADE: "metadata-upgrade";
+};
+export type ConnectPairingRequiredReason = (typeof ConnectPairingRequiredReasons)[keyof typeof ConnectPairingRequiredReasons];
 export type ConnectRecoveryNextStep = "retry_with_device_token" | "update_auth_configuration" | "update_auth_credentials" | "wait_then_retry" | "review_auth_configuration";
 export type ConnectErrorRecoveryAdvice = {
     canRetryWithDeviceToken?: boolean;
     recommendedNextStep?: ConnectRecoveryNextStep;
 };
+export type PairingConnectErrorDetails = {
+    code: typeof ConnectErrorDetailCodes.PAIRING_REQUIRED;
+    reason?: ConnectPairingRequiredReason;
+    requestId?: string;
+    remediationHint?: string;
+    deviceId?: string;
+    requestedRole?: string;
+    requestedScopes?: string[];
+    approvedRoles?: string[];
+    approvedScopes?: string[];
+};
+export type ConnectPairingRequiredDetails = Pick<PairingConnectErrorDetails, "reason" | "requestId">;
 export declare function resolveAuthConnectErrorDetailCode(reason: string | undefined): ConnectErrorDetailCode;
 export declare function resolveDeviceAuthConnectErrorDetailCode(reason: string | undefined): ConnectErrorDetailCode;
 export declare function readConnectErrorDetailCode(details: unknown): string | null;
 export declare function readConnectErrorRecoveryAdvice(details: unknown): ConnectErrorRecoveryAdvice;
+export declare function normalizePairingConnectRequestId(value: unknown): string | undefined;
+export declare function describePairingConnectRequirement(reason: ConnectPairingRequiredReason | undefined): string;
+export declare function buildPairingConnectErrorMessage(reason: ConnectPairingRequiredReason | undefined): string;
+export declare function buildPairingConnectRemediationHint(reason: ConnectPairingRequiredReason | undefined): string;
+export declare function buildPairingConnectRecoveryTitle(reason: ConnectPairingRequiredReason | undefined): string;
+export declare function buildPairingConnectErrorDetails(params: {
+    reason: ConnectPairingRequiredReason | undefined;
+    requestId?: string;
+    remediationHint?: string;
+    deviceId?: string;
+    requestedRole?: string;
+    requestedScopes?: string[];
+    approvedRoles?: string[];
+    approvedScopes?: string[];
+}): PairingConnectErrorDetails;
+export declare function buildPairingConnectCloseReason(params: {
+    reason: ConnectPairingRequiredReason | undefined;
+    requestId?: string;
+}): string;
+export declare function readPairingConnectErrorDetails(details: unknown): PairingConnectErrorDetails | null;
+export declare function readConnectPairingRequiredDetails(details: unknown): ConnectPairingRequiredDetails | null;
+export declare function readConnectPairingRequiredMessage(message: string | null | undefined): ConnectPairingRequiredDetails | null;
+export declare function formatConnectPairingRequiredMessage(details: unknown): string;
+export declare function formatConnectErrorMessage(params: {
+    message?: string;
+    details?: unknown;
+}): string;

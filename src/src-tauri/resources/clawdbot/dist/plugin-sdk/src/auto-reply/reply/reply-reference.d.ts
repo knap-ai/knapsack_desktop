@@ -1,5 +1,7 @@
 import type { ReplyToMode } from "../../config/types.js";
 export type ReplyReferencePlanner = {
+    /** Returns the effective reply/thread id for the next send without updating state. */
+    peek(): string | undefined;
     /** Returns the effective reply/thread id for the next send and updates state. */
     use(): string | undefined;
     /** Mark that a reply was sent (needed when no reference is used). */

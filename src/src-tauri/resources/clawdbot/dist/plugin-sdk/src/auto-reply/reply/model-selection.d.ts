@@ -1,14 +1,8 @@
 import type { ModelCatalogEntry } from "../../agents/model-catalog.js";
-import { type ModelAliasIndex } from "../../agents/model-selection.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ThinkLevel } from "./directives.js";
-export type ModelDirectiveSelection = {
-    provider: string;
-    model: string;
-    isDefault: boolean;
-    alias?: string;
-};
+export { resolveModelDirectiveSelection, type ModelDirectiveSelection, } from "./model-selection-directive.js";
 type ModelCatalog = ModelCatalogEntry[];
 type ModelSelectionState = {
     provider: string;
@@ -44,20 +38,9 @@ export declare function createModelSelectionState(params: {
      *  In that case, skip session-stored overrides so the heartbeat selection wins. */
     hasResolvedHeartbeatModelOverride?: boolean;
 }): Promise<ModelSelectionState>;
-export declare function resolveModelDirectiveSelection(params: {
-    raw: string;
-    defaultProvider: string;
-    defaultModel: string;
-    aliasIndex: ModelAliasIndex;
-    allowedModelKeys: Set<string>;
-}): {
-    selection?: ModelDirectiveSelection;
-    error?: string;
-};
 export declare function resolveContextTokens(params: {
     cfg: OpenClawConfig;
     agentCfg: NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]> | undefined;
     provider: string;
     model: string;
 }): number;
-export {};

@@ -39,9 +39,9 @@ export type ConfigWriteAuthorizationResultLike<TChannelId extends string = strin
         scope: ConfigWriteScopeLike<TChannelId>;
     };
 };
-export declare function resolveChannelConfigWritesShared<TChannelId extends string>(params: {
+export declare function resolveChannelConfigWritesShared(params: {
     cfg: ConfigWritePolicyConfig;
-    channelId?: TChannelId | null;
+    channelId?: string | null;
     accountId?: string | null;
 }): boolean;
 export declare function authorizeConfigWriteShared<TChannelId extends string>(params: {

@@ -15,6 +15,16 @@ export type NpmResolutionFields = {
     resolvedAt?: string;
 };
 export declare function buildNpmResolutionFields(resolution?: NpmSpecResolution): NpmResolutionFields;
+export declare function resolveNpmSpecMetadata(params: {
+    spec: string;
+    timeoutMs?: number;
+}): Promise<{
+    ok: true;
+    metadata: NpmSpecResolution;
+} | {
+    ok: false;
+    error: string;
+}>;
 export type NpmIntegrityDrift = {
     expectedIntegrity: string;
     actualIntegrity: string;

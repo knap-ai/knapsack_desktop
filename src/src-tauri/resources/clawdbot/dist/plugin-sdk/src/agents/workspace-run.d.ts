@@ -14,5 +14,6 @@ export declare function resolveRunWorkspaceDir(params: {
     sessionKey?: string;
     agentId?: string;
     config?: OpenClawConfig;
+    env?: NodeJS.ProcessEnv;
 }): ResolveRunWorkspaceResult;
 export {};

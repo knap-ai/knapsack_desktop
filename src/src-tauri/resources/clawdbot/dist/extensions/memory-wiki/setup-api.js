@@ -1,6 +1,6 @@
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../api-BAgw3YcZ.js";
-import { n as migrateMemoryWikiLegacyConfig } from "../../config-compat-YtwHQvZS.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../api-DV7Bow6K.js";
+import { n as migrateMemoryWikiLegacyConfig } from "../../config-compat-DmaypGiW.js";
 //#region extensions/memory-wiki/setup-api.ts
 var setup_api_default = definePluginEntry({
 	id: "memory-wiki",

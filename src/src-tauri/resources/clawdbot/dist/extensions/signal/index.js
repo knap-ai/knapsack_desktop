@@ -1,4 +1,4 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
 //#region extensions/signal/index.ts
 var signal_default = defineBundledChannelEntry({
 	id: "signal",
@@ -6,7 +6,7 @@ var signal_default = defineBundledChannelEntry({
 	description: "Signal channel plugin",
 	importMetaUrl: import.meta.url,
 	plugin: {
-		specifier: "./api.js",
+		specifier: "./channel-plugin-api.js",
 		exportName: "signalPlugin"
 	},
 	runtime: {

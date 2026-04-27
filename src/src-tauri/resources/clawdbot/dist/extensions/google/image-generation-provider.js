@@ -2,8 +2,8 @@ import { normalizeGoogleModelId } from "./model-id.js";
 import { resolveGoogleGenerativeAiHttpRequestConfig } from "./api.js";
 import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
 import { isProviderApiKeyConfigured } from "openclaw/plugin-sdk/provider-auth";
+import { assertOkOrThrowHttpError, postJsonRequest, sanitizeConfiguredModelProviderRequest } from "openclaw/plugin-sdk/provider-http";
 import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
-import { assertOkOrThrowHttpError, postJsonRequest } from "openclaw/plugin-sdk/provider-http";
 //#region extensions/google/image-generation-provider.ts
 const DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
 const DEFAULT_OUTPUT_MIME = "image/png";
@@ -97,6 +97,7 @@ function buildGoogleImageGenerationProvider() {
 			const { baseUrl, allowPrivateNetwork, headers, dispatcherPolicy } = resolveGoogleGenerativeAiHttpRequestConfig({
 				apiKey: auth.apiKey,
 				baseUrl: req.cfg?.models?.providers?.google?.baseUrl,
+				request: sanitizeConfiguredModelProviderRequest(req.cfg?.models?.providers?.google?.request),
 				capability: "image",
 				transport: "http"
 			});
@@ -123,7 +124,7 @@ function buildGoogleImageGenerationProvider() {
 						...Object.keys(resolvedImageConfig).length > 0 ? { imageConfig: resolvedImageConfig } : {}
 					}
 				},
-				timeoutMs: 6e4,
+				timeoutMs: req.timeoutMs ?? 6e4,
 				fetchFn: fetch,
 				pinDns: false,
 				allowPrivateNetwork,

@@ -24,11 +24,11 @@ export declare function buildOpenAiCompatibleVideoRequestBody(params: {
             text: string;
             video_url?: undefined;
         } | {
+            text?: undefined;
             type: string;
             video_url: {
                 url: string;
             };
-            text?: undefined;
         })[];
     }[];
 };

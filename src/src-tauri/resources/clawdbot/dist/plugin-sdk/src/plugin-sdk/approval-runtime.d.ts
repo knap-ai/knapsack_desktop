@@ -1,6 +1,7 @@
 export { DEFAULT_EXEC_APPROVAL_TIMEOUT_MS, resolveExecApprovalAllowedDecisions, resolveExecApprovalRequestAllowedDecisions, type ExecApprovalDecision, type ExecApprovalRequest, type ExecApprovalRequestPayload, type ExecApprovalResolved, type ExecHost, } from "../infra/exec-approvals.js";
 export { buildExecApprovalPendingReplyPayload, getExecApprovalApproverDmNoticeText, getExecApprovalReplyMetadata, type ExecApprovalPendingReplyParams, type ExecApprovalReplyDecision, type ExecApprovalReplyMetadata, } from "../infra/exec-approval-reply.js";
 export { resolveExecApprovalCommandDisplay } from "../infra/exec-approval-command-display.js";
+export { formatApprovalDisplayPath } from "../infra/approval-display-paths.js";
 export { createChannelApproverDmTargetResolver, createChannelNativeOriginTargetResolver, } from "./approval-native-helpers.js";
 export { resolveApprovalRequestOriginTarget, resolveApprovalRequestSessionTarget, resolveExecApprovalSessionTarget, type ExecApprovalSessionTarget, } from "../infra/exec-approval-session-target.js";
 export { doesApprovalRequestMatchChannelAccount, resolveApprovalRequestAccountId, resolveApprovalRequestChannelAccountId, } from "../infra/approval-request-account-binding.js";

@@ -7,6 +7,7 @@ export declare const BASE_ACTION_MEDIA_SOURCE_PARAM_KEYS: readonly ["media", "pa
 export declare function resolveExtraActionMediaSourceParamKeys(params: {
     cfg: OpenClawConfig;
     action?: ChannelMessageActionName;
+    args: Record<string, unknown>;
     channel?: string;
     accountId?: string | null;
     sessionKey?: string | null;
@@ -49,7 +50,5 @@ export declare function hydrateAttachmentParamsForAction(params: {
     dryRun?: boolean;
     mediaPolicy: AttachmentMediaPolicy;
 }): Promise<void>;
-export declare function parseButtonsParam(params: Record<string, unknown>): void;
-export declare function parseCardParam(params: Record<string, unknown>): void;
-export declare function parseComponentsParam(params: Record<string, unknown>): void;
+export declare function parseJsonMessageParam(params: Record<string, unknown>, key: string): void;
 export declare function parseInteractiveParam(params: Record<string, unknown>): void;

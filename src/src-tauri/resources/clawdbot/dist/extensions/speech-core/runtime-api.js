@@ -1,23 +1,23 @@
-import { r as redactSensitiveText } from "../../redact-D4nea1HF.js";
-import { i as formatErrorMessage } from "../../errors-D8p6rxH8.js";
-import { i as normalizeLowercaseStringOrEmpty, o as normalizeOptionalLowercaseString, s as normalizeOptionalString } from "../../string-coerce-BUSzWgUA.js";
-import { f as resolveConfigDir, m as resolveUserPath } from "../../utils-D5DtWkEu.js";
-import { t as isVerbose } from "../../global-state-LrCGCReA.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-eyAoWbVe.js";
-import { r as logVerbose } from "../../globals-De6QTwLG.js";
-import { i as normalizeChannelId } from "../../registry-Delpa74L.js";
-import { p as resolveSendableOutboundReplyParts } from "../../reply-payload-Db_8BQiX.js";
-import { r as stripMarkdown } from "../../text-runtime-DTMxvodz.js";
-import "../../error-runtime-CgBDklBz.js";
-import { n as normalizeTtsAutoMode } from "../../tts-auto-mode-ZhfpRKB9.js";
-import "../../channel-targets-DhS74GMe.js";
-import "../../sandbox-DtVcRu90.js";
-import "../../runtime-env-DjtBb0Ku.js";
-import { a as scheduleCleanup, o as summarizeText } from "../../speech-core-D2B95hFO.js";
-import { i as normalizeSpeechProviderId, n as getSpeechProvider, r as listSpeechProviders, t as canonicalizeSpeechProviderId } from "../../provider-registry-CasPS0mm.js";
-import { a as parseTtsDirectives } from "../../provider-error-utils-CyJAWFR1.js";
-import "../../logging-core-CqXBUxbp.js";
-import "../../api-l08hpsA9.js";
+import { r as redactSensitiveText } from "../../redact-Bl2deF7j.js";
+import { i as formatErrorMessage } from "../../errors-Jbvi20TW.js";
+import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, s as normalizeOptionalLowercaseString } from "../../string-coerce-C1IzJjqi.js";
+import { S as isVerbose } from "../../logger-x0IvPL2B.js";
+import { f as resolveConfigDir, m as resolveUserPath } from "../../utils-BMRcljdi.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-CoGSA-7K.js";
+import { r as logVerbose } from "../../globals-DeRFSEIV.js";
+import { i as normalizeChannelId } from "../../registry-B2TRwbJD.js";
+import { m as resolveSendableOutboundReplyParts } from "../../reply-payload-COWCxmsk.js";
+import { r as stripMarkdown } from "../../text-runtime-B1c54bxG.js";
+import "../../error-runtime-D8vVwCEz.js";
+import { n as normalizeTtsAutoMode } from "../../tts-auto-mode-TQ1RcRY-.js";
+import "../../channel-targets-Cnyzt4b1.js";
+import "../../sandbox-CX-07P49.js";
+import "../../runtime-env-BIRphFQj.js";
+import { o as scheduleCleanup, t as parseTtsDirectives } from "../../directives-BpjxbYko.js";
+import { t as summarizeText } from "../../speech-core-D6nXaNeC.js";
+import { i as normalizeSpeechProviderId, n as getSpeechProvider, r as listSpeechProviders, t as canonicalizeSpeechProviderId } from "../../provider-registry-Be32s6G6.js";
+import "../../logging-core-BqHYYeyJ.js";
+import "../../api-Be3b3R43.js";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -444,6 +444,7 @@ async function synthesizeSpeech(params) {
 		error: setup.error
 	};
 	const { config, providers } = setup;
+	const timeoutMs = params.timeoutMs ?? config.timeoutMs;
 	const target = supportsNativeVoiceNoteTts(params.channel) ? "voice-note" : "audio-file";
 	const errors = [];
 	const attemptedProviders = [];
@@ -476,7 +477,7 @@ async function synthesizeSpeech(params) {
 				providerConfig: resolvedProvider.providerConfig,
 				target,
 				providerOverrides: params.overrides?.providerOverrides?.[resolvedProvider.provider.id],
-				timeoutMs: config.timeoutMs
+				timeoutMs
 			});
 			const latencyMs = Date.now() - providerStart;
 			attempts.push({
@@ -553,6 +554,18 @@ async function textToSpeechTelephony(params) {
 				continue;
 			}
 			const synthesizeTelephony = resolvedProvider.provider.synthesizeTelephony;
+			if (!synthesizeTelephony) {
+				const message = `${provider}: unsupported for telephony`;
+				errors.push(message);
+				attempts.push({
+					provider,
+					outcome: "skipped",
+					reasonCode: "unsupported_for_telephony",
+					error: message
+				});
+				logVerbose(`TTS telephony: provider ${provider} skipped (${message})`);
+				continue;
+			}
 			const synthesis = await synthesizeTelephony({
 				text: params.text,
 				cfg: params.cfg,

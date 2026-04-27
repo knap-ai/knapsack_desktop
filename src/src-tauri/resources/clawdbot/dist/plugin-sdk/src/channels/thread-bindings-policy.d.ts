@@ -1,4 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { type ThreadBindingLifecycleRecord } from "../shared/thread-binding-lifecycle.js";
+export { resolveThreadBindingLifecycle, type ThreadBindingLifecycleRecord, } from "../shared/thread-binding-lifecycle.js";
 export type ThreadBindingSpawnKind = "subagent" | "acp";
 export type ThreadBindingSpawnPolicy = {
     channel: string;
@@ -20,20 +22,6 @@ export declare function resolveThreadBindingMaxAgeMs(params: {
     channelMaxAgeHoursRaw: unknown;
     sessionMaxAgeHoursRaw: unknown;
 }): number;
-type ThreadBindingLifecycleRecord = {
-    boundAt: number;
-    lastActivityAt: number;
-    idleTimeoutMs?: number;
-    maxAgeMs?: number;
-};
-export declare function resolveThreadBindingLifecycle(params: {
-    record: ThreadBindingLifecycleRecord;
-    defaultIdleTimeoutMs: number;
-    defaultMaxAgeMs: number;
-}): {
-    expiresAt?: number;
-    reason?: "idle-expired" | "max-age-expired";
-};
 export declare function resolveThreadBindingEffectiveExpiresAt(params: {
     record: ThreadBindingLifecycleRecord;
     defaultIdleTimeoutMs: number;
@@ -69,4 +57,3 @@ export declare function formatThreadBindingSpawnDisabledError(params: {
     accountId: string;
     kind: ThreadBindingSpawnKind;
 }): string;
-export {};

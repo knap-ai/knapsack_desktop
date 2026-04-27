@@ -1,4 +1,4 @@
-import { t as createBaseWebSearchProviderContractFields } from "../../provider-web-search-contract-fields-BNSdd2mW.js";
+import { t as createBaseWebSearchProviderContractFields } from "../../provider-web-search-contract-fields-SYSI7qZL.js";
 //#region extensions/brave/web-search-contract-api.ts
 function createBraveWebSearchProvider() {
 	const credentialPath = "plugins.entries.brave.config.webSearch.apiKey";

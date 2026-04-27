@@ -1,7 +1,7 @@
-import { t as discordPlugin } from "./channel-o0mosQGD.js";
-import { t as __testing } from "./thread-bindings.manager-BfxhjvHf.js";
-import { n as discordOutbound } from "./outbound-adapter-bhTRyGb7.js";
-import { n as buildDiscordInboundAccessContext } from "./inbound-context-DouSdifA.js";
+import { t as discordPlugin } from "./channel-CGp7scNs.js";
+import { n as discordOutbound } from "./outbound-adapter-BYJSnkBS.js";
+import { t as __testing } from "./thread-bindings.manager-CruIzjJd.js";
+import { n as buildDiscordInboundAccessContext } from "./inbound-context-BauDdPGn.js";
 import { finalizeInboundContext } from "openclaw/plugin-sdk/reply-dispatch-runtime";
 //#region extensions/discord/src/monitor/inbound-context.test-helpers.ts
 function buildFinalizedDiscordDirectInboundContext() {

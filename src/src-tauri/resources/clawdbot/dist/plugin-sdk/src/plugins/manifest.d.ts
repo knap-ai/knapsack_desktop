@@ -1,12 +1,15 @@
 import type { ChannelConfigRuntimeSchema } from "../channels/plugins/types.config.js";
 import { MANIFEST_KEY } from "../compat/legacy-names.js";
+import { type ModelCatalog, type ModelCatalogAlias, type ModelCatalogCost, type ModelCatalogDiscovery, type ModelCatalogInput, type ModelCatalogModel, type ModelCatalogProvider, type ModelCatalogStatus, type ModelCatalogSuppression, type ModelCatalogTieredCost } from "../model-catalog/index.js";
+import type { JsonSchemaObject } from "../shared/json-schema.types.js";
 import { type PluginManifestCommandAlias } from "./manifest-command-aliases.js";
 import type { PluginConfigUiHint } from "./manifest-types.js";
 import type { PluginKind } from "./plugin-kind.types.js";
 export declare const PLUGIN_MANIFEST_FILENAME = "openclaw.plugin.json";
 export declare const PLUGIN_MANIFEST_FILENAMES: readonly ["openclaw.plugin.json"];
+export declare const MAX_PLUGIN_MANIFEST_BYTES: number;
 export type PluginManifestChannelConfig = {
-    schema: Record<string, unknown>;
+    schema: JsonSchemaObject;
     uiHints?: Record<string, PluginConfigUiHint>;
     runtime?: ChannelConfigRuntimeSchema;
     label?: string;
@@ -25,22 +28,43 @@ export type PluginManifestModelSupport = {
      */
     modelPatterns?: string[];
 };
+export type PluginManifestModelCatalogInput = ModelCatalogInput;
+export type PluginManifestModelCatalogDiscovery = ModelCatalogDiscovery;
+export type PluginManifestModelCatalogStatus = ModelCatalogStatus;
+export type PluginManifestModelCatalogTieredCost = ModelCatalogTieredCost;
+export type PluginManifestModelCatalogCost = ModelCatalogCost;
+export type PluginManifestModelCatalogModel = ModelCatalogModel;
+export type PluginManifestModelCatalogProvider = ModelCatalogProvider;
+export type PluginManifestModelCatalogAlias = ModelCatalogAlias;
+export type PluginManifestModelCatalogSuppression = ModelCatalogSuppression;
+export type PluginManifestModelCatalog = ModelCatalog;
+export type PluginManifestProviderEndpoint = {
+    /**
+     * Core endpoint class this plugin-owned endpoint should map to. Core must
+     * already know the class; manifests own host/baseUrl matching metadata.
+     */
+    endpointClass: string;
+    /** Hostnames that should resolve to this endpoint class. */
+    hosts?: string[];
+    /** Exact normalized base URLs that should resolve to this endpoint class. */
+    baseUrls?: string[];
+};
 export type PluginManifestActivationCapability = "provider" | "channel" | "tool" | "hook";
 export type PluginManifestActivation = {
     /**
-     * Provider ids that should activate this plugin when explicitly requested.
-     * This is metadata only; runtime loading still happens through the loader.
+     * Provider ids that should include this plugin in activation/load plans.
+     * This is planner metadata only; runtime behavior still comes from register().
      */
     onProviders?: string[];
-    /** Agent harness runtime ids that should activate this plugin. */
+    /** Agent harness runtime ids that should include this plugin in activation/load plans. */
     onAgentHarnesses?: string[];
-    /** Command ids that should activate this plugin. */
+    /** Command ids that should include this plugin in activation/load plans. */
     onCommands?: string[];
-    /** Channel ids that should activate this plugin. */
+    /** Channel ids that should include this plugin in activation/load plans. */
     onChannels?: string[];
-    /** Route kinds that should activate this plugin. */
+    /** Route kinds that should include this plugin in activation/load plans. */
     onRoutes?: string[];
-    /** Cheap capability hints used by future activation planning. */
+    /** Broad capability hints for activation/load plans. Prefer narrower ownership metadata. */
     onCapabilities?: PluginManifestActivationCapability[];
 };
 export type PluginManifestSetupProvider = {
@@ -118,7 +142,7 @@ export type PluginManifestConfigContracts = {
 };
 export type PluginManifest = {
     id: string;
-    configSchema: Record<string, unknown>;
+    configSchema: JsonSchemaObject;
     enabledByDefault?: boolean;
     /** Legacy plugin ids that should normalize to this plugin id. */
     legacyPluginIds?: string[];
@@ -137,14 +161,37 @@ export type PluginManifest = {
      * Use this for shorthand model refs that omit an explicit provider prefix.
      */
     modelSupport?: PluginManifestModelSupport;
+    /**
+     * Declarative model catalog metadata used by future read-only listing,
+     * onboarding, and model picker surfaces before provider runtime loads.
+     */
+    modelCatalog?: PluginManifestModelCatalog;
+    /** Cheap provider endpoint metadata used before provider runtime loads. */
+    providerEndpoints?: PluginManifestProviderEndpoint[];
     /** Cheap startup activation lookup for plugin-owned CLI inference backends. */
     cliBackends?: string[];
+    /**
+     * Provider or CLI backend refs whose plugin-owned synthetic auth hook should
+     * be probed during cold model discovery before the runtime registry exists.
+     */
+    syntheticAuthRefs?: string[];
+    /**
+     * Bundled-plugin-owned placeholder API key values that represent non-secret
+     * local, OAuth, or ambient credential state.
+     */
+    nonSecretAuthMarkers?: string[];
     /**
      * Plugin-owned command aliases that should resolve to this plugin during
      * config diagnostics before runtime loads.
      */
     commandAliases?: PluginManifestCommandAlias[];
-    /** Cheap provider-auth env lookup without booting plugin runtime. */
+    /**
+     * Cheap provider-auth env lookup without booting plugin runtime.
+     *
+     * @deprecated Prefer setup.providers[].envVars for generic setup/status env
+     * metadata. This field remains supported through the provider env-var
+     * compatibility adapter during the deprecation window.
+     */
     providerAuthEnvVars?: Record<string, string[]>;
     /** Provider ids that should reuse another provider id for auth lookup. */
     providerAuthAliases?: Record<string, string>;
@@ -155,7 +202,7 @@ export type PluginManifest = {
      * and non-runtime auth-choice routing before provider runtime loads.
      */
     providerAuthChoices?: PluginManifestProviderAuthChoice[];
-    /** Cheap activation hints exposed before plugin runtime loads. */
+    /** Cheap activation planner metadata exposed before plugin runtime loads. */
     activation?: PluginManifestActivation;
     /** Cheap setup/onboarding metadata exposed before plugin runtime loads. */
     setup?: PluginManifestSetup;
@@ -171,22 +218,41 @@ export type PluginManifest = {
      * compat wiring, and contract coverage without importing plugin runtime.
      */
     contracts?: PluginManifestContracts;
+    /** Cheap media-understanding provider defaults without importing plugin runtime. */
+    mediaUnderstandingProviderMetadata?: Record<string, PluginManifestMediaUnderstandingProviderMetadata>;
     /** Manifest-owned config behavior consumed by generic core helpers. */
     configContracts?: PluginManifestConfigContracts;
     channelConfigs?: Record<string, PluginManifestChannelConfig>;
 };
 export type PluginManifestContracts = {
+    embeddedExtensionFactories?: string[];
+    agentToolResultMiddleware?: string[];
+    /**
+     * Provider ids whose external auth profile hook can contribute runtime-only
+     * credentials. Declaring this lets auth-store overlays load only the owning
+     * plugin instead of every provider plugin.
+     */
+    externalAuthProviders?: string[];
     memoryEmbeddingProviders?: string[];
     speechProviders?: string[];
     realtimeTranscriptionProviders?: string[];
     realtimeVoiceProviders?: string[];
     mediaUnderstandingProviders?: string[];
+    documentExtractors?: string[];
     imageGenerationProviders?: string[];
     videoGenerationProviders?: string[];
     musicGenerationProviders?: string[];
+    webContentExtractors?: string[];
     webFetchProviders?: string[];
     webSearchProviders?: string[];
     tools?: string[];
+};
+export type PluginManifestMediaUnderstandingCapability = "image" | "audio" | "video";
+export type PluginManifestMediaUnderstandingProviderMetadata = {
+    capabilities?: PluginManifestMediaUnderstandingCapability[];
+    defaultModels?: Partial<Record<PluginManifestMediaUnderstandingCapability, string>>;
+    autoPriority?: Partial<Record<PluginManifestMediaUnderstandingCapability, number>>;
+    nativeDocumentInputs?: Array<"pdf">;
 };
 export type PluginManifestProviderAuthChoice = {
     /** Provider id owned by this manifest entry. */
@@ -265,12 +331,26 @@ export type PluginPackageChannel = {
         specifier?: string;
         exportName?: string;
     };
+    doctorCapabilities?: PluginPackageChannelDoctorCapabilities;
+    cliAddOptions?: readonly PluginPackageChannelCliOption[];
+};
+export type PluginPackageChannelDoctorCapabilities = {
+    dmAllowFromMode?: "topOnly" | "topOrNested" | "nestedOnly";
+    groupModel?: "sender" | "route" | "hybrid";
+    groupAllowFromFallbackToAllowFrom?: boolean;
+    warnOnEmptyGroupSenderAllowlist?: boolean;
+};
+export type PluginPackageChannelCliOption = {
+    flags: string;
+    description: string;
+    defaultValue?: boolean | string;
 };
 export type PluginPackageInstall = {
     npmSpec?: string;
     localPath?: string;
     defaultChoice?: "npm" | "local";
     minHostVersion?: string;
+    expectedIntegrity?: string;
     allowInvalidConfigRecovery?: boolean;
 };
 export type OpenClawPackageStartup = {
@@ -280,9 +360,17 @@ export type OpenClawPackageStartup = {
      */
     deferConfiguredChannelFullLoadUntilAfterListen?: boolean;
 };
+export type OpenClawPackageSetupFeatures = {
+    configPromotion?: boolean;
+    legacyStateMigrations?: boolean;
+    legacySessionSurfaces?: boolean;
+};
 export type OpenClawPackageManifest = {
     extensions?: string[];
+    runtimeExtensions?: string[];
     setupEntry?: string;
+    runtimeSetupEntry?: string;
+    setupFeatures?: OpenClawPackageSetupFeatures;
     channel?: PluginPackageChannel;
     install?: PluginPackageInstall;
     startup?: OpenClawPackageStartup;

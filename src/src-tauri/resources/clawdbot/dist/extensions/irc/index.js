@@ -1,4 +1,4 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
 //#region extensions/irc/index.ts
 var irc_default = defineBundledChannelEntry({
 	id: "irc",

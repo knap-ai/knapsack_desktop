@@ -1,4 +1,6 @@
-export type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "adaptive";
+import { normalizeFastMode } from "../shared/string-coerce.js";
+export { normalizeFastMode };
+export type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "adaptive" | "max";
 export type VerboseLevel = "off" | "on" | "full";
 export type TraceLevel = "off" | "on" | "raw";
 export type NoticeLevel = "off" | "on" | "full";
@@ -11,8 +13,9 @@ export type ThinkingCatalogEntry = {
     id: string;
     reasoning?: boolean;
 };
+export declare const BASE_THINKING_LEVELS: ThinkLevel[];
+export declare const THINKING_LEVEL_RANKS: Record<ThinkLevel, number>;
 export declare function isBinaryThinkingProvider(provider?: string | null): boolean;
-export declare function supportsBuiltInXHighThinking(provider?: string | null, model?: string | null): boolean;
 export declare function normalizeThinkLevel(raw?: string | null): ThinkLevel | undefined;
 export declare function listThinkingLevels(_provider?: string | null, _model?: string | null): ThinkLevel[];
 export declare function listThinkingLevelLabels(provider?: string | null, model?: string | null): string[];
@@ -28,7 +31,6 @@ export declare function normalizeTraceLevel(raw?: string | null): TraceLevel | u
 export declare function normalizeNoticeLevel(raw?: string | null): NoticeLevel | undefined;
 export declare function normalizeUsageDisplay(raw?: string | null): UsageDisplayLevel | undefined;
 export declare function resolveResponseUsageMode(raw?: string | null): UsageDisplayLevel;
-export declare function normalizeFastMode(raw?: string | boolean | null): boolean | undefined;
 export declare function normalizeElevatedLevel(raw?: string | null): ElevatedLevel | undefined;
 export declare function resolveElevatedMode(level?: ElevatedLevel | null): ElevatedMode;
 export declare function normalizeReasoningLevel(raw?: string | null): ReasoningLevel | undefined;

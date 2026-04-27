@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { t as registerAnthropicPlugin } from "../../register.runtime-DmIHMeUp.js";
+import { registerAnthropicPlugin } from "./register.runtime.js";
+import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 //#region extensions/anthropic/index.ts
 var anthropic_default = definePluginEntry({
 	id: "anthropic",

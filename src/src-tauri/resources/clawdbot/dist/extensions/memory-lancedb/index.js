@@ -1,13 +1,14 @@
-import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
-import { n as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-yJO9KyXW.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../runtime-env-DjtBb0Ku.js";
-import "../../api-CQaTB0Jd.js";
-import { i as vectorDimsForModel, n as MEMORY_CATEGORIES, r as memoryConfigSchema } from "../../config-De_i-woE.js";
-import { n as loadLanceDbModule } from "../../lancedb-runtime-1dPzbeym.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
+import { r as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-KzKcGOUY.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../runtime-env-BIRphFQj.js";
+import { n as resolveLivePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
+import "../../api-BrCKW89g.js";
+import { i as vectorDimsForModel, n as MEMORY_CATEGORIES, r as memoryConfigSchema } from "../../config-BxPyU4Cq.js";
+import { n as loadLanceDbModule } from "../../lancedb-runtime-CIa-2Wte.js";
 import { randomUUID } from "node:crypto";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import OpenAI from "openai";
 //#region extensions/memory-lancedb/index.ts
 /**
@@ -17,6 +18,9 @@ import OpenAI from "openai";
 * Uses LanceDB for storage and OpenAI for embeddings.
 * Provides seamless auto-recall and auto-capture via lifecycle hooks.
 */
+function asRecord(value) {
+	return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
 const TABLE_NAME = "memories";
 var MemoryDB = class {
 	constructor(dbPath, vectorDim, storageOptions) {
@@ -30,7 +34,10 @@ var MemoryDB = class {
 	async ensureInitialized() {
 		if (this.table) return;
 		if (this.initPromise) return this.initPromise;
-		this.initPromise = this.doInitialize();
+		this.initPromise = this.doInitialize().catch((error) => {
+			this.initPromise = null;
+			throw error;
+		});
 		return this.initPromise;
 	}
 	async doInitialize() {
@@ -173,8 +180,33 @@ var memory_lancedb_default = definePluginEntry({
 		const dbPath = cfg.dbPath;
 		const resolvedDbPath = dbPath.includes("://") ? dbPath : api.resolvePath(dbPath);
 		const { model, dimensions, apiKey, baseUrl } = cfg.embedding;
+		const disabledHookCfg = {
+			...cfg,
+			autoCapture: false,
+			autoRecall: false
+		};
 		const db = new MemoryDB(resolvedDbPath, dimensions ?? vectorDimsForModel(model), cfg.storageOptions);
 		const embeddings = new Embeddings(apiKey, model, baseUrl, dimensions);
+		const resolveCurrentHookConfig = () => {
+			const runtimePluginConfig = resolveLivePluginConfigObject(api.runtime.config?.loadConfig, "memory-lancedb", api.pluginConfig);
+			if (!runtimePluginConfig) return disabledHookCfg;
+			return memoryConfigSchema.parse({
+				embedding: {
+					apiKey: cfg.embedding.apiKey,
+					model: cfg.embedding.model,
+					...cfg.embedding.baseUrl ? { baseUrl: cfg.embedding.baseUrl } : {},
+					...typeof cfg.embedding.dimensions === "number" ? { dimensions: cfg.embedding.dimensions } : {},
+					...asRecord(asRecord(runtimePluginConfig)?.embedding)
+				},
+				...cfg.dreaming ? { dreaming: cfg.dreaming } : {},
+				dbPath: cfg.dbPath,
+				autoCapture: cfg.autoCapture,
+				autoRecall: cfg.autoRecall,
+				captureMaxChars: cfg.captureMaxChars,
+				...cfg.storageOptions ? { storageOptions: cfg.storageOptions } : {},
+				...asRecord(runtimePluginConfig)
+			});
+		};
 		api.logger.info(`memory-lancedb: plugin registered (db: ${resolvedDbPath}, lazy init)`);
 		api.registerTool({
 			name: "memory_recall",
@@ -341,7 +373,7 @@ var memory_lancedb_default = definePluginEntry({
 			});
 			memory.command("search").description("Search memories").argument("<query>", "Search query").option("--limit <n>", "Max results", "5").action(async (query, opts) => {
 				const vector = await embeddings.embed(query);
-				const output = (await db.search(vector, parseInt(opts.limit), .3)).map((r) => ({
+				const output = (await db.search(vector, Number.parseInt(opts.limit, 10), .3)).map((r) => ({
 					id: r.entry.id,
 					text: r.entry.text,
 					category: r.entry.category,
@@ -355,7 +387,8 @@ var memory_lancedb_default = definePluginEntry({
 				console.log(`Total memories: ${count}`);
 			});
 		}, { commands: ["ltm"] });
-		if (cfg.autoRecall) api.on("before_agent_start", async (event) => {
+		api.on("before_prompt_build", async (event) => {
+			if (!resolveCurrentHookConfig().autoRecall) return;
 			if (!event.prompt || event.prompt.length < 5) return;
 			try {
 				const vector = await embeddings.embed(event.prompt);
@@ -370,7 +403,9 @@ var memory_lancedb_default = definePluginEntry({
 				api.logger.warn(`memory-lancedb: recall failed: ${String(err)}`);
 			}
 		});
-		if (cfg.autoCapture) api.on("agent_end", async (event) => {
+		api.on("agent_end", async (event) => {
+			const currentCfg = resolveCurrentHookConfig();
+			if (!currentCfg.autoCapture) return;
 			if (!event.success || !event.messages || event.messages.length === 0) return;
 			try {
 				const texts = [];
@@ -387,7 +422,7 @@ var memory_lancedb_default = definePluginEntry({
 						for (const block of content) if (block && typeof block === "object" && "type" in block && block.type === "text" && "text" in block && typeof block.text === "string") texts.push(block.text);
 					}
 				}
-				const toCapture = texts.filter((text) => text && shouldCapture(text, { maxChars: cfg.captureMaxChars }));
+				const toCapture = texts.filter((text) => text && shouldCapture(text, { maxChars: currentCfg.captureMaxChars }));
 				if (toCapture.length === 0) return;
 				let stored = 0;
 				for (const text of toCapture.slice(0, 3)) {

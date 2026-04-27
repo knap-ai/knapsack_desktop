@@ -1,7 +1,16 @@
+import type { SessionEntry } from "../config/sessions/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ExecApprovalRequest } from "./exec-approvals.js";
 import type { PluginApprovalRequest } from "./plugin-approvals.js";
-type ApprovalRequestLike = ExecApprovalRequest | PluginApprovalRequest;
+export type ApprovalRequestLike = ExecApprovalRequest | PluginApprovalRequest;
+export type PersistedApprovalRequestSessionEntry = {
+    sessionKey: string;
+    entry: SessionEntry;
+};
+export declare function resolvePersistedApprovalRequestSessionEntry(params: {
+    cfg: OpenClawConfig;
+    request: ApprovalRequestLike;
+}): PersistedApprovalRequestSessionEntry | null;
 export declare function resolveApprovalRequestAccountId(params: {
     cfg: OpenClawConfig;
     request: ApprovalRequestLike;
@@ -18,4 +27,3 @@ export declare function doesApprovalRequestMatchChannelAccount(params: {
     channel: string;
     accountId?: string | null;
 }): boolean;
-export {};

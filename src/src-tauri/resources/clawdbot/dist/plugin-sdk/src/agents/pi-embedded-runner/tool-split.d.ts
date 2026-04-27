@@ -5,7 +5,6 @@ export declare function splitSdkTools(options: {
     tools: AnyAgentTool[];
     sandboxEnabled: boolean;
 }): {
-    builtInTools: AnyAgentTool[];
     customTools: ReturnType<typeof toToolDefinitions>;
 };
 export {};

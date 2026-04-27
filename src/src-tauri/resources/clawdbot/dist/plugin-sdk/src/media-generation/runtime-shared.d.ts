@@ -7,6 +7,12 @@ export type ParsedProviderModelRef = {
     model: string;
 };
 export type { MediaGenerationNormalizationMetadataInput, MediaNormalizationEntry, MediaNormalizationValue, } from "./normalization.types.js";
+export declare function recordCapabilityCandidateFailure(params: {
+    attempts: FallbackAttempt[];
+    provider: string;
+    model: string;
+    error: unknown;
+}): void;
 export declare function hasMediaNormalizationEntry<TValue extends MediaNormalizationValue>(entry: MediaNormalizationEntry<TValue> | undefined): entry is MediaNormalizationEntry<TValue>;
 type CapabilityProviderCandidate = {
     id: string;

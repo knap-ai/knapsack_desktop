@@ -8,6 +8,7 @@ import { type ReplyOperation } from "./reply-run-registry.js";
 import type { TypingController } from "./typing.js";
 export declare function runReplyAgent(params: {
     commandBody: string;
+    transcriptCommandBody?: string;
     followupRun: FollowupRun;
     queueKey: string;
     resolvedQueue: QueueSettings;
@@ -21,6 +22,7 @@ export declare function runReplyAgent(params: {
     sessionEntry?: SessionEntry;
     sessionStore?: Record<string, SessionEntry>;
     sessionKey?: string;
+    runtimePolicySessionKey?: string;
     storePath?: string;
     defaultModel: string;
     agentCfgContextTokens?: number;
@@ -38,5 +40,6 @@ export declare function runReplyAgent(params: {
     shouldInjectGroupIntro: boolean;
     typingMode: TypingMode;
     resetTriggered?: boolean;
+    replyThreadingOverride?: TemplateContext["ReplyThreading"];
     replyOperation?: ReplyOperation;
 }): Promise<ReplyPayload | ReplyPayload[] | undefined>;

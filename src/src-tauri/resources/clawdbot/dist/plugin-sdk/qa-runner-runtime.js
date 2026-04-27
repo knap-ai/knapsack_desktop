@@ -1,6 +1,6 @@
 import { n as resolveOpenClawPackageRootSync } from "../openclaw-root-BNWw3cXT.js";
-import { t as loadPluginManifestRegistry } from "../manifest-registry-Bd3A4lqx.js";
-import { n as loadBundledPluginPublicSurfaceModuleSync, r as tryLoadActivatedBundledPluginPublicSurfaceModuleSync } from "../facade-runtime-gSGchfr7.js";
+import { t as loadPluginManifestRegistry } from "../manifest-registry-pYrbrdHJ.js";
+import { i as tryLoadActivatedBundledPluginPublicSurfaceModuleSync, r as loadBundledPluginPublicSurfaceModuleSync } from "../facade-runtime-wWkqgIbw.js";
 import fs from "node:fs";
 import path from "node:path";
 //#region src/plugin-sdk/private-qa-bundled-env.ts

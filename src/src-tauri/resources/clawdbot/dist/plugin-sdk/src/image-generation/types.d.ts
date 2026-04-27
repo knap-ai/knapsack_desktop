@@ -9,7 +9,20 @@ export type GeneratedImageAsset = {
     metadata?: Record<string, unknown>;
 };
 export type ImageGenerationResolution = "1K" | "2K" | "4K";
-export type ImageGenerationIgnoredOverrideKey = "size" | "aspectRatio" | "resolution";
+export type ImageGenerationQuality = "low" | "medium" | "high" | "auto";
+export type ImageGenerationOutputFormat = "png" | "jpeg" | "webp";
+export type ImageGenerationOpenAIBackground = "transparent" | "opaque" | "auto";
+export type ImageGenerationOpenAIModeration = "low" | "auto";
+export type ImageGenerationOpenAIOptions = {
+    background?: ImageGenerationOpenAIBackground;
+    moderation?: ImageGenerationOpenAIModeration;
+    outputCompression?: number;
+    user?: string;
+};
+export type ImageGenerationProviderOptions = {
+    openai?: ImageGenerationOpenAIOptions;
+};
+export type ImageGenerationIgnoredOverrideKey = "size" | "aspectRatio" | "resolution" | "quality" | "outputFormat";
 export type ImageGenerationIgnoredOverride = {
     key: ImageGenerationIgnoredOverrideKey;
     value: string;
@@ -36,7 +49,10 @@ export type ImageGenerationRequest = {
     size?: string;
     aspectRatio?: string;
     resolution?: ImageGenerationResolution;
+    quality?: ImageGenerationQuality;
+    outputFormat?: ImageGenerationOutputFormat;
     inputImages?: ImageGenerationSourceImage[];
+    providerOptions?: ImageGenerationProviderOptions;
 };
 export type ImageGenerationResult = {
     images: GeneratedImageAsset[];
@@ -58,6 +74,10 @@ export type ImageGenerationGeometryCapabilities = {
     aspectRatios?: string[];
     resolutions?: ImageGenerationResolution[];
 };
+export type ImageGenerationOutputCapabilities = {
+    qualities?: ImageGenerationQuality[];
+    formats?: ImageGenerationOutputFormat[];
+};
 export type ImageGenerationNormalization = {
     size?: MediaNormalizationEntry<string>;
     aspectRatio?: MediaNormalizationEntry<string>;
@@ -67,6 +87,7 @@ export type ImageGenerationProviderCapabilities = {
     generate: ImageGenerationModeCapabilities;
     edit: ImageGenerationEditCapabilities;
     geometry?: ImageGenerationGeometryCapabilities;
+    output?: ImageGenerationOutputCapabilities;
 };
 export type ImageGenerationProvider = {
     id: string;

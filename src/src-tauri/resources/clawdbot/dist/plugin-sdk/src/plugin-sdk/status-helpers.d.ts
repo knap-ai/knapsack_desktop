@@ -19,6 +19,7 @@ type RuntimeLifecycleSnapshot = {
         loggedOut?: boolean;
     } | null;
     lastEventAt?: number | null;
+    lastTransportActivityAt?: number | null;
     healthState?: string | null;
     lastStartAt?: number | null;
     lastStopAt?: number | null;
@@ -82,12 +83,12 @@ export declare function buildProbeChannelStatusSummary<TExtra extends Record<str
 }, extra?: TExtra): {
     configured: boolean;
 } & TExtra & {
-    probe: unknown;
-    lastProbeAt: number | null;
     running: boolean;
     lastStartAt: number | null;
     lastStopAt: number | null;
     lastError: string | null;
+    probe: unknown;
+    lastProbeAt: number | null;
 };
 /** Build webhook channel summaries with a stable default mode. */
 export declare function buildWebhookChannelStatusSummary<TExtra extends StatusSnapshotExtra>(snapshot: {
@@ -118,29 +119,30 @@ export declare function buildBaseAccountStatusSnapshot<TExtra extends StatusSnap
     runtime?: RuntimeLifecycleSnapshot | null;
     probe?: unknown;
 }, extra?: TExtra): {
+    accountId: string;
+    name: string | undefined;
+    enabled: boolean | undefined;
+    configured: boolean | undefined;
     lastInboundAt: number | null;
     lastOutboundAt: number | null;
-    healthState?: string | undefined;
-    lastEventAt?: number | undefined;
+    running: boolean;
+    lastStartAt: number | null;
+    lastStopAt: number | null;
+    lastError: string | null;
+    probe: unknown;
+    connected?: boolean | undefined;
+    restartPending?: boolean | undefined;
+    reconnectAttempts?: number | undefined;
+    lastConnectedAt?: number | undefined;
     lastDisconnect?: string | {
         at: number;
         status?: number;
         error?: string;
         loggedOut?: boolean;
     } | undefined;
-    lastConnectedAt?: number | undefined;
-    reconnectAttempts?: number | undefined;
-    restartPending?: boolean | undefined;
-    connected?: boolean | undefined;
-    running: boolean;
-    lastStartAt: number | null;
-    lastStopAt: number | null;
-    lastError: string | null;
-    probe: unknown;
-    accountId: string;
-    name: string | undefined;
-    enabled: boolean | undefined;
-    configured: boolean | undefined;
+    lastEventAt?: number | undefined;
+    lastTransportActivityAt?: number | undefined;
+    healthState?: string | undefined;
 } & TExtra;
 /** Convenience wrapper when the caller already has flattened account fields instead of an account object. */
 export declare function buildComputedAccountStatusSnapshot<TExtra extends StatusSnapshotExtra>(params: {
@@ -151,29 +153,30 @@ export declare function buildComputedAccountStatusSnapshot<TExtra extends Status
     runtime?: RuntimeLifecycleSnapshot | null;
     probe?: unknown;
 }, extra?: TExtra): {
+    accountId: string;
+    name: string | undefined;
+    enabled: boolean | undefined;
+    configured: boolean | undefined;
     lastInboundAt: number | null;
     lastOutboundAt: number | null;
-    healthState?: string | undefined;
-    lastEventAt?: number | undefined;
+    running: boolean;
+    lastStartAt: number | null;
+    lastStopAt: number | null;
+    lastError: string | null;
+    probe: unknown;
+    connected?: boolean | undefined;
+    restartPending?: boolean | undefined;
+    reconnectAttempts?: number | undefined;
+    lastConnectedAt?: number | undefined;
     lastDisconnect?: string | {
         at: number;
         status?: number;
         error?: string;
         loggedOut?: boolean;
     } | undefined;
-    lastConnectedAt?: number | undefined;
-    reconnectAttempts?: number | undefined;
-    restartPending?: boolean | undefined;
-    connected?: boolean | undefined;
-    running: boolean;
-    lastStartAt: number | null;
-    lastStopAt: number | null;
-    lastError: string | null;
-    probe: unknown;
-    accountId: string;
-    name: string | undefined;
-    enabled: boolean | undefined;
-    configured: boolean | undefined;
+    lastEventAt?: number | undefined;
+    lastTransportActivityAt?: number | undefined;
+    healthState?: string | undefined;
 } & TExtra;
 /** Build a full status adapter when only configured/extras vary per account. */
 export declare function createComputedAccountStatusAdapter<ResolvedAccount, Probe = unknown, Audit = unknown, TExtra extends StatusSnapshotExtra = StatusSnapshotExtra>(options: Omit<ChannelStatusAdapter<ResolvedAccount, Probe, Audit>, "buildAccountSnapshot"> & {
@@ -188,23 +191,24 @@ export declare function buildRuntimeAccountStatusSnapshot<TExtra extends StatusS
     runtime?: RuntimeLifecycleSnapshot | null;
     probe?: unknown;
 }, extra?: TExtra): {
-    healthState?: string | undefined;
-    lastEventAt?: number | undefined;
+    running: boolean;
+    lastStartAt: number | null;
+    lastStopAt: number | null;
+    lastError: string | null;
+    probe: unknown;
+    connected?: boolean | undefined;
+    restartPending?: boolean | undefined;
+    reconnectAttempts?: number | undefined;
+    lastConnectedAt?: number | undefined;
     lastDisconnect?: string | {
         at: number;
         status?: number;
         error?: string;
         loggedOut?: boolean;
     } | undefined;
-    lastConnectedAt?: number | undefined;
-    reconnectAttempts?: number | undefined;
-    restartPending?: boolean | undefined;
-    connected?: boolean | undefined;
-    running: boolean;
-    lastStartAt: number | null;
-    lastStopAt: number | null;
-    lastError: string | null;
-    probe: unknown;
+    lastEventAt?: number | undefined;
+    lastTransportActivityAt?: number | undefined;
+    healthState?: string | undefined;
 } & TExtra;
 /** Build token-based channel status summaries with optional mode reporting. */
 export declare function buildTokenChannelStatusSummary(snapshot: {
@@ -220,24 +224,24 @@ export declare function buildTokenChannelStatusSummary(snapshot: {
 }, opts?: {
     includeMode?: boolean;
 }): {
-    tokenSource: string;
-    probe: unknown;
-    lastProbeAt: number | null;
     configured: boolean;
     running: boolean;
     lastStartAt: number | null;
     lastStopAt: number | null;
     lastError: string | null;
+    tokenSource: string;
+    probe: unknown;
+    lastProbeAt: number | null;
 } | {
-    mode: string | null;
-    tokenSource: string;
-    probe: unknown;
-    lastProbeAt: number | null;
     configured: boolean;
     running: boolean;
     lastStartAt: number | null;
     lastStopAt: number | null;
     lastError: string | null;
+    tokenSource: string;
+    probe: unknown;
+    lastProbeAt: number | null;
+    mode: string | null;
 };
 /** Build a config-issue collector from snapshot-safe source metadata only. */
 export declare function createDependentCredentialStatusIssueCollector(options: {

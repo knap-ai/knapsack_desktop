@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { i as resolveAnthropicVertexConfigApiKey } from "../../region-CanK2Bay.js";
+import { resolveAnthropicVertexConfigApiKey } from "./region.js";
+import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 //#region extensions/anthropic-vertex/setup-api.ts
 var setup_api_default = definePluginEntry({
 	id: "anthropic-vertex",

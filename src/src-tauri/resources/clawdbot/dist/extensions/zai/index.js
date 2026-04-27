@@ -1,22 +1,22 @@
-import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-DqcJmob1.js";
-import { i as normalizeModelCompat } from "../../provider-model-compat-Dsxuyzi4.js";
-import { o as upsertAuthProfile } from "../../profiles-CVErLX2C.js";
-import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
-import { i as defaultToolStreamExtraParams } from "../../provider-stream-shared-DisAYlnl.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-fye6IC_1.js";
-import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-DKL5bJRR.js";
-import "../../provider-auth-api-key-F-AGqwyB.js";
-import { s as TOOL_STREAM_DEFAULT_ON_HOOKS } from "../../provider-stream-DMhSzU-H.js";
-import "../../provider-stream-family-CjEB-fh0.js";
-import { a as resolveLegacyPiAgentAccessToken } from "../../provider-usage.shared-B28ujaJI.js";
-import { t as fetchZaiUsage } from "../../provider-usage-G4no-csD.js";
-import { t as detectZaiEndpoint } from "../../detect-8-DoVrrA.js";
-import { t as zaiMediaUnderstandingProvider } from "../../media-understanding-provider-BKiPLuqy.js";
-import { c as buildZaiModelDefinition } from "../../model-definitions-CLSSKfOG.js";
-import { n as applyZaiConfig, r as applyZaiProviderConfig, t as ZAI_DEFAULT_MODEL_REF } from "../../onboard-B_M93OhR.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CkOd5v2f.js";
+import { a as normalizeModelCompat } from "../../provider-model-compat-C_Djlg3U.js";
+import { i as upsertAuthProfile } from "../../profiles-RuCKjoVP.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
+import { s as defaultToolStreamExtraParams } from "../../provider-stream-shared-BYe_GyIX.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-BHhtM4mz.js";
+import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-BIVX-4NW.js";
+import "../../provider-auth-api-key-BVwjjhIk.js";
+import { s as TOOL_STREAM_DEFAULT_ON_HOOKS } from "../../provider-stream-CNYlhjpk.js";
+import "../../provider-stream-family-DoMxNUtY.js";
+import { a as resolveLegacyPiAgentAccessToken } from "../../provider-usage.shared-CcKpxFl6.js";
+import { t as fetchZaiUsage } from "../../provider-usage-Bi4CRsxy.js";
+import { t as detectZaiEndpoint } from "../../detect-BF4J9cVR.js";
+import { t as zaiMediaUnderstandingProvider } from "../../media-understanding-provider-DZujcgL5.js";
+import { c as buildZaiModelDefinition } from "../../model-definitions-DQoIKn0X.js";
+import { n as applyZaiConfig, r as applyZaiProviderConfig, t as ZAI_DEFAULT_MODEL_REF } from "../../onboard-B-SYmGNq.js";
 //#region extensions/zai/index.ts
 const PROVIDER_ID = "zai";
 const GLM5_TEMPLATE_MODEL_ID = "glm-4.7";
@@ -217,7 +217,16 @@ var zai_default = definePluginEntry({
 			...OPENAI_COMPATIBLE_REPLAY_HOOKS,
 			prepareExtraParams: (ctx) => defaultToolStreamExtraParams(ctx.extraParams),
 			...TOOL_STREAM_DEFAULT_ON_HOOKS,
-			isBinaryThinking: () => true,
+			resolveThinkingProfile: () => ({
+				levels: [{
+					id: "off",
+					label: "off"
+				}, {
+					id: "low",
+					label: "on"
+				}],
+				defaultLevel: "off"
+			}),
 			isModernModelRef: ({ modelId }) => {
 				const lower = normalizeLowercaseStringOrEmpty(modelId);
 				return lower.startsWith("glm-5") || lower.startsWith("glm-4.7") || lower.startsWith("glm-4.7-flash") || lower.startsWith("glm-4.7-flashx");

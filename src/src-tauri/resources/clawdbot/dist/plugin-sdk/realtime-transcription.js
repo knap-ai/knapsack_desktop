@@ -1,2 +1,2 @@
-import { i as normalizeRealtimeTranscriptionProviderId, n as getRealtimeTranscriptionProvider, r as listRealtimeTranscriptionProviders, t as canonicalizeRealtimeTranscriptionProviderId } from "../realtime-transcription-DKDxjsA4.js";
-export { canonicalizeRealtimeTranscriptionProviderId, getRealtimeTranscriptionProvider, listRealtimeTranscriptionProviders, normalizeRealtimeTranscriptionProviderId };
+import { a as normalizeRealtimeTranscriptionProviderId, i as listRealtimeTranscriptionProviders, n as canonicalizeRealtimeTranscriptionProviderId, r as getRealtimeTranscriptionProvider, t as createRealtimeTranscriptionWebSocketSession } from "../realtime-transcription-ieto4tgY.js";
+export { canonicalizeRealtimeTranscriptionProviderId, createRealtimeTranscriptionWebSocketSession, getRealtimeTranscriptionProvider, listRealtimeTranscriptionProviders, normalizeRealtimeTranscriptionProviderId };

@@ -1,15 +1,17 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginCompatCode } from "./compat/registry.js";
+import { type PluginCapabilityEntry, type PluginInspectShape } from "./inspect-shape.js";
 import type { PluginDiagnostic } from "./manifest-types.js";
 import type { PluginRegistry } from "./registry.js";
-import type { PluginHookName } from "./types.js";
+import type { PluginHookName, PluginLogger } from "./types.js";
 export type PluginStatusReport = PluginRegistry & {
     workspaceDir?: string;
 };
-export type PluginCapabilityKind = "cli-backend" | "text-inference" | "speech" | "realtime-transcription" | "realtime-voice" | "media-understanding" | "image-generation" | "web-search" | "agent-harness" | "context-engine" | "channel";
-export type PluginInspectShape = "hook-only" | "plain-capability" | "hybrid-capability" | "non-capability";
+export type { PluginCapabilityKind, PluginInspectShape } from "./inspect-shape.js";
 export type PluginCompatibilityNotice = {
     pluginId: string;
     code: "legacy-before-agent-start" | "hook-only";
+    compatCode: PluginCompatCode;
     severity: "warn" | "info";
     message: string;
 };
@@ -23,10 +25,7 @@ export type PluginInspectReport = {
     shape: PluginInspectShape;
     capabilityMode: "none" | "plain" | "hybrid";
     capabilityCount: number;
-    capabilities: Array<{
-        kind: PluginCapabilityKind;
-        ids: string[];
-    }>;
+    capabilities: PluginCapabilityEntry[];
     typedHooks: Array<{
         name: PluginHookName;
         priority?: number;
@@ -42,6 +41,7 @@ export type PluginInspectReport = {
     commands: string[];
     cliCommands: string[];
     services: string[];
+    gatewayDiscoveryServices: string[];
     gatewayMethods: string[];
     mcpServers: Array<{
         name: string;
@@ -56,6 +56,7 @@ export type PluginInspectReport = {
     diagnostics: PluginDiagnostic[];
     policy: {
         allowPromptInjection?: boolean;
+        allowConversationAccess?: boolean;
         allowModelOverride?: boolean;
         allowedModels: string[];
         hasAllowedModelsConfig: boolean;
@@ -68,6 +69,7 @@ type PluginReportParams = {
     workspaceDir?: string;
     /** Use an explicit env when plugin roots should resolve independently from process.env. */
     env?: NodeJS.ProcessEnv;
+    logger?: PluginLogger;
 };
 export declare function buildPluginSnapshotReport(params?: PluginReportParams): PluginStatusReport;
 export declare function buildPluginDiagnosticsReport(params?: PluginReportParams): PluginStatusReport;
@@ -76,26 +78,34 @@ export declare function buildPluginInspectReport(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    logger?: PluginLogger;
     report?: PluginStatusReport;
 }): PluginInspectReport | null;
 export declare function buildAllPluginInspectReports(params?: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    logger?: PluginLogger;
     report?: PluginStatusReport;
 }): PluginInspectReport[];
 export declare function buildPluginCompatibilityWarnings(params?: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    logger?: PluginLogger;
     report?: PluginStatusReport;
 }): string[];
 export declare function buildPluginCompatibilityNotices(params?: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    logger?: PluginLogger;
     report?: PluginStatusReport;
+}): PluginCompatibilityNotice[];
+export declare function buildPluginCompatibilitySnapshotNotices(params?: {
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
 }): PluginCompatibilityNotice[];
 export declare function formatPluginCompatibilityNotice(notice: PluginCompatibilityNotice): string;
 export declare function summarizePluginCompatibility(notices: PluginCompatibilityNotice[]): PluginCompatibilitySummary;
-export {};

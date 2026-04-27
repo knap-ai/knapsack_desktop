@@ -18,4 +18,5 @@ export declare function toLocationContext(location: NormalizedLocation): {
     LocationAddress?: string;
     LocationSource: LocationSource;
     LocationIsLive: boolean;
+    LocationCaption?: string;
 };

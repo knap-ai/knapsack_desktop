@@ -10,7 +10,7 @@ function normalizePathCandidate(candidate, cwd) {
 		return resolved;
 	}
 }
-function isMainModule({ currentFile, argv = process.argv, env = process.env, cwd = (() => { try { return process.cwd(); } catch { return '/'; } })(), wrapperEntryPairs = [] }) {
+function isMainModule({ currentFile, argv = process.argv, env = process.env, cwd = process.cwd(), wrapperEntryPairs = [] }) {
 	const normalizedCurrent = normalizePathCandidate(currentFile, cwd);
 	const normalizedArgv1 = normalizePathCandidate(argv[1], cwd);
 	if (normalizedCurrent && normalizedArgv1 && normalizedCurrent === normalizedArgv1) return true;

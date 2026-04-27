@@ -14,7 +14,7 @@ export declare function getResolvedConsoleSettings(): ConsoleLoggerSettings;
 export declare function routeLogsToStderr(): void;
 export declare function setConsoleSubsystemFilter(filters?: string[] | null): void;
 export declare function setConsoleTimestampPrefix(enabled: boolean): void;
-export declare function shouldLogSubsystemToConsole(subsystem: string): boolean;
+export declare function shouldLogSubsystemToConsole(subsystem?: string | null): boolean;
 export declare function formatConsoleTimestamp(style: ConsoleStyle): string;
 /**
  * Route console.* calls through file logging while still emitting to stdout/stderr.

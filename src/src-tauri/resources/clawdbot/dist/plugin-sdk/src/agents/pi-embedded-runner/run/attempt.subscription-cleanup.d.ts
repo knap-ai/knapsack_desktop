@@ -20,8 +20,14 @@ export declare function cleanupEmbeddedAttemptResources(params: {
         dispose(): void;
     };
     sessionManager: unknown;
-    releaseWsSession: (sessionId: string) => void;
+    releaseWsSession: (sessionId: string, options?: {
+        allowPool?: boolean;
+    }) => void;
+    allowWsSessionPool?: boolean;
     sessionId: string;
+    bundleMcpRuntime?: {
+        dispose(): Promise<void> | void;
+    };
     bundleLspRuntime?: {
         dispose(): Promise<void> | void;
     };

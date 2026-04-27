@@ -1,10 +1,12 @@
 export type McpLoopbackRuntime = {
     port: number;
-    token: string;
+    ownerToken: string;
+    nonOwnerToken: string;
 };
 export declare function getActiveMcpLoopbackRuntime(): McpLoopbackRuntime | undefined;
 export declare function setActiveMcpLoopbackRuntime(runtime: McpLoopbackRuntime): void;
-export declare function clearActiveMcpLoopbackRuntime(token: string): void;
+export declare function resolveMcpLoopbackBearerToken(runtime: McpLoopbackRuntime, senderIsOwner: boolean): string;
+export declare function clearActiveMcpLoopbackRuntimeByOwnerToken(ownerToken: string): void;
 export declare function createMcpLoopbackServerConfig(port: number): {
     mcpServers: {
         openclaw: {
@@ -16,7 +18,6 @@ export declare function createMcpLoopbackServerConfig(port: number): {
                 "x-openclaw-agent-id": string;
                 "x-openclaw-account-id": string;
                 "x-openclaw-message-channel": string;
-                "x-openclaw-sender-is-owner": string;
             };
         };
     };

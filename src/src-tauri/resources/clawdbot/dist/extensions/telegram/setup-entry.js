@@ -7,6 +7,10 @@ var setup_entry_default = defineBundledChannelSetupEntry({
 		specifier: "./setup-plugin-api.js",
 		exportName: "telegramSetupPlugin"
 	},
+	legacyStateMigrations: {
+		specifier: "./legacy-state-migrations-api.js",
+		exportName: "detectTelegramLegacyStateMigrations"
+	},
 	secrets: {
 		specifier: "./secret-contract-api.js",
 		exportName: "channelSecrets"

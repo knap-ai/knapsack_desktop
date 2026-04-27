@@ -3,9 +3,5 @@ export type { SpeechDirectiveTokenParseContext, SpeechDirectiveTokenParseResult,
 export { parseTtsDirectives } from "../tts/directives.js";
 export { canonicalizeSpeechProviderId, getSpeechProvider, listSpeechProviders, normalizeSpeechProviderId, } from "../tts/provider-registry.js";
 export { normalizeTtsAutoMode, TTS_AUTO_MODES } from "../tts/tts-auto-mode.js";
-export { asBoolean, asFiniteNumber, asObject, readResponseTextLimited, trimToUndefined, truncateErrorDetail, } from "../tts/provider-error-utils.js";
-export declare function requireInRange(value: number, min: number, max: number, label: string): void;
-export declare function normalizeLanguageCode(code?: string): string | undefined;
-export declare function normalizeApplyTextNormalization(mode?: string): "auto" | "on" | "off" | undefined;
-export declare function normalizeSeed(seed?: number): number | undefined;
-export declare function scheduleCleanup(tempDir: string, delayMs?: number): void;
+export { asBoolean, asFiniteNumber, asObject, assertOkOrThrowProviderError, createProviderHttpError, extractProviderErrorDetail, extractProviderRequestId, formatProviderHttpErrorMessage, formatProviderErrorPayload, readResponseTextLimited, trimToUndefined, truncateErrorDetail, } from "../agents/provider-http-errors.js";
+export { normalizeApplyTextNormalization, normalizeLanguageCode, normalizeSeed, requireInRange, scheduleCleanup, } from "../tts/tts-provider-helpers.js";

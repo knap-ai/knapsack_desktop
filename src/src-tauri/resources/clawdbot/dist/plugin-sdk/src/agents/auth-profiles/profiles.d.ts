@@ -1,5 +1,5 @@
 import type { AuthProfileCredential, AuthProfileStore } from "./types.js";
-export declare function dedupeProfileIds(profileIds: string[]): string[];
+export { dedupeProfileIds, listProfilesForProvider } from "./profile-list.js";
 export declare function setAuthProfileOrder(params: {
     agentDir?: string;
     provider: string;
@@ -19,7 +19,6 @@ export declare function removeProviderAuthProfilesWithLock(params: {
     provider: string;
     agentDir?: string;
 }): Promise<AuthProfileStore | null>;
-export declare function listProfilesForProvider(store: AuthProfileStore, provider: string): string[];
 export declare function markAuthProfileGood(params: {
     store: AuthProfileStore;
     provider: string;

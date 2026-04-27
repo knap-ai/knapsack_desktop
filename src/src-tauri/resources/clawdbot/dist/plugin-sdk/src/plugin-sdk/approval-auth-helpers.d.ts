@@ -20,8 +20,8 @@ export declare function createResolvedApproverActionAuthAdapter(params: {
         action: "approve";
         approvalKind: ApprovalKind;
     }): ApprovalAuthorizationResult | {
-        readonly authorized: true;
         reason?: undefined;
+        readonly authorized: true;
     } | {
         readonly authorized: false;
         readonly reason: `\u274C You are not authorized to approve exec requests on ${string}.` | `\u274C You are not authorized to approve plugin requests on ${string}.`;

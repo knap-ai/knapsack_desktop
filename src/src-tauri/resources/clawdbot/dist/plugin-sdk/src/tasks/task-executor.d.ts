@@ -1,35 +1,16 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { DetachedRunningTaskCreateParams, DetachedTaskCreateParams } from "./detached-task-runtime-contract.js";
 import type { TaskFlowRecord } from "./task-flow-registry.types.js";
-import type { TaskDeliveryState, TaskDeliveryStatus, TaskNotifyPolicy, TaskRecord, TaskRegistrySummary, TaskRuntime, TaskScopeKind, TaskStatus, TaskTerminalOutcome } from "./task-registry.types.js";
-export declare function createQueuedTaskRun(params: {
-    runtime: TaskRuntime;
-    taskKind?: string;
-    sourceId?: string;
-    requesterSessionKey?: string;
-    ownerKey?: string;
-    scopeKind?: TaskScopeKind;
-    requesterOrigin?: TaskDeliveryState["requesterOrigin"];
-    parentFlowId?: string;
-    childSessionKey?: string;
-    parentTaskId?: string;
-    agentId?: string;
-    runId?: string;
-    label?: string;
-    task: string;
-    preferMetadata?: boolean;
-    notifyPolicy?: TaskNotifyPolicy;
-    deliveryStatus?: TaskDeliveryStatus;
-}): TaskRecord;
+import type { TaskDeliveryState, TaskDeliveryStatus, TaskNotifyPolicy, TaskRecord, TaskRegistrySummary, TaskRuntime, TaskStatus, TaskTerminalOutcome } from "./task-registry.types.js";
+type TaskRunCreateParams = DetachedTaskCreateParams;
+type RunningTaskRunCreateParams = DetachedRunningTaskCreateParams;
+export declare function createQueuedTaskRun(params: TaskRunCreateParams): TaskRecord;
 export declare function getFlowTaskSummary(flowId: string): TaskRegistrySummary;
-export declare function createRunningTaskRun(params: {
+export declare function createRunningTaskRun(params: RunningTaskRunCreateParams): TaskRecord;
+type RunTaskInFlowParams = {
+    flowId: string;
     runtime: TaskRuntime;
-    taskKind?: string;
     sourceId?: string;
-    requesterSessionKey?: string;
-    ownerKey?: string;
-    scopeKind?: TaskScopeKind;
-    requesterOrigin?: TaskDeliveryState["requesterOrigin"];
-    parentFlowId?: string;
     childSessionKey?: string;
     parentTaskId?: string;
     agentId?: string;
@@ -39,10 +20,11 @@ export declare function createRunningTaskRun(params: {
     notifyPolicy?: TaskNotifyPolicy;
     deliveryStatus?: TaskDeliveryStatus;
     preferMetadata?: boolean;
+    status?: "queued" | "running";
     startedAt?: number;
     lastEventAt?: number;
     progressSummary?: string | null;
-}): TaskRecord;
+};
 export declare function startTaskRunByRunId(params: {
     runId: string;
     runtime?: TaskRuntime;
@@ -134,42 +116,9 @@ type RunTaskInFlowResult = {
     flow?: TaskFlowRecord;
     task?: TaskRecord;
 };
-export declare function runTaskInFlow(params: {
-    flowId: string;
-    runtime: TaskRuntime;
-    sourceId?: string;
-    childSessionKey?: string;
-    parentTaskId?: string;
-    agentId?: string;
-    runId?: string;
-    label?: string;
-    task: string;
-    preferMetadata?: boolean;
-    notifyPolicy?: TaskNotifyPolicy;
-    deliveryStatus?: TaskDeliveryStatus;
-    status?: "queued" | "running";
-    startedAt?: number;
-    lastEventAt?: number;
-    progressSummary?: string | null;
-}): RunTaskInFlowResult;
-export declare function runTaskInFlowForOwner(params: {
-    flowId: string;
+export declare function runTaskInFlow(params: RunTaskInFlowParams): RunTaskInFlowResult;
+export declare function runTaskInFlowForOwner(params: RunTaskInFlowParams & {
     callerOwnerKey: string;
-    runtime: TaskRuntime;
-    sourceId?: string;
-    childSessionKey?: string;
-    parentTaskId?: string;
-    agentId?: string;
-    runId?: string;
-    label?: string;
-    task: string;
-    preferMetadata?: boolean;
-    notifyPolicy?: TaskNotifyPolicy;
-    deliveryStatus?: TaskDeliveryStatus;
-    status?: "queued" | "running";
-    startedAt?: number;
-    lastEventAt?: number;
-    progressSummary?: string | null;
 }): RunTaskInFlowResult;
 export declare function cancelFlowById(params: {
     cfg: OpenClawConfig;
@@ -183,10 +132,5 @@ export declare function cancelFlowByIdForOwner(params: {
 export declare function cancelDetachedTaskRunById(params: {
     cfg: OpenClawConfig;
     taskId: string;
-}): Promise<{
-    found: boolean;
-    cancelled: boolean;
-    reason?: string;
-    task?: TaskRecord;
-}>;
+}): Promise<import("./detached-task-runtime-contract.js").DetachedTaskCancelResult>;
 export {};

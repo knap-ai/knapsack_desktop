@@ -1,4 +1,4 @@
-import { t as loadActivatedBundledPluginPublicSurfaceModuleSync } from "../facade-runtime-gSGchfr7.js";
+import { n as loadActivatedBundledPluginPublicSurfaceModuleSync } from "../facade-runtime-wWkqgIbw.js";
 //#region src/plugin-sdk/line-runtime.ts
 function loadFacadeModule() {
 	return loadActivatedBundledPluginPublicSurfaceModuleSync({

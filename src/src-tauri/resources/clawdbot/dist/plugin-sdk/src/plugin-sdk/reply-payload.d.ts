@@ -1,12 +1,18 @@
+import type { ReplyPayload as InternalReplyPayload } from "../auto-reply/reply-payload.js";
 import type { ChannelOutboundAdapter } from "../channels/plugins/outbound.types.js";
 export type { MediaPayload, MediaPayloadInput } from "../channels/plugins/media-payload.js";
 export { buildMediaPayload } from "../channels/plugins/media-payload.js";
-export type { ReplyPayload } from "../auto-reply/reply-payload.js";
+export type ReplyPayload = Omit<InternalReplyPayload, "trustedLocalMedia">;
 export type OutboundReplyPayload = {
     text?: string;
     mediaUrls?: string[];
     mediaUrl?: string;
+    sensitiveMedia?: boolean;
     replyToId?: string;
+};
+export type ReasoningReplyPayload = {
+    text?: string;
+    isReasoning?: boolean;
 };
 export type SendableOutboundReplyParts = {
     text: string;
@@ -20,6 +26,7 @@ export type SendableOutboundReplyParts = {
 type SendPayloadContext = Parameters<NonNullable<ChannelOutboundAdapter["sendPayload"]>>[0];
 type SendPayloadResult = Awaited<ReturnType<NonNullable<ChannelOutboundAdapter["sendPayload"]>>>;
 type SendPayloadAdapter = Pick<ChannelOutboundAdapter, "sendMedia" | "sendText" | "chunker" | "textChunkLimit">;
+export declare function isReasoningReplyPayload(payload: ReasoningReplyPayload): boolean;
 /** Extract the supported outbound reply fields from loose tool or agent payload objects. */
 export declare function normalizeOutboundReplyPayload(payload: Record<string, unknown>): OutboundReplyPayload;
 /** Wrap a deliverer so callers can hand it arbitrary payloads while channels receive normalized data. */

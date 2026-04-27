@@ -1,25 +1,7 @@
+import type { CronListPageOptions, CronListPageResult } from "./service/list-page-types.js";
 import type { CronAddInput, CronAddResult, CronListResult, CronRemoveResult, CronRunMode, CronRunResult, CronStatusSummary, CronUpdateInput, CronUpdateResult, CronWakeMode } from "./service/state.js";
 import type { CronJob } from "./types.js";
-type CronJobsEnabledFilter = "all" | "enabled" | "disabled";
-type CronJobsSortBy = "nextRunAtMs" | "updatedAtMs" | "name";
-type CronSortDir = "asc" | "desc";
-export type CronListPageOptions = {
-    includeDisabled?: boolean;
-    limit?: number;
-    offset?: number;
-    query?: string;
-    enabled?: CronJobsEnabledFilter;
-    sortBy?: CronJobsSortBy;
-    sortDir?: CronSortDir;
-};
-export type CronListPageResult = {
-    jobs: CronJob[];
-    total: number;
-    offset: number;
-    limit: number;
-    hasMore: boolean;
-    nextOffset: number | null;
-};
+export type { CronListPageOptions, CronListPageResult } from "./service/list-page-types.js";
 export type CronWakeResult = {
     ok: true;
 } | {
@@ -44,9 +26,9 @@ export interface CronServiceContract {
     run(id: string, mode?: CronRunMode): Promise<CronServiceRunResult>;
     enqueueRun(id: string, mode?: CronRunMode): Promise<CronServiceRunResult>;
     getJob(id: string): CronJob | undefined;
+    getDefaultAgentId(): string | undefined;
     wake(opts: {
         mode: CronWakeMode;
         text: string;
     }): CronWakeResult;
 }
-export {};

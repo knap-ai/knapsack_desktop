@@ -33,14 +33,14 @@ type ParsedChatAllowTarget = {
     handle: string;
 };
 /** Match chat-aware allowlist entries against sender, chat id, guid, or identifier fields. */
-export declare function isAllowedParsedChatSender<TParsed extends ParsedChatAllowTarget>(params: {
+export declare function isAllowedParsedChatSender(params: {
     allowFrom: Array<string | number>;
     sender: string;
     chatId?: number | null;
     chatGuid?: string | null;
     chatIdentifier?: string | null;
     normalizeSender: (sender: string) => string;
-    parseAllowTarget: (entry: string) => TParsed;
+    parseAllowTarget: (entry: string) => ParsedChatAllowTarget;
 }): boolean;
 export type BasicAllowlistResolutionEntry = {
     input: string;

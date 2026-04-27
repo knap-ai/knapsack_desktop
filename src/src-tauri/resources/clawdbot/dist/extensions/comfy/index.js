@@ -1,7 +1,9 @@
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { t as buildComfyImageGenerationProvider } from "../../image-generation-provider-raEQAXiH.js";
-import { t as buildComfyMusicGenerationProvider } from "../../music-generation-provider-0UUWSlkG.js";
-import { t as buildComfyVideoGenerationProvider } from "../../video-generation-provider-DemOiU_n.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
+import "../../provider-auth-api-key-BVwjjhIk.js";
+import { t as buildComfyImageGenerationProvider } from "../../image-generation-provider-xzBiOPuU.js";
+import { t as buildComfyMusicGenerationProvider } from "../../music-generation-provider-DdLRdvc8.js";
+import { t as buildComfyVideoGenerationProvider } from "../../video-generation-provider-lQbteVZc.js";
 //#region extensions/comfy/index.ts
 const PROVIDER_ID = "comfy";
 var comfy_default = definePluginEntry({
@@ -14,7 +16,25 @@ var comfy_default = definePluginEntry({
 			label: "ComfyUI",
 			docsPath: "/providers/comfy",
 			envVars: ["COMFY_API_KEY", "COMFY_CLOUD_API_KEY"],
-			auth: []
+			auth: [createProviderApiKeyAuthMethod({
+				providerId: PROVIDER_ID,
+				methodId: "cloud-api-key",
+				label: "Comfy Cloud API key",
+				hint: "API key for Comfy Cloud workflow runs",
+				optionKey: "comfyApiKey",
+				flagName: "--comfy-api-key",
+				envVar: "COMFY_API_KEY",
+				promptMessage: "Enter Comfy Cloud API key",
+				wizard: {
+					choiceId: "comfy-cloud-api-key",
+					choiceLabel: "Comfy Cloud API key",
+					choiceHint: "Required for cloud workflows",
+					groupId: "comfy",
+					groupLabel: "ComfyUI",
+					groupHint: "Local or cloud workflows",
+					onboardingScopes: ["image-generation"]
+				}
+			})]
 		});
 		api.registerImageGenerationProvider(buildComfyImageGenerationProvider());
 		api.registerMusicGenerationProvider(buildComfyMusicGenerationProvider());

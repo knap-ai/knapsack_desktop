@@ -1,14 +1,17 @@
-import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-eyAoWbVe.js";
-import { t as sanitizeEnvVars } from "../../sanitize-env-vars-Og3CRoPL.js";
-import { _ as runSshSandboxCommand, b as createRemoteShellSandboxFsBridge, d as buildExecRemoteCommand, g as disposeSshSandboxSession, l as registerSandboxBackend, m as createSshSandboxSessionFromConfigText, v as shellEscape, x as createWritableRenameTargetResolver } from "../../sandbox-BBeXIB2_.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as buildPluginConfigSchema } from "../../config-schema-BJSXw2hl.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../core-Dh0sB0kj.js";
-import { t as runPluginCommandWithTimeout } from "../../run-command-Bn39d2ZV.js";
-import "../../sandbox-DtVcRu90.js";
-import { t as zod_exports } from "../../zod-BUbl8seT.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-CoGSA-7K.js";
+import { g as writeFileWithinRoot } from "../../fs-safe-CezDxq3P.js";
+import { t as sanitizeEnvVars } from "../../sanitize-env-vars-Ck3qWkLH.js";
+import { _ as createRemoteShellSandboxFsBridge, b as createWritableRenameTargetResolver, c as buildExecRemoteCommand, d as createSshSandboxSessionFromConfigText, h as shellEscape, m as runSshSandboxCommand, o as registerSandboxBackend, p as disposeSshSandboxSession } from "../../browser-bridges-QH5i6Nux.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as buildPluginConfigSchema } from "../../config-schema-BDzJIh_2.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../core-C7AkvHZx.js";
+import { t as runPluginCommandWithTimeout } from "../../run-command-hPKcADK4.js";
+import "../../sandbox-CX-07P49.js";
+import "../../infra-runtime-Bqxrc1fI.js";
+import { c as mapPluginConfigIssues, s as formatPluginConfigIssue } from "../../extension-shared-Q-mKNOcc.js";
+import { t as zod_exports } from "../../zod-DNylboy1.js";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
@@ -96,12 +99,6 @@ const OpenShellPluginConfigSchema = zod_exports.z.strictObject({
 	remoteAgentWorkspaceDir: nonEmptyTrimmedString("remoteAgentWorkspaceDir must be a non-empty string").optional(),
 	timeoutSeconds: zod_exports.z.number({ error: "timeoutSeconds must be a number >= 1" }).min(1, { error: "timeoutSeconds must be a number >= 1" }).optional()
 });
-function formatOpenShellConfigIssue(issue) {
-	if (!issue) return "invalid config";
-	if (issue.code === "unrecognized_keys" && issue.keys.length > 0) return `unknown config key: ${issue.keys[0]}`;
-	if (issue.code === "invalid_type" && issue.path.length === 0) return "expected config object";
-	return issue.message;
-}
 function isManagedOpenShellRemotePath(value) {
 	return OPEN_SHELL_MANAGED_REMOTE_ROOTS.some((root) => value === root || value.startsWith(`${root}/`));
 }
@@ -125,13 +122,7 @@ function createOpenShellPluginConfigSchema() {
 		};
 		return {
 			success: false,
-			error: { issues: parsed.error.issues.map((issue) => ({
-				path: issue.path.filter((segment) => {
-					const kind = typeof segment;
-					return kind === "string" || kind === "number";
-				}),
-				message: formatOpenShellConfigIssue(issue)
-			})) }
+			error: { issues: mapPluginConfigIssues(parsed.error.issues) }
 		};
 	} });
 }
@@ -152,7 +143,7 @@ function resolveOpenShellPluginConfig(value) {
 	};
 	const parsed = OpenShellPluginConfigSchema.safeParse(value);
 	if (!parsed.success) {
-		const message = formatOpenShellConfigIssue(parsed.error.issues[0]);
+		const message = formatPluginConfigIssue(parsed.error.issues[0]);
 		throw new Error(`Invalid openshell plugin config: ${message}`);
 	}
 	const cfg = parsed.data;
@@ -300,14 +291,16 @@ var OpenShellFsBridge = class {
 	}
 	async readFile(params) {
 		const target = this.resolveTarget(params);
-		const hostPath = this.requireHostPath(target);
-		await assertLocalPathSafety({
-			target,
-			root: target.mountHostRoot,
-			allowMissingLeaf: false,
-			allowFinalSymlinkForUnlink: false
+		const handle = await openPinnedReadableFile({
+			absolutePath: this.requireHostPath(target),
+			rootPath: target.mountHostRoot,
+			containerPath: target.containerPath
 		});
-		return await fs$1.readFile(hostPath);
+		try {
+			return await handle.readFile();
+		} finally {
+			await handle.close();
+		}
 	}
 	async writeFile(params) {
 		const target = this.resolveTarget(params);
@@ -320,11 +313,12 @@ var OpenShellFsBridge = class {
 			allowFinalSymlinkForUnlink: false
 		});
 		const buffer = Buffer.isBuffer(params.data) ? params.data : Buffer.from(params.data, params.encoding ?? "utf8");
-		const parentDir = path.dirname(hostPath);
-		if (params.mkdir !== false) await fs$1.mkdir(parentDir, { recursive: true });
-		const tempPath = path.join(parentDir, `.openclaw-openshell-write-${path.basename(hostPath)}-${process.pid}-${Date.now()}`);
-		await fs$1.writeFile(tempPath, buffer);
-		await fs$1.rename(tempPath, hostPath);
+		await writeFileWithinRoot({
+			rootDir: target.mountHostRoot,
+			relativePath: path.relative(target.mountHostRoot, hostPath),
+			data: buffer,
+			mkdir: params.mkdir
+		});
 		await this.backend.syncLocalPathToRemote(hostPath, target.containerPath);
 	}
 	async mkdirp(params) {
@@ -506,6 +500,73 @@ async function resolveCanonicalCandidate(targetPath) {
 		missing.unshift(path.basename(cursor));
 		cursor = parent;
 	}
+}
+async function openPinnedReadableFile(params) {
+	const literalRoot = path.resolve(params.rootPath);
+	const canonicalRoot = await fs$1.realpath(literalRoot).catch(() => literalRoot);
+	const literalPath = path.resolve(params.absolutePath);
+	if (!isPathInside(literalRoot, literalPath)) throw new Error(`Sandbox path escapes allowed mounts; cannot access: ${params.containerPath}`);
+	const { flags: openReadFlags, supportsNoFollow } = resolveOpenReadFlags();
+	const handle = await fs$1.open(literalPath, openReadFlags);
+	try {
+		const openedStat = await handle.stat();
+		if (!openedStat.isFile()) throw new Error(`Sandbox boundary checks failed; cannot read files: ${params.containerPath}`);
+		if (openedStat.nlink > 1) throw new Error(`Sandbox boundary checks failed; cannot read files: ${params.containerPath}`);
+		const resolvedPath = await resolveOpenedReadablePath(handle.fd);
+		if (resolvedPath !== null) {
+			if (!isPathInside(canonicalRoot, resolvedPath)) throw new Error(`Sandbox boundary checks failed; cannot read files: ${params.containerPath}`);
+			return handle;
+		}
+		await assertAncestorChainHasNoSymlinks(literalRoot, literalPath, params.containerPath, { includeLeaf: !supportsNoFollow });
+		if (!sameFileIdentity(await fs$1.stat(literalPath), openedStat)) throw new Error(`Sandbox boundary checks failed; cannot read files: ${params.containerPath}`);
+		const postCheckStat = await handle.stat();
+		if (!postCheckStat.isFile() || postCheckStat.nlink > 1) throw new Error(`Sandbox boundary checks failed; cannot read files: ${params.containerPath}`);
+		return handle;
+	} catch (error) {
+		await handle.close();
+		throw error;
+	}
+}
+async function assertAncestorChainHasNoSymlinks(canonicalRoot, targetAbsolutePath, containerPath, options = {}) {
+	const relative = path.relative(canonicalRoot, targetAbsolutePath);
+	if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return;
+	const segments = relative.split(path.sep).filter((segment) => segment.length > 0);
+	const lastIndex = options.includeLeaf ? segments.length : segments.length - 1;
+	let cursor = canonicalRoot;
+	for (let i = 0; i < lastIndex; i += 1) {
+		cursor = path.join(cursor, segments[i]);
+		const stat = await fs$1.lstat(cursor).catch(() => null);
+		if (!stat) throw new Error(`Sandbox boundary checks failed; cannot read files: ${containerPath}`);
+		const isLeaf = i === segments.length - 1;
+		if (stat.isSymbolicLink()) throw new Error(`Sandbox boundary checks failed; cannot read files: ${containerPath}`);
+		if (!isLeaf && !stat.isDirectory()) throw new Error(`Sandbox boundary checks failed; cannot read files: ${containerPath}`);
+	}
+}
+function resolveOpenReadFlags() {
+	const closeOnExec = fs.constants.O_CLOEXEC ?? 0;
+	const supportsNoFollow = typeof fs.constants.O_NOFOLLOW === "number";
+	const noFollow = supportsNoFollow ? fs.constants.O_NOFOLLOW : 0;
+	return {
+		flags: fs.constants.O_RDONLY | noFollow | closeOnExec,
+		supportsNoFollow
+	};
+}
+async function resolveOpenedReadablePath(fd) {
+	for (const fdPath of [`/proc/self/fd/${fd}`, `/dev/fd/${fd}`]) try {
+		return normalizeOpenedReadablePath(await fs$1.readlink(fdPath));
+	} catch {
+		continue;
+	}
+	return null;
+}
+function normalizeOpenedReadablePath(openedPath) {
+	const withoutDeletedSuffix = openedPath.endsWith(" (deleted)") ? openedPath.slice(0, -10) : openedPath;
+	return path.resolve(withoutDeletedSuffix);
+}
+function sameFileIdentity(left, right, platform = process.platform) {
+	if (left.ino !== right.ino) return false;
+	if (left.dev === right.dev) return true;
+	return platform === "win32" && (left.dev === 0 || right.dev === 0);
 }
 //#endregion
 //#region extensions/openshell/src/backend.ts

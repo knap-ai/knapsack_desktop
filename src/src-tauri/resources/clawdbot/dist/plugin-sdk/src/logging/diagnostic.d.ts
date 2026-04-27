@@ -1,6 +1,8 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { emitDiagnosticMemorySample } from "./diagnostic-memory.js";
 import { type SessionRef, type SessionStateValue } from "./diagnostic-session-state.js";
 export { diagnosticLogger, logLaneDequeue, logLaneEnqueue } from "./diagnostic-runtime.js";
+type EmitDiagnosticMemorySample = typeof emitDiagnosticMemorySample;
 export declare function resolveStuckSessionWarnMs(config?: OpenClawConfig): number;
 export declare function logWebhookReceived(params: {
     channel: string;
@@ -60,6 +62,7 @@ export declare function logToolLoopAction(params: SessionRef & {
 export declare function logActiveRuns(): void;
 export declare function startDiagnosticHeartbeat(config?: OpenClawConfig, opts?: {
     getConfig?: () => OpenClawConfig;
+    emitMemorySample?: EmitDiagnosticMemorySample;
 }): void;
 export declare function stopDiagnosticHeartbeat(): void;
 export declare function getDiagnosticSessionStateCountForTest(): number;

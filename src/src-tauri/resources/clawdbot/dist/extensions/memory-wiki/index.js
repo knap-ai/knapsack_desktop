@@ -1,13 +1,13 @@
-import { i as formatErrorMessage } from "../../errors-D8p6rxH8.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../error-runtime-CgBDklBz.js";
-import "../../api-BAgw3YcZ.js";
-import { A as lintMemoryWikiVault, C as resolveMemoryWikiStatus, D as runObsidianDaily, E as runObsidianCommand, F as readQueryableWikiPages, I as searchMemoryWiki, L as compileMemoryWikiVault, M as applyMemoryWikiMutation, N as normalizeMemoryWikiMutationInput, O as runObsidianOpen, P as getMemoryWikiPage, R as initializeMemoryWikiVault, S as renderMemoryWikiStatus, T as probeObsidianCli, j as ingestMemoryWikiSource, k as runObsidianSearch, t as registerWikiCli, w as syncMemoryWikiImportedSources, x as buildMemoryWikiDoctorReport, z as parseWikiMarkdown } from "../../cli-mPaKxVzJ.js";
-import { d as resolveMemoryWikiConfig, l as memoryWikiConfigSchema, o as WIKI_SEARCH_BACKENDS, s as WIKI_SEARCH_CORPORA } from "../../config-K81_iIZv.js";
+import { i as formatErrorMessage } from "../../errors-Jbvi20TW.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../error-runtime-D8vVwCEz.js";
+import "../../api-DV7Bow6K.js";
+import { A as lintMemoryWikiVault, C as resolveMemoryWikiStatus, D as runObsidianDaily, E as runObsidianCommand, F as readQueryableWikiPages, I as searchMemoryWiki, L as compileMemoryWikiVault, M as applyMemoryWikiMutation, N as normalizeMemoryWikiMutationInput, O as runObsidianOpen, P as getMemoryWikiPage, R as initializeMemoryWikiVault, S as renderMemoryWikiStatus, T as probeObsidianCli, j as ingestMemoryWikiSource, k as runObsidianSearch, t as registerWikiCli, w as syncMemoryWikiImportedSources, x as buildMemoryWikiDoctorReport, z as parseWikiMarkdown } from "../../cli-DZgDrSC3.js";
+import { d as resolveMemoryWikiConfig, l as memoryWikiConfigSchema, o as WIKI_SEARCH_BACKENDS, s as WIKI_SEARCH_CORPORA } from "../../config-CJXHjDBM.js";
 import fs from "node:fs";
 import path from "node:path";
 import fs$1 from "node:fs/promises";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 //#region extensions/memory-wiki/src/corpus-supplement.ts
 function createWikiCorpusSupplement(params) {
 	return {
@@ -249,16 +249,14 @@ async function listMemoryWikiImportInsights(config) {
 	const clusters = [...clustersByKey.entries()].map(([key, clusterItems]) => {
 		const sortedItems = [...clusterItems].toSorted(compareItemsByUpdated);
 		const updatedAt = sortedItems.map((item) => item.updatedAt ?? item.createdAt).find((value) => typeof value === "string" && value.length > 0);
-		return {
+		return Object.assign({
 			key,
 			label: sortedItems[0]?.topicLabel ?? humanizeLabelSuffix(key),
 			itemCount: sortedItems.length,
-			highRiskCount: sortedItems.filter((item) => item.riskLevel === "high").length,
-			withheldCount: sortedItems.filter((item) => item.digestStatus === "withheld").length,
-			preferenceSignalCount: sortedItems.reduce((sum, item) => sum + item.preferenceSignals.length, 0),
-			...updatedAt ? { updatedAt } : {},
-			items: sortedItems
-		};
+			highRiskCount: sortedItems.filter((item) => item.riskLevel === `high`).length,
+			withheldCount: sortedItems.filter((item) => item.digestStatus === `withheld`).length,
+			preferenceSignalCount: sortedItems.reduce((sum, item) => sum + item.preferenceSignals.length, 0)
+		}, updatedAt ? { updatedAt } : {}, { items: sortedItems });
 	}).toSorted((left, right) => {
 		const leftKey = left.updatedAt ?? "";
 		const rightKey = right.updatedAt ?? "";
@@ -380,35 +378,30 @@ function comparePalaceItems(left, right) {
 async function listMemoryWikiPalace(config) {
 	const items = (await readQueryableWikiPages(config.vault.path)).map((page) => {
 		const parsed = parseWikiMarkdown(page.raw);
-		return {
+		return Object.assign({
 			pagePath: page.relativePath,
 			title: page.title,
-			kind: page.kind,
-			...page.id ? { id: page.id } : {},
-			...normalizeTimestamp(page.updatedAt) ? { updatedAt: normalizeTimestamp(page.updatedAt) } : {},
-			...typeof page.sourceType === "string" && page.sourceType.trim().length > 0 ? { sourceType: page.sourceType.trim() } : {},
+			kind: page.kind
+		}, page.id ? { id: page.id } : {}, normalizeTimestamp(page.updatedAt) ? { updatedAt: normalizeTimestamp(page.updatedAt) } : {}, typeof page.sourceType === `string` && page.sourceType.trim().length > 0 ? { sourceType: page.sourceType.trim() } : {}, {
 			claimCount: page.claims.length,
 			questionCount: page.questions.length,
 			contradictionCount: page.contradictions.length,
 			claims: page.claims.map((claim) => claim.text).slice(0, 3),
 			questions: page.questions.slice(0, 3),
-			contradictions: page.contradictions.slice(0, 3),
-			...extractSnippet(parsed.body) ? { snippet: extractSnippet(parsed.body) } : {}
-		};
+			contradictions: page.contradictions.slice(0, 3)
+		}, extractSnippet(parsed.body) ? { snippet: extractSnippet(parsed.body) } : {});
 	}).filter((item) => PRIMARY_PALACE_KINDS.has(item.kind) || item.claimCount > 0 || item.questionCount > 0 || item.contradictionCount > 0).toSorted(comparePalaceItems);
 	const clusters = PALACE_KIND_ORDER.map((kind) => {
 		const clusterItems = items.filter((item) => item.kind === kind);
 		if (clusterItems.length === 0) return null;
-		return {
+		return Object.assign({
 			key: kind,
 			label: PALACE_KIND_LABELS[kind],
 			itemCount: clusterItems.length,
 			claimCount: clusterItems.reduce((sum, item) => sum + item.claimCount, 0),
 			questionCount: clusterItems.reduce((sum, item) => sum + item.questionCount, 0),
-			contradictionCount: clusterItems.reduce((sum, item) => sum + item.contradictionCount, 0),
-			...clusterItems[0]?.updatedAt ? { updatedAt: clusterItems[0].updatedAt } : {},
-			items: clusterItems
-		};
+			contradictionCount: clusterItems.reduce((sum, item) => sum + item.contradictionCount, 0)
+		}, clusterItems[0]?.updatedAt ? { updatedAt: clusterItems[0].updatedAt } : {}, { items: clusterItems });
 	}).filter((entry) => entry !== null);
 	return {
 		totalItems: items.length,

@@ -3,7 +3,10 @@ import type { OpenClawConfig } from "../config/types.js";
 import type { ChatCommandDefinition, CommandArgDefinition, CommandArgs, NativeCommandSpec, ShouldHandleTextCommandsParams } from "./commands-registry.types.js";
 export { isCommandEnabled, listChatCommands, listChatCommandsForConfig, } from "./commands-registry-list.js";
 export { getCommandDetection, maybeResolveTextAlias, normalizeCommandBody, resolveTextCommand, } from "./commands-registry-normalize.js";
-export type { ChatCommandDefinition, CommandArgChoiceContext, CommandArgDefinition, CommandArgMenuSpec, CommandArgValues, CommandArgs, CommandDetection, CommandNormalizeOptions, CommandScope, NativeCommandSpec, ShouldHandleTextCommandsParams, } from "./commands-registry.types.js";
+export type { ChatCommandDefinition, CommandArgChoiceContext, CommandArgDefinition, CommandArgMenuSpec, CommandArgValues, CommandArgs, CommandDetection, CommandNormalizeOptions, CommandScope, CommandTier, NativeCommandSpec, ShouldHandleTextCommandsParams, } from "./commands-registry.types.js";
+type NativeCommandProviderLookupOptions = {
+    includeBundledChannelFallback?: boolean;
+};
 export declare function listNativeCommandSpecs(params?: {
     skillCommands?: SkillCommandSpec[];
     provider?: string;
@@ -12,7 +15,7 @@ export declare function listNativeCommandSpecsForConfig(cfg: OpenClawConfig, par
     skillCommands?: SkillCommandSpec[];
     provider?: string;
 }): NativeCommandSpec[];
-export declare function findCommandByNativeName(name: string, provider?: string): ChatCommandDefinition | undefined;
+export declare function findCommandByNativeName(name: string, provider?: string, options?: NativeCommandProviderLookupOptions): ChatCommandDefinition | undefined;
 export declare function buildCommandText(commandName: string, args?: string): string;
 export declare function parseCommandArgs(command: ChatCommandDefinition, raw?: string): CommandArgs | undefined;
 export declare function serializeCommandArgs(command: ChatCommandDefinition, args?: CommandArgs): string | undefined;

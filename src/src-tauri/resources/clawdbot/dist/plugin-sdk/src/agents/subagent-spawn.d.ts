@@ -1,15 +1,18 @@
 import type { SubagentLifecycleHookRunner } from "../plugins/hooks.js";
 import { decodeStrictBase64 } from "./subagent-attachments.js";
 export { SUBAGENT_SPAWN_ACCEPTED_NOTE, SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE, } from "./subagent-spawn-accepted-note.js";
-import { callGateway, loadConfig, updateSessionStore } from "./subagent-spawn.runtime.js";
-import { type SpawnSubagentMode, type SpawnSubagentSandboxMode } from "./subagent-spawn.types.js";
-export { SUBAGENT_SPAWN_MODES, SUBAGENT_SPAWN_SANDBOX_MODES } from "./subagent-spawn.types.js";
-export type { SpawnSubagentMode, SpawnSubagentSandboxMode } from "./subagent-spawn.types.js";
+import { callGateway, forkSessionFromParent, loadConfig, resolveContextEngine, resolveParentForkMaxTokens, updateSessionStore } from "./subagent-spawn.runtime.js";
+import { type SpawnSubagentContextMode, type SpawnSubagentMode, type SpawnSubagentSandboxMode } from "./subagent-spawn.types.js";
+export { SUBAGENT_SPAWN_CONTEXT_MODES, SUBAGENT_SPAWN_MODES, SUBAGENT_SPAWN_SANDBOX_MODES, } from "./subagent-spawn.types.js";
+export type { SpawnSubagentContextMode, SpawnSubagentMode, SpawnSubagentSandboxMode, } from "./subagent-spawn.types.js";
 export { decodeStrictBase64 };
 type SubagentSpawnDeps = {
     callGateway: typeof callGateway;
+    forkSessionFromParent: typeof forkSessionFromParent;
     getGlobalHookRunner: () => SubagentLifecycleHookRunner | null;
     loadConfig: typeof loadConfig;
+    resolveContextEngine: typeof resolveContextEngine;
+    resolveParentForkMaxTokens: typeof resolveParentForkMaxTokens;
     updateSessionStore: typeof updateSessionStore;
 };
 export type SpawnSubagentParams = {
@@ -23,6 +26,7 @@ export type SpawnSubagentParams = {
     mode?: SpawnSubagentMode;
     cleanup?: "delete" | "keep";
     sandbox?: SpawnSubagentSandboxMode;
+    context?: SpawnSubagentContextMode;
     lightContext?: boolean;
     expectsCompletionMessage?: boolean;
     attachments?: Array<{
@@ -42,6 +46,7 @@ export type SpawnSubagentContext = {
     agentGroupId?: string | null;
     agentGroupChannel?: string | null;
     agentGroupSpace?: string | null;
+    agentMemberRoleIds?: string[];
     requesterAgentIdOverride?: string;
     /** Explicit workspace directory for subagent to inherit (optional). */
     workspaceDir?: string;

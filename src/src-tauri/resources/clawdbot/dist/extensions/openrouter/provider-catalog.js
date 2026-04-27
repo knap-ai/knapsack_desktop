@@ -1,2 +1,2 @@
-import { t as buildOpenrouterProvider } from "../../provider-catalog-CBF060vN.js";
-export { buildOpenrouterProvider };
+import { n as buildOpenrouterProvider, r as normalizeOpenRouterBaseUrl, t as OPENROUTER_BASE_URL } from "../../provider-catalog-CAICBflG.js";
+export { OPENROUTER_BASE_URL, buildOpenrouterProvider, normalizeOpenRouterBaseUrl };

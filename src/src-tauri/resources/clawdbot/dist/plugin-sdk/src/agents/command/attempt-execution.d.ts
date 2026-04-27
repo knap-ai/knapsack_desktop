@@ -6,9 +6,10 @@ import { type EmbeddedPiRunResult } from "../pi-embedded.js";
 import { buildWorkspaceSkillSnapshot } from "../skills.js";
 import { resolveAgentRunContext } from "./run-context.js";
 import type { AgentCommandOpts } from "./types.js";
-export { createAcpVisibleTextAccumulator, resolveFallbackRetryPrompt, sessionFileHasContent, } from "./attempt-execution.helpers.js";
+export { claudeCliSessionTranscriptHasContent, createAcpVisibleTextAccumulator, resolveFallbackRetryPrompt, sessionFileHasContent, } from "./attempt-execution.helpers.js";
 export declare function persistAcpTurnTranscript(params: {
     body: string;
+    transcriptBody?: string;
     finalText: string;
     sessionId: string;
     sessionKey: string;
@@ -21,6 +22,7 @@ export declare function persistAcpTurnTranscript(params: {
 }): Promise<SessionEntry | undefined>;
 export declare function persistCliTurnTranscript(params: {
     body: string;
+    transcriptBody?: string;
     result: EmbeddedPiRunResult;
     sessionId: string;
     sessionKey: string;
@@ -71,7 +73,7 @@ export declare function buildAcpResult(params: {
     stopReason?: string;
     abortSignal?: AbortSignal;
 }): {
-    payloads: import("@openclaw/feishu/runtime-api.ts").ReplyPayload[];
+    payloads: import("../../auto-reply/reply-payload.ts").ReplyPayload[];
     meta: {
         durationMs: number;
         aborted: boolean;

@@ -25,6 +25,7 @@ export declare function createAcpDispatchDeliveryCoordinator(params: {
     ctx: FinalizedMsgContext;
     dispatcher: ReplyDispatcher;
     inboundAudio: boolean;
+    sessionKey?: string;
     sessionTtsAuto?: TtsAutoMode;
     ttsChannel?: string;
     suppressUserDelivery?: boolean;

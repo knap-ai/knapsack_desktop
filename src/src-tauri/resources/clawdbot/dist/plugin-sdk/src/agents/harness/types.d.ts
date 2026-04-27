@@ -25,12 +25,14 @@ export type AgentHarnessResetParams = {
     sessionFile?: string;
     reason?: "new" | "reset" | "idle" | "daily" | "compaction" | "deleted" | "unknown";
 };
+export type AgentHarnessResultClassification = "ok" | NonNullable<EmbeddedRunAttemptResult["agentHarnessResultClassification"]>;
 export type AgentHarness = {
     id: string;
     label: string;
     pluginId?: string;
     supports(ctx: AgentHarnessSupportContext): AgentHarnessSupport;
     runAttempt(params: AgentHarnessAttemptParams): Promise<AgentHarnessAttemptResult>;
+    classify?(result: AgentHarnessAttemptResult, ctx: AgentHarnessAttemptParams): AgentHarnessResultClassification | undefined;
     compact?(params: AgentHarnessCompactParams): Promise<AgentHarnessCompactResult | undefined>;
     reset?(params: AgentHarnessResetParams): Promise<void> | void;
     dispose?(): Promise<void> | void;

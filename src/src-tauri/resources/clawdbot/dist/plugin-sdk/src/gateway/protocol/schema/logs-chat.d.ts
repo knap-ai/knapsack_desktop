@@ -1,59 +1,60 @@
-export declare const LogsTailParamsSchema: import("@sinclair/typebox").TObject<{
-    cursor: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    maxBytes: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+import { Type } from "typebox";
+export declare const LogsTailParamsSchema: Type.TObject<{
+    cursor: Type.TOptional<Type.TInteger>;
+    limit: Type.TOptional<Type.TInteger>;
+    maxBytes: Type.TOptional<Type.TInteger>;
 }>;
-export declare const LogsTailResultSchema: import("@sinclair/typebox").TObject<{
-    file: import("@sinclair/typebox").TString;
-    cursor: import("@sinclair/typebox").TInteger;
-    size: import("@sinclair/typebox").TInteger;
-    lines: import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>;
-    truncated: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    reset: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
+export declare const LogsTailResultSchema: Type.TObject<{
+    file: Type.TString;
+    cursor: Type.TInteger;
+    size: Type.TInteger;
+    lines: Type.TArray<Type.TString>;
+    truncated: Type.TOptional<Type.TBoolean>;
+    reset: Type.TOptional<Type.TBoolean>;
 }>;
-export declare const ChatHistoryParamsSchema: import("@sinclair/typebox").TObject<{
-    sessionKey: import("@sinclair/typebox").TString;
-    limit: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    maxChars: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
+export declare const ChatHistoryParamsSchema: Type.TObject<{
+    sessionKey: Type.TString;
+    limit: Type.TOptional<Type.TInteger>;
+    maxChars: Type.TOptional<Type.TInteger>;
 }>;
-export declare const ChatSendParamsSchema: import("@sinclair/typebox").TObject<{
-    sessionKey: import("@sinclair/typebox").TString;
-    message: import("@sinclair/typebox").TString;
-    thinking: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    deliver: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    originatingChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    originatingTo: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    originatingAccountId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    originatingThreadId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    attachments: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TUnknown>>;
-    timeoutMs: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TInteger>;
-    systemInputProvenance: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TObject<{
-        kind: import("@sinclair/typebox").TString;
-        originSessionId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        sourceSessionKey: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        sourceChannel: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        sourceTool: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const ChatSendParamsSchema: Type.TObject<{
+    sessionKey: Type.TString;
+    message: Type.TString;
+    thinking: Type.TOptional<Type.TString>;
+    deliver: Type.TOptional<Type.TBoolean>;
+    originatingChannel: Type.TOptional<Type.TString>;
+    originatingTo: Type.TOptional<Type.TString>;
+    originatingAccountId: Type.TOptional<Type.TString>;
+    originatingThreadId: Type.TOptional<Type.TString>;
+    attachments: Type.TOptional<Type.TArray<Type.TUnknown>>;
+    timeoutMs: Type.TOptional<Type.TInteger>;
+    systemInputProvenance: Type.TOptional<Type.TObject<{
+        kind: Type.TString;
+        originSessionId: Type.TOptional<Type.TString>;
+        sourceSessionKey: Type.TOptional<Type.TString>;
+        sourceChannel: Type.TOptional<Type.TString>;
+        sourceTool: Type.TOptional<Type.TString>;
     }>>;
-    systemProvenanceReceipt: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    idempotencyKey: import("@sinclair/typebox").TString;
+    systemProvenanceReceipt: Type.TOptional<Type.TString>;
+    idempotencyKey: Type.TString;
 }>;
-export declare const ChatAbortParamsSchema: import("@sinclair/typebox").TObject<{
-    sessionKey: import("@sinclair/typebox").TString;
-    runId: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const ChatAbortParamsSchema: Type.TObject<{
+    sessionKey: Type.TString;
+    runId: Type.TOptional<Type.TString>;
 }>;
-export declare const ChatInjectParamsSchema: import("@sinclair/typebox").TObject<{
-    sessionKey: import("@sinclair/typebox").TString;
-    message: import("@sinclair/typebox").TString;
-    label: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const ChatInjectParamsSchema: Type.TObject<{
+    sessionKey: Type.TString;
+    message: Type.TString;
+    label: Type.TOptional<Type.TString>;
 }>;
-export declare const ChatEventSchema: import("@sinclair/typebox").TObject<{
-    runId: import("@sinclair/typebox").TString;
-    sessionKey: import("@sinclair/typebox").TString;
-    seq: import("@sinclair/typebox").TInteger;
-    state: import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"delta">, import("@sinclair/typebox").TLiteral<"final">, import("@sinclair/typebox").TLiteral<"aborted">, import("@sinclair/typebox").TLiteral<"error">]>;
-    message: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
-    errorMessage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-    errorKind: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnion<[import("@sinclair/typebox").TLiteral<"refusal">, import("@sinclair/typebox").TLiteral<"timeout">, import("@sinclair/typebox").TLiteral<"rate_limit">, import("@sinclair/typebox").TLiteral<"context_length">, import("@sinclair/typebox").TLiteral<"unknown">]>>;
-    usage: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TUnknown>;
-    stopReason: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
+export declare const ChatEventSchema: Type.TObject<{
+    runId: Type.TString;
+    sessionKey: Type.TString;
+    seq: Type.TInteger;
+    state: Type.TUnion<[Type.TLiteral<"delta">, Type.TLiteral<"final">, Type.TLiteral<"aborted">, Type.TLiteral<"error">]>;
+    message: Type.TOptional<Type.TUnknown>;
+    errorMessage: Type.TOptional<Type.TString>;
+    errorKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"refusal">, Type.TLiteral<"timeout">, Type.TLiteral<"rate_limit">, Type.TLiteral<"context_length">, Type.TLiteral<"unknown">]>>;
+    usage: Type.TOptional<Type.TUnknown>;
+    stopReason: Type.TOptional<Type.TString>;
 }>;

@@ -1,6 +1,6 @@
 import { resolveGoogleGenerativeAiHttpRequestConfig } from "./api.js";
 import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
-import { assertOkOrThrowHttpError, postJsonRequest } from "openclaw/plugin-sdk/provider-http";
+import { assertOkOrThrowProviderError, postJsonRequest } from "openclaw/plugin-sdk/provider-http";
 import { normalizeResolvedSecretInputString } from "openclaw/plugin-sdk/secret-input";
 import { asObject, trimToUndefined } from "openclaw/plugin-sdk/speech-core";
 //#region extensions/google/speech-provider.ts
@@ -77,7 +77,9 @@ function normalizeGoogleTtsProviderConfig(rawConfig) {
 		}),
 		baseUrl: trimToUndefined(raw?.baseUrl),
 		model: normalizeGoogleTtsModel(raw?.model),
-		voiceName: normalizeGoogleTtsVoiceName(raw?.voiceName ?? raw?.voice)
+		voiceName: normalizeGoogleTtsVoiceName(raw?.voiceName ?? raw?.voice),
+		audioProfile: trimToUndefined(raw?.audioProfile),
+		speakerName: trimToUndefined(raw?.speakerName)
 	};
 }
 function readGoogleTtsProviderConfig(config) {
@@ -86,15 +88,26 @@ function readGoogleTtsProviderConfig(config) {
 		apiKey: trimToUndefined(config.apiKey) ?? normalized.apiKey,
 		baseUrl: trimToUndefined(config.baseUrl) ?? normalized.baseUrl,
 		model: normalizeGoogleTtsModel(config.model ?? normalized.model),
-		voiceName: normalizeGoogleTtsVoiceName(config.voiceName ?? config.voice ?? normalized.voiceName)
+		voiceName: normalizeGoogleTtsVoiceName(config.voiceName ?? config.voice ?? normalized.voiceName),
+		audioProfile: trimToUndefined(config.audioProfile) ?? normalized.audioProfile,
+		speakerName: trimToUndefined(config.speakerName) ?? normalized.speakerName
 	};
 }
 function readGoogleTtsOverrides(overrides) {
 	if (!overrides) return {};
 	return {
 		model: normalizeOptionalString(overrides.model),
-		voiceName: normalizeOptionalString(overrides.voiceName ?? overrides.voice)
+		voiceName: normalizeOptionalString(overrides.voiceName ?? overrides.voice),
+		audioProfile: normalizeOptionalString(overrides.audioProfile),
+		speakerName: normalizeOptionalString(overrides.speakerName)
 	};
+}
+function composeGoogleTtsText(params) {
+	return [
+		trimToUndefined(params.audioProfile),
+		trimToUndefined(params.speakerName) ? `Speaker name: ${params.speakerName}` : void 0,
+		params.text
+	].filter((part) => part !== void 0).join("\n\n");
 }
 function parseDirectiveToken(ctx) {
 	switch (ctx.key) {
@@ -157,7 +170,11 @@ async function synthesizeGoogleTtsPcm(params) {
 		body: {
 			contents: [{
 				role: "user",
-				parts: [{ text: params.text }]
+				parts: [{ text: composeGoogleTtsText({
+					text: params.text,
+					audioProfile: params.audioProfile,
+					speakerName: params.speakerName
+				}) }]
 			}],
 			generationConfig: {
 				responseModalities: ["AUDIO"],
@@ -171,7 +188,7 @@ async function synthesizeGoogleTtsPcm(params) {
 		dispatcherPolicy
 	});
 	try {
-		await assertOkOrThrowHttpError(res, "Google TTS failed");
+		await assertOkOrThrowProviderError(res, "Google TTS failed");
 		return extractGoogleSpeechPcm(await res.json());
 	} finally {
 		await release();
@@ -228,6 +245,8 @@ function buildGoogleSpeechProvider() {
 					}),
 					model: normalizeGoogleTtsModel(overrides.model ?? config.model),
 					voiceName: normalizeGoogleTtsVoiceName(overrides.voiceName ?? config.voiceName),
+					audioProfile: overrides.audioProfile ?? config.audioProfile,
+					speakerName: overrides.speakerName ?? config.speakerName,
 					timeoutMs: req.timeoutMs
 				})),
 				outputFormat: "wav",
@@ -252,6 +271,8 @@ function buildGoogleSpeechProvider() {
 					}),
 					model: config.model,
 					voiceName: config.voiceName,
+					audioProfile: config.audioProfile,
+					speakerName: config.speakerName,
 					timeoutMs: req.timeoutMs
 				}),
 				outputFormat: "pcm",

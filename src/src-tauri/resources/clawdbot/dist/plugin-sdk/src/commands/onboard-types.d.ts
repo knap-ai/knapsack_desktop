@@ -69,6 +69,7 @@ export type OnboardOptions = OnboardDynamicProviderOptions & {
     /** @deprecated Legacy alias for `skipChannels`. */
     skipProviders?: boolean;
     skipSkills?: boolean;
+    skipBootstrap?: boolean;
     skipSearch?: boolean;
     skipHealth?: boolean;
     skipUi?: boolean;

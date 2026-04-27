@@ -2,7 +2,7 @@ import { normalizeGoogleModelId } from "./model-id.js";
 import { DEFAULT_GOOGLE_API_BASE_URL } from "./provider-policy.js";
 import { resolveGoogleGenerativeAiHttpRequestConfig } from "./api.js";
 import "./runtime-api.js";
-import { assertOkOrThrowHttpError, postJsonRequest } from "openclaw/plugin-sdk/provider-http";
+import { assertOkOrThrowProviderError, postJsonRequest } from "openclaw/plugin-sdk/provider-http";
 import { describeImageWithModel, describeImagesWithModel } from "openclaw/plugin-sdk/media-understanding";
 //#region extensions/google/media-understanding-provider.ts
 const DEFAULT_GOOGLE_AUDIO_BASE_URL = DEFAULT_GOOGLE_API_BASE_URL;
@@ -42,7 +42,7 @@ async function generateGeminiInlineDataText(params) {
 		dispatcherPolicy
 	});
 	try {
-		await assertOkOrThrowHttpError(res, params.httpErrorLabel);
+		await assertOkOrThrowProviderError(res, params.httpErrorLabel);
 		const text = ((await res.json()).candidates?.[0]?.content?.parts ?? []).map((part) => part?.text?.trim()).filter(Boolean).join("\n");
 		if (!text) throw new Error(params.missingTextError);
 		return {

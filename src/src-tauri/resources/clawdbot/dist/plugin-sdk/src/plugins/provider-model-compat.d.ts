@@ -1,5 +1,8 @@
 import type { Api, Model } from "@mariozechner/pi-ai";
 import type { ModelCompatConfig } from "../config/types.models.js";
+export declare function extractModelCompat(modelOrCompat: {
+    compat?: unknown;
+} | ModelCompatConfig | undefined): ModelCompatConfig | undefined;
 export declare function applyModelCompatPatch<T extends {
     compat?: ModelCompatConfig;
 }>(model: T, patch: ModelCompatConfig): T;

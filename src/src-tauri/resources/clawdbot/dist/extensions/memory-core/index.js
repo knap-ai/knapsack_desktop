@@ -1,32 +1,35 @@
-import { i as formatErrorMessage } from "../../errors-D8p6rxH8.js";
-import { i as normalizeLowercaseStringOrEmpty } from "../../string-coerce-BUSzWgUA.js";
-import { n as asNullableRecord } from "../../record-coerce-Bls3blVy.js";
-import { x as parseAgentSessionKey } from "../../session-key-Bh1lMwK5.js";
-import { p as resolveSessionAgentId } from "../../agent-scope-KFH9bkHi.js";
-import { n as parseNonNegativeByteSize } from "../../zod-schema-BO9ySEsE.js";
-import { F as resolveMemoryDeepDreamingConfig, I as resolveMemoryDreamingConfig, P as resolveMemoryCorePluginConfig$1, z as resolveMemoryDreamingWorkspaces } from "../../dreaming-BHkWSJTy.js";
-import { l as listMemoryCorpusSupplements } from "../../memory-state-B-M2UC51.js";
-import { n as SILENT_REPLY_TOKEN } from "../../tokens-CKM4Lddu.js";
-import "../../pi-settings-RskXDZtF.js";
-import { c as jsonResult, d as readNumberParam, h as readStringParam } from "../../common-BWtun2If.js";
-import { n as resolveCronStyleNow } from "../../current-time-DumgMhEz.js";
-import { t as resolveMemorySearchConfig } from "../../memory-search-ABYPOqC9.js";
-import "../../text-runtime-DTMxvodz.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../error-runtime-CgBDklBz.js";
-import "../../memory-core-host-runtime-core-C5HfOFi_.js";
-import { i as resolveMemoryHostEventLogPath } from "../../events-vhQHXKTC.js";
-import "../../memory-core-host-events-D6SKkNd5.js";
-import "../../memory-core-host-status-D-yEZRxN.js";
-import { c as recordShortTermRecalls } from "../../short-term-promotion-Cd3cMDbx.js";
-import "../../dreaming-shared-CYhwg474.js";
-import { t as registerMemoryCli } from "../../cli-B_9fdt6o.js";
-import { n as resolveShortTermPromotionDreamingConfig, t as registerShortTermPromotionDreaming } from "../../dreaming-Dmn9KbNB.js";
-import { o as registerBuiltInMemoryEmbeddingProviders } from "../../manager-cQ8cHF3H.js";
-import { t as memoryRuntime } from "../../runtime-provider-DfCjNthi.js";
+import { i as formatErrorMessage } from "../../errors-Jbvi20TW.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
+import { n as asNullableRecord } from "../../record-coerce-BpObaVhi.js";
+import { o as parseAgentSessionKey } from "../../session-key-utils-BT0y7mVK.js";
+import { p as resolveSessionAgentId } from "../../agent-scope-_6dFncNS.js";
+import { n as parseNonNegativeByteSize } from "../../zod-schema-Q-_hlOBD.js";
+import { F as resolveMemoryDeepDreamingConfig, I as resolveMemoryDreamingConfig, P as resolveMemoryCorePluginConfig$1, z as resolveMemoryDreamingWorkspaces } from "../../dreaming-K8xreO0H.js";
+import { l as listMemoryCorpusSupplements } from "../../memory-state-I5DhT9-V.js";
+import { t as loadCombinedSessionStoreForGateway } from "../../combined-store-gateway-qDHoxMjQ.js";
+import { n as SILENT_REPLY_TOKEN } from "../../tokens-C_v_J0E7.js";
+import "../../pi-settings-DnGbeiAj.js";
+import { f as readNumberParam, g as readStringParam, i as asToolParamsRecord, l as jsonResult } from "../../common-B4WrK_Ib.js";
+import { a as resolveEffectiveSessionToolsVisibility, r as createSessionVisibilityGuard, t as createAgentToAgentPolicy } from "../../session-visibility-BaId4y0g.js";
+import { n as resolveCronStyleNow } from "../../current-time-GUMQXnlj.js";
+import { t as resolveMemorySearchConfig } from "../../memory-search--kG5KoFE.js";
+import "../../text-runtime-B1c54bxG.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../error-runtime-D8vVwCEz.js";
+import { n as resolveTranscriptStemToSessionKeys, t as extractTranscriptStemFromSessionsMemoryHit } from "../../session-transcript-hit-Dwum7uxE.js";
+import "../../memory-core-host-runtime-core-DbLpPUqA.js";
+import { i as resolveMemoryHostEventLogPath } from "../../events-D_R_jQEz.js";
+import "../../memory-core-host-events-6AXBMagt.js";
+import "../../memory-core-host-status-BfwKpmnZ.js";
+import { c as recordShortTermRecalls } from "../../short-term-promotion-CI1S22E7.js";
+import "../../dreaming-shared-CkfGe3lS.js";
+import { t as registerMemoryCli } from "../../cli-L6RFqFT9.js";
+import { n as resolveShortTermPromotionDreamingConfig, t as registerShortTermPromotionDreaming } from "../../dreaming-DugQEpYx.js";
+import { o as registerBuiltInMemoryEmbeddingProviders } from "../../manager-Cjkvk5xb.js";
+import { t as memoryRuntime } from "../../runtime-provider-Ovf31eiI.js";
 import path from "node:path";
 import fs from "node:fs/promises";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 //#region extensions/memory-core/src/dreaming-command.ts
 function resolveMemoryCorePluginConfig(cfg) {
 	return asNullableRecord(asNullableRecord(cfg.plugins?.entries?.["memory-core"])?.config) ?? {};
@@ -247,7 +250,7 @@ async function listMarkdownFilesRecursive(rootDir) {
 async function collectWorkspaceArtifacts(params) {
 	const artifacts = [];
 	const workspaceEntries = new Set((await fs.readdir(params.workspaceDir, { withFileTypes: true }).catch(() => [])).filter((entry) => entry.isFile()).map((entry) => entry.name));
-	for (const relativePath of ["MEMORY.md", "memory.md"]) {
+	for (const relativePath of ["MEMORY.md"]) {
 		if (!workspaceEntries.has(relativePath)) continue;
 		const absolutePath = path.join(params.workspaceDir, relativePath);
 		artifacts.push({
@@ -292,6 +295,40 @@ async function listMemoryCorePublicArtifacts(params) {
 		agentIds: workspace.agentIds
 	}));
 	return artifacts;
+}
+//#endregion
+//#region extensions/memory-core/src/session-search-visibility.ts
+async function filterMemorySearchHitsBySessionVisibility(params) {
+	const visibility = resolveEffectiveSessionToolsVisibility({
+		cfg: params.cfg,
+		sandboxed: params.sandboxed
+	});
+	const a2aPolicy = createAgentToAgentPolicy(params.cfg);
+	const guard = params.requesterSessionKey ? await createSessionVisibilityGuard({
+		action: "history",
+		requesterSessionKey: params.requesterSessionKey,
+		visibility,
+		a2aPolicy
+	}) : null;
+	const { store: combinedSessionStore } = loadCombinedSessionStoreForGateway(params.cfg);
+	const next = [];
+	for (const hit of params.hits) {
+		if (hit.source !== "sessions") {
+			next.push(hit);
+			continue;
+		}
+		if (!params.requesterSessionKey || !guard) continue;
+		const stem = extractTranscriptStemFromSessionsMemoryHit(hit.path);
+		if (!stem) continue;
+		const keys = resolveTranscriptStemToSessionKeys({
+			store: combinedSessionStore,
+			stem
+		});
+		if (keys.length === 0) continue;
+		if (!keys.some((key) => guard.check(key).allowed)) continue;
+		next.push(hit);
+	}
+	return next;
 }
 //#endregion
 //#region extensions/memory-core/src/tools.citations.ts
@@ -357,7 +394,7 @@ function deriveChatTypeFromSessionKey(sessionKey) {
 //#region extensions/memory-core/src/tools.shared.ts
 let memoryToolRuntimePromise = null;
 async function loadMemoryToolRuntime() {
-	memoryToolRuntimePromise ??= import("../../tools.runtime-CUkJ2a_b.js");
+	memoryToolRuntimePromise ??= import("../../tools.runtime-B_ugF814.js");
 	return await memoryToolRuntimePromise;
 }
 const MemorySearchSchema = Type.Object({
@@ -367,7 +404,8 @@ const MemorySearchSchema = Type.Object({
 	corpus: Type.Optional(Type.Union([
 		Type.Literal("memory"),
 		Type.Literal("wiki"),
-		Type.Literal("all")
+		Type.Literal("all"),
+		Type.Literal("sessions")
 	]))
 });
 const MemoryGetSchema = Type.Object({
@@ -439,7 +477,7 @@ function buildMemorySearchUnavailableResult(error) {
 	};
 }
 async function searchMemoryCorpusSupplements(params) {
-	if (params.corpus === "memory") return [];
+	if (params.corpus === "memory" || params.corpus === "sessions") return [];
 	const supplements = listMemoryCorpusSupplements();
 	if (supplements.length === 0) return [];
 	return (await Promise.all(supplements.map(async (registration) => await registration.supplement.search(params)))).flat().toSorted((left, right) => {
@@ -448,7 +486,7 @@ async function searchMemoryCorpusSupplements(params) {
 	}).slice(0, Math.max(1, params.maxResults ?? 10));
 }
 async function getMemoryCorpusSupplementResult(params) {
-	if (params.corpus === "memory") return null;
+	if (params.corpus === "memory" || params.corpus === "sessions") return null;
 	for (const registration of listMemoryCorpusSupplements()) {
 		const result = await registration.supplement.get(params);
 		if (result) return result;
@@ -544,13 +582,14 @@ function createMemorySearchTool(options) {
 		options,
 		label: "Memory Search",
 		name: "memory_search",
-		description: "Mandatory recall step: semantically search MEMORY.md + memory/*.md (and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos. Optional `corpus=wiki` or `corpus=all` also searches registered compiled-wiki supplements. If response has disabled=true, memory retrieval is unavailable and should be surfaced to the user.",
+		description: "Mandatory recall step: semantically search MEMORY.md + memory/*.md (and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos. Optional `corpus=wiki` or `corpus=all` also searches registered compiled-wiki supplements. `corpus=memory` restricts hits to indexed memory files (excludes session transcript chunks from ranking). `corpus=sessions` restricts hits to indexed session transcripts (same visibility rules as session history tools). If response has disabled=true, memory retrieval is unavailable and should be surfaced to the user.",
 		parameters: MemorySearchSchema,
 		execute: ({ cfg, agentId }) => async (_toolCallId, params) => {
-			const query = readStringParam(params, "query", { required: true });
-			const maxResults = readNumberParam(params, "maxResults");
-			const minScore = readNumberParam(params, "minScore");
-			const requestedCorpus = readStringParam(params, "corpus");
+			const rawParams = asToolParamsRecord(params);
+			const query = readStringParam(rawParams, "query", { required: true });
+			const maxResults = readNumberParam(rawParams, "maxResults");
+			const minScore = readNumberParam(rawParams, "minScore");
+			const requestedCorpus = readStringParam(rawParams, "corpus");
 			const { resolveMemoryBackendConfig } = await loadMemoryToolRuntime();
 			const shouldQueryMemory = requestedCorpus !== "wiki";
 			const shouldQuerySupplements = requestedCorpus === "wiki" || requestedCorpus === "all";
@@ -576,6 +615,7 @@ function createMemorySearchTool(options) {
 				if (shouldQueryMemory && memory && !("error" in memory)) {
 					const runtimeDebug = [];
 					const qmdSearchModeOverride = resolveActiveMemoryQmdSearchModeOverride(cfg, options.agentSessionKey);
+					const searchSources = requestedCorpus === "sessions" ? ["sessions"] : requestedCorpus === "memory" ? ["memory"] : void 0;
 					rawResults = await memory.manager.search(query, {
 						maxResults,
 						minScore,
@@ -583,8 +623,17 @@ function createMemorySearchTool(options) {
 						qmdSearchModeOverride,
 						onDebug: (debug) => {
 							runtimeDebug.push(debug);
-						}
+						},
+						...searchSources ? { sources: searchSources } : {}
 					});
+					rawResults = await filterMemorySearchHitsBySessionVisibility({
+						cfg,
+						requesterSessionKey: options.agentSessionKey,
+						sandboxed: options.sandboxed === true,
+						hits: rawResults
+					});
+					if (requestedCorpus === "sessions") rawResults = rawResults.filter((hit) => hit.source === "sessions");
+					else if (requestedCorpus === "memory") rawResults = rawResults.filter((hit) => hit.source === "memory");
 					const status = memory.manager.status();
 					const decorated = decorateCitations(rawResults, includeCitations);
 					const resolved = resolveMemoryBackendConfig({
@@ -653,10 +702,11 @@ function createMemoryGetTool(options) {
 		description: "Safe exact excerpt read from MEMORY.md or memory/*.md. Defaults to a bounded excerpt when lines are omitted, includes truncation/continuation info when more content exists, and `corpus=wiki` reads from registered compiled-wiki supplements.",
 		parameters: MemoryGetSchema,
 		execute: ({ cfg, agentId }) => async (_toolCallId, params) => {
-			const relPath = readStringParam(params, "path", { required: true });
-			const from = readNumberParam(params, "from", { integer: true });
-			const lines = readNumberParam(params, "lines", { integer: true });
-			const requestedCorpus = readStringParam(params, "corpus");
+			const rawParams = asToolParamsRecord(params);
+			const relPath = readStringParam(rawParams, "path", { required: true });
+			const from = readNumberParam(rawParams, "from", { integer: true });
+			const lines = readNumberParam(rawParams, "lines", { integer: true });
+			const requestedCorpus = readStringParam(rawParams, "corpus");
 			const { readAgentMemoryFile, resolveMemoryBackendConfig } = await loadMemoryToolRuntime();
 			if (requestedCorpus === "wiki") return jsonResult(await getSupplementMemoryReadResult({
 				relPath,
@@ -732,7 +782,8 @@ var memory_core_default = definePluginEntry({
 		});
 		api.registerTool((ctx) => createMemorySearchTool({
 			config: ctx.config,
-			agentSessionKey: ctx.sessionKey
+			agentSessionKey: ctx.sessionKey,
+			sandboxed: ctx.sandboxed
 		}), { names: ["memory_search"] });
 		api.registerTool((ctx) => createMemoryGetTool({
 			config: ctx.config,

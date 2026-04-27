@@ -5,6 +5,8 @@ export declare function listRunsForRequesterFromRuns(runs: Map<string, SubagentR
     requesterRunId?: string;
 }): SubagentRunRecord[];
 export declare function listRunsForControllerFromRuns(runs: Map<string, SubagentRunRecord>, controllerSessionKey: string): SubagentRunRecord[];
+export declare function isSubagentSessionRunActiveFromRuns(runs: Map<string, SubagentRunRecord>, childSessionKey: string): boolean;
+export declare function getSubagentRunByChildSessionKeyFromRuns(runs: Map<string, SubagentRunRecord>, childSessionKey: string): SubagentRunRecord | null;
 export declare function resolveRequesterForChildSessionFromRuns(runs: Map<string, SubagentRunRecord>, childSessionKey: string): {
     requesterSessionKey: string;
     requesterOrigin?: DeliveryContext;

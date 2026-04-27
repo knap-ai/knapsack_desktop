@@ -24,10 +24,21 @@ export declare function recoverOrphanedSubagentSessions(params: {
     getActiveRuns: () => Map<string, SubagentRunRecord>;
     /** Persisted across retries so already-resumed sessions are not resumed again. */
     resumedSessionKeys?: Set<string>;
+    /** Human-visible attempt number for this recovery pass. */
+    attemptNumber?: number;
+    /** Total recovery attempts before giving up. */
+    maxAttempts?: number;
+    /** Persisted across retries so recovery-in-progress notices stay deduped. */
+    notifiedRecoverySessionKeys?: Set<string>;
 }): Promise<{
     recovered: number;
     failed: number;
     skipped: number;
+    failedRuns: Array<{
+        runId: string;
+        childSessionKey: string;
+        error?: string;
+    }>;
 }>;
 /**
  * Schedule orphan recovery after a delay, with retry logic.

@@ -1,4 +1,4 @@
-import type { BlockReplyContext, ReplyPayload } from "../types.js";
+import type { BlockReplyContext, ReplyPayload, ReplyThreadingPolicy } from "../types.js";
 import type { BlockReplyPipeline } from "./block-reply-pipeline.js";
 import type { TypingSignaler } from "./typing-mode.js";
 export type ReplyDirectiveParseMode = "always" | "auto" | "never";
@@ -15,6 +15,7 @@ export declare function normalizeReplyPayloadDirectives(params: {
 export declare function createBlockReplyDeliveryHandler(params: {
     onBlockReply: (payload: ReplyPayload, context?: BlockReplyContext) => Promise<void> | void;
     currentMessageId?: string;
+    replyThreading?: ReplyThreadingPolicy;
     normalizeStreamingText: (payload: ReplyPayload) => {
         text?: string;
         skip: boolean;

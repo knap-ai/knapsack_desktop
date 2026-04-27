@@ -8,6 +8,6 @@ export declare function createWebSearchTool(options?: {
     runtimeWebSearch?: RuntimeWebSearchMetadata;
 }): AnyAgentTool | null;
 export declare const __testing: {
-    SEARCH_CACHE: Map<string, import("./web-shared.ts").CacheEntry<Record<string, unknown>>>;
+    SEARCH_CACHE: Map<string, import("openclaw/plugin-sdk/agent-runtime").CacheEntry<Record<string, unknown>>>;
     resolveSearchProvider: (search?: Parameters<typeof resolveWebSearchProviderId>[0]["search"]) => string;
 };

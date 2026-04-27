@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
+import { type BundledRuntimeDepsInstallParams } from "./bundled-runtime-deps.js";
 import { type PluginActivationConfigSource } from "./config-state.js";
 import { type PluginRegistry } from "./registry.js";
 import type { CreatePluginRuntimeOptions } from "./runtime/types.js";
@@ -20,6 +21,8 @@ export type PluginLoadOptions = {
     mode?: "full" | "validate";
     onlyPluginIds?: string[];
     includeSetupOnlyChannelPlugins?: boolean;
+    forceSetupOnlyChannelPlugins?: boolean;
+    requireSetupEntryForSetupOnlyChannelPlugins?: boolean;
     /**
      * Prefer `setupEntry` for configured channel plugins that explicitly opt in
      * via package metadata because their setup entry covers the pre-listen startup surface.
@@ -27,7 +30,9 @@ export type PluginLoadOptions = {
     preferSetupRuntimeForChannelPlugins?: boolean;
     activate?: boolean;
     loadModules?: boolean;
+    installBundledRuntimeDeps?: boolean;
     throwOnLoadError?: boolean;
+    bundledRuntimeDepsInstaller?: (params: BundledRuntimeDepsInstallParams) => void;
 };
 export declare class PluginLoadFailureError extends Error {
     readonly pluginIds: string[];
@@ -49,6 +54,7 @@ export declare function clearPluginLoaderCache(): void;
  * leaves everything else unchanged.
  */
 declare function toSafeImportPath(specifier: string): string;
+declare function ensureOpenClawPluginSdkAlias(distRoot: string): void;
 export declare const __testing: {
     buildPluginLoaderJitiOptions: typeof buildPluginLoaderJitiOptions;
     buildPluginLoaderAliasMap: typeof buildPluginLoaderAliasMap;
@@ -59,6 +65,7 @@ export declare const __testing: {
     resolvePluginSdkAliasCandidateOrder: typeof resolvePluginSdkAliasCandidateOrder;
     resolvePluginSdkAliasFile: typeof resolvePluginSdkAliasFile;
     resolvePluginRuntimeModulePath: typeof resolvePluginRuntimeModulePath;
+    ensureOpenClawPluginSdkAlias: typeof ensureOpenClawPluginSdkAlias;
     shouldLoadChannelPluginInSetupRuntime: typeof shouldLoadChannelPluginInSetupRuntime;
     shouldPreferNativeJiti: typeof shouldPreferNativeJiti;
     toSafeImportPath: typeof toSafeImportPath;
@@ -76,9 +83,12 @@ declare function resolvePluginLoadCacheContext(options?: PluginLoadOptions): {
     autoEnabledReasons: Readonly<Record<string, string[]>>;
     onlyPluginIds: string[] | undefined;
     includeSetupOnlyChannelPlugins: boolean;
+    forceSetupOnlyChannelPlugins: boolean;
+    requireSetupEntryForSetupOnlyChannelPlugins: boolean;
     preferSetupRuntimeForChannelPlugins: boolean;
     shouldActivate: boolean;
     shouldLoadModules: boolean;
+    shouldInstallBundledRuntimeDeps: boolean;
     runtimeSubagentMode: "default" | "explicit" | "gateway-bindable";
     cacheKey: string;
 };

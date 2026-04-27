@@ -1,24 +1,34 @@
-import "../../defaults-CiQa3xnX.js";
-import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-nkL4zxbI.js";
-import "../../provider-auth-api-key-F-AGqwyB.js";
-import { l as getOpenRouterModelCapabilities, u as loadOpenRouterModelCapabilities } from "../../provider-stream-DMhSzU-H.js";
-import "../../provider-stream-family-CjEB-fh0.js";
-import { t as openrouterMediaUnderstandingProvider } from "../../media-understanding-provider-DUpQFXzG.js";
-import { n as applyOpenrouterConfig, t as OPENROUTER_DEFAULT_MODEL_REF } from "../../onboard-B_SucoKy.js";
-import { t as buildOpenrouterProvider } from "../../provider-catalog-CBF060vN.js";
-import { t as wrapOpenRouterProviderStream } from "../../stream-Broz_2_3.js";
+import "../../defaults-DM8yIn8C.js";
+import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
+import "../../provider-auth-api-key-BVwjjhIk.js";
+import { l as getOpenRouterModelCapabilities, u as loadOpenRouterModelCapabilities } from "../../provider-stream-CNYlhjpk.js";
+import "../../provider-stream-family-DoMxNUtY.js";
+import { n as buildOpenrouterProvider, r as normalizeOpenRouterBaseUrl, t as OPENROUTER_BASE_URL } from "../../provider-catalog-CAICBflG.js";
+import { t as buildOpenRouterImageGenerationProvider } from "../../image-generation-provider-LPNIEqIV.js";
+import { t as openrouterMediaUnderstandingProvider } from "../../media-understanding-provider-By27N0V5.js";
+import { n as applyOpenrouterConfig, t as OPENROUTER_DEFAULT_MODEL_REF } from "../../onboard-CH5C6cgg.js";
+import { t as buildOpenRouterSpeechProvider } from "../../speech-provider-DblB4P2a.js";
+import { t as wrapOpenRouterProviderStream } from "../../stream-Dd4u-SFN.js";
 //#region extensions/openrouter/index.ts
 const PROVIDER_ID = "openrouter";
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OPENROUTER_DEFAULT_MAX_TOKENS = 8192;
 const OPENROUTER_CACHE_TTL_MODEL_PREFIXES = [
 	"anthropic/",
+	"deepseek/",
 	"moonshot/",
 	"moonshotai/",
 	"zai/"
 ];
+function normalizeOpenRouterResolvedModel(model) {
+	const normalizedBaseUrl = normalizeOpenRouterBaseUrl(model.baseUrl);
+	if (!normalizedBaseUrl || normalizedBaseUrl === model.baseUrl) return;
+	return {
+		...model,
+		baseUrl: normalizedBaseUrl
+	};
+}
 var openrouter_default = definePluginEntry({
 	id: "openrouter",
 	name: "OpenRouter Provider",
@@ -83,9 +93,28 @@ var openrouter_default = definePluginEntry({
 					} };
 				}
 			},
+			staticCatalog: {
+				order: "simple",
+				run: async () => ({ provider: buildOpenrouterProvider() })
+			},
 			resolveDynamicModel: (ctx) => buildDynamicOpenRouterModel(ctx),
 			prepareDynamicModel: async (ctx) => {
 				await loadOpenRouterModelCapabilities(ctx.modelId);
+			},
+			normalizeConfig: ({ providerConfig }) => {
+				const normalizedBaseUrl = normalizeOpenRouterBaseUrl(providerConfig.baseUrl);
+				return normalizedBaseUrl && normalizedBaseUrl !== providerConfig.baseUrl ? {
+					...providerConfig,
+					baseUrl: normalizedBaseUrl
+				} : void 0;
+			},
+			normalizeResolvedModel: ({ model }) => normalizeOpenRouterResolvedModel(model),
+			normalizeTransport: ({ api, baseUrl }) => {
+				const normalizedBaseUrl = normalizeOpenRouterBaseUrl(baseUrl);
+				return normalizedBaseUrl && normalizedBaseUrl !== baseUrl ? {
+					api,
+					baseUrl: normalizedBaseUrl
+				} : void 0;
 			},
 			...PASSTHROUGH_GEMINI_REPLAY_HOOKS,
 			resolveReasoningOutputMode: () => "native",
@@ -94,6 +123,8 @@ var openrouter_default = definePluginEntry({
 			isCacheTtlEligible: (ctx) => isOpenRouterCacheTtlModel(ctx.modelId)
 		});
 		api.registerMediaUnderstandingProvider(openrouterMediaUnderstandingProvider);
+		api.registerImageGenerationProvider(buildOpenRouterImageGenerationProvider());
+		api.registerSpeechProvider(buildOpenRouterSpeechProvider());
 	}
 });
 //#endregion

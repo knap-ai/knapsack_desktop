@@ -1,3 +1,3 @@
-import { n as isDiagnosticsEnabled } from "../diagnostic-events-P3w1ZgD_.js";
-import { t as isDiagnosticFlagEnabled } from "../diagnostic-flags--9FQum4u.js";
+import { r as isDiagnosticsEnabled } from "../diagnostic-events-Cz86_awm.js";
+import { t as isDiagnosticFlagEnabled } from "../diagnostic-flags-BppSYFAg.js";
 export { isDiagnosticFlagEnabled, isDiagnosticsEnabled };

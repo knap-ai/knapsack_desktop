@@ -39,18 +39,6 @@ export declare function buildEmbeddedRunBaseParams(params: {
     authProfile: ReturnType<typeof resolveProviderScopedAuthProfile>;
     allowTransientCooldownProbe?: boolean;
 }): {
-    thinkLevel: import("./directives.ts").ThinkLevel | undefined;
-    verboseLevel: import("./directives.ts").VerboseLevel | undefined;
-    reasoningLevel: import("./directives.ts").ReasoningLevel | undefined;
-    execOverrides: Pick<import("../../agents/bash-tools.exec-types.ts").ExecToolDefaults, "node" | "ask" | "host" | "security"> | undefined;
-    bashElevated: {
-        enabled: boolean;
-        allowed: boolean;
-        defaultLevel: import("./directives.ts").ElevatedLevel;
-    } | undefined;
-    timeoutMs: number;
-    runId: string;
-    allowTransientCooldownProbe: boolean | undefined;
     authProfileId?: string;
     authProfileIdSource?: "auto" | "user";
     sessionFile: string;
@@ -65,6 +53,18 @@ export declare function buildEmbeddedRunBaseParams(params: {
     silentExpected: boolean | undefined;
     provider: string;
     model: string;
+    thinkLevel: import("./directives.ts").ThinkLevel | undefined;
+    verboseLevel: import("./directives.ts").VerboseLevel | undefined;
+    reasoningLevel: import("./directives.ts").ReasoningLevel | undefined;
+    execOverrides: Pick<import("../../agents/bash-tools.exec-types.ts").ExecToolDefaults, "ask" | "host" | "node" | "security"> | undefined;
+    bashElevated: {
+        enabled: boolean;
+        allowed: boolean;
+        defaultLevel: import("./directives.ts").ElevatedLevel;
+    } | undefined;
+    timeoutMs: number;
+    runId: string;
+    allowTransientCooldownProbe: boolean | undefined;
 };
 export declare function buildEmbeddedContextFromTemplate(params: {
     run: FollowupRun["run"];
@@ -85,11 +85,13 @@ export declare function buildEmbeddedContextFromTemplate(params: {
     skipCrossContextDecoration?: boolean;
     sessionId: string;
     sessionKey: string | undefined;
+    sandboxSessionKey: string | undefined;
     agentId: string;
     messageProvider: string | undefined;
     agentAccountId: string | undefined;
     messageTo: string | undefined;
     messageThreadId: string | number | undefined;
+    memberRoleIds: string[] | undefined;
 };
 export declare function buildTemplateSenderContext(sessionCtx: TemplateContext): {
     senderId: string | undefined;
@@ -122,11 +124,13 @@ export declare function buildEmbeddedRunContexts(params: {
         skipCrossContextDecoration?: boolean;
         sessionId: string;
         sessionKey: string | undefined;
+        sandboxSessionKey: string | undefined;
         agentId: string;
         messageProvider: string | undefined;
         agentAccountId: string | undefined;
         messageTo: string | undefined;
         messageThreadId: string | number | undefined;
+        memberRoleIds: string[] | undefined;
     };
     senderContext: {
         senderId: string | undefined;
@@ -159,11 +163,13 @@ export declare function buildEmbeddedRunExecutionParams(params: {
         skipCrossContextDecoration?: boolean;
         sessionId: string;
         sessionKey: string | undefined;
+        sandboxSessionKey: string | undefined;
         agentId: string;
         messageProvider: string | undefined;
         agentAccountId: string | undefined;
         messageTo: string | undefined;
         messageThreadId: string | number | undefined;
+        memberRoleIds: string[] | undefined;
     };
     senderContext: {
         senderId: string | undefined;
@@ -172,18 +178,6 @@ export declare function buildEmbeddedRunExecutionParams(params: {
         senderE164: string | undefined;
     };
     runBaseParams: {
-        thinkLevel: import("./directives.ts").ThinkLevel | undefined;
-        verboseLevel: import("./directives.ts").VerboseLevel | undefined;
-        reasoningLevel: import("./directives.ts").ReasoningLevel | undefined;
-        execOverrides: Pick<import("../../agents/bash-tools.exec-types.ts").ExecToolDefaults, "node" | "ask" | "host" | "security"> | undefined;
-        bashElevated: {
-            enabled: boolean;
-            allowed: boolean;
-            defaultLevel: import("./directives.ts").ElevatedLevel;
-        } | undefined;
-        timeoutMs: number;
-        runId: string;
-        allowTransientCooldownProbe: boolean | undefined;
         authProfileId?: string;
         authProfileIdSource?: "auto" | "user";
         sessionFile: string;
@@ -198,5 +192,17 @@ export declare function buildEmbeddedRunExecutionParams(params: {
         silentExpected: boolean | undefined;
         provider: string;
         model: string;
+        thinkLevel: import("./directives.ts").ThinkLevel | undefined;
+        verboseLevel: import("./directives.ts").VerboseLevel | undefined;
+        reasoningLevel: import("./directives.ts").ReasoningLevel | undefined;
+        execOverrides: Pick<import("../../agents/bash-tools.exec-types.ts").ExecToolDefaults, "ask" | "host" | "node" | "security"> | undefined;
+        bashElevated: {
+            enabled: boolean;
+            allowed: boolean;
+            defaultLevel: import("./directives.ts").ElevatedLevel;
+        } | undefined;
+        timeoutMs: number;
+        runId: string;
+        allowTransientCooldownProbe: boolean | undefined;
     };
 };

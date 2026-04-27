@@ -25,6 +25,7 @@ export declare function applyConfiguredContextWindows(params: {
     cache: Map<string, number>;
     modelsConfig: ModelsConfig | undefined;
 }): void;
+export declare function shouldEagerWarmContextWindowCache(argv?: string[]): boolean;
 export declare function lookupContextTokens(modelId?: string, options?: {
     allowAsyncLoad?: boolean;
 }): number | undefined;

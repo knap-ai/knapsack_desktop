@@ -14,6 +14,10 @@ type WebMediaOptions = {
     maxBytes?: number;
     optimizeImages?: boolean;
     ssrfPolicy?: SsrFPolicy;
+    proxyUrl?: string;
+    fetchImpl?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+    requestInit?: RequestInit;
+    trustExplicitProxyDns?: boolean;
     workspaceDir?: string;
     /** Allowed root directories for local path reads. "any" is deprecated; prefer sandboxValidated + readFile. */
     localRoots?: readonly string[] | "any";

@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { type AuthCredentialReasonCode, type AuthProfileStore } from "./auth-profiles.js";
+import { type AuthCredentialReasonCode } from "./auth-profiles/credential-state.js";
+import type { AuthProfileStore } from "./auth-profiles/types.js";
 export type AuthProfileSource = "store";
 export type AuthProfileHealthStatus = "ok" | "expiring" | "expired" | "missing" | "static";
 export type AuthProfileHealth = {

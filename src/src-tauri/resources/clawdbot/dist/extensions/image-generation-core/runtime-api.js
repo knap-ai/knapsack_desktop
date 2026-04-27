@@ -1,3 +1,3 @@
-import { n as listRuntimeImageGenerationProviders, t as generateImage } from "../../runtime-p4Ehr4rr.js";
-import "../../image-generation-runtime-CBwXlzKS.js";
+import { n as listRuntimeImageGenerationProviders, t as generateImage } from "../../runtime-Bs-fdato.js";
+import "../../image-generation-runtime-DHeQTKY3.js";
 export { generateImage, listRuntimeImageGenerationProviders };

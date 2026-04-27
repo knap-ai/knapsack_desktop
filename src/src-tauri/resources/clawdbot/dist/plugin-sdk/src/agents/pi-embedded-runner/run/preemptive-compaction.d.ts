@@ -9,6 +9,7 @@ export declare function estimatePrePromptTokens(params: {
 }): number;
 export declare function shouldPreemptivelyCompactBeforePrompt(params: {
     messages: AgentMessage[];
+    unwindowedMessages?: AgentMessage[];
     systemPrompt?: string;
     prompt: string;
     contextTokenBudget: number;

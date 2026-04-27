@@ -1,4 +1,4 @@
-import { n as defineBundledChannelSetupEntry } from "../../channel-entry-contract-mcFqxQzW.js";
+import { n as defineBundledChannelSetupEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
 //#region extensions/irc/setup-entry.ts
 var setup_entry_default = defineBundledChannelSetupEntry({
 	importMetaUrl: import.meta.url,

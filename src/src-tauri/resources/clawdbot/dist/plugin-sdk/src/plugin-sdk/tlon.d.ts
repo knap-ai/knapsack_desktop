@@ -1,4 +1,4 @@
-export type { ReplyPayload } from "../auto-reply/reply-payload.js";
+export type { ReplyPayload } from "./reply-payload.js";
 export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";
 export { applyAccountNameToChannelSection, patchScopedAccountConfig, } from "../channels/plugins/setup-helpers.js";
 export type { ChannelAccountSnapshot, ChannelOutboundAdapter, ChannelSetupInput, } from "../channels/plugins/types.public.js";

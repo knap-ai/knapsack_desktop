@@ -1,12 +1,12 @@
-import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DyDnBaDe.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
-import { i as MOONSHOT_THINKING_STREAM_HOOKS } from "../../provider-stream-DMhSzU-H.js";
-import "../../provider-stream-family-CjEB-fh0.js";
-import { a as buildMoonshotProvider, i as applyMoonshotNativeStreamingUsageCompat } from "../../provider-catalog-2_ZH8EKE.js";
-import { n as applyMoonshotConfig, r as applyMoonshotConfigCn, t as MOONSHOT_DEFAULT_MODEL_REF } from "../../onboard-C3gcdU28.js";
-import "../../api-B0-290UG.js";
-import { r as moonshotMediaUnderstandingProvider } from "../../media-understanding-provider-DLOqoa4d.js";
-import { n as createKimiWebSearchProvider } from "../../kimi-web-search-provider-98dcZ3qq.js";
+import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-D-iKoymz.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
+import { i as MOONSHOT_THINKING_STREAM_HOOKS } from "../../provider-stream-CNYlhjpk.js";
+import "../../provider-stream-family-DoMxNUtY.js";
+import { a as buildMoonshotProvider, i as applyMoonshotNativeStreamingUsageCompat } from "../../provider-catalog-DyN0NNis.js";
+import { n as applyMoonshotConfig, r as applyMoonshotConfigCn, t as MOONSHOT_DEFAULT_MODEL_REF } from "../../onboard-DvLD1RlP.js";
+import "../../api-CT-O5fGj.js";
+import { r as moonshotMediaUnderstandingProvider } from "../../media-understanding-provider-w9xsI_Ew.js";
+import { t as createKimiWebSearchProvider } from "../../kimi-web-search-provider-YSSg2RRL.js";
 var moonshot_default = defineSingleProviderPluginEntry({
 	id: "moonshot",
 	name: "Moonshot Provider",
@@ -17,33 +17,47 @@ var moonshot_default = defineSingleProviderPluginEntry({
 		auth: [{
 			methodId: "api-key",
 			label: "Kimi API key (.ai)",
-			hint: "Kimi K2.5 + Kimi",
+			hint: "Kimi K2.6 + Kimi",
 			optionKey: "moonshotApiKey",
 			flagName: "--moonshot-api-key",
 			envVar: "MOONSHOT_API_KEY",
 			promptMessage: "Enter Moonshot API key",
 			defaultModel: MOONSHOT_DEFAULT_MODEL_REF,
 			applyConfig: (cfg) => applyMoonshotConfig(cfg),
-			wizard: { groupLabel: "Moonshot AI (Kimi K2.5)" }
+			wizard: { groupLabel: "Moonshot AI (Kimi K2.6)" }
 		}, {
 			methodId: "api-key-cn",
 			label: "Kimi API key (.cn)",
-			hint: "Kimi K2.5 + Kimi",
+			hint: "Kimi K2.6 + Kimi",
 			optionKey: "moonshotApiKey",
 			flagName: "--moonshot-api-key",
 			envVar: "MOONSHOT_API_KEY",
 			promptMessage: "Enter Moonshot API key (.cn)",
 			defaultModel: MOONSHOT_DEFAULT_MODEL_REF,
 			applyConfig: (cfg) => applyMoonshotConfigCn(cfg),
-			wizard: { groupLabel: "Moonshot AI (Kimi K2.5)" }
+			wizard: { groupLabel: "Moonshot AI (Kimi K2.6)" }
 		}],
 		catalog: {
 			buildProvider: buildMoonshotProvider,
+			buildStaticProvider: buildMoonshotProvider,
 			allowExplicitBaseUrl: true
 		},
 		applyNativeStreamingUsageCompat: ({ providerConfig }) => applyMoonshotNativeStreamingUsageCompat(providerConfig),
-		...OPENAI_COMPATIBLE_REPLAY_HOOKS,
-		...MOONSHOT_THINKING_STREAM_HOOKS
+		...buildProviderReplayFamilyHooks({
+			family: "openai-compatible",
+			sanitizeToolCallIds: false
+		}),
+		...MOONSHOT_THINKING_STREAM_HOOKS,
+		resolveThinkingProfile: () => ({
+			levels: [{
+				id: "off",
+				label: "off"
+			}, {
+				id: "low",
+				label: "on"
+			}],
+			defaultLevel: "off"
+		})
 	},
 	register(api) {
 		api.registerMediaUnderstandingProvider(moonshotMediaUnderstandingProvider);

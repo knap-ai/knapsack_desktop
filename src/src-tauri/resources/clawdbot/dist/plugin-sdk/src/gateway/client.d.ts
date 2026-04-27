@@ -1,6 +1,20 @@
 import type { DeviceIdentity } from "../infra/device-identity.js";
 import { type GatewayClientMode, type GatewayClientName } from "../utils/message-channel.js";
 import { type EventFrame, type HelloOk } from "./protocol/index.js";
+type GatewayClientErrorShape = {
+    code?: string;
+    message?: string;
+    details?: unknown;
+    retryable?: boolean;
+    retryAfterMs?: number;
+};
+export declare class GatewayClientRequestError extends Error {
+    readonly gatewayCode: string;
+    readonly details?: unknown;
+    readonly retryable: boolean;
+    readonly retryAfterMs?: number;
+    constructor(error: GatewayClientErrorShape);
+}
 export type GatewayClientOptions = {
     url?: string;
     connectChallengeTimeoutMs?: number;
@@ -89,3 +103,4 @@ export declare class GatewayClient {
         timeoutMs?: number | null;
     }): Promise<T>;
 }
+export {};

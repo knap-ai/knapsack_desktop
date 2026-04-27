@@ -17,6 +17,17 @@ export declare function resolveEnabledProviderPluginIds(params: {
     env?: PluginLoadOptions["env"];
     onlyPluginIds?: readonly string[];
 }): string[];
+export declare function resolveExternalAuthProfileProviderPluginIds(params: {
+    config?: PluginLoadOptions["config"];
+    workspaceDir?: string;
+    env?: PluginLoadOptions["env"];
+}): string[];
+export declare function resolveExternalAuthProfileCompatFallbackPluginIds(params: {
+    config?: PluginLoadOptions["config"];
+    workspaceDir?: string;
+    env?: PluginLoadOptions["env"];
+    declaredPluginIds?: ReadonlySet<string>;
+}): string[];
 export declare function resolveDiscoveredProviderPluginIds(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
@@ -41,6 +52,8 @@ export declare function resolveActivatableProviderOwnerPluginIds(params: {
 export declare const __testing: {
     readonly resolveActivatableProviderOwnerPluginIds: typeof resolveActivatableProviderOwnerPluginIds;
     readonly resolveEnabledProviderPluginIds: typeof resolveEnabledProviderPluginIds;
+    readonly resolveExternalAuthProfileCompatFallbackPluginIds: typeof resolveExternalAuthProfileCompatFallbackPluginIds;
+    readonly resolveExternalAuthProfileProviderPluginIds: typeof resolveExternalAuthProfileProviderPluginIds;
     readonly resolveDiscoveredProviderPluginIds: typeof resolveDiscoveredProviderPluginIds;
     readonly resolveDiscoverableProviderOwnerPluginIds: typeof resolveDiscoverableProviderOwnerPluginIds;
     readonly resolveBundledProviderCompatPluginIds: typeof resolveBundledProviderCompatPluginIds;

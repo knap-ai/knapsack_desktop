@@ -1,2 +1,2 @@
-import { t as SlackChannelConfigSchema } from "./config-schema-D0V1omo5.js";
+import { t as SlackChannelConfigSchema } from "./config-schema-CH224TRD.js";
 export { SlackChannelConfigSchema };

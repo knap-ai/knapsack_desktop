@@ -1,4 +1,5 @@
 export type ExtractMode = "markdown" | "text";
+export declare function normalizeWhitespace(value: string): string;
 export declare function htmlToMarkdown(html: string): {
     text: string;
     title?: string;
@@ -10,14 +11,6 @@ export declare function truncateText(value: string, maxChars: number): {
 };
 export declare function extractBasicHtmlContent(params: {
     html: string;
-    extractMode: ExtractMode;
-}): Promise<{
-    text: string;
-    title?: string;
-} | null>;
-export declare function extractReadableContent(params: {
-    html: string;
-    url: string;
     extractMode: ExtractMode;
 }): Promise<{
     text: string;

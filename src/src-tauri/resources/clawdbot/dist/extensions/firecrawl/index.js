@@ -1,10 +1,10 @@
-import { c as jsonResult, d as readNumberParam, h as readStringParam, p as readStringArrayParam } from "../../common-BWtun2If.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../provider-web-search-B6Xg-MPv.js";
-import { n as runFirecrawlSearch, t as runFirecrawlScrape } from "../../firecrawl-client-CuqQXpTh.js";
-import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-ovZX_eBU.js";
-import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-iFCLFodR.js";
-import { Type } from "@sinclair/typebox";
+import { f as readNumberParam, g as readStringParam, l as jsonResult, m as readStringArrayParam } from "../../common-B4WrK_Ib.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import "../../provider-web-search-DiAvE6oC.js";
+import { i as runFirecrawlSearch, r as runFirecrawlScrape } from "../../firecrawl-client-Cptomb5t.js";
+import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-CRRp0vbN.js";
+import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-Cyj4Zl1T.js";
+import { Type } from "typebox";
 //#region extensions/firecrawl/src/firecrawl-scrape-tool.ts
 function optionalStringEnum(values, options = {}) {
 	return Type.Optional(Type.Unsafe({

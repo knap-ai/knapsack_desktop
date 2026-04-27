@@ -10,6 +10,10 @@ export type OutboundMediaLoadParams = {
     mediaAccess?: OutboundMediaAccess;
     mediaLocalRoots?: readonly string[] | "any";
     mediaReadFile?: OutboundMediaReadFile;
+    proxyUrl?: string;
+    fetchImpl?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+    requestInit?: RequestInit;
+    trustExplicitProxyDns?: boolean;
     optimizeImages?: boolean;
     /** Agent workspace directory for resolving relative MEDIA: paths. */
     workspaceDir?: string;
@@ -18,6 +22,10 @@ export type OutboundMediaLoadOptions = {
     maxBytes?: number;
     localRoots?: readonly string[] | "any";
     readFile?: (filePath: string) => Promise<Buffer>;
+    proxyUrl?: string;
+    fetchImpl?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+    requestInit?: RequestInit;
+    trustExplicitProxyDns?: boolean;
     hostReadCapability?: boolean;
     optimizeImages?: boolean;
     /** Agent workspace directory for resolving relative MEDIA: paths. */

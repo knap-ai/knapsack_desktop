@@ -2,6 +2,7 @@ import type { StreamFn } from "@mariozechner/pi-agent-core";
 import { type Api, type Context, type Model } from "@mariozechner/pi-ai";
 import type { ChatCompletionChunk } from "openai/resources/chat/completions.js";
 import type { FunctionTool, ResponseCreateParamsStreaming, ResponseInput } from "openai/resources/responses/responses.js";
+import type { ModelCompatConfig } from "../config/types.models.js";
 import { type OpenAIApiReasoningEffort, type OpenAIReasoningEffort } from "./openai-reasoning-effort.js";
 type BaseStreamOptions = {
     temperature?: number;
@@ -29,8 +30,8 @@ type OpenAICompletionsOptions = BaseStreamOptions & {
     reasoning?: OpenAIReasoningEffort;
     reasoningEffort?: OpenAIReasoningEffort;
 };
-type OpenAIModeModel = Model<Api> & {
-    compat?: Record<string, unknown>;
+type OpenAIModeModel = Omit<Model<Api>, "compat"> & {
+    compat?: ModelCompatConfig;
 };
 type MutableAssistantOutput = {
     role: "assistant";
@@ -62,6 +63,11 @@ export declare function resolveAzureOpenAIApiVersion(env?: NodeJS.ProcessEnv): s
 export declare function createOpenAIResponsesTransportStreamFn(): StreamFn;
 export declare function buildOpenAIResponsesParams(model: Model<Api>, context: Context, options: OpenAIResponsesOptions | undefined, metadata?: Record<string, string>): OpenAIResponsesRequestParams;
 export declare function createAzureOpenAIResponsesTransportStreamFn(): StreamFn;
+declare function buildOpenAICompletionsClientConfig(model: Model<Api>, context: Context, optionHeaders?: Record<string, string>): {
+    baseURL: string;
+    defaultHeaders: Record<string, string>;
+    defaultQuery?: Record<string, string>;
+};
 export declare function createOpenAICompletionsTransportStreamFn(): StreamFn;
 declare function processOpenAICompletionsStream(responseStream: AsyncIterable<ChatCompletionChunk>, output: MutableAssistantOutput, model: Model<Api>, stream: {
     push(event: unknown): void;
@@ -79,9 +85,9 @@ type OpenAIResponsesRequestParams = {
     service_tier?: ResponseCreateParamsStreaming["service_tier"];
     tools?: FunctionTool[];
     reasoning?: {
-        effort: "none";
+        effort: OpenAIApiReasoningEffort;
     } | {
-        effort: Exclude<OpenAIApiReasoningEffort, "none">;
+        effort: OpenAIApiReasoningEffort;
         summary: NonNullable<OpenAIResponsesOptions["reasoningSummary"]>;
     };
     include?: string[];
@@ -102,5 +108,6 @@ export declare function parseTransportChunkUsage(rawUsage: NonNullable<ChatCompl
     };
 };
 export declare const __testing: {
+    buildOpenAICompletionsClientConfig: typeof buildOpenAICompletionsClientConfig;
     processOpenAICompletionsStream: typeof processOpenAICompletionsStream;
 };

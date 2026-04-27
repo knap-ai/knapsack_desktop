@@ -1,10 +1,11 @@
 import type { ChannelId, ChannelMessageActionName, ChannelThreadingToolContext } from "../../channels/plugins/types.public.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
-import { type CrossContextComponentsBuilder } from "./channel-adapters.js";
+import type { MessagePresentation } from "../../interactive/payload.js";
+export type CrossContextPresentationBuilder = (message: string) => MessagePresentation;
 export type CrossContextDecoration = {
     prefix: string;
     suffix: string;
-    componentsBuilder?: CrossContextComponentsBuilder;
+    presentationBuilder?: CrossContextPresentationBuilder;
 };
 export declare function enforceCrossContextPolicy(params: {
     channel: ChannelId;
@@ -24,9 +25,9 @@ export declare function shouldApplyCrossContextMarker(action: ChannelMessageActi
 export declare function applyCrossContextDecoration(params: {
     message: string;
     decoration: CrossContextDecoration;
-    preferComponents: boolean;
+    preferPresentation: boolean;
 }): {
     message: string;
-    componentsBuilder?: CrossContextComponentsBuilder;
-    usedComponents: boolean;
+    presentation?: MessagePresentation;
+    usedPresentation: boolean;
 };

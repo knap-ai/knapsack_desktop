@@ -17,7 +17,7 @@ export type { ReplyDispatchKind, ReplyDispatcher, } from "../auto-reply/reply/re
 export type { ReplyDispatcherOptions, ReplyDispatcherWithTypingOptions, } from "../auto-reply/reply/reply-dispatcher.js";
 export { createReplyReferencePlanner } from "../auto-reply/reply/reply-reference.js";
 export type { GetReplyOptions, BlockReplyContext } from "../auto-reply/get-reply-options.types.js";
-export type { ReplyPayload } from "../auto-reply/reply-payload.js";
+export type { ReplyPayload } from "./reply-payload.js";
 export type { FinalizedMsgContext, MsgContext } from "../auto-reply/templating.js";
 export { generateConversationLabel } from "../auto-reply/reply/conversation-label-generator.js";
 export type { ConversationLabelParams } from "../auto-reply/reply/conversation-label-generator.js";

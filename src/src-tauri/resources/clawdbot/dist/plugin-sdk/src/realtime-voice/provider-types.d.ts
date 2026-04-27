@@ -42,6 +42,20 @@ export type RealtimeVoiceBridgeCreateRequest = RealtimeVoiceBridgeCallbacks & {
     instructions?: string;
     tools?: RealtimeVoiceTool[];
 };
+export type RealtimeVoiceBrowserSessionCreateRequest = {
+    providerConfig: RealtimeVoiceProviderConfig;
+    instructions?: string;
+    tools?: RealtimeVoiceTool[];
+    model?: string;
+    voice?: string;
+};
+export type RealtimeVoiceBrowserSession = {
+    provider: RealtimeVoiceProviderId;
+    clientSecret: string;
+    model?: string;
+    voice?: string;
+    expiresAt?: number;
+};
 export type RealtimeVoiceBridge = {
     connect(): Promise<void>;
     sendAudio(audio: Buffer): void;

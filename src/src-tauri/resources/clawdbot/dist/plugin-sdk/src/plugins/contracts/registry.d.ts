@@ -1,4 +1,5 @@
 import type { ImageGenerationProviderPlugin, MediaUnderstandingProviderPlugin, MusicGenerationProviderPlugin, ProviderPlugin, RealtimeTranscriptionProviderPlugin, RealtimeVoiceProviderPlugin, SpeechProviderPlugin, VideoGenerationProviderPlugin, WebFetchProviderPlugin, WebSearchProviderPlugin } from "../types.js";
+import { type BundledPluginContractSnapshot } from "./inventory/bundled-capability-metadata.js";
 type CapabilityContractEntry<T> = {
     pluginId: string;
     provider: T;
@@ -17,21 +18,7 @@ type MediaUnderstandingProviderContractEntry = CapabilityContractEntry<MediaUnde
 type ImageGenerationProviderContractEntry = CapabilityContractEntry<ImageGenerationProviderPlugin>;
 type VideoGenerationProviderContractEntry = CapabilityContractEntry<VideoGenerationProviderPlugin>;
 type MusicGenerationProviderContractEntry = CapabilityContractEntry<MusicGenerationProviderPlugin>;
-type PluginRegistrationContractEntry = {
-    pluginId: string;
-    cliBackendIds: string[];
-    providerIds: string[];
-    speechProviderIds: string[];
-    realtimeTranscriptionProviderIds: string[];
-    realtimeVoiceProviderIds: string[];
-    mediaUnderstandingProviderIds: string[];
-    imageGenerationProviderIds: string[];
-    videoGenerationProviderIds: string[];
-    musicGenerationProviderIds: string[];
-    webFetchProviderIds: string[];
-    webSearchProviderIds: string[];
-    toolNames: string[];
-};
+type PluginRegistrationContractEntry = BundledPluginContractSnapshot;
 export declare let providerContractLoadError: Error | undefined;
 export declare function resolveWebFetchProviderContractEntriesForPluginId(pluginId: string): WebFetchProviderContractEntry[];
 export declare function resolveWebSearchProviderContractEntriesForPluginId(pluginId: string): WebSearchProviderContractEntry[];
@@ -41,6 +28,7 @@ export declare const providerContractPluginIds: string[];
 export declare const providerContractCompatPluginIds: string[];
 export declare function requireProviderContractProvider(providerId: string): ProviderPlugin;
 export declare function resolveProviderContractPluginIdsForProvider(providerId: string): string[] | undefined;
+export declare function resolveProviderContractPluginIdsForProviderAlias(providerId: string): string[] | undefined;
 export declare function resolveProviderContractProvidersForPluginIds(pluginIds: readonly string[]): ProviderPlugin[];
 export declare const webSearchProviderContractRegistry: WebSearchProviderContractEntry[];
 export declare const webFetchProviderContractRegistry: WebFetchProviderContractEntry[];

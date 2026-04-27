@@ -1,20 +1,21 @@
-import { cleanupBrowserSessionsForLifecycleEnd } from "../browser-lifecycle-cleanup.js";
+import type { cleanupBrowserSessionsForLifecycleEnd } from "../browser-lifecycle-cleanup.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ContextEngine } from "../context-engine/types.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
-import { type DeliveryContext } from "../utils/delivery-context.js";
+import type { DeliveryContext } from "../utils/delivery-context.types.js";
 import type { ensureRuntimePluginsLoaded as ensureRuntimePluginsLoadedFn } from "./runtime-plugins.js";
-import * as subagentAnnounceModule from "./subagent-announce.js";
+import { type RegisterSubagentRunParams } from "./subagent-registry-run-manager.js";
 import { getSubagentRunsSnapshotForRead, persistSubagentRunsToDisk, restoreSubagentRunsFromDisk } from "./subagent-registry-state.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
 export type { SubagentRunRecord } from "./subagent-registry.types.js";
 export { getSubagentSessionRuntimeMs, getSubagentSessionStartedAt, resolveSubagentSessionStatus, } from "./subagent-registry-helpers.js";
+type SubagentAnnounceModule = Pick<typeof import("./subagent-announce.js"), "captureSubagentCompletionReply" | "runSubagentAnnounceFlow">;
 type SubagentRegistryDeps = {
     callGateway: typeof callGateway;
-    captureSubagentCompletionReply: typeof subagentAnnounceModule.captureSubagentCompletionReply;
+    captureSubagentCompletionReply: SubagentAnnounceModule["captureSubagentCompletionReply"];
     cleanupBrowserSessionsForLifecycleEnd: typeof cleanupBrowserSessionsForLifecycleEnd;
     getSubagentRunsSnapshotForRead: typeof getSubagentRunsSnapshotForRead;
     loadConfig: typeof loadConfig;
@@ -22,7 +23,7 @@ type SubagentRegistryDeps = {
     persistSubagentRunsToDisk: typeof persistSubagentRunsToDisk;
     resolveAgentTimeoutMs: typeof resolveAgentTimeoutMs;
     restoreSubagentRunsFromDisk: typeof restoreSubagentRunsFromDisk;
-    runSubagentAnnounceFlow: typeof subagentAnnounceModule.runSubagentAnnounceFlow;
+    runSubagentAnnounceFlow: SubagentAnnounceModule["runSubagentAnnounceFlow"];
     ensureContextEnginesInitialized?: () => void;
     ensureRuntimePluginsLoaded?: typeof ensureRuntimePluginsLoadedFn;
     resolveContextEngine?: (cfg: OpenClawConfig) => Promise<ContextEngine>;
@@ -40,33 +41,22 @@ export declare function replaceSubagentRunAfterSteer(params: {
     runTimeoutSeconds?: number;
     preserveFrozenResultFallback?: boolean;
 }): boolean;
-export declare function registerSubagentRun(params: {
-    runId: string;
-    childSessionKey: string;
-    controllerSessionKey?: string;
-    requesterSessionKey: string;
-    requesterOrigin?: DeliveryContext;
-    requesterDisplayKey: string;
-    task: string;
-    cleanup: "delete" | "keep";
-    label?: string;
-    model?: string;
-    workspaceDir?: string;
-    runTimeoutSeconds?: number;
-    expectsCompletionMessage?: boolean;
-    spawnMode?: "run" | "session";
-    attachmentsDir?: string;
-    attachmentsRootDir?: string;
-    retainAttachmentsOnKeep?: boolean;
-}): void;
+export declare function registerSubagentRun(params: RegisterSubagentRunParams): void;
 export declare function resetSubagentRegistryForTests(opts?: {
     persist?: boolean;
 }): void;
 export declare const __testing: {
+    readonly sweepOnceForTests: () => Promise<void>;
     readonly setDepsForTest: (overrides?: Partial<SubagentRegistryDeps>) => void;
 };
 export declare function addSubagentRunForTests(entry: SubagentRunRecord): void;
 export declare function releaseSubagentRun(runId: string): void;
+export declare function finalizeInterruptedSubagentRun(params: {
+    runId?: string;
+    childSessionKey?: string;
+    error: string;
+    endedAt?: number;
+}): Promise<number>;
 export declare function resolveRequesterForChildSession(childSessionKey: string): {
     requesterSessionKey: string;
     requesterOrigin?: DeliveryContext;

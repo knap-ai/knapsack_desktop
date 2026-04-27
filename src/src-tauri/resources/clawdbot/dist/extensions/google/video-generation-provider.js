@@ -1,25 +1,17 @@
+import { GOOGLE_VIDEO_ALLOWED_DURATION_SECONDS, GOOGLE_VIDEO_MAX_DURATION_SECONDS, GOOGLE_VIDEO_MIN_DURATION_SECONDS, createGoogleVideoGenerationProviderMetadata } from "./generation-provider-metadata.js";
 import { normalizeGoogleApiBaseUrl } from "./provider-policy.js";
+import { createGoogleGenAI } from "./google-genai-runtime.js";
 import "./api.js";
 import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
-import { GoogleGenAI } from "@google/genai";
-import { isProviderApiKeyConfigured } from "openclaw/plugin-sdk/provider-auth";
-import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
 import { createProviderOperationDeadline, resolveProviderOperationTimeoutMs, waitProviderOperationPollInterval } from "openclaw/plugin-sdk/provider-http";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
 import path from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { resolvePreferredOpenClawTmpDir } from "openclaw/plugin-sdk/temp-path";
 //#region extensions/google/video-generation-provider.ts
-const DEFAULT_GOOGLE_VIDEO_MODEL = "veo-3.1-fast-generate-preview";
 const DEFAULT_TIMEOUT_MS = 18e4;
 const POLL_INTERVAL_MS = 1e4;
 const MAX_POLL_ATTEMPTS = 90;
-const GOOGLE_VIDEO_ALLOWED_DURATION_SECONDS = [
-	4,
-	6,
-	8
-];
-const GOOGLE_VIDEO_MIN_DURATION_SECONDS = GOOGLE_VIDEO_ALLOWED_DURATION_SECONDS[0];
-const GOOGLE_VIDEO_MAX_DURATION_SECONDS = GOOGLE_VIDEO_ALLOWED_DURATION_SECONDS[GOOGLE_VIDEO_ALLOWED_DURATION_SECONDS.length - 1];
 function resolveConfiguredGoogleVideoBaseUrl(req) {
 	const configured = normalizeOptionalString(req.cfg?.models?.providers?.google?.baseUrl);
 	return configured ? normalizeGoogleApiBaseUrl(configured) : void 0;
@@ -101,60 +93,7 @@ async function downloadGeneratedVideo(params) {
 }
 function buildGoogleVideoGenerationProvider() {
 	return {
-		id: "google",
-		label: "Google",
-		defaultModel: DEFAULT_GOOGLE_VIDEO_MODEL,
-		models: [
-			DEFAULT_GOOGLE_VIDEO_MODEL,
-			"veo-3.1-generate-preview",
-			"veo-3.1-lite-generate-preview",
-			"veo-3.0-fast-generate-001",
-			"veo-3.0-generate-001",
-			"veo-2.0-generate-001"
-		],
-		isConfigured: ({ agentDir }) => isProviderApiKeyConfigured({
-			provider: "google",
-			agentDir
-		}),
-		capabilities: {
-			generate: {
-				maxVideos: 1,
-				maxDurationSeconds: GOOGLE_VIDEO_MAX_DURATION_SECONDS,
-				supportedDurationSeconds: GOOGLE_VIDEO_ALLOWED_DURATION_SECONDS,
-				aspectRatios: ["16:9", "9:16"],
-				resolutions: ["720P", "1080P"],
-				supportsAspectRatio: true,
-				supportsResolution: true,
-				supportsSize: true,
-				supportsAudio: true
-			},
-			imageToVideo: {
-				enabled: true,
-				maxVideos: 1,
-				maxInputImages: 1,
-				maxDurationSeconds: GOOGLE_VIDEO_MAX_DURATION_SECONDS,
-				supportedDurationSeconds: GOOGLE_VIDEO_ALLOWED_DURATION_SECONDS,
-				aspectRatios: ["16:9", "9:16"],
-				resolutions: ["720P", "1080P"],
-				supportsAspectRatio: true,
-				supportsResolution: true,
-				supportsSize: true,
-				supportsAudio: true
-			},
-			videoToVideo: {
-				enabled: true,
-				maxVideos: 1,
-				maxInputVideos: 1,
-				maxDurationSeconds: GOOGLE_VIDEO_MAX_DURATION_SECONDS,
-				supportedDurationSeconds: GOOGLE_VIDEO_ALLOWED_DURATION_SECONDS,
-				aspectRatios: ["16:9", "9:16"],
-				resolutions: ["720P", "1080P"],
-				supportsAspectRatio: true,
-				supportsResolution: true,
-				supportsSize: true,
-				supportsAudio: true
-			}
-		},
+		...createGoogleVideoGenerationProviderMetadata(),
 		async generateVideo(req) {
 			if ((req.inputImages?.length ?? 0) > 1) throw new Error("Google video generation supports at most one input image.");
 			if ((req.inputVideos?.length ?? 0) > 1) throw new Error("Google video generation supports at most one input video.");
@@ -172,7 +111,7 @@ function buildGoogleVideoGenerationProvider() {
 				timeoutMs: req.timeoutMs,
 				label: "Google video generation"
 			});
-			const client = new GoogleGenAI({
+			const client = createGoogleGenAI({
 				apiKey: auth.apiKey,
 				httpOptions: {
 					...configuredBaseUrl ? { baseUrl: configuredBaseUrl } : {},
@@ -183,7 +122,7 @@ function buildGoogleVideoGenerationProvider() {
 				}
 			});
 			let operation = await client.models.generateVideos({
-				model: normalizeOptionalString(req.model) || DEFAULT_GOOGLE_VIDEO_MODEL,
+				model: normalizeOptionalString(req.model) || "veo-3.1-fast-generate-preview",
 				prompt: req.prompt,
 				image: resolveInputImage(req),
 				video: resolveInputVideo(req),
@@ -236,7 +175,7 @@ function buildGoogleVideoGenerationProvider() {
 						index
 					});
 				})),
-				model: normalizeOptionalString(req.model) || DEFAULT_GOOGLE_VIDEO_MODEL,
+				model: normalizeOptionalString(req.model) || "veo-3.1-fast-generate-preview",
 				metadata: operation.name ? { operationName: operation.name } : void 0
 			};
 		}

@@ -25,6 +25,12 @@ export type UsageLike = {
     total_tokens?: number;
     cache_read?: number;
     cache_write?: number;
+    prompt_n?: number;
+    predicted_n?: number;
+    timings?: {
+        prompt_n?: number;
+        predicted_n?: number;
+    };
 };
 export type NormalizedUsage = {
     input?: number;

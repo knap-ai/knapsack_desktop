@@ -1,4 +1,5 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
+import { Type } from "typebox";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
 export type ApplyPatchSummary = {
     added: string[];
@@ -23,8 +24,8 @@ type ApplyPatchOptions = {
     workspaceOnly?: boolean;
     signal?: AbortSignal;
 };
-declare const applyPatchSchema: import("@sinclair/typebox").TObject<{
-    input: import("@sinclair/typebox").TString;
+declare const applyPatchSchema: Type.TObject<{
+    input: Type.TString;
 }>;
 export declare function createApplyPatchTool(options?: {
     cwd?: string;

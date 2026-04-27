@@ -1,5 +1,7 @@
 import type { TypingCallbacks } from "../../channels/typing.js";
 import type { HumanDelayConfig } from "../../config/types.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { type SilentReplyConversationType } from "../../shared/silent-reply-policy.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { type NormalizeReplySkipReason } from "./normalize-reply.js";
 import type { ReplyDispatchKind, ReplyDispatcher } from "./reply-dispatcher.types.js";
@@ -15,8 +17,17 @@ type ReplyDispatchSkipHandler = (payload: ReplyPayload, info: {
 type ReplyDispatchDeliverer = (payload: ReplyPayload, info: {
     kind: ReplyDispatchKind;
 }) => Promise<void>;
+export type ReplyDispatchBeforeDeliver = (payload: ReplyPayload, info: {
+    kind: ReplyDispatchKind;
+}) => Promise<ReplyPayload | null> | ReplyPayload | null;
 export type ReplyDispatcherOptions = {
     deliver: ReplyDispatchDeliverer;
+    silentReplyContext?: {
+        cfg?: OpenClawConfig;
+        sessionKey?: string;
+        surface?: string;
+        conversationType?: SilentReplyConversationType;
+    };
     responsePrefix?: string;
     transformReplyPayload?: (payload: ReplyPayload) => ReplyPayload | null;
     /** Static context for response prefix template interpolation. */
@@ -30,6 +41,7 @@ export type ReplyDispatcherOptions = {
     onSkip?: ReplyDispatchSkipHandler;
     /** Human-like delay between block replies for natural rhythm. */
     humanDelay?: HumanDelayConfig;
+    beforeDeliver?: ReplyDispatchBeforeDeliver;
 };
 export type ReplyDispatcherWithTypingOptions = Omit<ReplyDispatcherOptions, "onIdle"> & {
     typingCallbacks?: TypingCallbacks;

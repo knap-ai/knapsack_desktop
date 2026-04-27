@@ -1,12 +1,11 @@
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-eyAoWbVe.js";
-import "../../defaults-CiQa3xnX.js";
-import { b as resolveAgentWorkspaceDir, n as resolveAgentEffectiveModelPrimary, y as resolveAgentDir } from "../../agent-scope-KFH9bkHi.js";
-import { m as parseModelRef } from "../../model-selection-cli-_3Gn8Wcd.js";
-import { a as resolveSessionStoreEntry, c as updateSessionStore } from "../../store-DFXcceZJ.js";
-import "../../temp-path-H6fpiZd0.js";
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import "../../config-runtime-Bh8MKSv2.js";
-import "../../agent-runtime-8trIgeld.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-CoGSA-7K.js";
+import "../../defaults-DM8yIn8C.js";
+import { b as resolveAgentWorkspaceDir, n as resolveAgentEffectiveModelPrimary, y as resolveAgentDir } from "../../agent-scope-_6dFncNS.js";
+import { x as parseModelRef } from "../../model-selection-shared-grYiFZof.js";
+import { l as resolveSessionStoreEntry, o as updateSessionStore } from "../../store-Bm25Mivo.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { n as resolveLivePluginConfigObject, r as resolvePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
+import "../../agent-runtime-Bs8dyc1J.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
@@ -20,6 +19,8 @@ const DEFAULT_RECENT_USER_CHARS = 220;
 const DEFAULT_RECENT_ASSISTANT_CHARS = 180;
 const DEFAULT_CACHE_TTL_MS = 15e3;
 const DEFAULT_MAX_CACHE_ENTRIES = 1e3;
+const CACHE_SWEEP_INTERVAL_MS = 1e3;
+const DEFAULT_MIN_TIMEOUT_MS = 250;
 const DEFAULT_QUERY_MODE = "recent";
 const DEFAULT_QMD_SEARCH_MODE = "search";
 const DEFAULT_TRANSCRIPT_DIR = "active-memory";
@@ -47,6 +48,8 @@ const RECALLED_CONTEXT_LINE_PATTERNS = [
 	/^active memory:/i
 ];
 const toggleStoreLocks = /* @__PURE__ */ new Map();
+let lastActiveRecallCacheSweepAt = 0;
+let minimumTimeoutMs = DEFAULT_MIN_TIMEOUT_MS;
 function createAsyncLock() {
 	let lock = Promise.resolve();
 	return async function withLock(task) {
@@ -266,12 +269,8 @@ function formatActiveMemoryCommandHelp() {
 	].join("\n");
 }
 function isActiveMemoryGloballyEnabled(cfg) {
-	const entry = asRecord(cfg.plugins?.entries?.["active-memory"]);
-	if (entry?.enabled === false) return false;
-	return asRecord(entry?.config)?.enabled !== false;
-}
-function resolveActiveMemoryPluginConfigFromConfig(cfg) {
-	return asRecord(cfg.plugins?.entries?.["active-memory"])?.config;
+	if (asRecord(cfg.plugins?.entries?.["active-memory"])?.enabled === false) return false;
+	return resolvePluginConfigObject(cfg, "active-memory")?.enabled !== false;
 }
 function updateActiveMemoryGlobalEnabledInConfig(cfg, enabled) {
 	const entries = { ...cfg.plugins?.entries };
@@ -308,7 +307,7 @@ function normalizePluginConfig(pluginConfig) {
 		promptStyle: resolvePromptStyle(raw.promptStyle, raw.queryMode),
 		promptOverride: normalizePromptConfigText(raw.promptOverride),
 		promptAppend: normalizePromptConfigText(raw.promptAppend),
-		timeoutMs: clampInt(parseOptionalPositiveInt(raw.timeoutMs, DEFAULT_TIMEOUT_MS), DEFAULT_TIMEOUT_MS, 250, 6e4),
+		timeoutMs: clampInt(parseOptionalPositiveInt(raw.timeoutMs, DEFAULT_TIMEOUT_MS), DEFAULT_TIMEOUT_MS, minimumTimeoutMs, 12e4),
 		queryMode: raw.queryMode === "message" || raw.queryMode === "recent" || raw.queryMode === "full" ? raw.queryMode : DEFAULT_QUERY_MODE,
 		maxSummaryChars: clampInt(raw.maxSummaryChars, DEFAULT_MAX_SUMMARY_CHARS, 40, 1e3),
 		recentUserTurns: clampInt(raw.recentUserTurns, DEFAULT_RECENT_USER_TURNS, 0, 4),
@@ -346,7 +345,7 @@ function applyActiveMemoryRuntimeConfigSnapshot(cfg, pluginConfig) {
 	};
 }
 function resolveThinkingLevel(thinking) {
-	if (thinking === "off" || thinking === "minimal" || thinking === "low" || thinking === "medium" || thinking === "high" || thinking === "xhigh" || thinking === "adaptive") return thinking;
+	if (thinking === "off" || thinking === "minimal" || thinking === "low" || thinking === "medium" || thinking === "high" || thinking === "xhigh" || thinking === "adaptive" || thinking === "max") return thinking;
 	return "off";
 }
 function resolvePromptStyle(promptStyle, queryMode) {
@@ -403,6 +402,7 @@ function buildRecallPrompt(params) {
 		"Your job is to search memory and return only the most relevant memory context for that model.",
 		"You receive conversation context, including the user's latest message.",
 		"Use only memory_search and memory_get.",
+		"When searching for preference or habit recall, use a permissive memory_search threshold before deciding that no useful memory exists.",
 		"Do not answer the user directly.",
 		`Prompt style: ${params.config.promptStyle}.`,
 		...buildPromptStyleLines(params.config.promptStyle),
@@ -491,10 +491,14 @@ function getCachedResult(cacheKey) {
 	return cached.result;
 }
 function setCachedResult(cacheKey, result, ttlMs) {
-	sweepExpiredCacheEntries();
+	const now = Date.now();
+	if (activeRecallCache.size >= DEFAULT_MAX_CACHE_ENTRIES || now - lastActiveRecallCacheSweepAt >= CACHE_SWEEP_INTERVAL_MS) {
+		sweepExpiredCacheEntries(now);
+		lastActiveRecallCacheSweepAt = now;
+	}
 	if (activeRecallCache.has(cacheKey)) activeRecallCache.delete(cacheKey);
 	activeRecallCache.set(cacheKey, {
-		expiresAt: Date.now() + ttlMs,
+		expiresAt: now + ttlMs,
 		result
 	});
 	while (activeRecallCache.size > DEFAULT_MAX_CACHE_ENTRIES) {
@@ -926,6 +930,7 @@ async function runRecallSubagent(params) {
 			thinkLevel: params.config.thinking,
 			reasoningLevel: "off",
 			silentExpected: true,
+			cleanupBundleMcpOnRunEnd: true,
 			abortSignal: params.abortSignal
 		});
 		if (params.abortSignal?.aborted) {
@@ -1076,9 +1081,9 @@ var active_memory_default = definePluginEntry({
 		};
 		warnDeprecatedModelFallbackPolicy(api.pluginConfig);
 		const refreshLiveConfigFromRuntime = () => {
-			const livePluginConfig = resolveActiveMemoryPluginConfigFromConfig(api.runtime.config.loadConfig()) ?? api.pluginConfig;
-			config = normalizePluginConfig(livePluginConfig);
-			warnDeprecatedModelFallbackPolicy(livePluginConfig);
+			const livePluginConfig = resolveLivePluginConfigObject(api.runtime.config?.loadConfig, "active-memory", api.pluginConfig);
+			config = normalizePluginConfig(livePluginConfig ?? { enabled: false });
+			if (livePluginConfig) warnDeprecatedModelFallbackPolicy(livePluginConfig);
 		};
 		api.registerCommand({
 			name: "active-memory",
@@ -1141,75 +1146,95 @@ var active_memory_default = definePluginEntry({
 			}
 		});
 		api.on("before_prompt_build", async (event, ctx) => {
-			const resolvedAgentId = resolveStatusUpdateAgentId(ctx);
-			const resolvedSessionKey = ctx.sessionKey?.trim() || (resolvedAgentId ? resolveCanonicalSessionKeyFromSessionId({
-				api,
-				agentId: resolvedAgentId,
-				sessionId: ctx.sessionId
-			}) : void 0);
-			const effectiveAgentId = resolvedAgentId || resolveStatusUpdateAgentId({ sessionKey: resolvedSessionKey });
-			if (await isSessionActiveMemoryDisabled({
-				api,
-				sessionKey: resolvedSessionKey
-			})) {
-				await persistPluginStatusLines({
+			try {
+				refreshLiveConfigFromRuntime();
+				const resolvedAgentId = resolveStatusUpdateAgentId(ctx);
+				const resolvedSessionKey = ctx.sessionKey?.trim() || (resolvedAgentId ? resolveCanonicalSessionKeyFromSessionId({
 					api,
-					agentId: effectiveAgentId,
+					agentId: resolvedAgentId,
+					sessionId: ctx.sessionId
+				}) : void 0);
+				const effectiveAgentId = resolvedAgentId || resolveStatusUpdateAgentId({ sessionKey: resolvedSessionKey });
+				if (await isSessionActiveMemoryDisabled({
+					api,
 					sessionKey: resolvedSessionKey
+				})) {
+					await persistPluginStatusLines({
+						api,
+						agentId: effectiveAgentId,
+						sessionKey: resolvedSessionKey
+					});
+					return;
+				}
+				if (!isEnabledForAgent(config, effectiveAgentId)) {
+					await persistPluginStatusLines({
+						api,
+						agentId: effectiveAgentId,
+						sessionKey: resolvedSessionKey
+					});
+					return;
+				}
+				if (!isEligibleInteractiveSession(ctx)) {
+					await persistPluginStatusLines({
+						api,
+						agentId: effectiveAgentId,
+						sessionKey: resolvedSessionKey
+					});
+					return;
+				}
+				if (!isAllowedChatType(config, {
+					...ctx,
+					sessionKey: resolvedSessionKey ?? ctx.sessionKey,
+					mainKey: api.config.session?.mainKey
+				})) {
+					await persistPluginStatusLines({
+						api,
+						agentId: effectiveAgentId,
+						sessionKey: resolvedSessionKey
+					});
+					return;
+				}
+				const query = buildQuery({
+					latestUserMessage: event.prompt,
+					recentTurns: extractRecentTurns(event.messages),
+					config
 				});
+				const result = await maybeResolveActiveRecall({
+					api,
+					config,
+					agentId: effectiveAgentId,
+					sessionKey: resolvedSessionKey,
+					sessionId: ctx.sessionId,
+					messageProvider: ctx.messageProvider,
+					channelId: ctx.channelId,
+					query,
+					currentModelProviderId: ctx.modelProviderId,
+					currentModelId: ctx.modelId
+				});
+				if (!result.summary) return;
+				const promptPrefix = buildPromptPrefix(result.summary);
+				if (!promptPrefix) return;
+				return { prependContext: promptPrefix };
+			} catch (error) {
+				const message = toSingleLineLogValue(error instanceof Error ? error.message : String(error));
+				api.logger.warn?.(`active-memory: before_prompt_build failed, skipping memory lookup: ${message}`);
 				return;
 			}
-			if (!isEnabledForAgent(config, effectiveAgentId)) {
-				await persistPluginStatusLines({
-					api,
-					agentId: effectiveAgentId,
-					sessionKey: resolvedSessionKey
-				});
-				return;
-			}
-			if (!isEligibleInteractiveSession(ctx)) {
-				await persistPluginStatusLines({
-					api,
-					agentId: effectiveAgentId,
-					sessionKey: resolvedSessionKey
-				});
-				return;
-			}
-			if (!isAllowedChatType(config, {
-				...ctx,
-				sessionKey: resolvedSessionKey ?? ctx.sessionKey,
-				mainKey: api.config.session?.mainKey
-			})) {
-				await persistPluginStatusLines({
-					api,
-					agentId: effectiveAgentId,
-					sessionKey: resolvedSessionKey
-				});
-				return;
-			}
-			const query = buildQuery({
-				latestUserMessage: event.prompt,
-				recentTurns: extractRecentTurns(event.messages),
-				config
-			});
-			const result = await maybeResolveActiveRecall({
-				api,
-				config,
-				agentId: effectiveAgentId,
-				sessionKey: resolvedSessionKey,
-				sessionId: ctx.sessionId,
-				messageProvider: ctx.messageProvider,
-				channelId: ctx.channelId,
-				query,
-				currentModelProviderId: ctx.modelProviderId,
-				currentModelId: ctx.modelId
-			});
-			if (!result.summary) return;
-			const promptPrefix = buildPromptPrefix(result.summary);
-			if (!promptPrefix) return;
-			return { prependContext: promptPrefix };
 		});
 	}
 });
+const __testing = {
+	buildCacheKey,
+	getCachedResult,
+	resetActiveRecallCacheForTests() {
+		activeRecallCache.clear();
+		lastActiveRecallCacheSweepAt = 0;
+		minimumTimeoutMs = DEFAULT_MIN_TIMEOUT_MS;
+	},
+	setMinimumTimeoutMsForTests(value) {
+		minimumTimeoutMs = value;
+	},
+	setCachedResult
+};
 //#endregion
-export { active_memory_default as default };
+export { __testing, active_memory_default as default };

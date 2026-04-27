@@ -1,12 +1,12 @@
-import { r as getRuntimeConfigSnapshot } from "../../runtime-snapshot-BwqEmc6G.js";
-import { c as jsonResult, h as readStringParam } from "../../common-BWtun2If.js";
-import { u as postTrustedWebToolsJson } from "../../web-search-provider-common-EFbs_Gas.js";
-import "../../config-runtime-Bh8MKSv2.js";
-import "../../provider-web-search-B6Xg-MPv.js";
-import { r as resolveXaiToolApiKey, t as isXaiToolEnabled } from "../../tool-auth-shared-DmJqYRaL.js";
-import { n as resolveNormalizedXaiToolModel, r as resolvePositiveIntegerToolConfig } from "../../tool-config-shared-DY2e2EAe.js";
-import { i as resolveXaiResponseTextAndCitations, n as buildXaiResponsesToolBody, t as XAI_RESPONSES_ENDPOINT } from "../../responses-tool-shared-Bw7IEztF.js";
-import { Type } from "@sinclair/typebox";
+import { r as getRuntimeConfigSnapshot } from "../../runtime-snapshot-C5PRsFS9.js";
+import { g as readStringParam, l as jsonResult } from "../../common-B4WrK_Ib.js";
+import { u as postTrustedWebToolsJson } from "../../web-search-provider-common-R-M-_9hO.js";
+import "../../config-runtime-Dutm3Ah0.js";
+import "../../provider-web-search-DiAvE6oC.js";
+import { r as resolveXaiToolApiKey, t as isXaiToolEnabled } from "../../tool-auth-shared-Dt03rBiU.js";
+import { n as resolveNormalizedXaiToolModel, r as resolvePositiveIntegerToolConfig } from "../../tool-config-shared-BHuW7jcw.js";
+import { i as resolveXaiResponseTextAndCitations, n as buildXaiResponsesToolBody, t as XAI_RESPONSES_ENDPOINT } from "../../responses-tool-shared-CzT0bOjp.js";
+import { Type } from "typebox";
 //#region extensions/xai/src/code-execution-shared.ts
 const XAI_CODE_EXECUTION_ENDPOINT = XAI_RESPONSES_ENDPOINT;
 const XAI_DEFAULT_CODE_EXECUTION_MODEL = "grok-4-1-fast";

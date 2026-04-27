@@ -1,4 +1,4 @@
-export type { ReplyPayload } from "../auto-reply/reply-payload.js";
+export type { ReplyPayload } from "./reply-payload.js";
 export { mergeAllowlist, summarizeMapping } from "../channels/allowlists/resolve-utils.js";
 export { resolveMentionGating, resolveMentionGatingWithBypass, resolveInboundMentionDecision, } from "../channels/mention-gating.js";
 export { deleteAccountFromConfigSection, setAccountEnabledInConfigSection, } from "../channels/plugins/config-helpers.js";
@@ -35,7 +35,21 @@ export { deliverTextOrMediaReply, isNumericTargetId, resolveOutboundMediaUrls, r
 export { formatResolvedUnresolvedNote } from "./resolution-notes.js";
 export { buildBaseAccountStatusSnapshot } from "./status-helpers.js";
 export { chunkTextForOutbound } from "./text-chunking.js";
-type FacadeModule = typeof import("@openclaw/zalouser/contract-api.js");
+import type { SecurityAuditFinding } from "../security/audit.types.js";
+type FacadeModule = {
+    collectZalouserSecurityAuditFindings: (params: {
+        accountId?: string | null;
+        account: {
+            accountId?: string;
+            config?: {
+                groups?: Record<string, unknown>;
+                dangerouslyAllowNameMatching?: boolean;
+            };
+        };
+        orderedAccountIds: string[];
+        hasExplicitAccountPath: boolean;
+    }) => SecurityAuditFinding[];
+};
 export declare const collectZalouserSecurityAuditFindings: FacadeModule["collectZalouserSecurityAuditFindings"];
 export declare const zalouserSetupAdapter: import("./channel-setup.js").ChannelSetupAdapter;
 export declare const zalouserSetupWizard: import("./channel-setup.js").ChannelSetupWizard;

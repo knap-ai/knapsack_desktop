@@ -21,6 +21,7 @@ export type GatewayClient = {
     canvasHostUrl?: string;
     canvasCapability?: string;
     canvasCapabilityExpiresAtMs?: number;
+    isDeviceTokenAuth?: boolean;
     internal?: {
         allowModelOverride?: boolean;
     };

@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-Bkat4og3.js";
-import { i as registerBrowserPlugin, n as browserPluginReload, r as browserSecurityAuditCollectors, t as browserPluginNodeHostCommands } from "../../plugin-registration-BcGLyuNL.js";
+import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { i as registerBrowserPlugin, n as browserPluginReload, r as browserSecurityAuditCollectors, t as browserPluginNodeHostCommands } from "../../plugin-registration-Bu_K4iFs.js";
 //#region extensions/browser/index.ts
 var browser_default = definePluginEntry({
 	id: "browser",

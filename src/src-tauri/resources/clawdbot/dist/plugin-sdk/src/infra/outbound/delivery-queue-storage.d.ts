@@ -1,4 +1,6 @@
 import type { ReplyPayload } from "../../auto-reply/types.js";
+import type { ReplyToMode } from "../../config/types.js";
+import type { OutboundDeliveryFormattingOptions } from "./formatting.js";
 import type { OutboundMirror } from "./mirror.js";
 import type { OutboundSessionContext } from "./session-context.js";
 import type { OutboundChannel } from "./targets.js";
@@ -14,6 +16,8 @@ export type QueuedDeliveryPayload = {
     payloads: ReplyPayload[];
     threadId?: string | number | null;
     replyToId?: string | null;
+    replyToMode?: ReplyToMode;
+    formatting?: OutboundDeliveryFormattingOptions;
     bestEffort?: boolean;
     gifPlayback?: boolean;
     forceDocument?: boolean;

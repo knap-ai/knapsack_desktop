@@ -1,9 +1,11 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-ILplGnFF.js";
-import { t as buildMistralProvider } from "../../provider-catalog-DyklmEYJ.js";
-import { n as applyMistralConfig, t as MISTRAL_DEFAULT_MODEL_REF } from "../../onboard-DNaIL0bs.js";
-import { i as applyMistralModelCompat } from "../../api-kDyCmmJF.js";
-import { t as mistralMediaUnderstandingProvider } from "../../media-understanding-provider-aqRXfQVl.js";
-import { t as contributeMistralResolvedModelCompat } from "../../provider-compat-gcQ8Jlvu.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
+import { t as buildMistralProvider } from "../../provider-catalog-D9Y6TgDo.js";
+import { n as applyMistralConfig, t as MISTRAL_DEFAULT_MODEL_REF } from "../../onboard-Cg3JR22w.js";
+import { i as applyMistralModelCompat } from "../../api-BeFLgNHs.js";
+import { t as mistralMediaUnderstandingProvider } from "../../media-understanding-provider-L3UWjEu3.js";
+import { t as mistralMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-T35BS745.js";
+import { t as contributeMistralResolvedModelCompat } from "../../provider-compat-DWWrQy0s.js";
+import { n as buildMistralRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-C_smBXo2.js";
 //#region extensions/mistral/index.ts
 const PROVIDER_ID = "mistral";
 function buildMistralReplayPolicy() {
@@ -41,10 +43,16 @@ var mistral_default = defineSingleProviderPluginEntry({
 			modelId,
 			model
 		}),
+		resolveThinkingProfile: ({ modelId }) => modelId === "mistral-small-latest" ? {
+			levels: [{ id: "off" }, { id: "high" }],
+			defaultLevel: "off"
+		} : void 0,
 		buildReplayPolicy: () => buildMistralReplayPolicy()
 	},
 	register(api) {
+		api.registerMemoryEmbeddingProvider(mistralMemoryEmbeddingProviderAdapter);
 		api.registerMediaUnderstandingProvider(mistralMediaUnderstandingProvider);
+		api.registerRealtimeTranscriptionProvider(buildMistralRealtimeTranscriptionProvider());
 	}
 });
 //#endregion

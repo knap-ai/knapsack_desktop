@@ -23,12 +23,14 @@ function buildGoogleGeminiCliBackend() {
 		config: {
 			command: "gemini",
 			args: [
+				"--skip-trust",
 				"--output-format",
 				"json",
 				"--prompt",
 				"{prompt}"
 			],
 			resumeArgs: [
+				"--skip-trust",
 				"--resume",
 				"{sessionId}",
 				"--output-format",

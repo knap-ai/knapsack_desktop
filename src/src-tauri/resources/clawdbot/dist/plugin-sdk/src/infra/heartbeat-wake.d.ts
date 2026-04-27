@@ -8,11 +8,15 @@ export type HeartbeatRunResult = {
     status: "failed";
     reason: string;
 };
-export type HeartbeatWakeHandler = (opts: {
+export type HeartbeatWakeRequest = {
     reason?: string;
     agentId?: string;
     sessionKey?: string;
-}) => Promise<HeartbeatRunResult>;
+    heartbeat?: {
+        target?: string;
+    };
+};
+export type HeartbeatWakeHandler = (opts: HeartbeatWakeRequest) => Promise<HeartbeatRunResult>;
 export declare function setHeartbeatsEnabled(enabled: boolean): void;
 export declare function areHeartbeatsEnabled(): boolean;
 /**
@@ -27,6 +31,9 @@ export declare function requestHeartbeatNow(opts?: {
     coalesceMs?: number;
     agentId?: string;
     sessionKey?: string;
+    heartbeat?: {
+        target?: string;
+    };
 }): void;
 export declare function hasHeartbeatWakeHandler(): boolean;
 export declare function hasPendingHeartbeatWake(): boolean;

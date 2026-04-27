@@ -62,9 +62,9 @@ export type RuntimeWebProviderSelectionParams<TProvider extends {
     }) => Promise<void>;
 };
 export declare function ensureObject(target: Record<string, unknown>, key: string): Record<string, unknown>;
-export declare function normalizeKnownProvider<TProvider extends {
+export declare function normalizeKnownProvider(value: unknown, providers: Array<{
     id: string;
-}>(value: unknown, providers: TProvider[]): string | undefined;
+}>): string | undefined;
 export declare function hasConfiguredSecretRef(value: unknown, defaults: SecretDefaults | undefined): boolean;
 export type RuntimeWebProviderSurface<TProvider extends {
     id: string;

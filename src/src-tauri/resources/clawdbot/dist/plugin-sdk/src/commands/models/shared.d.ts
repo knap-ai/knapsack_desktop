@@ -2,13 +2,14 @@ import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../../agents/defaults.js";
 import { modelKey } from "../../agents/model-selection.js";
 import { type OpenClawConfig } from "../../config/config.js";
 import type { AgentModelEntryConfig } from "../../config/types.agent-defaults.js";
+export { normalizeAlias } from "./alias-name.js";
+export { isLocalBaseUrl } from "./list.local-url.js";
 export declare const ensureFlagCompatibility: (opts: {
     json?: boolean;
     plain?: boolean;
 }) => void;
 export declare const formatTokenK: (value?: number | null) => string;
 export declare const formatMs: (value?: number | null) => string;
-export declare const isLocalBaseUrl: (baseUrl: string) => boolean;
 export declare function loadValidConfigOrThrow(): Promise<OpenClawConfig>;
 export declare function updateConfig(mutator: (cfg: OpenClawConfig) => OpenClawConfig): Promise<OpenClawConfig>;
 export declare function resolveModelTarget(params: {
@@ -23,7 +24,6 @@ export declare function resolveModelKeysFromEntries(params: {
     entries: readonly string[];
 }): string[];
 export declare function buildAllowlistSet(cfg: OpenClawConfig): Set<string>;
-export declare function normalizeAlias(alias: string): string;
 export declare function resolveKnownAgentId(params: {
     cfg: OpenClawConfig;
     rawAgentId?: string | null;

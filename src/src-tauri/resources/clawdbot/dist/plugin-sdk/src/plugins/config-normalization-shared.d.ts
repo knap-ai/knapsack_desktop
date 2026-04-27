@@ -12,6 +12,7 @@ export type NormalizedPluginsConfig = {
         enabled?: boolean;
         hooks?: {
             allowPromptInjection?: boolean;
+            allowConversationAccess?: boolean;
         };
         subagent?: {
             allowModelOverride?: boolean;

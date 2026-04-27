@@ -18,5 +18,6 @@ export declare function guardSessionManager(sessionManager: SessionManager, opts
     contextWindowTokens?: number;
     inputProvenance?: InputProvenance;
     allowSyntheticToolResults?: boolean;
+    missingToolResultText?: string;
     allowedToolNames?: Iterable<string>;
 }): GuardedSessionManager;

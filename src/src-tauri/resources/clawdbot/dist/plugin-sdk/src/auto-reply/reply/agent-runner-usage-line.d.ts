@@ -1,3 +1,4 @@
+import { type ModelCostConfig } from "../../utils/usage-format.js";
 import type { ReplyPayload } from "../types.js";
 export declare const formatResponseUsageLine: (params: {
     usage?: {
@@ -7,11 +8,6 @@ export declare const formatResponseUsageLine: (params: {
         cacheWrite?: number;
     };
     showCost: boolean;
-    costConfig?: {
-        input: number;
-        output: number;
-        cacheRead: number;
-        cacheWrite: number;
-    };
+    costConfig?: ModelCostConfig;
 }) => string | null;
 export declare const appendUsageLine: (payloads: ReplyPayload[], line: string) => ReplyPayload[];

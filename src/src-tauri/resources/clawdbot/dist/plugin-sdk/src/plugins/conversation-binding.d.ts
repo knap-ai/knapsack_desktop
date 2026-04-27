@@ -18,6 +18,7 @@ type PendingPluginBindingRequest = {
     requestedBySenderId?: string;
     summary?: string;
     detachHint?: string;
+    data?: Record<string, unknown>;
 };
 type PluginBindingApprovalAction = {
     approvalId: string;
@@ -30,6 +31,7 @@ type PluginBindingMetadata = {
     pluginRoot: string;
     summary?: string;
     detachHint?: string;
+    data?: Record<string, unknown>;
 };
 type PluginBindingResolveResult = {
     status: "approved";

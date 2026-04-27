@@ -11,6 +11,7 @@ type UsageSummaryOptions = {
     config?: OpenClawConfig;
     env?: NodeJS.ProcessEnv;
     fetch?: typeof fetch;
+    skipPluginAuthWithoutCredentialSource?: boolean;
 };
 export declare function loadProviderUsageSummary(opts?: UsageSummaryOptions): Promise<UsageSummary>;
 export {};

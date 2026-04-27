@@ -41,6 +41,13 @@ type ResolveWebProviderRuntimeDeps<TEntry> = {
         registry: PluginRegistry;
         onlyPluginIds?: readonly string[];
     }) => TEntry[];
+    resolveBundledPublicArtifactProviders?: (params: {
+        config?: PluginLoadOptions["config"];
+        workspaceDir?: string;
+        env?: PluginLoadOptions["env"];
+        bundledAllowlistCompat?: boolean;
+        onlyPluginIds?: readonly string[];
+    }) => TEntry[] | null;
 };
 export declare function createWebProviderSnapshotCache<TEntry>(): WebProviderSnapshotCache<TEntry>;
 export declare function resolvePluginWebProviders<TEntry>(params: ResolvePluginWebProvidersParams, deps: ResolveWebProviderRuntimeDeps<TEntry>): TEntry[];

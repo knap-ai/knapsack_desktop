@@ -1,4 +1,4 @@
-import { t as normalizeCompatibilityConfig$1 } from "./doctor-_8wlw0U1.js";
+import { t as normalizeCompatibilityConfig$1 } from "./doctor-Cgh--wfq.js";
 //#region extensions/whatsapp/src/doctor-contract.ts
 function normalizeCompatibilityConfig({ cfg }) {
 	return normalizeCompatibilityConfig$1({ cfg });

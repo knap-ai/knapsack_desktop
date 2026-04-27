@@ -51,8 +51,8 @@ export type ExecProcessHandle = {
     /** Immediately suppress all future `onUpdate` calls for this handle. */
     disableUpdates: () => void;
 };
-export declare function renderExecHostLabel(host: ExecHost): "sandbox" | "gateway" | "node";
-export declare function renderExecTargetLabel(target: ExecTarget): "auto" | "sandbox" | "gateway" | "node";
+export declare function renderExecHostLabel(host: ExecHost): "gateway" | "node" | "sandbox";
+export declare function renderExecTargetLabel(target: ExecTarget): "auto" | "gateway" | "node" | "sandbox";
 export declare function isRequestedExecTargetAllowed(params: {
     configuredTarget: ExecTarget;
     requestedTarget: ExecTarget;

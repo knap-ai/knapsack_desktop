@@ -1,8 +1,9 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-export declare function isRedactedSessionsSpawnAttachment(item: unknown): boolean;
+export { isRedactedSessionsSpawnAttachment } from "./tool-call-shared.js";
 declare function makeMissingToolResult(params: {
     toolCallId: string;
     toolName?: string;
+    text?: string;
 }): Extract<AgentMessage, {
     role: "toolResult";
 }>;
@@ -19,6 +20,7 @@ export type ToolCallInputRepairOptions = {
 export type ErroredAssistantResultPolicy = "preserve" | "drop";
 export type ToolUseResultPairingOptions = {
     erroredAssistantResultPolicy?: ErroredAssistantResultPolicy;
+    missingToolResultText?: string;
 };
 export declare function stripToolResultDetails(messages: AgentMessage[]): AgentMessage[];
 export declare function repairToolCallInputs(messages: AgentMessage[], options?: ToolCallInputRepairOptions): ToolCallInputRepairReport;

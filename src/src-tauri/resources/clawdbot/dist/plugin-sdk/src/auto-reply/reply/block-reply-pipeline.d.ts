@@ -10,6 +10,7 @@ export type BlockReplyPipeline = {
     didStream: () => boolean;
     isAborted: () => boolean;
     hasSentPayload: (payload: ReplyPayload) => boolean;
+    getSentMediaUrls: () => readonly string[];
 };
 export type BlockReplyBuffer = {
     shouldBuffer: (payload: ReplyPayload) => boolean;

@@ -1,11 +1,10 @@
 type OpenAIResponsesPayloadModel = {
     api?: unknown;
     baseUrl?: unknown;
+    id?: unknown;
     provider?: unknown;
     contextWindow?: unknown;
-    compat?: {
-        supportsStore?: boolean;
-    };
+    compat?: unknown;
 };
 type OpenAIResponsesPayloadPolicyOptions = {
     extraParams?: Record<string, unknown>;

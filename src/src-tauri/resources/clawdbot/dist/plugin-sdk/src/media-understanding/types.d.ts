@@ -1,3 +1,4 @@
+import type { AuthProfileStore } from "../agents/auth-profiles/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type MediaUnderstandingKind = "audio.transcription" | "video.description" | "image.description";
 export type MediaUnderstandingCapability = "image" | "audio" | "video";
@@ -117,6 +118,7 @@ export type ImageDescriptionRequest = {
     timeoutMs: number;
     profile?: string;
     preferredProfile?: string;
+    authStore?: AuthProfileStore;
     agentDir: string;
     cfg: OpenClawConfig;
     model: string;
@@ -136,6 +138,7 @@ export type ImagesDescriptionRequest = {
     timeoutMs: number;
     profile?: string;
     preferredProfile?: string;
+    authStore?: AuthProfileStore;
     agentDir: string;
     cfg: OpenClawConfig;
 };

@@ -1,6 +1,7 @@
 import { type Api, type Model } from "@mariozechner/pi-ai";
 import type { AgentModelConfig } from "../../config/types.agents-shared.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { SsrFPolicy } from "../../infra/net/ssrf.js";
 import type { ImageModelConfig } from "./image-tool.helpers.js";
 import { type ToolModelConfig } from "./model-config.helpers.js";
 type TextToolAttempt = {
@@ -30,6 +31,8 @@ export declare function applyImageModelConfigDefaults(cfg: OpenClawConfig | unde
 export declare function applyImageGenerationModelConfigDefaults(cfg: OpenClawConfig | undefined, imageGenerationModelConfig: ToolModelConfig): OpenClawConfig | undefined;
 export declare function applyVideoGenerationModelConfigDefaults(cfg: OpenClawConfig | undefined, videoGenerationModelConfig: ToolModelConfig): OpenClawConfig | undefined;
 export declare function applyMusicGenerationModelConfigDefaults(cfg: OpenClawConfig | undefined, musicGenerationModelConfig: ToolModelConfig): OpenClawConfig | undefined;
+export declare function readGenerationTimeoutMs(args: Record<string, unknown>): number | undefined;
+export declare function resolveRemoteMediaSsrfPolicy(cfg: OpenClawConfig | undefined): SsrFPolicy | undefined;
 type CapabilityProvider = {
     id: string;
     aliases?: string[];
@@ -56,16 +59,16 @@ export declare function resolveSelectedCapabilityProvider<T extends CapabilityPr
     modelOverride?: string;
     parseModelRef: ParseGenerationModelRef;
 }): T | undefined;
-export declare function resolveCapabilityModelCandidatesForTool<T extends CapabilityProvider>(params: {
+export declare function resolveCapabilityModelCandidatesForTool(params: {
     cfg?: OpenClawConfig;
     agentDir?: string;
-    providers: T[];
+    providers: CapabilityProvider[];
 }): string[];
-export declare function resolveCapabilityModelConfigForTool<T extends CapabilityProvider>(params: {
+export declare function resolveCapabilityModelConfigForTool(params: {
     cfg?: OpenClawConfig;
     agentDir?: string;
     modelConfig?: AgentModelConfig;
-    providers: T[];
+    providers: CapabilityProvider[];
 }): ToolModelConfig | null;
 export declare function resolveGenerateAction<TAction extends string>(params: {
     args: Record<string, unknown>;

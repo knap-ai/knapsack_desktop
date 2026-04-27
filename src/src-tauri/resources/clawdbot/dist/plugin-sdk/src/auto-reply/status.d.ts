@@ -1,53 +1,6 @@
 import type { EffectiveToolInventoryResult } from "../agents/tools-effective-inventory.types.js";
-import { type SessionEntry, type SessionScope } from "../config/sessions.js";
-import type { OpenClawConfig } from "../config/types.openclaw.js";
-import type { MediaUnderstandingDecision } from "../media-understanding/types.js";
-import { formatTokenCount as formatTokenCountShared } from "../utils/usage-format.js";
 export { buildCommandsMessage, buildCommandsMessagePaginated, buildHelpMessage, type CommandsMessageOptions, type CommandsMessageResult, } from "./command-status-builders.js";
-import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "./thinking.js";
-type AgentDefaults = NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>;
-type AgentConfig = Partial<AgentDefaults> & {
-    model?: AgentDefaults["model"] | string;
-};
-export declare const formatTokenCount: typeof formatTokenCountShared;
-type QueueStatus = {
-    mode?: string;
-    depth?: number;
-    debounceMs?: number;
-    cap?: number;
-    dropPolicy?: string;
-    showDetails?: boolean;
-};
-type StatusArgs = {
-    config?: OpenClawConfig;
-    agent: AgentConfig;
-    agentId?: string;
-    runtimeContextTokens?: number;
-    explicitConfiguredContextTokens?: number;
-    sessionEntry?: SessionEntry;
-    sessionKey?: string;
-    parentSessionKey?: string;
-    sessionScope?: SessionScope;
-    sessionStorePath?: string;
-    groupActivation?: "mention" | "always";
-    resolvedThink?: ThinkLevel;
-    resolvedFast?: boolean;
-    resolvedVerbose?: VerboseLevel;
-    resolvedReasoning?: ReasoningLevel;
-    resolvedElevated?: ElevatedLevel;
-    modelAuth?: string;
-    activeModelAuth?: string;
-    usageLine?: string;
-    timeLine?: string;
-    queue?: QueueStatus;
-    mediaDecisions?: ReadonlyArray<MediaUnderstandingDecision>;
-    subagentsLine?: string;
-    taskLine?: string;
-    includeTranscriptUsage?: boolean;
-    now?: number;
-};
-export declare const formatContextUsageShort: (total: number | null | undefined, contextTokens: number | null | undefined) => string;
-export declare function buildStatusMessage(args: StatusArgs): string;
+export { buildStatusMessage, formatContextUsageShort, formatTokenCount, type StatusArgs, } from "../status/status-message.js";
 export declare function buildToolsMessage(result: EffectiveToolInventoryResult, options?: {
     verbose?: boolean;
 }): string;

@@ -1,8 +1,9 @@
-import { r as resolveCopilotTransportApi } from "../../models-Bq8Uk4YG.js";
+import { r as resolveCopilotTransportApi } from "../../models-CZL3_C6Y.js";
 //#region extensions/github-copilot/models-defaults.ts
 const DEFAULT_CONTEXT_WINDOW = 128e3;
 const DEFAULT_MAX_TOKENS = 8192;
 const DEFAULT_MODEL_IDS = [
+	"claude-opus-4.7",
 	"claude-sonnet-4.6",
 	"claude-sonnet-4.5",
 	"gpt-4o",

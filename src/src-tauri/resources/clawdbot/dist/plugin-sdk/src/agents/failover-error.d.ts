@@ -6,6 +6,7 @@ export declare class FailoverError extends Error {
     readonly profileId?: string;
     readonly status?: number;
     readonly code?: string;
+    readonly rawError?: string;
     constructor(message: string, params: {
         reason: FailoverReason;
         provider?: string;
@@ -13,6 +14,7 @@ export declare class FailoverError extends Error {
         profileId?: string;
         status?: number;
         code?: string;
+        rawError?: string;
         cause?: unknown;
     });
 }
@@ -22,6 +24,7 @@ export declare function isTimeoutError(err: unknown): boolean;
 export declare function resolveFailoverReasonFromError(err: unknown): FailoverReason | null;
 export declare function describeFailoverError(err: unknown): {
     message: string;
+    rawError?: string;
     reason?: FailoverReason;
     status?: number;
     code?: string;

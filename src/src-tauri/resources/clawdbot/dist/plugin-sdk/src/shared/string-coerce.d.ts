@@ -4,6 +4,7 @@ export declare function normalizeOptionalString(value: unknown): string | undefi
 export declare function normalizeStringifiedOptionalString(value: unknown): string | undefined;
 export declare function normalizeOptionalLowercaseString(value: unknown): string | undefined;
 export declare function normalizeLowercaseStringOrEmpty(value: unknown): string;
+export declare function normalizeFastMode(raw?: string | boolean | null): boolean | undefined;
 export declare function lowercasePreservingWhitespace(value: string): string;
 export declare function localeLowercasePreservingWhitespace(value: string): string;
 export declare function resolvePrimaryStringValue(value: unknown): string | undefined;

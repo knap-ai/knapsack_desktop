@@ -1,8 +1,8 @@
 // Legacy shim for pre-tsdown update-cli imports.
-import * as daemonCli from "../daemon-cli-amqZMLRn.js";
-import * as daemonCliRunners0 from "../install.runtime-8gxteKEA.js";
-import * as daemonCliRunners1 from "../lifecycle.runtime-DZ3TSSmz.js";
-import * as daemonCliRunners2 from "../status.runtime-BnTe-Qkj.js";
+import * as daemonCli from "../daemon-cli-vknQUAps.js";
+import * as daemonCliRunners0 from "../install.runtime-DPFsp45V.js";
+import * as daemonCliRunners1 from "../lifecycle.runtime-CVb1kxyH.js";
+import * as daemonCliRunners2 from "../status.runtime-DMUO5Mfo.js";
 export const registerDaemonCli = daemonCli.t;
 export const runDaemonInstall = daemonCliRunners0.runDaemonInstall;
 export const runDaemonRestart = daemonCliRunners1.runDaemonRestart;

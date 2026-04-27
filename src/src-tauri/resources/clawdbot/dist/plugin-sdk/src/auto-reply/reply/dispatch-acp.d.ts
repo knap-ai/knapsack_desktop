@@ -16,6 +16,10 @@ export declare function tryDispatchAcpReply(params: {
     dispatcher: ReplyDispatcher;
     runId?: string;
     sessionKey?: string;
+    images?: Array<{
+        data: string;
+        mimeType: string;
+    }>;
     abortSignal?: AbortSignal;
     inboundAudio: boolean;
     sessionTtsAuto?: TtsAutoMode;

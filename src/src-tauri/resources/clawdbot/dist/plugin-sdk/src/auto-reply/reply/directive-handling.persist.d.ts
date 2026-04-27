@@ -1,7 +1,14 @@
-import type { ModelAliasIndex } from "../../agents/model-selection.js";
+import { type ModelAliasIndex } from "../../agents/model-selection.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { InlineDirectives } from "./directive-handling.parse.js";
+import type { ThinkLevel } from "./directives.js";
+export type PersistedThinkingLevelRemap = {
+    from: ThinkLevel;
+    to: ThinkLevel;
+    provider: string;
+    model: string;
+};
 export declare function persistInlineDirectives(params: {
     directives: InlineDirectives;
     effectiveModelDirective?: string;
@@ -26,8 +33,10 @@ export declare function persistInlineDirectives(params: {
     surface?: string;
     gatewayClientScopes?: string[];
     senderIsOwner?: boolean;
+    markLiveSwitchPending?: boolean;
 }): Promise<{
     provider: string;
     model: string;
     contextTokens: number;
+    thinkingRemap?: PersistedThinkingLevelRemap;
 }>;

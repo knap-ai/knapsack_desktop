@@ -1,4 +1,4 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-mcFqxQzW.js";
+import { defineBundledChannelEntry } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/googlechat/index.ts
 var googlechat_default = defineBundledChannelEntry({
 	id: "googlechat",
@@ -6,7 +6,7 @@ var googlechat_default = defineBundledChannelEntry({
 	description: "OpenClaw Google Chat channel plugin",
 	importMetaUrl: import.meta.url,
 	plugin: {
-		specifier: "./api.js",
+		specifier: "./channel-plugin-api.js",
 		exportName: "googlechatPlugin"
 	},
 	secrets: {

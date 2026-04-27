@@ -10,6 +10,8 @@ export declare function resolveModelDisplayName(params: ModelDisplaySelectionPar
 type SessionInfoModelSelectionParams = {
     currentProvider?: string | null;
     currentModel?: string | null;
+    defaultProvider?: string | null;
+    defaultModel?: string | null;
     entryProvider?: string | null;
     entryModel?: string | null;
     overrideProvider?: string | null;

@@ -13,6 +13,7 @@ export type PluginHttpRouteRegistration = RegistryTypesPluginHttpRouteRegistrati
 export type { PluginChannelRegistration, PluginChannelSetupRegistration, PluginCliBackendRegistration, PluginCliRegistration, PluginCommandRegistration, PluginConversationBindingResolvedHandlerRegistration, PluginHookRegistration, PluginAgentHarnessRegistration, PluginMemoryEmbeddingProviderRegistration, PluginNodeHostCommandRegistration, PluginProviderRegistration, PluginRecord, PluginRegistry, PluginRegistryParams, PluginReloadRegistration, PluginSecurityAuditCollectorRegistration, PluginServiceRegistration, PluginTextTransformsRegistration, PluginToolRegistration, PluginSpeechProviderRegistration, PluginRealtimeTranscriptionProviderRegistration, PluginRealtimeVoiceProviderRegistration, PluginMediaUnderstandingProviderRegistration, PluginImageGenerationProviderRegistration, PluginVideoGenerationProviderRegistration, PluginMusicGenerationProviderRegistration, PluginWebFetchProviderRegistration, PluginWebSearchProviderRegistration, } from "./registry-types.js";
 type PluginTypedHookPolicy = {
     allowPromptInjection?: boolean;
+    allowConversationAccess?: boolean;
 };
 export { createEmptyPluginRegistry } from "./registry-empty.js";
 export declare function createPluginRegistry(registryParams: PluginRegistryParams): {
@@ -23,6 +24,7 @@ export declare function createPluginRegistry(registryParams: PluginRegistryParam
         hookPolicy?: PluginTypedHookPolicy;
         registrationMode?: PluginRegistrationMode;
     }) => OpenClawPluginApi;
+    rollbackPluginGlobalSideEffects: (pluginId: string) => void;
     pushDiagnostic: (diag: PluginDiagnostic) => void;
     registerTool: (record: PluginRecord, tool: AnyAgentTool | OpenClawPluginToolFactory, opts?: {
         name?: string;

@@ -1,7 +1,8 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { clearActiveMcpLoopbackRuntime, createMcpLoopbackServerConfig, getActiveMcpLoopbackRuntime, setActiveMcpLoopbackRuntime } from "./mcp-http.loopback-runtime.js";
+import { clearActiveMcpLoopbackRuntimeByOwnerToken, createMcpLoopbackServerConfig, getActiveMcpLoopbackRuntime, setActiveMcpLoopbackRuntime } from "./mcp-http.loopback-runtime.js";
 import { type McpLoopbackTool, type McpToolSchemaEntry } from "./mcp-http.schema.js";
 type CachedScopedTools = {
+    agentId: string | undefined;
     tools: McpLoopbackTool[];
     toolSchema: McpToolSchemaEntry[];
     configRef: OpenClawConfig;
@@ -17,4 +18,4 @@ export declare class McpLoopbackToolCache {
         senderIsOwner: boolean | undefined;
     }): CachedScopedTools;
 }
-export { clearActiveMcpLoopbackRuntime, createMcpLoopbackServerConfig, getActiveMcpLoopbackRuntime, setActiveMcpLoopbackRuntime, };
+export { clearActiveMcpLoopbackRuntimeByOwnerToken, createMcpLoopbackServerConfig, getActiveMcpLoopbackRuntime, setActiveMcpLoopbackRuntime, };

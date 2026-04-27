@@ -19,8 +19,15 @@ export type RestartSentinelStats = {
     reason?: string | null;
     durationMs?: number | null;
 };
+export type RestartSentinelContinuation = {
+    kind: "systemEvent";
+    text: string;
+} | {
+    kind: "agentTurn";
+    message: string;
+};
 export type RestartSentinelPayload = {
-    kind: "config-apply" | "config-patch" | "update" | "restart";
+    kind: "config-apply" | "config-auto-recovery" | "config-patch" | "update" | "restart";
     status: "ok" | "error" | "skipped";
     ts: number;
     sessionKey?: string;
@@ -33,6 +40,7 @@ export type RestartSentinelPayload = {
     /** Thread ID for reply threading (e.g., Slack thread_ts). */
     threadId?: string;
     message?: string | null;
+    continuation?: RestartSentinelContinuation | null;
     doctorHint?: string | null;
     stats?: RestartSentinelStats | null;
 };
@@ -40,10 +48,17 @@ export type RestartSentinel = {
     version: 1;
     payload: RestartSentinelPayload;
 };
+export declare const DEFAULT_RESTART_SUCCESS_CONTINUATION_MESSAGE = "The gateway restart completed successfully. Tell the user OpenClaw restarted successfully and continue any pending work.";
 export declare function formatDoctorNonInteractiveHint(env?: Record<string, string | undefined>): string;
 export declare function resolveRestartSentinelPath(env?: NodeJS.ProcessEnv): string;
 export declare function writeRestartSentinel(payload: RestartSentinelPayload, env?: NodeJS.ProcessEnv): Promise<string>;
+export declare function removeRestartSentinelFile(filePath: string | null | undefined): Promise<void>;
+export declare function buildRestartSuccessContinuation(params: {
+    sessionKey?: string;
+    continuationMessage?: string | null;
+}): RestartSentinelContinuation | null;
 export declare function readRestartSentinel(env?: NodeJS.ProcessEnv): Promise<RestartSentinel | null>;
+export declare function hasRestartSentinel(env?: NodeJS.ProcessEnv): Promise<boolean>;
 export declare function consumeRestartSentinel(env?: NodeJS.ProcessEnv): Promise<RestartSentinel | null>;
 export declare function formatRestartSentinelMessage(payload: RestartSentinelPayload): string;
 export declare function summarizeRestartSentinel(payload: RestartSentinelPayload): string;

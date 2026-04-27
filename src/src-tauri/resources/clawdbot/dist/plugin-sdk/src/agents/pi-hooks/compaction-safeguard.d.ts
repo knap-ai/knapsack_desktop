@@ -3,6 +3,10 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { hasMeaningfulConversationContent, isRealConversationMessage } from "../compaction-real-conversation.js";
 import { computeAdaptiveChunkRatio, isOversizedForSummary, summarizeInStages } from "../compaction.js";
 import { appendSummarySection, auditSummaryQuality, buildCompactionStructureInstructions, buildStructuredFallbackSummary, extractOpaqueIdentifiers } from "./compaction-safeguard-quality.js";
+declare function prependPreviousSummaryForRedistill(params: {
+    messages: AgentMessage[];
+    previousSummary?: string;
+}): AgentMessage[];
 type ToolFailure = {
     toolCallId: string;
     toolName: string;
@@ -42,6 +46,7 @@ export declare const __testing: {
     readonly formatSplitTurnContextSection: typeof formatSplitTurnContextSection;
     readonly buildCompactionStructureInstructions: typeof buildCompactionStructureInstructions;
     readonly buildStructuredFallbackSummary: typeof buildStructuredFallbackSummary;
+    readonly prependPreviousSummaryForRedistill: typeof prependPreviousSummaryForRedistill;
     readonly appendSummarySection: typeof appendSummarySection;
     readonly resolveRecentTurnsPreserve: typeof resolveRecentTurnsPreserve;
     readonly resolveQualityGuardMaxRetries: typeof resolveQualityGuardMaxRetries;

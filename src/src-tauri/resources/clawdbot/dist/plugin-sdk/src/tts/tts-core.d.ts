@@ -4,6 +4,7 @@ import { resolveModelAsync } from "../agents/pi-embedded-runner/model.js";
 import { prepareModelForSimpleCompletion } from "../agents/simple-completion-transport.js";
 import type { OpenClawConfig } from "../config/types.js";
 import type { ResolvedTtsConfig } from "./tts-types.js";
+export { normalizeApplyTextNormalization, normalizeLanguageCode, normalizeSeed, requireInRange, scheduleCleanup, } from "./tts-provider-helpers.js";
 type SummarizeTextDeps = {
     completeSimple: typeof completeSimple;
     getApiKeyForModel: typeof getApiKeyForModel;
@@ -11,10 +12,6 @@ type SummarizeTextDeps = {
     requireApiKey: typeof requireApiKey;
     resolveModelAsync: typeof resolveModelAsync;
 };
-export declare function requireInRange(value: number, min: number, max: number, label: string): void;
-export declare function normalizeLanguageCode(code?: string): string | undefined;
-export declare function normalizeApplyTextNormalization(mode?: string): "auto" | "on" | "off" | undefined;
-export declare function normalizeSeed(seed?: number): number | undefined;
 type SummarizeResult = {
     summary: string;
     latencyMs: number;
@@ -28,5 +25,3 @@ export declare function summarizeText(params: {
     config: ResolvedTtsConfig;
     timeoutMs: number;
 }, deps?: SummarizeTextDeps): Promise<SummarizeResult>;
-export declare function scheduleCleanup(tempDir: string, delayMs?: number): void;
-export {};

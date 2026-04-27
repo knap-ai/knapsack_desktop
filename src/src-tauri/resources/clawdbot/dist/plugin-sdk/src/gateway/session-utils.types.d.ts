@@ -6,8 +6,16 @@ export type GatewaySessionsDefaults = {
     modelProvider: string | null;
     model: string | null;
     contextTokens: number | null;
+    thinkingLevels?: GatewayThinkingLevelOption[];
+    thinkingOptions?: string[];
+    thinkingDefault?: string;
+};
+export type GatewayThinkingLevelOption = {
+    id: string;
+    label: string;
 };
 export type SessionRunStatus = "running" | "done" | "failed" | "killed" | "timeout";
+export type SubagentRunState = "active" | "interrupted" | "historical";
 export type GatewaySessionRow = {
     key: string;
     spawnedBy?: string;
@@ -32,6 +40,9 @@ export type GatewaySessionRow = {
     systemSent?: boolean;
     abortedLastRun?: boolean;
     thinkingLevel?: string;
+    thinkingLevels?: GatewayThinkingLevelOption[];
+    thinkingOptions?: string[];
+    thinkingDefault?: string;
     fastMode?: boolean;
     verboseLevel?: string;
     traceLevel?: string;
@@ -44,6 +55,8 @@ export type GatewaySessionRow = {
     totalTokensFresh?: boolean;
     estimatedCostUsd?: number;
     status?: SessionRunStatus;
+    subagentRunState?: SubagentRunState;
+    hasActiveSubagentRun?: boolean;
     startedAt?: number;
     endedAt?: number;
     runtimeMs?: number;
