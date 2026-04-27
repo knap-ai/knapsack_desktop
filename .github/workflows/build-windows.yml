@@ -158,7 +158,8 @@ jobs:
       - name: Show disk space after build
         if: always()
         shell: pwsh
-        run: Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk after build: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
+        run: |
+          Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk after build: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
 
       - name: Post build log to PR on failure
         if: failure() && github.event.pull_request.number != ''
