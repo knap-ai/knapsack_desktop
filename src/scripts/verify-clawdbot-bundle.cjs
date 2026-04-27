@@ -144,15 +144,14 @@ const CRITICAL_PACKAGES = [
   'tar',
   'jszip',
   'https-proxy-agent',
-  'sonic-boom',
   'cli-highlight',
   'markdown-it',
   '@anthropic-ai/vertex-sdk',
   '@mariozechner/pi-coding-agent',
-  '@sinclair/typebox',
+  // typebox renamed from @sinclair/typebox in openclaw 2026.4.24+
+  'typebox',
   '@clack/prompts',
   '@modelcontextprotocol/sdk',
-  '@slack/bolt',
   '@slack/web-api',
   'file-type',
 ];
