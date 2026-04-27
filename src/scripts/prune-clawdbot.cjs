@@ -211,6 +211,16 @@ pruneArtifacts(nodeModules);
 // Also clean up extension-level node_modules (installed by install-bundled-plugin-deps.cjs).
 // These can contain test artifacts like __image_snapshots__ with deeply-nested paths that
 // exceed the Windows MAX_PATH limit and cause NSIS bundling to fail.
+// Subdirectories of packages whose filenames exceed Windows MAX_PATH (260 chars)
+// when placed under the full extension node_modules install path. WiX light.exe
+// fails with LGHT0103 on these. List the subdir to remove (not the whole package,
+// so the CJS dist/ entry point remains usable at runtime).
+const LONG_PATH_PACKAGE_SUBDIRS = [
+  // @mistralai/mistralai ESM operation files have ~100-char filenames that push
+  // the full path past 260 chars. The CJS dist/ tree is unaffected and sufficient.
+  path.join('@mistralai', 'mistralai', 'esm'),
+];
+
 if (fs.existsSync(distExtensionsDir)) {
   try {
     for (const extEntry of fs.readdirSync(distExtensionsDir, { withFileTypes: true })) {
@@ -219,6 +229,12 @@ if (fs.existsSync(distExtensionsDir)) {
       if (fs.existsSync(extNodeModules)) {
         console.log(`[prune-clawdbot]     cleaning extension node_modules: ${extEntry.name}`);
         pruneArtifacts(extNodeModules);
+        for (const subdir of LONG_PATH_PACKAGE_SUBDIRS) {
+          const target = path.join(extNodeModules, subdir);
+          if (rmDir(target)) {
+            console.log(`[prune-clawdbot]     removed long-path subdir: ${extEntry.name}/node_modules/${subdir.replace(/\\/g, '/')}`);
+          }
+        }
       }
     }
   } catch { /* skip */ }
