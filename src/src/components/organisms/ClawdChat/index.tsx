@@ -461,6 +461,7 @@ const OPENROUTER_MODELS: OpenRouterModelOption[] = [
 // Recommended models to offer for download when Ollama has none installed
 type OllamaModelSuggestion = { id: string; name: string; description: string; size: string }
 const OLLAMA_SUGGESTED_MODELS: OllamaModelSuggestion[] = [
+  { id: 'hf.co/tunedailabs/knapsack-causal-7b-merged', name: 'Knapsack 7B', description: 'Knapsack-tuned causal model, optimized for this app', size: '~4.1 GB' },
   { id: 'llama3.1:8b', name: 'Llama 3.1 8B', description: 'Great all-rounder, fast on most hardware', size: '~4.7 GB' },
   { id: 'gemma3:4b', name: 'Gemma 3 4B', description: 'Google model, compact and capable', size: '~3.3 GB' },
   { id: 'mistral:7b', name: 'Mistral 7B', description: 'Excellent reasoning, low resource usage', size: '~4.1 GB' },
