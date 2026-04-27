@@ -86,7 +86,7 @@ Section "Install" SecMain
   FileWrite $R0 '  $plat    = $meta.platforms."windows-x86_64"$\r$\n'
   FileWrite $R0 '  if (-not $plat -or -not $plat.url) { throw "latest.json has no windows-x86_64 entry" }$\r$\n'
   FileWrite $R0 '  $zipUrl  = $plat.url$\r$\n'
-  FileWrite $R0 '  $exeUrl  = $zipUrl -replace "\.nsis\.zip$", ".exe"$\r$\n'
+  FileWrite $R0 '  $exeUrl  = $zipUrl -replace "_en-US\.nsis\.zip$", "-setup.exe"$\r$\n'
   FileWrite $R0 '  $version = $meta.version$\r$\n'
   FileWrite $R0 '  Write-Host "Downloading Knapsack $version ..."$\r$\n'
   FileWrite $R0 '  Write-Host "URL: $exeUrl"$\r$\n'
