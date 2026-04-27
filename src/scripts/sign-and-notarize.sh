@@ -268,17 +268,33 @@ if [ "$DO_NOTARIZE" = true ]; then
   echo "[notarize] Creating zip: $ZIP_PATH"
   ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
-  echo "[notarize] Submitting to Apple (this may take a few minutes)..."
+  echo "[notarize] Submitting .app to Apple (upload only — poll separately to survive network blips)..."
   SUBMIT_OUTPUT=$(xcrun notarytool submit "$ZIP_PATH" \
     --apple-id "$APPLE_ID" \
     --team-id "$APPLE_TEAM_ID" \
-    --password "$APPLE_APP_PASSWORD" \
-    --wait 2>&1) || true
+    --password "$APPLE_APP_PASSWORD" 2>&1)
   echo "$SUBMIT_OUTPUT"
-
-  # Extract submission ID and status
   SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
-  NOTARY_STATUS=$(echo "$SUBMIT_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
+  if [ -z "$SUBMISSION_ID" ]; then
+    echo "[notarize] ERROR: No submission ID received; upload failed." >&2
+    exit 1
+  fi
+  echo "[notarize] Submission ID: $SUBMISSION_ID"
+
+  # Wait for result; retry up to 5 times on transient network failures
+  NOTARY_STATUS=""; _WAIT_DELAY=30
+  for _attempt in 1 2 3 4 5; do
+    echo "[notarize] Polling .app notarization status (attempt $_attempt/5)..."
+    _WAIT_OUTPUT=$(xcrun notarytool wait "$SUBMISSION_ID" \
+      --apple-id "$APPLE_ID" \
+      --team-id "$APPLE_TEAM_ID" \
+      --password "$APPLE_APP_PASSWORD" 2>&1) || true
+    echo "$_WAIT_OUTPUT"
+    NOTARY_STATUS=$(echo "$_WAIT_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
+    [ -n "$NOTARY_STATUS" ] && break
+    echo "[notarize] No status received (network error?); retrying in ${_WAIT_DELAY}s..."
+    sleep "$_WAIT_DELAY"; _WAIT_DELAY=$((_WAIT_DELAY * 2))
+  done
 
   if [ "$NOTARY_STATUS" != "Accepted" ]; then
     echo "[notarize] ERROR: Notarization failed with status: $NOTARY_STATUS" >&2
@@ -325,16 +341,34 @@ if [ "$DO_NOTARIZE" = true ]; then
       echo "[notarize] Signing DMG..."
       codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_PATH"
 
-      # Notarize the DMG
-      echo "[notarize] Submitting DMG to Apple for notarization..."
+      # Notarize the DMG — submit only, then poll with retries
+      echo "[notarize] Submitting DMG to Apple (upload only — poll separately to survive network blips)..."
       DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
         --apple-id "$APPLE_ID" \
         --team-id "$APPLE_TEAM_ID" \
-        --password "$APPLE_APP_PASSWORD" \
-        --wait 2>&1) || true
+        --password "$APPLE_APP_PASSWORD" 2>&1)
       echo "$DMG_SUBMIT_OUTPUT"
+      DMG_SUBMISSION_ID=$(echo "$DMG_SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
+      if [ -z "$DMG_SUBMISSION_ID" ]; then
+        echo "[notarize] ERROR: No DMG submission ID received; upload failed." >&2
+        exit 1
+      fi
+      echo "[notarize] DMG submission ID: $DMG_SUBMISSION_ID"
 
-      DMG_STATUS=$(echo "$DMG_SUBMIT_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
+      DMG_STATUS=""; _DMG_DELAY=30
+      for _attempt in 1 2 3 4 5; do
+        echo "[notarize] Polling DMG notarization status (attempt $_attempt/5)..."
+        _DMG_WAIT=$(xcrun notarytool wait "$DMG_SUBMISSION_ID" \
+          --apple-id "$APPLE_ID" \
+          --team-id "$APPLE_TEAM_ID" \
+          --password "$APPLE_APP_PASSWORD" 2>&1) || true
+        echo "$_DMG_WAIT"
+        DMG_STATUS=$(echo "$_DMG_WAIT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
+        [ -n "$DMG_STATUS" ] && break
+        echo "[notarize] No status received (network error?); retrying in ${_DMG_DELAY}s..."
+        sleep "$_DMG_DELAY"; _DMG_DELAY=$((_DMG_DELAY * 2))
+      done
+
       if [ "$DMG_STATUS" = "Accepted" ]; then
         echo "[notarize] Stapling DMG..."
         xcrun stapler staple "$DMG_PATH"
