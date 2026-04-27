@@ -4306,7 +4306,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       return acc
     }, [])
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, health, channelStatus.gatewayStarting, currentTargetId])
+  }, [status, health, channelStatus.gatewayStarting, gatewayDownPolls, currentTargetId])
 
   // Memoize message parsing so extractPromptActions only re-runs when msgs change,
   // not on every re-render from status/health polling.
