@@ -1894,8 +1894,10 @@ function toSafeImportPath(specifier) {
 	if (specifier.startsWith("file://")) return specifier;
 	if (path.win32.isAbsolute(specifier)) {
 		const normalizedSpecifier = specifier.replaceAll("\\", "/");
-		if (normalizedSpecifier.startsWith("//")) return new URL(`file:${encodeURI(normalizedSpecifier)}`).href;
-		return new URL(`file:///${encodeURI(normalizedSpecifier)}`).href;
+		// Strip Windows extended-length path prefix (//?/ after normalization)
+		const cleanSpecifier = normalizedSpecifier.startsWith("//?/") ? normalizedSpecifier.slice(4) : normalizedSpecifier;
+		if (cleanSpecifier.startsWith("//")) return new URL(`file:${encodeURI(cleanSpecifier)}`).href;
+		return new URL(`file:///${encodeURI(cleanSpecifier)}`).href;
 	}
 	return specifier;
 }
