@@ -3441,12 +3441,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     const handleRunInTerminal = (e: React.MouseEvent) => {
       e.stopPropagation()
+      const panelWasClosed = !externalActivityPanelRef.current
       // Auto-open Activity Panel if not already open
-      if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
+      if (panelWasClosed && onToggleActivityRef.current) {
         onToggleActivityRef.current()
       }
       const command = codeText.trim()
-      window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command } }))
+      const dispatchRun = () => window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command } }))
+      // If the panel just opened, its useEffect listener hasn't mounted yet.
+      // Delay dispatch one frame so the panel can register before the event fires.
+      if (panelWasClosed) {
+        setTimeout(dispatchRun, 150)
+      } else {
+        dispatchRun()
+      }
 
       // Auto-follow-up: after a delay, send a message so the AI reads
       // terminal output and continues without the user having to ask.
